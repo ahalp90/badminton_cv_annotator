@@ -1,230 +1,161 @@
-# Court detector
+# Run the court detector
 
-This folder finds a badminton court in one image from a video, usually a single
-frame. It runs the accepted research method as one piece of code, and keeps
-every step's results in memory. With its upright-camera filter off, it gives
-the same results as the research scripts on the 28 test views. The filter is on
-by default. It saves 42% of the time and changes the court on 3 of the 20
-court views: one gets much better and two slip about one line at the far end. The detector is not ready for new videos yet: a view takes about 2
-minutes, its inputs come from other tools, and it still loads code from
-research folders.
+`CourtDetector` finds a badminton court in a prepared image. It runs the
+search and scoring steps in memory and returns four court corners, or a reason that no
+court was found. This page owns its inputs, behaviour, settings and commands.
 
-**Names from the research.** The accepted method is called the D17 chain, and
-`../d17_timing/run_d17.py` is the research script that runs it. The code labels
-its steps too: G0 and G1 are the two court searches, and W5 is the scoring
-stage. This page uses plain names and gives each label once, in brackets, so
-you can find it in the code.
+Read [pickup.md](../pickup.md) for current work,
+[the decisions](../DETECTOR_DECISIONS.md#d19) for measured results, and
+[PERFORMANCE.md](PERFORMANCE.md) for the speed-up design.
 
-## What goes in and what comes out
+## Inputs and result
 
-`CourtDetector.detect(view, people, frames)` in `detect.py` takes three
-inputs. Their types are in `inputs.py`.
+`CourtDetector.detect(view, people, frames)` takes three inputs from `inputs.py`:
 
-- `view` (`ViewInputs`): the image, which is a video frame or a composite of
-  several. Also its line fragments, which are short line segments found by the
-  DeepLSD line detector. Also the person boxes, the video frame the image
-  stands for, the first and last frame of its scene, and a note of which frames
-  the image and boxes came from (`provenance`)
-- `people` (`PeopleSource`): the people in the video frames around that one,
-  each with a box and 17 body-joint positions (the COCO-17 pose layout)
-- `frames` (`FrameReader`): those video frames themselves
+- `view` (`ViewInputs`): an image, its detected line fragments, person boxes,
+  represented video frame, scene boundaries, and the source frames for the
+  image and boxes. The detector uses that source information to avoid hiding
+  people in the wrong image
+- `people` (`PeopleSource`): boxes and 17 COCO-layout body joints for people
+  in nearby video frames
+- `frames` (`FrameReader`): access to those nearby video frames
 
-It returns a `CourtResult`:
+A caller must supply these inputs. The detector does not yet build them from
+a new video.
 
-- `corners_native_px`: the court's four corners in the original image's
-  pixels. The detector projects the whole court, so a corner can lie outside
-  the image. `None` means no court
-- `no_court_reason`: why there is no court. `no_gated_court` means no
-  candidate passed the full-court checks in step 5. `rank_deficient` and the
-  other refit reasons mean the final fit in step 7 failed. For example,
-  `rank_deficient` means it had too little independent information to fix all
-  four corners
-- `chosen_key`: which candidate won
-- `stage_seconds`: seconds per step, when timing is on
+The returned `CourtResult` contains:
+
+| Field | Meaning |
+| --- | --- |
+| `corners_native_px` | Four corners in the original image's pixels, or `None`. Corners can lie outside the image |
+| `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information |
+| `chosen_key` | The saved identifier of the chosen court |
+| `stage_seconds` | Time per step when timing is enabled |
 
 ## How it finds the court
 
-Most steps work on a working image, which is the image shrunk until its
-longest side is at most 960 pixels. A 16:9 frame becomes 960×540.
+Most steps shrink the image to a longest side of at most 960 pixels.
+A 16:9 image becomes 960×540.
 
-1. **Feet** (`feet.py`). Looks at 31 video frames around the image, 10 a
-   second, which covers 3 s. Near the edge of a scene, the window shifts to
-   stay inside it; a scene shorter than the window raises `ValueError`. Keeps
-   the unbroken run of frames around the image's frame that stay in its shot.
-   A frame leaves the shot when a small grey thumbnail of it differs from the
-   image's by more than 8 grey levels on average. Takes the bottom centre of
-   each person's box as their feet, and drops people whose pose shows them
-   seated.
-2. **Set-up**. Shrinks the image and the line fragments to working size, and
-   sorts the fragments by direction. The person boxes hide people from the
-   paint measurements, but only when the boxes come from the image itself.
-3. **Court search** (G0 and G1). Finds up to 16 main line directions in the
-   view. For every pair of them, tried both ways round, it matches lines to the
-   court's markings and builds candidate courts. It rejects courts the players'
-   feet do not fit. It also skips courts that need a camera turned on its side
-   or upside down (the upright-camera filter, below). It keeps up to 256 of the
-   best-scoring, distinct courts per
-   pair, and 256 overall. It runs twice: once on every line fragment (G0), and
-   once on only the fragments that look like white paint (G1). A paint fragment
-   is a pale line, clearly brighter than its surroundings and not strongly
-   coloured.
-4. **Line templates**. Builds more candidates from rectangles of crossing
-   lines. As well as its own starting points, it tries the point where each
-   pair of the three longest lengthwise lines meets. A template must show at
-   least 4 lengthwise and 3 cross-court lines, and a camera with a plausible
-   lens must be able to see it that way.
-5. **Scoring** (W5). Merges duplicate candidates and sets aside invalid
-   shapes. For each remaining candidate, it measures how well its markings sit
-   on painted stripes, and tries refitting it to those stripes. Then it ranks
-   the candidates and their successful refits together. Only candidates that
-   pass the full-court checks (gated) can win. A gated court has a valid
-   shape, and a real camera could see it that way. The players' feet also land
-   on it or just outside it, within 15% of its size. At least one player must
-   do so in every sampled frame, and one in each half in at least half the
-   frames.
-6. **Net choice** (`net_choice.py`). Each gated candidate implies where the
-   two net posts stand. Its score is 90% its scoring-stage paint score and 10%
-   its scoring-stage geometry score (how well line fragments support its
-   lines). A small bonus is added when line fragments support the net posts:
-   0.02 for one post, 0.04 for both. The highest score wins. With no gated
-   candidate, there is no court.
-7. **Stripe refit** (`stripe_refit.py`). A line fragment can sit on a
-   painted stripe's centre or on either edge. For the winner, this step checks
-   the brightness and colour on either side of each fragment it fits. It moves
-   a fragment to a different centre or edge position only when that evidence
-   is strong enough. Then it refits the corners. If that fit fails, there is no
-   court.
+1. **Find players' feet.** Sample 31 frames at 10 per second. Shift the window
+   to stay within the scene; a scene shorter than the window raises
+   `ValueError`. Keep the continuous run of frames from the same shot around
+   the target. Use the bottom centre of each box, excluding people whose
+   poses indicate they are seated
+2. **Prepare the lines and image.** Shrink line fragments and group them by
+   direction. Hide person boxes from paint measurements only when the boxes
+   belong to this image
+3. **Search for courts.** Match pairs of line directions to court markings.
+   Run once with all fragments (G0), and once with only paint-like fragments
+   (G1). The second search uses pale lines that are brighter than their
+   surroundings and not strongly coloured. Players' feet must fit the court.
+   Reject sideways and upside-down camera geometry. Keep up to 256 distinct
+   courts per pair and 256 per complete search
+4. **Build courts from crossing lines.** Use rectangles and extra starting
+   points from the three longest lengthwise lines. Require at least four
+   lengthwise and three cross-court lines, and a plausible camera
+5. **Score and refit the possible courts.** Merge duplicates, check shapes,
+   measure paint support and try refitting each court to its stripes. Rank
+   the courts and successful refits together. A court can win only if its
+   geometry and camera are valid and the players fit. At least one player
+   must fit in every sampled frame, and one in each half in at least half
+   the frames. The code calls this stage W5
+6. **Choose a court.** Combine 90% paint score and 10% line-support score.
+   Add 0.02 for each supported net post, up to 0.04. Missing net support is
+   neutral. If no court passed the checks, return no court
+7. **Adjust the stripe fit.** Check whether each fitted line lies on the
+   centre or an edge of its painted stripe. Change its label only when the
+   image evidence is clear, then refit the corners. A failed fit returns no
+   court
 
-Steps 3 to 5 take almost all the time.
+The court checks allow feet up to 15% beyond the court. The shot check keeps
+frames whose small grey thumbnail differs from the target by no more than
+eight grey levels on average. These are existing rules, not extra input
+preparation supplied by the caller.
 
-## Current state
+## Run it
 
-- **It matches the research scripts with the filter and the blend off.** On all 28 test
-  views, the chosen court, the refit and the other results the check compares
-  are identical, bit for bit. `check_20260925/README.md` has the evidence and
-  says exactly what was compared.
-- **The upright-camera filter.** Every court from one pair of line directions
-  shares a horizon: the line through the two directions' vanishing points. The
-  search skips a pair whose horizon tilts more than 45 degrees, because its
-  courts need a camera on its side. It also drops a court above its horizon,
-  because that needs an upside-down camera. A horizon more than 10 image
-  diagonals away, from a camera looking nearly straight down, passes both
-  tests. `check_20260926_upright/README.md` has the results.
-- **The geometry blend.** The research net choice used the paint score
-  alone. Blending in 10% of the geometry score fixed one far-end slip in a
-  local replay (`gxBQ_window_00_frame_689`, 0.94 to 0.32 m) and changed no
-  other pick. `check_20260926_court_choice/README.md` has the results.
-- **Results on the 28 views.** 20 are court views and 8 are control views
-  with no court (`sset_21_…`, from one ShuttleSet video). All 20 court views
-  get a court. Of the 8 control views, 6 correctly get no gated court. With the
-  filter on, the other two wrongly get a court:
-  `sset_21_gloiZ_gTJaE_frame_00100347` and `…00014336`. With it off,
-  `…00100347` gets a different wrong court and `…00014336` gets none, only
-  because its final fit fails (`rank_deficient`).
-- **Accuracy** is the research method's. 18 court views have hand-marked
-  court landmarks. On those, the median error per view is 1.2 to 3.4 working
-  pixels, and 2.1 for the middle view
-  (`../court_detector_optimisation_handover/claude_evidence/upright_camera/reference_errors.txt`).
-  Without the filter it is 1.2 to 3.6, and also 2.1 for the middle view.
-  Pixel errors hide slips at the far end, where lines are a few pixels apart.
-  Measured on the floor, the largest error per view is 0.12 to 1.06 m with the
-  filter, and 0.12 to 1.00 m without it (`floor_errors.txt` in the same
-  folder). The scoring stage cannot reliably tell a court that slips one line
-  at the far end from the right one; `check_20260926_upright/README.md` has
-  the details. Of the scoring changes tried against it, only the geometry
-  blend held up. The open question on slips in
-  `../webui_final_opt_handover/README.md` lists the rest.
-- **Speed.** About 130 s a view on one core, from 29 s for a view with no
-  court to 264 s. That comes from 3,703 s over the 28 views, with self-checks
-  off and 8 views at a time on Carmack. It leaves out start-up and video
-  decoding. Scoring takes about half the time and the search about a third.
-  Without the filter it is about 230 s a view (6,434 s), 8-12% faster than
-  the research script, which is about the size of run-to-run noise.
-- **Tests.** In the repository's `tests/` folder, `test_court_detector_feet.py`
-  checks the feet step against the scripts that made the test set's feet, and
-  against BST-X's seated-person rule. `test_court_detector_modules.py` checks
-  that the detector loads the same research modules as the research script.
-  It also checks that research scripts can import the detector's own modules
-  back safely.
-
-## Running it
-
-Run from the repository root, with the repository and its `src/` folder on
-Python's path (`PYTHONPATH=.:src`). Before numpy loads, set six thread
-variables to 1, and give OpenCV's video reader one decoding thread.
-`run_views.py` shows both. Then:
+Run from the repository root with `PYTHONPATH=.:src`. Follow `run_views.py` for
+single-threaded numerical libraries and OpenCV decoding. It sets these before
+loading NumPy.
 
 ```python
 from scratch.court_det_fix.court_detector.detect import CourtDetector, Switches
 
-detector = CourtDetector(Switches())  # loads the research code once
-result = detector.detect(view, people, frames)  # one call per view
+detector = CourtDetector(Switches())
+result = detector.detect(view, people, frames)
 ```
 
-On the test views, run the test harness. Each `VIEW` is a view ID from
-`../court_detector_optimisation_handover/claude_evidence/fresh_feet/views.json`,
-and its image, line fragments and person boxes come from the saved research
-inputs:
+The saved-view runner takes IDs from the
+[28-view list](../court_detector_optimisation_handover/claude_evidence/fresh_feet/views.json).
+Its image, line and box inputs come from saved research records. `PEOPLE_DIR`
+holds one record per view with people, poses and the source video's path.
 
+```bash
+PYTHONPATH=.:src python -m scratch.court_det_fix.court_detector.run_views \
+  --people PEOPLE_DIR \
+  --output OUT \
+  VIEW [VIEW ...]
 ```
-python -m scratch.court_det_fix.court_detector.run_views --people PEOPLE_DIR --output OUT VIEW [VIEW ...]
-```
 
-`PEOPLE_DIR` holds one record per view of the people and poses around its
-image, and each record names its video. The 28-view check used records and
-videos on Carmack; they are not in git. Add
-`--baseline ARM_DIR --feet FEET_FILE --artefacts` to compare each view with
-the saved research run. The `run_views.py` docstring gives the details.
+Add `--baseline ARM_DIR --feet FEET_FILE --artefacts` to compare against a saved
+research run. To reproduce the original 25 September comparison, also use
+`--any-camera-roll --geometry-weight 0`. The newer defaults intentionally
+change results. The [original check](check_20260925/README.md) states exactly
+what was compared; the runner docstring supplies the full command details.
 
-| Switch | Default | What it does |
+The people records and videos used on Carmack are not in git. See
+[the data map](../FP_INDEX.md#data-that-is-not-in-git) before a remote rerun or
+new checkout.
+
+## Settings
+
+| `Switches` field | Default | Behaviour |
 | --- | --- | --- |
-| `self_checks` | On | Checks that each step's output is consistent, for example by replaying the scoring stage's fit before the refit. Costs little. It does not compare with the research run; `run_views.py --baseline` does that |
-| `enforce_scene_consistency` | On | Uses only feet from the image's own shot. Planned to default to off once a scene cutter supplies real scene ranges |
-| `upright_camera` | On | Skips courts that need a camera on its side or upside down. `run_views.py --any-camera-roll` turns it off, and `--baseline` needs it off |
-| `geometry_weight` | 0.1 | Share of the geometry score in the net choice's score; the rest is the paint score. `run_views.py --geometry-weight 0` turns it off, and `--baseline` needs it off |
-| `timing` | Off | Reports seconds per step |
-| `artefacts_dir` | None | Writes each view's intermediate results to this folder |
+| `self_checks` | On | Check intermediate results, including replaying the scoring-stage fit; this is separate from comparison with a saved run |
+| `enforce_scene_consistency` | On | Restrict the foot samples to the target's shot |
+| `upright_camera` | On | Reject courts requiring a sideways or upside-down camera; the runner's `--any-camera-roll` disables it |
+| `geometry_weight` | 0.1 | Share of line support in the final score; the rest is paint support. The runner accepts `--geometry-weight` |
+| `timing` | Off | Report seconds per step |
+| `artefacts_dir` | None | Optionally write intermediate results |
 
-The accepted improvements have no on/off switches yet: the seeded templates,
-the paint-only search, the net choice and the stripe refit. `STRIPPED.md` says
-how to add each one.
+The camera filter skips a direction pair when its horizon tilts more than
+45 degrees. It also skips individual courts that imply an upside-down camera.
+A horizon more than ten image diagonals away passes both tests.
 
-## What it leaves out
+Seeded templates, the paint-line search, the bounded net reward and stripe
+refitting have no individual switches. [STRIPPED.md](STRIPPED.md) records the
+research features left out and where they could be restored.
 
-It skips research-only work that never changes the chosen court: saved files,
-extra rankings and diagnostics, and extra evidence the old search kept for its
-reports. `STRIPPED.md` lists each piece and where it plugs back in.
+## Code map
 
-## Before it can run on new videos
-
-- **Speed.** About 2 minutes a view.
-  `../court_detector_optimisation_handover/README.md` lists what is left to
-  try, such as searching direction pairs in parallel and reusing a court
-  across the scenes of one camera.
-- **Inputs.** Nothing builds the inputs from a new video yet. That needs
-  DeepLSD for the line fragments, and a person and pose detector such as
-  RTMLib for the people. It also needs a scene cutter for the scene range, and
-  PySceneDetect is the candidate. `inputs.same_frame_provenance` makes the
-  provenance for a frame taken straight from the video.
-- **Research code.** The detector still imports 15 files from the research
-  folders. Some of those folders hold files with the same module name. At
-  start-up, `detect.py` checks which copy Python loaded and stops if it is the
-  wrong one. Where the detector should finally live is still open.
-- **Coverage.** Its recorded evaluation covers these 28 views.
-
-## Files
-
-| File | What it holds |
+| File | Responsibility |
 | --- | --- |
-| `detect.py` | `CourtDetector`, `Switches` and `CourtResult`; runs the steps in order |
-| `inputs.py` | The input types |
-| `feet.py` | Step 1 |
-| `search.py` | Step 3's settings and paint filter, and step 4's extra starting points |
-| `net_choice.py` | Step 6 |
-| `stripe_refit.py` | Step 7 |
-| `run_views.py` | The test harness for the 28 views |
-| `STRIPPED.md` | What the detector leaves out |
-| `check_20260925/` | The 28-view comparison with the research scripts |
+| [detect.py](detect.py) | `CourtDetector`, `Switches`, `CourtResult`, and the order of the steps |
+| [inputs.py](inputs.py) | Input types and image/box source information |
+| [feet.py](feet.py) | Player feet and shot checks |
+| [search.py](search.py) | Search settings, paint-like fragments and extra starting points |
+| [net_choice.py](net_choice.py) | Final choice and net-post reward |
+| [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
+| [run_views.py](run_views.py) | Run the prepared views and compare with saved results |
 
-`../d17_timing/WIRING.md` explains how the research stages join up, and why
-each piece is kept or dropped.
+The search, scoring and geometry code now lives in this package. Imports use
+normal package paths and leave `sys.path` unchanged. Saved-view inputs remain
+in the older data folders listed in [FP_INDEX.md](../FP_INDEX.md#code-and-input-paths-to-keep-stable).
+
+| Files | Responsibility |
+| --- | --- |
+| [generation.py](generation.py), [candidate_pool.py](candidate_pool.py), [proposals.py](proposals.py) | Search direction pairs and keep candidate courts |
+| [directions.py](directions.py), [line_matching.py](line_matching.py), [prepare_lines.py](prepare_lines.py) | Estimate directions, match markings and prepare fragments |
+| [line_templates.py](line_templates.py) | Build candidate courts from crossing lines |
+| [scoring.py](scoring.py), [measurements.py](measurements.py), [sampling.py](sampling.py) | Measure and rank courts, refit candidates and share image samples |
+| [geometry.py](geometry.py), [candidate_geometry.py](candidate_geometry.py), [camera.py](camera.py) | Court coordinates, transforms and camera checks |
+| [court_checks.py](court_checks.py), [players.py](players.py) | Check court shape and whether players fit |
+| [line_observations.py](line_observations.py), [stripe_measurements.py](stripe_measurements.py), [stripe_fitting.py](stripe_fitting.py) | Group fragments, measure stripes and fit corners |
+| [paint_geometry.py](paint_geometry.py), [net_geometry.py](net_geometry.py), [junctions.py](junctions.py) | Painted markings, projected net and line crossings |
+| [image_sources.py](image_sources.py), [search_records.py](search_records.py) | Image/box source types, frozen inputs and search-record checks |
+| [paint_profiles.py](paint_profiles.py) | Optional paint diagnostics retained for research callers |
+
+The [27 September archive map](../archive/20260927_code/README.md) records the
+former code locations. Historical scripts there keep their original paths;
+they need a matching checkout or path repair before a rerun.

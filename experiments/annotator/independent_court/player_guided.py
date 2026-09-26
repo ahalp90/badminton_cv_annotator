@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from . import detector
+from scratch.court_det_fix.court_detector import geometry as detector
 
 COURT_SIZE_M = detector.CORNER_COURT_M.max(axis=0)
 

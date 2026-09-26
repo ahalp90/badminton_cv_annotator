@@ -23,7 +23,7 @@ previously used development views.
 ## Scientific interpretation
 
 **The strongest limitation is what “best fit” means.** The producer's
-[`control_fit`](../../frozen_helpers_20260914/automatic_axes/diagnose_directions.py)
+[`control_fit`](../../archive/20260927_code/frozen_helpers_20260914/automatic_axes/diagnose_directions.py)
 fixes two vanishing directions, then fits the remaining parameters directly to
 reference corners. Its docstring explicitly says it does not use observed
 lines. The screen preserves the best such pair. It has not demonstrated that
@@ -46,7 +46,7 @@ coordinate-independent measure of court relevance.
 proposes fitting each distinct assignment from all assigned observations before
 choosing its representative and applying the cap. That targets a real loss
 mechanism: the retained
-[`match_axis`](../../frozen_helpers_20260914/axis_matching/projective_seed.py)
+[`match_axis`](../../archive/20260927_code/frozen_helpers_20260914/axis_matching/projective_seed.py)
 sorts by score, keeps the first occurrence of each assignment, then caps the
 list. The documented Amateur-3 R example contains a 4.2783-pixel enumeration,
 an 8.5405-pixel duplicate representative and a 49.6472-pixel closest retained

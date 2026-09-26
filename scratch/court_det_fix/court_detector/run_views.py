@@ -17,15 +17,12 @@ Usage, from the repository root:
 """
 
 import os
-import sys
 from pathlib import Path
 
 # Before numpy loads: one thread per process, as run_d17.py does.
 for thread_variable in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "OMP_NUM_THREADS", "NUMEXPR_NUM_THREADS",
                         "VECLIB_MAXIMUM_THREADS", "BLIS_NUM_THREADS"):
     os.environ[thread_variable] = "1"
-# experiments/ imports its court geometry from src/.
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
 import argparse
 import gzip
@@ -41,11 +38,6 @@ from typing import Any
 import cv2
 import numpy as np
 
-from experiments.annotator.independent_court.case_provenance import (
-    CaseProvenance,
-    ImageKind,
-    load_frozen_case_provenance,
-)
 from scratch.court_det_fix.court_detector import feet
 from scratch.court_det_fix.court_detector.detect import (
     ROOT,
@@ -54,6 +46,8 @@ from scratch.court_det_fix.court_detector.detect import (
     Switches,
 )
 from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
+
+from .image_sources import CaseProvenance, ImageKind, load_frozen_case_provenance
 
 FRESH_FEET = ROOT / "court_detector_optimisation_handover/claude_evidence/fresh_feet"
 VIEWS = FRESH_FEET / "views.json"

@@ -13,23 +13,20 @@ from experiments.annotator.independent_court import (
     render_paint_refit,
     run_paint_refit,
 )
-from experiments.annotator.independent_court import fixed_stripe_refit as refit
-from experiments.annotator.independent_court import paint_geometry as paint
-from experiments.annotator.independent_court import stripe_observations as stripes
-from experiments.annotator.independent_court.assignment import (
-    Observations,
-    prepare_observations,
-)
-from experiments.annotator.independent_court.case_provenance import (
-    CaseProvenance,
-    ImageKind,
-)
-from experiments.annotator.independent_court.detector import (
+from experiments.annotator.independent_court.run_junctions import provenance_binding
+from scratch.court_det_fix.court_detector import paint_geometry as paint
+from scratch.court_det_fix.court_detector import stripe_fitting as refit
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import (
     CORNER_COURT_M,
     SEGMENTS_M,
     project,
 )
-from experiments.annotator.independent_court.run_junctions import provenance_binding
+from scratch.court_det_fix.court_detector.image_sources import CaseProvenance, ImageKind
+from scratch.court_det_fix.court_detector.line_observations import (
+    Observations,
+    prepare_observations,
+)
 
 IMAGE_SIZE = (2400, 1600)
 KNOWN_CORNERS = np.array(

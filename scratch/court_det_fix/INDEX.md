@@ -1,45 +1,42 @@
 # Court detector: start here
 
-Use **[pickup.md](pickup.md)** for a quick account of where the detector stands
-and what to do next. Use **[DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md)** for the
-detailed experiment history, evidence and rulings. They serve different readers.
+Read **[pickup.md](pickup.md)** to resume work. Each document below owns one
+kind of information.
 
-## Choose a document
-
-| Need | Read | Purpose |
+| Need | Document | What belongs there |
 | --- | --- | --- |
-| Skim current state or resume work | [pickup.md](pickup.md) | Current result, blockers, next action and working state |
-| Understand what was tried and decided | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) | Detailed, concise-per-item findings with evidence and contrary cases |
-| Find the implementation, inputs or a rerun command | [FP_INDEX.md](FP_INDEX.md) | Core code/data map; fresh-generation and historical-replay entry points |
-| Start the next speed-up session | [Speed-up README](court_detector_optimisation_handover/README.md) | Where the time goes, what is left to try and how to check a speed-up |
-| Check net-weight statistics | [Paired comparison](net_recovery/statistics/paired_reference_report.md) | Measures, source sensitivity, per-frame results and limits |
-| Follow the net experiment in depth | [Net worklog](net_recovery/WORKLOG.md), [assessment](net_recovery/ASSESSMENT.md) | Run history, user rulings, mechanisms and independent audit |
-| Recover earlier material | [Archive map](archive/README.md) | Archived records and sealed recovery routes |
+| Current state and next work | [pickup.md](pickup.md) | The only live handover; update it when parking a session |
+| Why a choice was made | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) | Dated decisions, rejected ideas and links to evidence |
+| Code, data or a rerun entry point | [FP_INDEX.md](FP_INDEX.md) | Paths and data requirements |
+| Use the detector | [Detector guide](court_detector/README.md) | Inputs, outputs, algorithm, settings and commands |
+| Build the speed-ups | [Speed-up design](court_detector/PERFORMANCE.md) | Proposed changes, agreed constraints and checks; no running status log |
+| Recover older work | [26 September archive map](archive/20260926/README.md) | Former paths, intact worklogs and experiment scripts |
+| Recover the former detector source | [27 September code archive](archive/20260927_code/README.md) | Old implementations and the map to their maintained replacements |
+| Recover earlier cleanups | [Older archive map](archive/README.md) | Earlier moves and sealed recovery files |
 
-The detailed decision history owns the experiment narrative. This index maps
-documents; the filepath index maps implementations and artefacts. Neither needs
-a second copy of the chronology.
+## Keep the roles separate
+
+- Put current work and unresolved blockers in pickup; rewrite it at handover
+- Add a dated decision when a trial changes what should be kept or tried
+- Record a run once, beside its outputs; link to it instead of copying its tables
+- Keep API facts in the detector guide and future designs in the speed-up design
+- Freeze completed worklogs; their old plans do not become new tasks
+- Archive superseded handovers after extracting useful decisions and open work
+- Use ordinary descriptions first. G0 means searching all line fragments;
+  G1 means searching only paint-like fragments. Use code labels where they help
+  locate code or a saved court, not as a substitute for explaining the work
+- Keep this index a map. It does not need progress reports
 
 <a id="recovery-not-another-reading-path"></a>
 
 ## Recovery
 
-The [archive map](archive/README.md) covers previous retirements and
-[sealed recovery](archive/README.md#earlier-sealed-recovery). The
-[23 September top-level refresh](archive/20260923_top_level/README.md) preserves
-pre-refresh prose, the disposition record and the inventory of retained data.
-Original experiments and their worklogs remain at their existing locations.
+Large data remains at its existing paths. Several dated folders still supply
+inputs to the detector; [the file map](FP_INDEX.md#code-and-input-paths-to-keep-stable)
+explains why they stay. Archived scripts may contain outdated paths; read the
+[archive notice](archive/20260926/README.md#rerunning-an-archived-experiment)
+before attempting a rerun.
 
-## Keep the roles distinct
-
-- INDEX stays a thin entry map; current state belongs only in pickup
-- Rewrite pickup at handover; archive its previous account when restructuring
-- Put durable findings and rulings in DETECTOR_DECISIONS, linked to source evidence
-- Put core paths, commands and local-data requirements in FP_INDEX
-- Keep full results and worklogs beside their experiment; preserve worklogs intact
-- Launch packets describe a bounded phase; they do not become another live status log
-- Track small reproducible results and required inputs deliberately; document exact
-  local-only data paths and producers rather than broadly ignoring new evidence
-- Numerical results lead evaluation; visual review answers a few material questions
-- Preserve IDs, units, image identity, contrary cases and annotation limitations
-- Link to stable decision/report sections, not numbered items in the changing pickup
+The [26 September record](archive/20260926/README.md#recovery-and-checks)
+identifies the verified pre-tidy snapshot. Older recovery archives remain
+listed in [archive/README.md](archive/README.md#earlier-sealed-recovery).

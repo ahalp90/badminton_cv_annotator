@@ -54,4 +54,4 @@ python compare_rankings.py
 
 The scripts write `cached_extension.json.gz` and `exploratory_rankings.json.gz` beside themselves. They only read the input files. Verification checks reproduce the earlier RMS screen's retention counts, full-budget equality for all four metrics, the identity RMS=sigma3/sqrt(n), and that the SVD optimum does not exceed the original direction's algebraic residual under the same fixed metric.
 
-`frozen_direction_search_README.md` is an unchanged copy of the evidence note from the uploaded archive. It is a source note, not a new experiment. The archive inputs are deliberately not duplicated in this supplementary bundle.
+The uploaded bundle included an unchanged copy of the [direction-search evidence note](../../../direction_search/README.md). The duplicate was removed on 26 September after a byte-for-byte comparison. The linked source note retains the same content with working relative links. The archive inputs are deliberately not duplicated in this supplementary bundle.

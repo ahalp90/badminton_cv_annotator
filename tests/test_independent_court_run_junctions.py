@@ -8,7 +8,7 @@ from zipfile import ZipFile
 import pytest
 
 from experiments.annotator.independent_court import run_junctions
-from experiments.annotator.independent_court.case_provenance import (
+from scratch.court_det_fix.court_detector.image_sources import (
     CaseProvenance,
     ImageKind,
     load_frozen_case_provenance,

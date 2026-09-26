@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from experiments.annotator.independent_court import junction_observations as junctions
-from experiments.annotator.independent_court.assignment import prepare_observations
-from experiments.annotator.independent_court.detector import SEGMENTS_M, project
+from scratch.court_det_fix.court_detector import junctions
+from scratch.court_det_fix.court_detector.geometry import SEGMENTS_M, project
+from scratch.court_det_fix.court_detector.line_observations import prepare_observations
 
 SIZE = (500, 400)
 HOMOGRAPHY = np.array([[60.0, 0, 50], [0, 125.0, -1350], [0, 0, 1]])

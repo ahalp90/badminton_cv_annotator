@@ -1,24 +1,19 @@
-"""Find the badminton court in one view: the accepted D17 chain, run in memory.
+"""Find a badminton court in a prepared image.
 
-The chain: standing feet from a 3 s window, G0 and paint-filtered G1 court searches at
-direction budget 16, seeded line templates with a (4, 3) visibility floor, the W5
-merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working px), then
-the automatic stripe-polarity refit of the chosen court. By default the court searches skip
-courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
-The net choice blends 10% of W5's geometry score into its paint score (Switches.geometry_weight;
-check_20260926_court_choice/).
+Search all detected line fragments, then search only paint-like fragments
+(the saved records call these G0 and G1). Also build courts from crossing lines.
+Measure and refit the candidates, then choose using paint, line and net support.
+Finally adjust the fit to the painted stripe edges or centres. By default,
+reject sideways and upside-down camera geometry.
 
-Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
-OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
-numpy is first imported, as run_views.py does. load_live_modules() puts the research
-folders on sys.path and sets OpenCV to one thread.
-"""
+Set the numerical-library thread variables to 1 before importing NumPy, as
+run_views.py does. load_live_modules() imports this package and sets OpenCV
+to one thread. README.md owns the settings and input requirements."""
 
 from __future__ import annotations
 
 import dataclasses
 import json
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,7 +32,6 @@ from scratch.court_det_fix.court_detector.inputs import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = ROOT.parents[1]
 DIRECTION_BUDGET = 16
 VISIBILITY_FLOOR = (4, 3)  # lengthwise and cross-court lines a line template must show
 NET_WEIGHT = 0.04
@@ -45,24 +39,6 @@ NET_OVERRUN_WORKING_PX = 4.0
 # The camera roll a search pair may imply. The chosen courts of the 20 test views with a court
 # imply rolls within 2.5 degrees.
 MAX_HORIZON_TILT_DEG = 45.0
-# The copies run_d17.py resolves. Several research folders hold same-named modules.
-LIVE_MODULE_FILES = {
-    "run_w5": "scratch/court_det_fix/w5_holistic/run_w5.py",
-    "verifier": "scratch/court_det_fix/w5_holistic/verifier.py",
-    "automatic_generation": "scratch/court_det_fix/w5_holistic/automatic_generation.py",
-    "generation": "scratch/court_det_fix/wider_evaluation/generation.py",
-    "run_automatic": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_automatic.py",
-    "run_given": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_given.py",
-    "projective_seed": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/projective_seed.py",
-    "scan_population": "scratch/court_det_fix/frozen_helpers_20260914/marking_diagnosis/scan_population.py",
-    "run_population": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/run_population.py",
-    "run_diagnosis": "scratch/court_det_fix/frozen_helpers_20260914/marking_diagnosis/run_diagnosis.py",
-    "zone_net": "scratch/court_det_fix/frozen_helpers_20260914/legacy/zone_net.py",
-    "line_template_source": "scratch/court_det_fix/w5_holistic/line_template_source.py",
-    "vp_pruning": "scratch/court_det_fix/frozen_helpers_20260914/vp_pruning/vp_pruning.py",
-    "measurement": "scratch/court_det_fix/wider_evaluation/measurement.py",
-    "inspect_appearance": "scratch/court_det_fix/next_steps_20260916/webui_seed/source/inspect_appearance.py",
-}
 
 
 @dataclass(frozen=True)
@@ -94,13 +70,13 @@ class CourtResult:
 
 class LiveModules(NamedTuple):
     run_w5: ModuleType
-    verifier: ModuleType  # the W5 verifier module; runtime["verifier"] holds its functions
+    verifier: ModuleType  # runtime["verifier"] holds these same measurement functions
     generation: ModuleType
     automatic_generation: ModuleType
     run_automatic: ModuleType
     line_template_source: ModuleType
     vp_pruning: ModuleType
-    court_model: ModuleType  # experiments' independent-court detector: court geometry and fitting helpers
+    court_model: ModuleType  # court geometry and fitting helpers
     prepared_measurements: Callable
     runtime: dict[str, Any]
 
@@ -119,25 +95,29 @@ class Laps:
 
 
 def load_live_modules() -> LiveModules:
-    """Import the chain's research modules in run_d17.py's path order and check their copies."""
+    """Load the detector's package modules with one shared measurement context."""
+    from . import (
+        candidate_pool,
+        court_checks,
+        directions,
+        generation,
+        geometry,
+        line_templates,
+        measurements,
+        players,
+        scoring,
+        search_records,
+    )
+    from .sampling import prepared_measurements
+
     cv2.setNumThreads(1)
-    sys.path[:0] = [str(REPO), str(REPO / "src"), str(ROOT / "w5_holistic"), str(ROOT / "wider_evaluation")]
-    import run_w5  # pyrefly: ignore[missing-import]
-
-    runtime = run_w5.load_runtime(ROOT)
-    import automatic_generation  # pyrefly: ignore[missing-import]
-    import generation  # pyrefly: ignore[missing-import]
-    import line_template_source  # pyrefly: ignore[missing-import]
-    import verifier  # pyrefly: ignore[missing-import]
-    from measurement import prepared_measurements  # pyrefly: ignore[missing-import]
-
-    for name, relative in LIVE_MODULE_FILES.items():
-        resolved = Path(sys.modules[name].__file__).resolve()
-        if resolved != REPO / relative:
-            raise ImportError(f"{name} resolved to {resolved}, expected {relative}")
-    return LiveModules(run_w5, verifier, generation, automatic_generation, sys.modules["run_automatic"],
-                       line_template_source, sys.modules["vp_pruning"], run_w5.import_detector(),
-                       prepared_measurements, runtime)
+    runtime = {
+        "verifier": vars(measurements),
+        "gate_evidence": court_checks.gate_evidence,
+        "zone": players,
+    }
+    return LiveModules(scoring, measurements, search_records, generation, candidate_pool,
+                       line_templates, directions, geometry, prepared_measurements, runtime)
 
 
 def freeze_arrays(value: Any) -> None:
@@ -170,7 +150,7 @@ def json_round_trip(value: Any) -> Any:
 
 
 class CourtDetector:
-    """Loads the research modules once, then finds the court in one view per detect() call."""
+    """Loads the detector modules once, then finds the court in one view per detect() call."""
 
     def __init__(self, switches: Switches) -> None:
         self.switches = switches

@@ -77,7 +77,7 @@ Retained evidence:
 
 - [L2 comparison cells](../../next_steps_20260916/L2_scoring/comparison.csv)
   and [exact witnesses](../../next_steps_20260916/L2_scoring/witnesses.json)
-- [L2 replay source](../../next_steps_20260916/L2_scoring/run_l2_scoring.py):
+- [L2 replay source](../../archive/20260927_code/next_steps_20260916/L2_scoring/run_l2_scoring.py):
   `load_generation_population` records direct versus reconstructed inputs
 - [Nine-view matcher records](../../line_identity/runs/line_identity_20260915_222437/matcher/):
   other saved arms remain here, with the person-mask qualifications below.
@@ -119,3 +119,6 @@ Historical source reports are preserved by the tidy backup:
 `line_identity/{results,evidence}.md` and
 `next_steps_20260916/L2_scoring/result.md`, relative to `scratch/court_det_fix/`.
 They are provenance, not additional starting points.
+
+The former compatibility pointer named above was removed on 26 September;
+this record retains its findings. See the [archive map](../../archive/20260926/README.md#what-stayed-and-what-was-removed).

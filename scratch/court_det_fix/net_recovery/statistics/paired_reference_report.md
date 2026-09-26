@@ -43,4 +43,4 @@ These are candidate differences where the references are absent or incomplete, o
 | `gxBQ_window_00_frame_689` | 0.04 lowers median landmark error by 0.30 px but raises the maximum by 4.13 px. |
 | `am2_window_00_frame_150` | 0.08 raises median landmark error by 1.98 px and maximum by 3.06 px versus 0.04. |
 
-The reproducible calculations and per-frame results are in [paired_reference_analysis.py](paired_reference_analysis.py) and [paired_reference_results.json.gz](paired_reference_results.json.gz).
+The reproducible calculations and per-frame results are in [paired_reference_analysis.py](../../archive/20260927_code/net_recovery/statistics/paired_reference_analysis.py) and [paired_reference_results.json.gz](paired_reference_results.json.gz).

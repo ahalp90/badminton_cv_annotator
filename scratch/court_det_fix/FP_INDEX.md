@@ -1,44 +1,101 @@
-# Court detector file map
+# Where the code and evidence live
 
-Use this map to locate code, input packs and compact results. [INDEX.md](INDEX.md) is the short entry point, [pickup.md](pickup.md) owns current actions, and [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) explains the decisions and historical limits. Paths in this file are relative to `scratch/court_det_fix/` unless marked repository-relative.
+This file owns paths and data requirements. It does not own results or the
+work queue. [INDEX.md](INDEX.md) maps the live documents;
+[pickup.md](pickup.md) is the place to resume.
 
-## Active experimental code
+Paths below are relative to `scratch/court_det_fix/`, unless stated otherwise.
 
-| Need | Code and role |
+## Run or change the detector
+
+| Need | Start here |
 | --- | --- |
-| Generate fresh G0/G1 proposals with SVD12 | [automatic_generation.py](w5_holistic/automatic_generation.py) contains the direction-family screen and matcher path; [line_template_source.py](w5_holistic/line_template_source.py) supplies line-template proposals; [run_w5.py](w5_holistic/run_w5.py) runs the W5 whole-court experiment. This is experimental code, not the integrated detector. |
-| Run the six-case search-depth comparison | [svd_search/run.py](svd_search/run.py) runs baseline 512/256, deeper 640/256 and wider shortlist 512/512 arms. [SVD search README](svd_search/README.md) maps the experiment. |
-| Generate Am1 seeds and inspect net selection | [am1_recovery_trial.py](colour_consistency/am1_recovery_trial.py) adds automatic line-group seeds; [am1_net_selection_trial.py](colour_consistency/am1_net_selection_trial.py) evaluates the recovery selection. [AM1_RECOVERY.md](colour_consistency/AM1_RECOVERY.md) explains the result. |
-| Measure saved-pool net behaviour | [scan_saved.py](net_recovery/scan_saved.py) scans the frozen 71 views; [bounded_trial.py](net_recovery/bounded_trial.py) implements the bounded post-support rule and saved-pool trial. [test_bounded_trial.py](net_recovery/test_bounded_trial.py) covers that rule. |
-| Correct a selected court | [edge_auto_trial.py](colour_consistency/edge_auto_trial.py) tests automatic stripe polarity; [refit_selected.py](net_recovery/refit_selected.py) applies it to requested selections. Selection precedes correction in the accepted gallery. |
-| Replay seeded Am1 with net preference | [run_combined.py](net_recovery/run_combined.py) reuses the frozen G0/G1 comparison, generates additional Am1 line-group seeds and mixes historical with fresh paint measurements. It is **not** a fresh full G0/G1/template/SVD12 combined runner. Its score drift cannot isolate the seed's ranking effect. |
-| Rebuild paired reference statistics | [paired_reference_analysis.py](net_recovery/statistics/paired_reference_analysis.py) reads the local bounded-trial packet, writes results JSON and prints summaries. The prose report is a separate record. Run from repository root: `~/.venvs/badminton-cicd/bin/python scratch/court_det_fix/net_recovery/statistics/paired_reference_analysis.py`. |
+| API, settings and prepared-view command | [Detector guide](court_detector/README.md) |
+| GPU, parallel work, Numba, cheap scoring and court reuse | [Speed-up design](court_detector/PERFORMANCE.md) |
+| Historical research runner and comparison protocol | [run_d17.py](archive/20260927_code/d17_timing/run_d17.py), [wiring and checks](archive/20260927_code/d17_timing/WIRING.md#how-to-check-an-integrated-detector) |
+| Scripts and saved speed-up measurements | [Measurement index](court_detector_optimisation_handover/claude_evidence/README.md) |
+| Compare saved research runs exactly | [compare_exact_runs.py](court_detector_optimisation_handover/claude_evidence/exact_rewrites/compare_exact_runs.py) |
+| Rebuild the older paired net statistics | [paired_reference_analysis.py](archive/20260927_code/net_recovery/statistics/paired_reference_analysis.py); archived source, with historical paths |
 
-## Code, inputs and big working packets
+## Code and input paths to keep stable
 
-### Inputs, results and visual checks
+All maintained detector code is in [court_detector/](court_detector/README.md#code-map).
+The old script folders now hold data and historical notes. Their source moved
+to the [27 September code archive](archive/20260927_code/README.md).
 
-| Need | Location and interpretation |
+| Folder or file | Why it stays |
 | --- | --- |
-| Shared pixels and controls | [frozen_views/README.md](frozen_views/README.md) describes saved frames and input packs. [71-view manifest](wider_evaluation/runs/20260922/manifest.json.gz), [frozen comparison](wider_evaluation/runs/20260922/comparison.json.gz) and [numeric fits](wider_evaluation/runs/20260922/numeric_fit.json.gz) are historical inputs; [wider evaluation](archive/20260922/wider_evaluation_20260922.md) explains coverage. |
-| Bounded net cohorts and choices | [bounded_split.json.gz](net_recovery/bounded_split.json.gz) fixes cohort membership and seeded Am1; [saved_net_scan.json.gz](net_recovery/saved_net_scan.json.gz) retains the unrestricted scan. [Paired report](net_recovery/statistics/paired_reference_report.md) and [results JSON](net_recovery/statistics/paired_reference_results.json.gz) contain compact reference comparisons. |
-| Accepted net and stripe visuals | [bounded gallery](net_recovery/bounded_gallery/index.html) and [polarity gallery](net_recovery/polarity_gallery/index.html) use tracked images from [colour_consistency/gallery/](colour_consistency/gallery/). The 20-case page is gallery-level user feedback, not 20 per-case labels. [Net assessment](net_recovery/ASSESSMENT.md) explains the bounded cue and caveats. |
-| Search timing and choices | [SVD matcher benchmark](svd_runtime/RESULTS.md) measures the 52.9% matcher saving; [six-case search worklog](svd_search/WORKLOG.md) reports full-trial timings and rulings. The 18 tracked records in [run_20260923/cases/](svd_search/run_20260923/cases/) support replay and timing inspection. `svd_search/run_20260923/generation/` holds larger local-only stage records. See [search local-data note](svd_search/LOCAL_DATA.md). |
-| Colour and fitting trials | [colour worklog](colour_consistency/PLAN.md), [polarity assessment](edge_polarity/local_audit/ASSESSMENT.md) and [diagnostic measurements](colour_consistency/measurements.json.gz). The saved W5 and G1/template colour columns share old ranking; they are not colour before/after arms. |
-| Historical proposal and temporal evidence | [evidence/](evidence/) groups investigations by mechanism; [old experiment package](../../experiments/annotator/independent_court/README.md) contains reusable historical code. [Review packet](evidence/review_20260922/README.md) identifies what was published. |
+| [frozen_views/](frozen_views/README.md) | Source images, packs and baseline records |
+| [wider_evaluation/](wider_evaluation/) | Saved view manifest and control packs used by the view runner |
+| [w5_holistic/](w5_holistic/), [next_steps_20260916/](next_steps_20260916/) | Saved candidate courts and trial records |
+| [direction_agreement/runs/](direction_agreement/runs/) | Saved direction records |
+| [worklog/remote_records_20260921/](worklog/remote_records_20260921/README.md) | Saved paint-line inputs; this is data despite the folder name |
+| [fresh_feet/](court_detector_optimisation_handover/claude_evidence/fresh_feet/) | Prepared 28-view list, feet records and independent reference scripts used by tests |
+| [net_recovery/](net_recovery/), [colour_consistency/](colour_consistency/), [edge_polarity/](edge_polarity/) | Historical measurements and galleries |
 
-## Local data and recovery
+Archived scripts keep their old internal paths. Read the
+[archive notice](archive/20260927_code/README.md#rerunning-old-code) before a rerun.
 
-The bounded statistical rerun requires the ignored `local_scratch/net_recovery/20260923/bounded/bounded_trial.json.gz` (about 17 MB). The accepted corrected fits and exact requests are in `local_scratch/net_recovery/20260923/selected_polarity/{bounded_results,bounded_requests}.json.gz`. The Am1 seeded pool is `local_scratch/external_delegate/20260923-am1-recovery-trial/seeded_pool.json.gz`. These are local-only inputs, not substitutes for similarly named frozen pools. Check they exist before moving to a new worktree or remote checkout. The [SVD runtime local-data note](svd_runtime/LOCAL_DATA.md) and [search local-data note](svd_search/LOCAL_DATA.md) distinguish ignored raw packets from tracked checks and receipts.
+## Checks and measurements
 
-## Integrated scene path and saved contract
+These are dated records. Their old plans and approvals remain historical.
 
-The current annotator first finds raw cut intervals in repository-relative [composition_mask.py](../../src/annotator/composition_mask.py) (`detect_cuts`, PySceneDetect `ContentDetector`). [court_evidence.py](../../src/annotator/court_evidence.py) samples up to ten frames per interval in `detect_scene_evidence`; `matching_view_groups` in [court_views.py](../../src/annotator/court_views.py) later compares perceptual hashes and alignment. Only initially valid court scenes join groups, and a group needs at least three members. `_share_scene_corners` then shares geometry. Grouping happens **after** first-pass court detection, so it does not reduce that search count.
+| Question | Record |
+| --- | --- |
+| Did the joined detector match the research chain? | [25 September check](court_detector/check_20260925/README.md) |
+| What changed with the upright-camera filter? | [Camera-filter check](court_detector/check_20260926_upright/README.md) |
+| Which paint-test change failed? | [Per-sample paint check](court_detector/check_20260926_paint_test/README.md) |
+| Why keep the paint/line blend and discard the top-15 refit? | [Court-choice check](court_detector/check_20260926_court_choice/README.md#decision), [completed Carmack run](court_detector/check_20260926_court_choice/README.md#carmack-run) |
+| Why discard averaged line paint? | [Line-paint check](court_detector/check_20260926_line_paint/README.md) |
+| Why discard player-size filtering and later score changes? | [Player-size check](court_detector/check_20260926_player_size/README.md) |
+| Where are old net-weight measurements? | [Paired report](net_recovery/statistics/paired_reference_report.md), [results](net_recovery/statistics/paired_reference_results.json.gz) |
+| Where are old direction-screen and search-depth results? | [Direction-screen benchmark](archive/20260926/experiments/svd_runtime/RESULTS.md), [search worklog](archive/20260926/experiments/svd_search/WORKLOG.md), [compute audit](archive/20260926/experiments/svd_runtime/COMPUTE_AUDIT.md) |
+| Where are the accepted net/stripe galleries? | [Net choices](net_recovery/bounded_gallery/index.html), [adjusted stripes](net_recovery/polarity_gallery/index.html) |
+| Where are earlier experiments and retired documents? | [Evidence](evidence/), [archive map](archive/README.md) |
 
-The dataset stage is [vision.py](../../src/dataset_builder/vision.py) (`build_detected_court_stage`, `persist_court_vision`). Scene records keep raw cut intervals, sample indices, validity, active court corners and optional `view_group_index`; [court codec](../../src/dataset_builder/_court_codec.py) validates them. Raw cuts and distinct compatible views are different units. [Launch handover](archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md) has the code anchors and design constraint.
+## Data that is not in git
 
-## Old experiment names
+Keep these inputs distinct from similarly named saved pools:
 
-`G0` means original-fragment proposals; `G1` means paint-filtered proposals. `S0` and `S1` name original and filtered scoring fragments. `GX`, `Am1`–`Am4`, `SS03` and `SS21` identify source videos. A source-qualified candidate such as `G1:16:44` is unique only within its case. `/child` marks a separately refined candidate; a parent ruling does not automatically apply to the child. **Reference-best** is chosen retrospectively using annotations and is never an automatic selection. [G0/G1 explanation](evidence/g0_g1/README.md); [candidate and gate account](evidence/holistic_admission/README.md).
+- Repository-relative `local_scratch/net_recovery/20260923/bounded/bounded_trial.json.gz`
+  is required by the paired statistics script
+- Repository-relative `local_scratch/net_recovery/20260923/selected_polarity/{bounded_results,bounded_requests}.json.gz`
+  records the earlier corrected fits and exact requests
+- Repository-relative `local_scratch/external_delegate/20260923-am1-recovery-trial/seeded_pool.json.gz`
+  holds the seeded Am1 pool
+- [SVD runtime data](svd_runtime/LOCAL_DATA.md) and
+  [search data](svd_search/LOCAL_DATA.md) identify larger local run records
+- The joined detector's people records and source videos are on Carmack.
+  The [25 September check](court_detector/check_20260925/README.md) records
+  its inputs and runner commands
+- The [camera-filter check](court_detector/check_20260926_upright/README.md)
+  records its remote saved stages. The
+  [final choice check](court_detector/check_20260926_court_choice/README.md#carmack-run)
+  identifies `court_detector_20260926_final/`, with 378 MB of remote artefacts
 
-The [archived idea map](archive/20260923_top_level/FP_INDEX.md) retains older experiment tags and numeric descriptions, including L1–L3, W2/W4, E0–E4, C2 and the 33/43/53 visibility arms. Recovery archives are for superseded material; [INDEX.md](INDEX.md#recovery) explains their route.
+Confirm files exist before attempting a replay. Nothing in the tidy reruns a
+remote job or assumes that old remote paths still exist.
+
+## Existing video pipeline
+
+These paths are repository-relative:
+
+| Code | Role |
+| --- | --- |
+| [composition_mask.py](../../src/annotator/composition_mask.py) | Finds cuts using PySceneDetect's `ContentDetector` |
+| [court_evidence.py](../../src/annotator/court_evidence.py) | Samples frames inside each interval and detects court evidence |
+| [court_views.py](../../src/annotator/court_views.py) | Groups compatible views by image hashes and alignment after initial searches |
+| [vision.py](../../src/dataset_builder/vision.py) | Builds and saves the detected-court stage |
+| [_court_codec.py](../../src/dataset_builder/_court_codec.py) | Checks the saved court-record format |
+
+## Read old identifiers
+
+`S0` and `S1` identify original and paint-filtered fragments used for scoring,
+whereas G0 and G1 identify which fragments were searched. A label such as
+`G1:16:44` names a court only within its own case. `/child` means a separate
+refit. A judgement about the original court does not automatically cover it.
+
+“Reference-best” means retrospectively closest to annotations. It is not an
+automatic detector choice. `Am1`–`Am4`, `GX`, `SS03` and `SS21` name source
+videos. The [archived file map](archive/20260923_top_level/FP_INDEX.md) preserves
+older experiment labels when needed.

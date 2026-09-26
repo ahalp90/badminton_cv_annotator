@@ -1,3 +1,9 @@
+> The original scripts are [archived](../../archive/20260927_code/court_detector/check_20260926_upright/). Commands below use their historical paths.
+
+> Dated experiment record. Old plans and approval requests below describe that run.
+> Use [pickup](../../pickup.md) for current work and
+> [the decisions](../../DETECTOR_DECISIONS.md#d19) for the later rulings.
+
 # Upright-camera filter check, 26 September 2026
 
 The upright-camera filter cuts the joined detector's time by 42% on the 28

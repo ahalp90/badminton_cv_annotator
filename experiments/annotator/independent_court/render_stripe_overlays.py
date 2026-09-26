@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from .detector import CORNER_COURT_M, SEGMENTS_M
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M, SEGMENTS_M
 
 SIZE = (1280, 720)
 SELECTOR = 'complete_agreements_first'

@@ -11,8 +11,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from . import detector
-from .assignment import MATCH_ANGLE_DEG, distances_to_segments
+from scratch.court_det_fix.court_detector import geometry as detector
+from scratch.court_det_fix.court_detector.line_observations import (
+    MATCH_ANGLE_DEG,
+    distances_to_segments,
+)
 
 INTERVAL_NAMES = (
     "left_doubles", "left_singles", "far_centre", "near_centre",

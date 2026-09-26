@@ -90,13 +90,13 @@ The analytic example has a modelled centre-to-edge distance of 1.2 px:
 
 A large enough error can choose the *opposite* edge, which polarity repairs. A moderate error chooses centre, which polarity deliberately leaves alone. That predicts partial correction rather than monotonic success and is consistent with the saved probe's mixed movements.
 
-The executable calculation is [`court_inset_assignment_capture.py`](court_inset_assignment_capture.py).
+The executable calculation is [`court_inset_assignment_capture.py`](../../archive/20260927_code/edge_polarity/webui_return/court_inset_assignment_capture.py).
 
 ## 4. Single next local test
 
 Run only **SS03-34 fragment 111: position `0 → 2`** on top of the existing polarity constraints.
 
-The supplied [`scene34_fragment111_counterfactual.py`](scene34_fragment111_counterfactual.py) reconstructs the exact saved subset in the original evidence checkout, chooses position 2 from brightness and geometry without reference labels, preserves points, marking, interval IDs, sample IDs and weights, and fits only the polarity arm versus this one-fragment change.
+The supplied [`scene34_fragment111_counterfactual.py`](../../archive/20260927_code/edge_polarity/webui_return/scene34_fragment111_counterfactual.py) reconstructs the exact saved subset in the original evidence checkout, chooses position 2 from brightness and geometry without reference labels, preserves points, marking, interval IDs, sample IDs and weights, and fits only the polarity arm versus this one-fragment change.
 
 Predictions:
 

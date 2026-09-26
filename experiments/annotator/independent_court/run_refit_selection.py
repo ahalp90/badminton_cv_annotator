@@ -15,15 +15,16 @@ from types import ModuleType
 import cv2
 import numpy as np
 
-from . import junction_observations as junctions
-from . import stripe_observations as stripes
-from .assignment import prepare_observations
-from .case_provenance import (
+from scratch.court_det_fix.court_detector import junctions
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.image_sources import (
     CaseProvenance,
     load_frozen_case_provenance,
     require_same_image_boxes,
 )
-from .detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.line_observations import prepare_observations
+
 from .run_assignment import (
     ACCURATE_PX,
     attach_metrics,

@@ -23,16 +23,20 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 
-from . import fixed_stripe_refit as fitting
-from . import stripe_observations as stripes
-from .assignment import Observations, prepare_observations
-from .case_provenance import (
+from scratch.court_det_fix.court_detector import stripe_fitting as fitting
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M, SEGMENTS_M
+from scratch.court_det_fix.court_detector.image_sources import (
     CaseProvenance,
     load_frozen_case_provenance,
     require_same_image_boxes,
 )
-from .detector import CORNER_COURT_M, SEGMENTS_M
-from .paint_geometry import CENTRE_SEGMENTS_M
+from scratch.court_det_fix.court_detector.line_observations import (
+    Observations,
+    prepare_observations,
+)
+from scratch.court_det_fix.court_detector.paint_geometry import CENTRE_SEGMENTS_M
+
 from .run_assignment import attach_metrics, frozen_entries, read_replay_bytes
 from .run_junctions import bytes_md5, provenance_binding, require_replay_pack
 from .run_refit_selection import eligible

@@ -13,7 +13,7 @@ from experiments.annotator.independent_court.boundary_metrics import (
     load_corner_metadata,
     measure,
 )
-from experiments.annotator.independent_court.detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
 
 COURT_CORNERS = np.array(
     [[100.0, 100.0], [1120.0, 165.0], [1010.0, 655.0], [165.0, 590.0]]

@@ -8,10 +8,7 @@ from typing import NamedTuple, Protocol
 
 import numpy as np
 
-from experiments.annotator.independent_court.case_provenance import (
-    CaseProvenance,
-    ImageKind,
-)
+from .image_sources import CaseProvenance, ImageKind
 
 
 class PersonSample(NamedTuple):

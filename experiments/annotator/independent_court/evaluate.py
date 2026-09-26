@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
-from . import detector
+from scratch.court_det_fix.court_detector import geometry as detector
 
 REFERENCE_SIZE = (1280, 720)
 SAFE_COORDINATE = 1_000_000

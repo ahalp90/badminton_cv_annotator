@@ -24,8 +24,8 @@ from typing import Any
 import cv2
 import numpy as np
 
-from experiments.annotator.independent_court import fixed_stripe_refit as fitting
-from scratch.court_det_fix.w5_holistic.verifier import observable_points
+from . import stripe_fitting as fitting
+from .measurements import observable_points
 
 FRACTIONS = np.linspace(0.1, 0.9, 24)
 SHIFTS_WORKING = np.asarray((-4, -2, 0, 2, 4), dtype=float)

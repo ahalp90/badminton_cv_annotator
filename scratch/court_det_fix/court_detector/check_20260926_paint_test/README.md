@@ -1,3 +1,9 @@
+> The original scripts are [archived](../../archive/20260927_code/court_detector/check_20260926_paint_test/). Commands below use their historical paths.
+
+> Dated experiment record. Old plans and approval requests below describe that run.
+> Use [pickup](../../pickup.md) for current work and
+> [the decisions](../../DETECTOR_DECISIONS.md#d19) for the later rulings.
+
 # Gap-bounded paint test check, 26 September 2026
 
 This check tests one change to the scoring stage's paint test. The test now

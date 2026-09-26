@@ -42,7 +42,7 @@ The first two share assignment `(7, 197, 32, 3, 19)`, with scores
 than the small differences in rounded error.
 
 Retain [exact C2 witnesses](../../next_steps_20260916/C2_traces/witnesses.json),
-[the producing check](../../next_steps_20260916/C2_traces/check_traces.py) and
+[the producing check](../../archive/20260927_code/next_steps_20260916/C2_traces/check_traces.py) and
 [the frozen source map](../../next_steps_20260916/webui_seed/source/SOURCE_MAP.md).
 The [cap](diagnostics/cap_loss/) and [pre-gate](diagnostics/pregate_loss/)
 records preserve the raw arrays. Their analysis scripts read those arrays;

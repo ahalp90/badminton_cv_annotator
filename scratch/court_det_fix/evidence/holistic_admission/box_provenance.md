@@ -59,3 +59,6 @@ The marking repair, exact detections and v3 person-observation inputs are
 retained here byte-for-byte. The campaign originals and superseded repairs
 are sealed in `.recovery/w5-preparation-20260922.tar.gz` at the investigation
 root. Source manifests retain the original producing paths.
+
+The former compatibility pointer named above was removed on 26 September;
+this record retains its findings. See the [archive map](../../archive/20260926/README.md#what-stayed-and-what-was-removed).

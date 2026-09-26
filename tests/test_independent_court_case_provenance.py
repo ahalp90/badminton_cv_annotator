@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-import experiments.annotator.independent_court.case_provenance as provenance_module
-from experiments.annotator.independent_court.case_provenance import (
+import scratch.court_det_fix.court_detector.image_sources as provenance_module
+from scratch.court_det_fix.court_detector.image_sources import (
     SIDECAR_MD5,
     BoxRelation,
     ImageKind,

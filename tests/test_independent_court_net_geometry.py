@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from courtkeynet.court_corners import CORNER_COURT_M
-from experiments.annotator.independent_court.net_geometry import project_net
+from scratch.court_det_fix.court_detector.net_geometry import project_net
 
 FRAME_SIZE = (1600.0, 900.0)
 

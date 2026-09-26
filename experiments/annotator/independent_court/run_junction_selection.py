@@ -8,7 +8,12 @@ import hashlib
 import json
 from pathlib import Path
 
-from .case_provenance import PACK_MD5_BY_NAME, SIDECAR_MD5, SIDECAR_SCHEMA
+from scratch.court_det_fix.court_detector.image_sources import (
+    PACK_MD5_BY_NAME,
+    SIDECAR_MD5,
+    SIDECAR_SCHEMA,
+)
+
 from .run_assignment import ACCURATE_PX
 
 SCHEMES = ("stripe_exclusive", "contradictions_first", "complete_agreements_first")

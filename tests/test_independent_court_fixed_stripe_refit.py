@@ -7,9 +7,9 @@ from copy import deepcopy
 import cv2
 import numpy as np
 
-from experiments.annotator.independent_court import fixed_stripe_refit as refit
-from experiments.annotator.independent_court.assignment import Observations
-from experiments.annotator.independent_court.detector import CORNER_COURT_M, project
+from scratch.court_det_fix.court_detector import stripe_fitting as refit
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M, project
+from scratch.court_det_fix.court_detector.line_observations import Observations
 
 IMAGE_SIZE = (960, 720)
 KNOWN_CORNERS = np.array(

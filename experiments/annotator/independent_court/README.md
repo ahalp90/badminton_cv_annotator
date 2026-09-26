@@ -4,6 +4,12 @@ This experiment tests whether image lines and the badminton court layout can
 locate courts without CourtKeyNet. It is an additive research prototype;
 the annotation pipeline does not use its outputs.
 
+The court geometry, fragment measurements, stripe fitting and image-source types
+now live in [the court detector package](../../../scratch/court_det_fix/court_detector/README.md#code-map).
+These experiment runners import that maintained code. The
+[code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
+keeps the original implementations.
+
 ## Temporal player-guided experiment
 
 `export_people.py` samples person detections from specified video windows.

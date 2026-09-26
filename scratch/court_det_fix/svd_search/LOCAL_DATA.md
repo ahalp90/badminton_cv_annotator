@@ -1,7 +1,7 @@
 # SVD search records: tracked and local-only
 
 The six-case, three-arm experiment completed on Carmack on 23 September 2026 at
-`14310f7`. [WORKLOG.md](WORKLOG.md) records scope, timings and visual rulings.
+`14310f7`. [WORKLOG.md](../archive/20260926/experiments/svd_search/WORKLOG.md) records scope, timings and visual rulings.
 
 | Path | Storage and purpose |
 | --- | --- |

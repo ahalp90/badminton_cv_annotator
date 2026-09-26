@@ -3,7 +3,8 @@
 import cv2
 import numpy as np
 
-from experiments.annotator.independent_court import detector, player_guided
+from experiments.annotator.independent_court import player_guided
+from scratch.court_det_fix.court_detector import geometry as detector
 
 
 def test_presence_uses_all_frames_and_distinguishes_missing_players() -> None:

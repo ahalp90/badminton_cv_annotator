@@ -20,7 +20,7 @@ a separate benchmark of the single-run path with player detections supplied.
 ## Safe split
 
 The split sits inside
-[`line_template_source.generate`](line_template_source.py), just before
+[`line_template_source.generate`](../archive/20260927_code/w5_holistic/line_template_source.py), just before
 `select_with_visibility_floor` applies the floor and the 256-candidate cap.
 
 ```text

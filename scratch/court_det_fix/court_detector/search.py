@@ -1,17 +1,4 @@
-"""What the D17 candidate search adds to the live generators.
-
-- DIRECTION_SETTINGS: the vanishing-point estimator settings for the G0 and G1
-  direction pairs, from the frozen record
-  frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz.
-- The G1 paint filter: keep a line fragment when it sits on a bright, unsaturated
-  ridge (ridge contrast >= PAINT_CONTRAST grey levels, peak saturation <=
-  PAINT_SATURATION). line_identity/paint_profiles.py explains the two measures.
-- The line-template seeds: where each pair of the three longest lengthwise lines
-  meets. They join the template search's own vanishing points (Am1 recovery).
-
-Research scripts import these back, so this module stays a leaf: it imports only
-numpy, OpenCV and SciPy, and never edits sys.path.
-"""
+"""Select paint-like fragments and extra starting points for court search."""
 
 from __future__ import annotations
 

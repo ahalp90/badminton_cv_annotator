@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from experiments.annotator.independent_court import detector
 from experiments.annotator.independent_court import fixed_floor_evidence as evidence
+from scratch.court_det_fix.court_detector import geometry as detector
 
 SIZE = (600, 300)
 HOMOGRAPHY = np.array([[5.0, -35, 540], [35.0, 0, 20], [0, 0, 1]])

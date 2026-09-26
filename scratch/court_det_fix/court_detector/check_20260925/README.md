@@ -1,3 +1,9 @@
+> The original scripts are [archived](../../archive/20260927_code/court_detector/check_20260925/). Commands below use their historical paths.
+
+> Dated experiment record. Old plans and approval requests below describe that run.
+> Use [pickup](../../pickup.md) for current work and
+> [the decisions](../../DETECTOR_DECISIONS.md#d19) for the later rulings.
+
 # Court detector check, 25 September 2026
 
 The joined court detector (`../detect.py`, run through `../run_views.py`)

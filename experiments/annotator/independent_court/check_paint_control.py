@@ -20,9 +20,13 @@ import cv2
 import numpy as np
 import scipy
 
-from . import stripe_observations as stripes
-from .assignment import Observations, prepare_observations
-from .detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.line_observations import (
+    Observations,
+    prepare_observations,
+)
+
 from .run_paint_refit import PROJECTION_ROUNDOFF_PX, validate_result_provenance
 
 HISTORICAL_MODULE_NAME = "experiments.annotator.independent_court._historical_stripes"

@@ -1,4 +1,4 @@
-"""The court detector loads the live research copies, and its leaf modules stay safe to import back."""
+"""The court detector uses one package identity without changing import paths."""
 
 from __future__ import annotations
 
@@ -13,27 +13,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector.detect import LIVE_MODULE_FILES, freeze_arrays
+from scratch.court_det_fix.court_detector import image_sources, inputs, measurements
+from scratch.court_det_fix.court_detector.detect import freeze_arrays, load_live_modules
 from scratch.court_det_fix.court_detector.search import DIRECTION_SETTINGS
 
 REPO = Path(__file__).resolve().parents[1]
 COURT_ROOT = REPO / "scratch/court_det_fix"
 LEAVES = ("search", "net_choice", "stripe_refit", "inputs", "feet")
-# Research modules that import helpers back from the leaves, as their launchers run them.
-RESEARCH_MODULES = (
-    "line_identity/paint_profiles.py",
-    "line_identity/filter_replay.py",
-    "colour_consistency/am1_recovery_trial.py",
-    "colour_consistency/am1_net_selection_trial.py",
-    "colour_consistency/observed_colour.py",
-    "colour_consistency/edge_auto_trial.py",
-    "edge_polarity/run_probe.py",
-    "net_recovery/bounded_trial.py",
-    "net_recovery/refit_selected.py",
-)
 
 
-def run_python(code: str) -> subprocess.CompletedProcess:
+def run_python(code: str) -> subprocess.CompletedProcess[str]:
     environment = {**os.environ, "PYTHONPATH": os.pathsep.join((str(REPO), str(REPO / "src")))}
     return subprocess.run([sys.executable, "-c", code], cwd=REPO, env=environment, capture_output=True, text=True,
                           timeout=300, check=False)
@@ -43,65 +32,63 @@ def test_direction_settings_equal_the_frozen_direction_file() -> None:
     path = COURT_ROOT / "frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz"
     with gzip.open(path, "rt", encoding="utf-8") as stream:
         frozen = json.load(stream)["settings"]
-    # Compared as JSON text so an int standing in for a float also fails.
+    # JSON distinguishes an integer setting from its floating-point replacement.
     assert json.dumps(DIRECTION_SETTINGS, sort_keys=True) == json.dumps(frozen, sort_keys=True)
 
 
-def test_leaf_modules_load_no_research_copies_and_leave_sys_path_alone() -> None:
+@pytest.mark.parametrize("load_runtime", [False, True])
+def test_package_imports_leave_paths_and_research_modules_alone(load_runtime: bool) -> None:
     imports = "\n".join(f"import scratch.court_det_fix.court_detector.{leaf}" for leaf in LEAVES)
     code = f"""
 import sys
 from pathlib import Path
+from types import ModuleType
 before = list(sys.path)
+# Existing bare research names must have no influence on package imports.
+names = ("run_w5", "verifier", "generation", "automatic_generation", "run_automatic",
+         "run_given", "projective_seed", "vp_pruning", "measurement", "zone_net", "shared")
+sentinels = {{name: ModuleType(name) for name in names}}
+sys.modules.update(sentinels)
 {imports}
+if {load_runtime!r}:
+    from scratch.court_det_fix.court_detector.detect import load_live_modules
+    live = load_live_modules()
+    for module in live[:8]:
+        assert module.__name__.startswith("scratch.court_det_fix.court_detector."), module
 court_root = Path({str(COURT_ROOT)!r})
-bare = sorted(name for name, module in sys.modules.items()
-              if not name.startswith("scratch.") and getattr(module, "__file__", None)
-              and Path(module.__file__).resolve().is_relative_to(court_root))
-assert bare == [], bare
+package_root = court_root / "court_detector"
+for name, module in tuple(sys.modules.items()):
+    assert name != "experiments" and not name.startswith("experiments."), name
+    filename = getattr(module, "__file__", None)
+    if filename:
+        path = Path(filename).resolve()
+        if path.is_relative_to(court_root):
+            assert path.is_relative_to(package_root), (name, path)
 assert sys.path == before
+assert all(sys.modules[name] is sentinel for name, sentinel in sentinels.items())
 """
     completed = run_python(code)
     assert completed.returncode == 0, completed.stderr
 
 
-def test_load_live_modules_resolves_the_run_d17_copies() -> None:
-    code = """
-from scratch.court_det_fix.court_detector.detect import load_live_modules
-load_live_modules()
-"""
-    completed = run_python(code)
-    assert completed.returncode == 0, completed.stderr
-
-
-def test_live_module_list_matches_run_d17_import_order() -> None:
-    code = f"""
-import json, sys
-from pathlib import Path
-root = Path({str(COURT_ROOT)!r})
-repo = root.parents[1]
-sys.path[:0] = [str(repo), str(repo / "src"), str(root / "w5_holistic"), str(root / "wider_evaluation"),
-                str(root / "colour_consistency"), str(root / "net_recovery")]
-import run_cases
-run_cases.load_runtime(root, root / "wider_evaluation/runs/20260922/control_inputs.json.gz")
-import am1_recovery_trial, automatic_generation, bounded_trial, generation, line_template_source, refit_selected
-import run_automatic, run_given
-from measurement import prepared_measurements
-names = {sorted(LIVE_MODULE_FILES)!r}
-print(json.dumps({{name: str(Path(sys.modules[name].__file__).resolve().relative_to(repo)) for name in names}}))
-"""
-    completed = run_python(code)
-    assert completed.returncode == 0, completed.stderr
-    assert json.loads(completed.stdout.splitlines()[-1]) == LIVE_MODULE_FILES
-
-
-@pytest.mark.parametrize("relative", RESEARCH_MODULES)
-def test_research_module_imports(relative: str) -> None:
-    script = COURT_ROOT / relative
-    # As `python script.py` would: the script's folder first on sys.path.
-    code = f"import runpy, sys; sys.path.insert(0, {str(script.parent)!r}); runpy.run_path({str(script)!r}, run_name='import_check')"
-    completed = run_python(code)
-    assert completed.returncode == 0, completed.stderr
+def test_runtime_measurements_share_module_identity_and_restore_sampling() -> None:
+    live = load_live_modules()
+    assert live.verifier is measurements
+    assert live.runtime["verifier"] is vars(measurements)
+    assert measurements.CaseProvenance is inputs.CaseProvenance is image_sources.CaseProvenance
+    original_sample = measurements.grayscale_sample
+    original_junctions = measurements.raw_junctions
+    frame = np.full((4, 4, 3), 90, dtype=np.uint8)
+    points = np.array([[1., 1.], [2., 2.]])
+    with live.prepared_measurements(measurements) as counts:
+        assert live.runtime["verifier"]["grayscale_sample"] is measurements.grayscale_sample
+        assert measurements.grayscale_sample is not original_sample
+        for _ in range(2):
+            np.testing.assert_array_equal(live.runtime["verifier"]["grayscale_sample"](frame, points), [90., 90.])
+        assert counts == {"greyscale_conversions": 1, "sampling_calls": 2}
+    assert measurements.grayscale_sample is original_sample
+    assert measurements.raw_junctions is original_junctions
+    assert live.runtime["verifier"]["grayscale_sample"] is original_sample
 
 
 @dataclass(frozen=True)

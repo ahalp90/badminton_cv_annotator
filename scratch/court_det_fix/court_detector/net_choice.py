@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from experiments.annotator.independent_court import net_geometry
+from . import net_geometry
 
 SAMPLES_PER_PIECE = 24
 PERPENDICULAR_TOLERANCE_WORKING_PX = 4.0

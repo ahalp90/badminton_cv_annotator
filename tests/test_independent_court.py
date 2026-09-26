@@ -1,39 +1,20 @@
 """Synthetic boundary tests for the independent court proposal detector.
 
-The detector is an isolated experiment, so this module loads it directly from
-its file path. Fixtures draw the repository's finite badminton markings under a
+Fixtures draw the repository's finite badminton markings under a
 known homography and keep detector acceptance separate from proposal accuracy.
 """
 
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
-from types import ModuleType
-
 import cv2
 import numpy as np
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from scratch.court_det_fix.court_detector import geometry as detector
+
 FRAME_SIZE = (480, 360)
 
 
-def _load_detector() -> ModuleType:
-    """Load the experiment without making it part of the production import graph."""
-    spec = importlib.util.spec_from_file_location(
-        "independent_court_detector_under_test",
-        REPO_ROOT / "experiments/annotator/independent_court/detector.py",
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-detector = _load_detector()
 TEST_SETTINGS = detector.Settings(max_family_lines=8)
 
 

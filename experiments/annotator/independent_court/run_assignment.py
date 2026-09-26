@@ -18,8 +18,10 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 
-from . import assignment, evaluate
-from .detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector import line_observations as assignment
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+
+from . import evaluate
 
 SCHEMES = ("recorded_original", "recorded_bidirectional", "independent", "assignment", "ledger")
 ACCURATE_PX = 15.0

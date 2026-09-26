@@ -1,3 +1,7 @@
+> Research-chain reference, recorded through 25 September. Its open-plan sections
+> are historical. Use [pickup](../pickup.md) for current work and
+> [the detector guide](../court_detector/README.md) for the current API and defaults.
+
 # How the D17 court detector is wired
 
 The accepted court detector (the D17 chain) runs end to end in two places:

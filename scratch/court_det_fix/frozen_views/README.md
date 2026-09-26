@@ -5,7 +5,7 @@ used by the completed 27-case evaluation. All 27 detector input images are
 published at native dimensions: 17 single frames and 10 broadcast median
 composites. The three input packs still describe 47 cases; the
 additional 20 cases are the next wider-test set, not completed W5 results.
-See the [sample plan](../DETECTOR_DECISIONS.md#frozen-sample-coverage) and
+See the [sample plan](../archive/20260926/originals/DETECTOR_DECISIONS.md#frozen-sample-coverage) and
 [GitHub review packet](../evidence/review_20260922/README.md).
 
 ## Original nine-frame export

@@ -1,8 +1,8 @@
 # Retained SVD timing data
 
 The nine-case timing experiment completed on Carmack on 23 September 2026.
-[RESULTS.md](RESULTS.md), `results.json.gz`, `history_check.json.gz`,
-`integration_smoke.json.gz`, and [WORKLOG.md](WORKLOG.md) are tracked summaries.
+[RESULTS.md](../archive/20260926/experiments/svd_runtime/RESULTS.md), `results.json.gz`, `history_check.json.gz`,
+`integration_smoke.json.gz`, and [WORKLOG.md](../archive/20260926/experiments/svd_runtime/WORKLOG.md) are tracked summaries.
 The small `receipts/`, `partial_history.json.gz` and `saved_input_check.json.gz`
 records are also tracked. The partial history receipt is superseded by the
 complete history result, but remains useful run history.

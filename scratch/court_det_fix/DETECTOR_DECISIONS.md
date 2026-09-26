@@ -1,123 +1,338 @@
-# Court detector findings and decisions
+# What was tried and decided
 
-**The experimental direction is to keep G0, G1 and line templates, use bounded net support for selection, and apply automatic stripe correction to the selected fit.** SVD12 reduces matcher work but does not make the detector affordable for deployment. The fresh combination, scene-level reuse and CourtKeyNet removal remain untested or unfinished. [pickup.md](pickup.md) owns the current work order; this file records why the decisions were made.
+This file records decisions and links to their evidence. Each entry describes
+what was known at the time. Later entries can replace an earlier choice;
+[pickup.md](pickup.md) owns the current state and next work.
 
-These are development findings. The nine-view stress panel and 27-case corpus are not representative held-out evaluations. A reference-near candidate, a generated candidate, an automatic winner and a visually usable fit are different outcomes. Do not combine their counts into an accuracy claim.
+The detector searches using **all detected line fragments (G0)** and using
+**only fragments that look like court paint (G1)**. It also builds courts from
+crossing-line templates. The **scoring stage (W5)** measures these possible
+courts and their refits against the image. Code labels appear below only when
+needed to identify a saved experiment or court.
 
-## Retired chain, proposal access and ranking
+The test sets were used to develop the method. Their counts do not estimate
+accuracy on unseen footage. Finding the played court, fitting its markings
+accurately and rejecting a frame without a court are separate outcomes.
 
-### D01 — Retire CourtKeyNet repair
+## Earlier search and fitting work
 
-The old detector chain passed 0/11 labelled amateur frames. Its broadcast repair work still contains useful safeguards, but CourtKeyNet is excluded from the replacement design. Removing the model and accidental weight-loading dependencies remains an integration requirement. [Retirement evidence](evidence/retirement/README.md).
+<a id="d01"></a>
+### D01: Replace the CourtKeyNet repair chain
 
-### D02 — Preserve proposal evidence, reject old acceptance rules
+The old chain passed 0/11 labelled amateur frames. Keep its useful safeguards
+for borrowing a court from another scene, but exclude CourtKeyNet from the
+replacement. Removing old model-loading dependencies remains part of wiring
+the replacement into the annotator. [Evidence](evidence/retirement/README.md).
 
-Better line evidence and useful candidate pools did not settle which visible court was being played. Preserve the earlier inputs, proposal records and contrary examples. The failed acceptance rules are closed as defaults. [Independent proposal evidence](evidence/independent_proposals/README.md).
+<a id="d02"></a>
+### D02: Keep the earlier courts and inputs; retire the failed rules
 
-### D03 — Keep direction mechanisms distinct
+Better lines and more possible courts did not reliably identify the court
+being played. Earlier acceptance rules are closed as defaults. Their inputs,
+possible courts and failures remain useful evidence.
+[Earlier trials](evidence/independent_proposals/README.md).
 
-Global midpoint and representative changes caused regressions. Historical SVD fitting held group membership fixed; it is distinct from the implemented SVD12 direction-family screen in D12. A proposed per-assignment SVD refit before capping has not been implemented. [Direction search](evidence/direction_search/README.md); [historical SVD assessment](evidence/webui_followup3_20260922/ASSESSMENT.md).
+<a id="d03"></a>
+### D03: Distinguish the different uses of SVD
 
-### D04 — Do not adopt the tested diversity cap rule
+SVD is a matrix method used in several unrelated trials here. Changing line
+midpoints or replacing whole direction groups caused regressions. Fitting
+existing groups with SVD differs from dropping four direction groups before
+searching, the shortcut tested in D12. Refitting each line assignment before
+applying its search limit remains an untested idea.
+[Direction trials](evidence/direction_search/README.md);
+[returned SVD study](evidence/webui_followup3_20260922/ASSESSMENT.md).
 
-Exact traces show that score ordering and the 512-assignment cap discard court-compatible matches on traced pairs. A broader fixed-budget diversity rule helped one case but badly regressed another, so that rule remains rejected. D13's 640-axis trial changes search depth and is a separate experiment. The matcher assignment cap is also distinct from W5's 256-template retention limit. [Traces and stopped probe](evidence/direction_search/README.md#cap-and-duplicate-corrections).
+<a id="d04"></a>
+### D04: Reject the tested rule for keeping more varied line matches
 
-### D05 — Retain complementary proposal sources
+Sorting by score and keeping 512 line assignments can discard useful matches.
+The tested alternative helped one case but badly worsened another. D13 tests
+a larger limit instead. Neither limit is the separate limit of 256 crossing-line
+templates. [Traces](evidence/direction_search/README.md#cap-and-duplicate-corrections).
 
-The expanded crossed comparison supports access to G1 proposals, which use paint-filtered fragments. It does not show that S1 scoring is universally better. G0, which uses original fragments, retains complementary coverage. More candidates can also worsen the automatic selection. [G0/G1 comparison](evidence/g0_g1/README.md).
+<a id="d05"></a>
+### D05: Search both all lines and paint-like lines
 
-### D06 — Keep the W5 development result in context
+Searching paint-like fragments finds useful courts. Searching all fragments
+finds others that would be lost. This does not show that scoring only against
+paint-like fragments always works better. Adding courts can also make the
+final choice worse. [Crossed comparison](evidence/g0_g1/README.md).
 
-W5 `(4,3)` and `(5,3)` select identical courts. In the 27-case development review, 21 selections were usable; the existing player gate raised this to 24. G1 plus line templates preserved that count and the same failures in this review, but the wider test needs G0 for Am4-319. No tested floor score is a sufficient acceptance rule. [Four-part evaluation](archive/20260922/evaluation_results_20260922.md).
+<a id="d06"></a>
+### D06: Keep the 24/27 result in its original scope
 
-### D07 — Person masks help proposal access in limited cases
+The `(4,3)` and `(5,3)` minimum-line settings chose identical courts. Of 27
+development cases, 21 choices were usable; requiring players to fit the court
+raised that to 24. Searching paint-like lines plus crossing-line templates
+kept that count. The wider test then needed the all-line search for Am4-319.
+No tested floor score was sufficient to accept a court on its own.
+[Original results](archive/20260922/evaluation_results_20260922.md).
 
-All five corrected person-mask matcher comparisons are complete. Useful broadcast proposals survive, including SS03-17 despite its poor paint winner. Masks alone do not rescue GX5. The historical direction-changing masked arms remain qualified because their changes were not isolated to masking. [Box provenance and repairs](evidence/holistic_admission/box_provenance.md).
+<a id="d07"></a>
+### D07: Hiding people helps some searches
 
-### D08 — Shared candidate access helps GX court identity
+All five corrected comparisons are complete. Useful broadcast courts survive,
+including SS03-17 despite its poor paint-score winner. Hiding people alone
+does not fix GX5. Older trials also changed line directions, so their results
+do not isolate the effect of hiding people.
+[Checks and image origins](evidence/holistic_admission/box_provenance.md).
 
-With the same registered GX candidate union, per-frame and shared paint ranking identify the played court on 7/7 frames. Native-only access identifies it on 5/7. These are court-identity results, not precise-fit counts: far-end errors remain. Shared line ranking selects a wall on all seven. This supports stable-view proposal reuse, with far-marking accuracy and camera stability still requiring checks. [Pixel and temporal evidence](evidence/pixel_temporal/README.md).
+<a id="d08"></a>
+### D08: Sharing possible courts helps identify the played court
 
-### D09 — Wider evaluation retains G0 and exposes fit bias
+Using the same set of possible courts across aligned GX frames let paint scores
+identify the played court on 7/7 frames, against 5/7 when each frame used only
+its own courts. The far-end fits still had errors. Shared line scores picked a
+wall on all seven. This supports trying reuse across a stable camera view;
+repeated agreement alone does not certify the court.
+[Temporal trials](evidence/pixel_temporal/README.md).
 
-The wider comparison completed 47 frozen cases and 24 controls. Removing G0 loses the tolerable Am4-319 fit. Both arms accept one of eight labelled non-court controls. Static-grid residuals show an inward width bias, and SS03-34 has a confirmed inner/outer paint-edge misinterpretation. [Wider numeric comparison](archive/20260922/wider_evaluation_20260922.md#completed-numeric-comparison).
+<a id="d09"></a>
+### D09: The wider test needs all-line search and exposes narrow fits
 
-## Fitting, colour and net evidence
+The test covered 47 frozen cases and 24 controls. Removing the all-line search
+lost the tolerable Am4-319 fit. Both tested versions accepted one of eight
+labelled non-court frames. Fits tended to pull the sidelines inward; SS03-34
+mistook an inner paint edge for an outer one.
+[Wider comparison](archive/20260922/wider_evaluation_20260922.md#completed-numeric-comparison).
 
-### D10 — Fixed-point polarity partly corrects the left inset
+<a id="d10"></a>
+### D10: Checking stripe edges partly fixes the left-side inset
 
-Across six video-03 scenes, a fixed-point polarity check reduced median left-edge disagreement with the shared static grid from 3.745 to 1.799 working pixels. Scores were mixed; the approved GX control moved under 0.05 pixels. D11 records the subsequent centre-label investigation. This test did not change production fitting defaults. [Seven-case polarity test](edge_polarity/README.md).
+On six video-03 scenes, the fixed-point stripe check reduced median left-edge
+error against the shared static grid from 3.745 to 1.799 working pixels. The
+approved GX control moved under 0.05 pixels. Scores were mixed, and this trial
+did not change production defaults.
+[Seven-case report](archive/20260926/experiments/edge_polarity/README.md).
 
-### D11 — Centre-to-edge relabelling is a partial correction
+<a id="d11"></a>
+### D11: Relabelling stripe centres as edges helps, but does not fix Am1
 
-The user preferred centre-to-edge relabelling in a four-case review. The eight-source amateur extension did not solve Am1's net-tape identity error. Keep the method as an experimental fitting candidate. Neither a fixed corner offset nor a changed physical stripe width is justified. [Local fitting assessment](edge_polarity/local_audit/ASSESSMENT.md).
+The project owner preferred the changed labels in four reviewed cases. The
+eight-source amateur extension did not fix Am1's confusion between net tape
+and a court line. Neither a fixed corner offset nor a changed physical stripe
+width was justified.
+[Assessment](archive/20260926/experiments/edge_polarity/local_audit/ASSESSMENT.md).
 
-### D12 — SVD12 is an accepted experimental screen
+<a id="d12"></a>
+### D12: The 12-direction shortcut was accepted, then rejected
 
-Fresh experimental W5 generation defaults to SVD12, which retains 12 of 16 direction-support groups; full16 remains available. Nine development cases retain all eight approved automatic witnesses and the best reference-agreement candidates. Three score-winner roles change, with mixed substitutes. The user accepted that efficiency tradeoff. The completed benchmark saved 52.9% of summed matcher time, not end-to-end time or a general accuracy guarantee. [Implementation](svd_runtime/README.md); [matcher benchmark](svd_runtime/RESULTS.md).
+On 23 September, keeping 12 of 16 direction groups retained all eight approved
+courts in nine development cases. Three score winners changed, with mixed
+substitutes. The project owner accepted the tradeoff. The benchmark saved
+52.9% of matcher time, not whole-detector time.
+[Benchmark](archive/20260926/experiments/svd_runtime/RESULTS.md).
 
-### D13 — Deeper axes recover one useful G0-only case
+The later full-detector check changed five of 20 court views and clearly
+worsened `letterboxed_short_frame_78` and `shuttleset_21_scene_0044`.
+The joined detector therefore searches all directions. The earlier acceptance
+still belongs in the history; it is no longer the default to carry forward.
+[Later check](archive/20260925_optimisation_handover/CLAUDE_EVALUATION.md#svd12-screen-against-full-search).
 
-In six G0-only cases, 640 rather than 512 axes cost 26.6% more summed full-trial time and gave a visually suitable Am2 result where baseline failed. A wider shortlist cost 10.0% more without a comparable visual win. Deeper Am2 and both deeper SS03 selections reproduced saved W5 geometry. Keep G1 and templates: G0-only failures do not show that SVD caused them. No global search-depth default was changed. [Search comparison and user rulings](svd_search/WORKLOG.md).
+<a id="d13"></a>
+### D13: Searching more line matches recovered one useful court
 
-### D14 — Do not adopt an automatic colour veto
+In six cases using all fragments, 640 rather than 512 axis hypotheses cost
+26.6% more total trial time and produced a visually suitable Am2 court where
+the baseline failed. Keeping a wider set of courts cost 10.0% more without a
+comparable win. The deeper Am2 and both deeper SS03 choices reproduced their
+saved geometry. No global search-depth default changed.
+[Run history and rulings](archive/20260926/experiments/svd_search/WORKLOG.md).
 
-The floor trial rejected 0/9 saved choices. Final hue-only paint rejected 0/12: one comparison was usable and eleven were inconclusive. Hue-grouped raw colour rejected Am1 but still failed a pale same-hue control. Keep weak or neutral colour evidence inconclusive; similar paint cannot certify court geometry. These were fixed-fit diagnostics and decision trials, not a demonstrated colour-driven detector improvement. [Colour trials and limits](colour_consistency/PLAN.md).
+## Colour, net posts and stripe edges
 
-### D15 — Recover Am1 without unrestricted net preference
+<a id="d14"></a>
+### D14: Close the tested colour-rejection rules
 
-Three automatic line-group seeds exposed an Am1-54 candidate that positive net support selects; the user accepts the result. The subsequent 71-case scan changed 13 choices and lost good courts on Letterboxed78 and frame 52563. Unrestricted net preference is rejected. Missing net support does not establish a bad court. The later bounded rule is D17. [Net assessment](net_recovery/ASSESSMENT.md); [Am1 recovery](colour_consistency/AM1_RECOVERY.md); [scan record](net_recovery/WORKLOG.md).
+The floor trial rejected 0/9 saved choices. The final hue-only test rejected
+0/12; one comparison was usable and eleven were inconclusive. Grouping raw
+colours by hue rejected Am1 but failed a pale same-hue control. Similar paint
+cannot establish correct geometry. These were tests on fixed fits, not a
+successful colour-driven detector change.
+[Complete colour record](archive/20260926/experiments/colour_consistency/PLAN.md).
 
-### D16 — Carry automatic stripe polarity into integration
+<a id="d15"></a>
+### D15: Recover Am1 without letting net evidence dominate
 
-In the six-case gallery, the user found automatic polarity practically identical to the bright-paint rule and both better than the original. Automatic polarity also handles synthetic dark-stripe inversion with modest extra cost. Robustness on real dark courts is unproven. Keep original labels when the polarity is unresolved. Stripe correction alone did not repair Am1; D15 records the seeded recovery. Production fitting is unchanged. [Final edge policy and timing](edge_polarity/local_audit/ASSESSMENT.md).
+Three automatic starting points from line groups exposed a useful Am1-54
+court. Net support selected it and the project owner accepted the result.
+Unrestricted net preference then changed 13 choices in a 71-case scan and
+lost good courts on Letterboxed78 and frame 52563. Reject that unrestricted
+rule. Missing net support does not prove a court wrong; D17 limits its reward.
+[Am1 record](archive/20260926/experiments/colour_consistency/AM1_RECOVERY.md);
+[net worklog](archive/20260926/experiments/net_recovery/WORKLOG.md).
 
-### D17 — Use bounded net weight 0.04 provisionally
+<a id="d16"></a>
+### D16: Adjust stripe labels automatically when the evidence is clear
 
-For the fresh combined trial, retain net weight **0.04** and projected post-base overrun **4 working pixels**. A post earns support when any of the first six of 24 samples from its projected base matches a DeepLSD fragment, provided none of its matched fragments extends more than 4 px below that base. Existing match tolerances are 4 px lateral, 8 degrees and 2 px extent. Zero, one or two supported posts earn 0, 0.5 or 1; this reward is added to the frozen paint score at the chosen weight. Gates remain, and exact ties retain original rank. Missing evidence is neutral.
+In the six-case gallery, the automatic rule looked practically identical to
+the bright-paint rule, and both looked better than the original. It also
+handled synthetic dark stripes at modest extra cost. Real dark courts remain
+unproven. Keep original labels when the evidence cannot distinguish a stripe's
+centre from its edges. This adjustment alone did not fix Am1.
+[Edge policy](archive/20260926/experiments/edge_polarity/local_audit/ASSESSMENT.md).
+D19 records its later inclusion in the joined detector.
 
-Only 4/26 supported posts on changed choices match the base sample, so this is lower-post support, not post detection or verified post identity. The bounded rule protects the five known regression views from the unrestricted scan. Overrun 2, 4 and 8 selected identical courts in the saved set. [Rule and limitations](net_recovery/ASSESSMENT.md); [trial record](net_recovery/WORKLOG.md).
+<a id="d17"></a>
+### D17: Give supported net posts a small, bounded reward
 
-The trial measured 72 pools from 71 unique frames because Am1-54 has both old and seeded pools. Weight 0.04 changed 15/72 pool selections. The primary 71-frame comparison replaces the old Am1 pool with its seeded pool. Of these, 45 have usable references: 27 landmark and 18 four-corner frames. Median per-frame reference-point errors for weights 0, 0.02, 0.04 and 0.08 are 3.40, 2.75, 2.75 and 2.76 working pixels. At 0.04, Q90 is 5.62 versus 6.20 at 0.02. Differences between positive weights are small, and ten-source bootstrap intervals include zero. The data do not establish a statistically reliable optimum. Am1-5352 and Yellow14 retain large errors; all settings accept one of eight labelled non-court controls. Seven frames have no gated selection. Two unverified views and 24 controls lack usable reference geometry. [Paired statistics](net_recovery/statistics/paired_reference_report.md).
+The 23 September rule uses net weight 0.04 and allows a matched fragment to
+extend at most four working pixels below the predicted post base. Zero, one
+or two supported posts add 0, 0.02 or 0.04 to a court's score. Missing evidence
+is neutral. Only 4/26 supported posts on changed choices touched the base
+sample, so this is evidence near lower posts, not verified post detection.
+[Exact rule and limits](archive/20260926/experiments/net_recovery/ASSESSMENT.md).
 
-The accepted 20-case gallery selects with bounded net support, then applies automatic stripe correction to that selected fit. The user called the page very usable despite tiny amateur imperfections. This is gallery-level feedback, not 20 independent case labels. Net evidence does not constrain the correction. The comparison reused older candidate pools; the fresh SVD12, G0/G1/template, bounded-net and stripe-corrected combination has not been tested. Fresh and historical paint measurements differ even on the same image and geometry, with the cause unresolved. [Combined replay](net_recovery/run_combined.py); [trial account](net_recovery/WORKLOG.md).
+The trial held 72 court pools from 71 frames, including old and seeded Am1-54
+pools. Weight 0.04 changed 15/72 choices. The main comparison used the seeded
+Am1 pool. On 45 frames with references, median per-frame errors at weights
+0, 0.02, 0.04 and 0.08 were 3.40, 2.75, 2.75 and 2.76 working pixels.
+The data did not establish a statistically reliable best weight. Am1-5352
+and Yellow14 still had large errors; every setting accepted one of eight
+non-court controls. [Statistics](net_recovery/statistics/paired_reference_report.md).
 
-## Runtime and deployment boundary
+The project owner called the 20-case gallery very usable despite tiny amateur
+imperfections. It chose a court with the bounded net rule, then adjusted the
+stripe fit. This was one overall gallery judgement, not 20 separately labelled
+outcomes. The saved-pool trial did not test the later fresh detector.
+[Trial history](archive/20260926/experiments/net_recovery/WORKLOG.md).
 
-### D18 — Optimise before deployment
+## Speed and the joined detector
 
-Six SVD12 G0-only trials still took **4.3–33.6 minutes per frame**. Generation accounted for 91.6% of summed full-trial time; refitting and scoring alone took 59–107 seconds per frame. These runs used six workers with one numerical thread each and cached line inputs. They excluded imports, output writing, G1/templates and video processing, so they are not complete detector or ordinary-hardware latency measurements. [Saved stage timings](svd_search/WORKLOG.md); [launch evidence](archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md).
+<a id="d18"></a>
+### D18: Meet a whole-video time budget
 
-The user's expectation is roughly **30 seconds for a five-minute video**, with **90 seconds tolerable**. Report startup and warmup separately. The user rejected the earlier 5%-of-duration/15-second proposal. For longer videos, expensive search should roughly follow distinct compatible camera views. Existing code applies ContentDetector to find cuts, samples frames for court evidence, and only then groups initially valid scenes by perceptual hash and alignment. That grouping saves no first-pass court searches. Cut detection and decoding still scan the video. [Shared requirement](archive/20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md); [scene code anchors](archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md).
+The project owner's target is about **30 seconds for a five-minute video**,
+with **90 seconds as the upper end**. Report start-up and warmup separately.
+The earlier 5%-of-duration/15-second target was rejected. For longer videos,
+expensive searches should mainly follow distinct compatible camera views.
+[Recorded requirement](archive/20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md).
 
-### Scene-level operation is the target
+The earlier six-case trials took 4.3–33.6 minutes per frame. They used the
+12-direction shortcut and all-line search only, with cached line inputs.
+Building courts took 91.6% of total trial time; refitting and scoring alone
+took 59–107 seconds per frame. These are historical measurements, not timings
+for the joined detector. [Run history](archive/20260926/experiments/svd_search/WORKLOG.md).
 
-The intended detector samples several frames from a scene or verified stable view. It shares compatible proposals, uses line, paint and player evidence across samples, and checks geometry before reusing a court. Loss of support or camera change should trigger new search or abstention. Sample count, spacing and agreement rule remain open. The fixed-pool GX replay tests only proposal access and ranking; it does not implement multi-frame generation, a scene sampler or change handling. A wall can score consistently across frames, so agreement must include court geometry at the far end. [Temporal evidence](evidence/pixel_temporal/README.md); [scene contract](archive/20260925_optimisation_handover/handover_20260923/00_SHARED_CONTRACT.md).
+<a id="d19"></a>
+### D19: The research steps now run together in memory
 
-## How to judge fit quality
+The 25 September joined detector passed the recorded 13 checks on all 28 views.
+Chosen courts matched the research chain bit for bit. The comparison checked
+crossing-line templates by count and metadata, and excluded research-only
+scoring fields. Reproducing this historical comparison now requires turning
+off the newer camera filter and geometry blend.
+[Check and its limits](court_detector/check_20260925/README.md).
 
-The 24/27 W5 result is qualitative development usability, not 24 clean fits. The GX 7/7 result means the played court was identified, not that all fits were accurate. Use three visual categories: **clean fit** where boundaries and service markings follow the court; **tolerable fallback** where the right court has a limited visible error; and **unacceptable fit** for a wrong court or substantial missing or extra area. Record exceptional last-resort use separately.
+The joined path keeps all-line search, paint-line search, seeded crossing-line
+templates, the bounded net reward and the automatic stripe refit. It searches
+all directions. The earlier exact speed-ups are recorded by commit in the
+[archived speed-up account](archive/20260926/originals/court_detector_optimisation_handover/README.md#built-in).
 
-The user placed frame-0 G1 `143:158` in the fallback category: it is skewed and clips a sliver of far-left court. GX86088 G1 `16:44` is a more serious last resort. Near-end alignment conceals loss of nearly the whole far long-service-to-baseline strip. Such a loss at reasonable frequency would block shipping. These rulings concern temporal candidates, not their separately refined W5 children. [Temporal review](evidence/pixel_temporal/README.md).
+The old fresh-versus-saved score drift was traced to OpenCV's IPP distance
+transform rounding differently with memory alignment. Use matching environments
+and controls for numerical comparisons.
+[Investigation](archive/20260925_optimisation_handover/CLAUDE_EVALUATION.md#score-drift-and-its-cause).
 
-Review far-end crops with full images. Where annotations permit, measure far-baseline, long-service and sideline errors separately, as well as missing court area. Report severity and frequency instead of one usable rate. On 22 September the user described imperceptible misalignment as the visual ideal and preferred outer edges of white markings. This set no pixel cutoff or accepted fallback frequency; borderline cases need review. The later 20-case gallery feedback accepts frequent tiny amateur imperfections without assigning each image to a category. [Fitting assessment](edge_polarity/local_audit/ASSESSMENT.md); [bounded-gallery account](net_recovery/WORKLOG.md).
+<a id="d20"></a>
+### D20: Skip courts that need a sideways or upside-down camera
 
-### Interpret the earlier colour diagnostic gallery correctly
+The 26 September filter reduced summed stage time over 28 views from 6,434
+to 3,703 seconds, about 42%. Jobs ran eight views at a time on Carmack, one
+thread each. Start-up and video decoding were excluded. This is not whole-video
+latency. Three of 20 court views changed: one improved and two slipped at the
+far end. Two of eight non-court controls received courts.
+[Filter check](court_detector/check_20260926_upright/README.md).
 
-That gallery displays preserved fits, not geometry changed by colour. Saved W5 and saved G1/templates use one earlier ranking with different source access: 50 of 64 available fits have identical geometry, 14 differ, and seven records have no fit. Source IDs and rendered coordinates match the saved records. Duplicate columns therefore do not measure colour efficacy. The user confirmed the repaired shared-template UI worked; that was a UI ruling. [Colour diagnostic](colour_consistency/PLAN.md).
+<a id="d21"></a>
+### D21: Keep a 10% share of line support in the final score
 
-## Older ideas worth bringing back
+The 26 September choice uses 90% paint score and 10% geometry score, plus the
+net-post reward. Here geometry score means support from detected line
+fragments without requiring bright paint. It fixed
+`gxBQ_window_00_frame_689`, reducing largest floor-coordinate error after refit
+from 0.94 to 0.32 m. `gxBQ_window_03_frame_77876` still slips, at 1.06 m.
+[Choice check](court_detector/check_20260926_court_choice/README.md#decision).
 
-These are closed or conditional leads, not a new experiment queue. The [older temporal replay](../../experiments/annotator/independent_court/recorded/player_guided/projective_patterns/evaluation/temporal_assessment.md#an-earlier-shared-court-experiment-already-exists) changed Yellow's worst-corner error from 221.19 px under floor scoring to 26.01 with net evidence and 21.22 after pooled refinement. Letterboxed worsened from 10.06 to 14.75. Those are 1280×720 errors against old references, not current working-pixel errors. Net cue and temporal refinement were not isolated ablations. The replay used footpoints and raw fragments, so the historical spatial-mask error does not invalidate it. Its cue measured image support along projected net segments; W5's projected-post diagnostic recorded only geometry. Player-pair identity and stable camera geometry are prerequisites.
+The Carmack run finished all 28 views. It matched the laptop replay on all 27
+views that could be replayed; the other control kept its previous court.
+Shared-server noise prevented a useful estimate of the blend's timing cost.
+[Completed run](court_detector/check_20260926_court_choice/README.md#carmack-run).
 
-Older fixed-assignment refits sometimes improved a plausible court, but an improvement rule chose 35 harmful refits among 357 parent/refit pairs. W5 already has same-view fixed-assignment refinement. Keep parents and children together and inspect both near and far markings; a lower fitting objective does not certify better geometry. [Refit evidence](evidence/independent_proposals/README.md#other-branches-and-why-their-records-remain-useful).
+<a id="d22"></a>
+### D22: Keep both search shortlists at 256
 
-Broadcast scene-repair safeguards remain useful design context: borrowed geometry should agree with target-visible lines, inferred repairs should not become donors, and mixed broadcast composites need separate treatment. They do not validate amateur detection. Camera novelty, colour and temporal consistency alone cannot certify a court. [Donor safeguards](evidence/retirement/README.md#non-model-lessons-worth-keeping).
+Keeping 128 courts per search preserved the chosen courts in a replay but
+removed close alternatives on six hard views. The check after the camera
+filter reached the same conclusion. Keep 256 per pair and 256 per search.
+[Replay and reasoning](archive/20260926/webui_final_opt_handover/README.md#shortlist-caps-of-128).
 
-Earlier cap traces justify investigating retention only after a concrete coverage failure. The tested diversity rule regressed one pair; any replacement needs paired checks and controls. Graph search or shared partial states are later implementation leads, not accuracy findings. Define equivalent states from the matcher constraints before using them. Per-assignment SVD fitting is also untested. Keep global midpoint and direction replacements, connected-pixel vetoes and junction-first ranking out of the main design. Retain player evidence while comparing rejection and fallback; the historical hard gate need not be the final scoring form. [Cap traces](evidence/direction_search/README.md#cap-and-duplicate-corrections); [historical proposal branches](evidence/independent_proposals/README.md).
+<a id="d23"></a>
+### D23: The other 26 September scoring and filtering trials failed
 
-## Frozen sample coverage
+| Trial | Why it was removed or set aside | Record |
+| --- | --- | --- |
+| Stricter paint test, bounded by the next painted line | Fixed neither far-end GX slip, worsened another view and took 12% longer | [Paint check](court_detector/check_20260926_paint_test/README.md) |
+| Refit the top 15 courts before choosing | Fixed one view but worsened two others by about 0.7 m | [Choice check](court_detector/check_20260926_court_choice/README.md#decision) |
+| Average paint contrast over a whole line | Four versions failed; distance, light and stripe width prevent simple cross-line comparison | [Line-paint check](court_detector/check_20260926_line_paint/README.md) |
+| Reject courts that imply absurd player widths | Let a slipped court win on `am2_window_01_frame_28019`; no clear speed gain | [Player-size check](court_detector/check_20260926_player_size/README.md) |
+| Add the search stage's score to the final choice | Did not fix the slips | [Saved-score test](court_detector/check_20260926_player_size/README.md#the-search-stages-score-does-not-fix-it) |
+| Combine lengthwise and crosswise scores differently | The version that fixed Am2 slipped a whole end on two GX views | [Saved-score test](court_detector/check_20260926_player_size/README.md#combining-the-two-directions-differently-does-not-fix-it-either) |
+| Use the average line-match score instead of a cheap court score | Ranked important courts about as poorly as build order | [Rebuilt courts](archive/20260926/webui_final_opt_handover/README.md#ruled-out-choosing-the-k-courts-by-their-line-guess-average) |
+| Reject cameras looking nearly straight down | Would not help GX; other cases depend on assuming the lens | [Horizon check](archive/20260926/webui_final_opt_handover/README.md#skipping-courts-that-imply-a-camera-looking-straight-down) |
 
-The [archived evaluation](archive/20260922/evaluation_results_20260922.md) and [wider comparison](archive/20260922/wider_evaluation_20260922.md) retain the original protocol and input coverage. The current 71-frame statistics use the seeded Am1 replacement pool and report original-pool results separately. Do not infer performance on unseen cameras from these development sets. Unreliable edit-transition views such as SS21-10 are excluded from required detection by the user; confidence rejection remains optional.
+These tests used the same ten hand-marked views where applicable. Repeating
+them on that set would not add independent evidence.
 
-Representative labelled evaluation, ordinary-hardware latency with player detections supplied, camera-change handling and annotator integration remain distinct requirements. The experimental runners already reuse greyscale and prepared measurements. Removing unused diagnostics is only a small optional compute change. Historical 2.37× local timing and Carmack matcher savings are not deployment latency. [Compute audit](svd_runtime/COMPUTE_AUDIT.md); [current runtime evidence](archive/20260925_optimisation_handover/handover_20260923/01_LAUNCH_OPTIMISATION.md).
+<a id="d24"></a>
+### D24: Try a cheap score before the full score
+
+On 26 September the project owner agreed to try 16 samples per marking, then
+fully score the best 2,048 courts per pair. Keep a switch to score every court.
+The saved replay covered 23 views that reached a search. The deepest cheap
+ranks were 189 for a chosen court, 367 for a top-five court and 1,211 for a
+court kept by a complete search. At 2,048, 217 pair-level courts were lost but
+all were below their search's overall cut.
+[Replay](archive/20260926/webui_final_opt_handover/README.md#the-cascade-item-16-now-to-be-tried).
+
+This does not guarantee the same choices on new footage. The replay and old
+speed estimates predate the camera filter. The
+[design](court_detector/PERFORMANCE.md#score-cheaply-before-scoring-in-full)
+owns the implementation and checks; the live queue owns whether it has run.
+
+<a id="d25"></a>
+### D25: Reuse a court only after checking it on the new scene
+
+On 26 September the project owner agreed to move a court with the fitted
+camera warp, check it against the new scene, and fall back to a full search.
+Flag a camera group when the fallback disagrees. The proposed default is one
+full search before reuse, with three available to combine separately searched
+courts. The [design](court_detector/PERFORMANCE.md#reuse-a-court-when-the-camera-returns)
+owns the details and unanswered tolerance question.
+
+## Read accuracy claims carefully
+
+The 24/27 result means visually usable courts in a development review. The
+7/7 GX result means finding the played court, not fitting every marking well.
+Use **clean fit**, **tolerable fallback** and **unacceptable fit** separately.
+A fit can look right at the near end while losing a whole strip at the far end.
+Report both the severity and frequency of such mistakes.
+
+The project owner preferred outer edges of white markings on 22 September,
+without setting a pixel cutoff. Later gallery feedback accepted tiny amateur
+imperfections. Existing amateur references mix stripe centres and edges, so
+small pixel differences can be ambiguous. Keep full images beside far-end
+crops. [Original fit rulings](archive/20260926/originals/DETECTOR_DECISIONS.md#how-to-judge-fit-quality).
+
+The earlier colour gallery displayed preserved fits, not fits changed by
+colour. Its repeated columns were not evidence of a colour improvement.
+[Complete account](archive/20260926/originals/DETECTOR_DECISIONS.md#interpret-the-earlier-colour-diagnostic-gallery-correctly).
+
+## Conditional ideas to recover when needed
+
+The earlier shared-camera replay, safeguards for borrowed courts, refitting
+failures and search-limit traces remain in the
+[archived decision account](archive/20260926/originals/DETECTOR_DECISIONS.md#older-ideas-worth-bringing-back).
+It preserves their numbers, contrary cases and source links. These are leads
+for a specific new problem, not another work queue.

@@ -13,9 +13,10 @@ from time import perf_counter
 import cv2
 import numpy as np
 
-from . import fixed_stripe_refit as fitting
-from .assignment import prepare_observations
-from .detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector import stripe_fitting as fitting
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.line_observations import prepare_observations
+
 from .run_assignment import ACCURATE_PX, attach_metrics, read_replay
 
 MODELS = ("nominal_centre", "fixed_position")

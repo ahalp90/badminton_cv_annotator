@@ -9,13 +9,13 @@ import numpy as np
 import pytest
 
 from experiments.annotator.independent_court import run_stripes
-from experiments.annotator.independent_court import stripe_observations as stripes
-from experiments.annotator.independent_court.assignment import prepare_observations
-from experiments.annotator.independent_court.detector import SEGMENTS_M, project
 from experiments.annotator.independent_court.run_assignment import (
     frozen_entries,
     read_replay,
 )
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import SEGMENTS_M, project
+from scratch.court_det_fix.court_detector.line_observations import prepare_observations
 
 SIZE = (400, 400)
 HOMOGRAPHY = np.array([[40.0, 0, 50], [0, 125.0, -1350], [0, 0, 1]])

@@ -1,3 +1,12 @@
+> The original scripts are [archived](../../archive/20260927_code/court_detector/check_20260926_court_choice/). Commands below use their historical paths.
+
+> Dated experiment record. Old plans and approval requests below describe that run.
+> Use [pickup](../../pickup.md) for current work and
+> [the decisions](../../DETECTOR_DECISIONS.md#d19) for the later rulings.
+
+> The later [Decision](#decision) and [Carmack run](#carmack-run) sections
+> close the pending requests in the original plan below.
+
 # Court-choice check, 26 September 2026
 
 This check tests two changes to how the detector picks its final court, alone

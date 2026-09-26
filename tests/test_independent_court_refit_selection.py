@@ -9,15 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from experiments.annotator.independent_court import run_refit_selection
-from experiments.annotator.independent_court.case_provenance import (
-    CaseProvenance,
-    ImageKind,
-)
 from experiments.annotator.independent_court.run_refit_selection import (
     eligible,
     rank_pools,
     summarise,
 )
+from scratch.court_det_fix.court_detector.image_sources import CaseProvenance, ImageKind
 
 
 def candidate(identifier: str, model: str, score: float, allowed: bool = True) -> dict:

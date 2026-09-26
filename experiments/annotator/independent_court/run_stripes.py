@@ -11,10 +11,16 @@ from time import perf_counter
 import cv2
 import numpy as np
 
-from . import stripe_observations as stripes
-from .assignment import MARKINGS, prepare_observations
-from .case_provenance import load_frozen_case_provenance
-from .detector import CORNER_COURT_M
+from scratch.court_det_fix.court_detector import stripe_measurements as stripes
+from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+from scratch.court_det_fix.court_detector.image_sources import (
+    load_frozen_case_provenance,
+)
+from scratch.court_det_fix.court_detector.line_observations import (
+    MARKINGS,
+    prepare_observations,
+)
+
 from .run_assignment import ACCURATE_PX, attach_metrics, frozen_entries, read_replay
 from .run_junctions import provenance_binding, require_replay_pack
 
