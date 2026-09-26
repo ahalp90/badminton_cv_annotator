@@ -29,7 +29,13 @@ from typing import Any, NamedTuple
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import feet, net_choice, search, stripe_refit
+from scratch.court_det_fix.court_detector import (
+    feet,
+    line_paint,
+    net_choice,
+    search,
+    stripe_refit,
+)
 from scratch.court_det_fix.court_detector.inputs import (
     FrameReader,
     PeopleSource,
@@ -74,6 +80,8 @@ class Switches:
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
     geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
+    # in the net choice, pass or fail each painted line on its average contrast along its length (line_paint.py)
+    line_paint: bool = False
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
 
@@ -260,7 +268,8 @@ def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndar
                  live: LiveModules, switches: Switches, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
     """The net choice and the stripe refit of its pick, from W5's case record. Runs inside prepared_measurements."""
     rows = net_choice.net_rows(record, context)
-    chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight)
+    choice_rows = line_paint.rescore_rows(rows, record, native_frame, context) if switches.line_paint else rows
+    chosen, net_scores = net_choice.choose(choice_rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight)
     if switches.self_checks:
         gated_top = rows[0]["origin_key"] if rows else None
         if net_choice.choose(rows, 0.0, NET_OVERRUN_WORKING_PX)[0] != gated_top:

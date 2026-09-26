@@ -1,0 +1,164 @@
+mean grey profile across each line, less its two outer offsets, in grey levels
+offsets across the line, floor metres:  -0.36  -0.30  -0.24  -0.18  -0.12  -0.06   0.00   0.06   0.12   0.18   0.24   0.30   0.36
+
+gxBQ_window_00_frame_0: far baseline to far long-service line 17.9 native px apart (near end 175.3)
+  far baseline         n   517    -5.2   -3.2   -0.8    1.7    3.9    5.3    5.9    5.9    5.6    5.2    5.0    5.0    5.2
+  far long-service     n   504     1.8    2.1    2.6    3.3    3.8    4.0    4.0    3.4    2.4    1.4    0.3   -0.9   -1.8
+  other lines          n  7916     0.7    0.4    0.5    1.1    2.8    6.4   20.4    2.2    0.1   -0.5   -0.9   -1.0   -0.7
+  midway floor         n  7133     2.8    1.2    4.3    0.9   -1.1   -1.5   -1.6   -1.7   -1.0    0.1    8.3   -2.5   -2.8
+
+gxBQ_window_00_frame_5: far baseline to far long-service line 17.9 native px apart (near end 175.3)
+  far baseline         n   610    -4.7   -2.8   -0.7    1.5    3.3    4.6    5.0    5.0    4.6    4.3    4.1    4.3    4.7
+  far long-service     n   610     1.2    1.8    2.4    3.1    3.7    3.9    3.7    3.1    2.3    1.4    0.4   -0.6   -1.2
+  other lines          n  8615     0.0   -0.4   -0.4    0.4    1.9    6.6   19.6    2.2    0.1   -0.5   -0.5   -0.5   -0.0
+  midway floor         n  8352     0.9    0.4    3.4    0.5   -0.9   -1.0   -0.7   -0.3    0.8    2.2    9.4   -0.2   -0.9
+
+gxBQ_window_00_frame_689: far baseline to far long-service line 17.9 native px apart (near end 175.3)
+  far baseline         n   497    -4.9   -2.7    0.1    2.9    5.1    6.3    6.5    6.1    5.4    4.7    4.3    4.5    4.9
+  far long-service     n   502     1.6    2.4    3.3    4.5    5.2    5.4    4.9    3.9    2.5    1.2    0.0   -1.0   -1.6
+  other lines          n  7974    -0.0   -0.5   -0.2   -0.5    2.3    6.1   19.7    1.2    0.3   -0.8   -1.0   -0.6    0.0
+  midway floor         n  7638     2.5    1.4    4.3    0.6   -1.4   -2.0   -2.2   -2.6   -1.3    0.4    7.7   -2.7   -2.5
+
+gxBQ_window_01_frame_5111: far baseline to far long-service line 17.9 native px apart (near end 175.5)
+  far baseline         n   610    -4.1   -1.8    0.5    2.6    4.1    4.8    4.8    4.5    4.1    3.7    3.6    3.7    4.1
+  far long-service     n   610     4.2    4.9    5.9    7.0    7.7    7.6    6.7    5.1    3.0    0.6   -1.5   -3.1   -4.2
+  other lines          n  8615     0.0   -0.2   -0.3    0.3    2.4    6.7   18.5    2.0   -0.1   -0.5   -0.7   -0.7   -0.0
+  midway floor         n  8352     2.2    0.8    3.0    0.6   -1.6   -2.0   -2.3   -2.2   -1.2    0.4    7.4   -2.0   -2.2
+
+gxBQ_window_02_frame_5766: far baseline to far long-service line 17.9 native px apart (near end 175.4)
+  far baseline         n   610    -4.0   -1.7    0.8    3.1    4.7    5.4    5.3    4.9    4.3    3.7    3.4    3.6    4.0
+  far long-service     n   610     1.1    1.8    2.8    4.0    4.7    4.9    4.5    3.5    2.3    1.2    0.2   -0.6   -1.1
+  other lines          n  8615     1.1    0.8    0.5    0.8    3.0    7.2   18.7    2.0   -0.1   -0.8   -1.5   -1.8   -1.1
+  midway floor         n  8352     2.0    1.0    3.8    0.9   -1.8   -2.3   -2.4   -2.1   -0.9    0.7    7.9   -1.6   -2.0
+
+gxBQ_window_03_frame_77876: far baseline to far long-service line 18.1 native px apart (near end 175.9)
+  far baseline         n   610    -4.2   -2.0    0.4    2.5    4.2    5.0    5.1    4.7    4.1    3.6    3.4    3.7    4.2
+  far long-service     n   610     1.9    2.7    3.5    4.3    5.0    5.1    4.7    3.8    2.4    1.0   -0.3   -1.3   -1.9
+  other lines          n  8615     1.3   -0.6    0.5    0.6    3.1    6.8   15.1    3.4    2.4    2.1    1.2   -0.2   -1.3
+  midway floor         n  8352     2.8    1.6    3.3    2.2   -1.2   -2.0   -2.2   -3.0   -1.8   -0.9    5.2   -2.8   -2.8
+
+gxBQ_window_04_frame_86088: far baseline to far long-service line 18.1 native px apart (near end 177.2)
+  far baseline         n   610    -4.5   -2.2    0.4    2.7    4.5    5.4    5.6    5.2    4.8    4.3    4.0    4.1    4.5
+  far long-service     n   610     1.9    2.6    3.4    4.1    4.6    4.6    4.0    3.1    2.0    0.6   -0.4   -1.3   -1.9
+  other lines          n  8614    -0.2   -0.4    0.4    0.8    2.5    5.1   14.0    0.4   -1.6   -2.4   -1.8   -0.4    0.2
+  midway floor         n  8352     4.0    2.9    3.4    1.4   -1.4   -1.4   -1.6   -1.1   -0.3    0.2    4.9   -2.8   -4.0
+
+yellow_short_frame_14: far baseline to far long-service line 2.4 native px apart (near end 86.5)
+  far baseline         n   610    -0.5   -0.2   -0.0    0.1    0.0    0.2    0.3    0.3    0.3    0.3    0.3    0.4    0.5
+  far long-service     n   610    -0.7   -0.7   -0.4    0.1    0.3    0.4    0.4    0.5    0.6    0.7    0.8    0.8    0.7
+  other lines          n  7570     6.2   -3.5   -8.0   -8.3   -4.9    6.7   28.8    7.2   -3.9   -6.2   -4.2   -3.9   -6.2
+  midway floor         n  7995    -0.9   -3.7    0.4    0.6   -5.0   -5.7   -4.0   -3.3   -2.2    3.4    2.9    2.3    0.9
+
+yellow_short_frame_90: far baseline to far long-service line 2.4 native px apart (near end 86.5)
+  far baseline         n   308    -2.4   -1.6   -1.0   -0.4    0.2    0.8    1.3    1.6    1.8    2.0    2.1    2.2    2.4
+  far long-service     n   322     0.4    0.8    1.2    1.5    1.6    1.4    1.3    1.1    1.0    0.8    0.4   -0.0   -0.4
+  other lines          n  6595     2.9   -5.5   -3.7   -3.3   -1.8   10.0   32.4   11.7   -1.5   -3.1   -1.4   -1.2   -2.9
+  midway floor         n  6320     0.3   -3.6    3.4    3.7   -4.9   -6.1   -4.9   -4.5   -4.0    3.4    4.5    3.7   -0.3
+
+yellow_short_frame_156: far baseline to far long-service line 2.4 native px apart (near end 86.5)
+  far baseline         n   313    -2.6   -1.8   -1.0   -0.4    0.3    0.9    1.5    1.8    2.1    2.2    2.3    2.4    2.6
+  far long-service     n   327     0.6    0.9    1.3    1.6    1.8    1.7    1.6    1.3    1.1    0.7    0.3   -0.2   -0.6
+  other lines          n  6653     2.9   -5.7   -3.9   -3.5   -2.5    9.5   33.9   12.5   -1.5   -3.4   -1.4   -1.0   -2.9
+  midway floor         n  6678     0.1   -3.6    3.7    3.7   -4.7   -6.1   -4.7   -3.8   -3.3    3.3    5.5    4.0   -0.1
+
+letterboxed_short_frame_45: far baseline to far long-service line 9.1 native px apart (near end 127.9)
+  far baseline         n   530    -3.3   -1.9    0.8    7.0   12.7   17.6   17.5   14.3    9.0    5.5    3.9    3.4    3.3
+  far long-service     n   533    -1.8   -1.5    0.1    4.4    9.5   14.2   14.6   10.8    6.0    2.1    1.5    1.6    1.8
+  other lines          n  6313    -0.1    0.1   -1.9    1.9    0.0   12.5   41.7   10.7    2.7    1.5    0.7    0.4    0.1
+  midway floor         n  6435    -0.5    1.2   12.8    5.7    1.0   -0.0   -0.3    0.9    1.2    5.1   15.6    2.8    0.5
+
+letterboxed_short_frame_58: far baseline to far long-service line 9.1 native px apart (near end 127.9)
+  far baseline         n   610    -3.8   -2.6   -0.4    5.3   10.6   15.1   15.5   13.2    9.2    5.9    4.4    3.8    3.8
+  far long-service     n   610    -3.6   -3.0   -1.2    3.0    7.9   12.3   12.7    9.4    5.3    2.3    2.0    2.8    3.6
+  other lines          n  6927    -1.0   -1.9   -3.6    0.2   -2.0   11.2   41.4   11.2    3.3    2.3    1.6    1.3    1.0
+  midway floor         n  7350     0.7    2.4   12.4    5.9    0.1   -1.5   -2.4   -1.4   -1.0    2.6   12.4    1.3   -0.7
+
+letterboxed_short_frame_78: far baseline to far long-service line 9.1 native px apart (near end 127.2)
+  far baseline         n   476    -3.4   -1.2    2.4    8.8   14.3   17.9   17.7   13.4    8.8    4.9    3.8    3.3    3.4
+  far long-service     n   481    -1.8   -1.2    0.6    5.8   10.8   14.3   14.5    9.3    4.7    1.9    1.4    1.7    1.8
+  other lines          n  6487     0.2    0.2   -1.7    2.0    0.4   12.3   39.0   12.4    2.6    1.6    0.8    0.3   -0.2
+  midway floor         n  6566    -0.6    1.1   12.4    7.0    1.3    0.3    0.4    1.4    1.6    5.5   15.1    4.0    0.6
+
+centre_short_frame_36: far baseline to far long-service line 5.5 native px apart (near end 70.9)
+  far baseline         n   394    -3.1    7.6   18.3   25.8   32.0   34.7   21.0    7.3    2.8    3.3    3.8    3.5    3.1
+  far long-service     n   402    -2.9    0.1    3.1   18.8   34.9   31.8   15.5    3.1    1.6    0.2    1.2    2.4    2.9
+  other lines          n  7088     0.7    0.6    0.9    1.5    4.1    8.4   48.1    8.3    1.9    1.2    0.9    0.4   -0.7
+  midway floor         n  6529     1.2   -2.9   14.0    2.1   -1.2   -2.3   -2.0   -2.6   -2.9   -0.9   11.8    0.5   -1.2
+
+centre_short_frame_64: far baseline to far long-service line 5.5 native px apart (near end 70.9)
+  far baseline         n   610    -1.8    6.5   14.9   19.7   23.0   24.1   14.3    4.4    1.2    1.7    2.3    2.1    1.8
+  far long-service     n   610    -2.9   -0.2    2.4   14.0   25.8   23.5   11.4    2.2    1.5    0.7    1.6    2.5    2.9
+  other lines          n  7778     1.8    1.8    2.0    2.4    5.1    8.8   50.7    8.5    3.0   -0.2    0.2   -0.1   -1.8
+  midway floor         n  8128     4.1    0.2   13.3    2.1   -2.5   -4.5   -5.9   -7.2   -5.2   -3.5    7.2   -3.6   -4.1
+
+centre_short_frame_71: far baseline to far long-service line 5.5 native px apart (near end 70.9)
+  far baseline         n   610    -1.3    7.3   15.9   20.6   23.8   24.7   14.6    4.5    1.1    1.5    1.8    1.6    1.3
+  far long-service     n   610    -2.9   -0.3    2.4   13.8   25.6   23.4   11.3    2.1    1.3    0.5    1.4    2.3    2.9
+  other lines          n  7778     1.4    1.4    1.6    2.2    5.0    8.7   50.5    8.2    2.9   -0.3   -0.4   -1.1   -1.4
+  midway floor         n  8128     3.5    0.0   12.6    1.4   -2.7   -4.1   -4.5   -5.8   -4.8   -3.4    8.8   -1.2   -3.5
+
+am1_window_00_frame_54: far baseline to far long-service line 7.8 native px apart (near end 215.4)
+  far baseline         n   310    -3.3   -2.9   -1.5    1.9    9.0   14.8   11.5    5.7    3.8    3.4    3.4    3.4    3.3
+  far long-service     n   428    -2.6   -2.6   -2.1    0.7    4.6    8.1    7.4    2.8    1.1    0.8    1.2    1.7    2.6
+  other lines          n  5682     1.6    1.7    1.6    1.8    1.7    3.1   44.5    1.9    0.9    0.1   -0.6   -0.7   -1.6
+  midway floor         n  6121    -1.5   -0.8   15.7    1.2    0.9    0.9    1.4    1.5    1.4    1.8   20.4    0.9    1.5
+
+am1_window_01_frame_5352: far baseline to far long-service line 7.9 native px apart (near end 214.8)
+  far baseline         n   254    -3.7   -4.3   -3.7    1.0    6.1    9.6   11.6    9.0    6.3    4.2    2.9    3.1    3.7
+  far long-service     n   328    -0.5    0.1    1.4    3.4    6.3    7.8    7.7    5.3    2.3    1.5    0.9    0.6    0.5
+  other lines          n  5531     1.9    1.9    1.8    1.9    1.3    3.4   48.2    1.8   -0.1   -0.8   -1.3   -1.1   -1.9
+  midway floor         n  5131    -1.5   -0.9   20.2    0.8    0.2    0.3    0.8    1.2    1.1    1.9   25.0    1.2    1.5
+
+am2_window_00_frame_150: far baseline to far long-service line 14.2 native px apart (near end 190.2)
+  far baseline         n   506    -5.6   -3.3   -1.0    0.9    3.0    5.2    7.3    8.9    9.3    8.8    7.9    6.7    5.6
+  far long-service     n   509    -1.5   -1.3   -0.4    0.7    2.0    3.2    4.1    4.2    3.7    3.1    2.4    1.8    1.5
+  other lines          n  7357     1.4    0.6    0.0   -0.9   -1.4   -0.4   51.0   10.0    1.3   -1.3   -1.4   -1.6   -1.4
+  midway floor         n  6851    -1.5   -6.7   10.3   -0.3   -3.8   -4.4   -4.0   -3.7   -3.6   -3.0   18.2    3.1    1.5
+
+am2_window_01_frame_28019: far baseline to far long-service line 14.2 native px apart (near end 190.2)
+  far baseline         n   500    -5.2   -3.0   -0.8    1.3    3.5    5.4    6.8    7.5    7.5    7.2    6.6    5.7    5.2
+  far long-service     n   505    -1.3   -0.9   -0.2    0.7    1.8    2.6    2.8    2.7    2.5    2.1    1.6    1.3    1.3
+  other lines          n  7530     1.9    0.5   -0.3   -1.1   -1.6   -0.2   50.6    9.3    2.3   -1.7   -2.0   -1.9   -1.9
+  midway floor         n  7146    -1.2   -6.9   10.4   -0.1   -3.0   -4.2   -4.0   -3.7   -3.7   -3.2   16.3    2.9    1.2
+
+am3_window_00_frame_0: far baseline to far long-service line 21.1 native px apart (near end 232.7)
+  far baseline         n   474    -2.8   -3.5   -3.1   -1.0    3.1    6.3    6.6    3.1   -0.1    0.1    1.1    1.9    2.8
+  far long-service     n   479    -3.4   -4.0   -4.6   -3.4    0.9    8.4   10.0    4.7    1.1    1.3    2.4    3.2    3.4
+  other lines          n  6634     3.8    2.5    1.7    0.1   -0.5   11.3   24.3   -0.4   -0.0   -2.3   -3.2   -3.9   -3.8
+  midway floor         n  6884     0.1    1.5    1.2   -4.0   -3.5   -3.2   -4.1   -4.8   -3.9    2.3    4.7   -2.6   -0.1
+
+am3_window_01_frame_10514: far baseline to far long-service line 21.1 native px apart (near end 234.2)
+  far baseline         n   373    -0.6   -1.3   -2.2   -2.5   -0.6    3.6    6.0    5.0    1.8   -0.9   -0.9    0.0    0.6
+  far long-service     n   384    -1.1   -1.4   -2.1   -2.8    0.6    5.2    7.5    6.7    2.0   -0.3    0.1    0.7    1.1
+  other lines          n  5392     3.6    2.6    1.7    0.1   -0.1    7.3   26.4   -0.4    0.6   -2.9   -3.2   -3.6   -3.6
+  midway floor         n  4742     1.5    2.3    1.5   -2.8   -3.1   -1.7   -2.8   -4.7   -3.3    1.7    7.7   -3.5   -1.5
+
+am3_window_02_frame_17174: far baseline to far long-service line 21.2 native px apart (near end 234.1)
+  far baseline         n   290    -0.1   -1.0   -1.1    1.4    4.7    5.7    3.8    1.1   -0.6   -0.7   -0.2    0.2    0.1
+  far long-service     n   303    -1.4   -2.1   -0.6    2.1    6.3    9.4    6.5    2.3   -0.3   -0.4    0.4    1.0    1.4
+  other lines          n  5442     3.7    3.4    2.9    1.7    1.8    8.8   34.5    1.4    0.3   -2.4   -2.9   -3.4   -3.7
+  midway floor         n  4963     0.9    1.0    2.9   -2.1   -2.5   -2.5   -4.3   -5.9   -3.9   -0.0    8.2   -3.3   -0.9
+
+am3_window_03_frame_24515: far baseline to far long-service line 21.1 native px apart (near end 233.9)
+  far baseline         n   464    -1.1   -2.2   -2.8   -0.9    3.1    6.1    4.2   -0.4   -2.2   -1.7   -0.2    0.8    1.1
+  far long-service     n   471    -1.8   -2.3   -3.2   -1.8    4.8   10.0    9.2    4.1   -0.1    0.0    1.4    1.6    1.8
+  other lines          n  6844     4.6    3.1    2.5    1.6    0.9   12.4   26.8    0.8    1.0   -1.6   -3.1   -3.5   -4.6
+  midway floor         n  6814     0.4    2.2    1.8   -2.3   -2.4   -2.4   -3.7   -4.5   -5.1    1.4    4.5   -3.6   -0.4
+
+am4_window_00_frame_0: far baseline to far long-service line 10.6 native px apart (near end 100.1)
+  far baseline         n   500    -1.4   -3.8   -6.7   -5.0    4.0   16.0   21.8   15.7    5.1   -1.1   -2.0   -0.3    1.4
+  far long-service     n   503    -4.7   -4.7   -4.1    0.7   11.9   24.1   28.6   20.8    9.2    2.2    1.8    3.4    4.7
+  other lines          n  6432     0.4    1.1    1.2    1.4    3.1    8.7   52.9    5.9    1.9    0.3   -0.6   -1.1   -0.4
+  midway floor         n  6325     0.8    1.5   14.1    1.1   -1.1   -2.0   -2.4   -2.2   -2.3   -0.1   17.2   -1.4   -0.8
+
+am4_window_00_frame_319: far baseline to far long-service line 10.6 native px apart (near end 98.5)
+  far baseline         n   610    -1.4   -3.6   -6.2   -4.4    5.1   17.1   21.8   15.1    4.6   -1.3   -1.5    0.3    1.4
+  far long-service     n   610    -3.9   -4.4   -4.0    0.7   11.2   21.4   23.8   16.5    5.5   -0.3    0.6    2.7    3.9
+  other lines          n  7631    -2.2   -1.8   -0.5    0.5    2.6    9.7   51.2    4.1    1.7    0.7    1.0    1.4    2.2
+  midway floor         n  7785    -0.7    0.2   13.3   -1.3   -1.0   -1.2   -1.9   -1.9   -1.9    1.6   16.3   -0.1    0.7
+
+am4_window_01_frame_13782: far baseline to far long-service line 10.4 native px apart (near end 102.3)
+  far baseline         n   355     1.0   -5.7  -10.8   -6.1    9.5   21.6   20.2    9.3   -2.3   -5.7   -3.7   -1.8   -1.0
+  far long-service     n   365    -4.8   -5.3   -3.9    2.6   15.9   29.9   32.1   18.4    3.3   -0.4    2.1    3.9    4.8
+  other lines          n  6613    -3.8   -2.9   -1.6   -0.1    1.4    6.7   42.5    7.7    2.6    2.6    2.9    2.9    3.8
+  midway floor         n  6118    -2.5   -1.8   13.1    1.5   -1.6   -1.1   -0.3    0.0    0.4    3.3   19.3    2.4    2.5
