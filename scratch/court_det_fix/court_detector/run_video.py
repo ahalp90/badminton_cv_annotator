@@ -89,6 +89,7 @@ def main() -> int:
     scene_options.add_argument('--scenes', type=Path, help='.json.gz list of inclusive [first,last] scene ranges')
     scene_options.add_argument('--pyscenedetect', action='store_true', help='detect cuts and representative scene histograms')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
+    parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
     args = parser.parse_args()
     if args.saved_lines is None and (args.deeplsd_source is None or args.deeplsd_weights is None):
         parser.error('provide --saved-lines or both --deeplsd-source and --deeplsd-weights')
@@ -103,7 +104,7 @@ def main() -> int:
         people = PoseArrays.from_directory(args.people) if args.people else RtmlibPeople(frames, args.device)
         if isinstance(people, PoseArrays) and people.frame_count < frames.frame_count:
             raise ValueError('Saved poses do not cover the source video')
-        detector = CourtDetector(Switches(workers=args.workers, timing=True))
+        detector = CourtDetector(Switches(workers=args.workers, timing=True, full_score_limit=args.full_score_limit))
         setup_seconds = perf_counter() - started
         scene_started = perf_counter()
         if args.scenes is not None:

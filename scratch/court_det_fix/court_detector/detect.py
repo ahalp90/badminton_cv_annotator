@@ -53,10 +53,13 @@ class Switches:
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
     workers: int = 1  # search pairs and scoring; run_views limits numerical libraries to one thread
+    full_score_limit: int | None = None  # optional 16-sample shortlist before the usual 64-sample score
 
     def __post_init__(self) -> None:
         if self.workers < 1:
             raise ValueError(f"workers must be positive, not {self.workers}")
+        if self.full_score_limit is not None and self.full_score_limit < 1:
+            raise ValueError("full_score_limit must be positive, or None for exhaustive scoring")
         # A NaN weight would make every court's score NaN and the net choice pick none.
         if not 0 <= self.geometry_weight <= 1:
             raise ValueError(f"geometry_weight must be between 0 and 1, not {self.geometry_weight}")
@@ -176,7 +179,7 @@ class CourtDetector:
         freeze_arrays(context)
         laps.lap("context")
 
-        populations = self.search(context, source, native_frame, laps)
+        populations = self.search(context, source, native_frame, laps, artefacts)
         artefacts["populations"] = populations
         seeds = search.seed_points(context.families[0])
         generated = live.line_template_source.generate(
@@ -195,7 +198,8 @@ class CourtDetector:
             return dataclasses.replace(result, stage_seconds=laps.seconds)
         return result
 
-    def search(self, context: Any, source: dict, native_frame: np.ndarray, laps: Laps) -> dict[str, list[dict]]:
+    def search(self, context: Any, source: dict, native_frame: np.ndarray, laps: Laps,
+               artefacts: dict[str, Any] | None = None) -> dict[str, list[dict]]:
         """G0 on every line fragment and G1 on the painted ones; entries as read back from JSON."""
         live = self.live
         direction = live.generation.direction_record(context, search.DIRECTION_SETTINGS, live.vp_pruning)
@@ -210,11 +214,20 @@ class CourtDetector:
                 legacy_evidence=False,
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
                 workers=self.switches.workers,
+                full_score_limit=self.switches.full_score_limit,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
                 live.generation.validate_population(record, context.case_id, live.run_w5, f"fresh {name} generation")
             populations[name] = json_round_trip(record["entries"])
+            if artefacts is not None and self.switches.full_score_limit is not None:
+                ranks = {}
+                for pair in record["pairs"]:
+                    cheap_ranks = pair.get("role", {}).get("retained_cheap_ranks")
+                    if cheap_ranks is not None:
+                        ranks.update({court["candidate_id"]: rank
+                                      for court, rank in zip(pair["shortlist"], cheap_ranks, strict=True)})
+                artefacts.setdefault("cheap_score_ranks", {})[name] = ranks
             laps.lap(f"{name}_search")
         return populations
 

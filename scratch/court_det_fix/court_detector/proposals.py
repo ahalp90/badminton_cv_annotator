@@ -9,7 +9,7 @@ import numpy as np
 
 from . import geometry as detector
 from . import line_observations as assignment
-from .candidate_geometry import continuous_support, geometry
+from .candidate_geometry import FULL_SAMPLES, continuous_support, geometry
 from .line_matching import (
     AxisMatches,
     Settings,
@@ -20,23 +20,39 @@ from .line_matching import (
 )
 
 FAR_HORIZON_DIAGONALS = 10.
+CHEAP_SAMPLES = 16  # samples per marking in the cheap score that picks which courts to fully score
 
 
-def finite_scores(
-    homographies: np.ndarray, observations: assignment.Observations,
-    axes: tuple[AxisMatches, AxisMatches], size: tuple[int, int],
+def pair_line_maps(
+    observations: assignment.Observations, axes: tuple[AxisMatches, AxisMatches], size: tuple[int, int],
 ) -> np.ndarray:
-    """Score canonically oriented courts using families from the current directions."""
+    """Distance maps to the line fragments in each direction's retained groups, one map per direction."""
     families = []
     for matched in axes:
         groups = matched.diagnostics['retained_group_ids']
         members = np.concatenate([observations.groups[index] for index in groups])
         families.append(observations.segments[members].reshape(-1, 4))
-    maps = detector._distance_maps((families[0], families[1]), size)
+    return detector._distance_maps((families[0], families[1]), size)
+
+
+def finite_scores(
+    homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int], samples: int = FULL_SAMPLES,
+) -> np.ndarray:
+    """Score canonically oriented courts against the pair's line maps, 256 courts at a time."""
     scores = np.empty(len(homographies))
     for start in range(0, len(homographies), 256):
-        scores[start:start + 256] = continuous_support(homographies[start:start + 256], maps, size)
+        scores[start:start + 256] = continuous_support(homographies[start:start + 256], maps, size, samples)
     return scores
+
+
+def best_positions(scores: np.ndarray, limit: int) -> tuple[np.ndarray, np.ndarray]:
+    """Positions of the limit best scores, in original order, and their one-based ranks.
+
+    A stable sort ranks tied scores by position, so the earlier of two tied courts is kept.
+    """
+    ranked = np.argsort(-scores, kind='stable')[:limit]
+    original_order = np.argsort(ranked)
+    return ranked[original_order], original_order + 1
 
 
 def canonicalise(homographies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -77,6 +93,15 @@ class RoleProposals:
     usable: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
     player_any: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
     player_both_halves: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float32))
+    # Each candidate's position among all the pair's usable courts, which candidate IDs use.
+    # Set only when a full-score limit dropped some usable courts; None means every usable
+    # court is a candidate, in order.
+    usable_positions: np.ndarray | None = None
+    cheap_ranks: np.ndarray | None = None  # one-based cheap-score rank per fully scored court
+
+    def usable_position(self, position: int) -> int:
+        """The candidate's position among all the pair's usable courts, before any full-score limit."""
+        return position if self.usable_positions is None else int(self.usable_positions[position])
 
     def detail(self, position: int) -> dict:
         """One candidate's provenance, built on demand because most candidates never reach a shortlist."""
@@ -121,11 +146,20 @@ def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
     player_pruning: bool = True, combined_ranking: str = 'finite', upright_only: bool = False,
+    full_score_limit: int | None = None,
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels.
 
     :param upright_only: also count courts above the pair's horizon as invalid geometry.
+    :param full_score_limit: when the pair has more usable courts than this, rank them all
+        by a cheap score with CHEAP_SAMPLES samples per marking. Only the best this many are
+        then fully scored and returned, in their original order. The record's fully_scored
+        then counts them. None fully scores every usable court.
     """
+    if full_score_limit is not None and full_score_limit <= 0:
+        raise ValueError('full_score_limit must be positive')
+    if full_score_limit is not None and combined_ranking != 'finite':
+        raise ValueError("full_score_limit needs combined_ranking='finite', the line-support score")
     basis, details = basis_for(points, size, settings)
     record = {'basis_status': details}
     if basis is None:
@@ -144,15 +178,27 @@ def propose_role(
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
                    'geometry_players': int(usable.sum())})
     usable_ids = np.flatnonzero(usable)
+    usable_transforms = transforms[usable_ids]
+    usable_positions = None
+    cheap_ranks = None
+    finite = None
+    if combined_ranking == 'finite' and len(usable_ids):
+        maps = pair_line_maps(observations, (horizontal, vertical), size)
+        if full_score_limit is not None and len(usable_ids) > full_score_limit:
+            cheap = finite_scores(usable_transforms, maps, size, CHEAP_SAMPLES)
+            usable_positions, cheap_ranks = best_positions(cheap, full_score_limit)
+            usable_ids = usable_ids[usable_positions]
+            usable_transforms = usable_transforms[usable_positions]
+            record['fully_scored'] = len(usable_ids)
+        finite = finite_scores(usable_transforms, maps, size)
     axis_ids = axis_pairs[usable_ids]
     axis_scores = (horizontal.scores[axis_ids[:, 0]] + vertical.scores[axis_ids[:, 1]]) / 2
-    finite = finite_scores(transforms[usable], observations, (horizontal, vertical), size) if (
-        combined_ranking == 'finite' and len(usable_ids)) else None
     shortlist_scores = axis_scores if finite is None else finite
     candidates = [detector.Candidate(corners[index], float(score), (0., 0.), (0, 0))
                   for index, score in zip(usable_ids, shortlist_scores, strict=True)]
     return RoleProposals(record, basis, (horizontal, vertical), candidates,
-                         axis_ids, rotated[usable_ids], axis_scores, transforms[usable_ids],
+                         axis_ids, rotated[usable_ids], axis_scores, usable_transforms,
                          np.asarray(corners, dtype=np.float32).reshape(-1, 4, 2),
                          np.asarray(valid, dtype=bool), np.asarray(usable, dtype=bool),
-                         np.asarray(one, dtype=np.float32), np.asarray(two, dtype=np.float32))
+                         np.asarray(one, dtype=np.float32), np.asarray(two, dtype=np.float32),
+                         usable_positions, cheap_ranks)

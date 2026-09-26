@@ -33,13 +33,14 @@ class SearchInputs(NamedTuple):
     upright_only: bool
     keep_per_pair: int
     capture_pool: bool
+    full_score_limit: int | None  # propose_role's; None fully scores every court
 
 
 class PairSearch(NamedTuple):
     """One pair's kept courts, small enough to send back from a worker process."""
 
     role: dict  # propose_role's record
-    raw_parent_count: int  # courts the pair proposed before retention
+    raw_parent_count: int  # usable courts before the optional cheap-score limit and retention
     retained: list  # the kept courts, best first
     details: list[dict]  # one per kept court: its candidate ID, pair ID and propose_role provenance
     elapsed_s: float
@@ -106,15 +107,19 @@ def search_pair(helpers: ModuleType, inputs: SearchInputs, pair_id: int, pair_po
     :param pair_points: (2 directions, homogeneous xyw) the pair's vanishing points, working px.
     """
     started = perf_counter()
+    # Passed only when set, so helpers written before the limit, such as test fakes, still work.
+    score_limit = {} if inputs.full_score_limit is None else {"full_score_limit": inputs.full_score_limit}
     proposed = helpers.propose_role(pair_points, inputs.observations, inputs.feet, inputs.size, inputs.settings,
-                                    upright_only=inputs.upright_only)
+                                    upright_only=inputs.upright_only, **score_limit)
     retained = select(helpers, proposed.candidates, inputs.keep_per_pair)
     # id() keys only hold inside this process, so positions go back to the parent instead.
     proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
     positions = [proposed_positions[id(candidate)] for candidate in retained]
     details = []
     for position in positions:
-        details.append({"candidate_id": f"{pair_id}:{position}", "pair_id": pair_id, **proposed.detail(position)})
+        # The ID counts every usable court, so it names the same court with or without a limit.
+        candidate_id = f"{pair_id}:{proposed.usable_position(position)}"
+        details.append({"candidate_id": candidate_id, "pair_id": pair_id, **proposed.detail(position)})
     pool_record = None
     if inputs.capture_pool:
         proposed_corners = np.asarray([candidate.corners_px for candidate in proposed.candidates],
@@ -122,7 +127,11 @@ def search_pair(helpers: ModuleType, inputs: SearchInputs, pair_id: int, pair_po
         pool_record = (pair_id, len(proposed.candidates), proposed_corners, np.asarray(positions, dtype=np.int32),
                        (proposed.combined_corners, proposed.valid, proposed.usable,
                         proposed.player_any, proposed.player_both_halves))
-    return PairSearch(proposed.record, len(proposed.candidates), retained, details, perf_counter() - started,
+    role = proposed.record
+    if proposed.cheap_ranks is not None:
+        role = {**role, "retained_cheap_ranks": proposed.cheap_ranks[positions].tolist()}
+    raw_parent_count = proposed.record.get("geometry_players", len(proposed.candidates))
+    return PairSearch(role, raw_parent_count, retained, details, perf_counter() - started,
                       pool_record)
 
 
@@ -162,7 +171,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
              max_matched_pairs: int | None = None, legacy_evidence: bool = True,
-             max_horizon_tilt_deg: float | None = None, workers: int = 1) -> dict:
+             max_horizon_tilt_deg: float | None = None, workers: int = 1,
+             full_score_limit: int | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
     :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
@@ -173,6 +183,10 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     :param workers: Processes that search the eligible pairs. Above 1, each worker imports
         helpers by module name (see search_pairs). The record is the same apart from its
         timings; cpu_s then includes the workers' CPU time.
+    :param full_score_limit: Fully score only each pair's best this many usable courts by a
+        cheaper line-support score (propose_role). None fully scores every court. Candidate
+        IDs still count every usable court. Pool capture needs every court, so pool_path
+        must then be None.
     """
     started = perf_counter()
     cpu_started = cpu_seconds()
@@ -182,6 +196,12 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         raise ValueError("max_matched_pairs must be positive")
     if workers <= 0:
         raise ValueError("workers must be positive")
+    if full_score_limit is not None and full_score_limit <= 0:
+        raise ValueError("full_score_limit must be positive")
+    # A pool record lists the courts its own usable mask marks, and its retained positions
+    # index that list. Under a limit, both would cover only the fully scored courts.
+    if full_score_limit is not None and pool_path is not None:
+        raise ValueError("pool capture needs every usable court fully scored, so it cannot use full_score_limit")
     segments, families, size = helpers.prepare(source)
     assert list(size) == saved["working_size"]
     assert saved["settings"]["pencil_selection"] == "coverage"
@@ -226,7 +246,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         eligible.append((pair_id, pencil_ids, pair_points, record))
 
     inputs = SearchInputs(observations, feet, size, settings, max_horizon_tilt_deg is not None, keep_per_pair,
-                          pool_path is not None)
+                          pool_path is not None, full_score_limit)
     searches = search_pairs(helpers, inputs, [(pair_id, pair_points) for pair_id, _, pair_points, _ in eligible],
                             workers)
     # Global retention breaks score ties by pool order, so the pool grows in pair order.
@@ -243,9 +263,11 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         record.update({"status": "matched", "role": searched.role, "raw_parent_count": searched.raw_parent_count,
                        "per_pair_cap_reached": len(searched.retained) == keep_per_pair, "shortlist": shortlist,
                        "elapsed_s": searched.elapsed_s})
+        # Under a limit, raw_parent_count counts only the fully scored courts, not every
+        # court that passed the geometry and player tests.
+        players = searched.role.get("geometry_players", searched.raw_parent_count)
         print(source["id"], "pair", pair_id, list(pencil_ids), "combined", searched.role.get("combined", 0),
-              "players", searched.raw_parent_count, "retained", len(searched.retained), "seconds", searched.elapsed_s,
-              flush=True)
+              "players", players, "retained", len(searched.retained), "seconds", searched.elapsed_s, flush=True)
     retained = select(helpers, pooled, keep_global)
     shortlist = []
     for candidate in retained:
@@ -260,8 +282,9 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         line_id = paint_id = None
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
-    # Off, the record matches the unfiltered runs' records key for key.
+    # Off, the record matches the unfiltered and fully scored runs' records key for key.
     upright = {} if max_horizon_tilt_deg is None else {"max_horizon_tilt_deg": max_horizon_tilt_deg}
+    score_limit = {} if full_score_limit is None else {"full_score_limit": full_score_limit}
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],
             "automatic_directions": True, "label_guided_generation": False, "emission_decision": None,
             "working_size": size, "settings": asdict(settings), "keep_per_pair": keep_per_pair,
@@ -274,4 +297,4 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
             "line_winner_id": line_id, "paint_winner_id": paint_id,
             "elapsed_s": perf_counter() - started, "cpu_s": cpu_seconds() - cpu_started,
-            "global_cap_reached": len(retained) == keep_global, **upright}
+            "global_cap_reached": len(retained) == keep_global, **upright, **score_limit}

@@ -209,6 +209,7 @@ def main() -> int:
     parser.add_argument("--artefacts", action="store_true", help="write each view's intermediate results")
     parser.add_argument("--timing", action="store_true")
     parser.add_argument("--workers", type=int, default=1, help="processes for direction pairs and candidate scoring")
+    parser.add_argument("--full-score-limit", type=int, help="trial: fully score this many cheap-ranked courts per pair; omit for all")
     parser.add_argument("--no-self-checks", action="store_true")
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")
@@ -217,6 +218,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers must be positive")
+    if args.full_score_limit is not None and args.full_score_limit < 1:
+        parser.error("--full-score-limit must be positive; omit it for exhaustive scoring")
     if args.baseline is not None and (args.feet is None or not args.artefacts):
         parser.error("--baseline needs --feet and --artefacts")
     if args.baseline is not None and not args.any_camera_roll:
@@ -228,7 +231,8 @@ def main() -> int:
     artefacts_dir = args.output / "artefacts" if args.artefacts else None
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
                                       artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll,
-                                      geometry_weight=args.geometry_weight, workers=args.workers))
+                                      geometry_weight=args.geometry_weight, workers=args.workers,
+                                      full_score_limit=args.full_score_limit))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)

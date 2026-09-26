@@ -8,13 +8,21 @@ import numpy as np
 from . import geometry as detector
 from . import line_observations as assignment
 
+FULL_SAMPLES = 64  # samples per marking for the full line-support score
 
-def continuous_support(homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """Score finite visible intervals smoothly while counting the split centre once."""
+
+def continuous_support(
+    homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int], samples: int = FULL_SAMPLES,
+) -> np.ndarray:
+    """Score finite visible intervals smoothly while counting the split centre once.
+
+    :param samples: evenly spaced samples along each marking's visible interval. Fewer
+        give a cheaper, coarser score.
+    """
     projected, _ = detector.project(homographies, detector.SEGMENTS_M)
     endpoints = projected.reshape(-1, 12, 2, 2)
     lower, upper, visible = detector._visible_fractions(endpoints, size)
-    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, 64)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, samples)
     # Same arithmetic as detector._visible_samples, with x and y as separate arrays: numpy is
     # much slower on a trailing axis of length 2. The scores are bit-identical.
     start_x, start_y = endpoints[:, :, 0, 0, None], endpoints[:, :, 0, 1, None]

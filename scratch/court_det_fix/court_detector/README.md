@@ -20,8 +20,8 @@ Read [pickup.md](../pickup.md) for current work,
   in nearby video frames
 - `frames` (`FrameReader`): access to those nearby video frames
 
-A caller must supply these inputs. The detector does not yet build them from
-a new video.
+A caller supplies these inputs directly, or uses the video runner below to
+build them from video frames, line detections and people detections.
 
 The returned `CourtResult` contains:
 
@@ -166,6 +166,7 @@ timings are not mistaken for complete live inference.
 | `upright_camera` | On | Reject courts requiring a sideways or upside-down camera; the runner's `--any-camera-roll` disables it |
 | `geometry_weight` | 0.1 | Share of line support in the final score; the rest is paint support. The runner accepts `--geometry-weight` |
 | `workers` | 1 | Processes for direction pairs and candidate scoring; the runner accepts `--workers` |
+| `full_score_limit` | `None` | Optional trial: score each pair's courts with 16 samples, then fully score only the best given number with 64 samples. Both runners accept `--full-score-limit`; omitting it keeps exhaustive scoring |
 | `timing` | Off | Report seconds per step |
 | `artefacts_dir` | None | Optionally write intermediate results |
 
