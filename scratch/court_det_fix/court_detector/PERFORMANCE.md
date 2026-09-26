@@ -17,10 +17,11 @@ a five-minute video, including cutaways and repeated camera views. Start-up
 and warmup must be reported separately. A fast isolated scoring function is
 only an intermediate result.
 
-CPU-only use must keep working. The recorded GPU brief is roughly V100-class
-speed with 16 GB memory and CUDA 13 or later; development uses an L40 with
-48 GB. Check the actual supported hardware and libraries before choosing a
-backend. In particular, an L40 and a V100 have very different float64 speeds.
+CPU-only use must keep working. The GPU target is a consumer card with about
+16 GB and CUDA 13; development uses the full L40 with 48 GB. The earlier V100
+reference describes a rough performance level, not a requirement to support
+that card. Measure memory and throughput separately. A memory cap on the L40
+does not reproduce the speed of a weaker GPU.
 
 Keep one maintained definition of the scoring maths. Backend wrappers are
 justified when a second backend exists. The earlier proposals for plug-in
@@ -67,7 +68,14 @@ CPU calculation and count any courts the GPU discarded too early.
 
 Comparing CPU and GPU scores on the courts kept can expose drift between the
 implementations. It cannot find a court the GPU discarded. Measure both risks.
-Do not promise identical court choices until these checks support that claim.
+Judge GPU changes by final court quality, rather than require identical scores
+or candidate IDs. Measure calibration displacement in court metres as well as
+image pixels, including the far end separately. Perspective makes a pixel shift
+near the far baseline matter more than the same shift near the camera.
+
+If minor precision or rounding changes alter court quality, retain the case and
+its calibration impact as a detector-stability issue for the stage after
+performance tuning. Do not hide the issue with tolerance adjustments.
 
 The former web-UI proposed two initial speed checks: each hot function at
 least 10× faster than one CPU core, including transfers, and the whole search

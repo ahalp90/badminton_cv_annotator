@@ -115,6 +115,48 @@ time, or several serial views whose combined allocation stays within that limit.
 The runner reports peak memory for the parent and largest worker separately;
 those figures do not measure the combined peak of every process.
 
+## Run from video
+
+The video caller can run DeepLSD for lines and read frame-aligned RTMLib pose
+extracts. Omit `--people` to run the project's RTMLib extractor on the requested
+frames instead. Both live models load once.
+
+```bash
+PYTHONPATH=.:src python -m scratch.court_det_fix.court_detector.run_video \
+  --video VIDEO.mp4 \
+  --deeplsd-source DEEPLSD_CHECKOUT \
+  --deeplsd-weights DEEPLSD_WEIGHTS.tar \
+  --people POSE_DIR \
+  --pyscenedetect --workers 8 \
+  --output courts.json.gz
+```
+
+`POSE_DIR` contains `pose_bboxes.npy.xz`, `pose_kps.npy.xz` and
+`pose_ndet.npy.xz`. They must use source-video frame indices and native image
+pixels. The reader drops padded detection slots using `ndet`.
+
+For saved-line trials, replace the DeepLSD arguments with `--saved-lines FILE`.
+That file is a gzipped JSON object mapping source frame numbers to `(N, 4)`
+native-pixel line arrays. Missing frame entries raise an error.
+
+PySceneDetect is optional. Its adapter uses the existing ContentDetector cut
+settings and can supply a normalised luminance histogram for each scene.
+Histograms can prioritise camera comparisons; they do not establish that courts
+match. The `SceneSource` and `LineSource` protocols allow other input providers.
+The prepared-image detector needs neither PySceneDetect nor DeepLSD installed.
+
+Use `--scenes FILE` for a gzipped list of inclusive `[first_frame, last_frame]`
+ranges instead of detecting cuts. With neither scene option, the caller analyses
+one middle frame from the whole video. It analyses one middle frame per supplied
+scene and keeps foot samples inside that scene. Short scenes that cannot hold
+the existing foot window receive `scene_too_short_for_feet`; they remain
+unanalysed. Source codecs need a seek-versus-sequential frame check before
+benchmarking a new dataset.
+
+The output separates model/input setup, scene detection and per-scene work.
+It records whether people and lines were supplied from saved extracts, so those
+timings are not mistaken for complete live inference.
+
 ## Settings
 
 | `Switches` field | Default | Behaviour |
