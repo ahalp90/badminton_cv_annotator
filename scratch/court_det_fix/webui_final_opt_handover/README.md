@@ -29,6 +29,12 @@ The short version:
   measuring again
 - Other new ideas: running the scoring stage's candidates in parallel, a small
   rewrite of court scoring, and a GPU version of the search
+- Three more ideas were checked on 26 September and set aside. The free
+  line-guess average ranks the courts that matter about as deep as build
+  order, so it cannot replace the cascade's cheap pass. Skipping courts that
+  imply a camera looking straight down would not help gxBQ, and elsewhere it
+  rests on guessing the camera's lens. Skipping courts that make the players
+  absurdly sized removed junk courts, but let a slipped court win on one view
 - The web-UI sized everything against 90 s per scene. The target is 30 s per
   five-minute video, with 90 s as the upper end. So a video can afford only a
   few full searches, and each must be much faster than now
@@ -238,83 +244,86 @@ records the cheap ranks, and `k_depth.py` beside it joins them to the search
 records. If the deepest overall-shortlist court stays well under 2,048 (1,211
 here), the default holds. If it creeps up, raise K.
 
-### Experiment to do: choose the K courts by their line-guess average
+### Ruled out: choosing the K courts by their line-guess average
+
+**Checked 26 September: it cannot replace the cascade's cheap pass.** Ranked
+by the average of their two line-guess scores, the courts that matter sit
+about as deep in their pairs as they do in build order. Keeping every overall
+shortlist whole would need K = 113,937, which skips only 0.04% of full
+scoring. Before the upright-camera filter, the cheap pass kept every overall
+shortlist whole at K = 2,048. That cascade cost about 51% of full scoring: 43%
+for the cheap pass, the rest for fully scoring the 2,048. So the cascade stays
+the plan.
 
 **The idea.** Cap full scoring at K courts a pair, as the cascade does, but
 choose those K by a score every court already has: the average of its two
-line-guess scores. If the courts that matter rank near the top by that
-average, the cap needs no cheap pass, and so costs nothing to decide. This is
-untested. What follows is what is known on 26 September, after the
-upright-camera filter.
+line-guess scores. If the courts that matter ranked near the top by that
+average, the cap would need no cheap pass, and so would cost nothing to
+decide.
 
-**How a pair builds and scores its courts today.** A direction pair sorts the
-view's line fragments into two directions, called horizontal and vertical in
-the code. For each direction the search makes a list of line guesses. A guess
-says which painted court line each group of fragments is, and it gets a score
-for how well that direction's fragments fit the court's layout. A court is one
+**How a pair builds and scores its courts.** A direction pair sorts the view's
+line fragments into two directions, called horizontal and vertical in the
+code. For each direction the search makes a list of line guesses. A guess says
+which painted court line each group of fragments is, and it gets a score for
+how well that direction's fragments fit the court's layout. A court is one
 horizontal guess combined with one vertical guess, so a pair can build up to
 262,144 courts. The pair then drops courts with impossible geometry, courts
-with players outside them and, under the filter, courts above the horizon. It
-fully scores every court left, with 64 samples per marking against the line
-fragments, and keeps up to 256 distinct courts.
+with players outside them and, under the upright-camera filter, courts above
+the horizon. It fully scores every court left, with 64 samples per marking
+against the line fragments, and keeps up to 256 distinct courts.
 
 **A cap needs an order.** It fully scores the first K courts in some order,
-and a court outside those K is never scored. There are three candidate orders:
+and a court outside those K is never scored. There were three candidate
+orders:
 
-| Order | Cost of the order | What is known |
+| Order | Cost of the order | Result |
 | --- | --- | --- |
-| Build order: every court from the best horizontal guess, then every court from the second best, and so on | Free | Poor, with or without the filter (below) |
+| Build order: every court from the best horizontal guess, then every court from the second best, and so on | Free | Poor, with or without the filter |
 | The cascade's cheap pass: every court scored with 16 samples per marking instead of 64 | About 43% of full scoring, measured before the filter | At K = 2,048, every overall shortlist unchanged on the 23 views that reach a search, before the filter |
-| The average of a court's two line-guess scores | Free | Untested |
+| The average of a court's two line-guess scores | Free | About as deep as build order |
 
-**Build order is still poor with the filter.** On the final Carmack run,
-positions within each pair among the courts that get fully scored show this
-([build_order_upright.tsv](../court_detector_optimisation_handover/claude_evidence/prefilter/build_order_upright.tsv)):
+**How it was tested.** `propose_role`
+(`next_steps_20260916/webui_seed/source/run_given.py`) already computes the
+average as `axis_scores`: the horizontal guess's score plus the vertical
+guess's, halved. A pair builds the same courts whether or not it scores them,
+so the test needs no full detector run. It rebuilt each view's search from
+the final Carmack run's inputs, with full scoring switched off, and ranked
+each pair's courts by the average, ties by build order
+([local_built_courts.py](../court_detector_optimisation_handover/claude_evidence/built_courts/local_built_courts.py)).
+The rebuild matched the Carmack run: all 10,595 shortlisted courts sat at
+their recorded places, with the same corners and averages to within rounding.
 
-- The chosen court sits beyond position 2,048 on 6 of the 18 views where a
-  search supplies it. The deepest is 14,895, on `shuttleset_03_scene_0023`
-- All of the net choice's top five sit within 2,048 on only 8 of 21 views
-- Courts in the overall shortlists sit as deep as 109,036
-- `gxBQ_window_00_frame_0`'s right court is built 5,054th in its pair. Before
-  the filter it ranked 3rd on the cheap score
+**What it shows**
+([summary.txt](../court_detector_optimisation_handover/claude_evidence/built_courts/summary.txt)).
+A court built by several pairs counts at its shallowest copy.
 
-**The average already exists.** `propose_role`
-(`next_steps_20260916/webui_seed/source/run_given.py`) computes it as
-`axis_scores`: the horizontal guess's score plus the vertical guess's, halved.
-An older mode, `combined_ranking='axis'`, ranks courts by the average alone,
-with no full scoring. The accepted chain scores fully instead, and the web-UI
-advises against the average as a final ranking. Here it would only choose
-which courts get fully scored; full scoring would still rank them.
+| Courts | Deepest rank in its pair by line-guess average | By build order | By the cheap pass, before the filter |
+| --- | ---: | ---: | ---: |
+| The chosen court | 20,722 | 14,895 | 189 |
+| The net choice's top five | 73,656 | 71,082 | 367 |
+| Each search's overall shortlist | 113,937 | 109,036 | 1,211 |
 
-The average could work because the right court needs good guesses in both
-directions. It could fail because each guess judges its own direction alone.
-A court whose two good guesses fit each other badly may only show up in the
-full score.
+- At K = 2,048 by the average, every overall-shortlist court survives on only
+  2 of the 23 views that reach a search. The chosen court survives on 10 of
+  the 18 views where a search supplies it, against 12 by build order
+- On the net choice's top five the average does slightly better than build
+  order. At K = 512 it keeps the whole top five on 5 of 21 views, against 3.
+  At K = 2,048 it keeps them on 10, against 8
+- Only 2 of the 2,288 pairs build more than 113,937 courts, the largest
+  116,336. So the smallest cap that keeps every overall-shortlist court skips
+  4,574 of 12.4 million courts
+- `gxBQ_window_00_frame_0`'s right court ranks 3,956th in its pair by the
+  average and 5,054th in build order. Before the filter it ranked 3rd on the
+  cheap score
 
-**The payoff is unknown now.** Before the filter, full scoring was about
-30–33% of the joined detector's run. The cascade was estimated to save 15–16%
-of the run, and an average-based cap 27–30%. The filter then cut the search's
-time by about 70%: G0 and G1 now take 1,235 s of the 3,703 s run. So both
-savings are now much smaller, and neither has been timed with the filter.
+The rule set before the test was to cap by the average only if some K keeps
+every overall shortlist unchanged and saves clearly more than the cascade. No
+useful K passes the first half, so the planned Carmack run and timing were not
+needed.
 
-**How to test it.**
-
-1. Add an observation-only hook around `propose_role`, like item 16's
-   `measure_prefilter.py`. For each pair, save each fully scored court's rank
-   by the average, with ties broken by build order
-2. Run the joined detector on the 28 views on Carmack with the hook, and with
-   artefacts and timing on. One run at 8 processes should take under an hour
-3. Join the ranks to the run's artefacts, as `build_order_upright.py` does for
-   build order. Report how deep the chosen, top-five and overall-shortlist
-   courts sit, and how many views stay fully within K = 256 to 8,192
-4. Find the smallest K that leaves every overall shortlist unchanged, as
-   `dropped_courts.py` does for the cheap score
-5. Turn that K into seconds saved, from the same run's timings, beside the
-   cascade's estimated cost at K = 2,048
-
-Set before the run: if some K keeps every overall shortlist unchanged on every
-view that reaches a search, and saves clearly more than the cascade, cap by
-the average. Otherwise build the cascade as decided.
+The test does not show why the average fails. One possibility, raised before
+it ran: each guess judges its own direction alone, so two good guesses can fit
+each other badly, and only the full score sees that.
 
 ## Shortlist caps of 128
 
@@ -416,53 +425,70 @@ faster scoring come first: the cascade and parallel scoring.
 
 ## Skipping courts that imply a camera looking straight down
 
-**Checked 26 September: it would not help gxBQ.** The idea was to skip any
-court that implies a camera within a few degrees of straight down. The limit
-would stay loose enough to keep steep but real views, such as
+**Checked 26 September: it would not help gxBQ.** On broadcast views it could
+skip about a quarter of full scoring, but only by guessing each camera's lens.
+So it is not worth building now. The idea was to skip any court that implies a
+camera within a few degrees of straight down. The limit would stay loose
+enough to keep steep but real views, such as
 `sset_21_gloiZ_gTJaE_frame_00000001` or a high security camera. The suspicion
 was that on the gxBQ views, girders and corrugated shed walls seen face-on
 look like a court seen from directly above, and perhaps nets do too. Such
 courts could flood the search with noise.
 
-**How the angle is measured.** A court's homography maps floor metres to image
-pixels. Around the court's centre, a camera looking straight down stretches
-the floor equally in every direction. A camera looking at an angle squashes it
-along the viewing direction, by the cosine of that angle. So the ratio of the
-two stretches gives the angle from straight down, with no focal length needed
-([view_angle.py](../court_detector_optimisation_handover/claude_evidence/upright_camera/view_angle.py),
-run on the final Carmack run:
-[output](../court_detector_optimisation_handover/claude_evidence/upright_camera/view_angles_final_run.tsv)).
+**How it is measured.** A court's horizon is the image line where its floor
+would meet the sky. A camera tilted t degrees from straight down puts that
+line f / tan(t) from the image centre, where f is the lens's focal length in
+pixels. So the steeper the camera, the farther away the horizon. For any lens
+up to 90° wide, a camera within 20° of straight down puts it at least 1.37
+image widths from the centre, and within 10° at least 2.84. The counts below
+come from rebuilding every court each direction pair builds, from the final
+Carmack run's inputs, once with the upright-camera filter and once without
+([local_built_courts.py](../court_detector_optimisation_handover/claude_evidence/built_courts/local_built_courts.py),
+[summary.txt](../court_detector_optimisation_handover/claude_evidence/built_courts/summary.txt)).
 
 What it shows:
 
-- **Real courts sit far from straight down.** The chosen courts sit at 80-83°
-  on the amateur and hall views and 73-74° on the broadcast views.
-  `letterboxed_short_frame_78` sits at 66° and
-  `sset_21_gloiZ_gTJaE_frame_00000001` at 71°
-- **No court in any G0 or G1 overall shortlist sits within 10° of straight
-  down.** Only 8 of the 10,595 shortlisted courts sit within 20°, all in one
-  broadcast view's G1
-- **On gxBQ the shortlists sit at the right court's angle.** Their middle 90%
-  spans 79-89°, and the right court sits at 83°. So the competitors differ
-  from the right court in where the lines sit, as in the far-end slips the
-  upright check found, not in the camera angle
-- **Nothing in the shortlists looks like a face-on net either.** The net-post
-  bonus is a separate measure and was not checked here
-- **The steepest chosen court is a false one.** Control view
-  `sset_21_gloiZ_gTJaE_frame_00014336` has no court, but the detector picks
-  one at 23° from straight down. A limit of a few degrees would keep it
+- **Real courts sit well inside the limit.** The chosen courts' horizons sit
+  0.03 image widths from the centre on gxBQ, 0.09-0.10 on the amateur views
+  and 0.47-0.56 on the broadcast views
+- **gxBQ never builds a court past 2.84 widths**, with or without the
+  upright-camera filter. So straight-down courts never flooded gxBQ
+- **Broadcast views build many.** With the filter, 3,303,856 of the 12,438,584
+  courts built on the 28 views (27%) sit past 2.84 widths. The six
+  `shuttleset_03` views hold 3,097,308 of them
+- **Some reach an overall shortlist.** The farthest shortlisted horizon is
+  3.1-55 widths on three `shuttleset_03` views, and 6.5 on control view
+  `sset_21_gloiZ_gTJaE_frame_00014336`
+
+**The catch is the lens.** A zoomed-in camera has a long focal length, which
+also puts the horizon far away. So this test cannot tell a zoomed-in camera
+looking at an angle from one looking straight down. A limit would have to
+assume the widest lens the footage might use. Skipping far-horizon courts
+would cut about a quarter of the courts that get fully scored, mostly on
+broadcast footage, but only under that assumption.
 
 A flood of junk courts did exist before the upright-camera filter. It came from
 direction pairs implying a camera rolled onto its side: courts from those pairs
 held 253-256 of G0's 256 places on three views. The filter removes them.
 
-**Still open.** Straight-down courts might be common among the courts each
-pair builds before full scoring. There they would cost time without reaching a
-shortlist, and the saved runs do not record them. A hook recording each fully
-scored court's angle would answer that, and could share a run with the
-[line-guess average experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average).
-If such courts are common, a limit of about 15° would keep every real court
-seen here, the steepest at 66°, and leave room for steep security cameras.
+## Skipping courts that make the players absurdly sized
+
+**Tried 26 September and taken out.** The filter skipped any court that puts
+the players narrower than 0.2 m or wider than 3 m. A player's width is the
+floor distance between the bottom corners of their box, as the court maps
+them. A court's figure is the median over the people on or near it.
+
+It removed the junk it targeted, such as courts built from a hall's ceiling.
+But on `am2_window_01_frame_28019`, removing them let a court that slips one
+line at the near end into G1's shortlist. The final choice preferred it, and
+the floor error went from 0.07 / 0.62 m to 0.45 / 0.76 m (median / largest).
+No view improved. The run was not clearly faster: 14% fewer courts were fully
+scored, but detector time fell only 4.9%, within this run's noise.
+
+The slipped court and the right one both put the players at about 1 m, so no
+width limit can separate them. It is the same scoring weakness the
+upright-camera filter exposed
+([check](../court_detector/check_20260926_player_size/README.md)).
 
 ## Parallel work inside one view
 
@@ -628,7 +654,9 @@ step. Re-measure both before building. The filter also moved
 128-court caps after the filter still cuts close backups, so both caps stay at
 256 ([recheck](#rechecked-after-the-upright-camera-filter)). Until scoring can
 tell a court that slips one line at the far end from the right one, any change
-to what reaches scoring can move results by chance, as the filter did.
+to what reaches scoring can move results by chance, as the filter did. The
+player-size filter did the same on `am2_window_01_frame_28019`
+([section](#skipping-courts-that-make-the-players-absurdly-sized)).
 
 A stricter paint test, bounded by the gap to the next painted line, was tried
 on 26 September and reverted. It fixed `am3_window_02_frame_17174` (0.55 to
@@ -647,10 +675,10 @@ taken out. A line's contrast depends on its distance, the lighting and its
 width in pixels, so the numbers do not compare across lines
 ([check](../court_detector/check_20260926_line_paint/README.md)).
 
-1. **Test the line-guess average, then build the cascade** with K = 2,048 as
-   the default and a switch for no cap. If the average ranks the courts that
-   matter shallow enough, it replaces the cascade's cheap pass
-   ([experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average)).
+1. **Build the cascade** with K = 2,048 as the default and a switch for no
+   cap. The free line-guess average cannot replace its cheap pass: it ranks
+   the courts that matter about as deep as build order
+   ([check](#ruled-out-choosing-the-k-courts-by-their-line-guess-average)).
    Check the result on the 28 views, time it, and measure the depth of the
    overall shortlists' courts on more views
 2. **Search pairs and score parents in parallel** in the joined detector. Both
@@ -681,12 +709,6 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
   score? That tolerance needs tuning on known same-camera pairs
 - On new footage, do the courts that reach each overall shortlist stay well
   within K = 2,048 in their pairs' cheap order?
-- Do courts that imply a camera looking straight down fill the pairs before
-  full scoring? None reach a shortlist
-  ([check](#skipping-courts-that-imply-a-camera-looking-straight-down))
-- Does the free line-guess average rank the courts that matter shallow enough
-  to replace the cheap pass?
-  ([experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average))
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
 - Can scoring tell a far-end slip from the right court? Per-sample and
