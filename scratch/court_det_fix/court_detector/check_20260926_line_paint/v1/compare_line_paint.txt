@@ -1,0 +1,71 @@
+sset_21_gloiZ_gTJaE_frame_00100347: replay failed in paint_only, blend, line_paint: Not equal to tolerance rtol=0, atol=0.0001 Mismatched elements: 8 / 8 (100%) First 5 mismatches are at indices: [0, 0]: -2203.4525104656245 (ACTUAL), -2747.2617130696412 (DESIRED) [0, 1]: 456.62253572
+27 views fully replayed
+
+picks against the blend arm: same chosen court? / largest corner move, native px / outcome
+view	blend outcome	line_paint
+am1_window_00_frame_54	court	same / 0.0 / court
+am2_window_00_frame_150	court	changed / 3.1 / court
+am2_window_01_frame_28019	court	changed / 290.6 / court
+am3_window_00_frame_0	court	changed / 1.4 / court
+am3_window_02_frame_17174	court	changed / 8.2 / court
+gxBQ_window_00_frame_0	court	changed / 3.4 / court
+gxBQ_window_00_frame_5	court	same / 0.0 / court
+gxBQ_window_00_frame_689	court	changed / 14.0 / court
+gxBQ_window_03_frame_77876	court	changed / 3.7 / court
+letterboxed_short_frame_78	court	changed / 8.4 / court
+shuttleset_03_scene_0016	court	changed / 0.9 / court
+shuttleset_03_scene_0017	court	changed / 0.0 / court
+shuttleset_03_scene_0019	court	same / 0.0 / court
+shuttleset_03_scene_0023	court	changed / 0.3 / court
+shuttleset_03_scene_0032	court	same / 0.0 / court
+shuttleset_03_scene_0034	court	same / 0.0 / court
+shuttleset_21_scene_0034	court	changed / 0.5 / court
+shuttleset_21_scene_0039	court	same / 0.0 / court
+shuttleset_21_scene_0044	court	changed / 0.8 / court
+sset_21_gloiZ_gTJaE_frame_00000001	court	changed / 13.6 / court
+sset_21_gloiZ_gTJaE_frame_00000300	no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00009558	no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00014336	court	same / 0.0 / court
+sset_21_gloiZ_gTJaE_frame_00023893	no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00038228	no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00062120	no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00090790	no_gated_court	same / - / no_gated_court
+
+largest hand-mark error, floor metres: before refit / after refit
+view	paint_only	blend	line_paint
+am1_window_00_frame_54	0.31 / 0.30	0.31 / 0.30	0.31 / 0.30
+am2_window_00_frame_150	0.32 / 0.24	0.32 / 0.24	0.35 / 0.27
+am2_window_01_frame_28019	0.69 / 0.62	0.69 / 0.62	0.81 / 0.77
+am3_window_00_frame_0	0.26 / 0.24	0.26 / 0.24	0.18 / 0.14
+am3_window_02_frame_17174	0.59 / 0.55	0.59 / 0.55	0.47 / 0.37
+gxBQ_window_00_frame_0	0.34 / 0.19	0.34 / 0.19	0.34 / 0.31
+gxBQ_window_00_frame_5	0.23 / 0.14	0.23 / 0.14	0.23 / 0.14
+gxBQ_window_00_frame_689	1.18 / 0.94	0.58 / 0.32	1.14 / 0.95
+gxBQ_window_03_frame_77876	1.40 / 1.06	1.40 / 1.06	1.22 / 0.91
+letterboxed_short_frame_78	0.18 / 0.12	0.18 / 0.12	0.19 / 0.14
+
+keep rule, after refit, line_paint against the blend arm (margin 0.2 m)
+views better: -
+views worse: gxBQ_window_00_frame_689
+total error over the marked views, paint_only: 4.41
+total error over the marked views, blend: 3.79
+total error over the marked views, line_paint: 4.31
+
+gated courts on the marked views, before refit: the best court's error, and its place under each
+arm's net-choice score (1 = it won), out of the gated courts
+view	best error	paint_only	blend	line_paint
+am1_window_00_frame_54	0.31	1 of 126	1 of 126	1 of 126
+am2_window_00_frame_150	0.22	15 of 295	14 of 295	3 of 295
+am2_window_01_frame_28019	0.46	50 of 241	49 of 241	34 of 241
+am3_window_00_frame_0	0.18	35 of 518	30 of 518	3 of 518
+am3_window_02_frame_17174	0.17	84 of 503	75 of 503	280 of 503
+gxBQ_window_00_frame_0	0.23	5 of 179	5 of 179	4 of 179
+gxBQ_window_00_frame_5	0.23	1 of 29	1 of 29	1 of 29
+gxBQ_window_00_frame_689	0.43	14 of 211	12 of 211	59 of 211
+gxBQ_window_03_frame_77876	0.41	3 of 78	3 of 78	6 of 78
+letterboxed_short_frame_78	0.17	26 of 696	27 of 696	17 of 696
+
+seconds in choose_court over 27 views, on the laptop
+paint_only	20.2	against blend +0.7 s
+blend	19.5	against blend +0.0 s
+line_paint	107.2	against blend +87.8 s

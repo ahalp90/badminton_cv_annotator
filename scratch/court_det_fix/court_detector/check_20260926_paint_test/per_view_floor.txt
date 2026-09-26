@@ -1,0 +1,30 @@
+view	floor p90	floor pass @9	lines pass @9	far pass @9	| per-view bar: lines pass	far pass	floor pass
+gxBQ_window_00_frame_0	7.1	0.07	0.61	0.05	| 0.64	0.08	0.10
+gxBQ_window_00_frame_5	8.2	0.09	0.62	0.06	| 0.63	0.07	0.10
+gxBQ_window_00_frame_689	8.7	0.10	0.64	0.13	| 0.64	0.13	0.10
+gxBQ_window_01_frame_5111	8.9	0.10	0.63	0.09	| 0.63	0.09	0.10
+gxBQ_window_02_frame_5766	9.2	0.10	0.63	0.05	| 0.63	0.04	0.10
+gxBQ_window_03_frame_77876	9.0	0.10	0.58	0.07	| 0.58	0.07	0.10
+gxBQ_window_04_frame_86088	9.3	0.10	0.58	0.07	| 0.57	0.07	0.10
+yellow_short_frame_14	19.2	0.12	0.75	0.05	| 0.69	0.01	0.10
+yellow_short_frame_90	16.2	0.11	0.80	0.06	| 0.77	0.01	0.10
+yellow_short_frame_156	16.1	0.11	0.80	0.06	| 0.77	0.03	0.10
+letterboxed_short_frame_45	2.5	0.05	0.84	0.93	| 0.86	0.96	0.10
+letterboxed_short_frame_58	3.0	0.05	0.83	0.83	| 0.85	0.90	0.10
+letterboxed_short_frame_78	2.5	0.04	0.84	0.92	| 0.85	0.96	0.10
+centre_short_frame_36	20.4	0.15	0.96	0.99	| 0.89	0.97	0.10
+centre_short_frame_64	16.7	0.12	0.92	0.74	| 0.88	0.73	0.10
+centre_short_frame_71	14.3	0.13	0.92	0.75	| 0.89	0.74	0.10
+am1_window_00_frame_54	9.2	0.10	0.81	0.38	| 0.81	0.38	0.10
+am1_window_01_frame_5352	7.6	0.10	0.85	0.33	| 0.87	0.39	0.10
+am2_window_00_frame_150	11.6	0.11	0.78	0.17	| 0.76	0.15	0.10
+am2_window_01_frame_28019	14.4	0.12	0.77	0.13	| 0.74	0.08	0.10
+am3_window_00_frame_0	23.3	0.24	0.83	0.47	| 0.67	0.11	0.10
+am3_window_01_frame_10514	27.0	0.26	0.79	0.33	| 0.62	0.02	0.10
+am3_window_02_frame_17174	25.0	0.24	0.82	0.34	| 0.62	0.01	0.10
+am3_window_03_frame_24515	29.0	0.26	0.81	0.47	| 0.59	0.06	0.10
+am4_window_00_frame_0	10.7	0.11	0.81	0.94	| 0.80	0.91	0.10
+am4_window_00_frame_319	9.7	0.10	0.81	0.88	| 0.80	0.88	0.10
+am4_window_01_frame_13782	15.0	0.15	0.84	0.90	| 0.73	0.86	0.10
+global bar, mean over views: lines 0.773, floor 0.124, difference 0.649
+view bar, mean over views: lines 0.732, floor 0.101, difference 0.631

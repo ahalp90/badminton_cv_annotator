@@ -9,6 +9,6 @@ mkdir -p "$OUT/timing_no_checks/logs"
 cut -d " " -f 2- "$OUT/correctness/groups.txt" | tr " " "\n" | xargs -P 8 -L 1 bash -c '
     VIEW=$0
     "$PYTHON" -m scratch.court_det_fix.court_detector.run_views --people "$FRESH_FEET/people" \
-        --output "$OUT/timing_no_checks" --timing --no-self-checks "$VIEW" > "$OUT/timing_no_checks/logs/$VIEW.log" 2>&1
+        --output "$OUT/timing_no_checks" --timing --no-self-checks --any-camera-roll "$VIEW" > "$OUT/timing_no_checks/logs/$VIEW.log" 2>&1
     echo $? > "$OUT/timing_no_checks/logs/$VIEW.exit"'
 touch "$OUT/timing_no_checks/done"

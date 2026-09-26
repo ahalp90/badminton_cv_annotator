@@ -56,6 +56,17 @@ def camera_direction_bound(points: np.ndarray, size: tuple[int, int]) -> float:
     return float(np.abs(cosine).min())
 
 
+def horizon_tilt_deg(points: np.ndarray, size: tuple[int, int]) -> float | None:
+    """How far the pair's horizon tilts from level, 0 to 90 degrees: the roll a camera would need.
+
+    None when the horizon is too far away to measure (run_given.horizon).
+    """
+    line = run_given.horizon(points, size)
+    if line is None:
+        return None
+    return float(np.degrees(np.arctan2(abs(line[0]), abs(line[1]))))
+
+
 def select_pool(candidates: list[detector.Candidate]) -> list[detector.Candidate]:
     settings = replace(detector.DEFAULT_SETTINGS, keep_candidates=KEEP_COURTS, distinct_corner_distance=2.)
     return retain(candidates, settings)

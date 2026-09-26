@@ -64,11 +64,15 @@ def screen_groups(estimator: dict, budget: int) -> dict:
 def generate(source: dict, saved: dict, zone: object, root: Path, helpers: ModuleType,
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
-             max_matched_pairs: int | None = None, legacy_evidence: bool = True) -> dict:
+             max_matched_pairs: int | None = None, legacy_evidence: bool = True,
+             max_horizon_tilt_deg: float | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
     :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
         two research winners from them. Off leaves those keys out and both winner IDs None.
+    :param max_horizon_tilt_deg: Skip pairs whose horizon tilts more than this, and drop
+        courts above their pair's horizon. Both need a camera turned on its side or upside
+        down. None keeps every pair and court.
     """
     started = perf_counter()
     cpu_started = process_time()
@@ -110,12 +114,19 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         if bound > helpers.CAMERA_ERROR_LIMIT + helpers.CAMERA_ROUNDING_MARGIN:
             pair_records.append({**record, "status": "camera_direction_bound"})
             continue
+        if max_horizon_tilt_deg is not None:
+            tilt = helpers.horizon_tilt_deg(pair_points, size)
+            record["horizon_tilt_deg"] = tilt
+            if tilt is not None and tilt > max_horizon_tilt_deg:
+                pair_records.append({**record, "status": "horizon_tilt"})
+                continue
         if max_matched_pairs is not None and matched_pairs >= max_matched_pairs:
             pair_records.append({**record, "status": "smoke_pair_limit"})
             continue
         matched_pairs += 1
         pair_start = perf_counter()
-        proposed = helpers.propose_role(pair_points, observations, feet, size, settings)
+        proposed = helpers.propose_role(pair_points, observations, feet, size, settings,
+                                        upright_only=max_horizon_tilt_deg is not None)
         retained = select(proposed.candidates, keep_per_pair)
         proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
         if pool_path is not None:
@@ -153,6 +164,8 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         line_id = paint_id = None
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
+    # Off, the record matches the unfiltered runs' records key for key.
+    upright = {} if max_horizon_tilt_deg is None else {"max_horizon_tilt_deg": max_horizon_tilt_deg}
     return {"schema": "automatic-directions-axis-matching/1", "case_id": source["id"],
             "automatic_directions": True, "label_guided_generation": False, "emission_decision": None,
             "working_size": size, "settings": asdict(settings), "keep_per_pair": keep_per_pair,
@@ -165,4 +178,4 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
             "line_winner_id": line_id, "paint_winner_id": paint_id,
             "elapsed_s": perf_counter() - started, "cpu_s": process_time() - cpu_started,
-            "global_cap_reached": len(retained) == keep_global}
+            "global_cap_reached": len(retained) == keep_global, **upright}

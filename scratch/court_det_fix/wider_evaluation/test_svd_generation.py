@@ -139,7 +139,7 @@ def test_pair_ids_and_original_points_survive_screen(monkeypatch: pytest.MonkeyP
     helpers.KEEP_COURTS = 256
     helpers.camera_direction_bound = lambda *_args: 0.
 
-    def propose(pair_points: np.ndarray, *_args: object) -> SimpleNamespace:
+    def propose(pair_points: np.ndarray, *_args: object, **_kwargs: object) -> SimpleNamespace:
         calls.append(pair_points.copy())
         empty = np.empty((0,), dtype=float)
         candidate = SimpleNamespace(corners_px=np.zeros((4, 2)), score=1.)

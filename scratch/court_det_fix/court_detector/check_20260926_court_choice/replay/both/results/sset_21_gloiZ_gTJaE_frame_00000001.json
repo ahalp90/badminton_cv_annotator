@@ -1,0 +1,25 @@
+{
+ "view_id": "sset_21_gloiZ_gTJaE_frame_00000001",
+ "error": null,
+ "choose_seconds": 2.6618144680032856,
+ "chosen_key": "line_template:rectangle_58962:template_73/child",
+ "no_court_reason": null,
+ "corners_native_px": [
+  [
+   61.68578265306315,
+   408.9109322623205
+  ],
+  [
+   208.5577646655916,
+   366.47883618904956
+  ],
+  [
+   526.1679474354873,
+   434.9725151233952
+  ],
+  [
+   407.11290947931917,
+   508.17045199977457
+  ]
+ ]
+}

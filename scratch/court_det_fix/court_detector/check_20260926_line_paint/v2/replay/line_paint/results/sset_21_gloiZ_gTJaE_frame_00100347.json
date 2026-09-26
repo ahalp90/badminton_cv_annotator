@@ -1,0 +1,4 @@
+{
+ "view_id": "sset_21_gloiZ_gTJaE_frame_00100347",
+ "error": "Not equal to tolerance rtol=0, atol=0.0001 Mismatched elements: 1 / 8 (12.5%) Mismatch at index: [3, 0]: 9825.911369006932 (ACTUAL), 9825.911257019758 (DESIRED) Max absolute difference among violation"
+}

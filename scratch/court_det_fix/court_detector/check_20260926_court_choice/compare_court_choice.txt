@@ -1,0 +1,71 @@
+sset_21_gloiZ_gTJaE_frame_00014336: replay failed in refit, both: Not equal to tolerance rtol=0, atol=0.0001 Mismatched elements: 8 / 8 (100%) First 5 mismatches are at indices: [0, 0]: 422.85304674858065 (ACTUAL), -63.71468518457908 (DESIRED) [0, 1]: -21.2901464048
+sset_21_gloiZ_gTJaE_frame_00100347: replay failed in baseline, blend, refit, both: Not equal to tolerance rtol=0, atol=0.0001 Mismatched elements: 8 / 8 (100%) First 5 mismatches are at indices: [0, 0]: -2203.4525104656245 (ACTUAL), -2747.2617130696412 (DESIRED) [0, 1]: 456.62253572
+
+picks against the baseline arm: same chosen court? / largest corner move, native px / outcome
+view	baseline outcome	blend	refit	both
+am1_window_00_frame_54	court	same / 0.0 / court	changed / 6.3 / court	changed / 6.3 / court
+am2_window_00_frame_150	court	same / 0.0 / court	changed / 2.7 / court	changed / 2.7 / court
+am2_window_01_frame_28019	court	same / 0.0 / court	changed / 290.6 / court	changed / 290.6 / court
+am3_window_00_frame_0	court	same / 0.0 / court	changed / 1.7 / court	changed / 1.7 / court
+am3_window_02_frame_17174	court	same / 0.0 / court	same / 0.0 / court	same / 0.0 / court
+gxBQ_window_00_frame_0	court	same / 0.0 / court	changed / 12.0 / court	changed / 12.0 / court
+gxBQ_window_00_frame_5	court	same / 0.0 / court	changed / 11.2 / court	changed / 11.2 / court
+gxBQ_window_00_frame_689	court	changed / 14.1 / court	changed / 9.4 / court	changed / 9.4 / court
+gxBQ_window_03_frame_77876	court	same / 0.0 / court	changed / 1.5 / court	changed / 1.5 / court
+letterboxed_short_frame_78	court	same / 0.0 / court	same / 0.0 / court	changed / 8.4 / court
+shuttleset_03_scene_0016	court	same / 0.0 / court	changed / 3.5 / court	changed / 3.5 / court
+shuttleset_03_scene_0017	court	same / 0.0 / court	changed / 0.4 / court	changed / 0.4 / court
+shuttleset_03_scene_0019	court	same / 0.0 / court	changed / 0.4 / court	changed / 0.4 / court
+shuttleset_03_scene_0023	court	same / 0.0 / court	changed / 0.6 / court	changed / 0.6 / court
+shuttleset_03_scene_0032	court	same / 0.0 / court	changed / 0.5 / court	changed / 0.5 / court
+shuttleset_03_scene_0034	court	same / 0.0 / court	changed / 0.9 / court	changed / 0.9 / court
+shuttleset_21_scene_0034	court	same / 0.0 / court	changed / 2.5 / court	changed / 2.5 / court
+shuttleset_21_scene_0039	court	same / 0.0 / court	changed / 0.6 / court	changed / 0.6 / court
+shuttleset_21_scene_0044	court	same / 0.0 / court	changed / 1.0 / court	changed / 1.0 / court
+sset_21_gloiZ_gTJaE_frame_00000001	court	same / 0.0 / court	changed / 10.2 / court	changed / 10.2 / court
+sset_21_gloiZ_gTJaE_frame_00000300	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00009558	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00023893	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00038228	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00062120	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+sset_21_gloiZ_gTJaE_frame_00090790	no_gated_court	same / - / no_gated_court	same / - / no_gated_court	same / - / no_gated_court
+
+largest hand-mark error, floor metres: before refit / after refit
+view	baseline	blend	refit	both
+am1_window_00_frame_54	0.31 / 0.30	0.31 / 0.30	0.48 / 0.49	0.48 / 0.49
+am2_window_00_frame_150	0.32 / 0.24	0.32 / 0.24	0.41 / 0.29	0.41 / 0.29
+am2_window_01_frame_28019	0.69 / 0.62	0.69 / 0.62	0.81 / 0.77	0.81 / 0.77
+am3_window_00_frame_0	0.26 / 0.24	0.26 / 0.24	0.31 / 0.26	0.31 / 0.26
+am3_window_02_frame_17174	0.59 / 0.55	0.59 / 0.55	0.59 / 0.55	0.59 / 0.55
+gxBQ_window_00_frame_0	0.34 / 0.19	0.34 / 0.19	0.84 / 0.92	0.84 / 0.92
+gxBQ_window_00_frame_5	0.23 / 0.14	0.23 / 0.14	1.09 / 0.86	1.09 / 0.86
+gxBQ_window_00_frame_689	1.18 / 0.94	0.58 / 0.32	0.43 / 0.14	0.43 / 0.14
+gxBQ_window_03_frame_77876	1.40 / 1.06	1.40 / 1.06	1.38 / 1.08	1.38 / 1.08
+letterboxed_short_frame_78	0.18 / 0.12	0.18 / 0.12	0.18 / 0.12	0.19 / 0.14
+
+keep rule, after refit, against the baseline arm (margin 0.2 m)
+arm	views better	views worse	total error over the marked views
+baseline	-	-	4.41
+blend	gxBQ_window_00_frame_689	-	3.79
+refit	gxBQ_window_00_frame_689	gxBQ_window_00_frame_0, gxBQ_window_00_frame_5	5.49
+both	gxBQ_window_00_frame_689	gxBQ_window_00_frame_0, gxBQ_window_00_frame_5	5.51
+
+refitted courts on the marked views: the winner's error after refit, the best error among the
+refitted courts, and where that best court placed after rescoring (1 = it won)
+view	refit	both
+am1_window_00_frame_54	0.49 / 0.30 / 2 of 15	0.49 / 0.30 / 2 of 15
+am2_window_00_frame_150	0.29 / 0.18 / 6 of 15	0.29 / 0.18 / 7 of 15
+am2_window_01_frame_28019	0.77 / 0.60 / 8 of 15	0.77 / 0.60 / 6 of 15
+am3_window_00_frame_0	0.26 / 0.14 / 5 of 15	0.26 / 0.14 / 5 of 15
+am3_window_02_frame_17174	0.55 / 0.21 / 12 of 15	0.55 / 0.21 / 12 of 15
+gxBQ_window_00_frame_0	0.92 / 0.17 / 8 of 15	0.92 / 0.17 / 8 of 15
+gxBQ_window_00_frame_5	0.86 / 0.14 / 3 of 15	0.86 / 0.14 / 3 of 15
+gxBQ_window_00_frame_689	0.14 / 0.14 / 1 of 15	0.14 / 0.14 / 1 of 15
+gxBQ_window_03_frame_77876	1.08 / 0.35 / 12 of 15	1.08 / 0.35 / 12 of 15
+letterboxed_short_frame_78	0.12 / 0.11 / 10 of 15	0.14 / 0.11 / 9 of 15
+
+seconds in choose_court over 26 views, on the laptop
+baseline	26.1
+blend	23.6	extra -2.6 s
+refit	84.9	extra +58.8 s
+both	85.1	extra +59.0 s

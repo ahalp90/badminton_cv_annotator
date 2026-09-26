@@ -1,0 +1,13 @@
+parallel_fraction,workers,parallel_overhead_fraction,fixed_scheduler_overhead_s,modeled_average_scene_s,modeled_slowest_scene_s,baseline_average_scene_s,baseline_slowest_scene_s,note
+0.75,4,0.1,10,144.43080357142858,313.8625,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.75,8,0.1,10,114.04575892857144,245.18125,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.75,16,0.1,10,98.85323660714286,210.84062500000002,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.75,24,0.1,10,93.7890625,199.39374999999998,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.85,4,0.1,10,123.06919642857144,265.5775,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.85,8,0.1,10,88.63281250000001,187.73875,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.85,16,0.1,10,71.4146205357143,148.819375,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.85,24,0.1,10,65.67522321428572,135.84625000000003,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.92,4,0.1,10,108.11607142857144,231.77800000000002,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.92,8,0.1,10,70.84375,147.529,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.92,16,0.1,10,52.207589285714285,105.4045,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"
+0.92,24,0.1,10,45.99553571428571,91.36299999999999,294.64285714285717,666.0,"Amdahl model, not measured parallel execution"

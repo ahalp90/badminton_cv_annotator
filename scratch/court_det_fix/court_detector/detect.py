@@ -3,7 +3,10 @@
 The chain: standing feet from a 3 s window, G0 and paint-filtered G1 court searches at
 direction budget 16, seeded line templates with a (4, 3) visibility floor, the W5
 merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working px), then
-the automatic stripe-polarity refit of the chosen court.
+the automatic stripe-polarity refit of the chosen court. By default the court searches skip
+courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
+The net choice blends 10% of W5's geometry score into its paint score (Switches.geometry_weight;
+check_20260926_court_choice/).
 
 Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
 OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
@@ -39,6 +42,9 @@ DIRECTION_BUDGET = 16
 VISIBILITY_FLOOR = (4, 3)  # lengthwise and cross-court lines a line template must show
 NET_WEIGHT = 0.04
 NET_OVERRUN_WORKING_PX = 4.0
+# The camera roll a search pair may imply. The chosen courts of the 20 test views with a court
+# imply rolls within 2.5 degrees.
+MAX_HORIZON_TILT_DEG = 45.0
 # The copies run_d17.py resolves. Several research folders hold same-named modules.
 LIVE_MODULE_FILES = {
     "run_w5": "scratch/court_det_fix/w5_holistic/run_w5.py",
@@ -65,8 +71,16 @@ class Switches:
     # TODO: default False once PySceneDetect cuts scenes and is checked on dissolves and
     # lens occlusions.
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
+    # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
+    upright_camera: bool = True
+    geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
+
+    def __post_init__(self) -> None:
+        # A NaN weight would make every court's score NaN and the net choice pick none.
+        if not 0 <= self.geometry_weight <= 1:
+            raise ValueError(f"geometry_weight must be between 0 and 1, not {self.geometry_weight}")
 
 
 @dataclass(frozen=True)
@@ -210,6 +224,7 @@ class CourtDetector:
             record = live.automatic_generation.generate(
                 population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
                 legacy_evidence=False,
+                max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
@@ -237,22 +252,29 @@ class CourtDetector:
         artefacts["w5"] = {"record": record, "identity_resolution": scored.identity_resolution}
         laps.lap("w5")
 
-        rows = net_choice.net_rows(record, context)
-        chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX)
-        if self_checks:
-            gated_top = rows[0]["origin_key"] if rows else None
-            if net_choice.choose(rows, 0.0, NET_OVERRUN_WORKING_PX)[0] != gated_top:
-                raise RuntimeError(f"{view.view_id}: zero net weight changed the gated top court")
-        artefacts["net_choice"] = {"chosen": chosen, "rows": net_scores}
-        laps.lap("net_choice")
-        if chosen is None:
-            return CourtResult(view.view_id, None, "no_gated_court", None, None)
+        return choose_court(view.view_id, record, context, native_frame, scored.line_maps, live, self.switches,
+                            laps, artefacts)
 
-        refit = stripe_refit.refit_chosen(record, chosen, context, native_frame, live.verifier, live.runtime,
-                                          scored.line_maps, replay_check=self_checks)
-        artefacts["stripe_refit"] = refit
-        laps.lap("stripe_refit")
-        corrected = refit["corrected"]
-        if not corrected["valid"]:
-            return CourtResult(view.view_id, None, corrected["validity_reason"], chosen, None)
-        return CourtResult(view.view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None)
+
+def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndarray, line_maps: np.ndarray,
+                 live: LiveModules, switches: Switches, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
+    """The net choice and the stripe refit of its pick, from W5's case record. Runs inside prepared_measurements."""
+    rows = net_choice.net_rows(record, context)
+    chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight)
+    if switches.self_checks:
+        gated_top = rows[0]["origin_key"] if rows else None
+        if net_choice.choose(rows, 0.0, NET_OVERRUN_WORKING_PX)[0] != gated_top:
+            raise RuntimeError(f"{view_id}: zero net weight changed the gated top court")
+    artefacts["net_choice"] = {"chosen": chosen, "rows": net_scores}
+    laps.lap("net_choice")
+    if chosen is None:
+        return CourtResult(view_id, None, "no_gated_court", None, None)
+
+    refit = stripe_refit.refit_chosen(record, chosen, context, native_frame, live.verifier, live.runtime, line_maps,
+                                      replay_check=switches.self_checks)
+    artefacts["stripe_refit"] = refit
+    laps.lap("stripe_refit")
+    corrected = refit["corrected"]
+    if not corrected["valid"]:
+        return CourtResult(view_id, None, corrected["validity_reason"], chosen, None)
+    return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None)

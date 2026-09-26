@@ -33,6 +33,9 @@ from experiments.annotator.independent_court import assignment, detector
 from experiments.annotator.independent_court import stripe_observations as stripes
 
 KEEP_COMBINED = 256
+# A horizon further than this many image diagonals from the image centre belongs to a camera
+# looking nearly straight down. Its direction is then too noise-sensitive to test.
+FAR_HORIZON_DIAGONALS = 10.
 
 
 def finite_scores(
@@ -149,12 +152,46 @@ class RoleProposals:
                 'homography_working': self.homographies[position].tolist()}
 
 
+def horizon(points: np.ndarray, size: tuple[int, int]) -> np.ndarray | None:
+    """The line through the pair's two vanishing points, or None when it is too far away to test.
+
+    Every court the pair builds shares this horizon. Working pixels keep the frame's aspect
+    ratio, so its tilt and sides match the native frame's.
+    """
+    line = np.cross(points[0], points[1])
+    width, height = size
+    normal_length = np.hypot(line[0], line[1])
+    if normal_length == 0:
+        return None
+    centre_distance = abs(line @ [width / 2, height / 2, 1.]) / normal_length
+    return None if centre_distance > FAR_HORIZON_DIAGONALS * np.hypot(width, height) else line
+
+
+def below_horizon(points: np.ndarray, corners: np.ndarray, size: tuple[int, int]) -> np.ndarray:
+    """Courts whose four corners lie below the pair's horizon, as the floor does for an upright camera.
+
+    A court above it needs an upside-down camera. Callers skip pairs with a steep horizon
+    first, so "below" is well defined. Every court passes when the horizon is too far away.
+
+    :param corners: (courts, 4, 2) working px.
+    """
+    line = horizon(points, size)
+    if line is None:
+        return np.ones(len(corners), dtype=bool)
+    # Image y grows downwards, so the side the y coefficient points to is below the horizon.
+    side = np.sign(line[1]) * (corners @ line[:2] + line[2])
+    return (side > 0).all(axis=1)
+
+
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
-    player_pruning: bool = True, combined_ranking: str = 'finite',
+    player_pruning: bool = True, combined_ranking: str = 'finite', upright_only: bool = False,
 ) -> RoleProposals:
-    """Generate one ordered direction role without reference geometry or labels."""
+    """Generate one ordered direction role without reference geometry or labels.
+
+    :param upright_only: also count courts above the pair's horizon as invalid geometry.
+    """
     basis, details = basis_for(points, size, settings)
     record = {'basis_status': details}
     if basis is None:
@@ -165,6 +202,8 @@ def propose_role(
     transforms, axis_pairs = combine(basis, horizontal, vertical)
     transforms, rotated = canonicalise(transforms)
     valid, corners = geometry(transforms, size)
+    if upright_only:
+        valid = valid & below_horizon(points, corners, size)
     one, two = joint_player_fractions(basis, horizontal, vertical, feet)
     usable = valid & (one == 1) & (two >= .5)
     record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],

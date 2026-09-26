@@ -1,0 +1,23 @@
+view	old median / max m	new median / max m
+am1_window_00_frame_54	0.08 / 0.30	0.08 / 0.30
+am2_window_00_frame_150	0.05 / 0.24	0.05 / 0.24
+am2_window_01_frame_28019	0.07 / 0.62	0.07 / 0.62
+am3_window_00_frame_0	0.10 / 0.24	0.10 / 0.24
+am3_window_02_frame_17174	0.16 / 0.55	0.16 / 0.55
+gxBQ_window_00_frame_0	0.11 / 1.00	0.05 / 0.19
+gxBQ_window_00_frame_5	0.06 / 0.14	0.06 / 0.14
+gxBQ_window_00_frame_689	0.22 / 0.32	0.23 / 0.94
+gxBQ_window_03_frame_77876	0.11 / 0.35	0.21 / 1.06
+letterboxed_short_frame_78	0.06 / 0.12	0.06 / 0.12
+
+views whose chosen court changed
+gxBQ_window_00_frame_0: new winner G0:22:5053/child scores 0.4643, old winner G0:22:5046/child 0.4600
+  new winner in the old run, G0: not in the overall top 256, #7 in its pair, shortlist score 0.435 vs overall cut-off 0.462
+gxBQ_window_00_frame_689: new winner G0:123:615/child scores 0.3800, old winner line_template:rectangle_59439:template_10/child 0.3796
+  new winner in the old run, G0: not in the overall top 256, #16 in its pair, shortlist score 0.345 vs overall cut-off 0.444
+  new winner in the old run, G1: not in the overall top 256, #51 in its pair, shortlist score 0.215 vs overall cut-off 0.269
+gxBQ_window_03_frame_77876: new winner G0:17:2/child scores 0.3779, old winner line_template:rectangle_73390:template_72/child 0.3713
+  new winner in the old run, G0: not in the overall top 256, #6 in its pair, shortlist score 0.402 vs overall cut-off 0.529
+sset_21_gloiZ_gTJaE_frame_00014336: new winner line_template:rectangle_173923:template_63/child scores 0.0000, old winner G1:16:8 not a candidate
+sset_21_gloiZ_gTJaE_frame_00100347: new winner G0:197:409 scores 0.0868, old winner G0:47:12538/child not a candidate
+  new winner in the old run, G0: not in the overall top 256, #138 in its pair, shortlist score 0.081 vs overall cut-off 0.234

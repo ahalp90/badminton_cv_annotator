@@ -320,6 +320,15 @@ def historical_predicates(gates: dict) -> dict[str, bool]:
     }
 
 
+# ##################################################################################################
+# TODO: THE COURT DETECTOR DOES NOT RUN THIS FUNCTION AS WRITTEN.
+# court_detector/detect.py wraps scoring, the net choice and the stripe refit in
+# wider_evaluation/measurement.py:prepared_measurements. That swaps this function at runtime for a
+# version that converts the frame to grey once per view, not once per call. Go-to-definition and
+# find-references cannot see the swap, so time or change the swapped version, not this one.
+# Fix when the detector takes its own copy of the scoring code: pass the grey image in as a plain
+# argument and delete the swap.
+# ##################################################################################################
 def grayscale_sample(image: np.ndarray, points: np.ndarray) -> np.ndarray:
     grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32)
     maps = np.asarray(points, dtype=np.float32).reshape(-1, 2)

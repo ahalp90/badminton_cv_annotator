@@ -2,6 +2,8 @@
 
 In the 28-view check, the joined court detector used about 230 process
 seconds per view, with eight single-threaded views running at a time. The
+upright-camera filter, added on 26 September, brings that to about 130 s
+([check](../court_detector/check_20260926_upright/README.md)). The
 target is about 30 s for a whole five-minute video, with 90 s as the upper end
 ([pickup.md](../pickup.md#compute-requirement-and-next-work)). The measured
 exact speed-ups are built in, and a few smaller exact ones remain. The larger
@@ -10,7 +12,9 @@ savings left need a design decision or a first measurement.
 This page lists what is built in, what is left to try and how to check a
 speed-up. [claude_evidence/README.md](claude_evidence/README.md) names the
 script and result behind each number. The detector itself is described in its
-own [README](../court_detector/README.md).
+own [README](../court_detector/README.md). The web-UI's 25 September proposals,
+including a GPU route, are sorted against this page in
+[webui_final_opt_handover/README.md](../webui_final_opt_handover/README.md).
 
 ## Names used here
 
@@ -58,6 +62,24 @@ leaves out start-up and video decoding.
 Single views range from 20 s, on a view with no court, to 546 s on
 `gxBQ_window_00_frame_689`.
 
+With the upright-camera filter (26 September), the same run took 3,703 s. The
+G0 search took 951 s (26%), the G1 search 284 s (8%), scoring 1,968 s (53%)
+and line templates 439 s (12%). Scoring is now the largest step. Single
+views range from 29 s to 264 s (`shuttleset_03_scene_0019`). The filter also
+showed that scoring cannot reliably tell a court that slips one line at the
+far end from the right one
+([check](../court_detector/check_20260926_upright/README.md#why-two-views-got-worse)).
+A stricter paint test aimed at those slips was tried and reverted on 26
+September. It fixed one amateur view but neither slip, and took 12% longer
+([check](../court_detector/check_20260926_paint_test/README.md)). A 10% share
+of the geometry score in the final choice fixed one of the two slips and is
+now the default
+([check](../court_detector/check_20260926_court_choice/README.md)). A paint
+test averaged along each line failed and was taken out
+([check](../court_detector/check_20260926_line_paint/README.md)). The
+estimates below for the cascade and the shortlist caps were made before the
+filter, and need measuring again with it.
+
 The joined detector does not time single functions, but the research chain
 does. In its last full run, 8,250 s over the 28 views, three functions took
 56% of the time
@@ -76,7 +98,9 @@ functions, which the joined detector skips.
 
 | Idea | Likely gain | Exact? | What it needs | In the joined detector |
 | --- | --- | --- | --- | --- |
-| Reuse a court across the scenes of one camera ([item 9](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#9-view-reuse-before-full-search-f12)) | The largest for whole videos: it skips whole searches | No; a design decision | Rules for "same camera", and a check that catches a wrong reuse | No |
+| Reuse a court across the scenes of one camera ([item 9](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#9-view-reuse-before-full-search-f12)) | The largest for whole videos: it skips whole searches | No; a design decision | Plan agreed 26 September: move the court with the camera, re-check it on each new scene, fall back to a full search ([plan](../webui_final_opt_handover/README.md#court-reuse-across-scenes-item-9)) | No |
+| Coarse scores, then exact scores for the top K only ([item 16](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#16-tested-score-coarsely-then-exactly-only-the-top-k)). Set aside on 25 September; the project owner decided on 26 September to try it | About half of court scoring at K = 2,048: perhaps 15–16% of the joined detector's run | At K = 2,048, the same overall shortlists on all 23 views that reach a search; not guaranteed on new views, and a miss gives no warning | K = 2,048 by default, a switch that scores every court, and the depth of overall-shortlist courts measured on more views ([plan](../webui_final_opt_handover/README.md#the-cascade-item-16-now-to-be-tried)) | No |
+| Rank each pair's courts by the average of their two line-guess scores, then score only the top K in full, with no cheap pass | Perhaps 27–30% of the joined detector's run, against 15–16% for the cheap pass (rough estimate) | Unmeasured. The build order, horizontal guesses first, misses the chosen court on 6 of 16 court views at K = 2,048 | Measure the depth of the courts that matter in that order from the saved records ([experiment](../webui_final_opt_handover/README.md#the-cascade-item-16-now-to-be-tried)) | No |
 | Search direction pairs in parallel ([item 8](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#8-run-generator-pairs-in-parallel)) | Shorter wait for one video, perhaps several-fold on 8 cores; not measured. No CPU saving | Yes, if results merge back in pair order | A process pool in the court search | No |
 | float32 in court scoring and axis matching ([item 17](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#17-tested-float32-and-float16)) | Perhaps 10–20% of the run; a guess | No | A cheap timing test first (below) | No |
 | Build candidate objects only for shortlisted courts ([item 6](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#6-build-candidate-objects-only-for-survivors-f8)) | At most 179 s over 28 views (2%) | Yes, with the same tie order | A change to the search so it builds candidate objects only after the shortlist is chosen | Only the half item 12 did |
@@ -117,6 +141,8 @@ the research chain, about the size of run-to-run noise
 
 | Change | Commit or file | Result | Detail | In the joined detector |
 | --- | --- | --- | --- | --- |
+| Upright-camera filter: skip direction pairs whose horizon tilts more than 45 degrees, and courts above their pair's horizon. Not exact: it changes results | c5a7cfdb | 28 views, 6,434 → 3,703 s (42%). 17 of 20 court views keep their court. Of the 3 that change, 1 gets much better and 2 slip about one line at the far end, because courts that sideways-camera courts crowded out now reach scoring | [Check](../court_detector/check_20260926_upright/README.md); [floor-metre errors](claude_evidence/upright_camera/floor_errors.txt) | Yes, on by default; `--any-camera-roll` turns it off |
+| 10% of the scoring stage's geometry score in the final choice, with 90% paint and the net-post bonus. Not exact: it changes results | 7247f1ad | On a laptop replay of the upright run, `gxBQ_window_00_frame_689` 0.94 → 0.32 m after the refit, no view worse. The Carmack run matches the replay on the 27 views the laptop can replay. Cost is one weighted sum per court, too small to see in Carmack's run-to-run noise | [Check](../court_detector/check_20260926_court_choice/README.md) | Yes, on by default; `--geometry-weight 0` turns it off |
 | Player test only on courts with valid geometry (patch 1). The matrix product below replaced it | a2e24ddf | With patch 2: six views, 6,255 → 2,572 s (2.4×) | [Item 1](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#1-land-patches-1-and-2) | Through item 3, which replaced it |
 | Stripe evidence measures only fragments with a matching direction (patch 2) | a2e24ddf | Shared with patch 1 | [Item 1](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#1-land-patches-1-and-2) | Yes |
 | Distance maps built without IPP, Intel's optimised routines inside OpenCV | 7b56d58e | Maps 12–16% faster. Repeat runs became bit-identical, so later changes could be checked bit for bit | [Item 2](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#2-make-the-distance-maps-deterministic) | Yes |
@@ -140,10 +166,9 @@ cost.
 | --- | --- | --- | --- |
 | A screen that keeps only 12 of the up to 16 line directions before the search (SVD12) | It roughly halved run time in the 24 September research run, before items 3 and 5; its gain on the joined detector is not measured. It changes the court on 5 of 20 court views, and `letterboxed_short_frame_78` and `shuttleset_21_scene_0044` get clearly worse | [Evaluation](../archive/20260925_optimisation_handover/CLAUDE_EVALUATION.md#svd12-screen-against-full-search) | No. It searches all directions |
 | Upper bound to skip courts that cannot make the shortlist | The bound holds but is loose. It costs 53–60% of full scoring and skips little | [Item 12](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#12-tested-stop-scoring-courts-that-cannot-make-the-shortlist) | No |
-| Coarse scores, then exact scores for the top K only | It rebuilt every shortlist in the probe, with a projected saving of about 8% of the run; no end-to-end speed-up was measured. But K is fixed before a view is seen, and one call needed K = 4,511 with no warning at 4,096 | [Item 16](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#16-tested-score-coarsely-then-exactly-only-the-top-k) | No |
 | Count only the people who move most | Top 6 movers fails the player test on 9 of 20 real courts | [Item 11](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#11-rejected-count-only-the-people-who-move-most) | No |
 | Cap people by detector score | Players in motion, occluded or behind the net can score below spectators (the project owner's call) | [What not to do](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#what-not-to-do) | No |
-| Shrink the 256-court shortlists | The accepted court's parent ranked as low as 41st in its pair and 107th overall. A cap of 32 per pair loses 1 of 20 courts | [What not to do](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#what-not-to-do) | No. It keeps 256 per pair and 256 overall |
+| Shrink the 256-court shortlists | The accepted court's parent ranked as low as 41st in its pair and 107th overall. A cap of 32 per pair loses 1 of 20 courts. A 26 September replay of a 128 overall cap kept every chosen court, but cut close backups on six hard amateur views | [What not to do](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#what-not-to-do); [replay](../webui_final_opt_handover/README.md#shortlist-caps-of-128) | No. It keeps 256 per pair and 256 overall |
 | Camera check before court scoring | A court that fails the camera check can yield a refit that passes | [What not to do](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#what-not-to-do) | No |
 | Refit only the courts near the best score | Skips 14–58% of refits, but the safe margin is empirical | [Item 15](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#15-w5-savings-not-worth-doing-now) | No |
 | Camera-check only the courts selection reads | About 1% left after item 13. Loses metadata that `compare_directional_runs.py` validates | [Item 15](../archive/20260925_optimisation_handover/CLAUDE_FOLLOWUPS.md#15-w5-savings-not-worth-doing-now) | No |

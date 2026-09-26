@@ -1,0 +1,8 @@
+place	court	parent ranks	behind winner	px from winner
+1	G0:22:5046/child	G0#96	0.000	0.0
+2	G0:22:5045/child	G0#104	0.002	21.3
+3	G1:22:42/child	G1#198	0.012	21.0
+4	G1:22:44/child	G1#247	0.019	7.4
+5	G1:143:38/child	G1#237	0.020	20.3
+6	G0:22:5054/child	G0#145	0.030	8.8
+G0 search scores by rank: #1 0.631, #96 0.492, #128 0.483, #256 0.462

@@ -1,0 +1,68 @@
+
+am1_window_00_frame_54: per line, contrast in grey levels / fragment support; * marks a pass
+line	blend pick (0.31 m)	line-paint pick (0.62 m)	closest court (0.31 m)
+left doubles	  46.9* / 0.94	  53.3* / 0.85	  46.9* / 0.94
+left singles	  55.1* / 0.90	  55.6* / 0.97	  55.1* / 0.90
+centre	  24.3* / 0.92	  29.6* / 0.96	  24.3* / 0.92
+right singles	  37.5* / 0.03	  54.4* / 0.02	  37.5* / 0.03
+right doubles	  27.7* / 0.85	  45.1* / 0.89	  27.7* / 0.85
+baseline y0	   2.2  / 0.17	  -0.8  / 0.35	   2.2  / 0.17
+long service y0	   3.4  / 0.08	   4.4* / 0.03	   3.4  / 0.08
+short service y0	  31.4* / 0.75	   6.3* / 0.70	  31.4* / 0.75
+short service y13	  39.5* / 0.80	  30.0* / 0.82	  39.5* / 0.80
+long service y13	unmeasured / 0.91	unmeasured / 0.00	unmeasured / 0.91
+baseline y13	unseen	unseen	unseen
+blend pick: W5 paint 0.516, line paint 0.345, geometry 0.654
+line-paint pick: W5 paint 0.444, line paint 0.492, geometry 0.553
+closest court: W5 paint 0.516, line paint 0.345, geometry 0.654
+
+letterboxed_short_frame_78: per line, contrast in grey levels / fragment support; * marks a pass
+line	blend pick (0.18 m)	line-paint pick (0.22 m)	closest court (0.17 m)
+left doubles	  40.3* / 0.68	  41.2* / 0.70	  39.5* / 0.68
+left singles	  45.3* / 0.80	  44.5* / 0.80	  44.0* / 0.79
+centre	  51.6* / 0.58	  52.6* / 0.63	  50.8* / 0.58
+right singles	  54.2* / 0.79	  54.6* / 0.79	  54.7* / 0.80
+right doubles	  50.3* / 0.73	  48.0* / 0.74	  49.9* / 0.75
+baseline y0	  13.1* / 0.61	  12.5* / 0.64	  12.2* / 0.58
+long service y0	  11.3* / 0.67	  10.7* / 0.68	  10.7* / 0.64
+short service y0	  33.7* / 0.77	  33.9* / 0.78	  33.9* / 0.77
+short service y13	  46.9* / 0.91	  45.8* / 0.89	  45.7* / 0.87
+long service y13	unseen	unseen	unseen
+baseline y13	unseen	unseen	unseen
+blend pick: W5 paint 0.735, line paint 0.725, geometry 0.725
+line-paint pick: W5 paint 0.718, line paint 0.741, geometry 0.741
+closest court: W5 paint 0.722, line paint 0.730, geometry 0.730
+
+gxBQ_window_03_frame_77876: per line, contrast in grey levels / fragment support; * marks a pass
+line	blend pick (1.40 m)	line-paint pick (0.41 m)	closest court (0.41 m)
+left doubles	  45.3* / 0.94	  38.6* / 0.88	  38.6* / 0.88
+left singles	  28.3* / 0.83	  29.4* / 0.85	  29.4* / 0.85
+centre	  -3.1  / 0.20	   1.4  / 0.21	   1.4  / 0.21
+right singles	   2.2  / 0.08	   7.3* / 0.08	   7.3* / 0.08
+right doubles	   1.6  / 0.27	   7.0* / 0.26	   7.0* / 0.26
+baseline y0	  -1.5  / 0.35	  -0.8  / 0.14	  -0.8  / 0.14
+long service y0	  -1.6  / 0.00	  -1.6  / 0.31	  -1.6  / 0.31
+short service y0	  -0.0  / 0.17	   4.7* / 0.18	   4.7* / 0.18
+short service y13	  18.3* / 0.53	  23.2* / 0.53	  23.2* / 0.53
+long service y13	  22.9* / 0.79	  21.9* / 0.80	  21.9* / 0.80
+baseline y13	  30.0* / 0.69	  30.8* / 0.72	  30.8* / 0.72
+blend pick: W5 paint 0.378, line paint 0.359, geometry 0.467
+line-paint pick: W5 paint 0.371, line paint 0.426, geometry 0.462
+closest court: W5 paint 0.371, line paint 0.426, geometry 0.462
+
+gxBQ_window_00_frame_0: per line, contrast in grey levels / fragment support; * marks a pass
+line	blend pick (0.34 m)	line-paint pick (0.34 m)	closest court (0.23 m)
+left doubles	  49.0* / 0.94	  50.6* / 0.91	  51.7* / 0.93
+left singles	  51.3* / 0.94	  50.5* / 0.94	  48.9* / 0.95
+centre	   2.2  / 0.17	   4.7* / 0.16	   6.7* / 0.17
+right singles	   4.7* / 0.27	   8.9* / 0.26	  12.8* / 0.26
+right doubles	   0.2  / 0.45	   6.4* / 0.43	  10.5* / 0.40
+baseline y0	   0.5  / 0.25	  -1.1  / 0.41	   0.4  / 0.34
+long service y0	   2.4  / 0.35	   2.3  / 0.26	   2.2  / 0.30
+short service y0	   4.2* / 0.31	   4.5* / 0.28	   4.0  / 0.30
+short service y13	   8.7* / 0.46	  20.1* / 0.85	  18.2* / 0.89
+long service y13	  33.5* / 0.95	  33.6* / 0.95	  32.1* / 0.95
+baseline y13	  35.9* / 0.94	  39.3* / 0.80	  33.8* / 0.74
+blend pick: W5 paint 0.424, line paint 0.445, geometry 0.566
+line-paint pick: W5 paint 0.434, line paint 0.551, geometry 0.551
+closest court: W5 paint 0.434, line paint 0.506, geometry 0.551

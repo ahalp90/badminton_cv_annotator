@@ -1,0 +1,36 @@
+{
+ "view_id": "gxBQ_window_00_frame_5",
+ "error": null,
+ "detect_seconds": 127.51489330921322,
+ "chosen_key": "line_template:rectangle_85795:template_72/child",
+ "no_court_reason": null,
+ "stage_seconds": {
+  "feet": 0.07800230104476213,
+  "context": 1.162814606912434,
+  "directions_and_paint_filter": 0.3259047158062458,
+  "G0_search": 12.158625639043748,
+  "G1_search": 1.2104163691401482,
+  "line_templates": 16.329765136819333,
+  "w5": 95.67207522131503,
+  "net_choice": 0.1310875630006194,
+  "stripe_refit": 0.3115910040214658
+ },
+ "corners_native_px": [
+  [
+   143.12606269125075,
+   568.5954376164689
+  ],
+  [
+   619.7097117555357,
+   543.9636950449518
+  ],
+  [
+   1568.055582178098,
+   655.8027186485864
+  ],
+  [
+   971.7348879437992,
+   1161.0408459793769
+  ]
+ ]
+}

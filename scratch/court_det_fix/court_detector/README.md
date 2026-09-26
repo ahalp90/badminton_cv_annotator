@@ -2,9 +2,11 @@
 
 This folder finds a badminton court in one image from a video, usually a single
 frame. It runs the accepted research method as one piece of code, and keeps
-every step's results in memory. On the 28 test views it gives the same results
-as the research scripts. It is not ready for new videos yet: a view takes about
-4 minutes, its inputs come from other tools, and it still loads code from
+every step's results in memory. With its upright-camera filter off, it gives
+the same results as the research scripts on the 28 test views. The filter is on
+by default. It saves 42% of the time and changes the court on 3 of the 20
+court views: one gets much better and two slip about one line at the far end. The detector is not ready for new videos yet: a view takes about 2
+minutes, its inputs come from other tools, and it still loads code from
 research folders.
 
 **Names from the research.** The accepted method is called the D17 chain, and
@@ -59,7 +61,9 @@ longest side is at most 960 pixels. A 16:9 frame becomes 960×540.
 3. **Court search** (G0 and G1). Finds up to 16 main line directions in the
    view. For every pair of them, tried both ways round, it matches lines to the
    court's markings and builds candidate courts. It rejects courts the players'
-   feet do not fit. It keeps up to 256 of the best-scoring, distinct courts per
+   feet do not fit. It also skips courts that need a camera turned on its side
+   or upside down (the upright-camera filter, below). It keeps up to 256 of the
+   best-scoring, distinct courts per
    pair, and 256 overall. It runs twice: once on every line fragment (G0), and
    once on only the fragments that look like white paint (G1). A paint fragment
    is a pale line, clearly brighter than its surroundings and not strongly
@@ -79,9 +83,11 @@ longest side is at most 960 pixels. A 16:9 frame becomes 960×540.
    do so in every sampled frame, and one in each half in at least half the
    frames.
 6. **Net choice** (`net_choice.py`). Each gated candidate implies where the
-   two net posts stand. Its score is its scoring-stage evidence plus a small
-   bonus when line fragments support those posts: 0.02 for one post, 0.04 for
-   both. The highest score wins. With no gated candidate, there is no court.
+   two net posts stand. Its score is 90% its scoring-stage paint score and 10%
+   its scoring-stage geometry score (how well line fragments support its
+   lines). A small bonus is added when line fragments support the net posts:
+   0.02 for one post, 0.04 for both. The highest score wins. With no gated
+   candidate, there is no court.
 7. **Stripe refit** (`stripe_refit.py`). A line fragment can sit on a
    painted stripe's centre or on either edge. For the winner, this step checks
    the brightness and colour on either side of each fragment it fits. It moves
@@ -93,25 +99,45 @@ Steps 3 to 5 take almost all the time.
 
 ## Current state
 
-- **It matches the research scripts.** On all 28 test views, the chosen
-  court, the refit and the other results the check compares are identical,
-  bit for bit. `check_20260925/README.md` has the evidence and says exactly
-  what was compared.
+- **It matches the research scripts with the filter and the blend off.** On all 28 test
+  views, the chosen court, the refit and the other results the check compares
+  are identical, bit for bit. `check_20260925/README.md` has the evidence and
+  says exactly what was compared.
+- **The upright-camera filter.** Every court from one pair of line directions
+  shares a horizon: the line through the two directions' vanishing points. The
+  search skips a pair whose horizon tilts more than 45 degrees, because its
+  courts need a camera on its side. It also drops a court above its horizon,
+  because that needs an upside-down camera. A horizon more than 10 image
+  diagonals away, from a camera looking nearly straight down, passes both
+  tests. `check_20260926_upright/README.md` has the results.
+- **The geometry blend.** The research net choice used the paint score
+  alone. Blending in 10% of the geometry score fixed one far-end slip in a
+  local replay (`gxBQ_window_00_frame_689`, 0.94 to 0.32 m) and changed no
+  other pick. `check_20260926_court_choice/README.md` has the results.
 - **Results on the 28 views.** 20 are court views and 8 are control views
   with no court (`sset_21_…`, from one ShuttleSet video). All 20 court views
-  get a court. Of the 8 control views, 6 correctly get no gated court, and one
-  gets none because its final fit fails (`rank_deficient`). One control view,
-  `sset_21_gloiZ_gTJaE_frame_00100347`, wrongly gets a court.
+  get a court. Of the 8 control views, 6 correctly get no gated court. With the
+  filter on, the other two wrongly get a court:
+  `sset_21_gloiZ_gTJaE_frame_00100347` and `…00014336`. With it off,
+  `…00100347` gets a different wrong court and `…00014336` gets none, only
+  because its final fit fails (`rank_deficient`).
 - **Accuracy** is the research method's. 18 court views have hand-marked
-  court landmarks. On those, the median error per view is 1.2 to 3.6 working
+  court landmarks. On those, the median error per view is 1.2 to 3.4 working
   pixels, and 2.1 for the middle view
-  (`../court_detector_optimisation_handover/claude_evidence/d17/d17_results.txt`).
-- **Speed.** About 230 s a view on one core, from 20 s for a view with no
-  court to 546 s. That comes from 6,434 s over the 28 views, with self-checks
+  (`../court_detector_optimisation_handover/claude_evidence/upright_camera/reference_errors.txt`).
+  Without the filter it is 1.2 to 3.6, and also 2.1 for the middle view.
+  Pixel errors hide slips at the far end, where lines are a few pixels apart.
+  Measured on the floor, the largest error per view is 0.12 to 1.06 m with the
+  filter, and 0.12 to 1.00 m without it (`floor_errors.txt` in the same
+  folder). The scoring stage cannot reliably tell a court that slips one line
+  at the far end from the right one; `check_20260926_upright/README.md` has
+  the details.
+- **Speed.** About 130 s a view on one core, from 29 s for a view with no
+  court to 264 s. That comes from 3,703 s over the 28 views, with self-checks
   off and 8 views at a time on Carmack. It leaves out start-up and video
-  decoding. The search takes about two thirds of the time and scoring most of
-  the rest. It is 8-12% faster than the research script, which is about the
-  size of run-to-run noise.
+  decoding. Scoring takes about half the time and the search about a third.
+  Without the filter it is about 230 s a view (6,434 s), 8-12% faster than
+  the research script, which is about the size of run-to-run noise.
 - **Tests.** In the repository's `tests/` folder, `test_court_detector_feet.py`
   checks the feet step against the scripts that made the test set's feet, and
   against BST-X's seated-person rule. `test_court_detector_modules.py` checks
@@ -152,6 +178,8 @@ the saved research run. The `run_views.py` docstring gives the details.
 | --- | --- | --- |
 | `self_checks` | On | Checks that each step's output is consistent, for example by replaying the scoring stage's fit before the refit. Costs little. It does not compare with the research run; `run_views.py --baseline` does that |
 | `enforce_scene_consistency` | On | Uses only feet from the image's own shot. Planned to default to off once a scene cutter supplies real scene ranges |
+| `upright_camera` | On | Skips courts that need a camera on its side or upside down. `run_views.py --any-camera-roll` turns it off, and `--baseline` needs it off |
+| `geometry_weight` | 0.1 | Share of the geometry score in the net choice's score; the rest is the paint score. `run_views.py --geometry-weight 0` turns it off, and `--baseline` needs it off |
 | `timing` | Off | Reports seconds per step |
 | `artefacts_dir` | None | Writes each view's intermediate results to this folder |
 
@@ -167,7 +195,7 @@ reports. `STRIPPED.md` lists each piece and where it plugs back in.
 
 ## Before it can run on new videos
 
-- **Speed.** About 4 minutes a view.
+- **Speed.** About 2 minutes a view.
   `../court_detector_optimisation_handover/README.md` lists what is left to
   try, such as searching direction pairs in parallel and reusing a court
   across the scenes of one camera.

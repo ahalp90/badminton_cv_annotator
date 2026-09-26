@@ -1,0 +1,62 @@
+G0: pair test removes 1770/2914 matched pairs, 65.1% of pair time; court test removes 83474/191851 (43.5%) of the kept pairs' shortlisted courts
+G1: pair test removes 1770/2914 matched pairs, 54.1% of pair time; court test removes 46556/97093 (47.9%) of the kept pairs' shortlisted courts
+
+view	chosen roll deg	chosen parent: saved rank -> rank among courts passing both tests
+am1_window_00_frame_54	-0.6	line_template
+am2_window_00_frame_150	-0.7	G1 #107 -> #105
+am2_window_01_frame_28019	-0.7	G1 #34 -> #34
+am3_window_00_frame_0	-2.5	G1 #30 -> #30
+am3_window_02_frame_17174	-2.4	G1 #14 -> #14
+gxBQ_window_00_frame_0	-0.7	G0 #96 -> #1
+gxBQ_window_00_frame_5	-0.5	line_template
+gxBQ_window_00_frame_689	0.5	line_template
+gxBQ_window_03_frame_77876	-0.3	line_template
+letterboxed_short_frame_78	-1.0	G0 #4 -> #4
+shuttleset_03_scene_0016	-1.1	G0 #5 -> #5; G1 #16 -> #16
+shuttleset_03_scene_0017	-0.4	G1 #3 -> #3
+shuttleset_03_scene_0019	0.4	G1 #25 -> #25
+shuttleset_03_scene_0023	0.4	G1 #41 -> #41
+shuttleset_03_scene_0032	-0.0	G1 #7 -> #7
+shuttleset_03_scene_0034	1.3	G1 #5 -> #5
+shuttleset_21_scene_0034	0.0	G0 #10 -> #10; G1 #11 -> #11
+shuttleset_21_scene_0039	0.1	G1 #24 -> #24
+shuttleset_21_scene_0044	0.2	G0 #1 -> #1
+sset_21_gloiZ_gTJaE_frame_00000001	-0.6	G0 #76 -> #75; G1 #138 -> #138
+sset_21_gloiZ_gTJaE_frame_00000300	-	no court
+sset_21_gloiZ_gTJaE_frame_00009558	-	no court
+sset_21_gloiZ_gTJaE_frame_00014336	96.0	G1 #80 -> removed by the pair test
+sset_21_gloiZ_gTJaE_frame_00023893	-	no court
+sset_21_gloiZ_gTJaE_frame_00038228	-	no court
+sset_21_gloiZ_gTJaE_frame_00062120	-	no court
+sset_21_gloiZ_gTJaE_frame_00090790	-	no court
+sset_21_gloiZ_gTJaE_frame_00100347	171.0	G0 #38 -> removed by the court test
+
+view	G0 overall places held by steep pairs	G1 overall places held by steep pairs
+am1_window_00_frame_54	231/256	16/256
+am2_window_00_frame_150	28/256	0/256
+am2_window_01_frame_28019	8/256	9/256
+am3_window_00_frame_0	3/256	0/256
+am3_window_02_frame_17174	0/256	0/256
+gxBQ_window_00_frame_0	253/256	252/256
+gxBQ_window_00_frame_5	256/256	256/256
+gxBQ_window_00_frame_689	256/256	239/256
+gxBQ_window_03_frame_77876	256/256	245/256
+letterboxed_short_frame_78	0/256	0/8
+shuttleset_03_scene_0016	0/256	0/256
+shuttleset_03_scene_0017	1/256	4/256
+shuttleset_03_scene_0019	0/256	0/256
+shuttleset_03_scene_0023	0/256	0/256
+shuttleset_03_scene_0032	9/256	13/256
+shuttleset_03_scene_0034	0/256	17/256
+shuttleset_21_scene_0034	0/256	0/256
+shuttleset_21_scene_0039	0/256	12/256
+shuttleset_21_scene_0044	0/256	0/256
+sset_21_gloiZ_gTJaE_frame_00000001	3/256	0/256
+sset_21_gloiZ_gTJaE_frame_00000300	0/0	0/0
+sset_21_gloiZ_gTJaE_frame_00009558	0/0	0/0
+sset_21_gloiZ_gTJaE_frame_00014336	169/256	173/173
+sset_21_gloiZ_gTJaE_frame_00023893	0/0	0/0
+sset_21_gloiZ_gTJaE_frame_00038228	32/162	0/0
+sset_21_gloiZ_gTJaE_frame_00062120	0/0	0/0
+sset_21_gloiZ_gTJaE_frame_00090790	0/0	0/0
+sset_21_gloiZ_gTJaE_frame_00100347	85/256	5/19
