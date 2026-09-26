@@ -216,16 +216,21 @@ def main() -> int:
     parser.add_argument("--no-self-checks", action="store_true")
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")
+    parser.add_argument("--fixed-paint-test", action="store_true",
+                        help="W5's fixed working-image paint test instead of the gap-bounded one")
     args = parser.parse_args()
     if args.baseline is not None and (args.feet is None or not args.artefacts):
         parser.error("--baseline needs --feet and --artefacts")
     if args.baseline is not None and not args.any_camera_roll:
         parser.error("--baseline compares with a chain that keeps every camera roll; add --any-camera-roll")
+    if args.baseline is not None and not args.fixed_paint_test:
+        parser.error("--baseline compares with a chain that uses the fixed paint test; add --fixed-paint-test")
 
     started = perf_counter()
     artefacts_dir = args.output / "artefacts" if args.artefacts else None
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
-                                      artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll))
+                                      artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll,
+                                      gap_bounded_paint=not args.fixed_paint_test))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)

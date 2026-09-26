@@ -33,6 +33,12 @@ WORKING_SIZE = (960, 540)
 CAMERA_LIMIT = 0.1
 PHOTO_CENTRE_OFFSETS_PX = np.array([-4.0, -2.0, 0.0, 2.0, 4.0])
 PHOTO_SIDE_DISTANCE_PX = 6.0
+# Pass bar of the gap-bounded paint test, in native grey levels: the bar that best separates painted
+# lines from bare floor on the hand-marked views (court_detector/check_20260926_paint_test/pass_bar.py).
+GAP_BOUNDED_MIN_CONTRAST = 9.0
+_LENGTHWISE = paint_geometry.CENTRE_SEGMENTS_M[:, 0, 0] == paint_geometry.CENTRE_SEGMENTS_M[:, 1, 0]
+LENGTHWISE_CENTRES_M = np.unique(paint_geometry.CENTRE_SEGMENTS_M[_LENGTHWISE, 0, 0])
+TRANSVERSE_CENTRES_M = np.unique(paint_geometry.CENTRE_SEGMENTS_M[~_LENGTHWISE, 0, 1])
 Q_DIRECTION_LENGTHWISE = (0, 1, 2, 3, 4)
 Q_DIRECTION_TRANSVERSE = (5, 6, 7, 8, 9, 10)
 
@@ -101,6 +107,8 @@ class ViewContext:
     person_mask_unavailable_reason: str | None
     image_kind: str
     frame_relative_path: str
+    # Native-frame grey for the gap-bounded paint test; None keeps the fixed working-image test.
+    native_grey: np.ndarray | None = None
 
 
 def jsonable(value: Any) -> Any:
@@ -218,11 +226,13 @@ def prepare_view(root: Path, case_id: str) -> ViewContext:
 
 def view_context(
     case_id: str, source: dict, provenance: CaseProvenance, native_frame: np.ndarray, frame_label: str,
+    gap_bounded_paint: bool = False,
 ) -> ViewContext:
     """Build one view's working context from its source record and native frame.
 
     :param native_frame: BGR frame at the source's native dimensions.
     :param frame_label: Where the frame came from; kept as ``frame_relative_path``.
+    :param gap_bounded_paint: Score paint with gap_bounded_samples instead of photometric_samples.
     """
     segments, families, size = prepare_segments(source)
     observations = assignment.prepare_observations(segments, size)
@@ -249,6 +259,7 @@ def view_context(
         person_mask_unavailable_reason=provenance.unavailable_reason,
         image_kind=image_kind(provenance),
         frame_relative_path=frame_label,
+        native_grey=cv2.cvtColor(native_frame, cv2.COLOR_BGR2GRAY).astype(np.float32) if gap_bounded_paint else None,
     )
 
 
@@ -330,7 +341,10 @@ def historical_predicates(gates: dict) -> dict[str, bool]:
 # argument and delete the swap.
 # ##################################################################################################
 def grayscale_sample(image: np.ndarray, points: np.ndarray) -> np.ndarray:
-    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    return grey_sample(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32), points)
+
+
+def grey_sample(grey: np.ndarray, points: np.ndarray) -> np.ndarray:
     maps = np.asarray(points, dtype=np.float32).reshape(-1, 2)
     values = cv2.remap(grey, maps[:, 0], maps[:, 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
     return values.reshape(np.asarray(points).shape[:-1])
@@ -372,6 +386,80 @@ def photometric_samples(
     known = np.isfinite(best)
     best = np.where(known, best, np.nan)
     return best, known & (best >= 10.0)
+
+
+def parallel_neighbours_m(line_m: np.ndarray) -> np.ndarray:
+    """Court coordinate across the line of every other painted line parallel to it."""
+    lengthwise = line_m[0, 0] == line_m[1, 0]
+    centres = LENGTHWISE_CENTRES_M if lengthwise else TRANSVERSE_CENTRES_M
+    own = line_m[0, 0] if lengthwise else line_m[0, 1]
+    return centres[centres != own]
+
+
+def gap_bounded_photometry(
+    grey: np.ndarray, homography: np.ndarray, samples: np.ndarray, line_m: np.ndarray,
+    neighbours_m: np.ndarray, boxes: np.ndarray, native_per_working: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """photometric_samples' ridge test on the native frame, never reaching halfway to a parallel line.
+
+    The fixed test's centre positions reach 4 working px either side of the line, and its side
+    samples 6 px beyond those. At the far end that reaches the neighbouring painted line, so a line
+    predicted on bare floor still finds paint. Here each sample's centre positions reach at most a
+    quarter of the image distance to the nearest parallel line, and no side sample sits more than
+    half of it from the predicted line. Where lines are far apart, this is the fixed test at native
+    resolution.
+
+    :param grey: Native-frame grey levels.
+    :param homography: Court metres to native pixels.
+    :param samples: Native-pixel points on the projected line, one row per sample.
+    :param line_m: The line's centre segment in court metres, lengthwise or transverse.
+    :param neighbours_m: Court coordinate across the line of every parallel line to stay clear of.
+    :param boxes: Person boxes in native pixels; points inside them are unknown.
+    :param native_per_working: Native pixels per working pixel, to scale the fixed offsets.
+    :return: Best ridge contrast per sample (NaN where unknown) and whether it reaches
+        GAP_BOUNDED_MIN_CONTRAST.
+    """
+    samples = np.asarray(samples, dtype=float).reshape(-1, 2)
+    if not len(samples):
+        return np.empty(0), np.empty(0, dtype=bool)
+    across_axis = 0 if line_m[0, 0] == line_m[1, 0] else 1
+    line_start, line_end = detector.project(homography[None], line_m)[0][0]
+    direction = (line_end - line_start) / np.linalg.norm(line_end - line_start)
+    normal = np.array([-direction[1], direction[0]])
+    samples_m = detector.project(np.linalg.inv(homography)[None], samples)[0][0]
+    neighbour_points_m = np.repeat(samples_m[None], len(neighbours_m), axis=0)
+    neighbour_points_m[..., across_axis] = np.asarray(neighbours_m)[:, None]
+    neighbour_points = detector.project(homography[None], neighbour_points_m.reshape(-1, 2))[0][0]
+    # One row per parallel line, one column per sample: image distance across the predicted line.
+    distances = np.abs((neighbour_points.reshape(neighbour_points_m.shape) - samples) @ normal)
+    gap = distances.min(axis=0)
+    reach = np.minimum(PHOTO_CENTRE_OFFSETS_PX.max() * native_per_working, gap / 4)
+    offsets = reach[:, None] * PHOTO_CENTRE_OFFSETS_PX / PHOTO_CENTRE_OFFSETS_PX.max()
+    side_distances = np.minimum(PHOTO_SIDE_DISTANCE_PX * native_per_working, gap[:, None] / 2 - np.abs(offsets))
+    centres = samples[:, None] + offsets[..., None] * normal
+    minus = centres - side_distances[..., None] * normal
+    plus = centres + side_distances[..., None] * normal
+    size = (grey.shape[1], grey.shape[0])
+    available = (observable_points(centres, size, boxes) & observable_points(minus, size, boxes)
+                 & observable_points(plus, size, boxes))
+    centre_values = grey_sample(grey, centres)
+    contrast = np.minimum(centre_values - grey_sample(grey, minus), centre_values - grey_sample(grey, plus))
+    best = np.where(available, contrast, -np.inf).max(axis=1)
+    known = np.isfinite(best)
+    best = np.where(known, best, np.nan)
+    return best, known & (best >= GAP_BOUNDED_MIN_CONTRAST)
+
+
+def gap_bounded_samples(
+    context: ViewContext, homography: np.ndarray, segment: int, samples: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """gap_bounded_photometry for one centre segment of a court given in working pixels."""
+    scale = np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float)
+    line_m = paint_geometry.CENTRE_SEGMENTS_M[segment]
+    return gap_bounded_photometry(
+        context.native_grey, np.diag([*scale, 1.0]) @ homography, np.asarray(samples) * scale, line_m,
+        parallel_neighbours_m(line_m), context.mask_boxes * np.tile(scale, 2), float(scale[0]),
+    )
 
 
 def quantile_summary(values: Sequence[float | None]) -> dict:
@@ -439,7 +527,10 @@ def physical_marking_evidence(
             )
             cursor += len(interval_samples)
             vector = endpoints[interval, 1] - endpoints[interval, 0]
-            ridge, p10 = photometric_samples(context.frame, interval_samples, vector, context.mask_boxes)
+            if context.native_grey is None:
+                ridge, p10 = photometric_samples(context.frame, interval_samples, vector, context.mask_boxes)
+            else:
+                ridge, p10 = gap_bounded_samples(context, homography, interval, interval_samples)
             c_parts.append(interval_c)
             ridge_parts.append(ridge)
             p10_parts.append(p10)

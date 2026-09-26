@@ -52,12 +52,32 @@ person masks and the way lines combine into a court score all stay as they are.
 
 ### Setting the pass bar
 
-On the 10 views with landmark hand marks, a court fitted to the hand marks gives
+On each view with landmark hand marks, a court fitted to the hand marks gives
 each painted line's true place. The new test runs along every true line, and
 along the floor midway between each pair of neighbouring parallel lines. The
 pass bar is the value that maximises the line pass rate minus the floor pass
-rate, over all lines of the 10 views together. This rule was set before the
-measurement.
+rate, over all lines together. This rule was set before the measurement.
+
+27 frames have landmark hand marks: the 10 in the 28 test views and 17 more
+from the same videos. `pass_bar.py` writes `pass_bar.txt`. The bar comes out
+at 9 grey levels, against today's 10. The difference barely moves between 7 and
+10:
+
+| Bar (grey levels) | Lines pass | Two far lines pass | Floor passes |
+| ---: | ---: | ---: | ---: |
+| 0 | 93% | 84% | 64% |
+| 3 | 85% | 62% | 29% |
+| 9 | 77% | 41% | 12% |
+
+A bar of 0, pure polarity, cannot tell paint from floor: 64% of floor samples
+pass. So any gain has to come from the native frame and the gap bound.
+
+Before the run, W5's own code re-scored the 78 eligible courts saved for
+`gxBQ_window_03_frame_77876` with the new test. The old test reproduced every
+saved score exactly. The new one picks another slipped court, 1.49 m out before
+the refit. With the new test, the right court's far baseline and far
+long-service line score 0, the same as the slipped court's. So on this view the
+far end no longer separates them.
 
 ## What was tried first
 
