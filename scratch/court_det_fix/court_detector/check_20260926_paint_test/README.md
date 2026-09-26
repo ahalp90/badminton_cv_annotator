@@ -7,7 +7,12 @@ slips one painted line at the far end from scoring as well as the right court.
 Everything else matches `../check_20260926_upright/` (commit `c5a7cfdb`),
 including the upright-camera filter.
 
-Status: planned. Results follow the run.
+**Result: reverted.** The test fails the keep rule. It fixes neither gxBQ
+slip, and it makes `gxBQ_window_00_frame_0` 0.36 m worse. It does fix
+`am3_window_02_frame_17174`, from 0.55 to 0.21 m, and improves
+`am3_window_00_frame_0`. It is 12% slower. On the gxBQ views the far lines are
+too faint for any one-sample-at-a-time paint test: it removes the slipped
+court's false far-end paint, but also the right court's real paint.
 
 ## Why
 
@@ -119,6 +124,99 @@ correctness run.
 
 ## What ran
 
-One run on Carmack, as step 1 of `../check_20260926_upright/run_upright.sh`:
-artefacts and self-checks on, in `../check_20260925/correctness/groups.txt`'s 8
-groups, at most 8 processes.
+Commit `2e30d4d9`, one run on Carmack with `run_paint_test.sh`: artefacts
+and self-checks on, in `../check_20260925/correctness/groups.txt`'s 8 groups,
+at most 8 processes. All 8 groups exited 0. `compare_paint_test.py` writes
+`compare_paint_test.txt`.
+
+## Results
+
+The largest hand-mark error in floor metres, before and after the final
+refit:
+
+| View | Upright check | Gap-bounded test |
+| --- | --- | --- |
+| `am1_window_00_frame_54` | 0.31 / 0.30 | 0.41 / 0.30 |
+| `am2_window_00_frame_150` | 0.32 / 0.24 | 0.27 / 0.23 |
+| `am2_window_01_frame_28019` | 0.69 / 0.62 | 0.71 / 0.64 |
+| `am3_window_00_frame_0` | 0.26 / 0.24 | 0.18 / 0.14 |
+| `am3_window_02_frame_17174` | 0.59 / 0.55 | 0.25 / 0.21 |
+| `gxBQ_window_00_frame_0` | 0.34 / 0.19 | 0.51 / 0.55 |
+| `gxBQ_window_00_frame_5` | 0.23 / 0.14 | 0.23 / 0.14 |
+| `gxBQ_window_00_frame_689` | 1.18 / 0.94 | 1.18 / 0.94 |
+| `gxBQ_window_03_frame_77876` | 1.40 / 1.06 | 1.49 / 0.93 |
+| `letterboxed_short_frame_78` | 0.18 / 0.12 | 0.18 / 0.12 |
+
+The chosen court changes on 19 of the 28 views, mostly by under 4 native px.
+The largest moves are `gxBQ_window_03_frame_77876` (8.1 px),
+`gxBQ_window_00_frame_0` (7.1 px), `sset_21_gloiZ_gTJaE_frame_00000001`
+(6.6 px) and `am3_window_02_frame_17174` (4.2 px). One control view,
+`…00100347`, now gets no court instead of a wrong one: its new pick fails the
+final fit (`rank_deficient`). The other 7 control views are unchanged.
+
+The 28 views took 3,829 detect seconds against the upright check's 3,413, both
+with self-checks on: 12% slower.
+
+### Why it did not fix the gxBQ slips
+
+The far lines on the gxBQ views are too faint to pass one sample at a time.
+`per_view_floor.py` runs the test along the lines of a court fitted to the hand
+marks. On the 7 gxBQ frames, only 5-13% of far-line samples pass at the bar of
+9, while bare floor passes about 10%. So the new test takes away the slipped
+court's false far-end paint, but the right court scores no better. On the am3
+views, where 33-47% of far-line samples pass, it picks the better court.
+
+A second red-team review (Codex GPT-6 Sol) checked the build:
+- **Geometry bug.** The gap to the next line is measured to the matching point
+  on that line, not along the sample's normal. Under perspective these differ,
+  so 23.5% of side samples on `gxBQ_window_03_frame_77876`'s saved courts pass
+  the true halfway point, by up to 1.39 times. They still stop short of the
+  next stripe, and a brighter side only lowers the contrast. So the bug cannot
+  lend a line its neighbour's paint. On that view's far lines the error is
+  about 2%. A future version should intersect the normal with the projected
+  neighbouring line
+- **Not a sampling miss.** At the far end the five centre positions sit about
+  0.6 px apart, so they do not step over the stripe. Even on the court fitted
+  to the hand marks, only 3 and 6 of 64 far-line samples pass on
+  `gxBQ_window_03_frame_77876`. The saved candidates sit about 1.6 px off those
+  lines, which makes it worse
+- **Lowering the bar does not rescue it.** At a bar of 3, the right court's far
+  lines still score almost nothing, and the slipped court scores slightly more
+- **Pass-bar caveat.** About 4% of the floor samples cross a perpendicular
+  stripe. Without them the bar is still 9
+
+### The pass bar
+
+The old bar of 10 grey levels has no recorded basis; the W5 notes call it "the
+historical contrast probe of 10". The measurement cannot tell 7 to 10 apart:
+line-minus-floor is 0.642-0.644 across that range.
+
+A per-view bar, set from each frame's own floor, was checked before building
+(`per_view_floor.py`). Floors do differ: the contrast bare floor reaches 10% of
+the time runs from 2.5 grey levels (letterboxed) to 29 (am3's wood floor). But
+a per-view bar does slightly worse overall, 0.631 against 0.649. It raises the
+bar on noisy floors and wipes out their far lines: on
+`am3_window_02_frame_17174`, far-line passes fall from 34% to 1%. It does not
+help the gxBQ views.
+
+### What might work instead
+
+Neither of these has been built or tested:
+- **Average along the line instead of passing samples one at a time.** Score
+  each line by its mean contrast along its length, minus what bare floor gives
+  on the same measure. A faint line that is slightly brighter all along could
+  show up where single samples do not. Check it first on the hand-marked
+  lines against the midway floor, with means in place of pass rates
+- **Fresh hand-marked views.** Sol recommends designing any new paint rule on
+  views these checks have not used
+
+## Files
+
+- `paint_test/results/`, `paint_test/logs/`: per-view results and logs. Remote
+  paths in the logs are replaced by `<run root>` and `<ShuttleSet root>`. The
+  28 artefact files (189 MB) are in the run folder
+  `court_detector_20260926_paint_test/` in the court-detector run root on
+  Carmack
+- `compare_paint_test.py`, `pass_bar.py`, `per_view_floor.py` and their `.txt`
+  outputs. The last two use the reverted paint test, so run them at the commit
+  before the revert
