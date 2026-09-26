@@ -1,0 +1,82 @@
+blend_default: 28 views, errors in none
+player_size: 28 views, errors in none
+switch-off arm against the final run's default: identical picks and corners
+
+picks: outcome per arm; player_size against blend_default: same chosen court? / largest corner move, native px
+view	hand marks	blend_default	player_size	against the default
+am1_window_00_frame_54	landmarks	court	court	same / 0.0
+am2_window_00_frame_150	landmarks	court	court	same / 0.0
+am2_window_01_frame_28019	landmarks	court	court	changed / 291.3
+am3_window_00_frame_0	landmarks	court	court	same / 0.0
+am3_window_02_frame_17174	landmarks	court	court	same / 0.0
+gxBQ_window_00_frame_0	landmarks	court	court	changed / 0.0
+gxBQ_window_00_frame_5	landmarks	court	court	same / 0.0
+gxBQ_window_00_frame_689	landmarks	court	court	same / 0.0
+gxBQ_window_03_frame_77876	landmarks	court	court	same / 0.0
+letterboxed_short_frame_78	landmarks	court	court	same / 0.0
+shuttleset_03_scene_0016	corners	court	court	same / 0.0
+shuttleset_03_scene_0017	corners	court	court	changed / 0.0
+shuttleset_03_scene_0019	corners	court	court	same / 0.0
+shuttleset_03_scene_0023	corners	court	court	same / 0.0
+shuttleset_03_scene_0032	corners	court	court	same / 0.0
+shuttleset_03_scene_0034	corners	court	court	same / 0.0
+shuttleset_21_scene_0034	corners	court	court	changed / 0.0
+shuttleset_21_scene_0039	corners	court	court	same / 0.0
+shuttleset_21_scene_0044	corners	court	court	same / 0.0
+sset_21_gloiZ_gTJaE_frame_00000001	none	court	court	same / 0.0
+sset_21_gloiZ_gTJaE_frame_00000300	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00009558	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00014336	none	court	court	same / 0.0
+sset_21_gloiZ_gTJaE_frame_00023893	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00038228	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00062120	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00090790	none	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00100347	none	court	court	same / 0.0
+
+controls with player_size against blend_default: no court gained or lost
+
+hand-mark floor error after the refit, metres: median / largest; flagged when either moves by more than 0.1
+view	blend_default	player_size	flag
+am1_window_00_frame_54	0.08 / 0.30	0.08 / 0.30	
+am2_window_00_frame_150	0.05 / 0.24	0.05 / 0.24	
+am2_window_01_frame_28019	0.07 / 0.62	0.45 / 0.76	worse
+am3_window_00_frame_0	0.10 / 0.24	0.10 / 0.24	
+am3_window_02_frame_17174	0.16 / 0.55	0.16 / 0.55	
+gxBQ_window_00_frame_0	0.05 / 0.19	0.05 / 0.19	
+gxBQ_window_00_frame_5	0.06 / 0.14	0.06 / 0.14	
+gxBQ_window_00_frame_689	0.22 / 0.32	0.22 / 0.32	
+gxBQ_window_03_frame_77876	0.21 / 1.06	0.21 / 1.06	
+letterboxed_short_frame_78	0.06 / 0.12	0.06 / 0.12	
+
+work and time per view: courts fully scored in the searches, seconds in matched pairs, detect seconds
+view	blend_default: courts, pair s, detect s	player_size: courts, pair s, detect s
+am1_window_00_frame_54	124088, 29, 179	15156, 28, 181
+am2_window_00_frame_150	243816, 31, 97	206518, 52, 162
+am2_window_01_frame_28019	391691, 50, 177	254902, 53, 181
+am3_window_00_frame_0	628368, 57, 173	426582, 57, 176
+am3_window_02_frame_17174	465888, 56, 179	257784, 50, 172
+gxBQ_window_00_frame_0	40560, 16, 160	37762, 9, 98
+gxBQ_window_00_frame_5	46266, 7, 87	38570, 12, 142
+gxBQ_window_00_frame_689	29334, 15, 179	25008, 15, 174
+gxBQ_window_03_frame_77876	81190, 7, 107	47512, 13, 155
+letterboxed_short_frame_78	194796, 8, 53	177706, 8, 52
+shuttleset_03_scene_0016	1293321, 120, 259	1184039, 91, 185
+shuttleset_03_scene_0017	954798, 62, 143	875578, 106, 244
+shuttleset_03_scene_0019	1841258, 90, 176	1741964, 93, 180
+shuttleset_03_scene_0023	743122, 85, 213	664894, 54, 180
+shuttleset_03_scene_0032	719422, 58, 138	663162, 96, 229
+shuttleset_03_scene_0034	1008713, 61, 145	917204, 74, 158
+shuttleset_21_scene_0034	1022666, 69, 179	977270, 44, 110
+shuttleset_21_scene_0039	927846, 73, 209	851172, 46, 130
+shuttleset_21_scene_0044	737194, 56, 173	626698, 34, 105
+sset_21_gloiZ_gTJaE_frame_00000001	935545, 52, 155	700803, 31, 116
+sset_21_gloiZ_gTJaE_frame_00000300	0, 3, 55	0, 2, 33
+sset_21_gloiZ_gTJaE_frame_00009558	0, 1, 52	0, 0, 32
+sset_21_gloiZ_gTJaE_frame_00014336	7482, 1, 58	2248, 0, 59
+sset_21_gloiZ_gTJaE_frame_00023893	0, 0, 45	0, 0, 27
+sset_21_gloiZ_gTJaE_frame_00038228	190, 1, 31	140, 0, 17
+sset_21_gloiZ_gTJaE_frame_00062120	0, 1, 55	0, 0, 46
+sset_21_gloiZ_gTJaE_frame_00090790	0, 0, 34	0, 0, 21
+sset_21_gloiZ_gTJaE_frame_00100347	1030, 4, 80	1030, 2, 49
+all	12438584, 1010, 3591	10693702, 971, 3417
+player_size against blend_default: courts -14.0%, pair seconds -3.9%, detect seconds -4.9%

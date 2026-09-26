@@ -36,9 +36,6 @@ KEEP_COMBINED = 256
 # A horizon further than this many image diagonals from the image centre belongs to a camera
 # looking nearly straight down. Its direction is then too noise-sensitive to test.
 FAR_HORIZON_DIAGONALS = 10.
-# A person counts towards a court's player width when the court puts their feet within this many
-# metres of it.
-NEAR_COURT_M = 1.
 
 
 def finite_scores(
@@ -186,46 +183,14 @@ def below_horizon(points: np.ndarray, corners: np.ndarray, size: tuple[int, int]
     return (side > 0).all(axis=1)
 
 
-def player_widths_m(homographies: np.ndarray, boxes_px: np.ndarray) -> np.ndarray:
-    """Per court, the median width in metres of the people it puts on or near the court; NaN if none.
-
-    A person's width is the floor distance between their box's bottom corners, each mapped onto
-    the floor through the court. A court at the wrong scale, such as one built from wall ribs
-    around the players, makes them giants or dwarfs.
-
-    :param homographies: (courts, 3, 3) floor metres to working px.
-    :param boxes_px: (people, 4) x1, y1, x2, y2 in working px; every person, sitting or standing.
-    """
-    x1, _y1, x2, y2 = boxes_px.T
-    # Each box's bottom-left corner, foot (bottom centre) and bottom-right corner: (3, people, 3).
-    image_points = np.stack([np.column_stack((x, y2, np.ones(len(boxes_px)))) for x in (x1, (x1 + x2) / 2, x2)])
-    # (left/foot/right, courts, people, 3) homogeneous floor points
-    floor = np.einsum('cij,kpj->kcpi', np.linalg.inv(homographies), image_points)
-    left, foot, right = floor[..., :2] / floor[..., 2:]
-    court_size = detector.CORNER_COURT_M.max(axis=0)
-    # A point above the horizon maps to the floor behind the camera, with the opposite sign to the court's centre.
-    centre_sign = np.sign(homographies[:, 2] @ np.append(court_size / 2, 1.))
-    in_front = (np.sign(floor[..., 2]) == centre_sign[:, None]).all(axis=0)
-    near_court = in_front & (foot >= -NEAR_COURT_M).all(axis=-1) & (foot <= court_size + NEAR_COURT_M).all(axis=-1)
-    widths = np.where(near_court, np.linalg.norm(right - left, axis=-1), np.nan)
-    medians = np.full(len(homographies), np.nan)
-    counted = near_court.any(axis=1)
-    medians[counted] = np.nanmedian(widths[counted], axis=1)
-    return medians
-
-
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
     player_pruning: bool = True, combined_ranking: str = 'finite', upright_only: bool = False,
-    person_boxes: np.ndarray | None = None, player_width_m: tuple[float, float] | None = None,
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels.
 
     :param upright_only: also count courts above the pair's horizon as invalid geometry.
-    :param person_boxes: (people, 4) working px, needed with player_width_m.
-    :param player_width_m: also drop courts whose players come out narrower or wider than these
-        bounds (player_widths_m). Courts with no one on or near them stay.
     """
     basis, details = basis_for(points, size, settings)
     record = {'basis_status': details}
@@ -244,12 +209,6 @@ def propose_role(
     record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
                    'geometry_players': int(usable.sum())})
-    if player_width_m is not None:
-        low, high = player_width_m
-        widths = player_widths_m(transforms[usable], person_boxes)
-        usable[usable] = np.isnan(widths) | ((widths >= low) & (widths <= high))
-        # Off, the record matches the unfiltered runs' records key for key.
-        record['player_width_kept'] = int(usable.sum())
     usable_ids = np.flatnonzero(usable)
     axis_ids = axis_pairs[usable_ids]
     axis_scores = (horizontal.scores[axis_ids[:, 0]] + vertical.scores[axis_ids[:, 1]]) / 2

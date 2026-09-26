@@ -1,0 +1,380 @@
+decoded <ShuttleSet root>/external/shuttleset-sources/21 An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals.mp4 to frame 90835 in 512s
+shuttleset_21_scene_0039 pair 0 [0, 1] combined 262144 players 0 retained 0 seconds 1.3769265268929303
+shuttleset_21_scene_0039 pair 1 [0, 2] combined 262144 players 84054 retained 256 seconds 3.0136222359724343
+shuttleset_21_scene_0039 pair 5 [0, 6] combined 43008 players 12616 retained 256 seconds 0.7078321170993149
+shuttleset_21_scene_0039 pair 6 [0, 7] combined 243712 players 0 retained 0 seconds 0.6355497390031815
+shuttleset_21_scene_0039 pair 7 [0, 8] combined 124928 players 3336 retained 256 seconds 0.5935005471110344
+shuttleset_21_scene_0039 pair 8 [0, 9] combined 65536 players 0 retained 0 seconds 0.37123353825882077
+shuttleset_21_scene_0039 pair 11 [0, 12] combined 94208 players 0 retained 0 seconds 0.4200956979766488
+shuttleset_21_scene_0039 pair 12 [0, 13] combined 36864 players 428 retained 204 seconds 0.35136494692415
+shuttleset_21_scene_0039 pair 13 [0, 14] combined 0 players 0 retained 0 seconds 0.2319830497726798
+shuttleset_21_scene_0039 pair 15 [1, 0] combined 262144 players 0 retained 0 seconds 0.7354280785657465
+shuttleset_21_scene_0039 pair 17 [1, 3] combined 262144 players 0 retained 0 seconds 0.5936853368766606
+shuttleset_21_scene_0039 pair 18 [1, 4] combined 262144 players 0 retained 0 seconds 0.5875028469599783
+shuttleset_21_scene_0039 pair 30 [2, 0] combined 262144 players 104968 retained 256 seconds 3.129469082225114
+shuttleset_21_scene_0039 pair 32 [2, 3] combined 262144 players 114958 retained 256 seconds 3.3096834658645093
+shuttleset_21_scene_0039 pair 33 [2, 4] combined 262144 players 98956 retained 256 seconds 2.85971684101969
+shuttleset_21_scene_0039 pair 46 [3, 1] combined 262144 players 0 retained 0 seconds 0.560619642958045
+shuttleset_21_scene_0039 pair 47 [3, 2] combined 262144 players 100806 retained 256 seconds 2.9947568448260427
+shuttleset_21_scene_0039 pair 50 [3, 6] combined 40960 players 15746 retained 256 seconds 0.5666711791418493
+shuttleset_21_scene_0039 pair 51 [3, 7] combined 262144 players 0 retained 0 seconds 0.47461911803111434
+shuttleset_21_scene_0039 pair 52 [3, 8] combined 126976 players 2902 retained 256 seconds 0.38368657277897
+shuttleset_21_scene_0039 pair 53 [3, 9] combined 64512 players 0 retained 0 seconds 0.1532357749529183
+shuttleset_21_scene_0039 pair 57 [3, 13] combined 48128 players 1038 retained 256 seconds 0.18114049592986703
+shuttleset_21_scene_0039 pair 58 [3, 14] combined 1024 players 0 retained 0 seconds 0.04245209973305464
+shuttleset_21_scene_0039 pair 61 [4, 1] combined 262144 players 0 retained 0 seconds 0.5662007597275078
+shuttleset_21_scene_0039 pair 62 [4, 2] combined 262144 players 90458 retained 256 seconds 2.668132099788636
+shuttleset_21_scene_0039 pair 64 [4, 5] combined 29696 players 0 retained 0 seconds 0.1127947298809886
+shuttleset_21_scene_0039 pair 65 [4, 6] combined 41984 players 16150 retained 256 seconds 0.5885033467784524
+shuttleset_21_scene_0039 pair 69 [4, 10] combined 262144 players 0 retained 0 seconds 0.5012354818172753
+shuttleset_21_scene_0039 pair 70 [4, 11] combined 262144 players 21288 retained 256 seconds 1.1165193719789386
+shuttleset_21_scene_0039 pair 71 [4, 12] combined 101376 players 0 retained 0 seconds 0.23035174515098333
+shuttleset_21_scene_0039 pair 74 [4, 15] combined 262144 players 0 retained 0 seconds 0.4913189159706235
+shuttleset_21_scene_0039 pair 79 [5, 4] combined 22528 players 0 retained 0 seconds 0.08026834484189749
+shuttleset_21_scene_0039 pair 90 [6, 0] combined 66560 players 22102 retained 256 seconds 0.8230512300506234
+shuttleset_21_scene_0039 pair 93 [6, 3] combined 70656 players 27536 retained 256 seconds 0.9221062636934221
+shuttleset_21_scene_0039 pair 94 [6, 4] combined 70656 players 24460 retained 256 seconds 0.7620413326658309
+shuttleset_21_scene_0039 pair 105 [7, 0] combined 159744 players 0 retained 0 seconds 0.45598110370337963
+shuttleset_21_scene_0039 pair 108 [7, 3] combined 178176 players 0 retained 0 seconds 0.3260014960542321
+shuttleset_21_scene_0039 pair 114 [7, 10] combined 151552 players 654 retained 256 seconds 0.34138616640120745
+shuttleset_21_scene_0039 pair 115 [7, 11] combined 158340 players 92 retained 46 seconds 0.2976257801055908
+shuttleset_21_scene_0039 pair 120 [8, 0] combined 72704 players 10952 retained 256 seconds 0.6204738207161427
+shuttleset_21_scene_0039 pair 123 [8, 3] combined 165888 players 4468 retained 256 seconds 0.4379494050517678
+shuttleset_21_scene_0039 pair 129 [8, 10] combined 164864 players 11068 retained 256 seconds 0.5984668391756713
+shuttleset_21_scene_0039 pair 130 [8, 11] combined 89088 players 4136 retained 256 seconds 0.3006965438835323
+shuttleset_21_scene_0039 pair 135 [9, 0] combined 100352 players 0 retained 0 seconds 0.3488703747279942
+shuttleset_21_scene_0039 pair 138 [9, 3] combined 99328 players 0 retained 0 seconds 0.19784221518784761
+shuttleset_21_scene_0039 pair 154 [10, 4] combined 262144 players 140 retained 70 seconds 0.5396798187866807
+shuttleset_21_scene_0039 pair 157 [10, 7] combined 201728 players 2 retained 1 seconds 0.3912713201716542
+shuttleset_21_scene_0039 pair 158 [10, 8] combined 124928 players 3890 retained 256 seconds 0.3742561489343643
+shuttleset_21_scene_0039 pair 162 [10, 13] combined 48128 players 182 retained 91 seconds 0.14262710185721517
+shuttleset_21_scene_0039 pair 163 [10, 14] combined 0 players 0 retained 0 seconds 0.03574680769816041
+shuttleset_21_scene_0039 pair 169 [11, 4] combined 119808 players 14452 retained 256 seconds 0.6823490541428328
+shuttleset_21_scene_0039 pair 172 [11, 7] combined 106920 players 26 retained 13 seconds 0.21930776303634048
+shuttleset_21_scene_0039 pair 173 [11, 8] combined 25112 players 1402 retained 256 seconds 0.11858767410740256
+shuttleset_21_scene_0039 pair 177 [11, 13] combined 22880 players 1354 retained 256 seconds 0.11134279007092118
+shuttleset_21_scene_0039 pair 178 [11, 14] combined 1184 players 0 retained 0 seconds 0.019224909134209156
+shuttleset_21_scene_0039 pair 180 [12, 0] combined 167936 players 0 retained 0 seconds 0.4714057920500636
+shuttleset_21_scene_0039 pair 184 [12, 4] combined 169984 players 0 retained 0 seconds 0.33604865288361907
+shuttleset_21_scene_0039 pair 195 [13, 0] combined 30720 players 756 retained 256 seconds 0.27392186783254147
+shuttleset_21_scene_0039 pair 198 [13, 3] combined 63488 players 412 retained 206 seconds 0.1633015889674425
+shuttleset_21_scene_0039 pair 205 [13, 10] combined 64512 players 774 retained 256 seconds 0.17324531031772494
+shuttleset_21_scene_0039 pair 206 [13, 11] combined 76096 players 3052 retained 256 seconds 0.23601701017469168
+shuttleset_21_scene_0039 pair 210 [14, 0] combined 0 players 0 retained 0 seconds 0.186856625135988
+shuttleset_21_scene_0039 pair 213 [14, 3] combined 0 players 0 retained 0 seconds 0.02927171206101775
+shuttleset_21_scene_0039 pair 220 [14, 10] combined 0 players 0 retained 0 seconds 0.026496064849197865
+shuttleset_21_scene_0039 pair 221 [14, 11] combined 600 players 0 retained 0 seconds 0.013876601122319698
+shuttleset_21_scene_0039 pair 229 [15, 4] combined 253952 players 492 retained 246 seconds 0.5220679258927703
+shuttleset_21_scene_0039 pair 0 [0, 1] combined 84992 players 0 retained 0 seconds 0.20375620340928435
+shuttleset_21_scene_0039 pair 1 [0, 2] combined 48128 players 13060 retained 256 seconds 0.5819044038653374
+shuttleset_21_scene_0039 pair 5 [0, 6] combined 5120 players 1878 retained 256 seconds 0.15241405274719
+shuttleset_21_scene_0039 pair 6 [0, 7] combined 0 players 0 retained 0 seconds 0.058298937045037746
+shuttleset_21_scene_0039 pair 7 [0, 8] combined 4096 players 0 retained 0 seconds 0.06486578611657023
+shuttleset_21_scene_0039 pair 8 [0, 9] combined 0 players 0 retained 0 seconds 0.05874439608305693
+shuttleset_21_scene_0039 pair 11 [0, 12] combined 2048 players 0 retained 0 seconds 0.06107872212305665
+shuttleset_21_scene_0039 pair 12 [0, 13] combined 0 players 0 retained 0 seconds 0.05034855892881751
+shuttleset_21_scene_0039 pair 13 [0, 14] combined 0 players 0 retained 0 seconds 0.051992629654705524
+shuttleset_21_scene_0039 pair 15 [1, 0] combined 107520 players 0 retained 0 seconds 0.22489236574620008
+shuttleset_21_scene_0039 pair 17 [1, 3] combined 7632 players 0 retained 0 seconds 0.03144778683781624
+shuttleset_21_scene_0039 pair 18 [1, 4] combined 26400 players 0 retained 0 seconds 0.06475857505574822
+shuttleset_21_scene_0039 pair 30 [2, 0] combined 50176 players 16952 retained 256 seconds 0.5645178151316941
+shuttleset_21_scene_0039 pair 32 [2, 3] combined 4860 players 2320 retained 256 seconds 0.1071806219406426
+shuttleset_21_scene_0039 pair 33 [2, 4] combined 10332 players 4760 retained 256 seconds 0.17883999459445477
+shuttleset_21_scene_0039 pair 46 [3, 1] combined 14448 players 0 retained 0 seconds 0.0395496878772974
+shuttleset_21_scene_0039 pair 47 [3, 2] combined 9180 players 3324 retained 256 seconds 0.1257751090452075
+shuttleset_21_scene_0039 pair 50 [3, 6] combined 624 players 304 retained 148 seconds 0.03388657188042998
+shuttleset_21_scene_0039 pair 51 [3, 7] combined 0 players 0 retained 0 seconds 0.006390529219061136
+shuttleset_21_scene_0039 pair 52 [3, 8] combined 304 players 0 retained 0 seconds 0.008656372781842947
+shuttleset_21_scene_0039 pair 53 [3, 9] combined 0 players 0 retained 0 seconds 0.0070478529669344425
+shuttleset_21_scene_0039 pair 57 [3, 13] combined 912 players 0 retained 0 seconds 0.009466098621487617
+shuttleset_21_scene_0039 pair 58 [3, 14] combined 0 players 0 retained 0 seconds 0.006315163802355528
+shuttleset_21_scene_0039 pair 61 [4, 1] combined 28864 players 0 retained 0 seconds 0.07070992467924953
+shuttleset_21_scene_0039 pair 62 [4, 2] combined 13760 players 4668 retained 256 seconds 0.17981929006054997
+shuttleset_21_scene_0039 pair 64 [4, 5] combined 1840 players 0 retained 0 seconds 0.017125193029642105
+shuttleset_21_scene_0039 pair 65 [4, 6] combined 1620 players 760 retained 256 seconds 0.05775647470727563
+shuttleset_21_scene_0039 pair 69 [4, 10] combined 24576 players 0 retained 0 seconds 0.05764442775398493
+shuttleset_21_scene_0039 pair 70 [4, 11] combined 7564 players 192 retained 96 seconds 0.04950812691822648
+shuttleset_21_scene_0039 pair 71 [4, 12] combined 656 players 0 retained 0 seconds 0.014357967302203178
+shuttleset_21_scene_0039 pair 74 [4, 15] combined 0 players 0 retained 0 seconds 0.01085713692009449
+shuttleset_21_scene_0039 pair 79 [5, 4] combined 1560 players 0 retained 0 seconds 0.01322676008567214
+shuttleset_21_scene_0039 pair 90 [6, 0] combined 6144 players 1660 retained 256 seconds 0.11806442588567734
+shuttleset_21_scene_0039 pair 93 [6, 3] combined 624 players 266 retained 133 seconds 0.029112018179148436
+shuttleset_21_scene_0039 pair 94 [6, 4] combined 1988 players 644 retained 256 seconds 0.05045716883614659
+shuttleset_21_scene_0039 pair 105 [7, 0] combined 0 players 0 retained 0 seconds 0.044785856269299984
+shuttleset_21_scene_0039 pair 108 [7, 3] combined 0 players 0 retained 0 seconds 0.005477332975715399
+shuttleset_21_scene_0039 pair 114 [7, 10] combined 0 players 0 retained 0 seconds 0.005404844880104065
+shuttleset_21_scene_0039 pair 115 [7, 11] combined 0 players 0 retained 0 seconds 0.004007816314697266
+shuttleset_21_scene_0039 pair 120 [8, 0] combined 2048 players 196 retained 90 seconds 0.06514680525287986
+shuttleset_21_scene_0039 pair 123 [8, 3] combined 640 players 6 retained 3 seconds 0.01988517213612795
+shuttleset_21_scene_0039 pair 129 [8, 10] combined 488 players 0 retained 0 seconds 0.008335398975759745
+shuttleset_21_scene_0039 pair 130 [8, 11] combined 176 players 0 retained 0 seconds 0.005272476002573967
+shuttleset_21_scene_0039 pair 135 [9, 0] combined 0 players 0 retained 0 seconds 0.04249322786927223
+shuttleset_21_scene_0039 pair 138 [9, 3] combined 0 players 0 retained 0 seconds 0.005759250372648239
+shuttleset_21_scene_0039 pair 154 [10, 4] combined 20984 players 0 retained 0 seconds 0.14269114192575216
+shuttleset_21_scene_0039 pair 157 [10, 7] combined 0 players 0 retained 0 seconds 0.007011007983237505
+shuttleset_21_scene_0039 pair 158 [10, 8] combined 588 players 0 retained 0 seconds 0.009393606800585985
+shuttleset_21_scene_0039 pair 162 [10, 13] combined 980 players 0 retained 0 seconds 0.009132659062743187
+shuttleset_21_scene_0039 pair 163 [10, 14] combined 0 players 0 retained 0 seconds 0.0073663294315338135
+shuttleset_21_scene_0039 pair 169 [11, 4] combined 2184 players 76 retained 38 seconds 0.03035136591643095
+shuttleset_21_scene_0039 pair 172 [11, 7] combined 0 players 0 retained 0 seconds 0.005433247424662113
+shuttleset_21_scene_0039 pair 173 [11, 8] combined 0 players 0 retained 0 seconds 0.005491254385560751
+shuttleset_21_scene_0039 pair 177 [11, 13] combined 0 players 0 retained 0 seconds 0.005374851170927286
+shuttleset_21_scene_0039 pair 178 [11, 14] combined 0 players 0 retained 0 seconds 0.0054075829684734344
+shuttleset_21_scene_0039 pair 180 [12, 0] combined 3072 players 0 retained 0 seconds 0.0500750420615077
+shuttleset_21_scene_0039 pair 184 [12, 4] combined 992 players 0 retained 0 seconds 0.011692352127283812
+shuttleset_21_scene_0039 pair 195 [13, 0] combined 0 players 0 retained 0 seconds 0.04143873369321227
+shuttleset_21_scene_0039 pair 198 [13, 3] combined 1024 players 0 retained 0 seconds 0.00800551101565361
+shuttleset_21_scene_0039 pair 205 [13, 10] combined 1984 players 0 retained 0 seconds 0.0100831538438797
+shuttleset_21_scene_0039 pair 206 [13, 11] combined 0 players 0 retained 0 seconds 0.004978587385267019
+shuttleset_21_scene_0039 pair 210 [14, 0] combined 0 players 0 retained 0 seconds 0.04518565908074379
+shuttleset_21_scene_0039 pair 213 [14, 3] combined 0 players 0 retained 0 seconds 0.006651096045970917
+shuttleset_21_scene_0039 pair 220 [14, 10] combined 0 players 0 retained 0 seconds 0.0056417048908770084
+shuttleset_21_scene_0039 pair 221 [14, 11] combined 0 players 0 retained 0 seconds 0.004232911858707666
+shuttleset_21_scene_0039 pair 229 [15, 4] combined 0 players 0 retained 0 seconds 0.008390352129936218
+[shuttleset_21_scene_0039] line-template: preparing rectangles
+[shuttleset_21_scene_0039] measuring 749 parents (G0=256, G1=256, line_template=256; conflicting geometry groups=0)
+[shuttleset_21_scene_0039] parents 250/749
+[shuttleset_21_scene_0039] parents 500/749
+[shuttleset_21_scene_0039] refitting 749 parents
+[shuttleset_21_scene_0039] refits 250/749; valid children=240
+[shuttleset_21_scene_0039] refits 500/749; valid children=490
+{"view_id": "shuttleset_21_scene_0039", "chosen_key": "G1:1:1480/child", "no_court_reason": null, "all_checks_equal": null, "error": null}
+sset_21_gloiZ_gTJaE_frame_00000001 pair 0 [0, 1] combined 262144 players 58076 retained 256 seconds 2.1447577569633722
+sset_21_gloiZ_gTJaE_frame_00000001 pair 7 [0, 8] combined 16384 players 244 retained 98 seconds 0.14326296281069517
+sset_21_gloiZ_gTJaE_frame_00000001 pair 11 [0, 12] combined 262144 players 28914 retained 256 seconds 1.3354811687022448
+sset_21_gloiZ_gTJaE_frame_00000001 pair 15 [1, 0] combined 262144 players 67851 retained 256 seconds 2.247993901371956
+sset_21_gloiZ_gTJaE_frame_00000001 pair 18 [1, 4] combined 262144 players 16196 retained 256 seconds 0.8874237141571939
+sset_21_gloiZ_gTJaE_frame_00000001 pair 19 [1, 5] combined 262144 players 79044 retained 256 seconds 2.5114620779640973
+sset_21_gloiZ_gTJaE_frame_00000001 pair 20 [1, 6] combined 116736 players 3062 retained 256 seconds 0.3881735182367265
+sset_21_gloiZ_gTJaE_frame_00000001 pair 23 [1, 9] combined 245760 players 15838 retained 256 seconds 0.8497967310249805
+sset_21_gloiZ_gTJaE_frame_00000001 pair 25 [1, 11] combined 262144 players 28160 retained 256 seconds 1.1616962430998683
+sset_21_gloiZ_gTJaE_frame_00000001 pair 27 [1, 13] combined 39936 players 0 retained 0 seconds 0.1680687521584332
+sset_21_gloiZ_gTJaE_frame_00000001 pair 28 [1, 14] combined 1024 players 364 retained 176 seconds 0.0775926192291081
+sset_21_gloiZ_gTJaE_frame_00000001 pair 29 [1, 15] combined 22528 players 110 retained 53 seconds 0.10894096922129393
+sset_21_gloiZ_gTJaE_frame_00000001 pair 38 [2, 9] combined 142336 players 51448 retained 256 seconds 1.5334289260208607
+sset_21_gloiZ_gTJaE_frame_00000001 pair 61 [4, 1] combined 146432 players 12842 retained 256 seconds 0.6994727300480008
+sset_21_gloiZ_gTJaE_frame_00000001 pair 67 [4, 8] combined 15360 players 32 retained 18 seconds 0.056007718201726675
+sset_21_gloiZ_gTJaE_frame_00000001 pair 71 [4, 12] combined 193440 players 4196 retained 256 seconds 0.48590204678475857
+sset_21_gloiZ_gTJaE_frame_00000001 pair 76 [5, 1] combined 262144 players 46114 retained 256 seconds 1.9169711121357977
+sset_21_gloiZ_gTJaE_frame_00000001 pair 82 [5, 8] combined 12288 players 322 retained 158 seconds 0.11751823080703616
+sset_21_gloiZ_gTJaE_frame_00000001 pair 86 [5, 12] combined 262144 players 30460 retained 256 seconds 1.3124268180690706
+sset_21_gloiZ_gTJaE_frame_00000001 pair 91 [6, 1] combined 52224 players 164 retained 72 seconds 0.15758811496198177
+sset_21_gloiZ_gTJaE_frame_00000001 pair 97 [6, 8] combined 2684 players 0 retained 0 seconds 0.010355161037296057
+sset_21_gloiZ_gTJaE_frame_00000001 pair 101 [6, 12] combined 53248 players 34 retained 13 seconds 0.11323419911786914
+sset_21_gloiZ_gTJaE_frame_00000001 pair 120 [8, 0] combined 1024 players 262 retained 124 seconds 0.11731138918548822
+sset_21_gloiZ_gTJaE_frame_00000001 pair 124 [8, 4] combined 29696 players 192 retained 96 seconds 0.07961731823161244
+sset_21_gloiZ_gTJaE_frame_00000001 pair 125 [8, 5] combined 13312 players 100 retained 48 seconds 0.16407024394720793
+sset_21_gloiZ_gTJaE_frame_00000001 pair 126 [8, 6] combined 2232 players 0 retained 0 seconds 0.009596655145287514
+sset_21_gloiZ_gTJaE_frame_00000001 pair 128 [8, 9] combined 10752 players 0 retained 0 seconds 0.029314670711755753
+sset_21_gloiZ_gTJaE_frame_00000001 pair 130 [8, 11] combined 13312 players 12 retained 6 seconds 0.05570670962333679
+sset_21_gloiZ_gTJaE_frame_00000001 pair 136 [9, 1] combined 46080 players 2350 retained 256 seconds 0.2552294014021754
+sset_21_gloiZ_gTJaE_frame_00000001 pair 137 [9, 2] combined 123516 players 39620 retained 256 seconds 1.215538112912327
+sset_21_gloiZ_gTJaE_frame_00000001 pair 143 [9, 8] combined 3120 players 10 retained 5 seconds 0.03377031674608588
+sset_21_gloiZ_gTJaE_frame_00000001 pair 146 [9, 12] combined 72288 players 1944 retained 256 seconds 0.25448488257825375
+sset_21_gloiZ_gTJaE_frame_00000001 pair 166 [11, 1] combined 262144 players 34134 retained 256 seconds 1.472277170047164
+sset_21_gloiZ_gTJaE_frame_00000001 pair 173 [11, 8] combined 32768 players 236 retained 118 seconds 0.11780031910166144
+sset_21_gloiZ_gTJaE_frame_00000001 pair 176 [11, 12] combined 262144 players 3892 retained 256 seconds 0.592385545372963
+sset_21_gloiZ_gTJaE_frame_00000001 pair 180 [12, 0] combined 217088 players 22628 retained 256 seconds 1.129325379151851
+sset_21_gloiZ_gTJaE_frame_00000001 pair 184 [12, 4] combined 204800 players 5932 retained 256 seconds 0.5088567761704326
+sset_21_gloiZ_gTJaE_frame_00000001 pair 185 [12, 5] combined 203776 players 42198 retained 256 seconds 1.5111140008084476
+sset_21_gloiZ_gTJaE_frame_00000001 pair 186 [12, 6] combined 113664 players 986 retained 256 seconds 0.25839642621576786
+sset_21_gloiZ_gTJaE_frame_00000001 pair 189 [12, 9] combined 151200 players 2732 retained 256 seconds 0.360514375846833
+sset_21_gloiZ_gTJaE_frame_00000001 pair 191 [12, 11] combined 212992 players 10912 retained 256 seconds 0.7438236000016332
+sset_21_gloiZ_gTJaE_frame_00000001 pair 194 [12, 15] combined 21504 players 0 retained 0 seconds 0.05061780568212271
+sset_21_gloiZ_gTJaE_frame_00000001 pair 196 [13, 1] combined 46080 players 28 retained 14 seconds 0.12863980419933796
+sset_21_gloiZ_gTJaE_frame_00000001 pair 211 [14, 1] combined 2048 players 536 retained 256 seconds 0.08235079003497958
+sset_21_gloiZ_gTJaE_frame_00000001 pair 226 [15, 1] combined 20480 players 62 retained 31 seconds 0.08554037986323237
+sset_21_gloiZ_gTJaE_frame_00000001 pair 237 [15, 12] combined 13680 players 0 retained 0 seconds 0.03269275696948171
+sset_21_gloiZ_gTJaE_frame_00000001 pair 0 [0, 1] combined 61600 players 12678 retained 256 seconds 0.4709413619711995
+sset_21_gloiZ_gTJaE_frame_00000001 pair 7 [0, 8] combined 0 players 0 retained 0 seconds 0.01446123467758298
+sset_21_gloiZ_gTJaE_frame_00000001 pair 11 [0, 12] combined 35680 players 6986 retained 256 seconds 0.2649163999594748
+sset_21_gloiZ_gTJaE_frame_00000001 pair 15 [1, 0] combined 81700 players 21676 retained 256 seconds 0.6967327832244337
+sset_21_gloiZ_gTJaE_frame_00000001 pair 18 [1, 4] combined 5712 players 0 retained 0 seconds 0.018778706900775433
+sset_21_gloiZ_gTJaE_frame_00000001 pair 19 [1, 5] combined 50752 players 18064 retained 256 seconds 0.6517603131942451
+sset_21_gloiZ_gTJaE_frame_00000001 pair 20 [1, 6] combined 0 players 0 retained 0 seconds 0.007729132194072008
+sset_21_gloiZ_gTJaE_frame_00000001 pair 23 [1, 9] combined 2328 players 0 retained 0 seconds 0.01115158898755908
+sset_21_gloiZ_gTJaE_frame_00000001 pair 25 [1, 11] combined 1552 players 114 retained 56 seconds 0.02698638616129756
+sset_21_gloiZ_gTJaE_frame_00000001 pair 27 [1, 13] combined 0 players 0 retained 0 seconds 0.006593090016394854
+sset_21_gloiZ_gTJaE_frame_00000001 pair 28 [1, 14] combined 0 players 0 retained 0 seconds 0.007054232992231846
+sset_21_gloiZ_gTJaE_frame_00000001 pair 29 [1, 15] combined 0 players 0 retained 0 seconds 0.006782249081879854
+sset_21_gloiZ_gTJaE_frame_00000001 pair 38 [2, 9] combined 40 players 0 retained 0 seconds 0.003001246601343155
+sset_21_gloiZ_gTJaE_frame_00000001 pair 61 [4, 1] combined 236 players 0 retained 0 seconds 0.006635772995650768
+sset_21_gloiZ_gTJaE_frame_00000001 pair 67 [4, 8] combined 0 players 0 retained 0 seconds 0.0026719686575233936
+sset_21_gloiZ_gTJaE_frame_00000001 pair 71 [4, 12] combined 492 players 0 retained 0 seconds 0.005627460777759552
+sset_21_gloiZ_gTJaE_frame_00000001 pair 76 [5, 1] combined 38280 players 8056 retained 256 seconds 0.2907796110957861
+sset_21_gloiZ_gTJaE_frame_00000001 pair 82 [5, 8] combined 0 players 0 retained 0 seconds 0.008453784976154566
+sset_21_gloiZ_gTJaE_frame_00000001 pair 86 [5, 12] combined 13580 players 2566 retained 256 seconds 0.11814244603738189
+sset_21_gloiZ_gTJaE_frame_00000001 pair 91 [6, 1] combined 0 players 0 retained 0 seconds 0.00618428410962224
+sset_21_gloiZ_gTJaE_frame_00000001 pair 97 [6, 8] combined 0 players 0 retained 0 seconds 0.0013757511042058468
+sset_21_gloiZ_gTJaE_frame_00000001 pair 101 [6, 12] combined 0 players 0 retained 0 seconds 0.00437887804582715
+sset_21_gloiZ_gTJaE_frame_00000001 pair 120 [8, 0] combined 0 players 0 retained 0 seconds 0.011519555933773518
+sset_21_gloiZ_gTJaE_frame_00000001 pair 124 [8, 4] combined 0 players 0 retained 0 seconds 0.002638082019984722
+sset_21_gloiZ_gTJaE_frame_00000001 pair 125 [8, 5] combined 0 players 0 retained 0 seconds 0.006375986151397228
+sset_21_gloiZ_gTJaE_frame_00000001 pair 126 [8, 6] combined 0 players 0 retained 0 seconds 0.0014450368471443653
+sset_21_gloiZ_gTJaE_frame_00000001 pair 128 [8, 9] combined 0 players 0 retained 0 seconds 0.002087098080664873
+sset_21_gloiZ_gTJaE_frame_00000001 pair 130 [8, 11] combined 0 players 0 retained 0 seconds 0.002181651070713997
+sset_21_gloiZ_gTJaE_frame_00000001 pair 136 [9, 1] combined 0 players 0 retained 0 seconds 0.005777738057076931
+sset_21_gloiZ_gTJaE_frame_00000001 pair 137 [9, 2] combined 0 players 0 retained 0 seconds 0.002726844046264887
+sset_21_gloiZ_gTJaE_frame_00000001 pair 143 [9, 8] combined 0 players 0 retained 0 seconds 0.0024092472158372402
+sset_21_gloiZ_gTJaE_frame_00000001 pair 146 [9, 12] combined 180 players 0 retained 0 seconds 0.00495261000469327
+sset_21_gloiZ_gTJaE_frame_00000001 pair 166 [11, 1] combined 528 players 80 retained 38 seconds 0.023024948313832283
+sset_21_gloiZ_gTJaE_frame_00000001 pair 173 [11, 8] combined 0 players 0 retained 0 seconds 0.002831100020557642
+sset_21_gloiZ_gTJaE_frame_00000001 pair 176 [11, 12] combined 152 players 50 retained 25 seconds 0.02031395211815834
+sset_21_gloiZ_gTJaE_frame_00000001 pair 180 [12, 0] combined 46920 players 11184 retained 256 seconds 0.3925273851491511
+sset_21_gloiZ_gTJaE_frame_00000001 pair 184 [12, 4] combined 3224 players 0 retained 0 seconds 0.0125415432266891
+sset_21_gloiZ_gTJaE_frame_00000001 pair 185 [12, 5] combined 21504 players 7056 retained 256 seconds 0.24325349275022745
+sset_21_gloiZ_gTJaE_frame_00000001 pair 186 [12, 6] combined 0 players 0 retained 0 seconds 0.005414261016994715
+sset_21_gloiZ_gTJaE_frame_00000001 pair 189 [12, 9] combined 448 players 0 retained 0 seconds 0.005938681773841381
+sset_21_gloiZ_gTJaE_frame_00000001 pair 191 [12, 11] combined 1248 players 56 retained 28 seconds 0.021319092717021704
+sset_21_gloiZ_gTJaE_frame_00000001 pair 194 [12, 15] combined 0 players 0 retained 0 seconds 0.005177745129913092
+sset_21_gloiZ_gTJaE_frame_00000001 pair 196 [13, 1] combined 0 players 0 retained 0 seconds 0.005187987815588713
+sset_21_gloiZ_gTJaE_frame_00000001 pair 211 [14, 1] combined 0 players 0 retained 0 seconds 0.005283653736114502
+sset_21_gloiZ_gTJaE_frame_00000001 pair 226 [15, 1] combined 0 players 0 retained 0 seconds 0.0047403667122125626
+sset_21_gloiZ_gTJaE_frame_00000001 pair 237 [15, 12] combined 0 players 0 retained 0 seconds 0.0037246481515467167
+[sset_21_gloiZ_gTJaE_frame_00000001] line-template: preparing rectangles
+[sset_21_gloiZ_gTJaE_frame_00000001] measuring 731 parents (G0=256, G1=256, line_template=256; conflicting geometry groups=0)
+[sset_21_gloiZ_gTJaE_frame_00000001] parents 250/731
+[sset_21_gloiZ_gTJaE_frame_00000001] parents 500/731
+[sset_21_gloiZ_gTJaE_frame_00000001] refitting 731 parents
+[sset_21_gloiZ_gTJaE_frame_00000001] refits 250/731; valid children=202
+[sset_21_gloiZ_gTJaE_frame_00000001] refits 500/731; valid children=440
+{"view_id": "sset_21_gloiZ_gTJaE_frame_00000001", "chosen_key": "G0:180:580/child", "no_court_reason": null, "all_checks_equal": null, "error": null}
+sset_21_gloiZ_gTJaE_frame_00014336 pair 1 [0, 2] combined 6392 players 2248 retained 256 seconds 0.1475873999297619
+sset_21_gloiZ_gTJaE_frame_00014336 pair 3 [0, 4] combined 84 players 0 retained 0 seconds 0.010539425071328878
+sset_21_gloiZ_gTJaE_frame_00014336 pair 6 [0, 7] combined 924 players 0 retained 0 seconds 0.015154114924371243
+sset_21_gloiZ_gTJaE_frame_00014336 pair 13 [0, 14] combined 0 players 0 retained 0 seconds 0.008830755017697811
+sset_21_gloiZ_gTJaE_frame_00014336 pair 30 [2, 0] combined 8940 players 0 retained 0 seconds 0.05286538600921631
+sset_21_gloiZ_gTJaE_frame_00014336 pair 60 [4, 0] combined 0 players 0 retained 0 seconds 0.018322028685361147
+sset_21_gloiZ_gTJaE_frame_00014336 pair 71 [4, 12] combined 0 players 0 retained 0 seconds 0.009258723817765713
+sset_21_gloiZ_gTJaE_frame_00014336 pair 105 [7, 0] combined 0 players 0 retained 0 seconds 0.019962153863161802
+sset_21_gloiZ_gTJaE_frame_00014336 pair 163 [10, 14] combined 0 players 0 retained 0 seconds 0.0037511098198592663
+sset_21_gloiZ_gTJaE_frame_00014336 pair 184 [12, 4] combined 80 players 0 retained 0 seconds 0.00821367697790265
+sset_21_gloiZ_gTJaE_frame_00014336 pair 193 [12, 14] combined 0 players 0 retained 0 seconds 0.006803215015679598
+sset_21_gloiZ_gTJaE_frame_00014336 pair 210 [14, 0] combined 0 players 0 retained 0 seconds 0.01744126807898283
+sset_21_gloiZ_gTJaE_frame_00014336 pair 220 [14, 10] combined 0 players 0 retained 0 seconds 0.0038586691953241825
+sset_21_gloiZ_gTJaE_frame_00014336 pair 222 [14, 12] combined 0 players 0 retained 0 seconds 0.006738961674273014
+sset_21_gloiZ_gTJaE_frame_00014336 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.007910270243883133
+sset_21_gloiZ_gTJaE_frame_00014336 pair 3 [0, 4] combined 0 players 0 retained 0 seconds 0.0037680063396692276
+sset_21_gloiZ_gTJaE_frame_00014336 pair 6 [0, 7] combined 0 players 0 retained 0 seconds 0.004130042623728514
+sset_21_gloiZ_gTJaE_frame_00014336 pair 13 [0, 14] combined 0 players 0 retained 0 seconds 0.0029612723737955093
+sset_21_gloiZ_gTJaE_frame_00014336 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.0052271513268351555
+sset_21_gloiZ_gTJaE_frame_00014336 pair 60 [4, 0] combined 0 players 0 retained 0 seconds 0.0038441927172243595
+sset_21_gloiZ_gTJaE_frame_00014336 pair 71 [4, 12] combined 0 players 0 retained 0 seconds 0.0038681398145854473
+sset_21_gloiZ_gTJaE_frame_00014336 pair 105 [7, 0] combined 0 players 0 retained 0 seconds 0.0033557661809027195
+sset_21_gloiZ_gTJaE_frame_00014336 pair 163 [10, 14] combined 0 players 0 retained 0 seconds 0.0023910128511488438
+sset_21_gloiZ_gTJaE_frame_00014336 pair 184 [12, 4] combined 0 players 0 retained 0 seconds 0.0032820659689605236
+sset_21_gloiZ_gTJaE_frame_00014336 pair 193 [12, 14] combined 0 players 0 retained 0 seconds 0.002923239953815937
+sset_21_gloiZ_gTJaE_frame_00014336 pair 210 [14, 0] combined 0 players 0 retained 0 seconds 0.003232046030461788
+sset_21_gloiZ_gTJaE_frame_00014336 pair 220 [14, 10] combined 0 players 0 retained 0 seconds 0.0024810191243886948
+sset_21_gloiZ_gTJaE_frame_00014336 pair 222 [14, 12] combined 0 players 0 retained 0 seconds 0.0033055837266147137
+[sset_21_gloiZ_gTJaE_frame_00014336] line-template: preparing rectangles
+[sset_21_gloiZ_gTJaE_frame_00014336] measuring 512 parents (G0=256, G1=0, line_template=256; conflicting geometry groups=0)
+[sset_21_gloiZ_gTJaE_frame_00014336] parents 250/512
+[sset_21_gloiZ_gTJaE_frame_00014336] parents 500/512
+[sset_21_gloiZ_gTJaE_frame_00014336] refitting 512 parents
+[sset_21_gloiZ_gTJaE_frame_00014336] refits 250/512; valid children=235
+[sset_21_gloiZ_gTJaE_frame_00014336] refits 500/512; valid children=326
+{"view_id": "sset_21_gloiZ_gTJaE_frame_00014336", "chosen_key": "line_template:rectangle_173923:template_63/child", "no_court_reason": null, "all_checks_equal": null, "error": null}
+sset_21_gloiZ_gTJaE_frame_00062120 pair 0 [0, 1] combined 0 players 0 retained 0 seconds 0.08962152060121298
+sset_21_gloiZ_gTJaE_frame_00062120 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.08585570938885212
+sset_21_gloiZ_gTJaE_frame_00062120 pair 10 [0, 11] combined 0 players 0 retained 0 seconds 0.07996778888627887
+sset_21_gloiZ_gTJaE_frame_00062120 pair 15 [1, 0] combined 0 players 0 retained 0 seconds 0.06645663594827056
+sset_21_gloiZ_gTJaE_frame_00062120 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.05140776140615344
+sset_21_gloiZ_gTJaE_frame_00062120 pair 165 [11, 0] combined 0 players 0 retained 0 seconds 0.03607077291235328
+sset_21_gloiZ_gTJaE_frame_00062120 pair 0 [0, 1] combined 0 players 0 retained 0 seconds 0.012985565233975649
+sset_21_gloiZ_gTJaE_frame_00062120 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.01413009688258171
+sset_21_gloiZ_gTJaE_frame_00062120 pair 10 [0, 11] combined 0 players 0 retained 0 seconds 0.011397763155400753
+sset_21_gloiZ_gTJaE_frame_00062120 pair 15 [1, 0] combined 0 players 0 retained 0 seconds 0.010657219216227531
+sset_21_gloiZ_gTJaE_frame_00062120 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.013857594225555658
+sset_21_gloiZ_gTJaE_frame_00062120 pair 165 [11, 0] combined 0 players 0 retained 0 seconds 0.006864362396299839
+[sset_21_gloiZ_gTJaE_frame_00062120] line-template: preparing rectangles
+[sset_21_gloiZ_gTJaE_frame_00062120] measuring 256 parents (G0=0, G1=0, line_template=256; conflicting geometry groups=0)
+[sset_21_gloiZ_gTJaE_frame_00062120] parents 250/256
+[sset_21_gloiZ_gTJaE_frame_00062120] refitting 256 parents
+[sset_21_gloiZ_gTJaE_frame_00062120] refits 250/256; valid children=204
+{"view_id": "sset_21_gloiZ_gTJaE_frame_00062120", "chosen_key": null, "no_court_reason": "no_gated_court", "all_checks_equal": null, "error": null}
+sset_21_gloiZ_gTJaE_frame_00009558 pair 0 [0, 1] combined 0 players 0 retained 0 seconds 0.02338261529803276
+sset_21_gloiZ_gTJaE_frame_00009558 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.024346334859728813
+sset_21_gloiZ_gTJaE_frame_00009558 pair 5 [0, 6] combined 0 players 0 retained 0 seconds 0.02146447403356433
+sset_21_gloiZ_gTJaE_frame_00009558 pair 7 [0, 8] combined 0 players 0 retained 0 seconds 0.022486865986138582
+sset_21_gloiZ_gTJaE_frame_00009558 pair 9 [0, 10] combined 0 players 0 retained 0 seconds 0.02341759530827403
+sset_21_gloiZ_gTJaE_frame_00009558 pair 10 [0, 11] combined 0 players 0 retained 0 seconds 0.02162360493093729
+sset_21_gloiZ_gTJaE_frame_00009558 pair 15 [1, 0] combined 0 players 0 retained 0 seconds 0.014091687742620707
+sset_21_gloiZ_gTJaE_frame_00009558 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.016153134871274233
+sset_21_gloiZ_gTJaE_frame_00009558 pair 55 [3, 11] combined 0 players 0 retained 0 seconds 0.003036355134099722
+sset_21_gloiZ_gTJaE_frame_00009558 pair 70 [4, 11] combined 0 players 0 retained 0 seconds 0.0028592757880687714
+sset_21_gloiZ_gTJaE_frame_00009558 pair 90 [6, 0] combined 0 players 0 retained 0 seconds 0.010253369342535734
+sset_21_gloiZ_gTJaE_frame_00009558 pair 96 [6, 7] combined 0 players 0 retained 0 seconds 0.0027623926289379597
+sset_21_gloiZ_gTJaE_frame_00009558 pair 111 [7, 6] combined 0 players 0 retained 0 seconds 0.0035766437649726868
+sset_21_gloiZ_gTJaE_frame_00009558 pair 115 [7, 11] combined 0 players 0 retained 0 seconds 0.004053535871207714
+sset_21_gloiZ_gTJaE_frame_00009558 pair 120 [8, 0] combined 0 players 0 retained 0 seconds 0.013131361920386553
+sset_21_gloiZ_gTJaE_frame_00009558 pair 145 [9, 11] combined 0 players 0 retained 0 seconds 0.003398096188902855
+sset_21_gloiZ_gTJaE_frame_00009558 pair 150 [10, 0] combined 0 players 0 retained 0 seconds 0.015080470126122236
+sset_21_gloiZ_gTJaE_frame_00009558 pair 165 [11, 0] combined 0 players 0 retained 0 seconds 0.011728527024388313
+sset_21_gloiZ_gTJaE_frame_00009558 pair 168 [11, 3] combined 0 players 0 retained 0 seconds 0.0034948629327118397
+sset_21_gloiZ_gTJaE_frame_00009558 pair 169 [11, 4] combined 0 players 0 retained 0 seconds 0.003611429128795862
+sset_21_gloiZ_gTJaE_frame_00009558 pair 172 [11, 7] combined 0 players 0 retained 0 seconds 0.004173826891928911
+sset_21_gloiZ_gTJaE_frame_00009558 pair 174 [11, 9] combined 0 players 0 retained 0 seconds 0.003739010076969862
+sset_21_gloiZ_gTJaE_frame_00009558 pair 176 [11, 12] combined 0 players 0 retained 0 seconds 0.0037117432802915573
+sset_21_gloiZ_gTJaE_frame_00009558 pair 178 [11, 14] combined 0 players 0 retained 0 seconds 0.0032855430617928505
+sset_21_gloiZ_gTJaE_frame_00009558 pair 179 [11, 15] combined 0 players 0 retained 0 seconds 0.003420391120016575
+sset_21_gloiZ_gTJaE_frame_00009558 pair 191 [12, 11] combined 0 players 0 retained 0 seconds 0.0033301450312137604
+sset_21_gloiZ_gTJaE_frame_00009558 pair 221 [14, 11] combined 0 players 0 retained 0 seconds 0.0027096690610051155
+sset_21_gloiZ_gTJaE_frame_00009558 pair 236 [15, 11] combined 0 players 0 retained 0 seconds 0.0026482660323381424
+sset_21_gloiZ_gTJaE_frame_00009558 pair 0 [0, 1] combined 0 players 0 retained 0 seconds 0.005108330864459276
+sset_21_gloiZ_gTJaE_frame_00009558 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.0049810633063316345
+sset_21_gloiZ_gTJaE_frame_00009558 pair 5 [0, 6] combined 0 players 0 retained 0 seconds 0.004745849873870611
+sset_21_gloiZ_gTJaE_frame_00009558 pair 7 [0, 8] combined 0 players 0 retained 0 seconds 0.0050049698911607265
+sset_21_gloiZ_gTJaE_frame_00009558 pair 9 [0, 10] combined 0 players 0 retained 0 seconds 0.004926500376313925
+sset_21_gloiZ_gTJaE_frame_00009558 pair 10 [0, 11] combined 0 players 0 retained 0 seconds 0.004592754878103733
+sset_21_gloiZ_gTJaE_frame_00009558 pair 15 [1, 0] combined 0 players 0 retained 0 seconds 0.003313728142529726
+sset_21_gloiZ_gTJaE_frame_00009558 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.003253746312111616
+sset_21_gloiZ_gTJaE_frame_00009558 pair 55 [3, 11] combined 0 players 0 retained 0 seconds 0.0015353057533502579
+sset_21_gloiZ_gTJaE_frame_00009558 pair 70 [4, 11] combined 0 players 0 retained 0 seconds 0.0014637326821684837
+sset_21_gloiZ_gTJaE_frame_00009558 pair 90 [6, 0] combined 0 players 0 retained 0 seconds 0.0029216459952294827
+sset_21_gloiZ_gTJaE_frame_00009558 pair 96 [6, 7] combined 0 players 0 retained 0 seconds 0.0023662890307605267
+sset_21_gloiZ_gTJaE_frame_00009558 pair 111 [7, 6] combined 0 players 0 retained 0 seconds 0.0018968591466546059
+sset_21_gloiZ_gTJaE_frame_00009558 pair 115 [7, 11] combined 0 players 0 retained 0 seconds 0.0018363837152719498
+sset_21_gloiZ_gTJaE_frame_00009558 pair 120 [8, 0] combined 0 players 0 retained 0 seconds 0.003586837090551853
+sset_21_gloiZ_gTJaE_frame_00009558 pair 145 [9, 11] combined 0 players 0 retained 0 seconds 0.0016089058481156826
+sset_21_gloiZ_gTJaE_frame_00009558 pair 150 [10, 0] combined 0 players 0 retained 0 seconds 0.0034664967097342014
+sset_21_gloiZ_gTJaE_frame_00009558 pair 165 [11, 0] combined 0 players 0 retained 0 seconds 0.0028118989430367947
+sset_21_gloiZ_gTJaE_frame_00009558 pair 168 [11, 3] combined 0 players 0 retained 0 seconds 0.0014476100914180279
+sset_21_gloiZ_gTJaE_frame_00009558 pair 169 [11, 4] combined 0 players 0 retained 0 seconds 0.0014189379289746284
+sset_21_gloiZ_gTJaE_frame_00009558 pair 172 [11, 7] combined 0 players 0 retained 0 seconds 0.0016244030557572842
+sset_21_gloiZ_gTJaE_frame_00009558 pair 174 [11, 9] combined 0 players 0 retained 0 seconds 0.001492294017225504
+sset_21_gloiZ_gTJaE_frame_00009558 pair 176 [11, 12] combined 0 players 0 retained 0 seconds 0.0015321942046284676
+sset_21_gloiZ_gTJaE_frame_00009558 pair 178 [11, 14] combined 0 players 0 retained 0 seconds 0.0014163311570882797
+sset_21_gloiZ_gTJaE_frame_00009558 pair 179 [11, 15] combined 0 players 0 retained 0 seconds 0.0014112167991697788
+sset_21_gloiZ_gTJaE_frame_00009558 pair 191 [12, 11] combined 0 players 0 retained 0 seconds 0.0016556167975068092
+sset_21_gloiZ_gTJaE_frame_00009558 pair 221 [14, 11] combined 0 players 0 retained 0 seconds 0.0014751609414815903
+sset_21_gloiZ_gTJaE_frame_00009558 pair 236 [15, 11] combined 0 players 0 retained 0 seconds 0.0014309841208159924
+[sset_21_gloiZ_gTJaE_frame_00009558] line-template: preparing rectangles
+[sset_21_gloiZ_gTJaE_frame_00009558] measuring 256 parents (G0=0, G1=0, line_template=256; conflicting geometry groups=0)
+[sset_21_gloiZ_gTJaE_frame_00009558] parents 250/256
+[sset_21_gloiZ_gTJaE_frame_00009558] refitting 256 parents
+[sset_21_gloiZ_gTJaE_frame_00009558] refits 250/256; valid children=208
+{"view_id": "sset_21_gloiZ_gTJaE_frame_00009558", "chosen_key": null, "no_court_reason": "no_gated_court", "all_checks_equal": null, "error": null}
+sset_21_gloiZ_gTJaE_frame_00090790 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.003289641812443733
+sset_21_gloiZ_gTJaE_frame_00090790 pair 2 [0, 3] combined 0 players 0 retained 0 seconds 0.0031536328606307507
+sset_21_gloiZ_gTJaE_frame_00090790 pair 8 [0, 9] combined 0 players 0 retained 0 seconds 0.0028227632865309715
+sset_21_gloiZ_gTJaE_frame_00090790 pair 9 [0, 10] combined 0 players 0 retained 0 seconds 0.002689110580831766
+sset_21_gloiZ_gTJaE_frame_00090790 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.003022169228643179
+sset_21_gloiZ_gTJaE_frame_00090790 pair 45 [3, 0] combined 0 players 0 retained 0 seconds 0.003197218757122755
+sset_21_gloiZ_gTJaE_frame_00090790 pair 135 [9, 0] combined 0 players 0 retained 0 seconds 0.002673401962965727
+sset_21_gloiZ_gTJaE_frame_00090790 pair 150 [10, 0] combined 0 players 0 retained 0 seconds 0.002394945826381445
+sset_21_gloiZ_gTJaE_frame_00090790 pair 1 [0, 2] combined 0 players 0 retained 0 seconds 0.0014212429523468018
+sset_21_gloiZ_gTJaE_frame_00090790 pair 2 [0, 3] combined 0 players 0 retained 0 seconds 0.001241015736013651
+sset_21_gloiZ_gTJaE_frame_00090790 pair 8 [0, 9] combined 0 players 0 retained 0 seconds 0.0012388643808662891
+sset_21_gloiZ_gTJaE_frame_00090790 pair 9 [0, 10] combined 0 players 0 retained 0 seconds 0.001246894709765911
+sset_21_gloiZ_gTJaE_frame_00090790 pair 30 [2, 0] combined 0 players 0 retained 0 seconds 0.0012648836709558964
+sset_21_gloiZ_gTJaE_frame_00090790 pair 45 [3, 0] combined 0 players 0 retained 0 seconds 0.001262123230844736
+sset_21_gloiZ_gTJaE_frame_00090790 pair 135 [9, 0] combined 0 players 0 retained 0 seconds 0.0012814109213650227
+sset_21_gloiZ_gTJaE_frame_00090790 pair 150 [10, 0] combined 0 players 0 retained 0 seconds 0.0012101130560040474
+[sset_21_gloiZ_gTJaE_frame_00090790] line-template: preparing rectangles
+[sset_21_gloiZ_gTJaE_frame_00090790] measuring 256 parents (G0=0, G1=0, line_template=256; conflicting geometry groups=0)
+[sset_21_gloiZ_gTJaE_frame_00090790] parents 250/256
+[sset_21_gloiZ_gTJaE_frame_00090790] refitting 256 parents
+[sset_21_gloiZ_gTJaE_frame_00090790] refits 250/256; valid children=56
+{"view_id": "sset_21_gloiZ_gTJaE_frame_00090790", "chosen_key": null, "no_court_reason": "no_gated_court", "all_checks_equal": null, "error": null}
+{"views": ["shuttleset_21_scene_0039", "sset_21_gloiZ_gTJaE_frame_00000001", "sset_21_gloiZ_gTJaE_frame_00014336", "sset_21_gloiZ_gTJaE_frame_00062120", "sset_21_gloiZ_gTJaE_frame_00009558", "sset_21_gloiZ_gTJaE_frame_00090790"], "startup_seconds": 0.030073827132582664, "wall_seconds": 916.8957494911738, "peak_rss_mb": 1847.078125, "failed": []}

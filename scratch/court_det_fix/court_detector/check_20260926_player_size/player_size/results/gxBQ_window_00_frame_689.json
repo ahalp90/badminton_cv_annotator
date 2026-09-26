@@ -1,0 +1,26 @@
+{
+ "view_id": "gxBQ_window_00_frame_689",
+ "error": null,
+ "detect_seconds": 173.66047416208312,
+ "chosen_key": "line_template:rectangle_59439:template_10/child",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   145.76049317666806,
+   570.4847369928675
+  ],
+  [
+   624.2162437631453,
+   541.5250447569393
+  ],
+  [
+   1579.3941178239065,
+   647.9737362611274
+  ],
+  [
+   969.826145410776,
+   1161.168233956079
+  ]
+ ]
+}
