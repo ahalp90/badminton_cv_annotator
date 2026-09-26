@@ -238,32 +238,83 @@ records the cheap ranks, and `k_depth.py` beside it joins them to the search
 records. If the deepest overall-shortlist court stays well under 2,048 (1,211
 here), the default holds. If it creeps up, raise K.
 
-**Experiment to do: rank by the line-guess scores instead.** A cap needs a
-ranking to choose which K courts get the full score, and the cheap pass costs
-about 43% of today's court scoring. The order a pair builds its courts in is a
-poor ranking. It takes two lists of line guesses, each sorted by score, and
-builds horizontal first: every court from the best horizontal guess, then
-every court from the second best, and so on. Capping at 2,048 in that order,
-with no cheap pass, misses the chosen court on 6 of the 16 court views the
-search wins
-([build_order.tsv](../court_detector_optimisation_handover/claude_evidence/prefilter/build_order.tsv)).
-On `gxBQ_window_00_frame_0` the right court is built 5,047th in its pair, but
-ranks 3rd on the cheap score.
+### Experiment to do: choose the K courts by their line-guess average
 
-Every court also has a free combined score: the average of its two line-guess
-scores, which `propose_role` already computes (`axis_scores`). If the courts
-that matter rank shallow by that average, full scoring could be capped with no
-cheap pass. That might save roughly 27–30% of the run instead of 15–16%, by the
-same rough estimate. To test it from the saved records:
+**The idea.** Cap full scoring at K courts a pair, as the cascade does, but
+choose those K by a score every court already has: the average of its two
+line-guess scores. If the courts that matter rank near the top by that
+average, the cap needs no cheap pass, and so costs nothing to decide. This is
+untested. What follows is what is known on 26 September, after the
+upright-camera filter.
 
-- Rank each pair's courts by that average, and find how deep the chosen,
-  top-five and overall-shortlist courts sit, as `k_depth.py` does for the
-  cheap score
-- Find the smallest K that leaves every overall shortlist unchanged, as
-  `dropped_courts.py` does
+**How a pair builds and scores its courts today.** A direction pair sorts the
+view's line fragments into two directions, called horizontal and vertical in
+the code. For each direction the search makes a list of line guesses. A guess
+says which painted court line each group of fragments is, and it gets a score
+for how well that direction's fragments fit the court's layout. A court is one
+horizontal guess combined with one vertical guess, so a pair can build up to
+262,144 courts. The pair then drops courts with impossible geometry, courts
+with players outside them and, under the filter, courts above the horizon. It
+fully scores every court left, with 64 samples per marking against the line
+fragments, and keeps up to 256 distinct courts.
 
-The web-UI advises against this average as the final ranking. Here it would
-only choose which courts get the full score.
+**A cap needs an order.** It fully scores the first K courts in some order,
+and a court outside those K is never scored. There are three candidate orders:
+
+| Order | Cost of the order | What is known |
+| --- | --- | --- |
+| Build order: every court from the best horizontal guess, then every court from the second best, and so on | Free | Poor, with or without the filter (below) |
+| The cascade's cheap pass: every court scored with 16 samples per marking instead of 64 | About 43% of full scoring, measured before the filter | At K = 2,048, every overall shortlist unchanged on the 23 views that reach a search, before the filter |
+| The average of a court's two line-guess scores | Free | Untested |
+
+**Build order is still poor with the filter.** On the final Carmack run,
+positions within each pair among the courts that get fully scored show this
+([build_order_upright.tsv](../court_detector_optimisation_handover/claude_evidence/prefilter/build_order_upright.tsv)):
+
+- The chosen court sits beyond position 2,048 on 6 of the 18 views where a
+  search supplies it. The deepest is 14,895, on `shuttleset_03_scene_0023`
+- All of the net choice's top five sit within 2,048 on only 8 of 21 views
+- Courts in the overall shortlists sit as deep as 109,036
+- `gxBQ_window_00_frame_0`'s right court is built 5,054th in its pair. Before
+  the filter it ranked 3rd on the cheap score
+
+**The average already exists.** `propose_role`
+(`next_steps_20260916/webui_seed/source/run_given.py`) computes it as
+`axis_scores`: the horizontal guess's score plus the vertical guess's, halved.
+An older mode, `combined_ranking='axis'`, ranks courts by the average alone,
+with no full scoring. The accepted chain scores fully instead, and the web-UI
+advises against the average as a final ranking. Here it would only choose
+which courts get fully scored; full scoring would still rank them.
+
+The average could work because the right court needs good guesses in both
+directions. It could fail because each guess judges its own direction alone.
+A court whose two good guesses fit each other badly may only show up in the
+full score.
+
+**The payoff is unknown now.** Before the filter, full scoring was about
+30–33% of the joined detector's run. The cascade was estimated to save 15–16%
+of the run, and an average-based cap 27–30%. The filter then cut the search's
+time by about 70%: G0 and G1 now take 1,235 s of the 3,703 s run. So both
+savings are now much smaller, and neither has been timed with the filter.
+
+**How to test it.**
+
+1. Add an observation-only hook around `propose_role`, like item 16's
+   `measure_prefilter.py`. For each pair, save each fully scored court's rank
+   by the average, with ties broken by build order
+2. Run the joined detector on the 28 views on Carmack with the hook, and with
+   artefacts and timing on. One run at 8 processes should take under an hour
+3. Join the ranks to the run's artefacts, as `build_order_upright.py` does for
+   build order. Report how deep the chosen, top-five and overall-shortlist
+   courts sit, and how many views stay fully within K = 256 to 8,192
+4. Find the smallest K that leaves every overall shortlist unchanged, as
+   `dropped_courts.py` does for the cheap score
+5. Turn that K into seconds saved, from the same run's timings, beside the
+   cascade's estimated cost at K = 2,048
+
+Set before the run: if some K keeps every overall shortlist unchanged on every
+view that reaches a search, and saves clearly more than the cascade, cap by
+the average. Otherwise build the cascade as decided.
 
 ## Shortlist caps of 128
 
@@ -546,8 +597,11 @@ taken out. A line's contrast depends on its distance, the lighting and its
 width in pixels, so the numbers do not compare across lines
 ([check](../court_detector/check_20260926_line_paint/README.md)).
 
-1. **Build the cascade** with K = 2,048 as the default and a switch for no
-   cap. Check it on the 28 views, time it, and measure the depth of the
+1. **Test the line-guess average, then build the cascade** with K = 2,048 as
+   the default and a switch for no cap. If the average ranks the courts that
+   matter shallow enough, it replaces the cascade's cheap pass
+   ([experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average)).
+   Check the result on the 28 views, time it, and measure the depth of the
    overall shortlists' courts on more views
 2. **Search pairs and score parents in parallel** in the joined detector. Both
    are exact and help both setups. Measure real scaling at 8 workers on
@@ -578,7 +632,8 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
 - On new footage, do the courts that reach each overall shortlist stay well
   within K = 2,048 in their pairs' cheap order?
 - Does the free line-guess average rank the courts that matter shallow enough
-  to replace the cheap pass? (experiment above)
+  to replace the cheap pass?
+  ([experiment](#experiment-to-do-choose-the-k-courts-by-their-line-guess-average))
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
 - Can scoring tell a far-end slip from the right court? Per-sample and
