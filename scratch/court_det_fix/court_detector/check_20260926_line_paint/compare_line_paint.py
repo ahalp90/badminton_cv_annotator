@@ -1,7 +1,9 @@
 """Compare the line-paint arm with the blend arm: picks, floor-metre errors, the good courts' places and time.
 
-Errors are the largest hand-mark error in floor metres: each hand mark is mapped back onto the floor through
-the court, and the error is how far it lands from where it should be. The keep rule is in README.md.
+Errors are hand-mark errors in floor metres: each hand mark is mapped back onto the floor through the court,
+and the error is how far it lands from where it should be. The keep rule, in README.md, uses each view's
+largest error. The median error is shown too: a court slipped by a whole line can raise the largest error
+only a little when the other court already has one bad mark.
 
 Usage, from the repository root: compare_line_paint.py REPLAY_OUT UPRIGHT_RUN
   REPLAY_OUT: replay_line_paint.py's output, one folder per arm
@@ -39,11 +41,16 @@ def corner_gap(first: list | None, second: list | None) -> str:
     return f"{min(direct, rotated):.1f}"
 
 
-def largest_floor_error(homography_working: list, landmarks: list, native_per_working: float) -> float:
+def floor_errors(homography_working: list, landmarks: list, native_per_working: float) -> np.ndarray:
+    """Each hand mark's error in floor metres."""
     marked_working = np.array([landmark["image_px"] for landmark in landmarks]) / native_per_working
     floor = np.column_stack((marked_working, np.ones(len(landmarks)))) @ np.linalg.inv(homography_working).T
     court_m = np.array([landmark["court_m"] for landmark in landmarks])
-    return float(np.linalg.norm(floor[:, :2] / floor[:, 2:] - court_m, axis=1).max())
+    return np.linalg.norm(floor[:, :2] / floor[:, 2:] - court_m, axis=1)
+
+
+def largest_floor_error(homography_working: list, landmarks: list, native_per_working: float) -> float:
+    return float(floor_errors(homography_working, landmarks, native_per_working).max())
 
 
 def main() -> None:
@@ -76,6 +83,7 @@ def main() -> None:
     print("\nlargest hand-mark error, floor metres: before refit / after refit")
     print("view\t" + "\t".join(ARMS))
     after_refit = {arm: {} for arm in ARMS}
+    median_after_refit = {arm: {} for arm in ARMS}
     marked_views = [view for view in views if references.get(view, {}).get("landmarks")]
     scales = {}
     for view in marked_views:
@@ -88,8 +96,15 @@ def main() -> None:
             before, after = (largest_floor_error(court["homography_working"], landmarks, scales[view])
                              for court in (refit["selected_geometry"], refit["corrected"]))
             after_refit[arm][view] = after
+            median_after_refit[arm][view] = float(np.median(floor_errors(refit["corrected"]["homography_working"],
+                                                                         landmarks, scales[view])))
             cells.append(f"{before:.2f} / {after:.2f}")
         print(f"{view}\t" + "\t".join(cells))
+
+    print("\nmedian hand-mark error after refit, floor metres")
+    print("view\t" + "\t".join(ARMS))
+    for view in marked_views:
+        print(f"{view}\t" + "\t".join(f"{median_after_refit[arm][view]:.2f}" for arm in ARMS))
 
     print(f"\nkeep rule, after refit, line_paint against the blend arm (margin {KEEP_MARGIN_M} m)")
     changes = {view: after_refit["line_paint"][view] - after_refit["blend"][view] for view in marked_views}
@@ -99,6 +114,10 @@ def main() -> None:
     print(f"views worse: {', '.join(worse) or '-'}")
     for arm in ARMS:
         print(f"total error over the marked views, {arm}: {sum(after_refit[arm].values()):.2f}")
+    print("views more than 0.1 m worse on the largest or the median error, line_paint against blend: "
+          + (", ".join(view for view in marked_views
+                       if after_refit["line_paint"][view] - after_refit["blend"][view] > 0.1
+                       or median_after_refit["line_paint"][view] - median_after_refit["blend"][view] > 0.1) or "-"))
 
     print("\ngated courts on the marked views, before refit: the best court's error, and its place under each")
     print("arm's net-choice score (1 = it won), out of the gated courts")

@@ -1,15 +1,20 @@
-"""Line-averaged paint: pass or fail each painted line of a court on its average contrast along its length.
+"""Line-averaged paint: score each painted line of a court on its average contrast along its length.
 
 W5's paint score passes or fails each sample on its own. On faint far lines few samples pass, on the right
 court and on a court slipped by one line alike. This module averages each line's grey levels along its
 whole length instead. Every 4 cm of floor along the line gives one row of grey levels across the line,
 spaced 2 cm apart on the floor, and the rows are averaged into one profile. A court's predicted line can
 sit a few centimetres off the paint, so, as in W5's test, each position within a short reach of the
-prediction is tried as the line's centre, against two side points further out. The line passes if, at its
-best position, the centre is brighter than both sides by at least PASS_BAR_GREY.
+prediction is tried as the line's centre, against two side points further out. The line's contrast is how
+much brighter the centre is than both sides, at its best position.
 
-A court's line-averaged paint score is W5's span-weighted paint score with that per-line pass: each line
-counts its fragment support (W5's q_geom) if it passes and 0 if not. Lines are weighted by their image
+A line's strength is its contrast as a share of the view's reference: the strongest contrast of any line of
+any court the net choice weighs. Negative contrast counts as 0. A pass or fail at a fixed bar of 4 grey
+levels (version 3) let a floor edge count as fully as real paint: on am2_window_01_frame_28019 the edge
+of the mat reads 16 grey levels and the real baseline 93.
+
+A court's line-averaged paint score is W5's span-weighted paint score with that per-line strength: each
+line counts its fragment support (W5's q_geom) times its strength. Lines are weighted by their image
 length within each direction, and the weaker direction counts. As in W5, a line with no usable row, such
 as one whose side points fall off the frame, is left out. A court with no usable line in one direction
 scores 0.
@@ -36,7 +41,6 @@ MAX_SIDE_M = 0.30
 # Centres are tried up to this share of the gap either side of the predicted line, and no further.
 REACH_SHARE_OF_GAP = 0.25
 MAX_REACH_M = 0.14
-PASS_BAR_GREY = 4.0  # check_20260926_line_paint/line_bar.py: best separates true lines from bare floor
 LENGTHWISE_MARKINGS = range(5)
 TRANSVERSE_MARKINGS = range(5, 11)
 
@@ -107,20 +111,36 @@ def line_contrast(samples: np.ndarray, steps: tuple[int, int]) -> float | None:
     return float(contrast.max())
 
 
-def court_paint(evidence: dict, homography_working: np.ndarray, grey_native: np.ndarray,
-                native_per_working: np.ndarray, boxes_native: np.ndarray) -> float:
-    """A court's line-averaged paint score, from W5's evidence for that court."""
+def court_contrasts(homography_working: np.ndarray, grey_native: np.ndarray, native_per_working: np.ndarray,
+                    boxes_native: np.ndarray) -> list[float | None]:
+    """Each marking's line contrast for one court, in grey levels; None where no row is usable."""
     homography_native = np.diag([*native_per_working, 1.0]) @ homography_working
-    line_scores: list[float | None] = []
-    for marking, segments in enumerate(MARKING_INTERVALS):
-        support = evidence["markings"][marking]["q_geom"]
+    contrasts = []
+    for segments in MARKING_INTERVALS:
         # The centre line's two segments share their steps.
         steps = SEGMENT_STEPS[segments[0]]
         samples = np.concatenate([line_samples(grey_native, homography_native, CENTRE_SEGMENTS_M[segment], steps,
                                                boxes_native) for segment in segments])
-        contrast = line_contrast(samples, steps)
-        passes = contrast is not None and contrast >= PASS_BAR_GREY
-        line_scores.append(None if support is None or contrast is None else support * passes)
+        contrasts.append(line_contrast(samples, steps))
+    return contrasts
+
+
+def view_reference(contrasts_by_court: list[list[float | None]]) -> float:
+    """The strongest line contrast of any court in the view; 0 if no line is brighter than its sides."""
+    return max((contrast for contrasts in contrasts_by_court for contrast in contrasts if contrast is not None),
+               default=0.0)
+
+
+def court_paint(evidence: dict, contrasts: list[float | None], reference: float) -> float:
+    """A court's line-averaged paint score, from W5's evidence and its line contrasts."""
+    line_scores: list[float | None] = []
+    for marking, contrast in enumerate(contrasts):
+        support = evidence["markings"][marking]["q_geom"]
+        if support is None or contrast is None:
+            line_scores.append(None)
+            continue
+        strength = max(0.0, contrast) / reference if reference > 0 else 0.0
+        line_scores.append(support * strength)
     direction_scores = []
     for markings in (LENGTHWISE_MARKINGS, TRANSVERSE_MARKINGS):
         # W5's span weighting: each line's image length, in working px.
@@ -144,10 +164,11 @@ def rescore_rows(rows: list[dict], record: dict, native_frame: np.ndarray, conte
     grey = cv2.cvtColor(native_frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
     native_per_working = np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float)
     boxes_native = np.asarray(context.mask_boxes, dtype=float).reshape(-1, 4) * np.tile(native_per_working, 2)
+    contrasts_by_court = [court_contrasts(np.asarray(candidates[row["origin_key"]]["homography_working"], dtype=float),
+                                          grey, native_per_working, boxes_native) for row in rows]
+    reference = view_reference(contrasts_by_court)
     rescored = []
-    for row in rows:
-        candidate = candidates[row["origin_key"]]
-        paint = court_paint(candidate["evidence"], np.asarray(candidate["homography_working"], dtype=float), grey,
-                            native_per_working, boxes_native)
+    for row, contrasts in zip(rows, contrasts_by_court, strict=True):
+        paint = court_paint(candidates[row["origin_key"]]["evidence"], contrasts, reference)
         rescored.append({**row, "w5_paint_score": row["paint_score"], "paint_score": paint})
     return rescored

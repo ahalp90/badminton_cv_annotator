@@ -1,4 +1,7 @@
-"""Per-line contrast, pass and fragment support for three courts on each hand-marked view.
+"""Per-line contrast, strength and fragment support for three courts on each hand-marked view.
+
+A line's strength is its contrast as a share of the view's strongest line, as line_paint.py (version 4)
+scores it; versions 1-3 passed a line at a fixed bar instead, and their tables show * for a pass.
 
 The courts are the blend arm's pick, the line-paint arm's pick and the eligible court closest to the hand
 marks before refit. Errors are the largest hand-mark error in floor metres, before refit.
@@ -50,32 +53,29 @@ def main() -> None:
                   "line-paint pick": read_gz(replay_out / "line_paint" / "artefacts" / f"{view}.json.gz")[
                       "net_choice"]["chosen"],
                   "closest court": min(errors, key=lambda key: errors[key])}
-        print(f"\n{view}: per line, contrast in grey levels / fragment support; * marks a pass")
+        contrasts = {row["origin_key"]: line_paint.court_contrasts(
+            np.asarray(candidates[row["origin_key"]]["homography_working"]), grey, native_per_working, boxes)
+            for row in rows}
+        reference = line_paint.view_reference(list(contrasts.values()))
+        print(f"\n{view}: per line, contrast in grey levels / strength / fragment support; the view's strongest "
+              f"line reads {reference:.1f}")
         print("line\t" + "\t".join(f"{name} ({errors[key]:.2f} m)" for name, key in courts.items()))
-        homographies = {name: np.diag([*native_per_working, 1.0]) @ np.asarray(candidates[key]["homography_working"])
-                        for name, key in courts.items()}
-        for marking, segments in enumerate(line_paint.MARKING_INTERVALS):
+        for marking in range(len(line_paint.MARKING_INTERVALS)):
             cells = []
-            for name, key in courts.items():
+            for key in courts.values():
                 support = candidates[key]["evidence"]["markings"][marking]["q_geom"]
-                steps = line_paint.SEGMENT_STEPS[segments[0]]
-                samples = np.concatenate([line_paint.line_samples(grey, homographies[name],
-                                                                  line_paint.CENTRE_SEGMENTS_M[segment], steps, boxes)
-                                          for segment in segments])
-                contrast = line_paint.line_contrast(samples, steps)
+                contrast = contrasts[key][marking]
                 if support is None:
                     cells.append("unseen")
                 elif contrast is None:
                     cells.append(f"unmeasured / {support:.2f}")
                 else:
-                    mark = "*" if contrast >= line_paint.PASS_BAR_GREY else " "
-                    cells.append(f"{contrast:6.1f}{mark} / {support:.2f}")
+                    cells.append(f"{contrast:6.1f} / {max(0.0, contrast) / reference:.2f} / {support:.2f}")
             print(f"{MARKING_NAMES[marking]}\t" + "\t".join(cells))
         scores = []
         for name, key in courts.items():
             candidate = candidates[key]
-            paint = line_paint.court_paint(candidate["evidence"], np.asarray(candidate["homography_working"]), grey,
-                                           native_per_working, boxes)
+            paint = line_paint.court_paint(candidate["evidence"], contrasts[key], reference)
             scores.append(f"{name}: W5 paint {candidate['evidence']['q_paint10_span_weighted']:.3f}, "
                           f"line paint {paint:.3f}, geometry {candidate['evidence']['q_geom_span_weighted']:.3f}")
         print("\n".join(scores))

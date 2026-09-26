@@ -1,0 +1,25 @@
+{
+ "view_id": "shuttleset_03_scene_0019",
+ "error": null,
+ "choose_seconds": 9.823343394004041,
+ "chosen_key": "line_template:rectangle_164603:template_55/child",
+ "no_court_reason": null,
+ "corners_native_px": [
+  [
+   316.97032397641937,
+   215.7025668879361
+  ],
+  [
+   642.4440177633695,
+   215.8061918046556
+  ],
+  [
+   754.4947499762726,
+   492.98927781458667
+  ],
+  [
+   201.86530235782826,
+   492.95103305947555
+  ]
+ ]
+}

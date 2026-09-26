@@ -80,7 +80,7 @@ class Switches:
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
     geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
-    # in the net choice, pass or fail each painted line on its average contrast along its length (line_paint.py)
+    # in the net choice, score each painted line on its average contrast along its length (line_paint.py)
     line_paint: bool = False
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
