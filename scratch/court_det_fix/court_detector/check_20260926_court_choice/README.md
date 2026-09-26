@@ -138,9 +138,8 @@ against the baseline arm.
 - **If more than one arm passes**, the simplest is kept: the blend, then the
   refit, then both. A bigger arm is kept instead only if its total error over
   the 10 views is more than 0.2 m lower
-- **Time** is the replay's seconds in `choose_court`, on the laptop, as a
-  share of the upright check's detect seconds. It decides nothing unless an arm
-  costs more than 10%
+- **Time** is the replay's seconds in `choose_court`, on the laptop. It
+  decides nothing unless an arm costs more than 10%
 
 ## What ran
 
@@ -163,8 +162,8 @@ A rank-deficient fit has no unique answer, so the laptop's libraries land
 far from where Carmack's did. `fit_replay_scan.py` replays the W5 fit of every
 court a refit arm could refit: 317 of 327 are within 0.0001 native px. All 10
 misses are on these two views. W5 on Carmack recorded 9 of them as rank
-deficient or with an invalid projection. The tenth misses by 0.00011 px. These
-two views are left out below and need Carmack.
+deficient or with an invalid projection. The tenth is 0.00011 px off, just
+over the tolerance. These two views are left out below and need Carmack.
 
 `compare_court_choice.py` writes `compare_court_choice.txt`.
 
@@ -194,8 +193,8 @@ Against the keep rule:
   `gxBQ_window_00_frame_5` 0.72 m worse. It changes the court on 18 of the 20
   court views, 9 of them by more than 2 native px. On `am2_window_01_frame_28019` it
   moves the court 291 px, to one whose near lines miss the paint by eye. It
-  adds about 59 s over the 26 views on the laptop, 1.8% of the upright check's
-  detect time
+  adds about 59 s over the 26 views on the laptop. On Carmack the refit takes
+  about 0.3 s a court, so 14 more refits add about 4 s a view, roughly 3%
 - **Both: fails**, for the same reasons as the refit
 
 ### Why the refit fails
@@ -217,6 +216,29 @@ courts from their homographies alone, as the refit does. The paint scores
 match W5's saved ones to within 0.0000000000001. The geometry scores differ by
 up to 0.004 on five views. That touches only the combined arm, at a tenth of
 the weight.
+
+### Red-team review
+
+A Codex review (GPT-6 Sol) of the build, the replay and the comparison agrees
+with the verdict. Its report stays outside the repository. Its points:
+- **The build is right at the defaults.** With a weight of 0 and a refit of the
+  top 1, the detector picks and refits exactly as before
+- **Top 15 tests fewer than 15 courts.** The shortlist ranks courts, and
+  several are often children of the same parent. The refit starts from the
+  parent, so those give the same refitted court. 32 of the 40 shortlists
+  repeated a parent; `gxBQ_window_00_frame_5` had 9 distinct parents in 15.
+  This does not change the verdict: on the views that got worse, the better
+  refitted courts were in the shortlist and lost the rescore
+- **Refitted courts are not re-gated.** Only the refit's own validity check
+  applies, as for today's single winner. Six refitted courts failed the camera
+  check; none won
+- **If no refitted court has a score**, the code keeps the first court, where
+  this README says unscored courts drop out. It never happened here
+- **The replay is not a full run.** The two control views above cannot be
+  replayed, and laptop time is not Carmack time. On
+  `sset_21_gloiZ_gTJaE_frame_00100347`, the blend's pick before the refit is
+  the same as today's
+- The comparison now checks that it covers every view of the upright run
 
 ### Renders
 

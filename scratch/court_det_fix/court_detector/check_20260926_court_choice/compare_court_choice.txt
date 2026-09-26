@@ -64,8 +64,8 @@ gxBQ_window_00_frame_689	0.14 / 0.14 / 1 of 15	0.14 / 0.14 / 1 of 15
 gxBQ_window_03_frame_77876	1.08 / 0.35 / 12 of 15	1.08 / 0.35 / 12 of 15
 letterboxed_short_frame_78	0.12 / 0.11 / 10 of 15	0.14 / 0.11 / 9 of 15
 
-seconds in choose_court over 26 views, on the laptop; the upright check's detect seconds were 3298
+seconds in choose_court over 26 views, on the laptop
 baseline	26.1
-blend	23.6	extra -2.6 s, -0.1%
-refit	84.9	extra +58.8 s, +1.8%
-both	85.1	extra +59.0 s, +1.8%
+blend	23.6	extra -2.6 s
+refit	84.9	extra +58.8 s
+both	85.1	extra +59.0 s

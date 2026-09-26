@@ -5,7 +5,7 @@ the court, and the error is how far it lands from where it should be. The keep r
 
 Usage, from the repository root: compare_court_choice.py REPLAY_OUT UPRIGHT_RUN
   REPLAY_OUT: replay_court_choice.py's output, one folder per arm
-  UPRIGHT_RUN: the upright check's run folder, for its detect seconds
+  UPRIGHT_RUN: the upright check's run folder, to check the replay covers all its views
 """
 
 import gzip
@@ -52,6 +52,9 @@ manifest = statistics.read(statistics.MANIFEST)
 references = statistics.load_references(manifest)
 images = {row["case_id"]: row["image"] for row in manifest["cases"]}
 views = sorted(path.stem for path in (replay_out / "baseline" / "results").glob("*.json"))
+upright_views = sorted(path.stem for path in (upright_run / "results").glob("*.json"))
+if views != upright_views:
+    raise ValueError("the replay's views differ from the upright run's")
 results = {arm: {view: json.loads((replay_out / arm / "results" / f"{view}.json").read_text()) for view in views}
            for arm in ("baseline",) + ARMS}
 # A view and arm whose replay check failed has no result; those views are listed, then left out.
@@ -119,12 +122,9 @@ for view in marked_views:
         cells.append(f"{after_refit[arm][view]:.2f} / {best_error:.2f} / {place} of {len(scored)}")
     print(f"{view}\t" + "\t".join(cells))
 
-upright_seconds = sum(json.loads((upright_run / "results" / f"{view}.json").read_text())["detect_seconds"]
-                      for view in views)
 base_seconds = sum(results["baseline"][view]["choose_seconds"] for view in views)
-print(f"\nseconds in choose_court over {len(views)} views, on the laptop; the upright check's detect seconds "
-      f"were {upright_seconds:.0f}")
+print(f"\nseconds in choose_court over {len(views)} views, on the laptop")
 print(f"baseline\t{base_seconds:.1f}")
 for arm in ARMS:
     seconds = sum(results[arm][view]["choose_seconds"] for view in views)
-    print(f"{arm}\t{seconds:.1f}\textra {seconds - base_seconds:+.1f} s, {(seconds - base_seconds) / upright_seconds:+.1%}")
+    print(f"{arm}\t{seconds:.1f}\textra {seconds - base_seconds:+.1f} s")
