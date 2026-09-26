@@ -14,7 +14,9 @@ The short version:
   score every court
 - Its 128-court cap on each search's overall shortlist was replayed on 26
   September. It kept every chosen court but cut close backups on six hard
-  amateur views, so both caps stay at 256
+  amateur views, so both caps stay at 256. A recheck after the upright-camera
+  filter gives the same answer: the shortlists are still full, and a 128 cap
+  still cuts close backups
 - Parallel direction pairs and court reuse across scenes are already on the
   open list. The web-UI adds useful design detail to both
 - Not from the web-UI: an upright-camera filter, added on 26 September, cut
@@ -329,6 +331,38 @@ courts from ranks 129–256 for variety, is moot at 256. If the search moves to
 a GPU, the scoring stage becomes most of the CPU time, and the cap may be worth
 another look on a larger set of hard views.
 
+### Rechecked after the upright-camera filter
+
+**Still keep both caps at 256.** The same replay on the 26 September Carmack
+run, with the filter and the 10% geometry blend, gives much the same picture
+([`upright_caps_*.tsv`](../court_detector_optimisation_handover/claude_evidence/shortlist_cap_replay/)).
+
+- **The shortlists are still full.** G0 holds 256 courts on all 20 court
+  views, and G1 on 19 of them; `letterboxed_short_frame_78`'s G1 holds 4
+  (`upright_shortlist_sizes.tsv`). The filter removed wrong courts, and other
+  courts took their places. So the cap still sets how many courts reach
+  scoring
+- **A cap of 128 on both might save about 16%, untimed.** It cuts the 28
+  views' parents from 17,463 to 12,302 (30% fewer). Scoring is now 53% of the
+  run, so if its time follows its parent count, the run is about 16% shorter
+- **Every court view keeps its chosen court.** The deepest winning parent on
+  a court view sits at G1 rank 105 (`am2_window_00_frame_150`), close to 128
+- **One control view changes.** On `sset_21_gloiZ_gTJaE_frame_00100347` the
+  winner comes from G0 rank 168. A cap of 128 would move the pick 60 px
+- **Close backups are still cut.** On `am3_window_00_frame_0` and
+  `am3_window_02_frame_17174`, the net choice's second place goes: courts 8 px
+  and 18 px from the winner, from G1 ranks 241 and 140
+- **A cap of 64 changes two court views' picks**:
+  `am2_window_00_frame_150` and `sset_21_gloiZ_gTJaE_frame_00000001`
+
+Capping only G1 at 128 changes no pick, the control included. It keeps 87% of
+parents, perhaps 7% of the run, and still cuts the two amateur backups above.
+
+So the filter did not make smaller caps safer. The saving is real but modest.
+Scoring still cannot reliably tell a far-end slip from the right court, so any
+change to what reaches scoring can move results by chance. Exact routes to
+faster scoring come first: the cascade and parallel scoring.
+
 ## Parallel work inside one view
 
 **Direction pairs (item 8).** Pairs are independent until their shortlists
@@ -489,8 +523,9 @@ This is my suggestion, from the evidence above. It was written before the
 upright-camera filter. The filter cut the search's time by about 70%, so the
 cascade saves much less than estimated below, and scoring is now the largest
 step. Re-measure both before building. The filter also moved
-`gxBQ_window_00_frame_0`'s right court from G0 #96 to #1, so smaller G0 and G1
-shortlists may now be safe. That is a question for later. Until scoring can
+`gxBQ_window_00_frame_0`'s right court from G0 #96 to #1. But a recheck of
+128-court caps after the filter still cuts close backups, so both caps stay at
+256 ([recheck](#rechecked-after-the-upright-camera-filter)). Until scoring can
 tell a court that slips one line at the far end from the right one, any change
 to what reaches scoring can move results by chance, as the filter did.
 

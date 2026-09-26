@@ -1,11 +1,13 @@
-"""Replay a cap on the G0 and G1 shortlists from the saved 25 September artefacts.
+"""Replay a cap on the G0 and G1 shortlists from a run's saved artefacts.
 
 Each court is scored on its own, and the net choice takes the best combined score,
 so a cap can only remove courts. This re-ranks the surviving courts with the live
 ranker, filters the saved net-choice rows, and reports what the cap would change.
 
-The artefacts are the joined detector's from its 25 September check, kept on Carmack
-(court_detector/check_20260925/left_on_carmack.tsv).
+The caps_*.tsv outputs come from the joined detector's 25 September check, kept on Carmack
+(court_detector/check_20260925/left_on_carmack.tsv). The upright_caps_*.tsv outputs come from the
+blend_default arm of the 26 September Carmack run (court_detector/check_20260926_court_choice/carmack/),
+with the upright-camera filter and the 10% geometry blend.
 
 Usage: python replay_cap.py <checkout> <artefact dir> [G0 cap] [G1 cap]
 """
