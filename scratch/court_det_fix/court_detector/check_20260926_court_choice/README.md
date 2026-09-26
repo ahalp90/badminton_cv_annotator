@@ -242,12 +242,14 @@ with the verdict. Its report stays outside the repository. Its points:
 
 ### Renders
 
-The final court of each arm, after the refit, is drawn on every view where it
-moved more than 2 native px (outside the repository, in the project owner's
-perspective-image folders):
-- `9_geometry_blend_final_26sep.png`: `gxBQ_window_00_frame_689`
+The renders are outside the repository, in the project owner's
+perspective-image folders, one folder per view:
+- `9a_geometry_blend_pre_refit_26sep.png` and `9_geometry_blend_final_26sep.png`:
+  the blend's court before and after the refit, on every replayed view. A
+  control without a court gets the plain frame, named `..._no_court.png`
 - `10_top15_refit_final_26sep.png` and
-  `11_blend_and_top15_refit_final_26sep.png`: 9 and 10 views
+  `11_blend_and_top15_refit_final_26sep.png`: the final court, only on the 9
+  and 10 views where it moved more than 2 native px
 
 ## Waiting for approval
 
