@@ -6,7 +6,12 @@ already eligible but loses. Everything else matches
 `../check_20260926_upright/` (commit `c5a7cfdb`), including the upright-camera
 filter.
 
-**Result: not run yet.**
+**Result: the geometry blend passes the keep rule; the top-15 refit fails,
+alone and with the blend.** The blend fixes `gxBQ_window_00_frame_689`, from
+0.94 to 0.32 m, and changes no other view. The refit fixes that view too but
+makes two others about 0.7 m worse. After refitting, the rescore often ranks the
+best refitted court well down. Keeping the blend, reverting the refit and one
+Carmack run all wait for the project owner's approval.
 
 ## Why
 
@@ -137,8 +142,109 @@ against the baseline arm.
   share of the upright check's detect seconds. It decides nothing unless an arm
   costs more than 10%
 
+## What ran
+
+Commit `abc4318b`, with the replay and comparison scripts as committed here.
+The replay ran on the laptop from the upright check's saved results.
+
+It reproduces the upright check on 26 of the 28 views in all four arms. On
+those views the baseline arm gives the saved final court within 0.0001 native
+px, and every refitted court first replays its saved W5 fit within the same
+tolerance. The baseline's final corners differ from the saved ones by at most
+0.00000007 native px.
+
+Two control views, which should get no court, cannot be replayed here:
+- `sset_21_gloiZ_gTJaE_frame_00100347`, in all four arms: the upright check's
+  wrong court there comes from a rank-deficient W5 fit
+- `sset_21_gloiZ_gTJaE_frame_00014336`, in the two refit arms: two of its
+  top 15 have rank-deficient W5 fits
+
+A rank-deficient fit has no unique answer, so the laptop's libraries land
+far from where Carmack's did. `fit_replay_scan.py` replays the W5 fit of every
+court a refit arm could refit: 317 of 327 are within 0.0001 native px. All 10
+misses are on these two views. W5 on Carmack recorded 9 of them as rank
+deficient or with an invalid projection. The tenth misses by 0.00011 px. These
+two views are left out below and need Carmack.
+
+`compare_court_choice.py` writes `compare_court_choice.txt`.
+
+## Results
+
+The largest hand-mark error in floor metres, before and after the final
+refit:
+
+| View | Baseline | Blend | Top-15 refit | Both |
+| --- | --- | --- | --- | --- |
+| `am1_window_00_frame_54` | 0.31 / 0.30 | 0.31 / 0.30 | 0.48 / 0.49 | 0.48 / 0.49 |
+| `am2_window_00_frame_150` | 0.32 / 0.24 | 0.32 / 0.24 | 0.41 / 0.29 | 0.41 / 0.29 |
+| `am2_window_01_frame_28019` | 0.69 / 0.62 | 0.69 / 0.62 | 0.81 / 0.77 | 0.81 / 0.77 |
+| `am3_window_00_frame_0` | 0.26 / 0.24 | 0.26 / 0.24 | 0.31 / 0.26 | 0.31 / 0.26 |
+| `am3_window_02_frame_17174` | 0.59 / 0.55 | 0.59 / 0.55 | 0.59 / 0.55 | 0.59 / 0.55 |
+| `gxBQ_window_00_frame_0` | 0.34 / 0.19 | 0.34 / 0.19 | 0.84 / 0.92 | 0.84 / 0.92 |
+| `gxBQ_window_00_frame_5` | 0.23 / 0.14 | 0.23 / 0.14 | 1.09 / 0.86 | 1.09 / 0.86 |
+| `gxBQ_window_00_frame_689` | 1.18 / 0.94 | 0.58 / 0.32 | 0.43 / 0.14 | 0.43 / 0.14 |
+| `gxBQ_window_03_frame_77876` | 1.40 / 1.06 | 1.40 / 1.06 | 1.38 / 1.08 | 1.38 / 1.08 |
+| `letterboxed_short_frame_78` | 0.18 / 0.12 | 0.18 / 0.12 | 0.18 / 0.12 | 0.19 / 0.14 |
+| **Total after refit** | 4.41 | 3.79 | 5.49 | 5.51 |
+
+Against the keep rule:
+- **Blend: passes.** One view is 0.62 m better and none is worse. It changes
+  the court on no other replayed view. It costs no measurable time
+- **Top-15 refit: fails.** `gxBQ_window_00_frame_0` is 0.73 m worse and
+  `gxBQ_window_00_frame_5` 0.72 m worse. It changes the court on 18 of the 20
+  court views, 9 of them by more than 2 native px. On `am2_window_01_frame_28019` it
+  moves the court 291 px, to one whose near lines miss the paint by eye. It
+  adds about 59 s over the 26 views on the laptop, 1.8% of the upright check's
+  detect time
+- **Both: fails**, for the same reasons as the refit
+
+### Why the refit fails
+
+The refit does make much better courts available. On 3 of the 10 views, the
+best of the 15 refitted courts beats today's final court by more than 0.2 m:
+- `gxBQ_window_00_frame_689`: 0.14 m against 0.94 m, and the rescore picks it
+- `gxBQ_window_03_frame_77876`: 0.35 m against 1.06 m, but it places 12th
+- `am3_window_02_frame_17174`: 0.21 m against 0.55 m, but it places 12th
+
+Elsewhere the rescore moves away from good courts. On `gxBQ_window_00_frame_0`
+the best refitted court places 8th, and on `gxBQ_window_00_frame_5` 3rd. So
+refitting raises wrong courts' paint scores at least as much as the right
+ones'.
+
+The rescore measures refitted courts as W5 measured the unrefitted ones.
+`footing_check.py` re-measures each hand-marked view's 15 best unrefitted
+courts from their homographies alone, as the refit does. The paint scores
+match W5's saved ones to within 0.0000000000001. The geometry scores differ by
+up to 0.004 on five views. That touches only the combined arm, at a tenth of
+the weight.
+
+### Renders
+
+The final court of each arm, after the refit, is drawn on every view where it
+moved more than 2 native px (outside the repository, in the project owner's
+perspective-image folders):
+- `9_geometry_blend_final_26sep.png`: `gxBQ_window_00_frame_689`
+- `10_top15_refit_final_26sep.png` and
+  `11_blend_and_top15_refit_final_26sep.png`: 9 and 10 views
+
+## Waiting for approval
+
+- Make the blend the default (`geometry_weight=0.1`)
+- Revert the top-15 refit switch
+- One Carmack run of the new default on all 28 views, which also checks the
+  two controls the laptop cannot replay, and times it
+
 ## Files
 
 - `geometry_weight_sweep.py`, `good_court_ranks.py` and their `.txt` outputs:
-  replays of the upright check's saved results. Run them from the repository
-  root with the saved artefacts folder as the argument
+  replays of the upright check's saved results, from before the build. Run them
+  from the repository root with the saved artefacts folder as the argument
+- `replay_court_choice.py`: the replay. `replay/<arm>/results/` and
+  `replay/<arm>/artefacts/` are its output
+- `compare_court_choice.py` and `compare_court_choice.txt`: the comparison,
+  run on `replay/` and the upright check's run folder
+- `fit_replay_scan.py`, `footing_check.py` and their `.txt` outputs: the
+  replay's faithfulness checks
+
+The upright check's saved artefacts (189 MB) are not in the repository. They
+are in the upright check's run folder on Carmack.

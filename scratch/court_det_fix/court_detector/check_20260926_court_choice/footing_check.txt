@@ -1,0 +1,10 @@
+am1_window_00_frame_54: largest paint-score gap 1.84e-14, geometry-score gap 3.09e-03, over 15 courts
+am2_window_00_frame_150: largest paint-score gap 2.58e-14, geometry-score gap 2.24e-14, over 15 courts
+am2_window_01_frame_28019: largest paint-score gap 1.75e-14, geometry-score gap 3.70e-03, over 15 courts
+am3_window_00_frame_0: largest paint-score gap 2.13e-14, geometry-score gap 2.38e-14, over 15 courts
+am3_window_02_frame_17174: largest paint-score gap 5.55e-16, geometry-score gap 8.88e-16, over 15 courts
+gxBQ_window_00_frame_0: largest paint-score gap 1.99e-14, geometry-score gap 9.77e-15, over 15 courts
+gxBQ_window_00_frame_5: largest paint-score gap 1.37e-14, geometry-score gap 1.57e-03, over 15 courts
+gxBQ_window_00_frame_689: largest paint-score gap 2.94e-15, geometry-score gap 3.66e-04, over 15 courts
+gxBQ_window_03_frame_77876: largest paint-score gap 1.94e-15, geometry-score gap 2.64e-03, over 15 courts
+letterboxed_short_frame_78: largest paint-score gap 6.16e-14, geometry-score gap 1.89e-14, over 15 courts

@@ -1,0 +1,11 @@
+327 courts replayed, 10 missed by more than 0.0001 native px
+sset_21_gloiZ_gTJaE_frame_00014336	G0:1:3048	gap 1.84e+03 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00014336	G0:1:3057	gap 126 native px	jump under the nudge 0 px	status rank_deficient	rank 6
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:409	gap 1.1e+03 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:169	gap 3.66e+03 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:223	gap 2.12e+04 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:304	gap 274 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:22	gap 465 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:265	gap 188 native px	jump under the nudge 0 px	status invalid_projection	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:197:367	gap 9.88e+05 native px	jump under the nudge 0 px	status rank_deficient	rank 7
+sset_21_gloiZ_gTJaE_frame_00100347	G0:199:70	gap 0.000112 native px	jump under the nudge 0 px	status converged	rank 8
