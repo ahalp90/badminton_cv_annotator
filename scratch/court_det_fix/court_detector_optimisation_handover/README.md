@@ -68,7 +68,10 @@ and line templates 439 s (12%). Scoring is now the largest step. Single
 views range from 29 s to 264 s (`shuttleset_03_scene_0019`). The filter also
 showed that scoring cannot reliably tell a court that slips one line at the
 far end from the right one
-([check](../court_detector/check_20260926_upright/README.md#why-two-views-got-worse)). The
+([check](../court_detector/check_20260926_upright/README.md#why-two-views-got-worse)).
+A stricter paint test aimed at those slips was tried and reverted on 26
+September. It fixed one amateur view but neither slip, and took 12% longer
+([check](../court_detector/check_20260926_paint_test/README.md)). The
 estimates below for the cascade and the shortlist caps were made before the
 filter, and need measuring again with it.
 

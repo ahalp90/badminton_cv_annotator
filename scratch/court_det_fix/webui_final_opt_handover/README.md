@@ -19,8 +19,9 @@ The short version:
   open list. The web-UI adds useful design detail to both
 - Not from the web-UI: an upright-camera filter, added on 26 September, cut
   the 28 views' time by 42%. It exposed a scoring weakness: two views now slip
-  one line at the far end. The cascade and cap numbers below were measured
-  before it, so they need measuring again
+  one line at the far end. A paint-test change aimed at those slips was tried
+  and reverted the same day. The cascade and cap numbers below were measured
+  before the filter, so they need measuring again
 - Other new ideas: running the scoring stage's candidates in parallel, a small
   rewrite of court scoring, and a GPU version of the search
 - The web-UI sized everything against 90 s per scene. The target is 30 s per
@@ -490,6 +491,13 @@ shortlists may now be safe. That is a question for later. Until scoring can
 tell a court that slips one line at the far end from the right one, any change
 to what reaches scoring can move results by chance, as the filter did.
 
+A stricter paint test, bounded by the gap to the next painted line, was tried
+on 26 September and reverted. It fixed `am3_window_02_frame_17174` (0.55 to
+0.21 m) but neither far-end slip, and made `gxBQ_window_00_frame_0` 0.36 m
+worse. On the gxBQ views the far lines are too faint to pass one sample at a
+time, so the right court loses its far-end paint along with the slipped one
+([check](../court_detector/check_20260926_paint_test/README.md)).
+
 1. **Build the cascade** with K = 2,048 as the default and a switch for no
    cap. Check it on the 28 views, time it, and measure the depth of the
    overall shortlists' courts on more views
@@ -525,3 +533,7 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
   to replace the cheap pass? (experiment above)
 - How many no-court scenes does a typical five-minute video have, and must
   each get the full detector?
+- Can scoring tell a far-end slip from the right court? The untested next idea
+  is to score each line by its mean contrast along its whole length, against
+  what bare floor gives
+  ([check](../court_detector/check_20260926_paint_test/README.md#what-might-work-instead))
