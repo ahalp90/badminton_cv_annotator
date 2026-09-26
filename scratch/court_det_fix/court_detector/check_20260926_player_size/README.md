@@ -73,6 +73,35 @@ test can separate them. The upright-camera filter exposed the same weakness
 slips one line at an end from the right one. So cleaner shortlists can move
 results by chance, and here they moved one the wrong way.
 
+## The search stage's score does not fix it
+
+On am2 the search stage had it right. Each direction pair's search scores a
+court when it builds its shortlist, and it scored the right court well above
+the slipped one (0.326 against 0.267). The final choice then preferred the
+slipped court, by 0.3377 against 0.3344 on paint and 0.56 against 0.37 on
+fragment support.
+
+So a screen added each court's search score to the final choice, on the 10
+views with landmark hand marks (`search_score_screen.py`, output in
+`search_score_screen.txt`). It uses the default arm's saved scores, with
+floor errors before the final refit. Each search score is scaled by the best
+one in the same search, since G0's scores run higher than G1's. Line-template
+courts have no search score; the screen tried 0 and the view's lowest
+shortlisted score for them. At weight 0 it reproduces today's choice on every
+view.
+
+It does not help:
+
+- **The search score does not favour the best courts in general.** On
+  `am3_window_02_frame_17174` it prefers the chosen, worse court (0.933
+  against 0.875). On `gxBQ_window_00_frame_689` the best court ranks 100th
+  by search score
+- **Every weight that changes a pick makes the total largest error worse:**
+  4.91 m today, 6.09 m at weight 0.05 and 6.77-8.22 m at 0.1 and above. At
+  0.05, `gxBQ_window_00_frame_689` goes from 0.58 to 1.73 m
+
+So the search score helped on am2 by chance.
+
 ## Players' width on the 28 views
 
 A rebuild of every court each direction pair builds, from the final 26
@@ -93,6 +122,8 @@ The scripts need the filter, so run them at commit `6c787ea3`.
 
 - `run_carmack.sh`: the two-arm run
 - `compare_player_size.py` and its output, `compare_player_size.txt`
+- `search_score_screen.py` and its output, `search_score_screen.txt`. It
+  reads saved artefacts only, so it runs at any commit
 - `blend_default/` and `player_size/`: each arm's per-view results and group
   logs. Remote paths are replaced by `<run root>` and `<ShuttleSet root>`
 - `left_on_carmack.tsv`: the 56 artefact files (399 MB), with sizes and MD5

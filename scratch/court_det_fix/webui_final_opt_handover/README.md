@@ -714,6 +714,8 @@ scoring on 8 cores, is progress towards the 90 s end, not the 30 s goal.
 - Can scoring tell a far-end slip from the right court? Per-sample and
   line-averaged paint tests have both failed on the gxBQ far lines
   ([paint test](../court_detector/check_20260926_paint_test/README.md),
-  [line paint](../court_detector/check_20260926_line_paint/README.md)). No
-  tested idea remains. More hand-marked views would show whether any change
+  [line paint](../court_detector/check_20260926_line_paint/README.md)).
+  Adding the search stage's own score to the final choice made it worse
+  ([screen](../court_detector/check_20260926_player_size/README.md#the-search-stages-score-does-not-fix-it)).
+  No tested idea remains. More hand-marked views would show whether any change
   helps beyond the 10 views every version so far was judged on
