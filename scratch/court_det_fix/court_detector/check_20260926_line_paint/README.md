@@ -6,23 +6,56 @@ its whole length, instead of sample by sample. The aim is to let the right
 court's faint far lines count, so that a court slipped by one line at the far
 end stops scoring as well as the right one.
 
-**Status: third version under test.** Two versions failed the keep rule
-below, each for a cause found afterwards:
+**Result: rejected. The detector keeps the 10% geometry blend.** Four
+versions ran on the 10 views with landmark hand marks, and none held up. The
+line-paint switch was taken out of the detector afterwards. Commit `2d69273a`
+holds the last version's code (v4); the scripts here need it to rerun.
 
-- **v1** (commit `466114d3`, outputs in `v1/`) read each line only at its
-  predicted place. Courts before the refit sit a few centimetres off the
-  paint, so near-right courts failed their own lines. It made
-  `gxBQ_window_00_frame_689` 0.63 m worse
-- **v2** (outputs in `v2/`) added a search across the line, as W5's own test
-  has. It fixed `gxBQ_window_03_frame_77876` (1.06 to 0.35 m) but made
-  `am1_window_00_frame_54` 0.30 m worse. There the right court's near
-  long-service line had no usable row, and v2 counted it as unpainted. It
-  also added about 18 s a view on the laptop
-- **v3** leaves such a line out, as W5 does, and reads a row every 4 cm
-  instead of every 1 cm
+| Version | What changed | Outcome, after the refit |
+| --- | --- | --- |
+| v1 (`466114d3`, `v1/`) | Reads each line only at its predicted place; pass bar 1 grey level | `gxBQ_window_00_frame_689` 0.63 m worse |
+| v2 (`v2/`) | Searches across the line, as W5's own test does; pass bar 4 | Fixed `gxBQ_window_03_frame_77876` (1.06 to 0.35 m), but `am1_window_00_frame_54` 0.30 m worse. About 18 s a view on the laptop |
+| v3 (`5cb31733`, `v3/`) | Leaves out lines with no usable row, as W5 does; a row every 4 cm | Passed the keep rule's numbers, but slipped `am2_window_01_frame_28019` by a whole line at the near end. The user judged the am1 and am2 renders unusable |
+| v4 (`2d69273a`, `v4/`) | No pass bar: each line counts its contrast as a share of the view's strongest line | Four views more than 0.2 m worse, none better. Total largest error 3.79 to 6.00 m |
 
-The rest of this README describes v1's design; the version notes above give
-the changes.
+## Why it failed
+
+- **A fixed pass bar counts anything a little brighter than its sides as
+  paint.** On `am2_window_01_frame_28019`, v3's slipped court put its
+  baseline on the edge of the blue mat against the wooden floor. That edge
+  reads 16 grey levels and passed, just as the real baseline's 93 did. The
+  bar was set against bare floor midway between lines. Sol's review of v3
+  had warned that a slipped court's lines land on other things: other paint,
+  junctions and, as it turned out, edges
+- **Pass or fail throws away how strong the paint is.** On
+  `am1_window_00_frame_54` both courts passed the same seven lines, though
+  the right court read stronger on several (28 against 15 grey levels on the
+  right doubles sideline). The choice then fell to fragment support, 0.501
+  to 0.497, and picked the wrong court
+- **Raw strength favours near lines.** A view's strongest lines read 50-97
+  grey levels, and far lines under 10 even where the court is right. So under
+  v4 a court can give up faint real lines for slightly stronger readings on
+  bright ones. On `am3_window_00_frame_0`, v4's pick reads its right sidelines
+  at 34 and 29 grey levels against the blend court's 23 and 18. It reads its
+  short-service lines at -0.2 and 4.5 against 13.7 and 20.0. It lands 0.56 m
+  out against the blend's 0.24 m (`v4/line_passes.txt`)
+
+The underlying problem: a line's contrast in grey levels depends on its
+distance, the lighting and its width in pixels. So the numbers do not compare
+across lines, and neither a fixed bar nor a share of the strongest line fixed
+that on these views.
+
+The keep rule also missed v3's slip on am2. It uses each view's largest error,
+and the blend court already had one bad far mark at 0.62 m, so the slip showed
+as only 0.14 m worse (0.62 to 0.76 m). The median error shows it: 0.07 to
+0.37 m. `compare_line_paint.py` now reports the median too.
+
+The one Carmack run, started before v3 was rejected, has two arms: the blend
+default and v3. Its blend arm checks the default on Carmack, including the
+control view the laptop cannot replay. Its v3 arm only records what v3 costs.
+
+The rest of this README is the plan as written before the first run, with v1's
+design; the table above gives each later change.
 
 ## Why
 
@@ -144,7 +177,17 @@ run gives the real cost, which must stay under 10% of detect time.
 
 ## Files
 
+The scripts need the line-paint code, which the detector no longer has. Run
+them at commit `2d69273a` (v4), or at a version's own commit for its results.
+
 - `line_profiles.py`, `line_bar.py` and their `.txt` outputs: the
-  measurements on the hand-marked views
-- `replay_line_paint.py`: the replay
-- `compare_line_paint.py`: the comparison
+  measurements on the hand-marked views. `line_bar.txt` is v1's bar; each
+  version folder has its own
+- `replay_line_paint.py`: the replay. Each version folder's `replay/` holds its
+  output (v3 and v4)
+- `compare_line_paint.py`: the comparison; `compare_line_paint.txt` in each
+  version folder
+- `line_passes.py`: each line's contrast and fragment support for three courts
+  on a view; `line_passes.txt` in the version folders
+- `run_carmack.sh`: the two-arm Carmack run, started at commit `cd3011b7`
+- `compare_carmack.py`: compares that run's two arms, once it is copied back
