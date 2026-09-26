@@ -214,14 +214,18 @@ def main() -> int:
     parser.add_argument("--artefacts", action="store_true", help="write each view's intermediate results")
     parser.add_argument("--timing", action="store_true")
     parser.add_argument("--no-self-checks", action="store_true")
+    parser.add_argument("--any-camera-roll", action="store_true",
+                        help="keep courts that need a camera rolled past 45 degrees or upside down")
     args = parser.parse_args()
     if args.baseline is not None and (args.feet is None or not args.artefacts):
         parser.error("--baseline needs --feet and --artefacts")
+    if args.baseline is not None and not args.any_camera_roll:
+        parser.error("--baseline compares with a chain that keeps every camera roll; add --any-camera-roll")
 
     started = perf_counter()
     artefacts_dir = args.output / "artefacts" if args.artefacts else None
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
-                                      artefacts_dir=artefacts_dir))
+                                      artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)

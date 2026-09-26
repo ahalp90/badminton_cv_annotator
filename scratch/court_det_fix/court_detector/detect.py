@@ -3,7 +3,8 @@
 The chain: standing feet from a 3 s window, G0 and paint-filtered G1 court searches at
 direction budget 16, seeded line templates with a (4, 3) visibility floor, the W5
 merge/measure/refit/rank, the bounded net choice (weight 0.04, overrun 4 working px), then
-the automatic stripe-polarity refit of the chosen court.
+the automatic stripe-polarity refit of the chosen court. By default the court searches skip
+courts that need a camera rolled past 45 degrees or upside down (Switches.upright_camera).
 
 Start-up contract: set the thread variables (OPENBLAS_NUM_THREADS, MKL_NUM_THREADS,
 OMP_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS, BLIS_NUM_THREADS) to 1 before
@@ -39,6 +40,9 @@ DIRECTION_BUDGET = 16
 VISIBILITY_FLOOR = (4, 3)  # lengthwise and cross-court lines a line template must show
 NET_WEIGHT = 0.04
 NET_OVERRUN_WORKING_PX = 4.0
+# The camera roll a search pair may imply. The chosen courts of the 20 test views with a court
+# imply rolls within 2.5 degrees.
+MAX_HORIZON_TILT_DEG = 45.0
 # The copies run_d17.py resolves. Several research folders hold same-named modules.
 LIVE_MODULE_FILES = {
     "run_w5": "scratch/court_det_fix/w5_holistic/run_w5.py",
@@ -65,6 +69,8 @@ class Switches:
     # TODO: default False once PySceneDetect cuts scenes and is checked on dissolves and
     # lens occlusions.
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
+    # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
+    upright_camera: bool = True
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
 
@@ -210,6 +216,7 @@ class CourtDetector:
             record = live.automatic_generation.generate(
                 population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
                 legacy_evidence=False,
+                max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:

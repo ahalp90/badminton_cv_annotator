@@ -47,7 +47,7 @@ def test_default_and_explicit_caps(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     helpers.retain = retain
     helpers.select_pool = lambda candidates: retain(candidates, helpers.detector.DEFAULT_SETTINGS)
 
-    def propose(*_args: object) -> SimpleNamespace:
+    def propose(*_args: object, **_kwargs: object) -> SimpleNamespace:
         candidates = [SimpleNamespace(corners_px=np.zeros((4, 2)), score=float(index)) for index in range(3)]
         empty = np.empty((0,), dtype=float)
         return SimpleNamespace(candidates=candidates, detail=lambda _position: {},

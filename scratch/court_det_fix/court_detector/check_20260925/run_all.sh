@@ -4,6 +4,7 @@
 #   2. run_d17.py rerun at this checkout, to compare with the baseline bit for bit
 #   3. timing: run_views.py, one process per view, artefacts off
 # Usage: run_all.sh CHECKOUT OUT PYTHON FRESH_FEET BASELINE
+# --any-camera-roll (added 26 September) keeps the detector as it was on 25 September.
 set -u
 export CHECKOUT=$1 OUT=$2 PYTHON=$3 FRESH_FEET=$4 BASELINE=$5
 cd "$CHECKOUT" || exit 1
@@ -26,7 +27,7 @@ xargs -P 8 -L 1 bash -c '
     GROUP=$0
     "$PYTHON" -m scratch.court_det_fix.court_detector.run_views --people "$FRESH_FEET/people" \
         --output "$OUT/correctness" --baseline "$BASELINE" --feet "$FRESH_FEET/feet_standing.json.gz" \
-        --artefacts "$@" > "$OUT/correctness/logs/$GROUP.log" 2>&1
+        --artefacts --any-camera-roll "$@" > "$OUT/correctness/logs/$GROUP.log" 2>&1
     echo $? > "$OUT/correctness/logs/$GROUP.exit"' < "$OUT/correctness/groups.txt"
 touch "$OUT/correctness/done"
 
@@ -37,6 +38,6 @@ touch "$OUT/run_d17/done"
 cut -d " " -f 2- "$OUT/correctness/groups.txt" | tr " " "\n" | xargs -P 8 -L 1 bash -c '
     VIEW=$0
     "$PYTHON" -m scratch.court_det_fix.court_detector.run_views --people "$FRESH_FEET/people" \
-        --output "$OUT/timing" --timing "$VIEW" > "$OUT/timing/logs/$VIEW.log" 2>&1
+        --output "$OUT/timing" --timing --any-camera-roll "$VIEW" > "$OUT/timing/logs/$VIEW.log" 2>&1
     echo $? > "$OUT/timing/logs/$VIEW.exit"'
 touch "$OUT/all.done"
