@@ -66,3 +66,42 @@ def test_incomplete_or_overlapping_external_scenes_fail(scenes: list[SceneInfo])
 
 def test_valid_scene_partition() -> None:
     validate_scenes([SceneInfo(0, 4), SceneInfo(5, 9)], 10)
+
+
+def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> None:
+    class ReusingDetector:
+        def __init__(self) -> None:
+            self.attempts: list[list[str]] = []
+
+        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+            self.attempts.append([known.view_id for known in known_courts])
+            source = known_courts[0].view_id if len(self.attempts) == 3 else None
+            corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
+            return CourtResult(view.view_id, corners, None, 'reuse' if source else 'searched', None, .9, source)
+
+    detector = ReusingDetector()
+    scenes = [SceneInfo(0, 79, np.array([1., 0.])), SceneInfo(80, 159, np.array([0., 1.])),
+              SceneInfo(160, 239, np.array([.9, .1]))]
+    rows = list(scene_courts(detector, Frames(), People(), Lines(), scenes,  # type: ignore[arg-type]
+                            video_id='clip', reuse_courts=True))
+    first, second = rows[0]['view_id'], rows[1]['view_id']
+    assert detector.attempts == [[], [first], [first, second]]
+    assert rows[2]['reused_from'] == first
+
+
+def test_reused_court_does_not_become_a_template() -> None:
+    class ReusingDetector:
+        def __init__(self) -> None:
+            self.attempts: list[list[str]] = []
+
+        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+            self.attempts.append([known.view_id for known in known_courts])
+            source = known_courts[0].view_id if known_courts else None
+            return CourtResult(view.view_id, np.zeros((4, 2)), None, 'court', None, .9, source)
+
+    detector = ReusingDetector()
+    scenes = [SceneInfo(0, 79), SceneInfo(80, 159), SceneInfo(160, 239)]
+    rows = list(scene_courts(detector, Frames(), People(), Lines(), scenes,  # type: ignore[arg-type]
+                            video_id='clip', reuse_courts=True))
+    first = rows[0]['view_id']
+    assert detector.attempts == [[], [first], [first]]

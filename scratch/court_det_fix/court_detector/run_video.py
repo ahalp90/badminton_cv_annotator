@@ -25,13 +25,15 @@ from .video_inputs import PoseArrays, RtmlibPeople, VideoFrames
 
 def scene_courts(
     detector: CourtDetector, frames: FrameReader, people: PeopleSource, lines: LineSource,
-    scenes: Sequence[SceneInfo], *, video_id: str,
+    scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False,
 ) -> Iterator[dict[str, Any]]:
     """Detect the middle frame of each scene without crossing a cut for foot samples.
 
     A scene too short for the existing foot window is reported as unanalysed.
     It is not counted as evidence that no court is present.
     """
+    # Keep only fully searched courts: chaining refits would accumulate movement.
+    known_views = []
     for scene_index, scene in enumerate(scenes):
         started = perf_counter()
         anchor = (scene.first_frame + scene.last_frame) // 2
@@ -52,10 +54,26 @@ def scene_courts(
             raise ValueError(f'{view_id}: people source did not return the requested anchor')
         view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
                           anchor_people[0].boxes_px, same_frame_provenance(view_id, anchor))
-        result = detector.detect(view, people, frames)
+        if reuse_courts:
+            from .reuse import make_known_court
+
+            # Histograms only order the attempts. Image alignment and court checks
+            # decide reuse. Missing histograms leave the most recent views first.
+            ordered = known_views
+            if scene.histogram is not None:
+                ordered = sorted(known_views, key=lambda known: float('inf') if known[1] is None
+                                 else float(abs(scene.histogram - known[1]).sum()))
+            result = detector.detect(view, people, frames, known_courts=[known[0] for known in ordered[:3]])
+            if (result.corners_native_px is not None and result.reused_from is None
+                    and result.paint_score is not None and result.paint_score > 0):
+                known = make_known_court(view_id, frame, result.corners_native_px, result.paint_score)
+                known_views.insert(0, (known, scene.histogram))
+                del known_views[8:]
+        else:
+            result = detector.detect(view, people, frames)
         row.update(status='court' if result.corners_native_px is not None else 'no_court',
                    corners_native_px=None if result.corners_native_px is None else result.corners_native_px.tolist(),
-                   chosen_key=result.chosen_key, no_court_reason=result.no_court_reason,
+                   chosen_key=result.chosen_key, no_court_reason=result.no_court_reason, reused_from=result.reused_from,
                    stage_seconds=result.stage_seconds, seconds=perf_counter() - started)
         yield row
 
@@ -90,6 +108,7 @@ def main() -> int:
     scene_options.add_argument('--pyscenedetect', action='store_true', help='detect cuts and representative scene histograms')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
+    parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
     args = parser.parse_args()
     if args.saved_lines is None and (args.deeplsd_source is None or args.deeplsd_weights is None):
         parser.error('provide --saved-lines or both --deeplsd-source and --deeplsd-weights')
@@ -117,7 +136,8 @@ def main() -> int:
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()
         rows = []
-        for row in scene_courts(detector, frames, people, lines, scenes, video_id=args.video.stem):
+        for row in scene_courts(detector, frames, people, lines, scenes, video_id=args.video.stem,
+                                reuse_courts=args.reuse_courts):
             rows.append(row)
             print(json.dumps(row), flush=True)
         result = {'video': args.video.name, 'fps': frames.fps, 'frame_count': frames.frame_count,

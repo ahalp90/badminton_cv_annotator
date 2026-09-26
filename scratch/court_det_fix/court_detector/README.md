@@ -31,6 +31,8 @@ The returned `CourtResult` contains:
 | `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information |
 | `chosen_key` | The saved identifier of the chosen court |
 | `stage_seconds` | Time per step when timing is enabled |
+| `paint_score` | Paint support after the final stripe fit, for checking later reuse |
+| `reused_from` | Earlier view used for checked reuse, or `None` for a full search |
 
 ## How it finds the court
 
@@ -156,6 +158,21 @@ benchmarking a new dataset.
 The output separates model/input setup, scene detection and per-scene work.
 It records whether people and lines were supplied from saved extracts, so those
 timings are not mistaken for complete live inference.
+
+`--reuse-courts` enables an optional trial for returning camera views. The caller
+keeps up to eight recent courts found by full searches and tries up to three
+for each later scene. Histograms order those attempts when available; otherwise
+the most recent court comes first. A reused court never becomes a new template.
+
+Each attempt aligns the images, refits the court to the current stripes, and
+checks the current geometry, camera, players' feet and paint support. It also
+bounds the refit's movement in court metres, including the far baseline. Failed
+attempts fall through to the full search using the same prepared inputs. The
+paint-ratio and movement limits are provisional until checked on representative
+video pairs. Reuse stays off by default during that evaluation.
+
+Prepared-image callers can pass `known_courts=` to `detect()`. Build each entry
+with `reuse.make_known_court()` from a fully searched result and its input frame.
 
 ## Settings
 

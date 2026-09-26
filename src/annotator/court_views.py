@@ -38,24 +38,51 @@ def describe_court_view(frames: Sequence[np.ndarray]) -> CourtView:
     return CourtView(hashes, np.median(greyscale, axis=0).astype(np.uint8))
 
 
-def _view_alignment(template: CourtView, sample: CourtView, corners_refpx: np.ndarray) -> bool:
+@dataclass(frozen=True)
+class ViewAlignment:
+    """How a sample view's image lines up with a template view's, inside the template court."""
+
+    correlation: float  # ECC correlation coefficient
+    warp: np.ndarray  # (3, 3) float32 homography from template to sample VIEW_RESOLUTION pixels
+    moved_corners_refpx: np.ndarray  # (4, 2) the template court's corners carried into the sample
+    shift_refpx: float  # the largest of those four corner movements
+
+    @property
+    def matches(self) -> bool:
+        """Whether the images correlate and the camera has not measurably moved."""
+        return bool(self.correlation >= MIN_ALIGNMENT_CORRELATION and self.shift_refpx <= MAX_ALIGNMENT_SHIFT_REFPX)
+
+
+def measure_view_alignment(
+    template_image: np.ndarray, sample_image: np.ndarray, corners_refpx: np.ndarray,
+) -> ViewAlignment | None:
+    """ECC-align two greyscale VIEW_RESOLUTION images inside the template court.
+
+    :param corners_refpx: The template court's corners in HOMOGRAPHY_RESOLUTION pixels.
+    :return: The alignment, or None when ECC cannot measure one.
+    """
     scale = np.asarray(VIEW_RESOLUTION) / np.asarray(HOMOGRAPHY_RESOLUTION)
     corners = corners_refpx * scale
     centre = corners.mean(axis=0)
-    mask = np.zeros(sample.image.shape, np.uint8)
+    mask = np.zeros(sample_image.shape, np.uint8)
     cv2.fillConvexPoly(mask, np.rint(centre + ALIGNMENT_MASK_SCALE * (corners - centre)).astype(np.int32), 255)
     try:
         correlation, warp = cv2.findTransformECC(
-            template.image, sample.image, np.eye(3, dtype=np.float32), cv2.MOTION_HOMOGRAPHY,
+            template_image, sample_image, np.eye(3, dtype=np.float32), cv2.MOTION_HOMOGRAPHY,
             (cv2.TERM_CRITERIA_COUNT | cv2.TERM_CRITERIA_EPS, ALIGNMENT_ITERATIONS, ALIGNMENT_EPSILON),
             mask, ALIGNMENT_BLUR_SIZE,
         )
     except cv2.error:
-        # An unmeasurable alignment provides no evidence for sharing calibration.
-        return False
+        return None
     moved = cv2.perspectiveTransform(corners[None].astype(np.float32), warp)[0]
     shift = np.linalg.norm((moved - corners) / scale, axis=1).max()
-    return bool(correlation >= MIN_ALIGNMENT_CORRELATION and shift <= MAX_ALIGNMENT_SHIFT_REFPX)
+    return ViewAlignment(correlation, warp, moved / scale, shift)
+
+
+def _view_alignment(template: CourtView, sample: CourtView, corners_refpx: np.ndarray) -> bool:
+    alignment = measure_view_alignment(template.image, sample.image, corners_refpx)
+    # An unmeasurable alignment provides no evidence for sharing calibration.
+    return alignment is not None and alignment.matches
 
 
 def matching_view_groups(

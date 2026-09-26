@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import cv2
 import numpy as np
@@ -30,6 +30,9 @@ from scratch.court_det_fix.court_detector.inputs import (
     PeopleSource,
     ViewInputs,
 )
+
+if TYPE_CHECKING:
+    from .reuse import KnownCourt
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTION_BUDGET = 16
@@ -72,6 +75,8 @@ class CourtResult:
     no_court_reason: str | None  # "no_gated_court", or the refit's validity reason
     chosen_key: str | None  # origin_key the net choice picked
     stage_seconds: dict[str, float] | None  # with timing on
+    paint_score: float | None = None  # final stripe refit's paint support
+    reused_from: str | None = None  # source view ID; reused courts must not become reuse templates
 
 
 class LiveModules(NamedTuple):
@@ -163,7 +168,8 @@ class CourtDetector:
         self.switches = switches
         self.live = load_live_modules()
 
-    def detect(self, view: ViewInputs, people: PeopleSource, frames: FrameReader) -> CourtResult:
+    def detect(self, view: ViewInputs, people: PeopleSource, frames: FrameReader,
+               *, known_courts: Sequence[KnownCourt] = ()) -> CourtResult:
         live, switches = self.live, self.switches
         laps = Laps()
         artefacts: dict[str, Any] = {}
@@ -179,6 +185,22 @@ class CourtDetector:
         freeze_arrays(context)
         laps.lap("context")
 
+        if known_courts:
+            from .reuse import try_reuse
+
+            artefacts["reuse"] = []
+            for known in known_courts:
+                attempt = try_reuse(known, context, native_frame, live,
+                                    max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None)
+                artefacts["reuse"].append(attempt.record)
+                if attempt.court is not None:
+                    court = attempt.court
+                    laps.lap("reuse")
+                    result = CourtResult(view.view_id, court.corners_native_px, None, "reuse", None,
+                                         court.paint_score, court.source_view_id)
+                    return self.finish(result, laps, artefacts)
+            laps.lap("reuse")
+
         populations = self.search(context, source, native_frame, laps, artefacts)
         artefacts["populations"] = populations
         seeds = search.seed_points(context.families[0])
@@ -192,9 +214,13 @@ class CourtDetector:
 
         with live.prepared_measurements(live.verifier):
             result = self.score_and_choose(view, context, populations, templates, native_frame, laps, artefacts)
-        if switches.artefacts_dir is not None:
-            live.verifier.write_json_gz(switches.artefacts_dir / f"{view.view_id}.json.gz", artefacts)
-        if switches.timing:
+        return self.finish(result, laps, artefacts)
+
+    def finish(self, result: CourtResult, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
+        """Save diagnostics and attach timings for searched and reused courts alike."""
+        if self.switches.artefacts_dir is not None:
+            self.live.verifier.write_json_gz(self.switches.artefacts_dir / f"{result.view_id}.json.gz", artefacts)
+        if self.switches.timing:
             return dataclasses.replace(result, stage_seconds=laps.seconds)
         return result
 
@@ -276,4 +302,5 @@ def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndar
     corrected = refit["corrected"]
     if not corrected["valid"]:
         return CourtResult(view_id, None, corrected["validity_reason"], chosen, None)
-    return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None)
+    return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None,
+                       corrected["measurement"]["paint_score"])
