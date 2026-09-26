@@ -189,32 +189,25 @@ def below_horizon(points: np.ndarray, corners: np.ndarray, size: tuple[int, int]
 def player_widths_m(homographies: np.ndarray, boxes_px: np.ndarray) -> np.ndarray:
     """Per court, the median width in metres of the people it puts on or near the court; NaN if none.
 
-    A person's width is their box width over the court's floor stretch at their feet, in the
-    stretch's least-squashed direction, which runs across the view. A court at the wrong scale,
-    such as one built from wall ribs around the players, makes them giants or dwarfs.
+    A person's width is the floor distance between their box's bottom corners, each mapped onto
+    the floor through the court. A court at the wrong scale, such as one built from wall ribs
+    around the players, makes them giants or dwarfs.
 
     :param homographies: (courts, 3, 3) floor metres to working px.
     :param boxes_px: (people, 4) x1, y1, x2, y2 in working px; every person, sitting or standing.
     """
     x1, _y1, x2, y2 = boxes_px.T
-    feet = np.column_stack(((x1 + x2) / 2, y2, np.ones(len(boxes_px))))  # one per person box
-    floor = np.einsum('cij,pj->cpi', np.linalg.inv(homographies), feet)  # (courts, people, 3)
-    floor_xy = floor[..., :2] / floor[..., 2:]
+    # Each box's bottom-left corner, foot (bottom centre) and bottom-right corner: (3, people, 3).
+    image_points = np.stack([np.column_stack((x, y2, np.ones(len(boxes_px)))) for x in (x1, (x1 + x2) / 2, x2)])
+    # (left/foot/right, courts, people, 3) homogeneous floor points
+    floor = np.einsum('cij,kpj->kcpi', np.linalg.inv(homographies), image_points)
+    left, foot, right = floor[..., :2] / floor[..., 2:]
     court_size = detector.CORNER_COURT_M.max(axis=0)
-    # A foot above the horizon maps to the floor behind the camera, with the opposite sign to the court's centre.
+    # A point above the horizon maps to the floor behind the camera, with the opposite sign to the court's centre.
     centre_sign = np.sign(homographies[:, 2] @ np.append(court_size / 2, 1.))
-    in_front = np.sign(floor[..., 2]) == centre_sign[:, None]
-    near_court = (in_front & (floor_xy >= -NEAR_COURT_M).all(axis=-1)
-                  & (floor_xy <= court_size + NEAR_COURT_M).all(axis=-1))
-    # The floor-to-image map's local stretch at each foot, (courts, people, 2, 2); 1 / floor[..., 2] is its w.
-    jacobians = (homographies[:, None, :2, :2]
-                 - feet[None, :, :2, None] * homographies[:, None, None, 2, :2]) * floor[..., 2, None, None]
-    # A 2 x 2 matrix's largest singular value, from its squared norm and determinant.
-    squared_norms = (jacobians ** 2).sum(axis=(-2, -1))
-    determinants = jacobians[..., 0, 0] * jacobians[..., 1, 1] - jacobians[..., 0, 1] * jacobians[..., 1, 0]
-    across_view_px_per_m = np.sqrt(
-        (squared_norms + np.sqrt(np.maximum(squared_norms ** 2 - 4 * determinants ** 2, 0.))) / 2)
-    widths = np.where(near_court, (x2 - x1) / across_view_px_per_m, np.nan)
+    in_front = (np.sign(floor[..., 2]) == centre_sign[:, None]).all(axis=0)
+    near_court = in_front & (foot >= -NEAR_COURT_M).all(axis=-1) & (foot <= court_size + NEAR_COURT_M).all(axis=-1)
+    widths = np.where(near_court, np.linalg.norm(right - left, axis=-1), np.nan)
     medians = np.full(len(homographies), np.nan)
     counted = near_court.any(axis=1)
     medians[counted] = np.nanmedian(widths[counted], axis=1)

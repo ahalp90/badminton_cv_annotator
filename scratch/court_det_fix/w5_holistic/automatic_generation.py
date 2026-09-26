@@ -94,7 +94,9 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     point_scale = np.append(scale, 1.)
     feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
                        for frame in source["all_feet_px"]], dtype=float) / scale
-    person_boxes = np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4) / np.tile(scale, 2)
+    # Only the player-size filter reads person boxes, and older sources have none.
+    person_boxes = (None if player_width_m is None
+                    else np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4) / np.tile(scale, 2))
     observations = assignment.prepare_observations(segments, size)
     settings = helpers.Settings(keep_axes=keep_axes)
     def select(candidates: list, limit: int) -> list:

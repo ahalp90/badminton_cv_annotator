@@ -47,7 +47,7 @@ NET_OVERRUN_WORKING_PX = 4.0
 # imply rolls within 2.5 degrees.
 MAX_HORIZON_TILT_DEG = 45.0
 # With Switches.player_size, the court searches skip courts whose players come out narrower or wider
-# than this, in metres. The chosen courts on the 28 test views sit at 0.47-1.40 m.
+# than this, in metres. Loose on purpose: it targets courts at an absurd scale.
 PLAYER_WIDTH_M = (0.2, 3.0)
 # The copies run_d17.py resolves. Several research folders hold same-named modules.
 LIVE_MODULE_FILES = {
