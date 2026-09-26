@@ -4,11 +4,20 @@
 from __future__ import annotations
 
 import math
+import pickle
 from collections.abc import Callable
-from typing import Any, NamedTuple
+from concurrent.futures import ProcessPoolExecutor
+from itertools import islice
+from multiprocessing import get_context
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    from .detect import LiveModules
 
 
 class ViewAmbiguity(AssertionError):
@@ -506,6 +515,198 @@ def public_candidate(candidate: dict) -> dict:
     return public
 
 
+def add_arrays(all_arrays: dict[str, np.ndarray], origin_key: str, arrays: dict[str, np.ndarray]) -> None:
+    """File one candidate's arrays under ScoredPopulations.arrays' "<origin_key>::<name>" keys."""
+    for name, values in arrays.items():
+        all_arrays[f"{origin_key}::{name}"] = values
+
+
+def measure_parent(
+    context, identity: dict, runtime: dict[str, Any], cache: dict,
+) -> tuple[dict, dict[str, np.ndarray] | None]:
+    """make_parent_record for one of canonicalise_populations' parent identities."""
+    return make_parent_record(
+        context,
+        identity["entry"],
+        identity["source"],
+        identity["source_order"],
+        identity["origin_index"],
+        runtime,
+        cache,
+        identity=identity,
+    )
+
+
+def measure_and_refit_serially(
+    context,
+    parent_identities: list[dict],
+    runtime: dict[str, Any],
+    cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]],
+    line_maps: np.ndarray,
+    progress: Callable[[str], None],
+) -> tuple[list[dict], list[dict], list[dict], dict[str, np.ndarray]]:
+    """Measure every parent, then refit each once, in this process.
+
+    :return: The parents, their fit rows, the valid children and ScoredPopulations.arrays.
+    """
+    parents = []
+    all_arrays: dict[str, np.ndarray] = {}
+    for parent_index, identity in enumerate(parent_identities, start=1):
+        parent, arrays = measure_parent(context, identity, runtime, cache)
+        parents.append(parent)
+        if arrays is not None:
+            add_arrays(all_arrays, parent["origin_key"], arrays)
+        if parent_index % 250 == 0:
+            progress(f"parents {parent_index}/{len(parent_identities)}")
+    fit_rows = []
+    children = []
+    progress(f"refitting {len(parents)} parents")
+    for parent_index, parent in enumerate(parents, start=1):
+        row, child, arrays = attempt_refit(context, parent, runtime, cache, line_maps)
+        fit_rows.append(row)
+        if child is not None:
+            children.append(child)
+            add_arrays(all_arrays, child["origin_key"], arrays)
+        if parent_index % 250 == 0:
+            progress(f"refits {parent_index}/{len(parents)}; valid children={len(children)}")
+    return parents, fit_rows, children, all_arrays
+
+
+class ParentScore(NamedTuple):
+    """One parent's measurement and refit, as a scoring worker sends them back."""
+
+    parent: dict  # parent["refit"] is set when the refit gave a valid child
+    parent_arrays: dict[str, np.ndarray] | None  # None for a hard-invalid parent
+    fit_row: dict
+    child: dict | None  # the valid child, if the refit gave one
+    child_arrays: dict[str, np.ndarray] | None
+    new_cache_entries: dict[bytes, tuple[dict, dict[str, np.ndarray]]]  # what this task added to the cache
+
+
+class WorkerView(NamedTuple):
+    """What every task in one scoring worker process shares."""
+
+    context: Any
+    line_maps: np.ndarray
+    live: LiveModules  # this process's own load_live_modules()
+    cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]]  # starts as a copy of the caller's
+
+
+# Set once in each scoring worker process by start_scoring_worker; never set in the caller.
+worker_view: WorkerView
+
+
+def require_live_runtime(runtime: dict[str, Any]) -> None:
+    """Refuse to score in workers that would measure with other functions than this process.
+
+    Each worker rebuilds load_live_modules().runtime and measures inside
+    sampling.prepared_measurements. Another runtime, or a caller outside that sampler, would
+    make the workers' results differ from this process's serial scoring.
+    """
+    from . import measurements, sampling
+    from .detect import measurement_runtime
+
+    live_runtime = measurement_runtime()
+    same_runtime = runtime.keys() == live_runtime.keys() and all(
+        runtime[name] is value for name, value in live_runtime.items()
+    )
+    if not same_runtime:
+        raise ValueError("scoring workers rebuild load_live_modules().runtime, so they accept only that runtime")
+    # prepared_measurements swaps in functions defined in sampling for these two of measurements'.
+    sampler_active = all(
+        getattr(measurements, name).__module__ == sampling.__name__ for name in ("grayscale_sample", "raw_junctions")
+    )
+    if not sampler_active:
+        raise ValueError("scoring workers measure inside sampling.prepared_measurements, so the caller must too")
+
+
+def start_scoring_worker(view_path: Path) -> None:
+    """Prepare one spawned worker process to score one view's parents.
+
+    Runs once per worker, so the view crosses the process boundary once per worker rather
+    than once per parent. load_live_modules also sets this process's OpenCV to one thread.
+    """
+    from .detect import freeze_arrays, load_live_modules
+
+    global worker_view
+    with view_path.open('rb') as stream:
+        context, line_maps, cache = pickle.load(stream)
+    # The copies arrive writeable. As in the caller, a stray in-place write must fail loudly.
+    freeze_arrays((context, line_maps))
+    worker_view = WorkerView(context, line_maps, load_live_modules(), cache)
+
+
+def score_parent_in_worker(identity: dict) -> ParentScore:
+    """Measure and refit one parent identity in a scoring worker process."""
+    view = worker_view
+    live = view.live
+    cache_size = len(view.cache)
+    # The sampler patches this process's measurement module until the task ends. Its grey
+    # image therefore lasts one parent, not the whole view.
+    with live.prepared_measurements(live.verifier):
+        parent, parent_arrays = measure_parent(view.context, identity, live.runtime, view.cache)
+        fit_row, child, child_arrays = attempt_refit(view.context, parent, live.runtime, view.cache, view.line_maps)
+    # measure_candidate only adds cache entries, so this task's are the last ones.
+    new_cache_entries = dict(islice(view.cache.items(), cache_size, None))
+    return ParentScore(parent, parent_arrays, fit_row, child, child_arrays, new_cache_entries)
+
+
+def measure_and_refit_in_workers(
+    context,
+    parent_identities: list[dict],
+    runtime: dict[str, Any],
+    cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]],
+    line_maps: np.ndarray,
+    progress: Callable[[str], None],
+    workers: int,
+) -> tuple[list[dict], list[dict], list[dict], dict[str, np.ndarray]]:
+    """Measure and refit each parent in a spawned worker process; return what the serial path does.
+
+    Results arrive in parent order, so the lists and array keys keep the serial order. The
+    candidates are the workers' copies, equal to the serial values. Each worker starts from a copy of cache,
+    and the entries the workers add are merged back into it. A worker's exception is
+    raised here, and parents still waiting are cancelled.
+
+    Workers inherit this process's environment. Set the numerical-library thread variables
+    before importing NumPy, as run_views.py does, and they apply in the workers too.
+    """
+    require_live_runtime(runtime)
+    worker_count = min(workers, len(parent_identities))
+    progress(f"measuring and refitting each parent in one of {worker_count} worker processes")
+    scores = []
+    valid_children = 0
+    # A large spawn payload can block the parent pipe if a worker dies on import.
+    # Pass a small path instead, so failed starts reach the caller as BrokenProcessPool.
+    with TemporaryDirectory(prefix='court-scoring-') as directory:
+        view_path = Path(directory) / 'view.pickle'
+        with view_path.open('wb') as stream:
+            pickle.dump((context, line_maps, cache), stream, protocol=pickle.HIGHEST_PROTOCOL)
+        with ProcessPoolExecutor(worker_count, mp_context=get_context("spawn"), initializer=start_scoring_worker,
+                                 initargs=(view_path,)) as executor:
+            for parent_index, score in enumerate(executor.map(score_parent_in_worker, parent_identities), start=1):
+                scores.append(score)
+                if score.child is not None:
+                    valid_children += 1
+                if parent_index % 250 == 0:
+                    progress(f"parents {parent_index}/{len(parent_identities)}; valid children={valid_children}")
+    # The serial order: every parent's arrays, then every child's.
+    all_arrays: dict[str, np.ndarray] = {}
+    for score in scores:
+        if score.parent_arrays is not None:
+            add_arrays(all_arrays, score.parent["origin_key"], score.parent_arrays)
+    for score in scores:
+        if score.child is not None:
+            add_arrays(all_arrays, score.child["origin_key"], score.child_arrays)
+    # Two workers may measure the same homography; the earlier parent's result is kept.
+    for score in scores:
+        for key, measured in score.new_cache_entries.items():
+            cache.setdefault(key, measured)
+    parents = [score.parent for score in scores]
+    fit_rows = [score.fit_row for score in scores]
+    children = [score.child for score in scores if score.child is not None]
+    return parents, fit_rows, children, all_arrays
+
+
 class ScoredPopulations(NamedTuple):
     """One view's W5 parents, refitted children and C ranking."""
 
@@ -531,15 +732,22 @@ def score_populations(
     progress: Callable[[str], None],
     *,
     self_checks: bool = True,
+    workers: int = 1,
 ) -> ScoredPopulations:
     """Merge the three populations, measure every parent, refit each once and rank them.
 
-    :param cache: make_parent_record's measurement cache. process_case reuses it for its
-        diagnostic controls.
+    :param cache: make_parent_record's measurement cache. With several workers,
+        each starts from a copy, and the entries
+        they add are merged back.
     :param progress: Receives one progress line at a time.
     :param self_checks: Reject automatic entries that carry reference fields, and require
         the C ranking not to depend on candidate order. Both raise on failure.
+    :param workers: Processes that measure and refit the parents. Above 1, runtime must be
+        load_live_modules().runtime and the caller must be inside its prepared_measurements;
+        see measure_and_refit_in_workers. Ranking stays in this process.
     """
+    if workers < 1:
+        raise ValueError(f"workers must be positive, not {workers}")
     case_id = context.case_id
     verifier = runtime["verifier"]
     if self_checks:
@@ -556,38 +764,16 @@ def score_populations(
         f"(G0={len(g0)}, G1={len(g1)}, line_template={len(line_template)}; "
         f"conflicting geometry groups={len(identity_resolution['conflicting_geometry_groups'])})"
     )
-    parents = []
-    all_arrays: dict[str, np.ndarray] = {}
-    for parent_index, identity in enumerate(parent_identities, start=1):
-        parent, arrays = make_parent_record(
-            context,
-            identity["entry"],
-            identity["source"],
-            identity["source_order"],
-            identity["origin_index"],
-            runtime,
-            cache,
-            identity=identity,
-        )
-        parents.append(parent)
-        if arrays is not None:
-            for key, value in arrays.items():
-                all_arrays[f"{parent['origin_key']}::{key}"] = value
-        if parent_index % 250 == 0:
-            progress(f"parents {parent_index}/{len(parent_identities)}")
-    fit_rows = []
-    children = []
-    progress(f"refitting {len(parents)} parents")
     line_maps = view_line_maps(context)
-    for parent_index, parent in enumerate(parents, start=1):
-        row, child, arrays = attempt_refit(context, parent, runtime, cache, line_maps)
-        fit_rows.append(row)
-        if child is not None:
-            children.append(child)
-            for key, value in arrays.items():
-                all_arrays[f"{child['origin_key']}::{key}"] = value
-        if parent_index % 250 == 0:
-            progress(f"refits {parent_index}/{len(parents)}; valid children={len(children)}")
+    # A process pool needs at least one parent to give its workers.
+    if workers == 1 or not parent_identities:
+        parents, fit_rows, children, all_arrays = measure_and_refit_serially(
+            context, parent_identities, runtime, cache, line_maps, progress,
+        )
+    else:
+        parents, fit_rows, children, all_arrays = measure_and_refit_in_workers(
+            context, parent_identities, runtime, cache, line_maps, progress, workers,
+        )
     b_candidates = [parent for parent in parents if parent.get("hard_valid") and "evidence" in parent]
     c_candidates = b_candidates + children
     c_rankings = verifier["rank_candidates"](c_candidates)

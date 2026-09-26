@@ -208,7 +208,7 @@ def main() -> int:
     parser.add_argument("--feet", type=Path, help="the baseline's feet file, {view ID: all_feet_px}")
     parser.add_argument("--artefacts", action="store_true", help="write each view's intermediate results")
     parser.add_argument("--timing", action="store_true")
-    parser.add_argument("--workers", type=int, default=1, help="processes for independent direction pairs")
+    parser.add_argument("--workers", type=int, default=1, help="processes for direction pairs and candidate scoring")
     parser.add_argument("--no-self-checks", action="store_true")
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")

@@ -52,7 +52,7 @@ class Switches:
     geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
-    workers: int = 1  # independent search pairs; run_views limits numerical libraries to one thread
+    workers: int = 1  # search pairs and scoring; run_views limits numerical libraries to one thread
 
     def __post_init__(self) -> None:
         if self.workers < 1:
@@ -97,28 +97,29 @@ class Laps:
         self._last = now
 
 
+def measurement_runtime() -> dict[str, Any]:
+    """The shared measurement functions, without changing OpenCV's thread setting."""
+    from . import court_checks, measurements, players
+
+    return {"verifier": vars(measurements), "gate_evidence": court_checks.gate_evidence, "zone": players}
+
+
 def load_live_modules() -> LiveModules:
     """Load the detector's package modules with one shared measurement context."""
     from . import (
         candidate_pool,
-        court_checks,
         directions,
         generation,
         geometry,
         line_templates,
         measurements,
-        players,
         scoring,
         search_records,
     )
     from .sampling import prepared_measurements
 
     cv2.setNumThreads(1)
-    runtime = {
-        "verifier": vars(measurements),
-        "gate_evidence": court_checks.gate_evidence,
-        "zone": players,
-    }
+    runtime = measurement_runtime()
     return LiveModules(scoring, measurements, search_records, generation, candidate_pool,
                        line_templates, directions, geometry, prepared_measurements, runtime)
 
@@ -225,6 +226,7 @@ class CourtDetector:
         scored = live.run_w5.score_populations(
             context, populations["G0"], populations["G1"], templates, live.runtime, {},
             lambda message: print(f"[{view.view_id}] {message}", flush=True), self_checks=self_checks,
+            workers=self.switches.workers,
         )
         # As the baseline read it back from the case-record file.
         record = json.loads(json.dumps(live.verifier.jsonable({
