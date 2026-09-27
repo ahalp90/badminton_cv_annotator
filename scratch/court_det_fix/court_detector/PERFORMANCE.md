@@ -80,6 +80,16 @@ frame. PySceneDetect cuts suggest shot changes, but do not prove that camera
 geometry changed or stayed the same. Keep CPU-baseline differences separate
 from accuracy against a reference homography.
 
+Check frame identity when combining saved poses, annotations and trimmed video.
+The [BST-X decoder note](../../../src/bst_x/preparing_data/mmpose_changes.md)
+documents a 1–2-frame tail-count difference between older MMPose and TrackNet
+decoders. It reports matching indices before the tail, rather than a shifted
+sequence. A separate comment in
+[clip_generator.py](../../../src/bst_x/pipeline/clip_generator.py) records an
+unverified one-frame start-offset concern in the MoviePy clipping path.
+Neither justifies silently shifting pose indices or accepting a larger trim
+discrepancy. Check decoded source-frame identity before using a new clip.
+
 If minor precision or rounding changes alter court quality, retain the case and
 its calibration impact as a detector-stability issue for the stage after
 performance tuning. Do not hide the issue with tolerance adjustments.
