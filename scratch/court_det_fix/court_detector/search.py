@@ -77,7 +77,7 @@ def paint_mask(source: dict, frame: np.ndarray, scale: np.ndarray) -> np.ndarray
     :param frame: Native BGR frame.
     :param scale: Native pixels per working pixel, as (x, y).
     """
-    fragments = np.asarray(source['segments_px'], dtype=float)
+    fragments = np.asarray(source['segments_px'], dtype=float).reshape(-1, 4)
     contrast, saturation = features(profiles(frame, fragments, scale))[:, :2].T
     return (contrast >= PAINT_CONTRAST) & (saturation <= PAINT_SATURATION)
 

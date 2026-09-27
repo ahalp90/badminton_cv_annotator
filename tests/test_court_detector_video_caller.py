@@ -8,7 +8,11 @@ import numpy as np
 import pytest
 
 from scratch.court_det_fix.court_detector import run_video
-from scratch.court_det_fix.court_detector.detect import CourtResult, Switches
+from scratch.court_det_fix.court_detector.detect import (
+    CourtDetector,
+    CourtResult,
+    Switches,
+)
 from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
 from scratch.court_det_fix.court_detector.run_video import scene_courts, validate_scenes
 from scratch.court_det_fix.court_detector.scene_sources import SceneInfo
@@ -79,6 +83,22 @@ def test_optional_people_uses_supplied_pose_source() -> None:
                             video_id='clip'))
     assert rows[0]['status'] == 'no_court'
     np.testing.assert_array_equal(detector.views[0].person_boxes_px, [[4, 2, 30, 40]])
+
+
+@pytest.mark.parametrize('with_people', [False, True])
+def test_empty_line_extract_returns_no_court_and_continues_video(with_people: bool) -> None:
+    class EmptyThenSingleLine(Lines):
+        def segments(self, frame: np.ndarray, frame_index: int) -> np.ndarray:
+            segments = super().segments(frame, frame_index)
+            return segments[:0] if frame_index == 4 else segments
+
+    detector = CourtDetector(Switches(require_people=False))
+    lines = EmptyThenSingleLine()
+    rows = list(scene_courts(detector, Frames(), People() if with_people else None, lines,
+                            [SceneInfo(0, 9), SceneInfo(10, 19)], video_id='clip'))
+    assert lines.indices == [4, 14]
+    assert [row['status'] for row in rows] == ['no_court', 'no_court']
+    assert [row['no_court_reason'] for row in rows] == ['no_gated_court', 'no_gated_court']
 
 
 def test_required_people_rejects_missing_source() -> None:
