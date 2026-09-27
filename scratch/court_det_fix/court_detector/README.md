@@ -122,6 +122,9 @@ those figures do not measure the combined peak of every process.
 The video caller can run DeepLSD for lines and read frame-aligned RTMLib pose
 extracts. Omit `--people` to run the project's RTMLib extractor on the requested
 frames instead. Both live models load once.
+DeepLSD uses gradient validation by default. This matches the saved amateur
+example's line extract; the less selective hard variant remains available through
+`DeepLSDLines(..., grad_nfa=False)`.
 
 ```bash
 PYTHONPATH=.:src python -m scratch.court_det_fix.court_detector.run_video \

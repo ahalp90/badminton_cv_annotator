@@ -71,7 +71,8 @@ class DeepLSDLines:
 
     The exporter's helpers load the network once and compute its distance and
     angle fields. `detect_afm_lines` then uses the exporter's settings.
-    `grad_nfa=False` is the hard variant behind the saved inputs. Loading puts
+    Gradient validation defaults on, matching the saved amateur example.
+    Set `grad_nfa=False` to request the less selective hard variant. Loading puts
     the DeepLSD checkout first on `sys.path`, because DeepLSD is imported from
     that checkout rather than from an installed package.
     """
@@ -83,7 +84,7 @@ class DeepLSDLines:
         *,
         device: str = "cuda",
         max_dimension: int = 960,
-        grad_nfa: bool = False,
+        grad_nfa: bool = True,
     ) -> None:
         """Load the network once for every later frame.
 
@@ -91,7 +92,7 @@ class DeepLSDLines:
         :param weights: checkpoint file holding the network's `model` state.
         :param device: torch device; a CUDA request fails when CUDA is unavailable.
         :param max_dimension: longest side of the image the network sees.
-        :param grad_nfa: DeepLSD's gradient-based line validation; off for the hard variant.
+        :param grad_nfa: DeepLSD's gradient-based line validation; on by default, off for the hard variant.
         """
         # A missing checkout would let the import fall through to any installed deeplsd.
         if not source.is_dir():

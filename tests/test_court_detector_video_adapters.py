@@ -97,7 +97,7 @@ def test_deeplsd_loads_once_and_extracts_with_the_saved_export_settings(
     assert loads == [(tmp_path, tmp_path / "weights.tar", "cpu")]
     for extraction in network.extractions:
         options = {name: extraction[name] for name in ("filtering", "merge", "grad_thresh", "grad_nfa")}
-        assert options == {"filtering": "normal", "merge": False, "grad_thresh": 3, "grad_nfa": False}
+        assert options == {"filtering": "normal", "merge": False, "grad_thresh": 3, "grad_nfa": True}
 
 
 def test_deeplsd_resize_matches_the_saved_export() -> None:
