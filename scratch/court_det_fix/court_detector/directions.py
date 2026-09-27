@@ -154,6 +154,31 @@ def rectangle_population(
     return quads[convex], ranks[convex], ids
 
 
+def round_robin_union(pools: list[np.ndarray], limit: int) -> np.ndarray:
+    """Take one unseen rectangle per pool per round, preserving pool order."""
+    selected: list[int] = []
+    seen: set[int] = set()
+    active = [(pool, 0) for pool in pools if len(pool)]
+    while active and len(selected) < limit:
+        next_active = []
+        for pool, cursor in active:
+            pool_size = len(pool)
+            while cursor < pool_size and int(pool[cursor]) in seen:
+                cursor += 1
+            if cursor < pool_size:
+                index = int(pool[cursor])
+                selected.append(index)
+                seen.add(index)
+                cursor += 1
+            # Exhausted pools cannot contribute in later rounds.
+            if cursor < pool_size:
+                next_active.append((pool, cursor))
+            if len(selected) == limit:
+                break
+        active = next_active
+    return np.asarray(selected, dtype=int)
+
+
 def select(
     families: tuple[np.ndarray, np.ndarray], points: np.ndarray, size: tuple[int, int],
     detector_settings: detector.Settings, settings: Settings,
@@ -185,23 +210,7 @@ def select(
         chosen = (generator.choice(len(quads), detector_settings.max_rectangles, replace=False)
                   if len(quads) > detector_settings.max_rectangles else np.arange(len(quads)))
     else:
-        selected: list[int] = []
-        seen: set[int] = set()
-        cursors = np.zeros(len(pools), dtype=int)
-        while len(selected) < min(settings.rectangles, len(union)):
-            for pool_index, pool in enumerate(pools):
-                cursor = cursors[pool_index]
-                while cursor < len(pool) and int(pool[cursor]) in seen:
-                    cursor += 1
-                if cursor < len(pool):
-                    index = int(pool[cursor])
-                    selected.append(index)
-                    seen.add(index)
-                    cursor += 1
-                cursors[pool_index] = cursor
-                if len(selected) == settings.rectangles:
-                    break
-        chosen = np.asarray(selected, dtype=int)
+        chosen = round_robin_union(pools, min(settings.rectangles, len(union)))
     rectangles, area_ids = [], []
     for index in chosen:
         quad = quads[index].astype(np.float32)

@@ -23,6 +23,12 @@ from scratch.court_det_fix.court_detector import (
 COURT_WIDTH_M, COURT_LENGTH_M = players.COURT_SIZE_M
 
 
+@pytest.mark.parametrize(("limit", "expected"), [(0, []), (1, [3]), (3, [3, 1, 2]), (8, [3, 1, 2, 4])])
+def test_rectangle_round_robin_preserves_order_when_pools_run_out(limit: int, expected: list[int]) -> None:
+    pools = [np.array(pool, dtype=int) for pool in ([], [3, 1, 2], [3], [], [1, 4, 2], [])]
+    np.testing.assert_array_equal(directions.round_robin_union(pools, limit), expected)
+
+
 def axis_matches(parameters: np.ndarray) -> line_matching.AxisMatches:
     """Axis hypotheses that are all retained; only parameters and retained matter to the player test."""
     count = len(parameters)
