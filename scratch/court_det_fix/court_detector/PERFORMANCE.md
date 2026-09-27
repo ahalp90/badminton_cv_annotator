@@ -73,6 +73,13 @@ or candidate IDs. Measure calibration displacement in court metres as well as
 image pixels, including the far end separately. Perspective makes a pixel shift
 near the far baseline matter more than the same shift near the camera.
 
+**ShuttleSet's supplied ground-truth homography is static per video.** Camera
+perspective changes can make it wrong for the current shot, especially outside
+rallies. Use it as a yardstick and check visible court lines in the current
+frame. PySceneDetect cuts suggest shot changes, but do not prove that camera
+geometry changed or stayed the same. Keep CPU-baseline differences separate
+from accuracy against a reference homography.
+
 If minor precision or rounding changes alter court quality, retain the case and
 its calibration impact as a detector-stability issue for the stage after
 performance tuning. Do not hide the issue with tolerance adjustments.

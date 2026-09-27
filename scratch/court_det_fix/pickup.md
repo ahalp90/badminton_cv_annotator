@@ -1,5 +1,19 @@
 # Court detector: resume here
 
+## Read before judging ShuttleSet results
+
+**ShuttleSet's supplied ground-truth homography is a static template per video.**
+Camera perspective can change several times during a match and often changes
+outside rallies. The supplied homography can therefore be wrong for the current
+shot. Use it as a yardstick, not exact truth for every frame.
+
+PySceneDetect cuts help locate possible shot changes, but they can miss changes
+or split an unchanged view. Check current-frame court lines and image alignment
+when judging calibration or reuse. Keep differences from the CPU detector
+separate from accuracy against a reference homography.
+
+## Earlier handover
+
 Updated 27 September 2026. The detector works on prepared test images.
 It still needs to run much faster and build its inputs from a new video.
 Nothing is running. The next session is for GPU work, parallel work and Numba,
