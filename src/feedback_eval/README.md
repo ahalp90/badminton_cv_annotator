@@ -236,6 +236,13 @@ answers nothing on its own.
 
 543 held-out clips, `--model-type roberta-large`.
 
+`random_template` draws from 48 corrections over 16 templates, so 6.8% of draws
+(37 clips) land on the clip's own template and score 1.000. Those lucky hits
+lift its mean from 0.889 to 0.897; both numbers are floors worth quoting, and
+the lower one is the fairer "wrong fault, right register" figure. Across all
+543 clips no draw scored below **0.866** — the entire observed range of fluent
+coaching English against this reference set is 0.866 to 1.000.
+
 Two findings the report should carry:
 
 1. **The floor is 0.897, not 0.** Text that is fluent, in-domain and about the
