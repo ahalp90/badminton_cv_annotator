@@ -36,6 +36,25 @@ def test_direction_settings_equal_the_frozen_direction_file() -> None:
     assert json.dumps(DIRECTION_SETTINGS, sort_keys=True) == json.dumps(frozen, sort_keys=True)
 
 
+def test_measurement_record_is_strict_json_before_serialisation() -> None:
+    record = {
+        "coordinates": np.array([1.25, -0.0]),
+        "unavailable": [float("nan"), np.float32("inf"), np.float64("-inf")],
+        "count": np.int64(2),
+        "accepted": np.bool_(True),
+        "source": Path("court/frame.png"),
+        "nested": ({3: np.array([1, 2])},),
+    }
+    converted = measurements.jsonable(record)
+    expected = {
+        "coordinates": [1.25, -0.0], "unavailable": [None, None, None],
+        "count": 2, "accepted": True, "source": "court/frame.png", "nested": [{"3": [1, 2]}],
+    }
+    assert converted == expected
+    assert json.loads(json.dumps(converted, allow_nan=False)) == expected
+    assert np.signbit(converted["coordinates"][1])
+
+
 @pytest.mark.parametrize("load_runtime", [False, True])
 def test_package_imports_leave_paths_and_research_modules_alone(load_runtime: bool) -> None:
     imports = "\n".join(f"import scratch.court_det_fix.court_detector.{leaf}" for leaf in LEAVES)

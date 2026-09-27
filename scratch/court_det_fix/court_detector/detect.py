@@ -267,13 +267,12 @@ class CourtDetector:
             lambda message: print(f"[{view.view_id}] {message}", flush=True), self_checks=self_checks,
             workers=self.switches.workers,
         )
-        # As the baseline read it back from the case-record file.
-        record = json.loads(json.dumps(live.verifier.jsonable({
+        record = live.verifier.jsonable({
             "parents": [live.run_w5.public_candidate(parent) for parent in scored.parents],
             "valid_children": [live.run_w5.public_candidate(child) for child in scored.children],
             "fit_attempts": scored.fit_rows,
             "rankings": {"C": scored.c_rankings},
-        }), allow_nan=False, sort_keys=True))
+        })
         artefacts["w5"] = {"record": record, "identity_resolution": scored.identity_resolution}
         laps.lap("w5")
 
