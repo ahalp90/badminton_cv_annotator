@@ -130,3 +130,12 @@ def test_optional_short_window_uses_available_anchor_people() -> None:
     window = feet.window_feet(view, EmptyPeople(), BlankFrames(), True, allow_short_window=True)
     assert window.kept_frames == [0]
     assert window.all_feet_px == [[None, None]]
+
+
+@pytest.mark.parametrize(("counts", "possible"), [
+    ([], False), ([0], False), ([2, 0, 2], False), ([1, 2], True),
+    ([1, 1, 2], False), ([2, 2, 1], True), ([2], True),
+])
+def test_required_people_counts_are_necessary_not_a_court_position_check(counts: list[int], possible: bool) -> None:
+    rows = [[[1.0, 2.0]] * count + [None] * (2 - count) for count in counts]
+    assert feet.can_satisfy_player_requirement(rows) is possible

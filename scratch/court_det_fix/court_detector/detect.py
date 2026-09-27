@@ -190,6 +190,12 @@ class CourtDetector:
         freeze_arrays(context)
         laps.lap("context")
 
+        # Validate the view first. Diagnostic runs still need the actual candidate
+        # records for comparison, even when the required player counts cannot pass.
+        if (switches.require_people and switches.artefacts_dir is None
+                and not feet.can_satisfy_player_requirement(feet_window.all_feet_px)):
+            return self.finish(CourtResult(view.view_id, None, "no_gated_court", None, None), laps, artefacts)
+
         if known_courts:
             from .reuse import try_reuse
 

@@ -127,6 +127,17 @@ def standing_feet(samples: list[PersonSample], scale: np.ndarray, frame_size: tu
     return [row + [None] * (slots - len(row)) for row in rows]
 
 
+def can_satisfy_player_requirement(all_feet_px: list[list]) -> bool:
+    """Enough standing people to possibly pass the required court checks.
+
+    Each sample needs one person, and at least half need two. Their projected
+    court positions are checked later. standing_feet already removes non-finite
+    and off-image positions, so each non-None entry is a usable observation.
+    """
+    counts = [sum(foot is not None for foot in frame) for frame in all_feet_px]
+    return min(counts, default=0) >= 1 and sum(count >= 2 for count in counts) * 2 >= len(counts)
+
+
 def window_feet(view: ViewInputs, people: PeopleSource | None, frames: FrameReader,
                 enforce_scene_consistency: bool, allow_short_window: bool = False) -> FeetWindow:
     """Gather the standing feet around the view's frame.

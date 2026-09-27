@@ -95,6 +95,10 @@ proposals, court geometry, camera checks and the usual stripe fit. Player
 measurements remain unavailable rather than being treated as passing checks.
 This fallback has not been tuned for the same precision as detection with people.
 
+Required mode skips the candidate search when the sampled people cannot meet
+the existing occupancy checks. Runs with full artefacts still build candidate
+records so saved-run comparisons can inspect them.
+
 When people are supplied in optional mode, their boxes still mask occlusions
 and support the existing proposal search. Missing or off-court people do not
 veto the final choice. Short scenes use their anchor's people when available.

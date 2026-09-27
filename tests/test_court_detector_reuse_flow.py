@@ -1,5 +1,6 @@
 """Reuse and fallback share the prepared inputs and report the route taken."""
 from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,7 +15,13 @@ from scratch.court_det_fix.court_detector.inputs import (
 
 
 @pytest.mark.parametrize('accepted', [False, True])
-def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeypatch, accepted) -> None:
+@pytest.mark.parametrize(('switches', 'observations'), [
+    (detect.Switches(timing=True), [[4., 5.], [7., 8.]]),
+    (detect.Switches(timing=True, require_people=False), [None, None]),
+    (detect.Switches(timing=True, artefacts_dir=Path('unused')), [None, None]),
+])
+def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeypatch, accepted,
+                                                                      switches, observations) -> None:
     context = SimpleNamespace(families=[object()])
     prepared, searched, saved = [], [], []
 
@@ -22,12 +29,13 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
         prepared.append(args)
         return context
 
-    monkeypatch.setattr(detect.feet, 'window_feet', lambda *args: FeetWindow([50], None, [50], [[[4., 5.]]]))
+    monkeypatch.setattr(detect.feet, 'window_feet',
+                        lambda *args: FeetWindow([50], None, [50], [observations]))
     monkeypatch.setattr(detect.search, 'seed_points', lambda family: [])
     detector = object.__new__(detect.CourtDetector)
-    detector.switches = detect.Switches(timing=True)
+    detector.switches = switches
     detector.live = SimpleNamespace(
-        verifier=SimpleNamespace(view_context=prepare), runtime={}, court_model=None,
+        verifier=SimpleNamespace(view_context=prepare, write_json_gz=lambda *args: None), runtime={}, court_model=None,
         line_template_source=SimpleNamespace(generate=lambda *args, **kwargs: SimpleNamespace(entries=[], metadata={})),
         prepared_measurements=lambda verifier: nullcontext(),
     )
@@ -62,3 +70,18 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
     assert 'reuse' in result.stage_seconds
     if not accepted:
         assert saved[0]['reuse'] == [{'rejection': 'alignment_mismatch'}]
+
+
+def test_required_people_can_reject_before_candidate_search(monkeypatch) -> None:
+    monkeypatch.setattr(detect.feet, 'window_feet',
+                        lambda *args: FeetWindow([50], None, [50], [[None, None]]))
+    detector = object.__new__(detect.CourtDetector)
+    detector.switches = detect.Switches(timing=True)
+    detector.live = SimpleNamespace(verifier=SimpleNamespace(view_context=lambda *args: SimpleNamespace()))
+    frame = np.zeros((10, 20, 3), dtype=np.uint8)
+    view = ViewInputs('empty', frame, 50, (0, 99), np.empty((0, 4)), np.empty((0, 4)),
+                      same_frame_provenance('empty', 50))
+    result = detector.detect(view, object(), None)
+    assert result.no_court_reason == 'no_gated_court'
+    assert result.corners_native_px is None
+    assert list(result.stage_seconds) == ['feet', 'context']
