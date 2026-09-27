@@ -190,13 +190,16 @@ def select(
     transform = normalisation(size)
     normalised_points = points @ np.linalg.inv(transform).T
     masks = [angular_residuals(lines @ transform, normalised_points) <= settings.angle_deg for lines in families]
+    # Each row marks the rectangles supported by one vanishing point.
+    x_rectangles = masks[0][:, ranks[:, :2]].all(axis=2)
+    y_rectangles = masks[1][:, ranks[:, 2:]].all(axis=2)
     pools, pair_records = [], []
     for x_index in range(len(points)):
         for y_index in range(len(points)):
             if x_index == y_index:
                 continue
             x_mask, y_mask = masks[0][x_index], masks[1][y_index]
-            retained = x_mask[ranks[:, :2]].all(axis=1) & y_mask[ranks[:, 2:]].all(axis=1)
+            retained = x_rectangles[x_index] & y_rectangles[y_index]
             pool = np.flatnonzero(retained)
             generator = np.random.default_rng(detector_settings.seed)
             pools.append(generator.permutation(pool))
