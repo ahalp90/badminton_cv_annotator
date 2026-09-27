@@ -137,3 +137,11 @@ phase_a_stems.txt
 
 # Commentary-scraper output root (annotator/config.py default; BADMINTON_SCRAPE_DIR overrides)
 data/scrape_output/
+
+# COSC320 feedback-eval: derived artifacts, regenerated deterministically from
+# the tracked ShuttleSet annotations + template libraries. See
+# src/feedback_eval/README.md for the commands. The split JSON, the score runs
+# and the figures ARE tracked: they are the evidence.
+data/feedback_eval/references_*.jsonl
+data/feedback_eval/shuttleset_clip_*.csv
+experiments/feedback_eval/*/predictions_*.jsonl

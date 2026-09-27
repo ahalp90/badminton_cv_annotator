@@ -15,7 +15,13 @@ model.
 ## The three commands
 
 ```bash
-# 3.1  build a reference set from the COSC595 commentary lane
+# 3.1a derive per-clip faults from ShuttleSet's expert annotations (the built route)
+python -m feedback_eval.shuttleset_faults --out-faults ... --out-players ...
+
+# 3.1b turn coaching templates + those faults into a reference set
+python -m feedback_eval.template_references --templates ... --clip-faults ... --players ... --out ...
+
+# 3.1c or from the COSC595 commentary lane, once that pipeline has been run
 python -m feedback_eval.commentary_references --pairs ... --chunks-dir ... --players ... --out ...
 
 # 3.2  partition players once, and keep the file
@@ -42,6 +48,7 @@ Two JSONL files, joined on `clip_id`.
   *The split* below for why this is a list.
 - `source` — `expert`, `template` or `commentary`. Kept per clip because the
   three support different claims and the report has to be able to say which.
+  Only a genuine per-clip assessment may be recorded as `expert`.
 
 `predictions.jsonl` — one file per model version:
 
@@ -128,6 +135,156 @@ rally dataset contract is explicit that `rally_id` is a list position and is
 **not** stable across extraction runs, so pass `--run-id` whenever references and
 predictions could come from different runs.
 
+## Coaching templates (task 3.1, the unblocked route)
+
+`templates.py` holds feedback keyed by **fault** rather than by clip: what a
+coach says when a player meets the shuttle behind the body, whoever that player
+is. This is the proposal's primary reference plan, chosen so evaluation is
+"never blocked on securing an expert" — it needs no GPU, no API budget, and no
+other team's pipeline output.
+
+The shipped library is `data/feedback_eval/templates/badminton_singles_v1.jsonl`
+— 16 templates across serve, net play, defence, overhead, movement, recovery,
+grip, positioning and tactics, each with at least three phrasings of the
+correction.
+
+```bash
+python -m feedback_eval.template_references \
+    --templates data/feedback_eval/templates/badminton_singles_v1.jsonl \
+    --clip-faults data/feedback_eval/clip_faults.csv \
+    --players data/feedback_eval/clip_players.csv \
+    --out data/feedback_eval/references.jsonl
+```
+
+`clip_faults.csv` is `clip_id,template_id`, one row per fault the clip shows; a
+clip with two faults takes the union of both templates' corrections, because
+feedback naming either real fault is not wrong. Deciding which faults a clip
+shows is a human judgement and `template_references.py` does not make it —
+something has to watch the clip. For the cause-keyed library above, nobody has;
+`shuttleset_faults.py` below is the route that got around it.
+
+## The ShuttleSet reference set (task 3.1, built)
+
+The clip-labelling cost above was the last thing between the harness and a real
+reference set: somebody had to watch several thousand rallies and say what went
+wrong in each. **They already did.** ShuttleSet annotates, for every rally, the
+shot that ended it, who played it, and how the rally was lost. That is an
+expert's per-rally record of the fault, published with the dataset.
+
+```bash
+python -m feedback_eval.shuttleset_faults \
+    --out-faults data/feedback_eval/shuttleset_clip_faults.csv \
+    --out-players data/feedback_eval/shuttleset_clip_players.csv
+```
+
+**What this derivation claims.** ShuttleSet records the *outcome* of the
+terminal shot — the shuttle went out, or into the net — not its *technical
+cause*. Mapping "smash hit out" back to "no trunk rotation" would be an
+inference the data cannot support, and the reference set would look rigorous
+while laundering a guess. So this route targets a second, **outcome-keyed**
+library, `badminton_singles_shuttleset_v1.jsonl`: 16 templates over eight stroke
+families × two error modes. The fault statement is annotated; only the
+correction text is drafted.
+
+Three classes of rally are excluded, and each is counted:
+
+| Excluded | Rallies | Why |
+|---|---|---|
+| ended in a clean winner | 1189 | the loser made no recorded error; a fault would have to be invented |
+| ambiguous `lose_reason` | 55 | the misjudgement label does not consistently identify who erred |
+| point credited to the erring player | 14 | annotation noise: you cannot lose the point you erred on and win it |
+| stroke type `未知球種` | 3 | no family to key a template to |
+
+That leaves **2247 clips over 27 players**, from 3508 annotated rallies.
+
+### The split this corpus actually admits
+
+`build_split` refused the first seeded 30% split outright: the three players it
+drew shared every one of their clips with a train player, so the test side was
+empty. That is not a bug, it is what a strict player-disjoint rule does to a
+densely-connected tournament corpus, and it is worth reporting.
+
+The co-occurrence graph has **four connected components** (16, 7, 2, 2 players),
+so a cut along component boundaries discards nothing. Putting the three smaller
+components in test gives **1704 train / 543 test clips, 0 discarded**:
+
+```bash
+python -m feedback_eval.split_cli --references data/feedback_eval/references_shuttleset_v1.jsonl \
+    --test-player "An Se Young" --test-player "Carolina MARIN" ... \
+    --out data/feedback_eval/split_shuttleset_v1.json
+```
+
+**Caveat that has to reach the report:** those components are the men's and
+women's draws, so this split is sex-disjoint as well as player-disjoint. Test
+performance therefore confounds "unseen player" with "different game". It is
+still the right split for an A-vs-B comparison, where both versions face the
+same shift, and it is the wrong basis for any absolute claim.
+
+## What the baselines say (the band to read scores against)
+
+`baselines.py` generates model-free predictions over the reference set — no GPU,
+no checkpoint — and scores them through exactly the same path a real model
+version will use. They exist because a single BERTScore number from Version A
+answers nothing on its own.
+
+| Baseline | Raw F1 | Rescaled F1 |
+|---|---|---|
+| `empty` — no output | 0.000 | 0.000 |
+| `constant` — same generic advice on every clip | 0.879 | 0.282 |
+| `random_template` — real coaching text, wrong fault | 0.897 | 0.387 |
+| `oracle` — copies the reference | 1.000 | 1.000 |
+
+543 held-out clips, `--model-type roberta-large`.
+
+Two findings the report should carry:
+
+1. **The floor is 0.897, not 0.** Text that is fluent, in-domain and about the
+   *wrong fault* already scores 0.897 raw. A Version A below that has
+   demonstrated nothing, and a Version A at 0.91 has demonstrated very little.
+   The interesting quantity is the distance above `random_template`, not the
+   score.
+2. **Pin `--rescale-with-baseline` for the A/B comparison.** Rescaling widens
+   the `constant`→`random_template` gap from 0.018 to 0.105, roughly sixfold.
+   That gap is the resolution the harness has to detect a real difference
+   between model versions, and the raw scale spends almost all of its range on
+   text being English.
+
+Figures: `experiments/feedback_eval/shuttleset_v1/figures/`, regenerated by
+`scripts/feedback_eval/plot_shuttleset_v1.py`.
+
+### Provenance is mandatory
+
+Every template records where it came from, because three sources support three
+different claims and the weakest is the one that quietly poses as the others:
+
+| kind | meaning | strength |
+|---|---|---|
+| `publication` | quoted from a book, manual or paper; `detail` is the citation | strongest |
+| `transcript` | from a coaching video; `detail` names channel, video and time | good |
+| `drafted` | written by the team from general coaching knowledge, traced to no source | weakest |
+
+`library_summary()` counts the mix so the report can state it. **The shipped
+library is entirely `drafted`** — usable, honest, and the thing to upgrade
+first. A test asserts this, so if the mix ever changes the claim is re-examined
+deliberately rather than by accident.
+
+### Growing the library from coaching videos
+
+Match commentary is *descriptive* ("lovely drop shot"). Coaching videos are
+*corrective* ("you're taking it too late, start your racket earlier"), which is
+the language a reference set actually needs — and the gap the commentary route
+cannot close.
+
+The repo already has most of the machinery: `scraper.transcript_acquisition`
+pulls speech to text with Whisper, and `scraper.commentary_cleaning` cleans a
+chunk and generates alternate phrasings of it — the same multi-phrasing shape
+`corrections` wants, for the same reason. Point that at coaching videos rather
+than match broadcasts, then write each fault/correction pair into the library
+with `kind: "transcript"` and the channel, video id and timestamp in `detail`.
+
+Unlike the commentary route, this produces a **fault → correction** library
+rather than per-clip references, which is exactly what a template set is.
+
 ## Reading the numbers
 
 **BERTScore is not an absolute quantity.** Raw F1 sits in a compressed high band
@@ -179,7 +336,24 @@ python -m feedback_eval.score_cli \
 
 ## Not done yet
 
-- **A real reference set.** The adapter is written and tested against the
+- **A model version to score.** This is now the only thing between the harness
+  and a Version A result. The reference set, the split and the baselines are
+  built; what is missing is a `predictions.jsonl` — feedback generated for the
+  543 test clips. `src/mllm/` on `mllm_coach` runs InternVideo3 on a single clip
+  and prints a description; it needs batch inference over a clip list and
+  JSONL output in the shape `records.load_predictions` reads.
+- **Clips.** The derivation runs off ShuttleSet's annotation CSVs, which are in
+  the repo; the **videos are not**. Generating predictions needs the rally clips
+  cut from the source matches.
+- **Attaching the cause-keyed templates to clips.** `badminton_singles_v1.jsonl`
+  (16 cause-keyed templates: late preparation, no trunk rotation, …) still has
+  no `clip_faults.csv`, and deriving one from ShuttleSet is exactly the
+  inference the outcome-keyed route was built to avoid. It needs someone to
+  watch clips.
+- **Upgrading template provenance.** All 32 shipped templates across both
+  libraries are `drafted`. Coaching-video transcripts and published coaching
+  manuals both raise that.
+- **A commentary reference set.** The adapter is written and tested against the
   scraper's file contracts, but **nobody has run the pipeline that produces
   them**: there is no `data/scrape_output/`, no `rally_commentary_pairs.csv` and
   no `chunks/` anywhere in the repo. `src/scraper/commentary_pairing.py` and its
@@ -193,12 +367,9 @@ python -m feedback_eval.score_cli \
 ## Tests
 
 ```bash
-python -m pytest tests/test_feedback_eval_records.py \
-                 tests/test_feedback_eval_scoring.py \
-                 tests/test_feedback_eval_splits.py \
-                 tests/test_feedback_eval_commentary_references.py \
-                 tests/test_feedback_eval_cli.py
+python -m pytest tests/test_feedback_eval_*.py
 ```
 
-All 94 run on CPU with no transformers install: the scorer is injected, so the
-tests drive a fake with the same signature as `bert_score.BERTScorer.score`.
+All 149 run on CPU in well under a second with no transformers install: the
+scorer is injected, so the tests drive a fake with the same signature as
+`bert_score.BERTScorer.score`.

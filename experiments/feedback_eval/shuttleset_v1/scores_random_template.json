@@ -1,0 +1,6025 @@
+{
+  "model_version": "random_template",
+  "scorer": {
+    "model_type": "roberta-large",
+    "lang": "en",
+    "rescale_with_baseline": false,
+    "batch_size": 16
+  },
+  "aggregates": {
+    "n_clips": 543,
+    "n_players": 11,
+    "n_empty_predictions": 0,
+    "mean_precision": 0.897962043188773,
+    "mean_recall": 0.8961206525289771,
+    "mean_f1": 0.8964810388961989,
+    "stdev_f1": 0.03091180031471891
+  },
+  "mean_f1_by_player": {
+    "An Se Young": 0.896883869067931,
+    "Busanan ONGBAMRUNGPHAN": 0.8981699727951212,
+    "Carolina MARIN": 0.8956516050655423,
+    "Evgeniya KOSETSKAYA": 0.8979634229017763,
+    "Mia BLICHFELDT": 0.8981699727951212,
+    "Michelle LI": 0.8979634229017763,
+    "Neslihan YIGIT": 0.8967226705652602,
+    "PUSARLA V. Sindhu": 0.8967237217085702,
+    "Pornpawee CHOCHUWONG": 0.8974395096302032,
+    "Ratchanok INTANON": 0.8949986740629724,
+    "Supanida KATETHONG": 0.892421619016297
+  },
+  "clips": [
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r4",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8720853328704834,
+      "recall": 0.8687956929206848,
+      "f1": 0.8699305057525635,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r5",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8980040550231934,
+      "recall": 0.892386794090271,
+      "f1": 0.8951866626739502,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r6",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8754600286483765,
+      "recall": 0.887006938457489,
+      "f1": 0.8811957240104675,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r8",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r9",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8818959593772888,
+      "recall": 0.8651350736618042,
+      "f1": 0.8734351396560669,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r11",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8903824090957642,
+      "recall": 0.8775984644889832,
+      "f1": 0.8839442729949951,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8989576697349548,
+      "recall": 0.8894600868225098,
+      "f1": 0.8941836357116699,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r13",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8810569047927856,
+      "recall": 0.885988712310791,
+      "f1": 0.8791849613189697,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r15",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9221024513244629,
+      "recall": 0.9091942310333252,
+      "f1": 0.9156028032302856,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r16",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8862466812133789,
+      "recall": 0.8980929851531982,
+      "f1": 0.8921304941177368,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r17",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8854154348373413,
+      "recall": 0.906795859336853,
+      "f1": 0.8959781527519226,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r18",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9009210467338562,
+      "recall": 0.8896577954292297,
+      "f1": 0.8952539563179016,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r19",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8809782266616821,
+      "recall": 0.8665615916252136,
+      "f1": 0.8737104535102844,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r21",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8994074463844299,
+      "recall": 0.9092744588851929,
+      "f1": 0.9043139815330505,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r22",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r25",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8856044411659241,
+      "recall": 0.8592027425765991,
+      "f1": 0.8716853260993958,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r26",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9064090251922607,
+      "recall": 0.8928326964378357,
+      "f1": 0.8995696306228638,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r27",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.890001118183136,
+      "recall": 0.8995375037193298,
+      "f1": 0.8947439193725586,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r28",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.892139732837677,
+      "recall": 0.8884615898132324,
+      "f1": 0.889022171497345,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r30",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8835733532905579,
+      "recall": 0.877101480960846,
+      "f1": 0.8803255558013916,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r32",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8805866241455078,
+      "recall": 0.8722859621047974,
+      "f1": 0.8764166235923767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r33",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8939729928970337,
+      "recall": 0.8687083721160889,
+      "f1": 0.8811596632003784,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r36",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8912917375564575,
+      "recall": 0.8927078247070312,
+      "f1": 0.889522910118103,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r1",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8948943018913269,
+      "recall": 0.9037580490112305,
+      "f1": 0.8993042707443237,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8886557221412659,
+      "recall": 0.8994563817977905,
+      "f1": 0.8940234184265137,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r3",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8983979225158691,
+      "recall": 0.8959563970565796,
+      "f1": 0.8953115344047546,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9035502076148987,
+      "recall": 0.905931293964386,
+      "f1": 0.9043164253234863,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8925830125808716,
+      "recall": 0.9041171073913574,
+      "f1": 0.898313045501709,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r9",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.89349764585495,
+      "recall": 0.8812803030014038,
+      "f1": 0.8828088641166687,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.887361466884613,
+      "recall": 0.8870560526847839,
+      "f1": 0.8872087001800537,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r11",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8931557536125183,
+      "recall": 0.8904373645782471,
+      "f1": 0.8917944431304932,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r12",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9096182584762573,
+      "recall": 0.9015876054763794,
+      "f1": 0.9055851101875305,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9111190438270569,
+      "recall": 0.9048749208450317,
+      "f1": 0.9079862236976624,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r14",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8757685422897339,
+      "recall": 0.8747268915176392,
+      "f1": 0.8709412217140198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r15",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8896738290786743,
+      "recall": 0.8823304176330566,
+      "f1": 0.885986864566803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r17",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8745274543762207,
+      "recall": 0.8823342323303223,
+      "f1": 0.8775861859321594,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r18",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8839023113250732,
+      "recall": 0.8861052393913269,
+      "f1": 0.8848655223846436,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r19",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r20",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8894039392471313,
+      "recall": 0.8922199606895447,
+      "f1": 0.8885334730148315,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r21",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8948943018913269,
+      "recall": 0.9037580490112305,
+      "f1": 0.8993042707443237,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r23",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8947257995605469,
+      "recall": 0.896637499332428,
+      "f1": 0.8956806659698486,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r24",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.88912433385849,
+      "recall": 0.8952838778495789,
+      "f1": 0.8921934366226196,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r25",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.893397331237793,
+      "recall": 0.8941489458084106,
+      "f1": 0.8937729597091675,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r26",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9023872017860413,
+      "recall": 0.8998503684997559,
+      "f1": 0.9011170268058777,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r27",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8798776268959045,
+      "recall": 0.8837271928787231,
+      "f1": 0.8811773657798767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r28",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8747805953025818,
+      "recall": 0.8777966499328613,
+      "f1": 0.8756797909736633,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r30",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8732957243919373,
+      "recall": 0.874643087387085,
+      "f1": 0.8739688396453857,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r32",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8823103904724121,
+      "recall": 0.8858489990234375,
+      "f1": 0.8780465722084045,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r33",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r35",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9077321887016296,
+      "recall": 0.8916719555854797,
+      "f1": 0.8996303677558899,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r36",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9127103686332703,
+      "recall": 0.9000582098960876,
+      "f1": 0.9063401222229004,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Pornpawee_Chochuwong_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r38",
+      "player_ids": [
+        "An Se Young",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8748584985733032,
+      "recall": 0.8795546293258667,
+      "f1": 0.8772002458572388,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r1",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8643592596054077,
+      "recall": 0.8668867349624634,
+      "f1": 0.8656211495399475,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r2",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8909061551094055,
+      "recall": 0.8962455987930298,
+      "f1": 0.8935678601264954,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r4",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8821575045585632,
+      "recall": 0.8772518634796143,
+      "f1": 0.8789850473403931,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r6",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8643592596054077,
+      "recall": 0.8668867349624634,
+      "f1": 0.8656211495399475,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r8",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r9",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9111190438270569,
+      "recall": 0.9048749208450317,
+      "f1": 0.9079862236976624,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r10",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8798776268959045,
+      "recall": 0.8837271928787231,
+      "f1": 0.8811773657798767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r11",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8960338234901428,
+      "recall": 0.8945193290710449,
+      "f1": 0.8951395153999329,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.891778290271759,
+      "recall": 0.8798003196716309,
+      "f1": 0.8857488632202148,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r14",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r17",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.887361466884613,
+      "recall": 0.8870560526847839,
+      "f1": 0.8872087001800537,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r18",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8809782266616821,
+      "recall": 0.8665615916252136,
+      "f1": 0.8737104535102844,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r20",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8814635276794434,
+      "recall": 0.8989993333816528,
+      "f1": 0.8901450634002686,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r22",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8942748308181763,
+      "recall": 0.912423849105835,
+      "f1": 0.9032581448554993,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r23",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9010564088821411,
+      "recall": 0.8844437003135681,
+      "f1": 0.8926727771759033,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r24",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8824825882911682,
+      "recall": 0.8793309926986694,
+      "f1": 0.880903959274292,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r25",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9092744588851929,
+      "recall": 0.8994074463844299,
+      "f1": 0.9043139815330505,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r26",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8964332342147827,
+      "recall": 0.8923785090446472,
+      "f1": 0.8944013118743896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r27",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8663222789764404,
+      "recall": 0.8803743720054626,
+      "f1": 0.8732917308807373,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r28",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8844568133354187,
+      "recall": 0.8730422854423523,
+      "f1": 0.87871253490448,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r30",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9009210467338562,
+      "recall": 0.8896577954292297,
+      "f1": 0.8952539563179016,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r32",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8791331648826599,
+      "recall": 0.8584394454956055,
+      "f1": 0.8686630725860596,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r33",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8804293870925903,
+      "recall": 0.9132677316665649,
+      "f1": 0.8965479135513306,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r39",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r40",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8974801301956177,
+      "recall": 0.9002779722213745,
+      "f1": 0.8974282741546631,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r41",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8837862014770508,
+      "recall": 0.8552017211914062,
+      "f1": 0.8692590594291687,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s1_r42",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r1",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8853749632835388,
+      "recall": 0.8883056640625,
+      "f1": 0.886415958404541,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8866506218910217,
+      "recall": 0.8861385583877563,
+      "f1": 0.8863945007324219,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r3",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 1.0000001192092896,
+      "recall": 1.0000001192092896,
+      "f1": 1.0000001192092896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8807469010353088,
+      "recall": 0.8684657216072083,
+      "f1": 0.8745631575584412,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r5",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8952710032463074,
+      "recall": 0.8864051699638367,
+      "f1": 0.8908160328865051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r6",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8964332342147827,
+      "recall": 0.8923785090446472,
+      "f1": 0.8944013118743896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8952710032463074,
+      "recall": 0.8864051699638367,
+      "f1": 0.8908160328865051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r8",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8808382749557495,
+      "recall": 0.8789915442466736,
+      "f1": 0.8799139261245728,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r9",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8753401637077332,
+      "recall": 0.8784777522087097,
+      "f1": 0.8760592937469482,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r11",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8996840715408325,
+      "recall": 0.8978970050811768,
+      "f1": 0.8987897038459778,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r14",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8997528553009033,
+      "recall": 0.8936120867729187,
+      "f1": 0.8966718912124634,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r15",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r16",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r17",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8757963180541992,
+      "recall": 0.8727879524230957,
+      "f1": 0.8742895126342773,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r18",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8831078410148621,
+      "recall": 0.8705571293830872,
+      "f1": 0.8720862865447998,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r20",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r21",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8778221607208252,
+      "recall": 0.8997712135314941,
+      "f1": 0.8886611461639404,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r22",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9004466533660889,
+      "recall": 0.8880773782730103,
+      "f1": 0.8942192196846008,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r23",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9440710544586182,
+      "recall": 0.9345616698265076,
+      "f1": 0.9392922520637512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r24",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8754600286483765,
+      "recall": 0.887006938457489,
+      "f1": 0.8811957240104675,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r25",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r26",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8937326669692993,
+      "recall": 0.8818193674087524,
+      "f1": 0.8846011161804199,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r29",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8903824090957642,
+      "recall": 0.8775984644889832,
+      "f1": 0.8839442729949951,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r30",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9014154076576233,
+      "recall": 0.9021512269973755,
+      "f1": 0.9017831087112427,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r31",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.9158467650413513,
+      "recall": 0.9173970222473145,
+      "f1": 0.916621208190918,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r32",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8691754937171936,
+      "recall": 0.8927780389785767,
+      "f1": 0.8800836205482483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "An_Se_Young_Ratchanok_Intanon_YONEX_Thailand_Open_2021_QuarterFinals_s2_r33",
+      "player_ids": [
+        "An Se Young",
+        "Ratchanok INTANON"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r1",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9077321887016296,
+      "recall": 0.8916719555854797,
+      "f1": 0.8996303677558899,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r2",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8879629373550415,
+      "recall": 0.8751233220100403,
+      "f1": 0.8814963698387146,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r3",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8791986703872681,
+      "recall": 0.872760534286499,
+      "f1": 0.8759677410125732,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r4",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9023153781890869,
+      "recall": 0.9101691246032715,
+      "f1": 0.9062252640724182,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r8",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r9",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8688602447509766,
+      "recall": 0.8675779104232788,
+      "f1": 0.8670447468757629,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r10",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9006364345550537,
+      "recall": 0.8919190764427185,
+      "f1": 0.8942304253578186,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r11",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8856629729270935,
+      "recall": 0.8726391792297363,
+      "f1": 0.8791028261184692,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r12",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9174461960792542,
+      "recall": 0.9076272249221802,
+      "f1": 0.9125102162361145,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r14",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.88912433385849,
+      "recall": 0.8952838778495789,
+      "f1": 0.8921934366226196,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r15",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8842917680740356,
+      "recall": 0.867547333240509,
+      "f1": 0.8741067051887512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r18",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r21",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8705088496208191,
+      "recall": 0.8716205358505249,
+      "f1": 0.8675851225852966,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r22",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9023216366767883,
+      "recall": 0.9002584218978882,
+      "f1": 0.894816517829895,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r23",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8869189620018005,
+      "recall": 0.8963414430618286,
+      "f1": 0.8890812397003174,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r24",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0000001192092896,
+      "recall": 1.0000001192092896,
+      "f1": 1.0000001192092896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r25",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8641868829727173,
+      "recall": 0.8753401637077332,
+      "f1": 0.8686231970787048,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r27",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8835733532905579,
+      "recall": 0.877101480960846,
+      "f1": 0.8803255558013916,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r28",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r32",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9015668034553528,
+      "recall": 0.8988251090049744,
+      "f1": 0.9001938700675964,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r33",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9346991181373596,
+      "recall": 0.9376190304756165,
+      "f1": 0.9361568093299866,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r34",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9013441205024719,
+      "recall": 0.8993940949440002,
+      "f1": 0.8955194354057312,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r35",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8807469010353088,
+      "recall": 0.8684657216072083,
+      "f1": 0.8745631575584412,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r37",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9064090251922607,
+      "recall": 0.8928326964378357,
+      "f1": 0.8995696306228638,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r1",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r2",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8952710032463074,
+      "recall": 0.8864051699638367,
+      "f1": 0.8908160328865051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r3",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8908878564834595,
+      "recall": 0.8972523212432861,
+      "f1": 0.8940587639808655,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r4",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8903824090957642,
+      "recall": 0.8775984644889832,
+      "f1": 0.8839442729949951,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r5",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r6",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8880773782730103,
+      "recall": 0.9004466533660889,
+      "f1": 0.8942192196846008,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r9",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8896549940109253,
+      "recall": 0.8628690242767334,
+      "f1": 0.8760573267936707,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r10",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9080004096031189,
+      "recall": 0.9036822319030762,
+      "f1": 0.9058361053466797,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r12",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8959170579910278,
+      "recall": 0.8945685625076294,
+      "f1": 0.8952423334121704,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r14",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r15",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.899562418460846,
+      "recall": 0.8893508911132812,
+      "f1": 0.8944275379180908,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r17",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8964332342147827,
+      "recall": 0.8923785090446472,
+      "f1": 0.8944013118743896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r18",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8861891031265259,
+      "recall": 0.8787900805473328,
+      "f1": 0.8822868466377258,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r19",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8753401637077332,
+      "recall": 0.8784777522087097,
+      "f1": 0.8760592937469482,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r20",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8842917680740356,
+      "recall": 0.867547333240509,
+      "f1": 0.8741067051887512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r21",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.891339898109436,
+      "recall": 0.8930020928382874,
+      "f1": 0.8921701908111572,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r25",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8997007012367249,
+      "recall": 0.8960666060447693,
+      "f1": 0.8975664973258972,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r26",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9119526147842407,
+      "recall": 0.9042426943778992,
+      "f1": 0.9080813527107239,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r27",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8811578154563904,
+      "recall": 0.8983979225158691,
+      "f1": 0.8896942734718323,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r33",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8811578154563904,
+      "recall": 0.8983979225158691,
+      "f1": 0.8896942734718323,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r34",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8862979412078857,
+      "recall": 0.8897942304611206,
+      "f1": 0.8831093311309814,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r1",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8959563970565796,
+      "recall": 0.8946675658226013,
+      "f1": 0.8953115344047546,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r4",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8964332342147827,
+      "recall": 0.8923785090446472,
+      "f1": 0.8944013118743896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r5",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8957725167274475,
+      "recall": 0.8981426358222961,
+      "f1": 0.8925368785858154,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r7",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9024029970169067,
+      "recall": 0.8927792310714722,
+      "f1": 0.8975653052330017,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r9",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8993781805038452,
+      "recall": 0.8983944654464722,
+      "f1": 0.8988860845565796,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r10",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8797711133956909,
+      "recall": 0.8835000991821289,
+      "f1": 0.8787920475006104,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r11",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.885930061340332,
+      "recall": 0.8703804016113281,
+      "f1": 0.8780465722084045,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r12",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8907166719436646,
+      "recall": 0.8878123760223389,
+      "f1": 0.8848851323127747,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r13",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9109998941421509,
+      "recall": 0.9066277146339417,
+      "f1": 0.9076648950576782,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r14",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8730548024177551,
+      "recall": 0.8983057737350464,
+      "f1": 0.8855002522468567,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r17",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8818679451942444,
+      "recall": 0.8792716264724731,
+      "f1": 0.8805678486824036,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r19",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8884906768798828,
+      "recall": 0.8977909684181213,
+      "f1": 0.8890551924705505,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r21",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9243918061256409,
+      "recall": 0.9006696343421936,
+      "f1": 0.9123765230178833,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r22",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9243918061256409,
+      "recall": 0.9006696343421936,
+      "f1": 0.9123765230178833,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r23",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8959243893623352,
+      "recall": 0.8857789039611816,
+      "f1": 0.8908227682113647,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r24",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8756768107414246,
+      "recall": 0.8696972131729126,
+      "f1": 0.8723534345626831,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r25",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9049732089042664,
+      "recall": 0.8986594080924988,
+      "f1": 0.9018052816390991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r26",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8839023113250732,
+      "recall": 0.8861052393913269,
+      "f1": 0.8848655223846436,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r27",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8971150517463684,
+      "recall": 0.8979825973510742,
+      "f1": 0.8975486755371094,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r28",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8948943018913269,
+      "recall": 0.9037580490112305,
+      "f1": 0.8993042707443237,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r29",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8770569562911987,
+      "recall": 0.8782128691673279,
+      "f1": 0.8776345252990723,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r30",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8835733532905579,
+      "recall": 0.877101480960846,
+      "f1": 0.8803255558013916,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r31",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8861606121063232,
+      "recall": 0.8930608034133911,
+      "f1": 0.8895972967147827,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r34",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r35",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8663222789764404,
+      "recall": 0.8803743720054626,
+      "f1": 0.8732917308807373,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r36",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8811806440353394,
+      "recall": 0.8769155144691467,
+      "f1": 0.8790428638458252,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r38",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8766435384750366,
+      "recall": 0.878696620464325,
+      "f1": 0.8776689171791077,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r39",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.8813453316688538,
+      "recall": 0.8745284080505371,
+      "f1": 0.8779236674308777,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s3_r40",
+      "player_ids": [
+        "An Se Young",
+        "Carolina MARIN"
+      ],
+      "precision": 0.9346991181373596,
+      "recall": 0.9376190304756165,
+      "f1": 0.9361568093299866,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8852735161781311,
+      "recall": 0.8836418390274048,
+      "f1": 0.8844568729400635,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8903561234474182,
+      "recall": 0.8895877003669739,
+      "f1": 0.8899717926979065,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.880295991897583,
+      "recall": 0.8866249322891235,
+      "f1": 0.883449137210846,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r8",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8879042267799377,
+      "recall": 0.8874913454055786,
+      "f1": 0.887697696685791,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9015668034553528,
+      "recall": 0.8988251090049744,
+      "f1": 0.9001938700675964,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r11",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8903001546859741,
+      "recall": 0.8944512009620667,
+      "f1": 0.8923708200454712,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r13",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9049732089042664,
+      "recall": 0.8986594080924988,
+      "f1": 0.9018052816390991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r17",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8730548024177551,
+      "recall": 0.8983057737350464,
+      "f1": 0.8855002522468567,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8732343912124634,
+      "recall": 0.8794662952423096,
+      "f1": 0.8763392567634583,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9049732089042664,
+      "recall": 0.8986594080924988,
+      "f1": 0.9018052816390991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r20",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9111190438270569,
+      "recall": 0.9048749208450317,
+      "f1": 0.9079862236976624,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8730548024177551,
+      "recall": 0.8983057737350464,
+      "f1": 0.8855002522468567,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r26",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9080004096031189,
+      "recall": 0.9036822319030762,
+      "f1": 0.9058361053466797,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r27",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8921933770179749,
+      "recall": 0.8766988515853882,
+      "f1": 0.88437819480896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r28",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8746097683906555,
+      "recall": 0.8845124244689941,
+      "f1": 0.8785302042961121,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8804293870925903,
+      "recall": 0.9132677316665649,
+      "f1": 0.8965479135513306,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r32",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8888148665428162,
+      "recall": 0.8856779932975769,
+      "f1": 0.8872436881065369,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r33",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8862979412078857,
+      "recall": 0.8897942304611206,
+      "f1": 0.8831093311309814,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r34",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8847540616989136,
+      "recall": 0.8834289908409119,
+      "f1": 0.8812894821166992,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r35",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.885930061340332,
+      "recall": 0.8703804016113281,
+      "f1": 0.8780465722084045,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r36",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9064090251922607,
+      "recall": 0.8928326964378357,
+      "f1": 0.8995696306228638,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r37",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r38",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8907166719436646,
+      "recall": 0.8878123760223389,
+      "f1": 0.8848851323127747,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s1_r39",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8701480627059937,
+      "recall": 0.8704569935798645,
+      "f1": 0.8703024387359619,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8791331648826599,
+      "recall": 0.8584394454956055,
+      "f1": 0.8686630725860596,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 1.0000001192092896,
+      "recall": 1.0000001192092896,
+      "f1": 1.0000001192092896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r3",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8804157376289368,
+      "recall": 0.8691927194595337,
+      "f1": 0.8747681975364685,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8753401637077332,
+      "recall": 0.8784777522087097,
+      "f1": 0.8760592937469482,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r5",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8932241797447205,
+      "recall": 0.8944936990737915,
+      "f1": 0.8938584923744202,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r7",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8807469010353088,
+      "recall": 0.8684657216072083,
+      "f1": 0.8745631575584412,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9060579538345337,
+      "recall": 0.9072282314300537,
+      "f1": 0.9066426753997803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r11",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r13",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8973158597946167,
+      "recall": 0.9152570962905884,
+      "f1": 0.9061976671218872,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8896549940109253,
+      "recall": 0.8628690242767334,
+      "f1": 0.8760573267936707,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8957725167274475,
+      "recall": 0.8981426358222961,
+      "f1": 0.8925368785858154,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8896549940109253,
+      "recall": 0.8628690242767334,
+      "f1": 0.8760573267936707,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r20",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8811806440353394,
+      "recall": 0.8769155144691467,
+      "f1": 0.8790428638458252,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r23",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8805866241455078,
+      "recall": 0.8722859621047974,
+      "f1": 0.8764166235923767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r24",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.885930061340332,
+      "recall": 0.8703804016113281,
+      "f1": 0.8780465722084045,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8807469010353088,
+      "recall": 0.8684657216072083,
+      "f1": 0.8745631575584412,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r27",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8879042267799377,
+      "recall": 0.8874913454055786,
+      "f1": 0.887697696685791,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9243918061256409,
+      "recall": 0.9006696343421936,
+      "f1": 0.9123765230178833,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r30",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.887361466884613,
+      "recall": 0.8870560526847839,
+      "f1": 0.8872087001800537,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r31",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.89349764585495,
+      "recall": 0.8812803030014038,
+      "f1": 0.8828088641166687,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r32",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.9101691246032715,
+      "recall": 0.9023153781890869,
+      "f1": 0.9062252640724182,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_An_Se_Young_TOYOTA_THAILAND_OPEN_2021_SemiFinals_s2_r35",
+      "player_ids": [
+        "Carolina MARIN",
+        "An Se Young"
+      ],
+      "precision": 0.8992189764976501,
+      "recall": 0.8902493119239807,
+      "f1": 0.8947116732597351,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8947257995605469,
+      "recall": 0.896637499332428,
+      "f1": 0.8956806659698486,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8831078410148621,
+      "recall": 0.8705571293830872,
+      "f1": 0.8720862865447998,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r3",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8777172565460205,
+      "recall": 0.8840221762657166,
+      "f1": 0.8808584213256836,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.891905665397644,
+      "recall": 0.8921887874603271,
+      "f1": 0.8920472264289856,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r5",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9035502076148987,
+      "recall": 0.905931293964386,
+      "f1": 0.9043164253234863,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r7",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8997528553009033,
+      "recall": 0.8936120867729187,
+      "f1": 0.8966718912124634,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r9",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8823103904724121,
+      "recall": 0.8858489990234375,
+      "f1": 0.8780465722084045,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9053675532341003,
+      "recall": 0.8858137130737305,
+      "f1": 0.8948556780815125,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r11",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8918946981430054,
+      "recall": 0.8981232643127441,
+      "f1": 0.8949981331825256,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8707369565963745,
+      "recall": 0.893226146697998,
+      "f1": 0.8811557292938232,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8768060803413391,
+      "recall": 0.8896549940109253,
+      "f1": 0.8772473931312561,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8842381238937378,
+      "recall": 0.8787498474121094,
+      "f1": 0.878490149974823,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8877971768379211,
+      "recall": 0.8871815800666809,
+      "f1": 0.8855749368667603,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r17",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8780052065849304,
+      "recall": 0.8835704922676086,
+      "f1": 0.8758047223091125,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.906795859336853,
+      "recall": 0.8854154348373413,
+      "f1": 0.8959781527519226,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r20",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8837862014770508,
+      "recall": 0.8552017211914062,
+      "f1": 0.8692590594291687,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r21",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9254011511802673,
+      "recall": 0.9258419275283813,
+      "f1": 0.925621509552002,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.894618034362793,
+      "recall": 0.8993990421295166,
+      "f1": 0.8970021605491638,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r23",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8884906768798828,
+      "recall": 0.8977909684181213,
+      "f1": 0.8890551924705505,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r24",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8827032446861267,
+      "recall": 0.8853079676628113,
+      "f1": 0.8840036988258362,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8854200839996338,
+      "recall": 0.8784826993942261,
+      "f1": 0.8819378018379211,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r26",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8818889260292053,
+      "recall": 0.8877542018890381,
+      "f1": 0.8848118185997009,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r27",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8974801301956177,
+      "recall": 0.9002779722213745,
+      "f1": 0.8974282741546631,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8831078410148621,
+      "recall": 0.8705571293830872,
+      "f1": 0.8720862865447998,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9040545225143433,
+      "recall": 0.8908833861351013,
+      "f1": 0.8974206447601318,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r5",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8903001546859741,
+      "recall": 0.8944512009620667,
+      "f1": 0.8923708200454712,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8728318214416504,
+      "recall": 0.8722437620162964,
+      "f1": 0.8717206120491028,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r8",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8716181516647339,
+      "recall": 0.8645035028457642,
+      "f1": 0.8680462837219238,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8847751617431641,
+      "recall": 0.8777396082878113,
+      "f1": 0.8812433481216431,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9051441550254822,
+      "recall": 0.890663743019104,
+      "f1": 0.8978456258773804,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.908154308795929,
+      "recall": 0.9216758012771606,
+      "f1": 0.9148650765419006,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8882958889007568,
+      "recall": 0.897948145866394,
+      "f1": 0.8930959701538086,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8858703374862671,
+      "recall": 0.9013441205024719,
+      "f1": 0.8935402035713196,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r17",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8970012068748474,
+      "recall": 0.8997125029563904,
+      "f1": 0.8983548283576965,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8992189764976501,
+      "recall": 0.8902493119239807,
+      "f1": 0.8947116732597351,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r21",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8913066387176514,
+      "recall": 0.8983545303344727,
+      "f1": 0.8948166966438293,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8818060755729675,
+      "recall": 0.8632900714874268,
+      "f1": 0.8724498152732849,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r23",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9009210467338562,
+      "recall": 0.8896577954292297,
+      "f1": 0.8952539563179016,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r24",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9216758012771606,
+      "recall": 0.908154308795929,
+      "f1": 0.9148650765419006,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8733363747596741,
+      "recall": 0.8779953718185425,
+      "f1": 0.8719406127929688,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r26",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8932241797447205,
+      "recall": 0.8944936990737915,
+      "f1": 0.8938584923744202,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8918946981430054,
+      "recall": 0.8981232643127441,
+      "f1": 0.8949981331825256,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r30",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.8923383951187134,
+      "recall": 0.8955962657928467,
+      "f1": 0.8939643502235413,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r32",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Neslihan_Yigit_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r36",
+      "player_ids": [
+        "Carolina MARIN",
+        "Neslihan YIGIT"
+      ],
+      "precision": 0.9096182584762573,
+      "recall": 0.9015876054763794,
+      "f1": 0.9055851101875305,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8979694843292236,
+      "recall": 0.9084901213645935,
+      "f1": 0.9031991958618164,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.875391960144043,
+      "recall": 0.8769025802612305,
+      "f1": 0.8731971979141235,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r3",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8717252016067505,
+      "recall": 0.885930061340332,
+      "f1": 0.8747438788414001,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r7",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9049732089042664,
+      "recall": 0.8986594080924988,
+      "f1": 0.9018052816390991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r8",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8912917375564575,
+      "recall": 0.8927078247070312,
+      "f1": 0.889522910118103,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8767126798629761,
+      "recall": 0.8939729928970337,
+      "f1": 0.8811596632003784,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r11",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8818060755729675,
+      "recall": 0.8632900714874268,
+      "f1": 0.8724498152732849,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8811806440353394,
+      "recall": 0.8769155144691467,
+      "f1": 0.8790428638458252,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.890001118183136,
+      "recall": 0.8995375037193298,
+      "f1": 0.8947439193725586,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8977153301239014,
+      "recall": 0.8931097984313965,
+      "f1": 0.8952683806419373,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r17",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8840813636779785,
+      "recall": 0.8786498308181763,
+      "f1": 0.8813572525978088,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8890734910964966,
+      "recall": 0.8668463826179504,
+      "f1": 0.8778192400932312,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r20",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8732343912124634,
+      "recall": 0.8794662952423096,
+      "f1": 0.8763392567634583,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9091942310333252,
+      "recall": 0.9221024513244629,
+      "f1": 0.9156028032302856,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r28",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9231307506561279,
+      "recall": 0.9191225171089172,
+      "f1": 0.9211223125457764,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r30",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8822301626205444,
+      "recall": 0.8658666610717773,
+      "f1": 0.8739718198776245,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s1_r31",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8942748308181763,
+      "recall": 0.912423849105835,
+      "f1": 0.9032581448554993,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8880773782730103,
+      "recall": 0.9004466533660889,
+      "f1": 0.8942192196846008,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8773210048675537,
+      "recall": 0.8810569047927856,
+      "f1": 0.8791849613189697,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r3",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8950647711753845,
+      "recall": 0.9036177396774292,
+      "f1": 0.8993209600448608,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r5",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.906795859336853,
+      "recall": 0.8854154348373413,
+      "f1": 0.8959781527519226,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r6",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8781230449676514,
+      "recall": 0.8707690238952637,
+      "f1": 0.8737355470657349,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r8",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8967798948287964,
+      "recall": 0.896635115146637,
+      "f1": 0.895744264125824,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r9",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r11",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.875391960144043,
+      "recall": 0.8769025802612305,
+      "f1": 0.8731971979141235,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9127103686332703,
+      "recall": 0.9000582098960876,
+      "f1": 0.9063401222229004,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8787900805473328,
+      "recall": 0.885811448097229,
+      "f1": 0.8822868466377258,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8802939653396606,
+      "recall": 0.8770499229431152,
+      "f1": 0.8782875537872314,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r17",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.875391960144043,
+      "recall": 0.8769025802612305,
+      "f1": 0.8731971979141235,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8974801301956177,
+      "recall": 0.9002779722213745,
+      "f1": 0.8974282741546631,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r20",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8896738290786743,
+      "recall": 0.8823304176330566,
+      "f1": 0.885986864566803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9013890624046326,
+      "recall": 0.9049633145332336,
+      "f1": 0.9031726121902466,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r24",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8920029401779175,
+      "recall": 0.9112844467163086,
+      "f1": 0.8984962701797485,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r28",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9346991181373596,
+      "recall": 0.9376190304756165,
+      "f1": 0.9361568093299866,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8691754937171936,
+      "recall": 0.8927780389785767,
+      "f1": 0.8800836205482483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r30",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9119964838027954,
+      "recall": 0.9031763076782227,
+      "f1": 0.9075649976730347,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r31",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8867335915565491,
+      "recall": 0.8963824510574341,
+      "f1": 0.8911968469619751,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r32",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8827032446861267,
+      "recall": 0.8853079676628113,
+      "f1": 0.8840036988258362,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r33",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8821575045585632,
+      "recall": 0.8772518634796143,
+      "f1": 0.8789850473403931,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_SemiFinals_s2_r34",
+      "player_ids": [
+        "Carolina MARIN",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.885383665561676,
+      "recall": 0.8645009994506836,
+      "f1": 0.8748177886009216,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8983117341995239,
+      "recall": 0.8943799734115601,
+      "f1": 0.8963415622711182,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r3",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8920029401779175,
+      "recall": 0.9112844467163086,
+      "f1": 0.8984962701797485,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r6",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8879042267799377,
+      "recall": 0.8874913454055786,
+      "f1": 0.887697696685791,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r8",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9015668034553528,
+      "recall": 0.8988251090049744,
+      "f1": 0.9001938700675964,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8884906768798828,
+      "recall": 0.8977909684181213,
+      "f1": 0.8890551924705505,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.896635115146637,
+      "recall": 0.8948550820350647,
+      "f1": 0.895744264125824,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r13",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8844568133354187,
+      "recall": 0.8730422854423523,
+      "f1": 0.87871253490448,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9013495445251465,
+      "recall": 0.8929754495620728,
+      "f1": 0.89357590675354,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r15",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8880212306976318,
+      "recall": 0.869952917098999,
+      "f1": 0.8788942098617554,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r16",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8944094777107239,
+      "recall": 0.9080327153205872,
+      "f1": 0.9011695981025696,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8856044411659241,
+      "recall": 0.8592027425765991,
+      "f1": 0.8716853260993958,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r21",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8725545406341553,
+      "recall": 0.8672339916229248,
+      "f1": 0.8692178726196289,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8791986703872681,
+      "recall": 0.872760534286499,
+      "f1": 0.8759677410125732,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r23",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8832243084907532,
+      "recall": 0.8610600233078003,
+      "f1": 0.8714274764060974,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.909116268157959,
+      "recall": 0.9023401737213135,
+      "f1": 0.9057155251502991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r27",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9039261341094971,
+      "recall": 0.9120606780052185,
+      "f1": 0.9079751372337341,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r28",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8742026090621948,
+      "recall": 0.8864980340003967,
+      "f1": 0.8788912892341614,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9060579538345337,
+      "recall": 0.9072282314300537,
+      "f1": 0.9066426753997803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r32",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8861891031265259,
+      "recall": 0.8787900805473328,
+      "f1": 0.8822868466377258,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r33",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8846121430397034,
+      "recall": 0.8693094253540039,
+      "f1": 0.8768940567970276,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r34",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8824825882911682,
+      "recall": 0.8793309926986694,
+      "f1": 0.880903959274292,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s1_r37",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9009210467338562,
+      "recall": 0.8896577954292297,
+      "f1": 0.8952539563179016,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r1",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8827032446861267,
+      "recall": 0.8853079676628113,
+      "f1": 0.8840036988258362,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.891778290271759,
+      "recall": 0.8798003196716309,
+      "f1": 0.8857488632202148,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8960666060447693,
+      "recall": 0.9009210467338562,
+      "f1": 0.8966613411903381,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r5",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8766988515853882,
+      "recall": 0.8921933770179749,
+      "f1": 0.88437819480896,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8870495557785034,
+      "recall": 0.8835561275482178,
+      "f1": 0.8852993845939636,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r9",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9440710544586182,
+      "recall": 0.9345616698265076,
+      "f1": 0.9392922520637512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8812001943588257,
+      "recall": 0.8878308534622192,
+      "f1": 0.8845031261444092,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r12",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9221024513244629,
+      "recall": 0.9091942310333252,
+      "f1": 0.9156028032302856,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8917773962020874,
+      "recall": 0.8925812244415283,
+      "f1": 0.8921790719032288,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r14",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8725545406341553,
+      "recall": 0.8672339916229248,
+      "f1": 0.8692178726196289,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r18",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8960338234901428,
+      "recall": 0.8945193290710449,
+      "f1": 0.8951395153999329,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r19",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r22",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9122439026832581,
+      "recall": 0.9119344353675842,
+      "f1": 0.9120891094207764,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r23",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8882958889007568,
+      "recall": 0.897948145866394,
+      "f1": 0.8930959701538086,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r24",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8740867376327515,
+      "recall": 0.8696271777153015,
+      "f1": 0.8710337281227112,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r25",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8791413903236389,
+      "recall": 0.8825799226760864,
+      "f1": 0.8808572292327881,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r26",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9132677316665649,
+      "recall": 0.8804293870925903,
+      "f1": 0.8965479135513306,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r27",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8782294392585754,
+      "recall": 0.8800157904624939,
+      "f1": 0.8791216611862183,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r28",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8913925886154175,
+      "recall": 0.8871015906333923,
+      "f1": 0.8892419934272766,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r29",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.906795859336853,
+      "recall": 0.8854154348373413,
+      "f1": 0.8959781527519226,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r30",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9040017127990723,
+      "recall": 0.9007412195205688,
+      "f1": 0.9023685455322266,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r33",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8909790515899658,
+      "recall": 0.8923570513725281,
+      "f1": 0.8916674852371216,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r34",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8947257995605469,
+      "recall": 0.896637499332428,
+      "f1": 0.8956806659698486,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r35",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8923383951187134,
+      "recall": 0.8955962657928467,
+      "f1": 0.8939643502235413,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r36",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.8746644258499146,
+      "recall": 0.8674501180648804,
+      "f1": 0.8710423707962036,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Carolina_Marin_Supanida_Katethong_YONEX_Thailand_Open_2021_QuarterFinals_s2_r37",
+      "player_ids": [
+        "Carolina MARIN",
+        "Supanida KATETHONG"
+      ],
+      "precision": 0.9109998941421509,
+      "recall": 0.9066277146339417,
+      "f1": 0.9076648950576782,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r1",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8698397874832153,
+      "recall": 0.8768073916435242,
+      "f1": 0.8733097314834595,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r2",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8808002471923828,
+      "recall": 0.8966186046600342,
+      "f1": 0.8886390328407288,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r3",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9072282314300537,
+      "recall": 0.9060579538345337,
+      "f1": 0.9066426753997803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r4",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8867335915565491,
+      "recall": 0.8963824510574341,
+      "f1": 0.8911968469619751,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r6",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9048980474472046,
+      "recall": 0.903598427772522,
+      "f1": 0.9042477607727051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r8",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8942748308181763,
+      "recall": 0.912423849105835,
+      "f1": 0.9032581448554993,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r9",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8798776268959045,
+      "recall": 0.8837271928787231,
+      "f1": 0.8811773657798767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r11",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8809782266616821,
+      "recall": 0.8665615916252136,
+      "f1": 0.8737104535102844,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r14",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.906795859336853,
+      "recall": 0.8854154348373413,
+      "f1": 0.8959781527519226,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r15",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9160231351852417,
+      "recall": 0.9327207207679749,
+      "f1": 0.924296498298645,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r17",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8948943018913269,
+      "recall": 0.9037580490112305,
+      "f1": 0.8993042707443237,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r18",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8928347229957581,
+      "recall": 0.9024029970169067,
+      "f1": 0.8975653052330017,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r20",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8801833391189575,
+      "recall": 0.8750531673431396,
+      "f1": 0.8776107430458069,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r22",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8983395099639893,
+      "recall": 0.8919050693511963,
+      "f1": 0.8951107859611511,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r23",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8886642456054688,
+      "recall": 0.8864567875862122,
+      "f1": 0.8873908519744873,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r25",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8858703374862671,
+      "recall": 0.9013441205024719,
+      "f1": 0.8935402035713196,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r26",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8725083470344543,
+      "recall": 0.8809513449668884,
+      "f1": 0.8760390281677246,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r27",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8806913495063782,
+      "recall": 0.8893661499023438,
+      "f1": 0.8850075006484985,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r28",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8959170579910278,
+      "recall": 0.8945685625076294,
+      "f1": 0.8952423334121704,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r29",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8815323114395142,
+      "recall": 0.8880967497825623,
+      "f1": 0.8848024010658264,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r30",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9119526147842407,
+      "recall": 0.9042426943778992,
+      "f1": 0.9080813527107239,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r31",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.909116268157959,
+      "recall": 0.9023401737213135,
+      "f1": 0.9057155251502991,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r32",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8736205101013184,
+      "recall": 0.8870662450790405,
+      "f1": 0.8768104910850525,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r33",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8804072141647339,
+      "recall": 0.8934496641159058,
+      "f1": 0.8868804574012756,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r34",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8947610855102539,
+      "recall": 0.9142197370529175,
+      "f1": 0.9043857455253601,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r35",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8716181516647339,
+      "recall": 0.8645035028457642,
+      "f1": 0.8680462837219238,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r36",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.885854959487915,
+      "recall": 0.8951643705368042,
+      "f1": 0.8904853463172913,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r37",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9376190304756165,
+      "recall": 0.9346991181373596,
+      "f1": 0.9361568093299866,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r40",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8848761320114136,
+      "recall": 0.8615585565567017,
+      "f1": 0.8730617165565491,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r45",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8884967565536499,
+      "recall": 0.9005047082901001,
+      "f1": 0.8944604396820068,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r47",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9015668034553528,
+      "recall": 0.8988251090049744,
+      "f1": 0.9001938700675964,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r2",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8816210031509399,
+      "recall": 0.8807491660118103,
+      "f1": 0.8811849355697632,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r3",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8902220726013184,
+      "recall": 0.9008801579475403,
+      "f1": 0.8955194354057312,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r5",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.898333728313446,
+      "recall": 0.8988351821899414,
+      "f1": 0.8985843658447266,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r6",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8967798948287964,
+      "recall": 0.896635115146637,
+      "f1": 0.895744264125824,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r8",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8691266775131226,
+      "recall": 0.8896999955177307,
+      "f1": 0.8785285353660583,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r9",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8891828060150146,
+      "recall": 0.8923373818397522,
+      "f1": 0.890562891960144,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r10",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8826642036437988,
+      "recall": 0.9022272229194641,
+      "f1": 0.8923385143280029,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r11",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9243918061256409,
+      "recall": 0.9006696343421936,
+      "f1": 0.9123765230178833,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r13",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8837862014770508,
+      "recall": 0.8552017211914062,
+      "f1": 0.8692590594291687,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r14",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8719115257263184,
+      "recall": 0.8593729138374329,
+      "f1": 0.8655968308448792,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r15",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8807469010353088,
+      "recall": 0.8684657216072083,
+      "f1": 0.8745631575584412,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r17",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8911391496658325,
+      "recall": 0.8954143524169922,
+      "f1": 0.8932716250419617,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r22",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.9999999403953552,
+      "recall": 0.9999999403953552,
+      "f1": 0.9999999403953552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r24",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r27",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.893963098526001,
+      "recall": 0.8875555992126465,
+      "f1": 0.8907478451728821,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r28",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r29",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8877610564231873,
+      "recall": 0.8912917375564575,
+      "f1": 0.889522910118103,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Evgeniya_Kosetskaya_Michelle_Li_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r31",
+      "player_ids": [
+        "Evgeniya KOSETSKAYA",
+        "Michelle LI"
+      ],
+      "precision": 0.8972523212432861,
+      "recall": 0.8908878564834595,
+      "f1": 0.8940587639808655,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r1",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r2",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9082269072532654,
+      "recall": 0.9039822816848755,
+      "f1": 0.9060996174812317,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r4",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r5",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9189057350158691,
+      "recall": 0.9086434245109558,
+      "f1": 0.9137457609176636,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r6",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.893397331237793,
+      "recall": 0.8941489458084106,
+      "f1": 0.8937729597091675,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r7",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8972207307815552,
+      "recall": 0.8933446407318115,
+      "f1": 0.8952784538269043,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r8",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9016251564025879,
+      "recall": 0.8868733644485474,
+      "f1": 0.8941884636878967,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r9",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8773624897003174,
+      "recall": 0.8835422396659851,
+      "f1": 0.8804414868354797,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r11",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9174461960792542,
+      "recall": 0.9076272249221802,
+      "f1": 0.9125102162361145,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8733363747596741,
+      "recall": 0.8779953718185425,
+      "f1": 0.8719406127929688,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r13",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8923383951187134,
+      "recall": 0.8955962657928467,
+      "f1": 0.8939643502235413,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r14",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8660215735435486,
+      "recall": 0.8820476531982422,
+      "f1": 0.8714274764060974,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r15",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8801896572113037,
+      "recall": 0.8657031059265137,
+      "f1": 0.8728863000869751,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r16",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r17",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8886301517486572,
+      "recall": 0.8856189250946045,
+      "f1": 0.8871219754219055,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r18",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r21",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8835733532905579,
+      "recall": 0.877101480960846,
+      "f1": 0.8803255558013916,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r27",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8845210075378418,
+      "recall": 0.8792358040809631,
+      "f1": 0.8818705081939697,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r28",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8880967497825623,
+      "recall": 0.8815323114395142,
+      "f1": 0.8848024010658264,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r29",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8591442704200745,
+      "recall": 0.8769896626472473,
+      "f1": 0.8669598698616028,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r31",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8805866241455078,
+      "recall": 0.8722859621047974,
+      "f1": 0.8764166235923767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r32",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8867335915565491,
+      "recall": 0.8963824510574341,
+      "f1": 0.8911968469619751,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r33",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8930084705352783,
+      "recall": 0.8828456997871399,
+      "f1": 0.8878980278968811,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s1_r34",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.880295991897583,
+      "recall": 0.8866249322891235,
+      "f1": 0.883449137210846,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r3",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.891242504119873,
+      "recall": 0.895612359046936,
+      "f1": 0.8923372030258179,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8660767674446106,
+      "recall": 0.873883843421936,
+      "f1": 0.869962751865387,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r5",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8997528553009033,
+      "recall": 0.8936120867729187,
+      "f1": 0.8966718912124634,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r6",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8885098695755005,
+      "recall": 0.8950917720794678,
+      "f1": 0.89178866147995,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9014154076576233,
+      "recall": 0.9021512269973755,
+      "f1": 0.9017831087112427,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8839023113250732,
+      "recall": 0.8861052393913269,
+      "f1": 0.8848655223846436,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8736031651496887,
+      "recall": 0.8736207485198975,
+      "f1": 0.8725094199180603,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r14",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8952710032463074,
+      "recall": 0.8864051699638367,
+      "f1": 0.8908160328865051,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r15",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8955854177474976,
+      "recall": 0.9145532250404358,
+      "f1": 0.9049698710441589,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r16",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9122535586357117,
+      "recall": 0.9082269072532654,
+      "f1": 0.9060996174812317,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r17",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8966186046600342,
+      "recall": 0.8808002471923828,
+      "f1": 0.8886390328407288,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r19",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9112614393234253,
+      "recall": 0.9178754687309265,
+      "f1": 0.9145565629005432,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r23",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8886699080467224,
+      "recall": 0.8975242376327515,
+      "f1": 0.893075168132782,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r25",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8930020928382874,
+      "recall": 0.891339898109436,
+      "f1": 0.8921701908111572,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r26",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8805866241455078,
+      "recall": 0.8722859621047974,
+      "f1": 0.8764166235923767,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r27",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.9006364345550537,
+      "recall": 0.8919190764427185,
+      "f1": 0.8942304253578186,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r30",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.894618034362793,
+      "recall": 0.8993990421295166,
+      "f1": 0.8970021605491638,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r32",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8902220726013184,
+      "recall": 0.9008801579475403,
+      "f1": 0.8955194354057312,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r34",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8754600286483765,
+      "recall": 0.887006938457489,
+      "f1": 0.8811957240104675,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r35",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8641868829727173,
+      "recall": 0.8753401637077332,
+      "f1": 0.8686231970787048,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r36",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8929520845413208,
+      "recall": 0.8859730362892151,
+      "f1": 0.889448881149292,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Mia_Blichfeldt_Busanan_Ongbamrungphan_YONEX_Thailand_Open_2021_QuarterFinals_s2_r37",
+      "player_ids": [
+        "Mia BLICHFELDT",
+        "Busanan ONGBAMRUNGPHAN"
+      ],
+      "precision": 0.8760181069374084,
+      "recall": 0.8855611085891724,
+      "f1": 0.8807637095451355,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r2",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r3",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9009210467338562,
+      "recall": 0.8896577954292297,
+      "f1": 0.8952539563179016,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r8",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8719115257263184,
+      "recall": 0.8593729138374329,
+      "f1": 0.8655968308448792,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r11",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9189057350158691,
+      "recall": 0.9086434245109558,
+      "f1": 0.9137457609176636,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r12",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8979825973510742,
+      "recall": 0.8971150517463684,
+      "f1": 0.8975486755371094,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r14",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8869189620018005,
+      "recall": 0.8963414430618286,
+      "f1": 0.8890812397003174,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r15",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8980040550231934,
+      "recall": 0.892386794090271,
+      "f1": 0.8951866626739502,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r19",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9254011511802673,
+      "recall": 0.9258419275283813,
+      "f1": 0.925621509552002,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r20",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8898342847824097,
+      "recall": 0.8861605525016785,
+      "f1": 0.8879936337471008,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r21",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9004466533660889,
+      "recall": 0.8880773782730103,
+      "f1": 0.8942192196846008,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r23",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8809782266616821,
+      "recall": 0.8665615916252136,
+      "f1": 0.8737104535102844,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r25",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8841298222541809,
+      "recall": 0.8774135112762451,
+      "f1": 0.8807589411735535,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r26",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.877951979637146,
+      "recall": 0.876286506652832,
+      "f1": 0.8771184682846069,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r27",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8886557221412659,
+      "recall": 0.8994563817977905,
+      "f1": 0.8940234184265137,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r28",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8898442387580872,
+      "recall": 0.8823723793029785,
+      "f1": 0.8860925436019897,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r29",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8842917680740356,
+      "recall": 0.867547333240509,
+      "f1": 0.8741067051887512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r30",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9346991181373596,
+      "recall": 0.9376190304756165,
+      "f1": 0.9361568093299866,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r33",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8959394097328186,
+      "recall": 0.8874301910400391,
+      "f1": 0.8916645646095276,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r34",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r35",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8870560526847839,
+      "recall": 0.887361466884613,
+      "f1": 0.8872087001800537,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s1_r37",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8822301626205444,
+      "recall": 0.8658666610717773,
+      "f1": 0.8739718198776245,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r1",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8766420483589172,
+      "recall": 0.8782109022140503,
+      "f1": 0.8774257302284241,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r2",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9051441550254822,
+      "recall": 0.890663743019104,
+      "f1": 0.8978456258773804,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r3",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8924667835235596,
+      "recall": 0.884996235370636,
+      "f1": 0.8887158036231995,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r6",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.9013441205024719,
+      "recall": 0.8993940949440002,
+      "f1": 0.8955194354057312,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r9",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8963188529014587,
+      "recall": 0.8859943747520447,
+      "f1": 0.8911267518997192,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r10",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8903824090957642,
+      "recall": 0.8775984644889832,
+      "f1": 0.8839442729949951,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r13",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8781979084014893,
+      "recall": 0.8643679022789001,
+      "f1": 0.8697076439857483,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r15",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r17",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8983117341995239,
+      "recall": 0.8943799734115601,
+      "f1": 0.8963415622711182,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r18",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8932241797447205,
+      "recall": 0.8944936990737915,
+      "f1": 0.8938584923744202,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r19",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r23",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8791986703872681,
+      "recall": 0.872760534286499,
+      "f1": 0.8759677410125732,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r25",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8753401041030884,
+      "recall": 0.8784777522087097,
+      "f1": 0.8760592937469482,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r28",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r29",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8767126798629761,
+      "recall": 0.8939729928970337,
+      "f1": 0.8811596632003784,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r31",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8855882287025452,
+      "recall": 0.8849197626113892,
+      "f1": 0.8852538466453552,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r32",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8909512758255005,
+      "recall": 0.8929951190948486,
+      "f1": 0.891972005367279,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Pusarla_V._Sindhu_Pornpawee_Chochuwong_HSBC_BWF_WORLD_TOUR_FINALS_2020_QuarterFinals_s2_r35",
+      "player_ids": [
+        "PUSARLA V. Sindhu",
+        "Pornpawee CHOCHUWONG"
+      ],
+      "precision": 0.8740867376327515,
+      "recall": 0.8696271777153015,
+      "f1": 0.8710337281227112,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r2",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8809782266616821,
+      "recall": 0.8665615916252136,
+      "f1": 0.8737104535102844,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r3",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9440710544586182,
+      "recall": 0.9345616698265076,
+      "f1": 0.9392922520637512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r5",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8705088496208191,
+      "recall": 0.8716205358505249,
+      "f1": 0.8675851225852966,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r6",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8818889260292053,
+      "recall": 0.8877542018890381,
+      "f1": 0.8848118185997009,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r7",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8819507956504822,
+      "recall": 0.872085452079773,
+      "f1": 0.8769903779029846,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r8",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8663222789764404,
+      "recall": 0.8803743720054626,
+      "f1": 0.8732917308807373,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r10",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.891778290271759,
+      "recall": 0.8798003196716309,
+      "f1": 0.8857488632202148,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r11",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8725545406341553,
+      "recall": 0.8672339916229248,
+      "f1": 0.8692178726196289,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r12",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8861606121063232,
+      "recall": 0.8930608034133911,
+      "f1": 0.8895972967147827,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r13",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8801833391189575,
+      "recall": 0.8750531673431396,
+      "f1": 0.8776107430458069,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r15",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9132677316665649,
+      "recall": 0.8804293870925903,
+      "f1": 0.8965479135513306,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r16",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.885383665561676,
+      "recall": 0.8645009994506836,
+      "f1": 0.8748177886009216,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r21",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8903561234474182,
+      "recall": 0.8895877003669739,
+      "f1": 0.8899717926979065,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r22",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8760181069374084,
+      "recall": 0.8855611085891724,
+      "f1": 0.8807637095451355,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r23",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8847540616989136,
+      "recall": 0.8834289908409119,
+      "f1": 0.8812894821166992,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r24",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9100255370140076,
+      "recall": 0.9143964052200317,
+      "f1": 0.9122057557106018,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r25",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.877951979637146,
+      "recall": 0.876286506652832,
+      "f1": 0.8771184682846069,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r26",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8870866298675537,
+      "recall": 0.8858552575111389,
+      "f1": 0.8842468857765198,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r29",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9145532250404358,
+      "recall": 0.8955854177474976,
+      "f1": 0.9049698710441589,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r30",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9072282314300537,
+      "recall": 0.9060579538345337,
+      "f1": 0.9066426753997803,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r31",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8970012068748474,
+      "recall": 0.8997125029563904,
+      "f1": 0.8983548283576965,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r32",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.892139732837677,
+      "recall": 0.8884615898132324,
+      "f1": 0.889022171497345,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r2",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r3",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8957725167274475,
+      "recall": 0.8981426358222961,
+      "f1": 0.8925368785858154,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r4",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9048749208450317,
+      "recall": 0.9111190438270569,
+      "f1": 0.9079862236976624,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r7",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8997528553009033,
+      "recall": 0.8936120867729187,
+      "f1": 0.8966718912124634,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r8",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.9096182584762573,
+      "recall": 0.9015876054763794,
+      "f1": 0.9055851101875305,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r9",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.874335765838623,
+      "recall": 0.8771975040435791,
+      "f1": 0.8757643103599548,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r10",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8774872422218323,
+      "recall": 0.8715448975563049,
+      "f1": 0.8735361695289612,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r12",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8791986703872681,
+      "recall": 0.872760534286499,
+      "f1": 0.8759677410125732,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r13",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8848761320114136,
+      "recall": 0.8615585565567017,
+      "f1": 0.8730617165565491,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r15",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8643679022789001,
+      "recall": 0.8842917680740356,
+      "f1": 0.8741067051887512,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r16",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8769195675849915,
+      "recall": 0.877427339553833,
+      "f1": 0.8771734237670898,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r19",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8941125869750977,
+      "recall": 0.8833837509155273,
+      "f1": 0.8887157440185547,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r20",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8895877003669739,
+      "recall": 0.8903561234474182,
+      "f1": 0.8899717926979065,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r22",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8844568133354187,
+      "recall": 0.8730422854423523,
+      "f1": 0.87871253490448,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r24",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8932241797447205,
+      "recall": 0.8944936990737915,
+      "f1": 0.8938584923744202,
+      "empty_prediction": false
+    },
+    {
+      "clip_id": "Ratchanok_Intanon_Pusarla_V._Sindhu_TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r27",
+      "player_ids": [
+        "Ratchanok INTANON",
+        "PUSARLA V. Sindhu"
+      ],
+      "precision": 0.8933446407318115,
+      "recall": 0.8972207307815552,
+      "f1": 0.8952784538269043,
+      "empty_prediction": false
+    }
+  ],
+  "dry_run": false,
+  "split": {
+    "path": "data/feedback_eval/split_shuttleset_v1.json",
+    "side": "test",
+    "seed": null,
+    "players": [
+      "An Se Young",
+      "Busanan ONGBAMRUNGPHAN",
+      "Carolina MARIN",
+      "Evgeniya KOSETSKAYA",
+      "Mia BLICHFELDT",
+      "Michelle LI",
+      "Neslihan YIGIT",
+      "PUSARLA V. Sindhu",
+      "Pornpawee CHOCHUWONG",
+      "Ratchanok INTANON",
+      "Supanida KATETHONG"
+    ]
+  }
+}
