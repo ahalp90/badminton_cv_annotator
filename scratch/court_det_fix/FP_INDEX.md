@@ -36,6 +36,17 @@ to the [27 September code archive](archive/20260927_code/README.md).
 Archived scripts keep their old internal paths. Read the
 [archive notice](archive/20260927_code/README.md#rerunning-old-code) before a rerun.
 
+## Current performance records
+
+The current campaign records are under repository-relative
+`local_scratch/campaigns/court-det-speed/` and are not committed. Read
+`HANDOVER.md` for bounded entry. The completed live-video comparison is in
+`rally-trial/source_interval_live_early_counts/`; its baseline is
+`rally-trial/source_interval_live/`. Each contains compressed timing and result
+records. `comparison.json.gz` records the checked decision differences.
+The player-gate reproducer and two court overlays are in
+`rally-trial/source_interval/median_reuse_probe/`.
+
 ## Checks and measurements
 
 These are dated records. Their old plans and approvals remain historical.

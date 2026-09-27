@@ -311,6 +311,27 @@ full search before reuse, with three available to combine separately searched
 courts. The [design](court_detector/PERFORMANCE.md#reuse-a-court-when-the-camera-returns)
 owns the details and unanswered tolerance question.
 
+<a id="d26"></a>
+### D26: Make people optional and skip impossible required-player searches
+
+On 27 September, optional people inputs were implemented in `a04ca3f5`.
+Required people remains the default; `--no-require-people` keeps a plausible
+line-based fallback. Supplied people still contribute masking and proposals.
+The optional fallback does not need a separate precision-tuning campaign.
+
+Commit `976f3b8a` rejects required-player searches when retained samples cannot
+meet the existing count rule. Input validation still runs first. Optional mode
+and full diagnostic runs retain their searches. The full live 33-scene trial
+preserved statuses, corners, chosen keys, reuse sources and rejection reasons.
+This establishes preservation of those decisions, not their accuracy.
+
+A fresh court at frame 12636 has unusable horizontal boundaries. The player
+rule rejects a visibly better median-refitted court, itself only minimally
+acceptable at the far paint edge. Inspect detections and standing-person
+filtering at sample 12604 before changing acceptance. No median alignment
+policy or threshold relaxation has been adopted. See the current records in
+[the file map](FP_INDEX.md#current-performance-records).
+
 ## Read accuracy claims carefully
 
 The 24/27 result means visually usable courts in a development review. The

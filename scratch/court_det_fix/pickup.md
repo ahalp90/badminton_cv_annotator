@@ -1,90 +1,81 @@
 # Court detector: resume here
 
-## Read before judging ShuttleSet results
+Updated 27 September 2026. The detector now runs from source video with live
+DeepLSD lines, RTMLib poses and optional PySceneDetect scene information.
+The latest five-minute rally trial finished successfully. Performance and
+court-selection accuracy still need work; the campaign is not complete.
 
-**ShuttleSet's supplied ground-truth homography is a static template per video.**
-Camera perspective can change several times during a match and often changes
-outside rallies. The supplied homography can therefore be wrong for the current
-shot. Use it as a yardstick, not exact truth for every frame.
+## Current state
 
-PySceneDetect cuts help locate possible shot changes, but they can miss changes
-or split an unchanged view. Check current-frame court lines and image alignment
-when judging calibration or reuse. Keep differences from the CPU detector
-separate from accuracy against a reference homography.
+Continue on `fix/court-det`. The tested implementation is `976f3b8a`.
+Check Git state before editing. The latest remote comparison has finished;
+no benchmark needs to be awaited before resuming.
 
-## Earlier handover
+The full live trial covers 7,500 frames at 25fps across 33 scenes. It took
+743.3 seconds, compared with 872.8 seconds before the required-player-count
+shortcut: 14.8% less elapsed time in this pair of runs. All scene statuses,
+corner coordinates, chosen keys, reuse sources and rejection reasons match.
+It returns 13 courts, rejects 11 scenes and skips nine short scenes.
+This remains well above the 30-second goal and 90-second upper target.
+The court and camera-view suite passed all 167 tests before this run.
 
-Updated 27 September 2026. The detector works on prepared test images.
-It still needs to run much faster and build its inputs from a new video.
-Nothing is running. The next session is for GPU work, parallel work and Numba,
-as the project owner requested on 26 September.
+Implemented changes include cheap-score shortlisting, exhausted-pool handling,
+less JSON conversion, court reuse before search, and optional people inputs.
+Exhaustive scoring remains the default. `--no-require-people` provides a
+plausible fallback; required people remains the default. The early count check
+skips impossible required-player searches after input validation. Optional mode
+and full diagnostic runs retain their normal searches.
 
-## Where work stopped
+No GPU scoring backend has been adopted. Two four-core CPU processes improved
+warm independent-scene throughput by 1.54 times in a small saved-input trial.
+That excludes video decoding, inference and reuse. Torch did not establish a
+useful gain. Compare CuPy and Numba-CUDA-MLIR performance and complexity before
+choosing a backend; GPU coverage remains incomplete.
 
-The separate research steps now run together in `court_detector/`. The detector
-searches using all detected line fragments, then using only fragments that
-look like court paint. It also builds courts from crossing-line templates.
-Those searches are called G0 and G1 in the code. Both remain useful.
+## Next work
 
-The default now rejects courts that require a sideways or upside-down camera.
-When choosing a court, it combines paint and line support with a small net-post
-bonus. It then adjusts the fit to the painted stripe edges or centres.
-The [detector guide](court_detector/README.md) owns the API and settings;
-[D19–D23](DETECTOR_DECISIONS.md#d19) record the checks and decisions.
+Investigate frame 12636: fresh search gets the verticals right but selects
+unusable horizontal boundaries. A median-aligned and refitted previous court
+has correct near/left/right edges, but slightly undershoots the far paint edge,
+especially far-left. The user rates that fit only minimally acceptable for
+this easy court. The player-position gate rejects it anyway.
 
-The last detector session rejected a player-size filter and two further ways of
-combining scores. The right court can still lose to one that slips a line at
-the far end. [D23](DETECTOR_DECISIONS.md#d23) records these failures so they do
-not reappear as untested ideas.
+Sample 12604 has no retained foot inside that plausible court. Inspect its
+original boxes/keypoints and standing-person filter before changing the rule.
+The user's suggestion that fresh search follows referees' elbows is unverified.
+No median-alignment policy or threshold change has been adopted.
 
-## Next session
+Continue matched full-pipeline performance measurements after reviewing that
+failure. Evaluate numerical differences through final court quality, especially
+far-end errors in metres. Preserve evidence of brittle scoring rather than
+hiding qualitative failures with numerical tolerances. Rename historical
+labels such as w5/g0/g1 after behaviour has been evaluated.
 
-Start with [the speed-up design](court_detector/PERFORMANCE.md). It preserves
-the agreed constraints and the useful parts of the former handovers.
+Detailed run records and the bounded handover are kept locally under
+`local_scratch/campaigns/court-det-speed/` from the repository root. Start with
+`HANDOVER.md`; read deeper records only for the current question. If
+`opus-review-result.md` exists, assess its findings before repeating that review.
+These working records and large artefacts are not committed. The detector guide
+and this pickup file remain available from Git.
 
-- Profile the current detector before choosing where to add GPU or compiled
-  code. Older timing estimates predate the camera filter
-- Run independent search pairs and court-scoring tasks in parallel, keeping
-  their original order when collecting results
-- Compare GPU and Numba approaches without maintaining two copies of the
-  scoring maths. The backend choice and acceptable numerical differences
-  still need measurement
-- The agreed trial of cheap scores before full scores, and the agreed plan
-  to reuse courts across scenes, remain open. Their designs are in the same
-  document; this does not prescribe their order ahead of the next session
+## Read before judging quality
 
-No new user ruling blocks reading, profiling or preparing that work. The
-backend choice is still open. The old handover's suggested order is not a
-new approval or a reason to repeat completed experiments.
+**ShuttleSet homographies are static templates per video.** Camera perspective
+can change during a match and often changes outside rallies. Supplied ground
+truth can therefore be wrong for the current shot. PySceneDetect cuts also
+miss changes or split unchanged views. Judge current-frame court lines and
+alignment; baseline agreement does not establish accuracy.
 
-## Limits to carry forward
+The prepared set contains 20 court views and eight control views. Controls can
+contain real courts and are not verified negative examples. Optional-people
+renders have known limitations: one catches the net top, another overshoots a
+back corner. No separate no-people precision-tuning sweep is requested.
 
-The checked set has 20 court views and eight views without courts. Two of the
-latter still receive false courts. One known far-end slip remains after the
-kept scoring change. The dated [check reports](FP_INDEX.md#checks-and-measurements)
-own the measurements; they do not establish performance on unseen cameras.
+The detector still temporarily uses BST-X's pose extractor. Decouple that later;
+keep scene and people providers optional interfaces. Dark court markings and
+performance on unseen cameras remain insufficiently evaluated. Do not reopen
+closed colour, net-weight or search-depth sweeps without new evidence.
 
-The detector needs a caller that supplies video frames, detected lines,
-people, poses and scene ranges. Its search, scoring and geometry code now
-lives in `court_detector/`; the old implementations are archived. Reusing a
-court before searching a new scene is also unfinished; the existing annotator groups views after searching.
-
-Real dark court markings have not established the stripe correction's
-reliability. The earlier colour trials are closed. Better rejection of
-non-court views and the frequency of serious fit errors remain open problems.
-These limits do not reopen the old colour, net-weight or search-depth sweeps.
-
-## Working state
-
-The checkout was on `fix/court-det` at `c57d9a6e` when this tidy began.
-`exp/court-det-opt2` was the earlier proposed branch for more speed-up work;
-inspect the branches before resuming. This note grants no commit or push
-permission. Check `git status` and `git log -1`; do not reset the checkout.
-
-No experiment or remote session is active, as confirmed by the project owner.
-Read `~/.codex/remote_hpc.md` before remote work. Some reruns need data held only
-locally or on Carmack; [the file map](FP_INDEX.md#data-that-is-not-in-git)
-identifies it. Historical launch instructions do not mean a job is still live.
-
-[INDEX.md](INDEX.md) defines the document roles.
-[The archive map](archive/README.md) leads to earlier records and recovery.
+[INDEX.md](INDEX.md) maps the documents. The
+[detector guide](court_detector/README.md) owns API and settings;
+[DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) records retained choices.
