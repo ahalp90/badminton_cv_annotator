@@ -31,15 +31,16 @@ Consumers import this module lazily (inside their functions) so
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, NamedTuple
+from typing import NamedTuple
 
 import cv2
 import numpy as np
 from rtmlib.tools.object_detection.rtmdet import RTMDet
 from rtmlib.tools.pose_estimation.rtmpose import RTMPose
 
-from pipeline.config import COCO_N_JOINTS
+from bst_x.pipeline.config import COCO_N_JOINTS
 
 # rtmlib-loadable mmdeploy ONNX-SDK archives. The detector is the ONNX export of
 # the RTMDet-M person checkpoint (235e8209) that MMPoseInferencer("human")

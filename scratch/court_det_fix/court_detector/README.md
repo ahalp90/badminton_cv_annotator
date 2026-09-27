@@ -122,6 +122,13 @@ those figures do not measure the combined peak of every process.
 The video caller can run DeepLSD for lines and read frame-aligned RTMLib pose
 extracts. Omit `--people` to run the project's RTMLib extractor on the requested
 frames instead. Both live models load once.
+
+Live pose extraction temporarily reuses `bst_x.preparing_data.rtmlib_pose`,
+which also imports BST-X pipeline configuration. This is a practical compromise.
+Move the reusable extractor and its pose-format constants into shared code so
+both callers can use it without that dependency. The dependency is loaded only
+when the live-pose adapter is constructed.
+
 DeepLSD uses gradient validation by default. This matches the saved amateur
 example's line extract; the less selective hard variant remains available through
 `DeepLSDLines(..., grad_nfa=False)`.

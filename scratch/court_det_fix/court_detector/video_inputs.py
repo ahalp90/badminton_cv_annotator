@@ -111,7 +111,11 @@ class PoseArrays:
 
 
 class RtmlibPeople:
-    """Run the project's person/pose extractor once per requested source frame."""
+    """Run the project's person/pose extractor once per requested source frame.
+
+    This temporarily reuses BST-X's extractor. Move that extractor and its pose
+    constants into shared code so live court inputs do not depend on BST-X.
+    """
 
     def __init__(self, frames: FrameReader, device: str = 'cuda') -> None:
         from bst_x.preparing_data.rtmlib_pose import RtmlibPoseExtractor
