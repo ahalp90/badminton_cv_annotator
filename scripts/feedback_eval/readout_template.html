@@ -1,0 +1,471 @@
+<title>Feedback Harness Readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap">
+<style>
+  :root{
+    --paper:#f2efe6; --surface:#fbfaf5; --surface-2:#eae6da;
+    --ink:#171a17; --ink-2:#5b645d; --ink-3:#8b938b;
+    --court:#1f5c46; --court-soft:#2f7d5d; --court-wash:#e2ece6;
+    --clay:#b4472e;
+    --rule:#d8d3c5; --rule-soft:#e6e2d6;
+    --s1:#2a78d6; --s2:#eb6834;
+    --focus:#1f5c46;
+    --display:"Barlow Semi Condensed",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --body:"Newsreader",Georgia,"Times New Roman",serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#12150f; --surface:#1b1f1a; --surface-2:#242923;
+      --ink:#eceee6; --ink-2:#a3aca3; --ink-3:#79827a;
+      --court:#4e9c79; --court-soft:#3d8464; --court-wash:#1e2a24;
+      --clay:#e07553;
+      --rule:#2f352e; --rule-soft:#262b25;
+      --s1:#3987e5; --s2:#d95926;
+      --focus:#4e9c79;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#12150f; --surface:#1b1f1a; --surface-2:#242923;
+    --ink:#eceee6; --ink-2:#a3aca3; --ink-3:#79827a;
+    --court:#4e9c79; --court-soft:#3d8464; --court-wash:#1e2a24;
+    --clay:#e07553;
+    --rule:#2f352e; --rule-soft:#262b25;
+    --s1:#3987e5; --s2:#d95926;
+    --focus:#4e9c79;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:var(--body); font-size:16px; line-height:1.6;
+    padding-inline:20px; padding-block:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin-inline:auto;padding-block:0 72px}
+  p{margin:0 0 0.9em;max-width:68ch}
+  h1,h2,h3{font-family:var(--display);font-weight:600;text-wrap:balance;margin:0;line-height:1.15}
+  a{color:var(--court)}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:2px}
+  .num{font-variant-numeric:tabular-nums}
+  .mono{font-family:var(--mono);font-size:0.82em}
+
+  /* ---- masthead ---- */
+  .mast{border-bottom:2px solid var(--court);padding-block:36px 18px;margin-bottom:34px}
+  .eyebrow{font-family:var(--display);text-transform:uppercase;letter-spacing:0.14em;
+    font-size:12px;font-weight:600;color:var(--court);margin-bottom:10px}
+  .mast h1{font-size:clamp(30px,5.4vw,46px);letter-spacing:-0.01em}
+  .mast .sub{font-size:clamp(16px,2.2vw,19px);color:var(--ink-2);margin-top:12px;max-width:64ch;font-weight:300}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:20px;
+    font-family:var(--display);font-size:13px;color:var(--ink-2);letter-spacing:0.02em}
+  .meta b{color:var(--ink);font-weight:600}
+
+  section{margin-block:52px}
+  h2{font-size:clamp(21px,3vw,27px);margin-bottom:6px}
+  .kicker{font-family:var(--display);text-transform:uppercase;letter-spacing:0.13em;
+    font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:8px}
+  .lede{color:var(--ink-2);margin-bottom:24px;font-size:17px}
+
+  /* ---- scale ---- */
+  .scalebox{background:var(--surface);border:1px solid var(--rule);padding:26px 24px 18px}
+  .toggle{display:inline-flex;border:1px solid var(--rule);background:var(--paper);margin-bottom:26px}
+  .toggle button{font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:0.05em;
+    text-transform:uppercase;padding:7px 15px;border:0;background:transparent;color:var(--ink-2);cursor:pointer}
+  .toggle button[aria-pressed="true"]{background:var(--court);color:#fff}
+  .railwrap{margin-bottom:30px}
+  .railhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:34px}
+  .railhead .t{font-family:var(--display);font-size:13px;font-weight:600;
+    text-transform:uppercase;letter-spacing:0.1em;color:var(--ink-2)}
+  .railhead .r{font-family:var(--display);font-size:12px;color:var(--ink-3)}
+  .rail{position:relative;height:8px;background:var(--surface-2);border-radius:4px}
+  .zone{position:absolute;top:0;bottom:0;background:var(--court-wash);border-radius:4px}
+  .thresh{position:absolute;top:-9px;bottom:-9px;width:2px;background:var(--clay)}
+  .mk{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;
+    background:var(--s1);border:2px solid var(--surface);transform:translate(-50%,-50%)}
+  .lab{position:absolute;transform:translateX(-50%);text-align:center;width:130px}
+  .lab .v{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-0.01em}
+  .lab .n{font-family:var(--display);font-size:11.5px;color:var(--ink-2);line-height:1.25;
+    text-transform:uppercase;letter-spacing:0.05em}
+  .lab.up{bottom:20px}
+  .lab.dn{top:20px}
+  .leader{position:absolute;width:1px;background:var(--rule);}
+  .ticks{position:relative;height:16px;margin-top:6px}
+  .tick{position:absolute;transform:translateX(-50%);font-family:var(--display);
+    font-size:11px;color:var(--ink-3)}
+  .zoomnote{font-family:var(--display);font-size:11.5px;color:var(--clay);
+    text-transform:uppercase;letter-spacing:0.08em;font-weight:600}
+
+  /* ---- construction ---- */
+  .bars{display:grid;gap:11px}
+  .bar{display:grid;grid-template-columns:1fr;gap:5px}
+  .bar .bl{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+    font-family:var(--display);font-size:13.5px}
+  .bar .bl span:last-child{font-weight:700;font-size:15px}
+  .track{height:11px;background:var(--surface-2)}
+  .fill{height:100%}
+
+  /* ---- explorer ---- */
+  .expl{display:grid;grid-template-columns:300px 1fr;gap:0;border:1px solid var(--rule);background:var(--surface)}
+  .side{border-right:1px solid var(--rule);display:flex;flex-direction:column;min-height:0}
+  .filters{padding:14px;border-bottom:1px solid var(--rule);display:grid;gap:9px}
+  select,input[type=search]{font-family:var(--display);font-size:13.5px;padding:7px 9px;
+    border:1px solid var(--rule);background:var(--paper);color:var(--ink);width:100%}
+  .count{font-family:var(--display);font-size:11.5px;color:var(--ink-3);
+    text-transform:uppercase;letter-spacing:0.08em}
+  .list{overflow-y:auto;max-height:440px}
+  .row{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--rule-soft);
+    background:transparent;padding:10px 14px;cursor:pointer;font-family:var(--display);color:var(--ink)}
+  .row:hover{background:var(--court-wash)}
+  .row[aria-current="true"]{background:var(--court);color:#fff}
+  .row .r1{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .r2{font-size:11.5px;opacity:0.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .detail{padding:22px;min-width:0}
+  .dhead{border-bottom:1px solid var(--rule);padding-bottom:14px;margin-bottom:18px}
+  .dhead .m{font-family:var(--display);font-size:19px;font-weight:600;line-height:1.25}
+  .dhead .s{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:5px}
+  .faultcard{background:var(--court-wash);border-left:3px solid var(--court);padding:13px 15px;margin-bottom:20px}
+  .faultcard .l{font-family:var(--display);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:0.12em;color:var(--court);font-weight:600;margin-bottom:5px}
+  .faultcard .f{font-size:15.5px}
+  .cand{border-top:1px solid var(--rule);padding-top:14px;margin-top:14px}
+  .cand:first-of-type{border-top:0}
+  .candhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px}
+  .candhead .who{font-family:var(--display);font-size:12px;font-weight:600;
+    text-transform:uppercase;letter-spacing:0.09em}
+  .candhead .sc{font-family:var(--display);font-weight:700;font-size:17px}
+  .candtext{font-size:15px;color:var(--ink-2);max-width:none}
+  .pill{display:inline-block;font-family:var(--display);font-size:10.5px;font-weight:600;
+    text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;margin-left:7px;
+    border:1px solid currentColor;vertical-align:1px}
+
+  /* ---- split ---- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .panel{background:var(--surface);border:1px solid var(--rule);padding:18px}
+  .panel h3{font-size:15px;text-transform:uppercase;letter-spacing:0.09em;color:var(--ink-2);margin-bottom:12px}
+  .stat{font-family:var(--display);font-size:34px;font-weight:700;line-height:1;letter-spacing:-0.02em}
+  .statl{font-family:var(--display);font-size:11.5px;text-transform:uppercase;
+    letter-spacing:0.09em;color:var(--ink-3);margin-top:4px}
+  .plist{font-family:var(--display);font-size:13.5px;color:var(--ink-2);
+    columns:2;column-gap:18px;margin-top:14px}
+  .caveat{border-left:3px solid var(--clay);padding:12px 16px;background:var(--surface);margin-top:22px}
+  .caveat .l{font-family:var(--display);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:0.12em;color:var(--clay);font-weight:600;margin-bottom:5px}
+  .caveat p{margin:0;font-size:15px}
+
+  footer{border-top:1px solid var(--rule);margin-top:56px;padding-top:18px;
+    font-family:var(--display);font-size:12.5px;color:var(--ink-3)}
+
+  @media (max-width:860px){
+    .expl{grid-template-columns:1fr}
+    .side{border-right:0;border-bottom:1px solid var(--rule)}
+    .list{max-height:260px}
+    .two{grid-template-columns:1fr}
+    .lab{width:104px}
+    .lab .v{font-size:16px}
+    .lab .n{font-size:10.5px}
+    .plist{columns:1}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">COSC320 · Badminton coaching feedback</div>
+  <h1>What a BERTScore of 0.90 is actually worth</h1>
+  <p class="sub">The evaluation harness now has a real reference set — 2,247 rallies whose faults were
+  annotated by ShuttleSet's experts — and a measured floor. Coaching text about the
+  <em>wrong</em> fault already scores 0.897, so the number a model version reports means nothing
+  on its own.</p>
+  <div class="meta">
+    <span><b>543</b> held-out clips</span>
+    <span><b>11</b> test players</span>
+    <span>scorer <b>roberta-large</b></span>
+    <span>split <b>player-disjoint</b>, 0 discarded</span>
+    <span>model versions scored so far: <b>none</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="kicker">The finding</div>
+  <h2>Where a model version has to land</h2>
+  <p class="lede">Four baselines, none of which involve a model, scored through exactly the same
+  pipeline Version A will use. They bracket the range every reported score has to be read against.</p>
+
+  <div class="scalebox">
+    <div class="toggle" role="group" aria-label="Score scale">
+      <button id="btn-raw" type="button" aria-pressed="true">Raw F1</button>
+      <button id="btn-res" type="button" aria-pressed="false">Baseline-rescaled</button>
+    </div>
+
+    <div class="railwrap">
+      <div class="railhead">
+        <span class="t">Full scale · 0 to 1</span>
+        <span class="r" id="zoomlabel"></span>
+      </div>
+      <div class="rail" id="rail-full"></div>
+      <div class="ticks" id="ticks-full"></div>
+    </div>
+
+    <div class="railwrap" style="margin-bottom:8px">
+      <div class="railhead">
+        <span class="t">Magnified — the part of the scale that is in play</span>
+        <span class="zoomnote" id="usable"></span>
+      </div>
+      <div class="rail" id="rail-zoom"></div>
+      <div class="ticks" id="ticks-zoom"></div>
+    </div>
+  </div>
+
+  <p style="margin-top:22px"><strong>Read the distance, not the score.</strong> The red line is the
+  wrong-fault floor. On the raw scale the entire distance between "fluent nonsense" and "perfect"
+  is about a tenth of the axis, and no draw across all 543 clips scored below 0.866. Rescaling
+  against bert-score's own baseline widens the gap between the two model-free baselines from
+  0.018 to 0.105 — roughly sixfold — which is why the A-vs-B comparison should be reported
+  rescaled.</p>
+</section>
+
+<section>
+  <div class="kicker">Reference set</div>
+  <h2>Where the gold feedback comes from</h2>
+  <p class="lede">The proposal's risk register flagged that no expert assessments exist. ShuttleSet's
+  annotators already recorded, for every rally, which shot ended it and how it was lost — an
+  expert record of the fault, published with the dataset.</p>
+  <div class="bars" id="bars"></div>
+  <p style="margin-top:20px">ShuttleSet records the <em>outcome</em> — out, or into the net — not the
+  <em>cause</em>. Inferring "no trunk rotation" from "smash hit out" would look rigorous while being a
+  guess, so the templates are keyed to the observed outcome: eight stroke families × two error modes.
+  The fault statement is annotated; only the wording of the correction is ours.</p>
+</section>
+
+<section>
+  <div class="kicker">Evidence</div>
+  <h2>Read any held-out rally</h2>
+  <p class="lede">Every one of the 543 test clips, with the fault ShuttleSet recorded, the reference
+  feedback, and what each baseline said about it. This is where the floor stops being abstract.</p>
+
+  <div class="expl">
+    <div class="side">
+      <div class="filters">
+        <label class="count" for="f-fault">Filter by fault</label>
+        <select id="f-fault"></select>
+        <label class="count" for="f-search">Search player or match</label>
+        <input id="f-search" type="search" placeholder="e.g. An Se Young" autocomplete="off">
+        <div class="count" id="f-count"></div>
+      </div>
+      <div class="list" id="list" role="listbox" aria-label="Held-out clips"></div>
+    </div>
+    <div class="detail" id="detail"></div>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">Method</div>
+  <h2>The split this corpus admits</h2>
+  <p class="lede">The first seeded 30% split was rejected outright: the players drawn had played
+  every one of their matches against players in training, so the test side came out empty. That is
+  the strict player-disjoint rule meeting a densely-connected tournament corpus.</p>
+  <div class="two">
+    <div class="panel">
+      <div class="stat num" id="s-train">—</div>
+      <div class="statl">training clips · <span id="s-trainp"></span> players</div>
+      <div class="plist" id="l-train"></div>
+    </div>
+    <div class="panel">
+      <div class="stat num" id="s-test">—</div>
+      <div class="statl">held-out clips · <span id="s-testp"></span> players</div>
+      <div class="plist" id="l-test"></div>
+    </div>
+  </div>
+  <p style="margin-top:22px">The player co-occurrence graph has four connected components, so cutting
+  along their boundaries discards <strong>nothing</strong> — no clip straddles the partition.</p>
+  <div class="caveat">
+    <div class="l">Caveat that belongs in the report</div>
+    <p>Those components are the men's and women's draws, so this split is sex-disjoint as well as
+    player-disjoint. Test performance therefore confounds "unseen player" with "different game". It
+    is the right split for an A-vs-B comparison, where both versions face the same shift, and the
+    wrong basis for any absolute claim.</p>
+  </div>
+</section>
+
+<footer>
+  Generated from <span class="mono">experiments/feedback_eval/shuttleset_v1/</span> ·
+  reproduce with <span class="mono">PYTHONPATH=src python -m feedback_eval.score_cli …</span> ·
+  all figures are model-free baselines, not model output.
+</footer>
+
+</div>
+
+<script>
+const D = __PAYLOAD__;
+
+/* ---------- the scale ---------- */
+const ORDER = ["empty","constant","random_template","oracle"];
+const NAMES = {
+  empty:"No output",
+  constant:"Same text<br>every clip",
+  random_template:"Right register,<br>wrong fault",
+  oracle:"Copies the<br>reference"
+};
+let mode = "raw";
+
+function drawRail(railEl, ticksEl, lo, hi){
+  const vals = ORDER.map(k => D.aggregates[k][mode]);
+  const floor = D.aggregates.random_template[mode];
+  const pos = v => ((v - lo) / (hi - lo)) * 100;
+  railEl.innerHTML = ""; ticksEl.innerHTML = "";
+
+  if (floor > lo){
+    const z = document.createElement("div");
+    z.className = "zone";
+    z.style.left = pos(floor) + "%";
+    z.style.right = "0";
+    railEl.appendChild(z);
+  }
+  const th = document.createElement("div");
+  th.className = "thresh"; th.style.left = pos(floor) + "%";
+  railEl.appendChild(th);
+
+  ORDER.forEach((k, i) => {
+    const v = vals[i];
+    if (v < lo - 1e-9) return;
+    const p = pos(v);
+    const mk = document.createElement("div");
+    mk.className = "mk"; mk.style.left = p + "%";
+    railEl.appendChild(mk);
+
+    const up = i % 2 === 0;
+    const lab = document.createElement("div");
+    lab.className = "lab " + (up ? "up" : "dn");
+    lab.style.left = p + "%";
+    lab.innerHTML = '<div class="v num">' + v.toFixed(3) + '</div><div class="n">' + NAMES[k] + '</div>';
+    railEl.appendChild(lab);
+
+    const ld = document.createElement("div");
+    ld.className = "leader";
+    ld.style.left = p + "%";
+    if (up){ ld.style.bottom = "8px"; ld.style.height = "12px"; }
+    else { ld.style.top = "8px"; ld.style.height = "12px"; }
+    railEl.appendChild(ld);
+  });
+
+  const steps = 5;
+  for (let i = 0; i <= steps; i++){
+    const v = lo + (hi - lo) * i / steps;
+    const t = document.createElement("div");
+    t.className = "tick num";
+    t.style.left = (i / steps * 100) + "%";
+    t.textContent = v.toFixed(2);
+    ticksEl.appendChild(t);
+  }
+}
+
+function renderScale(){
+  const floor = D.aggregates.random_template[mode];
+  const lo = mode === "raw" ? 0.85 : 0.20;
+  drawRail(document.getElementById("rail-full"), document.getElementById("ticks-full"), 0, 1);
+  drawRail(document.getElementById("rail-zoom"), document.getElementById("ticks-zoom"), lo, 1);
+  document.getElementById("zoomlabel").textContent =
+    "magnified below: " + lo.toFixed(2) + " – 1.00";
+  document.getElementById("usable").textContent =
+    "usable range " + (1 - floor).toFixed(2) + " of 1.00";
+  document.getElementById("btn-raw").setAttribute("aria-pressed", mode === "raw");
+  document.getElementById("btn-res").setAttribute("aria-pressed", mode === "rescaled");
+}
+document.getElementById("btn-raw").onclick = () => { mode = "raw"; renderScale(); renderDetail(); };
+document.getElementById("btn-res").onclick = () => { mode = "rescaled"; renderScale(); renderDetail(); };
+
+/* ---------- construction ---------- */
+(function(){
+  const max = Math.max(...D.construction.map(r => r[1]));
+  document.getElementById("bars").innerHTML = D.construction.map((r, i) => {
+    const kept = i === 0;
+    return '<div class="bar"><div class="bl"><span>' + r[0] +
+      (kept ? '' : ' <span class="count">excluded</span>') +
+      '</span><span class="num">' + r[1].toLocaleString() + '</span></div>' +
+      '<div class="track"><div class="fill" style="width:' + (r[1]/max*100) +
+      '%;background:' + (kept ? 'var(--s1)' : 'var(--ink-3)') + '"></div></div></div>';
+  }).join("");
+})();
+
+/* ---------- explorer ---------- */
+const sel = document.getElementById("f-fault");
+const search = document.getElementById("f-search");
+const listEl = document.getElementById("list");
+let current = D.clips[0].id;
+
+sel.innerHTML = '<option value="">All faults (' + D.clips.length + ' clips)</option>' +
+  Object.keys(D.templates).sort().map(t => {
+    const n = D.clips.filter(c => c.t === t).length;
+    return n ? '<option value="' + t + '">' + t.replace(/_/g," ") + " (" + n + ")</option>" : "";
+  }).join("");
+
+function filtered(){
+  const f = sel.value, q = search.value.trim().toLowerCase();
+  return D.clips.filter(c =>
+    (!f || c.t === f) &&
+    (!q || c.match.toLowerCase().includes(q) || c.p.join(" ").toLowerCase().includes(q)));
+}
+
+function renderList(){
+  const rows = filtered();
+  document.getElementById("f-count").textContent = rows.length + " clip" + (rows.length === 1 ? "" : "s");
+  if (!rows.some(r => r.id === current) && rows.length) current = rows[0].id;
+  listEl.innerHTML = rows.map(c =>
+    '<button class="row" type="button" role="option" data-id="' + c.id + '" aria-current="' +
+    (c.id === current) + '"><div class="r1">' + c.p.join(" v ") + '</div>' +
+    '<div class="r2">' + c.sr + " · " + c.t.replace(/_/g," ") + '</div></button>').join("");
+  listEl.querySelectorAll(".row").forEach(b => b.onclick = () => {
+    current = b.dataset.id; renderList(); renderDetail();
+  });
+  if (!rows.length) listEl.innerHTML = '<div style="padding:16px" class="count">No clips match.</div>';
+}
+
+function cand(who, text, score, note){
+  return '<div class="cand"><div class="candhead"><span class="who">' + who +
+    (note ? '<span class="pill">' + note + '</span>' : '') +
+    '</span><span class="sc num">' + score.toFixed(3) + '</span></div>' +
+    '<div class="candtext">' + text + '</div></div>';
+}
+
+function renderDetail(){
+  const c = D.clips.find(x => x.id === current);
+  const el = document.getElementById("detail");
+  if (!c){ el.innerHTML = ""; return; }
+  const t = D.templates[c.t];
+  const k = mode === "raw" ? 0 : 1;
+  const refs = t.corr.map(i => D.corrections[i]);
+  const rtText = D.corrections[c.rt];
+  const rtRight = t.corr.includes(c.rt);
+
+  el.innerHTML =
+    '<div class="dhead"><div class="m">' + c.p.join(" <span style=\"color:var(--ink-3)\">v</span> ") +
+      '</div><div class="s">' + c.match + " · " + c.sr + '</div></div>' +
+    '<div class="faultcard"><div class="l">Fault recorded by ShuttleSet · ' +
+      c.t.replace(/_/g," ") + '</div><div class="f">' + t.fault +
+      ' <span style="color:var(--ink-2)">Played by ' + c.err + '.</span></div></div>' +
+    '<div class="count" style="margin-bottom:10px">Reference feedback — ' + refs.length +
+      ' accepted phrasings, BERTScore keeps the best match</div>' +
+    '<div class="candtext" style="margin-bottom:6px">' +
+      refs.map(r => '<div style="margin-bottom:7px">— ' + r + '</div>').join("") + '</div>' +
+    '<div class="count" style="margin:22px 0 2px">What each baseline said, and scored</div>' +
+    cand("Constant · ignores the clip", D.constantText, c.sc.constant[k]) +
+    cand("Random template", rtText, c.sc.random_template[k],
+         rtRight ? "drew the right fault" : "wrong fault") +
+    cand("Oracle · copies the reference", refs[0], c.sc.oracle[k]);
+}
+
+sel.onchange = () => { renderList(); renderDetail(); };
+search.oninput = () => { renderList(); renderDetail(); };
+
+/* ---------- split ---------- */
+document.getElementById("s-train").textContent = D.split.trainClips.toLocaleString();
+document.getElementById("s-test").textContent = D.split.testClips.toLocaleString();
+document.getElementById("s-trainp").textContent = D.split.trainPlayers.length;
+document.getElementById("s-testp").textContent = D.split.testPlayers.length;
+document.getElementById("l-train").innerHTML = D.split.trainPlayers.map(p => "<div>" + p + "</div>").join("");
+document.getElementById("l-test").innerHTML = D.split.testPlayers.map(p => "<div>" + p + "</div>").join("");
+
+renderScale(); renderList(); renderDetail();
+</script>

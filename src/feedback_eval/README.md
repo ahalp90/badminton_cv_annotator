@@ -384,3 +384,23 @@ python -m pytest tests/test_feedback_eval_*.py
 All 149 run on CPU in well under a second with no transformers install: the
 scorer is injected, so the tests drive a fake with the same signature as
 `bert_score.BERTScorer.score`.
+
+## The readout page
+
+`scripts/feedback_eval/build_readout_payload.py` rebuilds the interactive
+readout from the harness's own outputs — the score runs, the pinned split, the
+derived faults and the template library — and inlines it into
+`readout_template.html`:
+
+```bash
+PYTHONPATH=src python scripts/feedback_eval/build_readout_payload.py \
+    --out /tmp/payload.json --html-out /tmp/harness_readout.html
+```
+
+Nothing on the page is typed in. The exclusion counts in particular are
+produced by re-running `derive_faults` rather than copied out of its console
+output, because a transcribed count goes on looking plausible long after the
+thing it counted has changed.
+
+The page is a **snapshot, not a live view**: re-running the scorer does not
+update a published readout. Rebuild and republish.
