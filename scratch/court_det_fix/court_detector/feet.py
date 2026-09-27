@@ -127,14 +127,21 @@ def standing_feet(samples: list[PersonSample], scale: np.ndarray, frame_size: tu
     return [row + [None] * (slots - len(row)) for row in rows]
 
 
-def window_feet(view: ViewInputs, people: PeopleSource, frames: FrameReader,
-                enforce_scene_consistency: bool) -> FeetWindow:
+def window_feet(view: ViewInputs, people: PeopleSource | None, frames: FrameReader,
+                enforce_scene_consistency: bool, allow_short_window: bool = False) -> FeetWindow:
     """Gather the standing feet around the view's frame.
 
     :param enforce_scene_consistency: Keep only the samples in the anchor's shot, judged by
         grey thumbnails. Off keeps the whole window.
     """
-    window = window_frames(view.frame_index, frames.fps, *view.scene_frames)
+    if people is None:
+        return FeetWindow([], None, [], [])
+    try:
+        window = window_frames(view.frame_index, frames.fps, *view.scene_frames)
+    except ValueError:
+        if not allow_short_window:
+            raise
+        window = [view.frame_index]
     anchor_position = window.index(view.frame_index)
     if enforce_scene_consistency:
         images = frames.read(window)

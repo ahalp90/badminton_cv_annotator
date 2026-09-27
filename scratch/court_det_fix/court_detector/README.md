@@ -88,6 +88,17 @@ detector = CourtDetector(Switches())
 result = detector.detect(view, people, frames)
 ```
 
+People are required by default. For a plausible fallback without boxes or
+keypoints, use `Switches(require_people=False)` and pass `people=None` with an
+empty `(0, 4)` box array in the view. The detector then uses line-template
+proposals, court geometry, camera checks and the usual stripe fit. Player
+measurements remain unavailable rather than being treated as passing checks.
+This fallback has not been tuned for the same precision as detection with people.
+
+When people are supplied in optional mode, their boxes still mask occlusions
+and support the existing proposal search. Missing or off-court people do not
+veto the final choice. Short scenes use their anchor's people when available.
+
 The saved-view runner takes IDs from the
 [28-view list](../court_detector_optimisation_handover/claude_evidence/fresh_feet/views.json).
 Its image, line and box inputs come from saved research records. `PEOPLE_DIR`
@@ -120,8 +131,13 @@ those figures do not measure the combined peak of every process.
 ## Run from video
 
 The video caller can run DeepLSD for lines and read frame-aligned RTMLib pose
-extracts. Omit `--people` to run the project's RTMLib extractor on the requested
-frames instead. Both live models load once.
+extracts. With the default `--require-people`, omit `--people` to run the project's
+RTMLib extractor on the requested frames. Both live models load once.
+Use `--no-require-people` without `--people` to skip pose inference and use the
+line-only fallback. This mode also analyses scenes shorter than the usual
+three-second people window. Supplying `--people` still uses those saved inputs,
+but leaves the player checks optional. The saved-view runner supports the same
+gate toggle while retaining its required fixture directory.
 
 Live pose extraction temporarily reuses `bst_x.preparing_data.rtmlib_pose`,
 which also imports BST-X pipeline configuration. This is a practical compromise.

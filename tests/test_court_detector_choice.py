@@ -38,3 +38,23 @@ def test_zero_geometry_weight_needs_no_geometry_score() -> None:
 def test_switches_refuse_a_geometry_weight_outside_zero_to_one(weight: float) -> None:
     with pytest.raises(ValueError):
         Switches(geometry_weight=weight)
+
+
+def test_optional_people_keep_camera_gate_and_truthful_player_evidence() -> None:
+    candidates = []
+    for key, camera_valid, score in (("no_people", True, .4), ("bad_camera", False, .9)):
+        candidates.append({
+            "origin_key": key, "candidate_id": key, "source": "line_template", "corners_px": CORNERS_NATIVE,
+            "historical": {"historical_fullcourt": False, "historical_camera": camera_valid},
+            "camera_eligible": camera_valid, "gates": {"camera_error": .01 if camera_valid else 1.0},
+            "evidence": {"q_paint10_span_weighted": score, "q_geom_span_weighted": score},
+        })
+    record = {"parents": candidates, "valid_children": [], "rankings": {"C": {
+        "provisional_rank": ["bad_camera", "no_people"], "r2_criterion": "q_paint10_span_weighted",
+    }}}
+    assert net_choice.net_rows(record, CONTEXT) == []
+    rows = net_choice.net_rows(record, CONTEXT, require_people=False)
+    assert [item["origin_key"] for item in rows] == ["no_people"]
+    assert rows[0]["historical_fullcourt"] is False
+    assert net_choice.choose(rows, NET_WEIGHT, 4.0)[0] is None
+    assert net_choice.choose(rows, NET_WEIGHT, 4.0, require_people=False)[0] == "no_people"

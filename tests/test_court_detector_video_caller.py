@@ -1,11 +1,14 @@
 """The video caller keeps frame, line, pose and scene coordinates together."""
 
+import gzip
+import json
 from collections.abc import Sequence
 
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector.detect import CourtResult
+from scratch.court_det_fix.court_detector import run_video
+from scratch.court_det_fix.court_detector.detect import CourtResult, Switches
 from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
 from scratch.court_det_fix.court_detector.run_video import scene_courts, validate_scenes
 from scratch.court_det_fix.court_detector.scene_sources import SceneInfo
@@ -35,11 +38,14 @@ class Lines:
 
 
 class Detector:
-    def __init__(self) -> None:
+    def __init__(self, switches: Switches | None = None) -> None:
+        self.switches = switches or Switches()
         self.views: list[ViewInputs] = []
+        self.people_sources = []
 
     def detect(self, view, people, frames) -> CourtResult:
         self.views.append(view)
+        self.people_sources.append(people)
         return CourtResult(view.view_id, None, 'no_gated_court', None, {'feet': .1})
 
 
@@ -57,6 +63,80 @@ def test_scenes_keep_native_inputs_together_and_report_short_scenes() -> None:
     assert 'no_court_reason' not in rows[1]
 
 
+def test_optional_people_analyse_short_scene_without_pose_source() -> None:
+    detector, lines = Detector(Switches(require_people=False)), Lines()
+    rows = list(scene_courts(detector, Frames(), None, lines, [SceneInfo(0, 9)], video_id='clip'))  # type: ignore[arg-type]
+    assert [row['status'] for row in rows] == ['no_court']
+    assert lines.indices == [4]
+    assert detector.people_sources == [None]
+    assert detector.views[0].scene_frames == (0, 9)
+    assert detector.views[0].person_boxes_px.shape == (0, 4)
+
+
+def test_optional_people_uses_supplied_pose_source() -> None:
+    detector = Detector(Switches(require_people=False))
+    rows = list(scene_courts(detector, Frames(), People(), Lines(), [SceneInfo(0, 9)],  # type: ignore[arg-type]
+                            video_id='clip'))
+    assert rows[0]['status'] == 'no_court'
+    np.testing.assert_array_equal(detector.views[0].person_boxes_px, [[4, 2, 30, 40]])
+
+
+def test_required_people_rejects_missing_source() -> None:
+    with pytest.raises(ValueError, match='people source is required'):
+        list(scene_courts(Detector(), Frames(), None, Lines(), [SceneInfo(0, 99)],  # type: ignore[arg-type]
+                          video_id='clip'))
+
+
+@pytest.mark.parametrize(('flag', 'expected_status', 'live_setup_count'), [
+    ([], 'scene_too_short_for_feet', 1),
+    (['--no-require-people'], 'no_court', 0),
+])
+def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, flag: list[str], expected_status: str, live_setup_count: int,
+) -> None:
+    class VideoFileFrames(Frames):
+        frame_count = 10
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    detectors = []
+    live_setups = []
+
+    def make_detector(switches):
+        detector = Detector(switches)
+        detectors.append(detector)
+        return detector
+
+    def make_live_people(frames, device):
+        live_setups.append((frames, device))
+        return People()
+
+    output = tmp_path / 'result.json.gz'
+    monkeypatch.setattr(run_video, 'VideoFrames', lambda path: VideoFileFrames())
+    monkeypatch.setattr(run_video, 'SavedLines', lambda records: Lines())
+    monkeypatch.setattr(run_video, 'read_json', lambda path: {})
+    monkeypatch.setattr(run_video, 'RtmlibPeople', make_live_people)
+    monkeypatch.setattr(run_video, 'CourtDetector', make_detector)
+    monkeypatch.setattr(run_video.os, 'sched_setaffinity', lambda *_: None)
+    monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(output),
+                                    '--saved-lines', 'lines.json.gz', *flag])
+
+    assert run_video.main() == 0
+    with gzip.open(output, 'rt') as stream:
+        result = json.load(stream)
+    assert len(live_setups) == live_setup_count
+    assert result['require_people'] is (not flag)
+    assert result['scenes'][0]['status'] == expected_status
+    assert detectors[0].switches.require_people is (not flag)
+    if flag:
+        assert detectors[0].people_sources == [None]
+        assert detectors[0].views[0].person_boxes_px.shape == (0, 4)
+
+
 @pytest.mark.parametrize('scenes', [[], [SceneInfo(1, 9)], [SceneInfo(0, 8)],
                                     [SceneInfo(0, 4), SceneInfo(6, 9)], [SceneInfo(0, 5), SceneInfo(5, 9)]])
 def test_incomplete_or_overlapping_external_scenes_fail(scenes: list[SceneInfo]) -> None:
@@ -71,6 +151,7 @@ def test_valid_scene_partition() -> None:
 def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> None:
     class ReusingDetector:
         def __init__(self) -> None:
+            self.switches = Switches()
             self.attempts: list[list[str]] = []
 
         def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
@@ -92,6 +173,7 @@ def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> N
 def test_reused_court_does_not_become_a_template() -> None:
     class ReusingDetector:
         def __init__(self) -> None:
+            self.switches = Switches()
             self.attempts: list[list[str]] = []
 
         def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:

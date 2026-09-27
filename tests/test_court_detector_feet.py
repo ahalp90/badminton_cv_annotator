@@ -109,3 +109,24 @@ def test_window_feet_rejects_people_from_other_frames() -> None:
                       np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (20,), 20))
     with pytest.raises(ValueError, match="people source returned frames"):
         feet.window_feet(view, ShiftedPeople(), BlankFrames(), enforce_scene_consistency=True)
+
+
+def test_absent_people_need_no_frame_window_or_fake_foot_measurements() -> None:
+    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 0), np.zeros((0, 4)),
+                      np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (0,), 0))
+    window = feet.window_feet(view, None, BlankFrames(), True, allow_short_window=True)
+    assert window == feet.FeetWindow([], None, [], [])
+
+
+def test_optional_short_window_uses_available_anchor_people() -> None:
+    class EmptyPeople:
+        def samples(self, frame_indices: list[int]) -> list[PersonSample]:
+            return [PersonSample(index, np.empty((0, 4)), np.empty((0, 17, 2))) for index in frame_indices]
+
+    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 0), np.zeros((0, 4)),
+                      np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (0,), 0))
+    with pytest.raises(ValueError, match="does not fit scene"):
+        feet.window_feet(view, EmptyPeople(), BlankFrames(), True)
+    window = feet.window_feet(view, EmptyPeople(), BlankFrames(), True, allow_short_window=True)
+    assert window.kept_frames == [0]
+    assert window.all_feet_px == [[None, None]]

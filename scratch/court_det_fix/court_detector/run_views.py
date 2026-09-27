@@ -203,6 +203,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("views", nargs="+", help="view IDs from views.json")
     parser.add_argument("--people", type=Path, required=True, help="folder of extract_window_people.py records")
+    parser.add_argument("--require-people", action=argparse.BooleanOptionalAction, default=True,
+                        help="require person boxes and keypoints for court detection (default: on)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, help="baseline arm folder: d17/, populations/, case_records/")
     parser.add_argument("--feet", type=Path, help="the baseline's feet file, {view ID: all_feet_px}")
@@ -232,7 +234,7 @@ def main() -> int:
     detector = CourtDetector(Switches(self_checks=not args.no_self_checks, timing=args.timing,
                                       artefacts_dir=artefacts_dir, upright_camera=not args.any_camera_roll,
                                       geometry_weight=args.geometry_weight, workers=args.workers,
-                                      full_score_limit=args.full_score_limit))
+                                      full_score_limit=args.full_score_limit, require_people=args.require_people))
     startup_seconds = perf_counter() - started
     verifier = detector.live.verifier
     sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)
@@ -298,6 +300,7 @@ def main() -> int:
         print(json.dumps({key: row.get(key) for key in ("view_id", "chosen_key", "no_court_reason",
                                                          "all_checks_equal", "error")}), flush=True)
     process = {"views": args.views, "startup_seconds": startup_seconds, "wall_seconds": perf_counter() - started,
+               "require_people": args.require_people,
                "parent_peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
                "largest_worker_peak_rss_mb": resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024,
                "failed": failed}

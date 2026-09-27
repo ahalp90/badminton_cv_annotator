@@ -151,6 +151,7 @@ def rejected(record: dict[str, Any], reason: str) -> ReuseAttempt:
 def try_reuse(
     known: KnownCourt, context: ViewContext, native_frame: np.ndarray, live: LiveModules, *,
     max_horizon_tilt_deg: float | None,
+    require_people: bool = True,
 ) -> ReuseAttempt:
     """Carry a known court into a new view, refit it to that view's stripes and check it.
 
@@ -213,7 +214,7 @@ def try_reuse(
     # Record every value before deciding, so tuning can see how close each rejected view came.
     checks = (
         ("camera_implausible", historical["historical_camera"]),
-        ("players_not_on_court", historical["historical_fullcourt"]),
+        ("players_not_on_court", not require_people or historical["historical_fullcourt"]),
         ("camera_not_upright", upright),
         ("refit_moved_court", shift_m <= MAX_REFIT_SHIFT_M),
     )

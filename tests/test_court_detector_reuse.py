@@ -220,6 +220,20 @@ def test_new_views_feet_outside_the_court_block_reuse(views: RealViews) -> None:
     assert record["gates"]["player_fractions"] == [0.0, 0.0]
 
 
+@pytest.mark.parametrize("require_people", [True, False])
+def test_reuse_without_people_keeps_missing_measurements_explicit(views: RealViews, require_people: bool) -> None:
+    source = {**views.later.source, "all_feet_px": [], "bbox_px": []}
+    context = measurements.view_context(LATER_SCENE, source, views.later.provenance,
+                                        views.later_frame, views.later.frame_relative_path)
+    known = reuse.make_known_court(LATER_SCENE, views.later_frame, saved_corners(LATER_SCENE), views.later_paint)
+    court, record = reuse.try_reuse(known, context, views.later_frame, views.live,
+                                    max_horizon_tilt_deg=UPRIGHT_LIMIT_DEG, require_people=require_people)
+    assert (court is None) is require_people, record
+    assert record["rejection"] == ("players_not_on_court" if require_people else None)
+    assert record["gates"]["player_fractions"] == [None, None]
+    assert record["historical"] == {"historical_fullcourt": False, "historical_camera": True}
+
+
 def test_mirrored_court_fails_the_geometry_check(views: RealViews) -> None:
     left_right_swapped = saved_corners(LATER_SCENE)[[1, 0, 3, 2]]
     known = reuse.make_known_court(LATER_SCENE, views.later_frame, left_right_swapped, views.later_paint)

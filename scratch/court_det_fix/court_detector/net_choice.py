@@ -106,13 +106,13 @@ def evidence_score(row: dict, geometry_weight: float) -> float:
 
 
 def choose(rows: list[dict], weight: float, overrun_px: float,
-           geometry_weight: float = 0.0) -> tuple[str | None, list[dict]]:
+           geometry_weight: float = 0.0, *, require_people: bool = True) -> tuple[str | None, list[dict]]:
     """Keep the first camera-ranked row on exact combined-score ties."""
     scored = []
     best_key = None
     best_score = -float("inf")
     for row in rows:
-        if not row["historical_fullcourt"]:
+        if not row["historical_fullcourt" if require_people else "historical_camera"]:
             continue
         reward_value = net_reward(row["net_state"], row["posts"], overrun_px)
         bonus = weight * reward_value
@@ -138,11 +138,13 @@ def net_posts(corners_native: list, context) -> tuple[str, dict]:
     return projection["state"], posts
 
 
-def net_rows(record: dict, context) -> list[dict]:
+def net_rows(record: dict, context, *, require_people: bool = True) -> list[dict]:
     """Rows for choose, built as net_recovery/bounded_trial.measure_case builds them.
 
     :param record: W5 case record, as read back from its JSON file.
     :param context: The view's verifier.ViewContext (working-size fragments and size).
+    :param require_people: Require player occupancy as well as camera geometry.
+        The existing full_court_rank field counts eligible rows in the selected mode.
     """
     candidates = {item["origin_key"]: item for item in record["parents"] + record["valid_children"]}
     ranking = record["rankings"]["C"]["provisional_rank"]
@@ -151,13 +153,15 @@ def net_rows(record: dict, context) -> list[dict]:
     full_rank = 0
     for rank, key in enumerate(ranking, start=1):
         candidate = candidates[key]
-        if not candidate["historical"]["historical_fullcourt"]:
+        if not candidate["historical"]["historical_fullcourt" if require_people else "historical_camera"]:
             continue
         full_rank += 1
         net_state, posts = net_posts(candidate["corners_px"], context)
         rows.append({
             "origin_key": key, "candidate_id": candidate["candidate_id"], "source": candidate["source"],
-            "original_rank": rank, "full_court_rank": full_rank, "historical_fullcourt": True,
+            "original_rank": rank, "full_court_rank": full_rank,
+            "historical_fullcourt": candidate["historical"]["historical_fullcourt"],
+            "historical_camera": candidate["historical"]["historical_camera"],
             "camera_eligible": candidate["camera_eligible"], "gate_camera_error": candidate["gates"]["camera_error"],
             "paint_score": candidate["evidence"][criterion],
             "geometry_score": candidate["evidence"]["q_geom_span_weighted"], "net_state": net_state, "posts": posts,

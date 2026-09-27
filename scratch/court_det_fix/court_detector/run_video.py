@@ -15,6 +15,8 @@ from typing import Any
 for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
     os.environ[variable] = '1'
 
+import numpy as np
+
 from . import feet
 from .detect import CourtDetector, Switches
 from .inputs import FrameReader, PeopleSource, ViewInputs, same_frame_provenance
@@ -24,14 +26,16 @@ from .video_inputs import PoseArrays, RtmlibPeople, VideoFrames
 
 
 def scene_courts(
-    detector: CourtDetector, frames: FrameReader, people: PeopleSource, lines: LineSource,
+    detector: CourtDetector, frames: FrameReader, people: PeopleSource | None, lines: LineSource,
     scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False,
 ) -> Iterator[dict[str, Any]]:
     """Detect the middle frame of each scene without crossing a cut for foot samples.
 
-    A scene too short for the existing foot window is reported as unanalysed.
-    It is not counted as evidence that no court is present.
+    When people are required, a scene too short for the foot window is
+    reported as unanalysed, not as evidence that no court is present.
     """
+    if people is None and detector.switches.require_people:
+        raise ValueError('A people source is required when require_people is enabled')
     # Keep only fully searched courts: chaining refits would accumulate movement.
     known_views = []
     for scene_index, scene in enumerate(scenes):
@@ -40,20 +44,25 @@ def scene_courts(
         view_id = f'{video_id}_scene_{scene_index:04d}_frame_{anchor}'
         row: dict[str, Any] = {'view_id': view_id, 'first_frame': scene.first_frame, 'last_frame': scene.last_frame,
                                'frame_index': anchor}
-        # Validate this input boundary before spending time on line/pose inference.
-        try:
-            feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
-        except ValueError:
-            row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
-            yield row
-            continue
+        if detector.switches.require_people:
+            # Validate this input boundary before spending time on line/pose inference.
+            try:
+                feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
+            except ValueError:
+                row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
+                yield row
+                continue
         frame = frames.read([anchor])[0]
         segments = lines.segments(frame, anchor)
-        anchor_people = people.samples([anchor])
-        if len(anchor_people) != 1 or anchor_people[0].frame_index != anchor:
-            raise ValueError(f'{view_id}: people source did not return the requested anchor')
+        if people is None:
+            boxes = np.empty((0, 4), dtype=float)
+        else:
+            anchor_people = people.samples([anchor])
+            if len(anchor_people) != 1 or anchor_people[0].frame_index != anchor:
+                raise ValueError(f'{view_id}: people source did not return the requested anchor')
+            boxes = anchor_people[0].boxes_px
         view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
-                          anchor_people[0].boxes_px, same_frame_provenance(view_id, anchor))
+                          boxes, same_frame_provenance(view_id, anchor))
         if reuse_courts:
             from .reuse import make_known_court
 
@@ -99,6 +108,8 @@ def main() -> int:
     parser.add_argument('--video', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path, help='output .json.gz file')
     parser.add_argument('--people', type=Path, help='native-pixel pose_{bboxes,kps,ndet}.npy.xz directory; otherwise run RTMLib')
+    parser.add_argument('--require-people', action=argparse.BooleanOptionalAction, default=True,
+                        help='require person boxes and keypoints for court detection (default: on)')
     parser.add_argument('--saved-lines', type=Path, help='.json.gz object mapping source frame numbers to line arrays')
     parser.add_argument('--deeplsd-source', type=Path)
     parser.add_argument('--deeplsd-weights', type=Path)
@@ -120,10 +131,17 @@ def main() -> int:
             lines = SavedLines({int(index): segments for index, segments in read_json(args.saved_lines).items()})
         else:
             lines = DeepLSDLines(args.deeplsd_source, args.deeplsd_weights, device=args.device)
-        people = PoseArrays.from_directory(args.people) if args.people else RtmlibPeople(frames, args.device)
+        if args.people is not None:
+            people: PeopleSource | None = PoseArrays.from_directory(args.people)
+        elif args.require_people:
+            people = RtmlibPeople(frames, args.device)
+        else:
+            people = None
         if isinstance(people, PoseArrays) and people.frame_count < frames.frame_count:
             raise ValueError('Saved poses do not cover the source video')
-        detector = CourtDetector(Switches(workers=args.workers, timing=True, full_score_limit=args.full_score_limit))
+        detector = CourtDetector(Switches(workers=args.workers, timing=True,
+                                          full_score_limit=args.full_score_limit,
+                                          require_people=args.require_people))
         setup_seconds = perf_counter() - started
         scene_started = perf_counter()
         if args.scenes is not None:
@@ -144,6 +162,7 @@ def main() -> int:
                   'native_size': frames.size, 'setup_seconds': setup_seconds, 'scene_seconds': scene_seconds,
                   'processing_seconds': perf_counter() - processing_started,
                   'total_seconds': perf_counter() - started, 'saved_people': args.people is not None,
+                  'require_people': args.require_people,
                   'saved_lines': args.saved_lines is not None, 'scenes': rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(args.output, 'wt') as stream:

@@ -47,6 +47,7 @@ MAX_HORIZON_TILT_DEG = 45.0
 @dataclass(frozen=True)
 class Switches:
     self_checks: bool = True  # reference-field, ranking-order, replay and zero-weight checks
+    require_people: bool = True  # otherwise allow a court supported by lines and camera geometry alone
     # TODO: default False once PySceneDetect cuts scenes and is checked on dissolves and
     # lens occlusions.
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
@@ -153,7 +154,8 @@ def source_record(view: ViewInputs, all_feet_px: list[list]) -> dict:
     height, width = view.frame.shape[:2]
     return {"id": view.view_id, "dimensions": {"width": width, "height": height},
             "segments_px": view.segments_px.tolist(), "bbox_px": view.person_boxes_px.tolist(),
-            "all_feet_px": all_feet_px, "provenance": {"people_source": "window_standing_feet"}}
+            "all_feet_px": all_feet_px,
+            "provenance": {"people_source": "window_standing_feet" if all_feet_px else "not_supplied"}}
 
 
 def json_round_trip(value: Any) -> Any:
@@ -168,13 +170,16 @@ class CourtDetector:
         self.switches = switches
         self.live = load_live_modules()
 
-    def detect(self, view: ViewInputs, people: PeopleSource, frames: FrameReader,
+    def detect(self, view: ViewInputs, people: PeopleSource | None, frames: FrameReader,
                *, known_courts: Sequence[KnownCourt] = ()) -> CourtResult:
         live, switches = self.live, self.switches
+        if switches.require_people and people is None:
+            raise ValueError("People inputs are required; use require_people=False for the line-only fallback")
         laps = Laps()
         artefacts: dict[str, Any] = {}
 
-        feet_window = feet.window_feet(view, people, frames, switches.enforce_scene_consistency)
+        feet_window = feet.window_feet(view, people, frames, switches.enforce_scene_consistency,
+                                      not switches.require_people)
         artefacts["feet"] = feet_window._asdict()
         laps.lap("feet")
 
@@ -191,7 +196,8 @@ class CourtDetector:
             artefacts["reuse"] = []
             for known in known_courts:
                 attempt = try_reuse(known, context, native_frame, live,
-                                    max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None)
+                                    max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None,
+                                    require_people=switches.require_people)
                 artefacts["reuse"].append(attempt.record)
                 if attempt.court is not None:
                     court = attempt.court
@@ -228,6 +234,10 @@ class CourtDetector:
                artefacts: dict[str, Any] | None = None) -> dict[str, list[dict]]:
         """G0 on every line fragment and G1 on the painted ones; entries as read back from JSON."""
         live = self.live
+        # Direction-pair proposals require player occupancy. The independent line
+        # templates below supply the fallback when there are no people inputs.
+        if not source["all_feet_px"]:
+            return {"G0": [], "G1": []}
         direction = live.generation.direction_record(context, search.DIRECTION_SETTINGS, live.vp_pruning)
         dimensions = source["dimensions"]
         scale = np.asarray([dimensions["width"], dimensions["height"]], dtype=float) / np.asarray(context.size, dtype=float)
@@ -283,13 +293,16 @@ class CourtDetector:
 def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndarray, line_maps: np.ndarray,
                  live: LiveModules, switches: Switches, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
     """The net choice and the stripe refit of its pick, from W5's case record. Runs inside prepared_measurements."""
-    rows = net_choice.net_rows(record, context)
-    chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight)
+    rows = net_choice.net_rows(record, context, require_people=switches.require_people)
+    chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight,
+                                           require_people=switches.require_people)
     if switches.self_checks:
         gated_top = rows[0]["origin_key"] if rows else None
-        if net_choice.choose(rows, 0.0, NET_OVERRUN_WORKING_PX)[0] != gated_top:
+        if net_choice.choose(rows, 0.0, NET_OVERRUN_WORKING_PX, require_people=switches.require_people)[0] != gated_top:
             raise RuntimeError(f"{view_id}: zero net weight changed the gated top court")
     artefacts["net_choice"] = {"chosen": chosen, "rows": net_scores}
+    if not switches.require_people:
+        artefacts["net_choice"]["require_people"] = False
     laps.lap("net_choice")
     if chosen is None:
         return CourtResult(view_id, None, "no_gated_court", None, None)
@@ -301,5 +314,7 @@ def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndar
     corrected = refit["corrected"]
     if not corrected["valid"]:
         return CourtResult(view_id, None, corrected["validity_reason"], chosen, None)
+    if not switches.require_people and not corrected["measurement"]["historical"]["historical_camera"]:
+        return CourtResult(view_id, None, "refit_camera_implausible", chosen, None)
     return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None,
                        corrected["measurement"]["paint_score"])

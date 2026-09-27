@@ -54,7 +54,7 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
     view = ViewInputs('later', frame, 50, (0, 99), np.empty((0, 4)), np.empty((0, 4)),
                       same_frame_provenance('later', 50))
-    result = detector.detect(view, None, None, known_courts=[object()])
+    result = detector.detect(view, object(), None, known_courts=[object()])
     assert len(prepared) == 1
     assert searched == ([] if accepted else [context])
     assert result.reused_from == ('earlier' if accepted else None)
