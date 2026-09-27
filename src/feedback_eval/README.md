@@ -12,7 +12,11 @@ waiting on it — Appendix A lists 3.3 as depending on 2.3, but BERTScore only
 needs two strings, so the dependency is on the *predictions file*, not on the
 model.
 
-## The three commands
+> **Every command below needs `PYTHONPATH=src`.** The project is not installed
+> into the venv as a package; `conftest.py` puts `src` on the path for pytest,
+> and nothing does it for a bare `python -m`.
+
+## The commands
 
 ```bash
 # 3.1a derive per-clip faults from ShuttleSet's expert annotations (the built route)
