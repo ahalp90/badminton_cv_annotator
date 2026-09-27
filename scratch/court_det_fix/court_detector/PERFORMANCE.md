@@ -168,8 +168,10 @@ and [28-view check](check_20260925/README.md) define the original comparison.
   For a new speed-up, compare against the current defaults too. Passing the
   historical baseline alone does not check the behaviour now in use
 - For a change that alters scores, compare chosen courts and floor-coordinate
-  errors, then inspect meaningful changes. Keep the eight non-court views
-  in the test. Preserve existing useful courts, including backups
+  errors, then inspect meaningful changes. Keep the eight control views
+  in the test. Control membership does not mean no court is visible: the wide
+  arena control contains multiple courts. Preserve existing useful courts,
+  including backups
 - Compare paired before/after runs. At most eight jobs in total was the
   recorded protocol. Shared-server timing varies too much to infer a saving
   from one view or an unmatched old run
