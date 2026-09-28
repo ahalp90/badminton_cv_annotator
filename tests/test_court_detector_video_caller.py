@@ -209,8 +209,8 @@ def test_reused_court_does_not_become_a_template() -> None:
     assert detector.attempts == [[], [first], [first]]
 
 
-@pytest.mark.parametrize('scene_length', [10, 80])
-def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: int) -> None:
+@pytest.mark.parametrize(('scene_length', 'expected_samples'), [(10, [0, 4, 9]), (80, [1, 39, 77])])
+def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: int, expected_samples: list[int]) -> None:
     class MovingFrames(Frames):
         def __init__(self) -> None:
             self.requested = []
@@ -254,5 +254,31 @@ def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: in
     assert [row['status'] for row in rows] == ['court', 'court']
     assert len(frames.requested) == 6
     for scene, requested in zip(scenes, (frames.requested[:3], frames.requested[3:]), strict=True):
-        assert len(set(requested)) == 3
-        assert all(scene.first_frame <= index <= scene.last_frame for index in requested)
+        assert requested == [scene.first_frame + index for index in expected_samples]
+
+
+@pytest.mark.parametrize('scene_consistency', [False, True])
+def test_reuse_decodes_in_order_and_preloads_the_feet_window_when_needed(scene_consistency: bool) -> None:
+    class RecordingFrames(Frames):
+        def __init__(self) -> None:
+            self.requests = []
+
+        def read(self, indices: Sequence[int]) -> list[np.ndarray]:
+            self.requests.append(list(indices))
+            return super().read(indices)
+
+    class ReusingDetector(Detector):
+        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+            assert np.all(view.alignment_image == 39)
+            return super().detect(view, people, frames)
+
+    frames = RecordingFrames()
+    detector = ReusingDetector(Switches(enforce_scene_consistency=scene_consistency))
+    list(scene_courts(detector, frames, People(), Lines(), [SceneInfo(0, 79)],  # type: ignore[arg-type]
+                     video_id='clip', reuse_courts=True))
+    assert len(frames.requests) == 1
+    requested = frames.requests[0]
+    assert requested == sorted(requested)
+    assert (requested[0], requested[-1]) == (1, 77)
+    assert 39 in requested
+    assert len(requested) == (31 if scene_consistency else 3)

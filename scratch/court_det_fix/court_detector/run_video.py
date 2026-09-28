@@ -46,17 +46,26 @@ def scene_courts(
         row: dict[str, Any] = {'view_id': view_id, 'first_frame': scene.first_frame, 'last_frame': scene.last_frame,
                                'frame_index': anchor}
         alignment_frames = (scene.first_frame, anchor, scene.last_frame)
+        frame_indices = list(alignment_frames) if reuse_courts else [anchor]
         if detector.switches.require_people or reuse_courts:
             # Validate this input boundary before spending time on line/pose inference.
             try:
                 window = feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
                 alignment_frames = (window[0], anchor, window[-1])
+                if reuse_courts:
+                    if people is not None and detector.switches.enforce_scene_consistency:
+                        frame_indices = window
+                    else:
+                        frame_indices = list(alignment_frames)
             except ValueError:
                 if detector.switches.require_people:
                     row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
                     yield row
                     continue
-        frame = frames.read([anchor])[0]
+        # Decode in order. The feet check can then use the cached window without
+        # seeking backwards after the median's last sample.
+        decoded = frames.read(frame_indices)
+        frame = decoded[frame_indices.index(anchor)]
         segments = lines.segments(frame, anchor)
         if people is None:
             boxes = np.empty((0, 4), dtype=float)
@@ -71,14 +80,12 @@ def scene_courts(
 
             # Moving players occupy different pixels across these samples. A median
             # retains the static court for alignment with returning camera views.
-            endpoints = frames.read([alignment_frames[0], alignment_frames[-1]])
-            images = [view_image(sample) for sample in (endpoints[0], frame, endpoints[1])]
+            images = [view_image(decoded[frame_indices.index(index)]) for index in alignment_frames]
             alignment_image = np.median(images, axis=0).astype(np.uint8)
             alignment_image.flags.writeable = False
         view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
                           boxes, same_frame_provenance(view_id, anchor), alignment_image)
         if reuse_courts:
-
             # Histograms only order the attempts. Image alignment and court checks
             # decide reuse. Missing histograms leave the most recent views first.
             ordered = known_views
