@@ -33,6 +33,31 @@ At this stage we've built a proof of concept dataset by extracting and deriving 
 
 See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
 
+## Dataset handover
+
+The COSC595 dataset handover preserves the existing exports and supporting model outputs. It does not include a new extraction run.
+
+Start with the [handover folder and README](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1). Delivery checks and review status are recorded in [issue #134](https://github.com/ahalp90/badminton_cv_annotator/issues/134).
+
+Read the [developer starting guide (`START-HERE.md`)](https://drive.google.com/file/d/1rrfn8f0zK75nDKESeBlJQSU2FBtpW_5j/view) in the handover folder for a new developer's first steps, expected check results, code entry points and unfinished work. The package README covers loading and verification in detail.
+
+| Download | Purpose |
+| --- | --- |
+| `cosc595-dataset-v1-main.zip` (about 130 MB) | Tables, manifests, player signals, schema, attribution, loading example and checks. Start here to use the exported features. |
+| `cosc595-dataset-v1-supporting-extracts.zip` (about 8.2 GB) | Optional pose, bounding-box, shuttle, court and mask outputs referenced by the dataset. These are model outputs, not match videos. |
+
+Extract both packages into the same parent folder when the supporting outputs are needed. Both use a `dataset-v1/` directory. The handover README includes Python setup and verification commands. `SHA256SUMS` and `archive-inventory.json` record the published archives.
+
+The main dataset contains **6,833 human-source rallies across 86 videos**: 3,182 from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. ShuttleSet also contains automatic rally rows. Select `rally_origin == "source_contacts"` for the human-source population.
+
+ShuttleSet22 video 15 is excluded, as implemented in [PR #159](https://github.com/ahalp90/badminton_cv_annotator/pull/159). The schema is [`rally-dataset/1.3`](docs/dataset_v1_schema.md). The frozen repository baseline is [`2488f9b`](https://github.com/ahalp90/badminton_cv_annotator/tree/2488f9b5c116d499ef79e9ed21dd837ec0b0c44f). Original export provenance is preserved in the handover's `docs/SOURCE_RECORD.md` and manifests.
+
+The 47-video evaluation reported below includes the video later excluded from the 46-video ShuttleSet22 delivery. Those results are not a new evaluation of the filtered export.
+
+The wider manual label sweep remains deferred. Existing court errors can affect derived features, and commentary links have not received a semantic accuracy audit. The features are experimental measurements, not validated player skill grades.
+
+The [court-detector follow-up (#148)](https://github.com/ahalp90/badminton_cv_annotator/issues/148) remains separate from this delivery. Court integration, retraining and re-extraction are deferred. Full match videos are outside the packages. See the handover's rebuild notes for the additional inputs needed to reproduce the exports.
+
 ## Auto-annotator
 
 Our most ambitious sub-project is the auto-annotator. It automates processing any badminton video into a scored sequence of rallies: detect the court, find live-play sections, identify shuttle contacts, work out which player hit them, and reconstruct each rally.
@@ -61,6 +86,19 @@ This project grew out of our earlier badminton stroke-classification work.
 That work is largely finished; the current project is about moving from isolated strokes toward understanding complete rallies and, eventually, player performance.
 
 ## Running it
+
+Using the saved dataset only requires the smaller environment described in the handover README. The commands below install the repository base dependencies and development tools. Additional setup is needed for vision processing and the full test suite.
+
+The base development install does not include all dependencies imported by the full test suite. Before running `uv run pytest`, install the dependencies for the components under test. These include `safetensors` for court models and `positional-encodings`, `tensorboard` and `torcheval` for classifier modules. See the runtime and training extras in [`pyproject.toml`](pyproject.toml).
+
+Before running the trial pipeline:
+
+- Configure the separate pose environment using the [pose extraction requirements and GPU setup notes](src/bst_x/preparing_data/requirements.txt).
+- Set `BADMINTON_TRACKNET_PYTHON` and `BADMINTON_POSE_PYTHON` to the Python executables for the extraction environments.
+- Supply the TrackNet, InpaintNet and court model weights at the paths in [`configs/dataset_builder/trial.toml`](configs/dataset_builder/trial.toml), or update the configuration to match their locations.
+- Set `GEMINI_API_KEY` for the trial's enabled commentary stage. Full vision processing also needs FFmpeg and a suitable GPU environment.
+
+A fresh full pipeline rebuild was not tested during this handover. The package's `docs/REBUILD.md` lists the additional source data and saved records needed to reproduce the delivered exports.
 
 Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), FFmpeg, and CUDA-capable hardware for the full vision pipeline.
 
