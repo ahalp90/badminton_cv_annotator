@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import geometry as detector
+from court_detector import geometry as detector
+from experiments.annotator.independent_court import line_only
 
 FRAME_SIZE = (480, 360)
 
@@ -61,7 +62,7 @@ OFFSCREEN_NEAR_CORNERS = np.array(
 def test_full_template_keeps_an_accurate_proposal_separate_from_acceptance() -> None:
     """A complete court yields a close proposal even when repeated lines are ambiguous."""
     image = _render_template(FULL_CORNERS)
-    detection = detector.detect(image, TEST_SETTINGS)
+    detection = line_only.detect(image, TEST_SETTINGS)
 
     assert detection.candidates
     proposal_errors = [
@@ -100,7 +101,7 @@ def test_repeated_court_patterns_are_rejected_as_ambiguous() -> None:
         image=image,
     )
     # Two complete courts contribute ten lengthwise lines before clutter.
-    detection = detector.detect(image, detector.Settings(max_family_lines=12))
+    detection = line_only.detect(image, detector.Settings(max_family_lines=12))
 
     assert len(detection.candidates) >= 2
     assert not detection.accepted
@@ -112,7 +113,7 @@ def test_repeated_court_patterns_are_rejected_as_ambiguous() -> None:
 def test_offscreen_near_baseline_is_not_silently_accepted() -> None:
     """A court whose near baseline is outside the frame remains an explicit rejection."""
     image = _render_template(OFFSCREEN_NEAR_CORNERS)
-    detection = detector.detect(image, TEST_SETTINGS)
+    detection = line_only.detect(image, TEST_SETTINGS)
 
     if detection.accepted:
         error = np.linalg.norm(detection.candidates[0].corners_px - OFFSCREEN_NEAR_CORNERS, axis=1)
@@ -158,7 +159,7 @@ def test_offscreen_template_lines_are_excluded_after_projection() -> None:
 def test_blank_frame_is_rejected_without_hypotheses() -> None:
     """No edge evidence must produce no court proposal."""
     image = np.zeros((FRAME_SIZE[1], FRAME_SIZE[0], 3), dtype=np.uint8)
-    detection = detector.detect(image, TEST_SETTINGS)
+    detection = line_only.detect(image, TEST_SETTINGS)
 
     assert not detection.accepted
     assert detection.reason == "insufficient_lines"
@@ -169,7 +170,7 @@ def test_blank_frame_is_rejected_without_hypotheses() -> None:
 def test_single_outer_rectangle_lacks_enough_internal_markings() -> None:
     """A rectangle with no service lines is insufficient evidence for badminton."""
     image = _render_template(FULL_CORNERS, line_indices={0, 5, 6, 11})
-    detection = detector.detect(image, TEST_SETTINGS)
+    detection = line_only.detect(image, TEST_SETTINGS)
 
     assert not detection.accepted
     assert detection.reason == "unsupported"
@@ -178,7 +179,7 @@ def test_single_outer_rectangle_lacks_enough_internal_markings() -> None:
 
 def test_two_edges_of_one_stripe_cannot_supply_distinct_court_markings() -> None:
     image = _render_template(FULL_CORNERS, line_indices={0, 3, 5, 6, 9, 11})
-    detection = detector.detect(image, TEST_SETTINGS)
+    detection = line_only.detect(image, TEST_SETTINGS)
 
     assert not detection.accepted
     assert detection.reason in {"unsupported", "ambiguous"}
@@ -197,7 +198,7 @@ def test_broad_candidate_cannot_hide_two_separate_supported_courts() -> None:
         [[260, 50], [460, 50], [470, 350], [250, 350]],
     ):
         candidates.append(detector.Candidate(np.asarray(corners, dtype=float), 0.9, (0.9, 0.9), (5, 6)))
-    assert detector._separate_court(candidates, FRAME_SIZE)
+    assert line_only._separate_court(candidates, FRAME_SIZE)
 
 
 def test_native_cached_segments_reproduce_hough_detection_after_resize() -> None:
@@ -205,8 +206,8 @@ def test_native_cached_segments_reproduce_hough_detection_after_resize() -> None
     image = _render_template(native_corners, frame_size=(1920, 1080))
     settings = detector.Settings(max_dimension=960, max_family_lines=8)
 
-    direct = detector.detect(image, settings)
-    cached = detector.detect(image, settings, segments_px=direct.segments_px)
+    direct = line_only.detect(image, settings)
+    cached = line_only.detect(image, settings, segments_px=direct.segments_px)
 
     assert len(direct.segments_px) > 0
     np.testing.assert_allclose(cached.segments_px, direct.segments_px, rtol=1e-12, atol=1e-12)
@@ -230,7 +231,7 @@ def test_native_cached_segments_reproduce_hough_detection_after_resize() -> None
 def test_cached_segments_reject_malformed_fragments(segments: np.ndarray) -> None:
     image = np.zeros((360, 480, 3), dtype=np.uint8)
     with pytest.raises(ValueError, match="segments_px"):
-        detector.detect(image, TEST_SETTINGS, segments_px=segments)
+        line_only.detect(image, TEST_SETTINGS, segments_px=segments)
 
 
 def test_wide_families_preserve_a_projected_oblique_court() -> None:

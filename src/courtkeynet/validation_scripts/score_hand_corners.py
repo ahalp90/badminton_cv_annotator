@@ -163,6 +163,8 @@ def main() -> int:
 
     # Import inside main so the pure functions above are importable without torch.
     sys.path.insert(0, str(args.repo_root.resolve()))
+    # court_corners, which the package imports, reads the court model from src/shared.
+    sys.path.insert(0, str(args.repo_root.resolve() / "src"))
     from src.courtkeynet.wrapper import CourtKeyNetDetector
 
     annotations = pd.read_csv(args.annotations_csv)

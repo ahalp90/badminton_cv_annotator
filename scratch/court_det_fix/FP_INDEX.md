@@ -10,7 +10,7 @@ Paths below are relative to `scratch/court_det_fix/`, unless stated otherwise.
 
 | Need | Start here |
 | --- | --- |
-| API, settings and prepared-view command | [Detector guide](court_detector/README.md) |
+| API, settings and prepared-view command | [Detector guide](../../src/court_detector/README.md) |
 | GPU, parallel work, Numba, cheap scoring and court reuse | [Speed-up design](court_detector/PERFORMANCE.md) |
 | Historical research runner and comparison protocol | [run_d17.py](archive/20260927_code/d17_timing/run_d17.py), [wiring and checks](archive/20260927_code/d17_timing/WIRING.md#how-to-check-an-integrated-detector) |
 | Scripts and saved speed-up measurements | [Measurement index](court_detector_optimisation_handover/claude_evidence/README.md) |
@@ -19,7 +19,8 @@ Paths below are relative to `scratch/court_det_fix/`, unless stated otherwise.
 
 ## Code and input paths to keep stable
 
-All maintained detector code is in [court_detector/](court_detector/README.md#code-map).
+The maintained detector package is [src/court_detector/](../../src/court_detector/README.md#code-map).
+Its saved-view runner and frozen-view loaders stay in [court_detector/](court_detector/).
 The old script folders now hold data and historical notes. Their source moved
 to the [27 September code archive](archive/20260927_code/README.md).
 

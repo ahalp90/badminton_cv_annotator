@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from court_detector.net_geometry import project_net
 from courtkeynet.court_corners import CORNER_COURT_M
-from scratch.court_det_fix.court_detector.net_geometry import project_net
 
 FRAME_SIZE = (1600.0, 900.0)
 

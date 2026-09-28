@@ -20,12 +20,13 @@ import numpy as np
 import pytest
 
 from annotator import court_views
-from scratch.court_det_fix.court_detector import measurements, reuse, stripe_refit
-from scratch.court_det_fix.court_detector.detect import (
+from court_detector import measurements, reuse, stripe_refit
+from court_detector.detect import (
     LiveModules,
     freeze_arrays,
     load_live_modules,
 )
+from scratch.court_det_fix.court_detector import frozen_cases
 
 REPO = Path(__file__).resolve().parents[1]
 COURT_ROOT = REPO / "scratch/court_det_fix"
@@ -69,8 +70,8 @@ class RealViews(NamedTuple):
 @pytest.fixture(scope="module")
 def views() -> RealViews:
     live = load_live_modules()
-    earlier = measurements.prepare_view(COURT_ROOT, EARLIER_SCENE)
-    later = measurements.prepare_view(COURT_ROOT, LATER_SCENE)
+    earlier = frozen_cases.prepare_view(COURT_ROOT, EARLIER_SCENE)
+    later = frozen_cases.prepare_view(COURT_ROOT, LATER_SCENE)
     freeze_arrays(earlier)
     freeze_arrays(later)
     paints = []
@@ -273,7 +274,7 @@ import sys
 sys.modules["scenedetect"] = None
 sys.modules["torch"] = None
 import numpy as np
-from scratch.court_det_fix.court_detector import reuse
+from court_detector import reuse
 from tests.test_court_detector_reuse import SYNTHETIC_CORNERS, textured_frame
 known = reuse.make_known_court("synthetic", textured_frame(), SYNTHETIC_CORNERS, 0.5)
 alignment = reuse.align_known_court(known, textured_frame())

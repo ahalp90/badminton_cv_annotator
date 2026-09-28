@@ -564,6 +564,7 @@ def test_annotator_imports_without_torch() -> None:
     """
     script = (
         "import sys\n"
+        "sys.path.insert(0, 'src')\n"  # court_corners imports shared.court_model from src
         "sys.modules['torch'] = None\n"  # None in sys.modules makes any `import torch` raise ImportError
         "import src.courtkeynet.court_corners\n"
         "from src.courtkeynet.validation_scripts.annotate_court_corners import build_point_table\n"

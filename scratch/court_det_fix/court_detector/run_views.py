@@ -13,7 +13,7 @@ The baseline uses the older names (G0, G1 and W5 fields); the checks read them i
 current names and leave the saved files as they are. A view that raises is logged and
 the run carries on; the exit code is 1 when any view raised or failed a check.
 
-Usage, from the repository root:
+Usage, from the repository root with PYTHONPATH=.:src:
   python -m scratch.court_det_fix.court_detector.run_views --people DIR --output DIR
       [--baseline ARM_DIR --feet FEET_FILE] [--artefacts] [--timing] [--workers N] [--no-self-checks]
       [--template-device cuda] VIEW [VIEW ...]
@@ -44,17 +44,13 @@ from typing import Any
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import feet
-from scratch.court_det_fix.court_detector.detect import (
-    ROOT,
-    CourtDetector,
-    CourtResult,
-    Switches,
-)
-from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
-from scratch.court_det_fix.court_detector.template_arrays import TEMPLATE_DEVICES
+from court_detector import feet
+from court_detector.detect import CourtDetector, CourtResult, Switches
+from court_detector.image_sources import CaseProvenance, ImageKind
+from court_detector.inputs import PersonSample, ViewInputs
+from court_detector.template_arrays import TEMPLATE_DEVICES
 
-from .image_sources import CaseProvenance, ImageKind, load_frozen_case_provenance
+from .frozen_cases import CASE_PACKS, ROOT, frame_path, load_frozen_case_provenance
 
 FRESH_FEET = ROOT / "court_detector_optimisation_handover/claude_evidence/fresh_feet"
 VIEWS = FRESH_FEET / "views.json"
@@ -370,8 +366,7 @@ def main() -> int:
                                       full_score_limit=args.full_score_limit, require_people=args.require_people,
                                       template_device=args.template_device))
     startup_seconds = perf_counter() - started
-    verifier = detector.live.verifier
-    sources, provenances, frame_paths = pack_sources(verifier.CASE_PACKS)
+    sources, provenances, frame_paths = pack_sources(CASE_PACKS)
     manifest = {row["case_id"]: row for row in read_json_gz(MANIFEST)["cases"]}
     views = {view["case_id"]: view for view in json.loads(VIEWS.read_text())}
     shot_rows = {row["case_id"]: row for row in map(json.loads, SHOT_CHECK.read_text().splitlines())}
@@ -402,14 +397,14 @@ def main() -> int:
                 if video.fps != record["fps"] or list(video.size) != record["video_size"]:
                     raise ValueError(f"{view_id}: video fps or size differs from the people record")
                 source = sources[view_id]
-                frame_path = frame_paths.get(view_id) or verifier.frame_path(ROOT, source, provenances[view_id])
+                frame_file = frame_paths.get(view_id) or frame_path(ROOT, source, provenances[view_id])
                 if not args.no_self_checks:
-                    frame_md5 = hashlib.md5(frame_path.read_bytes()).hexdigest()
+                    frame_md5 = hashlib.md5(frame_file.read_bytes()).hexdigest()
                     if frame_md5 != manifest[view_id]["image_md5"]:
                         raise ValueError(f"{view_id}: frame MD5 differs from the manifest")
-                frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+                frame = cv2.imread(str(frame_file), cv2.IMREAD_COLOR)
                 if frame is None:
-                    raise FileNotFoundError(frame_path)
+                    raise FileNotFoundError(frame_file)
                 view = ViewInputs(
                     view_id=view_id, frame=frame, frame_index=views[view_id]["anchor"],
                     scene_frames=(0, record["frame_count"] - 1),

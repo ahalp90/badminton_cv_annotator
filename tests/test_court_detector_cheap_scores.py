@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import (
+from court_detector import (
     candidate_pool,
     directions,
     generation,
@@ -23,8 +23,8 @@ from scratch.court_det_fix.court_detector import (
     proposals,
     search,
 )
-from scratch.court_det_fix.court_detector import line_observations as assignment
-from scratch.court_det_fix.court_detector.candidate_geometry import continuous_support
+from court_detector import line_observations as assignment
+from court_detector.candidate_geometry import continuous_support
 from tests import test_court_detector_parallel_search as parallel_search
 
 HELPERS = sys.modules[__name__]
@@ -46,7 +46,7 @@ LIMIT = 41  # splits a group of the real pair's courts with tied cheap scores (c
 FAKE_COURTS = parallel_search.COURT_A + np.array([[0., 0.], [40., 0.], [80., 0.], [120., 0.]])[:, None, :]
 FAKE_SCORES = np.array([.6, .9, .5, .8])
 FAKE_CHEAP_SURVIVORS = np.array([1, 3])  # the usable positions the fake keeps under any limit
-FAKE_SETTINGS = {"keep_per_pair": 4, "keep_global": 4, "max_matched_pairs": 2, "legacy_evidence": False}
+FAKE_SETTINGS = {"keep_per_pair": 4, "keep_global": 4, "max_matched_pairs": 2}
 
 
 def propose_role(_points: np.ndarray, _observations: object, _feet: np.ndarray, _size: tuple[int, int],
@@ -197,7 +197,7 @@ def limited_runs() -> dict[int, dict]:
     source, saved = parallel_search.fake_inputs()
     runs = {}
     for workers in (1, 2):
-        runs[workers] = generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=workers,
+        runs[workers] = generation.generate(source, saved, None, HELPERS, 16, workers=workers,
                                             full_score_limit=2, **FAKE_SETTINGS)
     return runs
 
@@ -230,7 +230,7 @@ def test_two_workers_give_the_serial_record_under_a_limit(limited_runs: dict[int
 
 def test_without_a_limit_the_record_and_helpers_see_none() -> None:
     source, saved = parallel_search.fake_inputs()
-    result = generation.generate(source, saved, None, Path("."), HELPERS, 16, **FAKE_SETTINGS)
+    result = generation.generate(source, saved, None, HELPERS, 16, **FAKE_SETTINGS)
     assert "full_score_limit" not in result
     for pair in result["pairs"]:
         if pair["status"] == "matched":
@@ -242,7 +242,7 @@ def test_pool_capture_is_refused_under_a_limit(tmp_path: Path) -> None:
     source, saved = parallel_search.fake_inputs()
     pool_path = tmp_path / "pool.pkl"
     with pytest.raises(ValueError, match="pool capture"):
-        generation.generate(source, saved, None, Path("."), HELPERS, 16, pool_path, full_score_limit=2,
+        generation.generate(source, saved, None, HELPERS, 16, pool_path, full_score_limit=2,
                             **FAKE_SETTINGS)
     assert not pool_path.exists()
 
@@ -251,4 +251,4 @@ def test_pool_capture_is_refused_under_a_limit(tmp_path: Path) -> None:
 def test_generate_refuses_a_limit_below_one(limit: int) -> None:
     source, saved = parallel_search.fake_inputs()
     with pytest.raises(ValueError, match="full_score_limit must be positive"):
-        generation.generate(source, saved, None, Path("."), HELPERS, 16, full_score_limit=limit, **FAKE_SETTINGS)
+        generation.generate(source, saved, None, HELPERS, 16, full_score_limit=limit, **FAKE_SETTINGS)

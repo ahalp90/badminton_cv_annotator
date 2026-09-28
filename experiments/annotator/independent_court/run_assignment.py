@@ -18,8 +18,8 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import line_observations as assignment
-from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
+from court_detector import line_observations as assignment
+from court_detector.geometry import CORNER_COURT_M
 
 from . import evaluate
 

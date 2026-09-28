@@ -5,8 +5,10 @@ locate courts without CourtKeyNet. It is an additive research prototype;
 the annotation pipeline does not use its outputs.
 
 The court geometry, fragment measurements, stripe fitting and image-source types
-now live in [the court detector package](../../../scratch/court_det_fix/court_detector/README.md#code-map).
-These experiment runners import that maintained code. The
+now live in [the court detector package](../../../src/court_detector/README.md#code-map).
+These experiment runners import that maintained code. The line-only search
+lives in `line_only.py`. The frozen-view loaders stay with the saved views in
+`scratch/court_det_fix/court_detector/frozen_cases.py`. The
 [code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
 keeps the original implementations.
 
@@ -184,7 +186,7 @@ python -m experiments.annotator.independent_court.evaluate \
 The result records the cache file's SHA-256 digest, extractor name and metadata.
 Model and source hashes are retained when supplied. Search timings exclude neural inference and cache
 validation. The cache does not supply candidate courts or acceptance decisions.
-Direct callers can pass native fragments as `detect(image, segments_px=lines)`.
+Direct callers can pass native fragments as `line_only.detect(image, segments_px=lines)`.
 
 The broader geometry probe uses `--wide-families --min-supported-lines 3`.
 Lengthwise fragments have absolute angle at least 10 degrees; crosscourt fragments
@@ -198,18 +200,20 @@ The original grouping and four-line minimum remain the defaults.
 `export_lines.py` runs frozen upstream models in a separate inference environment.
 It records the checkpoint SHA-256, the source checkout's Git commit, image hashes,
 model settings and native coordinates. Its `--help` needs no model dependencies.
-Install each upstream model's inference dependencies before running it.
+Install each upstream model's inference dependencies before running it. The
+exporter shares its DeepLSD and source-path helpers with the court detector's
+`line_sources.py`, so runs need `src` on `PYTHONPATH`.
 
 ```bash
-python -m experiments.annotator.independent_court.export_lines \
+PYTHONPATH=.:src python -m experiments.annotator.independent_court.export_lines \
   --model deeplsd-md --source third_party/DeepLSD \
   --weights weights/deeplsd_md.tar --manifest inputs/manifest.json.gz \
   --output lines
-python -m experiments.annotator.independent_court.export_lines \
+PYTHONPATH=.:src python -m experiments.annotator.independent_court.export_lines \
   --model deeplsd-wireframe --source third_party/DeepLSD \
   --weights weights/deeplsd_wireframe.tar --manifest inputs/manifest.json.gz \
   --output lines
-python -m experiments.annotator.independent_court.export_lines \
+PYTHONPATH=.:src python -m experiments.annotator.independent_court.export_lines \
   --model linea-large --source third_party/LINEA \
   --weights weights/linea_hgnetv2_l.pth --manifest inputs/manifest.json.gz \
   --output lines

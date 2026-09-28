@@ -28,12 +28,13 @@ import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import generation, measurements, scoring
-from scratch.court_det_fix.court_detector.detect import (
+from court_detector import generation, measurements, scoring
+from court_detector.detect import (
     LiveModules,
     freeze_arrays,
     load_live_modules,
 )
+from scratch.court_det_fix.court_detector import frozen_cases
 
 COURT_ROOT = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
 CASE_ID = "am3_window_00_frame_0"
@@ -70,7 +71,7 @@ class Run(NamedTuple):
 
 def baseline_view(case_id: str, entry_count: int) -> tuple[Any, list[dict]]:
     """A frozen view's context and its baseline generation record's first entries."""
-    context = measurements.prepare_view(COURT_ROOT, case_id)
+    context = frozen_cases.prepare_view(COURT_ROOT, case_id)
     freeze_arrays(context)
     with gzip.open(COURT_ROOT / f"frozen_views/baseline_generation/{case_id}.json.gz", "rt") as stream:
         entries = json.load(stream)["entries"][:entry_count]
@@ -281,8 +282,8 @@ def test_worker_startup_failure_with_a_large_view_reaches_the_caller() -> None:
     # while the parent wrote to the pipe of the worker that had already died.
     script = '''
 import numpy as np
-from scratch.court_det_fix.court_detector import scoring
-from scratch.court_det_fix.court_detector.detect import load_live_modules
+from court_detector import scoring
+from court_detector.detect import load_live_modules
 live = load_live_modules()
 with live.prepared_measurements(live.verifier):
     scoring.measure_and_refit_in_workers(

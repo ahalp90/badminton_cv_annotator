@@ -182,16 +182,17 @@ def cpu_seconds() -> float:
     return process_time() + times.children_user + times.children_system
 
 
-def generate(source: dict, saved: dict, zone: object, root: Path, helpers: ModuleType,
+def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
              direction_budget: int = 12, pool_path: Path | None = None, *,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
-             max_matched_pairs: int | None = None, legacy_evidence: bool = True,
+             max_matched_pairs: int | None = None,
              max_horizon_tilt_deg: float | None = None, workers: int = 1,
              full_score_limit: int | None = None, pool: ProcessPoolExecutor | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
-    :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
-        two research winners from them. Off leaves those keys out and both winner IDs None.
+    The record keeps line_winner_id and paint_winner_id, both None. The archived research
+    generator picked them from pool stripe and paint-profile evidence, which this one skips.
+
     :param max_horizon_tilt_deg: Skip pairs whose horizon tilts more than this, and drop
         courts above their pair's horizon. Both need a camera turned on its side or upside
         down. None keeps every pair and court.
@@ -291,13 +292,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     for candidate in retained:
         shortlist.append({**provenance[id(candidate)], "corners_px": (candidate.corners_px * scale).tolist(),
                           "shortlist_score": candidate.score})
-    if legacy_evidence:
-        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root)
-        line_id, paint_id = helpers.winner_ids(entries)
-    else:
-        entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone, root,
-                                        legacy_evidence=False)
-        line_id = paint_id = None
+    entries = helpers.evaluate_pool(source, shortlist, observations, size, segments, families, zone)
     if pool_path is not None:
         helpers.write_pool(pool_path, pool_records)
     # Off, the record matches the unfiltered and fully scored runs' records key for key.
@@ -313,7 +308,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             "camera_bound_coordinate_space": "native",
             "pairs": pair_records, "pooled_candidates": len(pooled), "entries": entries,
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
-            "line_winner_id": line_id, "paint_winner_id": paint_id,
+            "line_winner_id": None, "paint_winner_id": None,
             "elapsed_s": perf_counter() - started, "cpu_s": cpu_seconds() - cpu_started,
             "cpu_scope": "parent_only" if pool is not None else "parent_and_completed_workers",
             "global_cap_reached": len(retained) == keep_global, **upright, **score_limit}

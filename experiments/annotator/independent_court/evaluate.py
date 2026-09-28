@@ -20,7 +20,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
-from scratch.court_det_fix.court_detector import geometry as detector
+from court_detector import geometry as detector
+
+from . import line_only
 
 REFERENCE_SIZE = (1280, 720)
 SAFE_COORDINATE = 1_000_000
@@ -338,8 +340,8 @@ def main(argv: list[str] | None = None) -> int:
         segments = None if line_metadata is None else _cached_segments(line_records[case["id"]], image_path, image)
         started = time.perf_counter()
         detection = (
-            detector.detect(image, settings) if segments is None
-            else detector.detect(image, settings, segments_px=segments)
+            line_only.detect(image, settings) if segments is None
+            else line_only.detect(image, settings, segments_px=segments)
         )
         elapsed = time.perf_counter() - started
         candidates = []

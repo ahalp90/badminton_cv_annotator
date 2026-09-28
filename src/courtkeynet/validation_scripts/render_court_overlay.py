@@ -42,6 +42,8 @@ from PIL import Image, ImageDraw, ImageFont
 # (which must be importable for the `src.` package path below) is three up.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
+# court_corners, which the package imports, reads the court model from src/shared.
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from src.courtkeynet.wrapper import CornerDetection, CourtKeyNetDetector  # noqa: E402
 

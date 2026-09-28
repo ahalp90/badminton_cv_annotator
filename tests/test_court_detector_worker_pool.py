@@ -10,17 +10,17 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import (
+from court_detector import (
     detect,
     generation,
-    run_views,
     scoring,
     search_records,
 )
-from scratch.court_det_fix.court_detector.inputs import (
+from court_detector.inputs import (
     ViewInputs,
     same_frame_provenance,
 )
+from scratch.court_det_fix.court_detector import run_views
 
 
 def child_pids() -> set[int]:

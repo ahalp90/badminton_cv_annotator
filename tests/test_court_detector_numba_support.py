@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector.candidate_geometry import continuous_support
+from court_detector.candidate_geometry import continuous_support
 
 
 @pytest.mark.parametrize("samples", [16, 64])

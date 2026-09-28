@@ -163,7 +163,7 @@ all courts, then the usual 64 samples for the best 2,048 per direction pair.
 Provide a command-line setting for that limit and a way to score every court.
 [D24](../DETECTOR_DECISIONS.md#d24) records the supporting replay and its limits.
 
-The change belongs in `propose_role` in [proposals.py](proposals.py).
+The change belongs in `propose_role` in [proposals.py](../../../src/court_detector/proposals.py).
 Pass the setting through `generation.generate` to the view runner. Keep the selected courts
 in their original order before full scoring, with their source arrays sliced
 the same way. Leave pairs below the limit unchanged.
@@ -210,7 +210,7 @@ of handling scenes without courts remain open.
 
 ## Check each change
 
-Use the API and runner in [README.md](README.md). The
+Use the API and runner in [README.md](../../../src/court_detector/README.md). The
 [research wiring](../archive/20260927_code/d17_timing/WIRING.md#how-to-check-an-integrated-detector)
 and [28-view check](check_20260925/README.md) define the original comparison.
 

@@ -20,9 +20,9 @@ import cv2
 import numpy as np
 import scipy
 
-from scratch.court_det_fix.court_detector import stripe_measurements as stripes
-from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
-from scratch.court_det_fix.court_detector.line_observations import (
+from court_detector import stripe_measurements as stripes
+from court_detector.geometry import CORNER_COURT_M
+from court_detector.line_observations import (
     Observations,
     prepare_observations,
 )

@@ -12,20 +12,20 @@ import cv2
 import numpy as np
 import pytest
 
-from experiments.annotator.independent_court import export_lines
-from scratch.court_det_fix.court_detector import line_sources
-from scratch.court_det_fix.court_detector.line_sources import (
+from court_detector import line_sources
+from court_detector.line_sources import (
     DeepLSDLines,
     LineSource,
     SavedLines,
 )
-from scratch.court_det_fix.court_detector.scene_sources import (
+from court_detector.scene_sources import (
     HISTOGRAM_BINS,
     PySceneDetectSource,
     SceneInfo,
     SceneSource,
     _luma_histogram,
 )
+from experiments.annotator.independent_court import export_lines
 
 REPO = Path(__file__).resolve().parents[1]
 FPS = 25
@@ -57,7 +57,7 @@ def deeplsd_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, network: Fake
         loads.append((source, weights, str(device)))
         return network
 
-    monkeypatch.setattr(export_lines, "_load_deeplsd", load)
+    monkeypatch.setattr(line_sources, "load_deeplsd", load)
     return DeepLSDLines(tmp_path, tmp_path / "weights.tar", device="cpu")
 
 
@@ -126,7 +126,7 @@ def test_cuda_request_fails_rather_than_running_on_cpu(monkeypatch: pytest.Monke
 
     loads: list[tuple[Path, Path, str]] = []
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
-    monkeypatch.setattr(export_lines, "_load_deeplsd", lambda *arguments: loads.append(arguments))
+    monkeypatch.setattr(line_sources, "load_deeplsd", lambda *arguments: loads.append(arguments))
 
     with pytest.raises(RuntimeError, match="CUDA is unavailable"):
         DeepLSDLines(tmp_path, tmp_path / "weights.tar")
@@ -239,8 +239,8 @@ def test_saved_lines_and_scene_source_import_without_optional_packages() -> None
 import sys
 before = list(sys.path)
 import numpy as np
-from scratch.court_det_fix.court_detector.line_sources import SavedLines
-from scratch.court_det_fix.court_detector.scene_sources import PySceneDetectSource
+from court_detector.line_sources import SavedLines
+from court_detector.scene_sources import PySceneDetectSource
 lines = SavedLines({3: [[0.0, 1.0, 2.0, 3.0]]})
 assert lines.segments(np.zeros((4, 4, 3), np.uint8), 3).shape == (1, 4)
 PySceneDetectSource(histograms=True)

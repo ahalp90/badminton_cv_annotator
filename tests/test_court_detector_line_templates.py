@@ -10,19 +10,19 @@ import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import (
+from court_detector import (
     detect,
     directions,
     geometry,
     line_templates,
     run_video,
-    run_views,
     template_arrays,
 )
-from scratch.court_det_fix.court_detector.inputs import (
+from court_detector.inputs import (
     ViewInputs,
     same_frame_provenance,
 )
+from scratch.court_det_fix.court_detector import run_views
 
 SIZE = (320, 240)
 NATIVE_SIZE = (640, 480)

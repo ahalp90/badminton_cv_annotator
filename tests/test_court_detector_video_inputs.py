@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector.video_inputs import (
+from court_detector.video_inputs import (
     FRAME_CACHE_SIZE,
     PoseArrays,
     VideoFrames,

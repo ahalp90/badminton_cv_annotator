@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import (
+from court_detector import (
     candidate_pool,
     directions,
     generation,
@@ -58,8 +58,7 @@ PAIR_IDS = {(0, 1): 0, (0, 2): 1, (0, 3): 2, (1, 0): 3, (1, 2): 4, (1, 3): 5,
 EXPECTED_STATUSES = ["matched", "matched", "horizon_tilt", "camera_direction_bound", "camera_direction_bound",
                      "camera_direction_bound", "matched", "matched", "horizon_tilt", "matched",
                      "smoke_pair_limit", "smoke_pair_limit"]
-FAKE_SETTINGS = {"keep_per_pair": 2, "keep_global": 3, "max_matched_pairs": 5, "max_horizon_tilt_deg": 45.,
-                 "legacy_evidence": False}
+FAKE_SETTINGS = {"keep_per_pair": 2, "keep_global": 3, "max_matched_pairs": 5, "max_horizon_tilt_deg": 45.}
 
 
 def prepare(_source: dict) -> tuple[np.ndarray, tuple, tuple[int, int]]:
@@ -113,8 +112,7 @@ def propose_role(points: np.ndarray, _observations: object, _feet: np.ndarray, _
     )
 
 
-def evaluate_pool(_source: dict, shortlist: list[dict], *_args: object, legacy_evidence: bool = True) -> list[dict]:
-    assert not legacy_evidence
+def evaluate_pool(_source: dict, shortlist: list[dict], *_args: object) -> list[dict]:
     return [dict(details) for details in shortlist]
 
 
@@ -157,7 +155,7 @@ def fake_runs(tmp_path_factory: pytest.TempPathFactory) -> dict[int, tuple[dict,
         patch.setattr(HELPERS, "PATCHED_IN_PARENT", True)
         for workers in (1, 2):
             pool_path = tmp_path_factory.mktemp(f"workers_{workers}") / "pool.pkl"
-            result = generation.generate(source, saved, None, Path("."), HELPERS, 16, pool_path, workers=workers,
+            result = generation.generate(source, saved, None, HELPERS, 16, pool_path, workers=workers,
                                          **FAKE_SETTINGS)
             runs[workers] = (result, pickle.loads(pool_path.read_bytes()))
     return runs
@@ -233,7 +231,7 @@ def test_pairs_are_searched_in_spawned_workers(fake_runs: dict[int, tuple[dict, 
 def test_a_failing_pair_raises_in_the_caller(workers: int) -> None:
     source, saved = fake_inputs(failing_direction=2)
     with pytest.raises(RuntimeError, match=r"search failed for pencils \(0, 2\)"):
-        generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=workers, **FAKE_SETTINGS)
+        generation.generate(source, saved, None, HELPERS, 16, workers=workers, **FAKE_SETTINGS)
 
 
 def child_pids() -> set[int]:
@@ -247,9 +245,9 @@ def matched_worker_pids(result: dict) -> set[int]:
 
 def test_one_pool_serves_consecutive_searches_and_stays_open() -> None:
     source, saved = fake_inputs()
-    serial = generation.generate(source, saved, None, Path("."), HELPERS, 16, **FAKE_SETTINGS)
+    serial = generation.generate(source, saved, None, HELPERS, 16, **FAKE_SETTINGS)
     with generation.worker_pool(2) as pool:
-        results = [generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+        results = [generation.generate(source, saved, None, HELPERS, 16, workers=2, pool=pool,
                                        **FAKE_SETTINGS) for _ in range(2)]
         # Workers that each search had started and closed itself would no longer be running.
         assert matched_worker_pids(results[0]) | matched_worker_pids(results[1]) <= child_pids()
@@ -260,12 +258,12 @@ def test_one_pool_serves_consecutive_searches_and_stays_open() -> None:
 def test_a_failing_pair_leaves_a_shared_pool_usable() -> None:
     failing_source, failing_saved = fake_inputs(failing_direction=2)
     source, saved = fake_inputs()
-    serial = generation.generate(source, saved, None, Path("."), HELPERS, 16, **FAKE_SETTINGS)
+    serial = generation.generate(source, saved, None, HELPERS, 16, **FAKE_SETTINGS)
     with generation.worker_pool(2) as pool:
         with pytest.raises(RuntimeError, match=r"search failed for pencils \(0, 2\)"):
-            generation.generate(failing_source, failing_saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+            generation.generate(failing_source, failing_saved, None, HELPERS, 16, workers=2, pool=pool,
                                 **FAKE_SETTINGS)
-        after = generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+        after = generation.generate(source, saved, None, HELPERS, 16, workers=2, pool=pool,
                                     **FAKE_SETTINGS)
     assert comparable(after) == comparable(serial)
 
@@ -293,7 +291,7 @@ def test_closing_a_search_early_closes_only_its_own_workers() -> None:
 def test_workers_must_be_positive(workers: int) -> None:
     source, saved = fake_inputs()
     with pytest.raises(ValueError, match="workers must be positive"):
-        generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=workers, **FAKE_SETTINGS)
+        generation.generate(source, saved, None, HELPERS, 16, workers=workers, **FAKE_SETTINGS)
 
 
 def synthetic_court_source() -> dict:
@@ -325,8 +323,8 @@ def test_real_search_in_two_workers_gives_the_serial_record() -> None:
     results = []
     for workers in (1, 2):
         results.append(generation.generate(
-            source, saved, players, Path("."), candidate_pool, 16, keep_axes=64, keep_per_pair=8, keep_global=8,
-            max_matched_pairs=3, legacy_evidence=False, max_horizon_tilt_deg=45., workers=workers,
+            source, saved, players, candidate_pool, 16, keep_axes=64, keep_per_pair=8, keep_global=8,
+            max_matched_pairs=3, max_horizon_tilt_deg=45., workers=workers,
         ))
     serial, parallel = results
     assert [pair["status"] for pair in serial["pairs"]].count("matched") == 3

@@ -11,7 +11,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from courtkeynet.court_corners import CORNER_COURT_M, COURT_LENGTH_M, COURT_WIDTH_M
+from shared.court_model import CORNER_COURT_M, COURT_LENGTH_M, COURT_WIDTH_M
 
 REFERENCE_DIMENSIONS = (1280, 720)
 SHORT_CLICK_INSET_M = 0.02

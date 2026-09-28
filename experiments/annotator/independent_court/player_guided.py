@@ -12,14 +12,16 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import geometry as detector
+from court_detector import geometry as detector
+
+from . import line_only
 
 COURT_SIZE_M = detector.CORNER_COURT_M.max(axis=0)
 
 
 @dataclass(frozen=True)
 class GuidedDetection:
-    detection: detector.Detection
+    detection: line_only.Detection
     hypotheses_generated: int
     hypotheses_with_players: int
     player_fractions: tuple[tuple[float, float], ...]
@@ -74,7 +76,7 @@ def detect(
     native_scale = np.array([width / size[0], height / size[1]])
     working_feet = feet / native_scale
     if segments_px is None:
-        segments = detector.extract_segments(working, settings.extractor)
+        segments = line_only.extract_segments(working, settings.extractor)
     else:
         native_segments = np.asarray(segments_px, dtype=np.float64)
         if native_segments.ndim != 2 or native_segments.shape[1] != 4 or not np.isfinite(native_segments).all():
@@ -97,10 +99,10 @@ def detect(
     counts = (len(x_lines), len(y_lines))
     output_segments = segments * np.tile(native_scale, 2)
     if min(counts) < 2:
-        result = detector.Detection((), False, "insufficient_lines", None, output_segments, counts, 0)
+        result = line_only.Detection((), False, "insufficient_lines", None, output_segments, counts, 0)
         return GuidedDetection(result, 0, 0, ())
 
-    rectangles = detector._image_rectangles(x_lines, y_lines, size, settings)
+    rectangles = line_only._image_rectangles(x_lines, y_lines, size, settings)
     maps = detector._distance_maps(families, size)
     candidates: list[detector.Candidate] = []
     generated = 0
@@ -123,9 +125,9 @@ def detect(
         for index in eligible[np.argsort(-scores[eligible], kind="stable")]:
             proposed.append(detector.Candidate(corners[index], float(scores[index]), tuple(means[index]),
                                               tuple(int(value) for value in supported_counts[index])))
-        candidates = detector._retain(candidates, proposed, settings)
+        candidates = line_only._retain(candidates, proposed, settings)
     gap = None if len(candidates) < 2 else candidates[0].score - candidates[1].score
-    ambiguous = bool(candidates) and detector._separate_court(candidates, size)
+    ambiguous = bool(candidates) and line_only._separate_court(candidates, size)
     accepted = bool(candidates) and not ambiguous and (gap is None or gap >= settings.ambiguity_gap)
     reason = "accepted" if accepted else "ambiguous" if candidates else "unsupported"
     native_candidates = tuple(detector.Candidate(candidate.corners_px * native_scale, candidate.score,
@@ -136,5 +138,5 @@ def detect(
         transform = cv2.getPerspectiveTransform(detector.CORNER_COURT_M, candidate.corners_px.astype(np.float32))
         one, two = player_fractions(transform[None], feet, player_margin)
         fractions.append((float(one[0]), float(two[0])))
-    result = detector.Detection(native_candidates, accepted, reason, gap, output_segments, counts, scored)
+    result = line_only.Detection(native_candidates, accepted, reason, gap, output_segments, counts, scored)
     return GuidedDetection(result, generated, with_players, tuple(fractions))

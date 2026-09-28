@@ -11,13 +11,15 @@ from pathlib import Path
 
 import pytest
 
-import scratch.court_det_fix.court_detector.image_sources as provenance_module
-from scratch.court_det_fix.court_detector.image_sources import (
-    SIDECAR_MD5,
+import scratch.court_det_fix.court_detector.frozen_cases as provenance_module
+from court_detector.image_sources import (
     BoxRelation,
     ImageKind,
-    load_frozen_case_provenance,
     require_same_image_boxes,
+)
+from scratch.court_det_fix.court_detector.frozen_cases import (
+    SIDECAR_MD5,
+    load_frozen_case_provenance,
 )
 
 ROOT = Path(__file__).parents[1]

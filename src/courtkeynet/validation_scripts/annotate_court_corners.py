@@ -35,12 +35,12 @@ from typing import NamedTuple
 import cv2
 import numpy as np
 
-# Resolve the repo root (three parents up) so the `src.` import below works when
-# this file is run as a plain script; mirrors render_court_overlay.py.
+# Put src (three parents up) on the path so the `shared.` import below works when
+# this file is run as a plain script.
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from src.courtkeynet.court_corners import (  # noqa: E402
+from shared.court_model import (  # noqa: E402
     CORNER_COURT_M,
     COURT_LENGTH_M,
     COURT_WIDTH_M,
@@ -268,7 +268,7 @@ def append_point_rows(csv_path: Path, rows: list[dict[str, object]]) -> None:
 # Painted-line names keyed by the line's constant court coordinate (metres,
 # rounded to 2 dp). The x-family runs along the court's length at a constant x;
 # the y-family runs across it at a constant y. These keys must cover every
-# constant in court_corners.PAINTED_SEGMENTS_M, or build_point_table raises: a missing
+# constant in shared.court_model.PAINTED_SEGMENTS_M, or build_point_table raises: a missing
 # key means the court model changed under the annotator.
 X_LINE_NAMES = {
     0.0: "left doubles sideline",
@@ -334,7 +334,7 @@ def _plan_line_name(const: float, names: dict[float, str], family: str) -> str:
     if key not in names:
         raise ValueError(
             f"court plan {family} line at {key} m has no name in the annotator's lookup; "
-            f"court_corners.PAINTED_SEGMENTS_M changed under it"
+            f"shared.court_model.PAINTED_SEGMENTS_M changed under it"
         )
     return names[key]
 

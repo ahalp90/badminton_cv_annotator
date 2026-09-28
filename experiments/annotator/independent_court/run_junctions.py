@@ -14,17 +14,16 @@ from zipfile import BadZipFile, ZipFile
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import junctions
-from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M
-from scratch.court_det_fix.court_detector.image_sources import (
+from court_detector import junctions
+from court_detector.geometry import CORNER_COURT_M
+from court_detector.image_sources import CaseProvenance, require_same_image_boxes
+from court_detector.line_observations import prepare_observations
+from scratch.court_det_fix.court_detector.frozen_cases import (
     PACK_MD5_BY_NAME,
     SIDECAR_MD5,
     SIDECAR_SCHEMA,
-    CaseProvenance,
     load_frozen_case_provenance,
-    require_same_image_boxes,
 )
-from scratch.court_det_fix.court_detector.line_observations import prepare_observations
 
 from .run_assignment import read_replay
 

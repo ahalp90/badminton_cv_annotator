@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from court_detector import line_observations as assignment
+from court_detector.geometry import SEGMENTS_M, project
 from experiments.annotator.independent_court import run_assignment
-from scratch.court_det_fix.court_detector import line_observations as assignment
-from scratch.court_det_fix.court_detector.geometry import SEGMENTS_M, project
 
 SIZE = (400, 620)
 HOMOGRAPHY = np.array([[40.0, 0, 50], [0, 40.0, 40], [0, 0, 1]])

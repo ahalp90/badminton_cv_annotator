@@ -13,7 +13,7 @@ courts and reuse decisions on the measured interval. No further GPU backend
 comparison is planned; keep CuPy.
 
 Continue on `fix/court-det`. The latest measured implementation is `c24b45fd`.
-Check current Git state before editing. The [detector guide](court_detector/README.md)
+Check current Git state before editing. The [detector guide](../../src/court_detector/README.md)
 owns the API and settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records
 measurements and timing scope.
 
@@ -81,6 +81,25 @@ The remaining path to 90 seconds needs another 48% reduction. No straightforward
 change with that expected gain has been established. Finish the bounded efficiency
 work, then focus on the integration and broad evaluation below.
 
+## Runtime integration
+
+The maintained detector now lives in `src/court_detector`. Normal runtime imports
+no scratch, experiment or CourtKeyNet modules. Saved-view loaders and comparison
+tools remain in scratch. Court dimensions and painted segments live in
+`shared.court_model`; DeepLSD loading and inference helpers belong to the runtime
+package. The old pipeline still uses CourtKeyNet until its replacement batch.
+
+The move passed 2,518 tests with 35 skips and whole-project Pyrefly, both exit 0.
+Two saved views returned identical courts and records after excluding timings.
+Changed-file Ruff retains 11 existing findings in four CourtKeyNet files; the
+migration introduced none. A live DeepLSD check remains for the server environment.
+
+Next, standardise detector scene ranges to zero-based `[start, end)`. Preserve
+actual sampled frames and the lower midpoint in even-length scenes. Check scene
+cuts, short scenes, foot windows, reuse samples and end-of-video boundaries.
+Shared pose extraction, the complete entry point and old-pipeline replacement
+follow that change.
+
 ## Follow-up after satisfactory optimisation
 
 These are required follow-ups once the CPU and GPU paths perform satisfactorily
@@ -107,9 +126,9 @@ on videos with multiple scenes and on batches of independent videos. The current
   across a substantial sample. Scene cuts and hashes may have different value.
   Keep only useful parts, and make the integration optional if measurements show
   the existing approach is faster and equally useful. Record that evidence.
-- **Move the detector into `src/`.** Give the subproject a substantive tidy and
-  coherent organisation so normal use no longer depends on disparate scratch
-  scripts.
+- **Finish source integration.** The runtime detector is now in `src/` and the
+  research harness stays in scratch. Complete shared pose extraction and replace
+  the old pipeline call sites, as described above.
 - **Replace CourtKeyNet throughout the project.** Remove that dependency and
   OpenCV support written solely for it that is no longer needed. Move any court
   geometry or other shared functionality still required by the homegrown

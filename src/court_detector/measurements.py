@@ -7,7 +7,6 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,7 @@ from . import junctions as junction_observations
 from . import line_observations as assignment
 from . import paint_geometry
 from . import stripe_measurements as stripe_observations
-from .image_sources import CaseProvenance, load_frozen_case_provenance
+from .image_sources import CaseProvenance
 
 WORKING_SIZE = (960, 540)
 CAMERA_LIMIT = 0.1
@@ -28,55 +27,10 @@ PHOTO_SIDE_DISTANCE_PX = 6.0
 Q_DIRECTION_LENGTHWISE = (0, 1, 2, 3, 4)
 Q_DIRECTION_TRANSVERSE = (5, 6, 7, 8, 9, 10)
 
-CASE_PACKS = {
-    "gx": "frozen_views/packs/gx_extension_inputs.json.gz",
-    "amateur": "frozen_views/packs/marking_refit_inputs.json.gz",
-    "broadcast": "frozen_views/packs/broadcast_extension_inputs.json.gz",
-}
-REGRESSION_CASE_ORDER = (
-    ("gxBQ_window_00_frame_0", "gx", "GX0"),
-    ("gxBQ_window_00_frame_5", "gx", "GX5"),
-    ("am2_window_00_frame_150", "amateur", "Am2-150"),
-    ("am2_window_01_frame_28019", "amateur", "Am2-28019"),
-    ("am3_window_00_frame_0", "amateur", "Am3-0"),
-    ("shuttleset_03_scene_0017", "broadcast", "SS03-17"),
-    ("shuttleset_03_scene_0019", "broadcast", "SS03-19"),
-    ("shuttleset_03_scene_0016", "broadcast", "SS03-16"),
-    ("shuttleset_21_scene_0020", "broadcast", "SS21-20"),
-)
-UNUSED_CASE_ORDER = (
-    ("gxBQ_window_00_frame_689", "gx", "gxBQ_window_00_frame_689"),
-    ("gxBQ_window_01_frame_5111", "gx", "gxBQ_window_01_frame_5111"),
-    ("gxBQ_window_02_frame_5766", "gx", "gxBQ_window_02_frame_5766"),
-    ("gxBQ_window_03_frame_77876", "gx", "gxBQ_window_03_frame_77876"),
-    ("gxBQ_window_04_frame_86088", "gx", "gxBQ_window_04_frame_86088"),
-    ("yellow_short_frame_14", "amateur", "yellow_short_frame_14"),
-    ("letterboxed_short_frame_45", "amateur", "letterboxed_short_frame_45"),
-    ("centre_short_frame_36", "amateur", "centre_short_frame_36"),
-    ("am1_window_00_frame_54", "amateur", "am1_window_00_frame_54"),
-    ("am3_window_01_frame_10514", "amateur", "am3_window_01_frame_10514"),
-    ("am4_window_00_frame_0", "amateur", "am4_window_00_frame_0"),
-    ("am4_window_01_frame_13782", "amateur", "am4_window_01_frame_13782"),
-    ("shuttleset_03_scene_0029", "broadcast", "shuttleset_03_scene_0029"),
-    ("shuttleset_03_scene_0034", "broadcast", "shuttleset_03_scene_0034"),
-    ("shuttleset_03_scene_0038", "broadcast", "shuttleset_03_scene_0038"),
-    ("shuttleset_21_scene_0000", "broadcast", "shuttleset_21_scene_0000"),
-    ("shuttleset_21_scene_0010", "broadcast", "shuttleset_21_scene_0010"),
-    ("shuttleset_21_scene_0039", "broadcast", "shuttleset_21_scene_0039"),
-)
-CASE_ORDER = REGRESSION_CASE_ORDER
-ALL_CASE_ORDER = REGRESSION_CASE_ORDER + UNUSED_CASE_ORDER
-REGRESSION_CASE_IDS = tuple(case_id for case_id, _, _ in REGRESSION_CASE_ORDER)
-UNUSED_CASE_IDS = tuple(case_id for case_id, _, _ in UNUSED_CASE_ORDER)
-ALL_CASE_IDS = tuple(case_id for case_id, _, _ in ALL_CASE_ORDER)
-CASE_IDS = REGRESSION_CASE_IDS
-CASE_LABELS = {case_id: label for case_id, _, label in ALL_CASE_ORDER}
-PACK_OF = {case_id: pack for case_id, pack, _ in ALL_CASE_ORDER}
-
 
 @dataclass(frozen=True)
 class ViewContext:
-    """Raw, label-free inputs prepared once for one frozen view."""
+    """Raw, label-free inputs prepared once for one view."""
 
     case_id: str
     source: dict
@@ -135,33 +89,8 @@ def write_json_gz(path: Path, value: Any) -> None:
     temporary.replace(path)
 
 
-def relative_path(path: Path, root: Path) -> str:
-    return path.resolve().relative_to(root.resolve()).as_posix()
-
-
-def load_source(root: Path, case_id: str) -> dict:
-    source_pack = read_json_gz(root / CASE_PACKS[PACK_OF[case_id]])
-    return next(source for source in source_pack["cases"] if source["id"] == case_id)
-
-
-def frame_path(root: Path, source: dict, provenance: CaseProvenance) -> Path:
-    case_id = source["id"]
-    if case_id.startswith("gxBQ"):
-        return root / "frozen_views/frames/gx" / source["image"]
-    if case_id.startswith("shuttleset"):
-        return root / "frozen_views/frames/original" / source["image"]
-    video = case_id.split("_", 1)[0]
-    frame = int(case_id.rsplit("_", 1)[1])
-    if provenance.image_kind.value != "source_frame" or provenance.image_frame_indices != (frame,):
-        raise ValueError(
-            f"{case_id}: amateur frame path uses frame {frame}, but provenance identifies "
-            f"{provenance.image_kind.value} frames {provenance.image_frame_indices}"
-        )
-    return root / "frozen_views/frames/amateur" / video / f"frame_{frame:08d}.png"
-
-
 def image_kind(provenance: CaseProvenance) -> str:
-    """Return the image kind from the validated frozen provenance record."""
+    """Return the image kind from the validated provenance record."""
     if not isinstance(provenance, CaseProvenance):
         raise TypeError("provenance must be a CaseProvenance")
     return provenance.image_kind.value
@@ -197,26 +126,6 @@ def prepare_segments(source: dict) -> tuple[np.ndarray, tuple[np.ndarray, np.nda
     raw_families = detector._wide_line_families(segments)
     families = (detector._merge_lines(raw_families[0], settings), detector._merge_lines(raw_families[1], settings))
     return segments, families, size
-
-
-@lru_cache(maxsize=3)
-def _load_provenance_pack(pack_path: Path) -> Mapping[str, CaseProvenance]:
-    return load_frozen_case_provenance(pack_path)
-
-
-def load_case_provenance(root: Path, case_id: str) -> CaseProvenance:
-    """Load one case's typed provenance from its frozen input pack."""
-    return _load_provenance_pack(root / CASE_PACKS[PACK_OF[case_id]])[case_id]
-
-
-def prepare_view(root: Path, case_id: str) -> ViewContext:
-    source = load_source(root, case_id)
-    provenance = load_case_provenance(root, case_id)
-    frame_file = frame_path(root, source, provenance)
-    frame = cv2.imread(str(frame_file))
-    if frame is None:
-        raise FileNotFoundError(frame_file)
-    return view_context(case_id, source, provenance, frame, relative_path(frame_file, root))
 
 
 def view_context(

@@ -14,9 +14,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import image_sources, inputs, measurements
-from scratch.court_det_fix.court_detector.detect import freeze_arrays, load_live_modules
-from scratch.court_det_fix.court_detector.search import DIRECTION_SETTINGS
+from court_detector import image_sources, inputs, measurements
+from court_detector.detect import freeze_arrays, load_live_modules
+from court_detector.search import DIRECTION_SETTINGS
 
 REPO = Path(__file__).resolve().parents[1]
 COURT_ROOT = REPO / "scratch/court_det_fix"
@@ -79,7 +79,7 @@ def test_measurement_json_keeps_subclass_and_nonfinite_conversion() -> None:
 
 @pytest.mark.parametrize("load_runtime", [False, True])
 def test_package_imports_leave_paths_and_research_modules_alone(load_runtime: bool) -> None:
-    imports = "\n".join(f"import scratch.court_det_fix.court_detector.{leaf}" for leaf in LEAVES)
+    imports = "\n".join(f"import court_detector.{leaf}" for leaf in LEAVES)
     code = f"""
 import sys
 from pathlib import Path
@@ -87,23 +87,24 @@ from types import ModuleType
 before = list(sys.path)
 # Existing bare research names must have no influence on package imports.
 names = ("run_w5", "verifier", "generation", "automatic_generation", "run_automatic",
-         "run_given", "projective_seed", "vp_pruning", "measurement", "zone_net", "shared")
+         "run_given", "projective_seed", "vp_pruning", "measurement", "zone_net")
 sentinels = {{name: ModuleType(name) for name in names}}
 sys.modules.update(sentinels)
 {imports}
 if {load_runtime!r}:
-    from scratch.court_det_fix.court_detector.detect import load_live_modules
+    from court_detector.detect import load_live_modules
     live = load_live_modules()
     for module in live[:8]:
-        assert module.__name__.startswith("scratch.court_det_fix.court_detector."), module
-court_root = Path({str(COURT_ROOT)!r})
-package_root = court_root / "court_detector"
+        assert module.__name__.startswith("court_detector."), module
+scratch_root = Path({str(REPO / "scratch")!r})
+package_root = Path({str(REPO / "src/court_detector")!r})
 for name, module in tuple(sys.modules.items()):
     assert name != "experiments" and not name.startswith("experiments."), name
     filename = getattr(module, "__file__", None)
     if filename:
         path = Path(filename).resolve()
-        if path.is_relative_to(court_root):
+        assert not path.is_relative_to(scratch_root), (name, path)
+        if name == "court_detector" or name.startswith("court_detector."):
             assert path.is_relative_to(package_root), (name, path)
 assert sys.path == before
 assert all(sys.modules[name] is sentinel for name, sentinel in sentinels.items())

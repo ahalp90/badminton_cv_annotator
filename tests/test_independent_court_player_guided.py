@@ -3,8 +3,8 @@
 import cv2
 import numpy as np
 
-from experiments.annotator.independent_court import player_guided
-from scratch.court_det_fix.court_detector import geometry as detector
+from court_detector import geometry as detector
+from experiments.annotator.independent_court import line_only, player_guided
 
 
 def test_presence_uses_all_frames_and_distinguishes_missing_players() -> None:
@@ -35,7 +35,7 @@ def test_internal_rectangle_can_propose_a_court_containing_both_players(monkeypa
     projected_feet, _ = detector.project(homography[None], np.array([[2.0, 2.0], [4.0, 11.0]]))
     for point in projected_feet[0]:
         assert cv2.pointPolygonTest(seed, tuple(point), False) < 0
-    monkeypatch.setattr(detector, "_image_rectangles", lambda *_args: seed_transform[None])
+    monkeypatch.setattr(line_only, "_image_rectangles", lambda *_args: seed_transform[None])
     segments, _ = detector.project(homography[None], detector.SEGMENTS_M)
     result = player_guided.detect(
         np.zeros((560, 640, 3), dtype=np.uint8),

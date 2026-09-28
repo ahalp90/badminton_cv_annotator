@@ -23,19 +23,18 @@ from zipfile import ZipFile
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import stripe_fitting as fitting
-from scratch.court_det_fix.court_detector import stripe_measurements as stripes
-from scratch.court_det_fix.court_detector.geometry import CORNER_COURT_M, SEGMENTS_M
-from scratch.court_det_fix.court_detector.image_sources import (
-    CaseProvenance,
-    load_frozen_case_provenance,
-    require_same_image_boxes,
-)
-from scratch.court_det_fix.court_detector.line_observations import (
+from court_detector import stripe_fitting as fitting
+from court_detector import stripe_measurements as stripes
+from court_detector.geometry import CORNER_COURT_M, SEGMENTS_M
+from court_detector.image_sources import CaseProvenance, require_same_image_boxes
+from court_detector.line_observations import (
     Observations,
     prepare_observations,
 )
-from scratch.court_det_fix.court_detector.paint_geometry import CENTRE_SEGMENTS_M
+from court_detector.paint_geometry import CENTRE_SEGMENTS_M
+from scratch.court_det_fix.court_detector.frozen_cases import (
+    load_frozen_case_provenance,
+)
 
 from .run_assignment import attach_metrics, frozen_entries, read_replay_bytes
 from .run_junctions import bytes_md5, provenance_binding, require_replay_pack

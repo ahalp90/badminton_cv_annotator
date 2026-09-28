@@ -4,9 +4,9 @@
 search and scoring steps in memory and returns four court corners, or a reason that no
 court was found. This page owns its inputs, behaviour, settings and commands.
 
-Read [pickup.md](../pickup.md) for current work,
-[the decisions](../DETECTOR_DECISIONS.md#d19) for measured results, and
-[PERFORMANCE.md](PERFORMANCE.md) for the speed-up design.
+Read [pickup.md](../../scratch/court_det_fix/pickup.md) for current work,
+[the decisions](../../scratch/court_det_fix/DETECTOR_DECISIONS.md#d19) for measured results, and
+[PERFORMANCE.md](../../scratch/court_det_fix/court_detector/PERFORMANCE.md) for the speed-up design.
 
 ## Inputs and result
 
@@ -79,12 +79,12 @@ preparation supplied by the caller.
 
 ## Run it
 
-Run from the repository root with `PYTHONPATH=.:src`. Follow `run_views.py` for
-single-threaded numerical libraries and OpenCV decoding. It sets these before
-loading NumPy.
+Run from the repository root with `PYTHONPATH=.:src`. Follow
+[run_views.py](../../scratch/court_det_fix/court_detector/run_views.py) for single-threaded numerical
+libraries and OpenCV decoding. It sets these before loading NumPy.
 
 ```python
-from scratch.court_det_fix.court_detector.detect import CourtDetector, Switches
+from court_detector.detect import CourtDetector, Switches
 
 detector = CourtDetector(Switches())
 result = detector.detect(view, people, frames)
@@ -105,8 +105,10 @@ When people are supplied in optional mode, their boxes still mask occlusions
 and support the existing proposal search. Missing or off-court people do not
 veto the final choice. Short scenes use their anchor's people when available.
 
-The saved-view runner takes IDs from the
-[28-view list](../court_detector_optimisation_handover/claude_evidence/fresh_feet/views.json).
+The saved-view runner stays with the research records in
+`scratch/court_det_fix/court_detector` and imports the detector from this package.
+It takes IDs from the
+[28-view list](../../scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/fresh_feet/views.json).
 Its image, line and box inputs come from saved research records. `PEOPLE_DIR`
 holds one record per view with people, poses and the source video's path.
 
@@ -122,12 +124,12 @@ research run. The baseline arm uses the older names: G0 and G1 for the two
 searches and W5 in some field names. The runner reads them in the current names
 and leaves the saved files unchanged. To reproduce the original 25 September
 comparison, also use `--any-camera-roll --geometry-weight 0`. The newer defaults
-intentionally change results. The [original check](check_20260925/README.md)
+intentionally change results. The [original check](../../scratch/court_det_fix/court_detector/check_20260925/README.md)
 states exactly what was compared; the runner docstring supplies the full command
 details.
 
 The people records and videos used on Carmack are not in git. See
-[the data map](../FP_INDEX.md#data-that-is-not-in-git) before a remote rerun or
+[the data map](../../scratch/court_det_fix/FP_INDEX.md#data-that-is-not-in-git) before a remote rerun or
 new checkout.
 
 Use `--workers 8` to search direction pairs and score candidates in eight processes.
@@ -186,7 +188,7 @@ example's line extract; the less selective hard variant remains available throug
 `DeepLSDLines(..., grad_nfa=False)`.
 
 ```bash
-PYTHONPATH=.:src python -m scratch.court_det_fix.court_detector.run_video \
+PYTHONPATH=.:src python -m court_detector.run_video \
   --video VIDEO.mp4 \
   --deeplsd-source DEEPLSD_CHECKOUT \
   --deeplsd-weights DEEPLSD_WEIGHTS.tar \
@@ -264,7 +266,7 @@ The camera filter skips a direction pair when its horizon tilts more than
 A horizon more than ten image diagonals away passes both tests.
 
 Seeded templates, the paint-line search, the bounded net reward and stripe
-refitting have no individual switches. [STRIPPED.md](STRIPPED.md) records the
+refitting have no individual switches. [STRIPPED.md](../../scratch/court_det_fix/court_detector/STRIPPED.md) records the
 research features left out and where they could be restored.
 
 ## Code map
@@ -277,11 +279,13 @@ research features left out and where they could be restored.
 | [search.py](search.py) | Search settings, paint-like fragments and extra starting points |
 | [net_choice.py](net_choice.py) | Final choice and net-post reward |
 | [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
-| [run_views.py](run_views.py) | Run the prepared views and compare with saved results |
+| [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run from video and build each scene's inputs |
+| [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines, and scene cuts |
 
 The search, scoring and geometry code now lives in this package. Imports use
-normal package paths and leave `sys.path` unchanged. Saved-view inputs remain
-in the older data folders listed in [FP_INDEX.md](../FP_INDEX.md#code-and-input-paths-to-keep-stable).
+normal package paths and leave `sys.path` unchanged. The package imports nothing
+from `experiments` or `scratch`. The court's size and painted lines come from
+`shared.court_model`.
 
 | Files | Responsibility |
 | --- | --- |
@@ -293,9 +297,18 @@ in the older data folders listed in [FP_INDEX.md](../FP_INDEX.md#code-and-input-
 | [court_checks.py](court_checks.py), [players.py](players.py) | Check court shape and whether players fit |
 | [line_observations.py](line_observations.py), [stripe_measurements.py](stripe_measurements.py), [stripe_fitting.py](stripe_fitting.py) | Group fragments, measure stripes and fit corners |
 | [paint_geometry.py](paint_geometry.py), [net_geometry.py](net_geometry.py), [junctions.py](junctions.py) | Painted markings, projected net and line crossings |
-| [image_sources.py](image_sources.py), [search_records.py](search_records.py) | Image/box source types, frozen inputs and search-record checks |
-| [paint_profiles.py](paint_profiles.py) | Optional paint diagnostics retained for research callers |
+| [image_sources.py](image_sources.py), [search_records.py](search_records.py) | Image/box source types and search-record checks |
 
-The [27 September archive map](../archive/20260927_code/README.md) records the
+The research harness in `scratch/court_det_fix/court_detector` holds the code
+that reads saved research records. Its inputs remain in the older data folders
+listed in [FP_INDEX.md](../../scratch/court_det_fix/FP_INDEX.md#code-and-input-paths-to-keep-stable).
+
+| File | Responsibility |
+| --- | --- |
+| [run_views.py](../../scratch/court_det_fix/court_detector/run_views.py) | Run the prepared views and compare with saved results |
+| [frozen_cases.py](../../scratch/court_det_fix/court_detector/frozen_cases.py) | Load the frozen views' packs, provenance and frames |
+| [paint_profiles.py](../../scratch/court_det_fix/court_detector/paint_profiles.py) | Paint-profile diagnostics for research callers |
+
+The [27 September archive map](../../scratch/court_det_fix/archive/20260927_code/README.md) records the
 former code locations. Historical scripts there keep their original paths;
 they need a matching checkout or path repair before a rerun.

@@ -11,8 +11,8 @@ and the contrast reaches CONTRAST_LEVELS grey levels. Only the positions change;
 then the court is refitted (fixed_stripe_refit.refine) and validated (fit_geometry).
 
 Research scripts import these back, so this module stays a leaf: it imports numpy,
-OpenCV, the experiments package and, for observable_points, measurements.py (the
-package copy of the archived w5_holistic/verifier.py). It never edits sys.path.
+OpenCV, stripe_fitting and, for observable_points, measurements.py (the package
+copy of the archived w5_holistic/verifier.py). It never edits sys.path.
 """
 
 from __future__ import annotations

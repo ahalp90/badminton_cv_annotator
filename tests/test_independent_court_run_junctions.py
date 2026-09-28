@@ -7,10 +7,9 @@ from zipfile import ZipFile
 
 import pytest
 
+from court_detector.image_sources import CaseProvenance, ImageKind
 from experiments.annotator.independent_court import run_junctions
-from scratch.court_det_fix.court_detector.image_sources import (
-    CaseProvenance,
-    ImageKind,
+from scratch.court_det_fix.court_detector.frozen_cases import (
     load_frozen_case_provenance,
 )
 

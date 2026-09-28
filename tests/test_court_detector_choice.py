@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import net_choice
-from scratch.court_det_fix.court_detector.detect import NET_WEIGHT, Switches
+from court_detector import net_choice
+from court_detector.detect import NET_WEIGHT, Switches
 
 # A plausible broadcast court in a 1280x720 frame, in native pixels.
 CORNERS_NATIVE = [[430.0, 250.0], [850.0, 250.0], [1060.0, 650.0], [220.0, 650.0]]

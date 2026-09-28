@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import detect, reuse
-from scratch.court_det_fix.court_detector.feet import FeetWindow
-from scratch.court_det_fix.court_detector.inputs import (
+from court_detector import detect, reuse
+from court_detector.feet import FeetWindow
+from court_detector.inputs import (
     ViewInputs,
     same_frame_provenance,
 )

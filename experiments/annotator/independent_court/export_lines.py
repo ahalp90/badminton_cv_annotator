@@ -1,4 +1,9 @@
-"""Export cached line fragments from DeepLSD or LINEA checkpoints."""
+"""Export cached line fragments from DeepLSD or LINEA checkpoints.
+
+The DeepLSD loading, field and fragment helpers are the court detector's own
+(court_detector.line_sources), so saved extracts match live detection. They are
+imported inside the functions that need them, so `--help` needs no dependencies.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +13,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import time
 from importlib import import_module
 from pathlib import Path
@@ -19,11 +23,6 @@ LINEA_INPUT_SIZE = (640, 640)
 LINEA_MEAN = (0.538, 0.494, 0.453)
 LINEA_STD = (0.257, 0.263, 0.273)
 LINEA_THRESHOLD = 0.2
-DEEPLSD_LINE_PARAMS = {
-    "filtering": "normal",
-    "merge": False,
-    "grad_thresh": 3,
-}
 
 
 def _load_cases(path: Path) -> list[dict[str, Any]]:
@@ -73,30 +72,11 @@ def _source_commit(source: Path) -> str:
     return commit
 
 
-def _add_source_path(source: Path) -> None:
-    source_text = str(source.resolve())
-    sys.path[:] = [entry for entry in sys.path if entry != source_text]
-    sys.path.insert(0, source_text)
-
-
 def _write_bundle(path: Path, metadata: dict[str, Any], cases: list[dict[str, Any]]) -> None:
     temporary = path.with_name(path.name + ".tmp")
     with gzip.open(temporary, "wt", encoding="utf-8") as target:
         json.dump({**metadata, "cases": cases}, target, allow_nan=False)
     os.replace(temporary, path)
-
-
-def _segment_array(segments: Any) -> Any:
-    import numpy as np
-
-    array = np.asarray(segments, dtype=np.float64)
-    if array.size == 0:
-        return np.empty((0, 4), dtype=np.float64)
-    if array.ndim == 3 and array.shape[1:] == (2, 2):
-        array = array.reshape(-1, 4)
-    if array.ndim != 2 or array.shape[1] != 4 or not np.isfinite(array).all():
-        raise ValueError(f"line detector returned unexpected shape {array.shape}")
-    return array
 
 
 def _record(
@@ -110,8 +90,10 @@ def _record(
 ) -> dict[str, Any]:
     import numpy as np
 
+    from court_detector.line_sources import segment_array
+
     width, height = dimensions
-    array = _segment_array(segments)
+    array = segment_array(segments)
     if working_dimensions is not None:
         working_width, working_height = working_dimensions
         array = array.reshape(-1, 2, 2) * np.asarray(
@@ -157,39 +139,9 @@ def _working_image(image: Any) -> tuple[Any, tuple[int, int]]:
     return gray, (working_width, working_height)
 
 
-def _load_deeplsd(source: Path, weights: Path, device: Any) -> Any:
-    import torch
-
-    _add_source_path(source)
-    DeepLSD = import_module("deeplsd.models.deeplsd_inference").DeepLSD
-
-    checkpoint = torch.load(weights, map_location="cpu", weights_only=False)
-    network = DeepLSD({"detect_lines": False})
-    network.load_state_dict(checkpoint["model"], strict=True)
-    return network.to(device).eval()
-
-
-def _deeplsd_fields(network: Any, gray: Any, working_dimensions: tuple[int, int], device: Any) -> tuple[Any, Any]:
-    import numpy as np
-    import torch
-
-    input_tensor = torch.from_numpy(gray).to(device=device, dtype=torch.float32) / 255.0
-    with torch.inference_mode():
-        prediction = network({"image": input_tensor[None, None]})
-    expected_shape = (working_dimensions[1], working_dimensions[0])
-    fields = []
-    for name in ("df", "line_level"):
-        field = prediction[name]
-        if field.ndim != 3 or field.shape[0] != 1 or tuple(field.shape[1:]) != expected_shape:
-            raise ValueError(f"{name} has unexpected shape {tuple(field.shape)}")
-        array = field[0].detach().cpu().numpy()
-        if not np.isfinite(array).all():
-            raise ValueError(f"{name} contains non-finite values")
-        fields.append(array)
-    return fields[0], fields[1]
-
-
 def _deeplsd_metadata(name: str, weights: Path, model_sha256: str, source_commit: str, grad_nfa: bool) -> dict[str, Any]:
+    from court_detector.line_sources import DEEPLSD_LINE_PARAMS
+
     return {
         "config": {
             "detect_lines": False,
@@ -217,6 +169,12 @@ def _run_deeplsd(
     import cv2
     import torch
 
+    from court_detector.line_sources import (
+        DEEPLSD_LINE_PARAMS,
+        deeplsd_fields,
+        load_deeplsd,
+    )
+
     device = torch.device(device_text)
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable; pass --device cpu explicitly")
@@ -233,7 +191,7 @@ def _run_deeplsd(
     records = {name: [] for name, _ in variants}
     for name, _ in variants:
         _write_bundle(output_root / f"{name}.json.gz", metadata[name], records[name])
-    network = _load_deeplsd(source, weights, device)
+    network = load_deeplsd(source, weights, device)
     for case in cases:
         image_path = image_root / case["image"]
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
@@ -242,19 +200,11 @@ def _run_deeplsd(
         image_md5 = _digest(image_path, "md5")
         gray, working_dimensions = _working_image(image)
         started = time.perf_counter()
-        df, angle = _deeplsd_fields(network, gray, working_dimensions, device)
+        df, angle = deeplsd_fields(network, gray, working_dimensions, device)
         fields_seconds = time.perf_counter() - started
         for name, grad_nfa in variants:
             started = time.perf_counter()
-            lines = network.detect_afm_lines(
-                gray,
-                df,
-                angle,
-                filtering="normal",
-                merge=False,
-                grad_thresh=3,
-                grad_nfa=grad_nfa,
-            )
+            lines = network.detect_afm_lines(gray, df, angle, **DEEPLSD_LINE_PARAMS, grad_nfa=grad_nfa)
             elapsed = fields_seconds + time.perf_counter() - started
             records[name].append(
                 _record(
@@ -273,7 +223,9 @@ def _run_deeplsd(
 def _load_linea(source: Path, weights: Path, device: Any) -> tuple[Any, Any]:
     import torch
 
-    _add_source_path(source)
+    from court_detector.line_sources import add_source_path
+
+    add_source_path(source)
     import_module("models.linea")
     MODULE_BUILD_FUNCS = import_module("models.registry").MODULE_BUILD_FUNCS
     SLConfig = import_module("util.slconfig").SLConfig

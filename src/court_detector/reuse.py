@@ -21,8 +21,8 @@ import cv2
 import numpy as np
 
 from annotator import court_views
-from courtkeynet.court_corners import COURT_LENGTH_M, COURT_WIDTH_M
 from shared.court import HOMOGRAPHY_RESOLUTION
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
 
 from . import candidate_pool, proposals, stripe_refit
 from .geometry import CORNER_COURT_M, project

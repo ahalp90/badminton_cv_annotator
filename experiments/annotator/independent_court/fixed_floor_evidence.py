@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from scratch.court_det_fix.court_detector import geometry as detector
-from scratch.court_det_fix.court_detector.line_observations import (
+from court_detector import geometry as detector
+from court_detector.line_observations import (
     MATCH_ANGLE_DEG,
     distances_to_segments,
 )

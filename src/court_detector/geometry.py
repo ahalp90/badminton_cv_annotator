@@ -1,8 +1,8 @@
-"""Court coordinates, image transforms and line-based court proposals.
+"""Court coordinates, image transforms, line grouping and line-support scores.
 
-The standalone search assumes an upright view from behind a baseline. It
-matches lines to the badminton template and keeps competing court placements.
-Scores measure image support; they are not calibrated probabilities."""
+The research line-only search that first used these helpers is in
+experiments/annotator/independent_court/line_only.py. Scores measure image
+support; they are not calibrated probabilities."""
 
 from __future__ import annotations
 
@@ -12,14 +12,10 @@ from itertools import combinations
 import cv2
 import numpy as np
 
-from courtkeynet.court_corners import (
-    CORNER_COURT_M,
-    PAINTED_SEGMENTS_M,
-    _frame_segments,
-)
+from shared.court_model import CORNER_COURT_M, PAINTED_SEGMENTS_M
 
-# courtkeynet defines the court in float32, so this keeps its values. float32 homographies
-# then project in float32, and float64 ones still project in float64.
+# The court model is float32, so this keeps its values. float32 homographies then
+# project in float32, and float64 ones still project in float64.
 SEGMENTS_M = np.asarray(PAINTED_SEGMENTS_M, dtype=np.float32)
 X_COORDS = np.unique(SEGMENTS_M[:6, 0, 0])
 Y_COORDS = np.unique(SEGMENTS_M[6:, 0, 1])
@@ -69,17 +65,6 @@ class Candidate:
 DEFAULT_SETTINGS = Settings()
 
 
-@dataclass(frozen=True)
-class Detection:
-    candidates: tuple[Candidate, ...]
-    accepted: bool
-    reason: str
-    score_gap: float | None
-    segments_px: np.ndarray
-    family_line_counts: tuple[int, int]
-    hypotheses_scored: int
-
-
 def _template_transforms() -> np.ndarray:
     transforms = []
     for left, right in combinations(X_COORDS, 2):
@@ -100,21 +85,6 @@ def project(homographies: np.ndarray, points: np.ndarray) -> tuple[np.ndarray, n
     with np.errstate(divide="ignore", invalid="ignore"):
         pixels = mapped[..., :2] / denominator[..., None]
     return pixels, denominator
-
-
-def extract_segments(frame: np.ndarray, method: str) -> np.ndarray:
-    """Extract full-frame fragments; no court mask or manual region is used."""
-    if method in ("hough", "ridge"):
-        segments = _frame_segments(frame, np.full(frame.shape[:2], 255, dtype=np.uint8)).astype(np.float64)
-        return _filter_painted_stripes(frame, segments) if method == "ridge" else segments
-    if method == "lsd":
-        lines = cv2.createLineSegmentDetector().detect(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]
-        if lines is None:
-            return np.empty((0, 4), dtype=np.float64)
-        segments = lines.reshape(-1, 4).astype(np.float64)
-        length = np.linalg.norm(segments[:, 2:] - segments[:, :2], axis=1)
-        return segments[length >= 30]
-    raise ValueError(f"unknown line extractor: {method}")
 
 
 def _filter_painted_stripes(frame: np.ndarray, segments: np.ndarray) -> np.ndarray:
@@ -218,36 +188,6 @@ def _merge_lines(segments: np.ndarray, settings: Settings) -> np.ndarray:
         extents.append(_covered_length(points, line))
     order = np.argsort(-np.asarray(extents), kind="stable")[:settings.max_family_lines]
     return np.asarray(coefficients, dtype=np.float64).reshape(-1, 3)[order]
-
-
-def _image_rectangles(
-    x_lines: np.ndarray, y_lines: np.ndarray, size: tuple[int, int], settings: Settings,
-) -> np.ndarray:
-    width, height = size
-    # Ordering at the image centre defines far/near and left/right for this view.
-    x_order = np.argsort(-(x_lines[:, 1] * height / 2 + x_lines[:, 2]) / x_lines[:, 0])
-    y_order = np.argsort(-(y_lines[:, 0] * width / 2 + y_lines[:, 2]) / y_lines[:, 1])
-    x_lines, y_lines = x_lines[x_order], y_lines[y_order]
-    intersections = np.cross(x_lines[:, None], y_lines[None, :])
-    with np.errstate(divide="ignore", invalid="ignore"):
-        points = intersections[..., :2] / intersections[..., 2:]
-    x_pairs = np.asarray(list(combinations(range(len(x_lines)), 2)))
-    y_pairs = np.asarray(list(combinations(range(len(y_lines)), 2)))
-    x_slots = x_pairs[:, [0, 1, 1, 0]][:, None, :]
-    y_slots = y_pairs[:, [0, 0, 1, 1]][None, :, :]
-    quads = points[x_slots, y_slots].reshape(-1, 4, 2)
-    edges = np.roll(quads, -1, axis=1) - quads
-    turns = edges[..., 0] * np.roll(edges[..., 1], -1, axis=1) - edges[..., 1] * np.roll(edges[..., 0], -1, axis=1)
-    valid = np.isfinite(quads).all(axis=(1, 2)) & np.all(turns > 0, axis=1)
-    quads = quads[valid]
-    if len(quads) > settings.max_rectangles:
-        generator = np.random.default_rng(settings.seed)
-        quads = quads[generator.choice(len(quads), settings.max_rectangles, replace=False)]
-    rectangles = []
-    for quad in quads:
-        if cv2.contourArea(quad.astype(np.float32)) >= 100:
-            rectangles.append(cv2.getPerspectiveTransform(UNIT_CORNERS, quad.astype(np.float32)))
-    return np.asarray(rectangles).reshape(-1, 3, 3)
 
 
 def distance_map(segments: np.ndarray, size: tuple[int, int]) -> np.ndarray:
@@ -360,91 +300,3 @@ def _score(
     enough_support = np.all(means >= settings.min_family_support, axis=1)
     score[~(enough_lines & enough_support)] = -1
     return corners, score, means, counts
-
-
-def _retain(candidates: list[Candidate], proposed: list[Candidate], settings: Settings) -> list[Candidate]:
-    retained: list[Candidate] = []
-    for candidate in sorted(candidates + proposed, key=lambda item: -item.score):
-        duplicate = False
-        for previous in retained:
-            separation = np.linalg.norm(candidate.corners_px - previous.corners_px, axis=1).max()
-            if separation <= settings.distinct_corner_distance:
-                duplicate = True
-                break
-        if not duplicate:
-            retained.append(candidate)
-            if len(retained) == settings.keep_candidates:
-                break
-    return retained
-
-
-def _separate_court(candidates: list[Candidate], size: tuple[int, int]) -> bool:
-    """Two supported courts in different image regions leave the target unresolved."""
-    width, height = size
-    viewport = np.array([[0, 0], [width, 0], [width, height], [0, height]], dtype=np.float32)
-    visible_regions: list[tuple[float, np.ndarray]] = []
-    for candidate_index, candidate in enumerate(candidates):
-        area, polygon = cv2.intersectConvexConvex(candidate.corners_px.astype(np.float32), viewport)
-        if polygon is None or area <= 0:
-            if candidate_index == 0:
-                return True
-            continue
-        for previous_area, previous_polygon in visible_regions:
-            overlap, _ = cv2.intersectConvexConvex(previous_polygon, polygon)
-            if overlap < 0.5 * min(previous_area, area):
-                return True
-        visible_regions.append((area, polygon))
-    return False
-
-
-def detect(
-    frame: np.ndarray, settings: Settings = DEFAULT_SETTINGS, *, segments_px: np.ndarray | None = None,
-) -> Detection:
-    """Return supported court hypotheses and an explicit ambiguity decision.
-
-    :param frame: uint8 BGR image in source pixels; no reference geometry is accepted.
-    :param segments_px: optional precomputed fragments, one native XYXY row per line.
-    :return: candidates and line fragments in the original frame coordinates.
-    """
-    height, width = frame.shape[:2]
-    scale = min(1.0, settings.max_dimension / max(width, height))
-    working = cv2.resize(frame, (round(width * scale), round(height * scale))) if scale < 1 else frame
-    native_scale = np.array([width / working.shape[1], height / working.shape[0]])
-    size = (working.shape[1], working.shape[0])
-    if segments_px is None:
-        segments = extract_segments(working, settings.extractor)
-    else:
-        segments_px = np.asarray(segments_px, dtype=np.float64)
-        if segments_px.ndim != 2 or segments_px.shape[1] != 4 or not np.isfinite(segments_px).all():
-            raise ValueError("segments_px must contain finite native XYXY rows")
-        if np.any(np.linalg.norm(segments_px[:, 2:] - segments_px[:, :2], axis=1) == 0):
-            raise ValueError("segments_px must have positive length")
-        segments = segments_px / np.tile(native_scale, 2)
-    families = _wide_line_families(segments) if settings.wide_families else _line_families(segments)
-    x_lines, y_lines = (_merge_lines(family, settings) for family in families)
-    counts = (len(x_lines), len(y_lines))
-    native_segments = segments * np.tile(native_scale, 2)
-    if min(counts) < 2:
-        return Detection((), False, "insufficient_lines", None, native_segments, counts, 0)
-    rectangles = _image_rectangles(x_lines, y_lines, size, settings)
-    maps = _distance_maps(families, size)
-    candidates: list[Candidate] = []
-    scored = 0
-    for offset in range(0, len(rectangles), 8):
-        homographies = (rectangles[offset:offset + 8, None] @ TEMPLATE_TRANSFORMS).reshape(-1, 3, 3)
-        corners, scores, means, supported_counts = _score(homographies, maps, settings, (x_lines, y_lines))
-        scored += len(scores)
-        eligible = np.flatnonzero(scores >= 0)
-        # Diversify before truncating: many hypotheses can describe the same court.
-        proposed = []
-        for index in eligible[np.argsort(-scores[eligible], kind="stable")]:
-            proposed.append(Candidate(corners[index], float(scores[index]), tuple(means[index]),
-                                      tuple(int(value) for value in supported_counts[index])))
-        candidates = _retain(candidates, proposed, settings)
-    gap = None if len(candidates) < 2 else candidates[0].score - candidates[1].score
-    ambiguous_location = bool(candidates) and _separate_court(candidates, size)
-    accepted = bool(candidates) and not ambiguous_location and (gap is None or gap >= settings.ambiguity_gap)
-    reason = "accepted" if accepted else "ambiguous" if candidates else "unsupported"
-    native_candidates = tuple(Candidate(candidate.corners_px * native_scale, candidate.score,
-                                        candidate.family_support, candidate.supported_lines) for candidate in candidates)
-    return Detection(native_candidates, accepted, reason, gap, native_segments, counts, scored)

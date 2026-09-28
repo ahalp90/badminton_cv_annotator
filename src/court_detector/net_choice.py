@@ -1,15 +1,15 @@
 """Choose among the gated courts, rewarding net posts that line fragments support.
 
-Each gated court implies a net: two tape halves and two posts
-(experiments/annotator/independent_court/net_geometry.py). A post counts as
-supported when a line fragment covers one of its six lowest samples and no
-covering fragment reaches more than overrun_px working pixels below its base.
+Each gated court implies a net: two tape halves and two posts (net_geometry.py).
+A post counts as supported when a line fragment covers one of its six lowest
+samples and no covering fragment reaches more than overrun_px working pixels
+below its base.
 The winner has the highest evidence plus weight x post reward (0, 0.5 or 1); the
 first row in the C ranking's order wins exact ties. The evidence is the C ranking's
 score (normally the paint score), optionally blended with the geometry score.
 
 Research scripts import these back, so this module stays a leaf: it imports only
-numpy and the experiments package, and never edits sys.path.
+numpy and net_geometry, and never edits sys.path.
 """
 
 from __future__ import annotations

@@ -40,9 +40,9 @@ def _write_line_cache(path: Path, variant: str, cases: list[dict]) -> Path:
     return path
 
 
-def _detection(corners: np.ndarray, *, accepted: bool = True) -> evaluate.detector.Detection:
+def _detection(corners: np.ndarray, *, accepted: bool = True) -> evaluate.line_only.Detection:
     candidate = evaluate.detector.Candidate(corners, 0.8, (0.75, 0.85), (4, 5))
-    return evaluate.detector.Detection(
+    return evaluate.line_only.Detection(
         (candidate,), accepted, "accepted" if accepted else "ambiguous", 0.1,
         np.empty((0, 4)), (4, 5), 9,
     )
@@ -50,7 +50,7 @@ def _detection(corners: np.ndarray, *, accepted: bool = True) -> evaluate.detect
 
 def _run(tmp_path: Path, monkeypatch, case: dict, corners: np.ndarray, *, accepted: bool = True) -> dict:
     manifest = _write_manifest(tmp_path, case)
-    monkeypatch.setattr(evaluate.detector, "detect", lambda image, settings: _detection(corners, accepted=accepted))
+    monkeypatch.setattr(evaluate.line_only, "detect", lambda image, settings: _detection(corners, accepted=accepted))
     output = tmp_path / "result"
     assert evaluate.main(["--manifest", str(manifest), "--output", str(output)]) == 0
     with gzip.open(output / "results.json.gz", "rt", encoding="utf-8") as source:
@@ -159,7 +159,7 @@ def test_line_cache_joins_subset_by_id_and_preserves_provenance(
         seen[int(image[0, 0, 0])] = segments_px.copy()
         return _detection(np.array([[100, 100], [1100, 100], [1100, 620], [100, 620]], dtype=float))
 
-    monkeypatch.setattr(evaluate.detector, "detect", detect)
+    monkeypatch.setattr(evaluate.line_only, "detect", detect)
     output = tmp_path / "result"
     assert evaluate.main([
         "--manifest", str(manifest), "--output", str(output), "--line-cache", str(cache),

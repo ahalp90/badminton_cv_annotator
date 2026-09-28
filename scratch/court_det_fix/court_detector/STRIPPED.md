@@ -8,7 +8,7 @@ in [the code archive](../archive/20260927_code/README.md).
 
 | Left out | What it fed | Where it plugs back in |
 | --- | --- | --- |
-| Pool stripe score, paint profile and the two research winner IDs | The research A ranking and saved records only. Scoring's duplicate merging, the C ranking, the net choice and the refit never read them | `legacy_evidence=True` (the default) on `generation.generate` and `candidate_pool.evaluate_pool` |
+| Pool stripe score, paint profile and the two research winner IDs | The research A ranking and saved records only. Scoring's duplicate merging, the C ranking, the net choice and the refit never read them | Archived [run_automatic.py](../archive/20260927_code/frozen_helpers_20260914/automatic_axes/run_automatic.py) (`evaluate_pool` and `winner_ids`). The detector's records keep both winner IDs as `None` |
 | Research extras of the scoring stage (W5): B ranking, diagnostic controls, rank sensitivity, review candidates, saved arrays and case-record files | Research reports | Archived `w5_holistic/run_w5.process_case`, which wraps `scoring.score_populations` |
 | Replay of the parent's saved scoring fit before the stripe refit | A check that the refit starts from the same fit | `stripe_refit.refit_chosen(replay_check=...)`, on with the `self_checks` switch |
 | The search's input audit and population files | The research scoring stage (W5), which read the populations back | Archived `wider_evaluation/generation.ensure_populations`. The detector repeats the files' JSON round trip in memory (`detect.json_round_trip`) |

@@ -8,15 +8,15 @@ from typing import Self
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import run_video
-from scratch.court_det_fix.court_detector.detect import (
+from court_detector import run_video
+from court_detector.detect import (
     CourtDetector,
     CourtResult,
     Switches,
 )
-from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
-from scratch.court_det_fix.court_detector.run_video import scene_courts, validate_scenes
-from scratch.court_det_fix.court_detector.scene_sources import SceneInfo
+from court_detector.inputs import PersonSample, ViewInputs
+from court_detector.run_video import scene_courts, validate_scenes
+from court_detector.scene_sources import SceneInfo
 
 
 class Frames:

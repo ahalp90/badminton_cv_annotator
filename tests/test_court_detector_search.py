@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import (
+from court_detector import (
     candidate_pool,
     directions,
     generation,
@@ -241,7 +240,7 @@ def test_generation_checks_camera_bound_in_native_coordinates(
     record = estimator(2)
     record["points_working"] = points.tolist()
     saved = {"working_size": list(size), "settings": {"pencil_selection": "coverage"}, "estimator": record}
-    result = generation.generate(source, saved, players, Path("."), candidate_pool, 16, legacy_evidence=False)
+    result = generation.generate(source, saved, players, candidate_pool, 16)
     scale = np.append(np.asarray(native_size) / size, 1.)
     assert len(calls) == 2
     for (actual_points, actual_size), order in zip(calls, ([0, 1], [1, 0]), strict=True):

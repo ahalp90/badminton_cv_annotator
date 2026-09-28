@@ -10,9 +10,9 @@ from types import ModuleType
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import feet
-from scratch.court_det_fix.court_detector.image_sources import CaseProvenance, ImageKind
-from scratch.court_det_fix.court_detector.inputs import PersonSample, ViewInputs
+from court_detector import feet
+from court_detector.image_sources import CaseProvenance, ImageKind
+from court_detector.inputs import PersonSample, ViewInputs
 
 REPO = Path(__file__).resolve().parents[1]
 FRESH_FEET = REPO / "scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/fresh_feet"

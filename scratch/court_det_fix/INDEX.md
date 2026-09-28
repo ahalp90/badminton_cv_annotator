@@ -8,7 +8,7 @@ kind of information.
 | Current state and next work | [pickup.md](pickup.md) | Tracked handover and pointer to detailed local working records |
 | Why a choice was made | [DETECTOR_DECISIONS.md](DETECTOR_DECISIONS.md) | Dated decisions, rejected ideas and links to evidence |
 | Code, data or a rerun entry point | [FP_INDEX.md](FP_INDEX.md) | Paths and data requirements |
-| Use the detector | [Detector guide](court_detector/README.md) | Inputs, outputs, algorithm, settings and commands |
+| Use the detector | [Detector guide](../../src/court_detector/README.md) | Inputs, outputs, algorithm, settings and commands |
 | Build the speed-ups | [Speed-up design](court_detector/PERFORMANCE.md) | Proposed changes, agreed constraints and checks; no running status log |
 | Recover older work | [26 September archive map](archive/20260926/README.md) | Former paths, intact worklogs and experiment scripts |
 | Recover the former detector source | [27 September code archive](archive/20260927_code/README.md) | Old implementations and the map to their maintained replacements |

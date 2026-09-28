@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from scratch.court_det_fix.court_detector import geometry as detector
+from court_detector import geometry as detector
 
 from .fixed_floor_evidence import (
     FAMILY_INDEX,

@@ -24,25 +24,14 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Self
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import (
-    feet,
-    net_choice,
-    search,
-    stripe_refit,
-    template_arrays,
-)
-from scratch.court_det_fix.court_detector.inputs import (
-    FrameReader,
-    PeopleSource,
-    ViewInputs,
-)
+from . import feet, net_choice, search, stripe_refit, template_arrays
+from .inputs import FrameReader, PeopleSource, ViewInputs
 
 if TYPE_CHECKING:
     from concurrent.futures import ProcessPoolExecutor
 
     from .reuse import KnownCourt
 
-ROOT = Path(__file__).resolve().parents[1]
 DIRECTION_BUDGET = 16
 VISIBILITY_FLOOR = (4, 3)  # lengthwise and cross-court lines a line template must show
 NET_WEIGHT = 0.04
@@ -288,8 +277,7 @@ class CourtDetector:
         populations = {}
         for name, population_source in (("all_lines", source), ("painted_lines", filtered)):
             record = live.automatic_generation.generate(
-                population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
-                legacy_evidence=False,
+                population_source, direction, live.runtime["zone"], live.run_automatic, DIRECTION_BUDGET,
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
                 workers=self.switches.workers,
                 full_score_limit=self.switches.full_score_limit,

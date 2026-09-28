@@ -1,8 +1,11 @@
-"""Track which video frames supplied each image and set of person boxes.
+"""Load the frozen research views: pinned packs, their provenance sidecar and frames.
 
-The frozen packs keep this information in a checked sidecar. The loader checks
-pack bytes and case IDs before returning immutable records. Source frames are
-read from those records, never inferred from case names."""
+The saved-view runner, research scripts and tests read these fixtures. The court
+detector does not: its callers pass a view's image, lines and provenance in
+`ViewInputs`. The loader checks pack bytes and case IDs before returning
+immutable provenance records. Source frames are read from those records, never
+inferred from case names.
+"""
 
 from __future__ import annotations
 
@@ -10,11 +13,18 @@ import gzip
 import hashlib
 import json
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
-from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
+
+import cv2
+
+from court_detector.image_sources import CaseProvenance, ImageKind
+from court_detector.measurements import ViewContext, read_json_gz, view_context
+
+# scratch/court_det_fix: the frozen views and saved research runs are under here.
+ROOT = Path(__file__).resolve().parents[1]
 
 SIDECAR_FILENAME = "case_provenance.json.gz"
 SIDECAR_SCHEMA = "independent-court-case-provenance/1"
@@ -27,75 +37,50 @@ PACK_MD5_BY_NAME: Mapping[str, str] = MappingProxyType(
     }
 )
 
-
-class ImageKind(StrEnum):
-    """Kind of pixels used for the measured image."""
-
-    SOURCE_FRAME = "source_frame"
-    COMPOSITE = "composite"
-
-
-class BoxRelation(StrEnum):
-    """Relationship between selected person boxes and the measured image."""
-
-    SAME_IMAGE = "same_image"
-    NEARBY_SOURCE_FRAME = "nearby_source_frame"
-    COMPOSITE = "composite"
-
-
-@dataclass(frozen=True, slots=True)
-class CaseProvenance:
-    """Validated immutable provenance for one frozen case."""
-
-    case_id: str
-    image_kind: ImageKind
-    image_frame_indices: tuple[int, ...]
-    box_frame_index: int
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.case_id, str) or not self.case_id:
-            raise ValueError("case_id must be a non-empty string")
-        if not isinstance(self.image_kind, ImageKind):
-            raise TypeError("image_kind must be an ImageKind")
-        if not isinstance(self.image_frame_indices, tuple) or not self.image_frame_indices:
-            raise ValueError("image_frame_indices must be a non-empty tuple")
-        if any(isinstance(frame, bool) or not isinstance(frame, int) or frame < 0 for frame in self.image_frame_indices):
-            raise ValueError("image_frame_indices must contain non-negative integers")
-        if self.image_kind is ImageKind.SOURCE_FRAME and len(self.image_frame_indices) != 1:
-            raise ValueError("source_frame requires exactly one image frame")
-        if len(set(self.image_frame_indices)) != len(self.image_frame_indices):
-            raise ValueError("image_frame_indices must not contain duplicates")
-        if isinstance(self.box_frame_index, bool) or not isinstance(self.box_frame_index, int) or self.box_frame_index < 0:
-            raise ValueError("box_frame_index must be a non-negative integer")
-
-    @property
-    def box_relation(self) -> BoxRelation:
-        """Return the relation derived from image kind and frame identity."""
-
-        if self.image_kind is ImageKind.COMPOSITE:
-            return BoxRelation.COMPOSITE
-        if self.box_frame_index == self.image_frame_indices[0]:
-            return BoxRelation.SAME_IMAGE
-        return BoxRelation.NEARBY_SOURCE_FRAME
-
-    @property
-    def has_same_image_boxes(self) -> bool:
-        """Return whether person boxes describe the measured image exactly."""
-
-        return self.box_relation is BoxRelation.SAME_IMAGE
-
-    @property
-    def unavailable_reason(self) -> str | None:
-        """Return a plain reason when same-image person boxes are unavailable."""
-
-        if self.has_same_image_boxes:
-            return None
-        if self.box_relation is BoxRelation.COMPOSITE:
-            return "same-image person boxes unavailable: measured image is a composite"
-        return (
-            "same-image person boxes unavailable: boxes come from nearby source frame "
-            f"{self.box_frame_index}, while the image is source frame {self.image_frame_indices[0]}"
-        )
+CASE_PACKS = {
+    "gx": "frozen_views/packs/gx_extension_inputs.json.gz",
+    "amateur": "frozen_views/packs/marking_refit_inputs.json.gz",
+    "broadcast": "frozen_views/packs/broadcast_extension_inputs.json.gz",
+}
+REGRESSION_CASE_ORDER = (
+    ("gxBQ_window_00_frame_0", "gx", "GX0"),
+    ("gxBQ_window_00_frame_5", "gx", "GX5"),
+    ("am2_window_00_frame_150", "amateur", "Am2-150"),
+    ("am2_window_01_frame_28019", "amateur", "Am2-28019"),
+    ("am3_window_00_frame_0", "amateur", "Am3-0"),
+    ("shuttleset_03_scene_0017", "broadcast", "SS03-17"),
+    ("shuttleset_03_scene_0019", "broadcast", "SS03-19"),
+    ("shuttleset_03_scene_0016", "broadcast", "SS03-16"),
+    ("shuttleset_21_scene_0020", "broadcast", "SS21-20"),
+)
+UNUSED_CASE_ORDER = (
+    ("gxBQ_window_00_frame_689", "gx", "gxBQ_window_00_frame_689"),
+    ("gxBQ_window_01_frame_5111", "gx", "gxBQ_window_01_frame_5111"),
+    ("gxBQ_window_02_frame_5766", "gx", "gxBQ_window_02_frame_5766"),
+    ("gxBQ_window_03_frame_77876", "gx", "gxBQ_window_03_frame_77876"),
+    ("gxBQ_window_04_frame_86088", "gx", "gxBQ_window_04_frame_86088"),
+    ("yellow_short_frame_14", "amateur", "yellow_short_frame_14"),
+    ("letterboxed_short_frame_45", "amateur", "letterboxed_short_frame_45"),
+    ("centre_short_frame_36", "amateur", "centre_short_frame_36"),
+    ("am1_window_00_frame_54", "amateur", "am1_window_00_frame_54"),
+    ("am3_window_01_frame_10514", "amateur", "am3_window_01_frame_10514"),
+    ("am4_window_00_frame_0", "amateur", "am4_window_00_frame_0"),
+    ("am4_window_01_frame_13782", "amateur", "am4_window_01_frame_13782"),
+    ("shuttleset_03_scene_0029", "broadcast", "shuttleset_03_scene_0029"),
+    ("shuttleset_03_scene_0034", "broadcast", "shuttleset_03_scene_0034"),
+    ("shuttleset_03_scene_0038", "broadcast", "shuttleset_03_scene_0038"),
+    ("shuttleset_21_scene_0000", "broadcast", "shuttleset_21_scene_0000"),
+    ("shuttleset_21_scene_0010", "broadcast", "shuttleset_21_scene_0010"),
+    ("shuttleset_21_scene_0039", "broadcast", "shuttleset_21_scene_0039"),
+)
+CASE_ORDER = REGRESSION_CASE_ORDER
+ALL_CASE_ORDER = REGRESSION_CASE_ORDER + UNUSED_CASE_ORDER
+REGRESSION_CASE_IDS = tuple(case_id for case_id, _, _ in REGRESSION_CASE_ORDER)
+UNUSED_CASE_IDS = tuple(case_id for case_id, _, _ in UNUSED_CASE_ORDER)
+ALL_CASE_IDS = tuple(case_id for case_id, _, _ in ALL_CASE_ORDER)
+CASE_IDS = REGRESSION_CASE_IDS
+CASE_LABELS = {case_id: label for case_id, _, label in ALL_CASE_ORDER}
+PACK_OF = {case_id: pack for case_id, pack, _ in ALL_CASE_ORDER}
 
 
 class _FrozenCaseMapping(Mapping[str, CaseProvenance]):
@@ -308,20 +293,46 @@ def load_frozen_case_provenance(pack_path: Path) -> Mapping[str, CaseProvenance]
     return _FrozenCaseMapping(parsed)
 
 
-def require_same_image_boxes(case: CaseProvenance) -> CaseProvenance:
-    """Require same-image person boxes and return the validated case."""
-
-    if not isinstance(case, CaseProvenance):
-        raise TypeError("case must be a CaseProvenance")
-    if not case.has_same_image_boxes:
-        raise ValueError(case.unavailable_reason or "same-image person boxes unavailable")
-    return case
+def relative_path(path: Path, root: Path) -> str:
+    return path.resolve().relative_to(root.resolve()).as_posix()
 
 
-__all__ = [
-    "BoxRelation",
-    "CaseProvenance",
-    "ImageKind",
-    "load_frozen_case_provenance",
-    "require_same_image_boxes",
-]
+def load_source(root: Path, case_id: str) -> dict:
+    source_pack = read_json_gz(root / CASE_PACKS[PACK_OF[case_id]])
+    return next(source for source in source_pack["cases"] if source["id"] == case_id)
+
+
+def frame_path(root: Path, source: dict, provenance: CaseProvenance) -> Path:
+    case_id = source["id"]
+    if case_id.startswith("gxBQ"):
+        return root / "frozen_views/frames/gx" / source["image"]
+    if case_id.startswith("shuttleset"):
+        return root / "frozen_views/frames/original" / source["image"]
+    video = case_id.split("_", 1)[0]
+    frame = int(case_id.rsplit("_", 1)[1])
+    if provenance.image_kind.value != "source_frame" or provenance.image_frame_indices != (frame,):
+        raise ValueError(
+            f"{case_id}: amateur frame path uses frame {frame}, but provenance identifies "
+            f"{provenance.image_kind.value} frames {provenance.image_frame_indices}"
+        )
+    return root / "frozen_views/frames/amateur" / video / f"frame_{frame:08d}.png"
+
+
+@lru_cache(maxsize=3)
+def _load_provenance_pack(pack_path: Path) -> Mapping[str, CaseProvenance]:
+    return load_frozen_case_provenance(pack_path)
+
+
+def load_case_provenance(root: Path, case_id: str) -> CaseProvenance:
+    """Load one case's typed provenance from its frozen input pack."""
+    return _load_provenance_pack(root / CASE_PACKS[PACK_OF[case_id]])[case_id]
+
+
+def prepare_view(root: Path, case_id: str) -> ViewContext:
+    source = load_source(root, case_id)
+    provenance = load_case_provenance(root, case_id)
+    frame_file = frame_path(root, source, provenance)
+    frame = cv2.imread(str(frame_file))
+    if frame is None:
+        raise FileNotFoundError(frame_file)
+    return view_context(case_id, source, provenance, frame, relative_path(frame_file, root))

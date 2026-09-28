@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from courtkeynet.court_corners import COURT_LENGTH_M, COURT_WIDTH_M
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
 
 STRIPE_WIDTH_M = 0.04
 POSITION_OFFSETS_M = np.array([0.0, -STRIPE_WIDTH_M / 2, STRIPE_WIDTH_M / 2])

@@ -14,12 +14,7 @@ import cv2
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from scratch.court_det_fix.court_detector.inputs import (
-    FrameReader,
-    PeopleSource,
-    PersonSample,
-    ViewInputs,
-)
+from .inputs import FrameReader, PeopleSource, PersonSample, ViewInputs
 
 SAMPLES = 31
 SAMPLE_FPS = 10

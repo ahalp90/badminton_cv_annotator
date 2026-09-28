@@ -34,6 +34,8 @@ from typing import TYPE_CHECKING, NamedTuple
 import cv2
 import numpy as np
 
+from shared.court_model import CORNER_COURT_M, PAINTED_SEGMENTS_M
+
 from .constants import DEFAULT_CORNER_MIN_PEAK_CONF
 from .geometry import _geometry_flags
 
@@ -54,54 +56,7 @@ CORNER_NAMES = ("TL", "TR", "BR", "BL")
 # geometry-flagged quad is suspect as a whole (see the trigger policy).
 GEOMETRY_FLAGS = frozenset({"non_convex", "bad_area", "bad_corner_order"})
 
-# --- BWF court model, metres. y=0 is the far baseline (see module docstring) ---
-COURT_WIDTH_M = 6.10  # doubles sideline to doubles sideline
-COURT_LENGTH_M = 13.40  # baseline to baseline
-
-# Court corners in metres, TL TR BR BL, same slot order as the detection quad.
-CORNER_COURT_M = np.array(
-    [[0.0, 0.0], [COURT_WIDTH_M, 0.0], [COURT_WIDTH_M, COURT_LENGTH_M], [0.0, COURT_LENGTH_M]],
-    dtype=np.float32,
-)
-
-# Painted lines as metre segments (endpoint pairs), used both to score a fitted
-# homography against detected lines and to label each detected line's court
-# coordinate. The net is NOT painted on the floor, so it is absent. Centre line
-# is split by the service box, hence two segments. Constants: singles sidelines
-# 0.46 in from each doubles sideline; short service lines 1.98 either side of the
-# net (net at length/2 = 6.70); doubles long service lines 0.76 in from each
-# baseline; centre line at width/2 = 3.05 spanning baseline to short service line
-# in each half.
-_SINGLES_INSET = 0.46
-_LONG_SERVICE_INSET = 0.76
-_SHORT_SERVICE_OFFSET = 1.98
-_NET_Y = COURT_LENGTH_M / 2.0
-_CENTRE_X = COURT_WIDTH_M / 2.0
-_FAR_SHORT_Y = _NET_Y - _SHORT_SERVICE_OFFSET  # 4.72
-_NEAR_SHORT_Y = _NET_Y + _SHORT_SERVICE_OFFSET  # 8.68
-
-# Constant-x court lines (run along the court's length) and constant-y court
-# lines (run across it). The intersection algebra and the gate only need each
-# line's constant coordinate plus its painted extent.
-PAINTED_SEGMENTS_M: tuple[tuple[np.ndarray, np.ndarray], ...] = tuple(
-    (np.array(a, dtype=np.float32), np.array(b, dtype=np.float32))
-    for a, b in (
-        # x-family: constant x, varying y
-        ((0.0, 0.0), (0.0, COURT_LENGTH_M)),  # left doubles sideline
-        ((_SINGLES_INSET, 0.0), (_SINGLES_INSET, COURT_LENGTH_M)),  # left singles sideline
-        ((_CENTRE_X, 0.0), (_CENTRE_X, _FAR_SHORT_Y)),  # centre line, far half
-        ((_CENTRE_X, _NEAR_SHORT_Y), (_CENTRE_X, COURT_LENGTH_M)),  # centre line, near half
-        ((COURT_WIDTH_M - _SINGLES_INSET, 0.0), (COURT_WIDTH_M - _SINGLES_INSET, COURT_LENGTH_M)),  # right singles
-        ((COURT_WIDTH_M, 0.0), (COURT_WIDTH_M, COURT_LENGTH_M)),  # right doubles sideline
-        # y-family: constant y, varying x
-        ((0.0, 0.0), (COURT_WIDTH_M, 0.0)),  # far baseline
-        ((0.0, _LONG_SERVICE_INSET), (COURT_WIDTH_M, _LONG_SERVICE_INSET)),  # far doubles long service
-        ((0.0, _FAR_SHORT_Y), (COURT_WIDTH_M, _FAR_SHORT_Y)),  # far short service
-        ((0.0, _NEAR_SHORT_Y), (COURT_WIDTH_M, _NEAR_SHORT_Y)),  # near short service
-        ((0.0, COURT_LENGTH_M - _LONG_SERVICE_INSET), (COURT_WIDTH_M, COURT_LENGTH_M - _LONG_SERVICE_INSET)),
-        ((0.0, COURT_LENGTH_M), (COURT_WIDTH_M, COURT_LENGTH_M)),  # near baseline
-    )
-)
+# The BWF court model (CORNER_COURT_M, PAINTED_SEGMENTS_M) lives in shared.court_model.
 
 # Which two outer bounding lines meet at each corner, keyed by corner slot.
 # 'far'/'near' are the y=0 / y=13.4 baselines; 'left'/'right' the x=0 / x=6.1

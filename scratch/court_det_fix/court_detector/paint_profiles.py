@@ -1,4 +1,10 @@
-"""Sample image colours across projected court markings."""
+"""Sample image colours across projected court markings.
+
+Research diagnostics only. The archived research generator scored each pooled
+court's paint profile this way for its own rankings; the court detector does
+not. frame_path gives that generator's frame layout, which the frozen views no
+longer use.
+"""
 
 
 from __future__ import annotations
@@ -7,8 +13,8 @@ from pathlib import Path
 
 import numpy as np
 
-from . import geometry as detector
-from . import line_observations as assignment
+from court_detector import geometry as detector
+from court_detector import line_observations as assignment
 
 
 def ridge_mask(frame: np.ndarray, segments: np.ndarray) -> np.ndarray:
