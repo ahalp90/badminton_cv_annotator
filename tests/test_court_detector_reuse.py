@@ -121,6 +121,18 @@ def test_extracted_alignment_keeps_the_same_camera_result() -> None:
     assert court_views._view_alignment(blank, view, corners_refpx) is False
 
 
+def test_supplied_image_aligns_without_using_the_raw_frame() -> None:
+    frame = textured_frame()
+    image = reuse.view_image(frame)
+    blank_frame = np.zeros_like(frame)
+    known = reuse.make_known_court('median', blank_frame, SYNTHETIC_CORNERS, .5, alignment_image=image)
+    assert known.image is image
+    assert not image.flags.writeable
+    alignment = reuse.align_known_court(known, blank_frame, image)
+    assert alignment is not None and alignment.matches
+    assert reuse.align_known_court(known, blank_frame) is None
+
+
 def test_known_court_needs_positive_paint_and_is_read_only() -> None:
     frame = textured_frame()
     with pytest.raises(ValueError, match="positive paint"):

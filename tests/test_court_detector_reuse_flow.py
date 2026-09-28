@@ -56,12 +56,14 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
 
     def try_reuse(known, actual_context, frame, live, **kwargs):
         assert actual_context is context
+        assert kwargs['alignment_image'] is alignment_image
         return reuse.ReuseAttempt(court, {'rejection': None if accepted else 'alignment_mismatch'})
 
     monkeypatch.setattr(reuse, 'try_reuse', try_reuse)
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
+    alignment_image = np.full((540, 960), 100, dtype=np.uint8)
     view = ViewInputs('later', frame, 50, (0, 99), np.empty((0, 4)), np.empty((0, 4)),
-                      same_frame_provenance('later', 50))
+                      same_frame_provenance('later', 50), alignment_image)
     result = detector.detect(view, object(), None, known_courts=[object()])
     assert len(prepared) == 1
     assert searched == ([] if accepted else [context])

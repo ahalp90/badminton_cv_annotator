@@ -45,14 +45,17 @@ def scene_courts(
         view_id = f'{video_id}_scene_{scene_index:04d}_frame_{anchor}'
         row: dict[str, Any] = {'view_id': view_id, 'first_frame': scene.first_frame, 'last_frame': scene.last_frame,
                                'frame_index': anchor}
-        if detector.switches.require_people:
+        alignment_frames = (scene.first_frame, anchor, scene.last_frame)
+        if detector.switches.require_people or reuse_courts:
             # Validate this input boundary before spending time on line/pose inference.
             try:
-                feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
+                window = feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
+                alignment_frames = (window[0], anchor, window[-1])
             except ValueError:
-                row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
-                yield row
-                continue
+                if detector.switches.require_people:
+                    row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
+                    yield row
+                    continue
         frame = frames.read([anchor])[0]
         segments = lines.segments(frame, anchor)
         if people is None:
@@ -62,10 +65,19 @@ def scene_courts(
             if len(anchor_people) != 1 or anchor_people[0].frame_index != anchor:
                 raise ValueError(f'{view_id}: people source did not return the requested anchor')
             boxes = anchor_people[0].boxes_px
-        view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
-                          boxes, same_frame_provenance(view_id, anchor))
+        alignment_image = None
         if reuse_courts:
-            from .reuse import make_known_court
+            from .reuse import make_known_court, view_image
+
+            # Moving players occupy different pixels across these samples. A median
+            # retains the static court for alignment with returning camera views.
+            endpoints = frames.read([alignment_frames[0], alignment_frames[-1]])
+            images = [view_image(sample) for sample in (endpoints[0], frame, endpoints[1])]
+            alignment_image = np.median(images, axis=0).astype(np.uint8)
+            alignment_image.flags.writeable = False
+        view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
+                          boxes, same_frame_provenance(view_id, anchor), alignment_image)
+        if reuse_courts:
 
             # Histograms only order the attempts. Image alignment and court checks
             # decide reuse. Missing histograms leave the most recent views first.
@@ -76,7 +88,8 @@ def scene_courts(
             result = detector.detect(view, people, frames, known_courts=[known[0] for known in ordered[:3]])
             if (result.corners_native_px is not None and result.reused_from is None
                     and result.paint_score is not None and result.paint_score > 0):
-                known = make_known_court(view_id, frame, result.corners_native_px, result.paint_score)
+                known = make_known_court(view_id, frame, result.corners_native_px, result.paint_score,
+                                        alignment_image=alignment_image)
                 known_views.insert(0, (known, scene.histogram))
                 del known_views[8:]
         else:

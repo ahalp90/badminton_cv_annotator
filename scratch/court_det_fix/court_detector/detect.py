@@ -209,13 +209,14 @@ class CourtDetector:
             return self.finish(CourtResult(view.view_id, None, "no_gated_court", None, None), laps, artefacts)
 
         if known_courts:
-            from .reuse import try_reuse
+            from .reuse import try_reuse, view_image
 
             artefacts["reuse"] = []
+            alignment_image = view_image(native_frame) if view.alignment_image is None else view.alignment_image
             for known in known_courts:
                 attempt = try_reuse(known, context, native_frame, live,
                                     max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None,
-                                    require_people=switches.require_people)
+                                    require_people=switches.require_people, alignment_image=alignment_image)
                 artefacts["reuse"].append(attempt.record)
                 if attempt.court is not None:
                     court = attempt.court

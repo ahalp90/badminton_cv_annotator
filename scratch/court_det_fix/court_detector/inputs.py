@@ -45,6 +45,7 @@ class ViewInputs:
     segments_px: np.ndarray  # (fragments, 4) DeepLSD x1, y1, x2, y2 in native pixels
     person_boxes_px: np.ndarray  # (boxes, 4) in native pixels; masked out only when provenance allows
     provenance: CaseProvenance
+    alignment_image: np.ndarray | None = None  # Optional grey image at court_views.VIEW_RESOLUTION for reuse.
 
 
 def same_frame_provenance(view_id: str, frame_index: int) -> CaseProvenance:

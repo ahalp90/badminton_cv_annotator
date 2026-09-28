@@ -79,11 +79,15 @@ def view_image(native_frame: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
 
 
-def make_known_court(view_id: str, frame: np.ndarray, corners_native_px: np.ndarray, paint_score: float) -> KnownCourt:
+def make_known_court(
+    view_id: str, frame: np.ndarray, corners_native_px: np.ndarray, paint_score: float, *,
+    alignment_image: np.ndarray | None = None,
+) -> KnownCourt:
     """Keep an accepted court and its view's image for later reuse.
 
     :param frame: The view's BGR frame at native size, the one the court was found in.
     :param paint_score: CourtResult.paint_score: the final refit's q_paint10_span_weighted.
+    :param alignment_image: Optional greyscale VIEW_RESOLUTION image for alignment.
     """
     if not paint_score > 0:
         raise ValueError(f"{view_id}: reuse compares paint support, so the known court needs positive paint, "
@@ -91,17 +95,20 @@ def make_known_court(view_id: str, frame: np.ndarray, corners_native_px: np.ndar
     corners = np.array(corners_native_px, dtype=float)
     if corners.shape != (4, 2) or not np.isfinite(corners).all():
         raise ValueError(f"{view_id}: known court corners must be four finite points, not {corners.tolist()}")
-    image = view_image(frame)
+    image = view_image(frame) if alignment_image is None else alignment_image
     # Later views share these arrays, so a stray in-place write should fail loudly.
     corners.flags.writeable = False
     image.flags.writeable = False
     return KnownCourt(view_id, image, (frame.shape[1], frame.shape[0]), corners, float(paint_score))
 
 
-def align_known_court(known: KnownCourt, native_frame: np.ndarray) -> court_views.ViewAlignment | None:
+def align_known_court(
+    known: KnownCourt, native_frame: np.ndarray, alignment_image: np.ndarray | None = None,
+) -> court_views.ViewAlignment | None:
     """Align the new view's frame to the known court's view inside the known court."""
     corners_refpx = known.corners_native_px * np.asarray(HOMOGRAPHY_RESOLUTION) / np.asarray(known.native_size)
-    return court_views.measure_view_alignment(known.image, view_image(native_frame), corners_refpx)
+    image = view_image(native_frame) if alignment_image is None else alignment_image
+    return court_views.measure_view_alignment(known.image, image, corners_refpx)
 
 
 def moved_corners_native(alignment: court_views.ViewAlignment, native_size: tuple[int, int]) -> np.ndarray:
@@ -152,18 +159,20 @@ def try_reuse(
     known: KnownCourt, context: ViewContext, native_frame: np.ndarray, live: LiveModules, *,
     max_horizon_tilt_deg: float | None,
     require_people: bool = True,
+    alignment_image: np.ndarray | None = None,
 ) -> ReuseAttempt:
     """Carry a known court into a new view, refit it to that view's stripes and check it.
 
     :param context: The new view's frozen context, built from its own lines, person
         boxes and standing feet.
     :param native_frame: The new view's BGR frame at native size.
+    :param alignment_image: Optional greyscale VIEW_RESOLUTION image for alignment.
     :param max_horizon_tilt_deg: The detector's upright-camera limit. None only when the
         detector allows any camera roll, as Switches.upright_camera=False does.
     :return: The reused court, or None; the record says why and holds each measured value.
     """
     record: dict[str, Any] = {"source_view_id": known.view_id, "rejection": None}
-    alignment = align_known_court(known, native_frame)
+    alignment = align_known_court(known, native_frame, alignment_image)
     if alignment is None:
         return rejected(record, "alignment_unmeasurable")
     record["alignment"] = {"correlation": float(alignment.correlation), "shift_refpx": float(alignment.shift_refpx)}

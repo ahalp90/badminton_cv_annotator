@@ -132,7 +132,7 @@ time, or several serial views whose combined allocation stays within that limit.
 The runner reports peak memory for the parent and largest worker separately;
 those figures do not measure the combined peak of every process.
 
-Both runners accept `--template-device cuda` as an optional trial. It scores the
+Both runners accept `--template-device cuda` as an explicit option. It scores the
 line-template hypotheses on a GPU with CuPy. Rectangle setup, admission and the
 court checks stay on the CPU, and other stages keep their own settings.
 CuPy is not a project dependency, so install it where a GPU is available. The
@@ -203,6 +203,12 @@ keeps up to eight recent courts found by full searches and tries up to three
 for each later scene. Histograms order those attempts when available; otherwise
 the most recent court comes first. A reused court never becomes a new template.
 
+Video reuse aligns three-frame median images to reduce moving-player interference.
+The samples are the first, middle and last frames of the existing feet window.
+Optional-people scenes shorter than that window use their scene endpoints and
+middle frame. One image is shared by the alignment attempts and any new stored
+reference. Court search and stripe refitting still use the actual middle frame.
+
 Each attempt aligns the images, refits the court to the current stripes, and
 checks the current geometry, camera, players' feet and paint support. It also
 bounds the refit's movement in court metres, including the far baseline. Failed
@@ -212,6 +218,9 @@ video pairs. Reuse stays off by default during that evaluation.
 
 Prepared-image callers can pass `known_courts=` to `detect()`. Build each entry
 with `reuse.make_known_court()` from a fully searched result and its input frame.
+These callers use the raw image unless they supply `ViewInputs.alignment_image`
+and the matching `alignment_image=` when building a reference. Prepared alignment
+images are greyscale uint8 at `court_views.VIEW_RESOLUTION`.
 
 ## Settings
 

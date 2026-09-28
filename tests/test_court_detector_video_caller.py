@@ -207,3 +207,52 @@ def test_reused_court_does_not_become_a_template() -> None:
                             video_id='clip', reuse_courts=True))
     first = rows[0]['view_id']
     assert detector.attempts == [[], [first], [first]]
+
+
+@pytest.mark.parametrize('scene_length', [10, 80])
+def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: int) -> None:
+    class MovingFrames(Frames):
+        def __init__(self) -> None:
+            self.requested = []
+
+        def read(self, indices: Sequence[int]) -> list[np.ndarray]:
+            self.requested.extend(indices)
+            decoded = []
+            for index in indices:
+                frame = np.full((48, 64, 3), 40, dtype=np.uint8)
+                if index % scene_length == (scene_length - 1) // 2:
+                    frame[:, 20:40] = 240
+                decoded.append(frame)
+            return decoded
+
+    class AnchorLines:
+        def segments(self, frame: np.ndarray, frame_index: int) -> np.ndarray:
+            assert np.all(frame[:, 20:40] == 240)
+            return np.empty((0, 4))
+
+    class MedianDetector:
+        switches = Switches(require_people=False)
+
+        def __init__(self) -> None:
+            self.images = []
+
+        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+            assert np.all(view.frame[:, 20:40] == 240)
+            assert np.all(view.alignment_image == 40)
+            assert view.alignment_image.shape == (540, 960)
+            assert view.alignment_image.dtype == np.uint8
+            assert not view.alignment_image.flags.writeable
+            if known_courts:
+                assert known_courts[0].image is self.images[0]
+            self.images.append(view.alignment_image)
+            return CourtResult(view.view_id, np.zeros((4, 2)), None, 'court', None, .9)
+
+    frames, detector = MovingFrames(), MedianDetector()
+    scenes = [SceneInfo(0, scene_length - 1), SceneInfo(scene_length, 2 * scene_length - 1)]
+    rows = list(scene_courts(detector, frames, None, AnchorLines(), scenes,  # type: ignore[arg-type]
+                            video_id='clip', reuse_courts=True))
+    assert [row['status'] for row in rows] == ['court', 'court']
+    assert len(frames.requested) == 6
+    for scene, requested in zip(scenes, (frames.requested[:3], frames.requested[3:]), strict=True):
+        assert len(set(requested)) == 3
+        assert all(scene.first_frame <= index <= scene.last_frame for index in requested)
