@@ -288,8 +288,8 @@ def refit_chosen(record: dict, origin_key: str, context: Any, native_frame: np.n
     :param origin_key: The chosen court.
     :param native_frame: The view's native BGR frame, for colour sampling.
     :param line_maps: The view's two wide-family distance maps (scoring.view_line_maps).
-    :param replay_check: First replay the parent's saved scoring fit and require it to
-        match within REPLAY_ATOL_NATIVE_PX native pixels.
+    :param replay_check: Replay the parent's saved scoring fit. Corners must match
+        within REPLAY_ATOL_NATIVE_PX native pixels; cornerless failures must match status.
     :return: The chosen and parent geometry, the replay (with replay_check), the
         per-fragment position changes, and "corrected": fit_geometry's result for
         the refitted court.
@@ -313,15 +313,24 @@ def refit_chosen(record: dict, origin_key: str, context: Any, native_frame: np.n
         reference_name = "saved_fit_attempt" if attempt is not None else "saved_child_corners"
         if attempt is None and selected["kind"] != "child":
             raise ValueError(f"{origin_key}: parent has no saved attempt or child replay reference")
-        if original.get("corners_px") is None:
-            raise ValueError(f"{origin_key}: original fit returned no corners")
-        replay_native = np.asarray(original["corners_px"], dtype=float) * scale
-        difference = replay_native - np.asarray(reference, dtype=float)
-        np.testing.assert_allclose(replay_native, reference, rtol=0, atol=REPLAY_ATOL_NATIVE_PX)
         result["replay_reference"] = reference_name
-        result["original_replay"] = {"status": "matched",
-                                     "maximum_absolute_difference_native_px": float(np.abs(difference).max()),
-                                     "corners_native_px": replay_native.tolist(), "fit_status": original.get("status")}
+        if original.get("corners_px") is None:
+            # A valid parent can win even when its attempted child fit failed.
+            # Reproducing that failed fit is a match; final refit validity still applies.
+            if (attempt is None or reference is not None or attempt["successful"]
+                    or original["status"] != attempt["status"]):
+                raise ValueError(f"{origin_key}: original fit returned no corners unlike its saved attempt")
+            result["original_replay"] = {"status": "matched", "corners_native_px": None,
+                                         "fit_status": original["status"]}
+        else:
+            if reference is None:
+                raise ValueError(f"{origin_key}: original fit returned corners unlike its saved attempt")
+            replay_native = np.asarray(original["corners_px"], dtype=float) * scale
+            difference = replay_native - np.asarray(reference, dtype=float)
+            np.testing.assert_allclose(replay_native, reference, rtol=0, atol=REPLAY_ATOL_NATIVE_PX)
+            result["original_replay"] = {"status": "matched",
+                                         "maximum_absolute_difference_native_px": float(np.abs(difference).max()),
+                                         "corners_native_px": replay_native.tolist(), "fit_status": original.get("status")}
     replay_seconds = perf_counter() - started
 
     lab, grey, boxes = colour_planes(native_frame, context)
