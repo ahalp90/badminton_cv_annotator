@@ -1,17 +1,18 @@
 """Standing players' feet from a 3 s window of people detections around the analysed frame.
 
-The rules match the fresh-feet evidence scripts in
-``court_detector_optimisation_handover/claude_evidence/fresh_feet/``: the window from
-``extract_window_people.sample_frames``, the grey differences from ``shot_check.py``, and the
-"standing" feet from ``build_feet_variants.py``.
+Sample within the anchor's shot, then restore brief crouches on tracks whose
+observations are mostly standing. The player-position checks still run on every
+kept sample.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import NamedTuple
 
 import cv2
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 from scratch.court_det_fix.court_detector.inputs import (
     FrameReader,
@@ -33,6 +34,8 @@ SITTING_THRESHOLD = -0.3
 SHOULDER_L, SHOULDER_R = 5, 6
 HIP_L, HIP_R = 11, 12
 KNEE_L, KNEE_R = 13, 14
+MAX_TRACK_STEP_HEIGHTS = 1.0
+UNMATCHABLE_STEP = 1e6
 
 
 class FeetWindow(NamedTuple):
@@ -103,8 +106,38 @@ def is_sitting(keypoints: np.ndarray) -> np.ndarray:
     return (ratio > SITTING_THRESHOLD) & ~degenerate
 
 
+def track_feet(all_feet: list[np.ndarray], heights: list[np.ndarray]) -> list[np.ndarray]:
+    """Link consecutive detections by foot distance in mean body heights.
+
+    A missing detection or a move beyond one body height ends a track. This
+    short-window matcher can swap identities when people cross.
+    """
+    track_ids = []
+    next_id = 0
+    for sample_index, (sample_feet, sample_heights) in enumerate(zip(all_feet, heights, strict=True)):
+        ids = np.full(len(sample_feet), -1, dtype=int)
+        if sample_index and len(sample_feet) and len(all_feet[sample_index - 1]):
+            previous_feet, previous_heights = all_feet[sample_index - 1], heights[sample_index - 1]
+            distance = np.linalg.norm(previous_feet[:, None] - sample_feet[None], axis=2)
+            steps = distance / ((previous_heights[:, None] + sample_heights[None]) / 2)
+            # A finite cost permits an assignment even when a row has no usable match.
+            costs = np.where(steps <= MAX_TRACK_STEP_HEIGHTS, steps, UNMATCHABLE_STEP)
+            previous_rows, rows = linear_sum_assignment(costs)
+            for previous_row, row in zip(previous_rows, rows, strict=True):
+                if costs[previous_row, row] < UNMATCHABLE_STEP:
+                    ids[row] = track_ids[-1][previous_row]
+        for row in np.flatnonzero(ids < 0):
+            ids[row] = next_id
+            next_id += 1
+        track_ids.append(ids)
+    return track_ids
+
+
 def standing_feet(samples: list[PersonSample], scale: np.ndarray, frame_size: tuple[int, int]) -> list[list]:
-    """all_feet_px rows, one per sample: the standing people's feet in frame pixels.
+    """Feet of standing people, including brief crouches on mostly-standing tracks.
+
+    Keep every standing observation. Restore a sitting observation only when a
+    strict majority of its track is standing; ties keep the per-sample decision.
 
     A foot is the bottom centre of a person box. A foot outside the frame is None, and rows
     are padded with None to one width of at least two slots, as in the frozen packs.
@@ -112,14 +145,26 @@ def standing_feet(samples: list[PersonSample], scale: np.ndarray, frame_size: tu
     :param scale: Frame pixels per FrameReader pixel, (x, y).
     :param frame_size: (width, height) of the analysed frame.
     """
+    all_feet, heights, standing = [], [], []
+    for sample in samples:
+        x1, y1, x2, y2 = sample.boxes_px.T
+        all_feet.append(np.column_stack(((x1 + x2) / 2, y2)))
+        heights.append(y2 - y1)
+        standing.append(~is_sitting(sample.keypoints_px))
+    tracks = track_feet(all_feet, heights)
+    observations, standing_observations = Counter(), Counter()
+    for ids, sample_standing in zip(tracks, standing, strict=True):
+        observations.update(ids)
+        standing_observations.update(ids[sample_standing])
+
     width, height = frame_size
     rows = []
-    for sample in samples:
-        x1, _y1, x2, y2 = sample.boxes_px.T
-        feet = np.column_stack(((x1 + x2) / 2, y2)) * scale
-        standing = ~is_sitting(sample.keypoints_px)
+    for sample_feet, ids, sample_standing in zip(all_feet, tracks, standing, strict=True):
+        majority_standing = np.asarray([2 * standing_observations[track] > observations[track] for track in ids],
+                                      dtype=bool)
+        keep = sample_standing | majority_standing
         row = []
-        for foot_x, foot_y in feet[standing]:
+        for foot_x, foot_y in sample_feet[keep] * scale:
             on_image = 0 <= foot_x < width and 0 <= foot_y < height
             row.append([float(foot_x), float(foot_y)] if on_image else None)
         rows.append(row)

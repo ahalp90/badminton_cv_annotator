@@ -1,4 +1,4 @@
-"""The court detector's feet rules agree with the fresh-feet evidence scripts and BST-X."""
+"""Court foot sampling, pose classification and restoration of brief crouches."""
 
 from __future__ import annotations
 
@@ -83,6 +83,46 @@ def test_standing_feet_drops_seated_people_and_marks_off_image_feet() -> None:
     samples = [PersonSample(0, boxes, keypoints), PersonSample(1, np.zeros((0, 4)), np.zeros((0, 17, 2)))]
     rows = feet.standing_feet(samples, np.asarray([0.5, 0.5]), (400, 300))
     assert rows == [[[60.0, 200.0], None], [None, None]]
+
+
+@pytest.mark.parametrize(("sitting", "kept"), [
+    ([False, True, False], [True, True, True]),
+    ([False, True, True, False], [True, False, False, True]),
+    ([True, True, False], [False, False, True]),
+    ([True, True, True], [False, False, False]),
+])
+def test_standing_feet_restores_crouches_without_removing_standing_observations(
+    sitting: list[bool], kept: list[bool],
+) -> None:
+    samples = []
+    for frame_index, is_sitting in enumerate(sitting):
+        foot_x = 120.0 + frame_index * 10
+        boxes = np.asarray([[foot_x - 20, 0, foot_x + 20, 400], [700, 0, 740, 400]])
+        keypoints = np.stack((pose(foot_x, 100.0 if is_sitting else 0.0), pose(720.0, 100.0)))
+        # Detection order need not stay fixed between samples.
+        if frame_index % 2:
+            boxes, keypoints = boxes[::-1], keypoints[::-1]
+        samples.append(PersonSample(frame_index, boxes, keypoints))
+    rows = feet.standing_feet(samples, np.ones(2), (800, 500))
+    expected = [[[120.0 + index * 10, 400.0], None] if keep else [None, None]
+                for index, keep in enumerate(kept)]
+    assert rows == expected
+
+
+@pytest.mark.parametrize("missing_sample", [False, True])
+def test_standing_track_does_not_restore_a_separate_seated_person(missing_sample: bool) -> None:
+    standing_box = np.asarray([[100, 0, 140, 400]])
+    samples = [PersonSample(index, standing_box, pose(120.0, 0.0)[None]) for index in range(3)]
+    if missing_sample:
+        samples.append(PersonSample(3, np.empty((0, 4)), np.empty((0, 17, 2))))
+        seated_x = 120.0
+    else:
+        seated_x = 720.0  # More than one body height from the previous foot.
+    samples.append(PersonSample(4, np.asarray([[seated_x - 20, 0, seated_x + 20, 400]]),
+                                pose(seated_x, 100.0)[None]))
+    rows = feet.standing_feet(samples, np.ones(2), (800, 500))
+    assert rows[:3] == [[[120.0, 400.0], None]] * 3
+    assert rows[3:] == [[None, None]] * (2 if missing_sample else 1)
 
 
 def test_grey_differences_are_rounded_to_a_tenth() -> None:
