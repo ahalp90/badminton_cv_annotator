@@ -13,21 +13,39 @@ code calls that stage scoring; older records and notes call it W5.
 
 ## Current measurements — 28 September 2026
 
-The latest integrated run processes five minutes of video in 279.9 seconds,
-down from 872.8 seconds. Median images improve court reuse; ordered frame reads
-avoid repeated video seeks. The matched CPU template run takes 355.0 seconds.
-CuPy saves 75.1 seconds, or 21% of total runtime, on this interval. Both runs
-still use GPU neural inference. All 33 scene results and corner arrays match.
+The latest run uses fp32 bulk arrays, simpler projection/pairing operations and
+serial cached Numba support scoring. It processes the same five-minute interval
+with these timings:
 
-These are whole-run times on an L40 with at most eight CPU cores. They include live
-DeepLSD, RTMLib and scene detection. They do not meet the 30-second goal or the
-90-second upper target, and do not establish performance on consumer hardware.
-The primary detector metric now excludes RTMLib and PySceneDetect, following the
-28 September clarification. These runs did not time RTMLib separately, so their
-exact detector-only totals cannot be recovered. DeepLSD stays in detector time.
-Candidate scoring and fitting take about 79 seconds; direction searches take
-about 67 seconds. Production Numba CPU acceleration and the float32 pass remain
-open. The sections below retain the design and evaluation requirements.
+| Timing | CUDA templates | CPU templates |
+| --- | ---: | ---: |
+| Court detector, including DeepLSD | 206.788 s | 251.818 s |
+| People provider setup and calls | 39.715 s | 36.004 s |
+| Scene detection | 19.192 s | 19.553 s |
+| Whole run | 265.695 s | 307.375 s |
+
+Both configurations use GPU neural inference. These are single runs on an L40
+with at most eight CPU cores. Hardware checks warmed compiler caches before the
+timed runs; neural model setup and spawned-worker startup remain included.
+DeepLSD setup and calls take 7.581 s with CUDA templates and 6.915 s with CPU templates.
+
+All 33 scene statuses, choices, reuse sources and corner arrays match between
+CPU and CUDA. Against the preceding integrated version, final corner movement
+is below 0.000004 px. Two chosen IDs change between effectively identical courts.
+No additional visual inspection is useful at that scale. There are still 13
+courts, 11 rejected scenes, 9 short scenes and 8 reused courts.
+
+The previous whole-run times were 279.868 s with CUDA templates and 354.972 s with
+CPU templates. The combined changes reduce those totals by 5.1% and 13.4%.
+Those older runs did not separate the people provider, so detector-only savings
+cannot be recovered. The original whole-run time was 872.829 s.
+
+The 30-second goal and 90-second upper target remain unmet. Direction searches
+take 62.0 s and candidate scoring/refitting 71.3 s in the CUDA run. Reusing worker
+processes across stages and scenes is the next bounded change. It should avoid
+repeated imports and Numba cache loading; its benefit still needs measurement.
+These results do not establish accuracy across varied videos or performance on
+a consumer GPU.
 
 ## Constraints
 
@@ -64,31 +82,23 @@ from concurrent jobs on a shared server and do not establish the gain.
 
 ## Choose how to use the GPU and Numba
 
-Two approaches deserve a measured comparison:
+Keep CuPy for GPU line-template scoring. It shares the array implementation
+with NumPy and has demonstrated useful whole-path savings. CUDA-MLIR produced
+promising component timings and three final-court checks, but has less complete
+path evidence. The measured Torch scoring gain did not justify adoption. Further
+backend comparisons are closed for this pass.
 
-- Run shared array operations on the CPU and GPU, with a small argument
-  selecting the array library. Process courts in chunks to bound GPU memory
-- Express the scoring maths once as loops that can be compiled for CPU and
-  GPU. Numba is the proposed compiler; compilation, supported operations and
-  rounding behaviour need a prototype
+CPU direction-pair support now uses one serial cached Numba kernel. Existing
+worker processes provide parallelism. It supports both 16-sample cheap scoring
+and 64-sample full scoring. Its isolated speed-up is modest; the combined fp32,
+API and Numba run above is the current whole-path check. It does not isolate
+Numba's contribution.
 
-Both approaches have now been measured on smaller operations. Shared NumPy/CuPy
-code is integrated for line-template scoring; the CuPy path preserves final
-courts across 28 development views. CUDA-MLIR has promising component timings
-and three final-court checks, with less complete-path evidence. The measured
-Torch scoring gain did not justify adoption. Numba CPU remains a prototype.
-Further choices must use the cost and quality of the complete path.
-
-The proposed split leaves bookkeeping, fitting and the final ranking on the
-CPU. GPU code would first handle the large batches that score line matches
-and possible courts. Keep the scoring stage on the CPU initially unless a
-profile gives a reason to move it.
-
-One proposed safeguard is to rescore the GPU's best courts with the CPU code
-before choosing. The width of that set is unresolved. Tiny numerical changes
-can send a projected sample to a different pixel, so a small floating-point
-error does not itself bound score error. During tests, also run the full
-CPU calculation and count any courts the GPU discarded too early.
+Bulk templates, support arrays and stripe evidence use fp32. Fitting,
+ill-conditioned direction geometry and sensitive checks retain fp64. The compiled
+CPU scorer also uses fp64 for its small projection/clipping calculations.
+Template scores sum integer sample counts before one fp32 division, preserving
+exact ties. Camera errors near the acceptance boundary are rechecked in fp64.
 
 Comparing CPU and GPU scores on the courts kept can expose drift between the
 implementations. It cannot find a court the GPU discarded. Measure both risks.

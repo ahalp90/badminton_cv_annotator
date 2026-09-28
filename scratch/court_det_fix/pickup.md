@@ -1,21 +1,20 @@
 # Court detector: resume here
 
-Updated 28 September 2026. The live detector now processes five minutes of video
-in **279.9 seconds**, down from 872.8 seconds. Court reuse uses median images,
-and line-template scoring has an explicit CUDA option. The 30-second goal and
-90-second upper target remain unmet.
+Updated 28 September 2026. The detector processes five minutes of video in
+**206.8 seconds with CUDA templates**, or 251.8 seconds with CPU templates.
+These times include DeepLSD and exclude RTMLib and PySceneDetect. Whole-run
+totals are 265.7 and 307.4 seconds. Both configurations use GPU neural inference.
+The 30-second goal and 90-second upper target remain unmet.
 
-The matched CPU template run takes 355.0 seconds and returns identical scene
-results and corners. Both configurations still use GPU neural inference.
-These are whole-run times. The primary detector metric excludes RTMLib and
-PySceneDetect and includes DeepLSD, as clarified on 28 September. The old runs
-did not separate RTMLib time; the next run will report these costs explicitly.
+CPU and CUDA return identical scene results and corners. The fp32/API and Numba
+changes preserve the preceding version's courts within 0.000004 px. The next
+bounded change reuses worker processes across stages and scenes to avoid repeated
+startup. No further GPU backend comparison is planned; keep CuPy.
 
-Continue on `fix/court-det`. Check the current Git state before editing. The
-latest measured implementation is `d0b8c4ce`. Naming and readability cleanup is committed. Bulk arrays now use float32, and
-Numba CPU scoring is integrated for the next end-to-end comparison. The
-[detector guide](court_detector/README.md) owns the API and
-settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records measurements.
+Continue on `fix/court-det`. The latest measured implementation is `6cfc7a89`.
+Check current Git state before editing. The [detector guide](court_detector/README.md)
+owns the API and settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records
+measurements and timing scope.
 
 ## What changed since the previous pickup
 
@@ -58,24 +57,24 @@ its court was not reused elsewhere.
 
 ## Remaining work
 
-Descriptive names now replace the historical W5/G0/G1 stages in live code and
-new outputs. Readers of old records translate the known fields explicitly.
-The readability pass preserves arithmetic and dtypes. Local checks passed,
-including 2,499 tests in the full suite, with 34 skips. A separate cleanup
-replay was cancelled in favour of checking the combined numerical changes.
-Measure the clarified detector timing scope on the next end-to-end run.
+Descriptive names replace the historical W5/G0/G1 stages in live code and new
+outputs. Readers translate the old fields explicitly. The fp32/API and Numba
+changes passed the full CPU suite before the final small template tie fix:
+2,499 tests passed, 34 skipped. That fix passed relevant local tests, and the
+combined Carmack hardware checks passed 43 tests with no skips. Changed-file
+Ruff and whole-project Pyrefly passed. Independent review found the tie issue
+and it is fixed.
 
-Bulk template, support and stripe evidence arrays now use float32. Fitting,
+Bulk template, support and stripe evidence arrays use float32. Fitting,
 ill-conditioned direction geometry and sensitive acceptance checks retain
-float64. Projection uses matrix multiplication; candidate pairing uses array
-operations. Relevant checks pass. Numba CPU support scoring now uses one serial cached
-kernel. An independent review found a template tie-rounding issue; integer
-sample counts now preserve equal scores before division. Check final court
-quality and timing after the combined changes, including Numba worker startup.
+float64. Numba CPU support scoring uses one serial cached kernel. Its small
+projection/clipping calculations also use float64. The combined live run
+preserves the accepted courts; no datatype-specific ablation is needed.
 
-Candidate scoring and fitting still take about 79 seconds in the latest live
-run, and the two direction searches take about 67 seconds. These are substantial
-remaining costs. Do not present cleanup work as achieving the speed target.
+Direction search still takes about 62 seconds and candidate scoring/refitting
+about 71 seconds. Reusing worker processes is next. Check ordering, fresh state
+for each view and failure/cleanup paths, then compare the existing live interval.
+Later broad evaluation and integration remain required as listed below.
 
 ## Follow-up after satisfactory optimisation
 
