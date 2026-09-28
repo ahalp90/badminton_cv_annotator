@@ -164,6 +164,10 @@ def json_round_trip(value: Any) -> Any:
     return json.loads(json.dumps(value, allow_nan=False))
 
 
+class CourtFitError(RuntimeError):
+    """One scene's geometry search or fit failed after its inputs were validated."""
+
+
 class CourtDetector:
     """Loads the detector modules once, then finds the court in one view per detect() call.
 
@@ -220,37 +224,40 @@ class CourtDetector:
                 and not feet.can_satisfy_player_requirement(feet_window.all_feet_px)):
             return self.finish(CourtResult(view.view_id, None, "no_gated_court", None, None), laps, artefacts)
 
-        if known_courts:
-            from .reuse import try_reuse, view_image
+        try:
+            if known_courts:
+                from .reuse import try_reuse, view_image
 
-            artefacts["reuse"] = []
-            alignment_image = view_image(native_frame) if view.alignment_image is None else view.alignment_image
-            for known in known_courts:
-                attempt = try_reuse(known, context, native_frame, live,
-                                    max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None,
-                                    require_people=switches.require_people, alignment_image=alignment_image)
-                artefacts["reuse"].append(attempt.record)
-                if attempt.court is not None:
-                    court = attempt.court
-                    laps.lap("reuse")
-                    result = CourtResult(view.view_id, court.corners_native_px, None, "reuse", None,
-                                         court.paint_score, court.source_view_id)
-                    return self.finish(result, laps, artefacts)
-            laps.lap("reuse")
+                artefacts["reuse"] = []
+                alignment_image = view_image(native_frame) if view.alignment_image is None else view.alignment_image
+                for known in known_courts:
+                    attempt = try_reuse(known, context, native_frame, live,
+                                        max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None,
+                                        require_people=switches.require_people, alignment_image=alignment_image)
+                    artefacts["reuse"].append(attempt.record)
+                    if attempt.court is not None:
+                        court = attempt.court
+                        laps.lap("reuse")
+                        result = CourtResult(view.view_id, court.corners_native_px, None, "reuse", None,
+                                             court.paint_score, court.source_view_id)
+                        return self.finish(result, laps, artefacts)
+                laps.lap("reuse")
 
-        populations = self.search(context, source, native_frame, laps, artefacts)
-        artefacts["populations"] = populations
-        seeds = search.seed_points(context.families[0])
-        generated = live.line_template_source.generate(
-            context, live.runtime, live.court_model, min_visible_lengthwise=VISIBILITY_FLOOR[0],
-            min_visible_cross_court=VISIBILITY_FLOOR[1], seed_points=seeds, device=switches.template_device,
-        )
-        templates = list(generated.entries)
-        artefacts["line_templates"] = {"entries": templates, "metadata": generated.metadata}
-        laps.lap("line_templates")
+            populations = self.search(context, source, native_frame, laps, artefacts)
+            artefacts["populations"] = populations
+            seeds = search.seed_points(context.families[0])
+            generated = live.line_template_source.generate(
+                context, live.runtime, live.court_model, min_visible_lengthwise=VISIBILITY_FLOOR[0],
+                min_visible_cross_court=VISIBILITY_FLOOR[1], seed_points=seeds, device=switches.template_device,
+            )
+            templates = list(generated.entries)
+            artefacts["line_templates"] = {"entries": templates, "metadata": generated.metadata}
+            laps.lap("line_templates")
 
-        with live.prepared_measurements(live.verifier):
-            result = self.score_and_choose(view, context, populations, templates, native_frame, laps, artefacts)
+            with live.prepared_measurements(live.verifier):
+                result = self.score_and_choose(view, context, populations, templates, native_frame, laps, artefacts)
+        except (ValueError, ArithmeticError) as error:
+            raise CourtFitError(f"{view.view_id}: {error}") from error
         return self.finish(result, laps, artefacts)
 
     def finish(self, result: CourtResult, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:

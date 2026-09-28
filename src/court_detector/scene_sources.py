@@ -1,4 +1,4 @@
-"""Where the court detector's scene boundaries come from: a PySceneDetect cut pass over the video.
+"""Where the court detector's scene boundaries come from: a PySceneDetect cut pass or a saved file.
 
 A scene runs from one broadcast cut to the next. The detector keeps its foot
 samples inside the target frame's scene. The annotation pipeline and
@@ -8,6 +8,8 @@ runs without them.
 
 from __future__ import annotations
 
+import gzip
+import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
@@ -32,9 +34,9 @@ class SceneInfo:
     def middle_frame(self) -> int:
         """The scene's middle frame, which the detector analyses.
 
-        An even-length scene has two middle frames; this is the lower one.
+        An even-length scene has two middle frames; this is the upper one.
         """
-        return (self.start_frame + self.end_frame - 1) // 2
+        return (self.start_frame + self.end_frame) // 2
 
 
 class SceneSource(Protocol):
@@ -114,3 +116,25 @@ class PySceneDetectSource:
 
         histograms = _frame_histograms(video_path, [scene.middle_frame for scene in scenes])
         return [replace(scene, histogram=histogram) for scene, histogram in zip(scenes, histograms, strict=True)]
+
+
+class SavedScenes:
+    """Scenes from a gzipped JSON list of `[start_frame, end_frame]` pairs, with exclusive ends.
+
+    The file holds no histograms. The caller checks that the scenes cover the video.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def scenes(self, video_path: Path, expected_frames: int, fps: float) -> list[SceneInfo]:
+        with gzip.open(self.path, 'rt') as stream:
+            spans = json.load(stream)
+        if not isinstance(spans, list):
+            raise ValueError(f'{self.path}: expected a list of scene ranges')  # noqa: TRY004 — invalid file contents
+        scenes = []
+        for span in spans:
+            if not (isinstance(span, list) and len(span) == 2 and all(type(frame) is int for frame in span)):
+                raise ValueError(f'{self.path}: {span!r} must be a [start_frame, end_frame] pair of integers')
+            scenes.append(SceneInfo(*span))
+        return scenes

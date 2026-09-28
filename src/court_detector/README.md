@@ -34,14 +34,18 @@ and the runner's output rows.
 - A whole video is `[0, frame_count)`
 - A cut frame is the `end_frame` of one scene and the `start_frame` of the next,
   so it belongs only to the following scene
-- The analysed frame is `SceneInfo.middle_frame`, `(start_frame + end_frame - 1) // 2`.
-  An even-length scene uses the lower of its two middle frames
+- The analysed frame is `SceneInfo.middle_frame`, `(start_frame + end_frame) // 2`.
+  An even-length scene uses the upper of its two middle frames
 - Explicit frame lists, such as foot samples and `FrameReader.read` requests,
   are plain indices
 
 Older versions used inclusive scene ends. Their runner rows store
 `first_frame` and `last_frame`. An old scene `[first, last]` is
 `[first, last + 1)` now, and it samples the same frames.
+
+Runner results without a `schema` field analysed the lower middle frame,
+`(start_frame + end_frame - 1) // 2`. The two choices differ only for
+even-length scenes, by one frame.
 
 The returned `CourtResult` contains:
 
@@ -238,13 +242,93 @@ ranges leaves gaps, so the runner rejects it. With neither scene option, the
 caller analyses one middle frame from the whole video. It analyses one middle
 frame per supplied scene and keeps foot samples inside that scene. Each output
 row repeats its scene's `start_frame` and `end_frame`, with the analysed frame
-as `frame_index`. Short scenes that cannot hold the existing foot window receive
-`scene_too_short_for_feet`; they remain unanalysed. Source codecs need a
-seek-versus-sequential frame check before benchmarking a new dataset.
+as `frame_index`. Source codecs need a seek-versus-sequential frame check before
+benchmarking a new dataset.
 
-The output separates model/input setup, scene detection and per-scene work.
-It records whether people and lines were supplied from saved extracts, so those
-timings are not mistaken for complete live inference.
+Running pose on every frame before detection is a planned option, not yet built.
+Meanwhile, pass the pose stage's output as `--people`.
+
+### Scene statuses
+
+Each output row has one `status`:
+
+| Status | Meaning |
+| --- | --- |
+| `court` | `corners_native_px` holds the court |
+| `no_court` | The detector found no court; `no_court_reason` says why |
+| `scene_too_short_for_feet` | People are required and the scene cannot hold the foot window. The scene is unanalysed; this is not evidence that no court is present |
+| `detection_failed` | The court search or fit raised an error on this scene. `error` and `traceback` record it, and the next scene runs |
+
+A scene fails alone for a `CourtFitError` from geometry search, scoring or refitting
+after input validation. Other errors stop the video, such as a broken worker
+pool, a GPU error or a people source that returns the wrong frames. Only `court` rows from a full search can become reuse
+templates.
+
+### Video result
+
+The result is a gzipped JSON object:
+
+| Field | Meaning |
+| --- | --- |
+| `schema` | `court-detector-video/1` |
+| `video_id` | The start of each row's `view_id`: the video's file stem, or its manifest `id` |
+| `video`, `fps`, `frame_count`, `native_size` | The source video's file name and properties |
+| `saved_people`, `saved_lines` | Whether people and lines came from saved extracts, so those timings exclude live inference |
+| `require_people`, `reuse_courts`, `template_device` | The detector settings used |
+| `tools_seconds` | Loading lines, live pose and the detector, once per run. Every result in a batch repeats the same figure |
+| `setup_seconds`, `scene_seconds`, `processing_seconds` | This video's input setup, scene detection and per-scene work |
+| `total_seconds` | This video's time, excluding `tools_seconds` |
+| `scenes` | One row per scene, in order |
+
+### Run a batch
+
+A batch loads DeepLSD, RTMLib and the detector once and shares one worker pool
+across its videos. Each video still gets its own frame reader, live-pose cache
+and known courts, so no cached frame or court crosses between videos. A Python
+caller does the same with one `load_court_tools()` call, then one
+`detect_video()` call per video inside a single `with tools.detector:` block.
+
+```bash
+PYTHONPATH=.:src python -m court_detector.run_video \
+  --manifest videos.json.gz \
+  --deeplsd-source DEEPLSD_CHECKOUT \
+  --deeplsd-weights DEEPLSD_WEIGHTS.tar \
+  --pyscenedetect --workers 8 \
+  --output-dir OUT_DIR
+```
+
+The manifest is a gzipped JSON list with one object per video:
+
+```json
+[
+  {"id": "match_01", "video": "videos/match_01.mp4", "people": "poses/match_01"},
+  {"id": "match_02", "video": "videos/match_02.mp4", "scenes": "scenes/match_02.json.gz"}
+]
+```
+
+- `id` and `video` are required. Each `id` must be unique and a plain file name
+- `people` is that video's `POSE_DIR`. Without it, the batch runs live RTMLib,
+  or uses no people with `--no-require-people`
+- `scenes` is that video's `--scenes` file. It cannot combine with
+  `--pyscenedetect`. Without either, the whole video is one scene
+- Relative paths resolve from the working directory. Other keys raise an error
+
+`--people`, `--scenes` and `--saved-lines` describe one video, so a batch
+rejects them. Batches therefore use DeepLSD. `OUT_DIR` must not exist yet.
+The batch writes:
+
+- `OUT_DIR/videos/<id>.json.gz`: the video result above, for each complete video
+- `OUT_DIR/summary.json.gz`: `"schema": "court-detector-batch/1"`, rewritten
+  after every video. Each `videos` entry has `status` `complete`, `failed` or
+  `not_run`. A failed entry keeps its `error` and `traceback`; a complete one
+  counts its scene statuses
+
+Unreadable, malformed or truncated video inputs fail that video alone. These come
+from its own files, such as an unreadable video or scenes that miss frames. A
+broken worker pool is replaced before the next video. Any other failure stops
+the batch, because the shared models, GPU or workers may be in an unknown
+state. `stopped_after` then names that video, `finished` is false and the later
+videos stay `not_run`. The exit status is 1 unless every video is complete.
 
 `--reuse-courts` enables an optional trial for returning camera views. The caller
 keeps up to eight recent courts found by full searches and tries up to three
@@ -303,8 +387,8 @@ research features left out and where they could be restored.
 | [search.py](search.py) | Search settings, paint-like fragments and extra starting points |
 | [net_choice.py](net_choice.py) | Final choice and net-post reward |
 | [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
-| [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run from video and build each scene's inputs |
-| [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines, and scene cuts |
+| [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run one video or a batch, and build each scene's inputs |
+| [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines; PySceneDetect or saved scenes |
 
 The search, scoring and geometry code now lives in this package. Imports use
 normal package paths and leave `sys.path` unchanged. The package imports nothing

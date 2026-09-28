@@ -215,8 +215,8 @@ def test_scene_histograms_describe_each_middle_frame(three_scene_video: Path) ->
     scenes = PySceneDetectSource(histograms=True).scenes(three_scene_video, expected_frames=60, fps=FPS)
     levels = decoded_luma_levels(three_scene_video)
 
-    # Lower middle of the 20-frame scene, then the middles of the 25- and 15-frame scenes.
-    assert [scene.middle_frame for scene in scenes] == [9, 32, 52]
+    # Upper middle of the 20-frame scene, then the middles of the 25- and 15-frame scenes.
+    assert [scene.middle_frame for scene in scenes] == [10, 32, 52]
     for scene in scenes:
         middle_frame = scene.middle_frame
         # Neighbouring frames differ in level, so a seek to the wrong frame fails here.
