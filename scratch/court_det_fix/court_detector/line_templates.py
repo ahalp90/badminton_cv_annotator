@@ -8,11 +8,15 @@ from time import perf_counter
 import cv2
 import numpy as np
 
+from . import template_arrays
+from .template_arrays import SAMPLES_PER_LINE, SUPPORT_DISTANCE
+
 RECTANGLE_CAP = 4096
 PROPOSAL_CAP = 256
 TEMPLATE_COUNT = 150
-SUPPORT_DISTANCE = 4.0
-SAMPLES_PER_LINE = 24
+# Rectangles per scoring batch, each with 150 templates. The CPU keeps about 1024
+# hypotheses per batch; the L40 trial measured 128 rectangles on the GPU.
+BATCH_RECTANGLES = {"cpu": max(1, 1024 // TEMPLATE_COUNT), "cuda": 128}
 DIVERSITY_RADIUS = 12.0
 CAMERA_LIMIT = 0.1
 CAMERA_RECHECK_MARGIN = 1e-3
@@ -50,78 +54,44 @@ def geometry_and_support(
     size: tuple[int, int],
     detector,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Score two directions and count projected pieces retained after clipping.
+    """Score two directions and count projected pieces retained after clipping, with NumPy.
 
-    The first six projected pieces are the lengthwise x-family. The second six
-    are the cross-court y-family. A piece is visible when at least 12
-    projected pixels remain in the working image.
+    template_arrays.geometry_and_support holds the rules. The first six projected pieces
+    are the lengthwise x-family. The second six are the cross-court y-family.
+
+    :return: valid corners, direction means, the valid mask and visible pieces per direction.
     """
-    corners, denominators = detector.project(homographies, detector.CORNER_COURT_M)
-    valid = np.isfinite(corners).all(axis=(1, 2)) & np.all(denominators > 1e-6, axis=1)
-    edges = np.roll(corners, -1, axis=1) - corners
-    turns = edges[..., 0] * np.roll(edges[..., 1], -1, axis=1) - edges[..., 1] * np.roll(
-        edges[..., 0], -1, axis=1
-    )
-    valid &= np.all(turns > 0, axis=1)
-    visible_lower = np.maximum(corners.min(axis=1), 0)
-    visible_upper = np.minimum(corners.max(axis=1), np.asarray(size) - 1)
-    visible_span = (visible_upper - visible_lower) / np.asarray(size)
-    valid &= np.all(visible_span >= 0.15, axis=1)
-    if not valid.any():
-        return corners[:0], np.empty((0, 2), dtype=np.float32), valid, np.empty((0, 2), dtype=np.int16)
-
-    valid_corners = corners[valid]
-    endpoints, _ = detector.project(homographies[valid], detector.SEGMENTS_M)
-    samples, visible = detector._visible_samples(
-        endpoints.reshape(-1, 12, 2, 2), size, SAMPLES_PER_LINE
-    )
-    samples = np.nan_to_num(samples, nan=0.0, posinf=0.0, neginf=0.0)
-    pixel_x = np.clip(samples[..., 0], 0, size[0] - 1).astype(int)
-    pixel_y = np.clip(samples[..., 1], 0, size[1] - 1).astype(int)
-    support = (distance_map[pixel_y, pixel_x] <= SUPPORT_DISTANCE).mean(axis=-1)
-    support *= visible
-    means = np.stack(
-        [
-            support[:, :6].sum(axis=1) / np.maximum(visible[:, :6].sum(axis=1), 1),
-            support[:, 6:].sum(axis=1) / np.maximum(visible[:, 6:].sum(axis=1), 1),
-        ],
-        axis=1,
-    ).astype(np.float32)
-    visibility = np.stack(
-        [visible[:, :6].sum(axis=1), visible[:, 6:].sum(axis=1)], axis=1
-    ).astype(np.int16)
+    view = template_arrays.place_view(np, distance_map, size, detector)
+    valid, _, valid_corners, means, visibility = template_arrays.geometry_and_support(np, homographies, view)
     return valid_corners, means, valid, visibility
 
 
 def vector_camera_errors(homographies: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """Vectorise the frozen camera diagnostic over its 200 focal lengths.
+    """The frozen camera diagnostic over its 200 focal lengths, with NumPy (see template_arrays.camera_errors)."""
+    image_width, _ = size
+    return template_arrays.camera_errors(np, homographies, template_arrays.camera_focals(image_width), size)
 
-    Each court direction's x, y and w parts stay separate (courts, focal lengths) arrays, because
-    numpy is several times slower on trailing axes of length 3 and 2. The sums run left to right,
-    as numpy's length-3 reductions do, so errors are bit-identical to the stacked form.
+
+def recheck_camera_frontier(
+    errors: np.ndarray,
+    corners: np.ndarray,
+    native_scale: np.ndarray,
+    native_size: tuple[int, int],
+    zone,
+) -> tuple[np.ndarray, int, float]:
+    """Replace vector camera errors near the hard-gate limit with scalar W5 values.
+
+    :return: a corrected copy of the errors, the number rechecked and the largest change.
     """
-    # The stacked form kept float32 input in float32; this form would promote it to float64.
-    if homographies.dtype != np.float64:
-        raise TypeError(f"camera errors need float64 homographies, got {homographies.dtype}")
-    image_width, image_height = size
-    focals = np.geomspace(0.4 * image_width, 4.0 * image_width, 200)
-    # Column 0 of a homography images the court's width direction, column 1 its length direction.
-    # The image-plane parts move to the principal point and scale by focal length; w does neither.
-    width_x = (homographies[:, 0, 0] - image_width / 2.0 * homographies[:, 2, 0])[:, None] / focals
-    width_y = (homographies[:, 1, 0] - image_height / 2.0 * homographies[:, 2, 0])[:, None] / focals
-    length_x = (homographies[:, 0, 1] - image_width / 2.0 * homographies[:, 2, 1])[:, None] / focals
-    length_y = (homographies[:, 1, 1] - image_height / 2.0 * homographies[:, 2, 1])[:, None] / focals
-    width_w, length_w = homographies[:, 2, 0, None], homographies[:, 2, 1, None]
-    width_norm = np.sqrt(np.square(width_x) + np.square(width_y) + np.square(width_w))
-    length_norm = np.sqrt(np.square(length_x) + np.square(length_y) + np.square(length_w))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        dot = width_x * length_x + width_y * length_y + width_w * length_w
-        cosine = dot / (width_norm * length_norm)
-        ratio = np.log(width_norm / length_norm)
-        errors = np.hypot(cosine, ratio)
-    usable = (np.isfinite(errors) & np.isfinite(width_norm) & np.isfinite(length_norm)
-              & (width_norm > 0) & (length_norm > 0))
-    return np.where(usable, errors, np.inf).min(axis=1)
+    errors = errors.copy()
+    frontier = np.flatnonzero(np.abs(errors - CAMERA_LIMIT) <= CAMERA_RECHECK_MARGIN)
+    differences = []
+    for index in frontier:
+        native_corners = (corners[index] * native_scale).astype(np.float32)
+        scalar_error = float(zone.net_segments(native_corners, native_size)[1])
+        differences.append(abs(float(errors[index]) - scalar_error))
+        errors[index] = scalar_error
+    return errors, len(frontier), max(differences, default=0.0)
 
 
 def camera_errors_with_frontier_recheck(
@@ -134,14 +104,7 @@ def camera_errors_with_frontier_recheck(
 ) -> tuple[np.ndarray, int, float]:
     """Use scalar W5 camera values at the hard-gate frontier."""
     errors = vector_camera_errors(homographies, working_size)
-    frontier = np.flatnonzero(np.abs(errors - CAMERA_LIMIT) <= CAMERA_RECHECK_MARGIN)
-    differences = []
-    for index in frontier:
-        native_corners = (corners[index] * native_scale).astype(np.float32)
-        scalar_error = float(zone.net_segments(native_corners, native_size)[1])
-        differences.append(abs(float(errors[index]) - scalar_error))
-        errors[index] = scalar_error
-    return errors, len(frontier), max(differences, default=0.0)
+    return recheck_camera_frontier(errors, corners, native_scale, native_size, zone)
 
 
 def greedy_diverse(
@@ -375,16 +338,20 @@ def generate(
     min_visible_lengthwise: int = 0,
     min_visible_cross_court: int = 0,
     seed_points: np.ndarray | None = None,
+    device: str = "cpu",
 ) -> Generation:
     """Generate the audited line/template source for one prepared W5 view.
 
     :param seed_points: Extra homogeneous vanishing points, (points, 3), appended to the
         estimator's own before rectangle selection. The G0/G1 direction pairs never see them.
+    :param device: "cpu" scores the hypotheses with NumPy; "cuda" scores them with CuPy.
+        Rectangle setup, admission and the W5 gates run on the CPU either way.
     """
     min_visible_lengthwise, min_visible_cross_court = _validate_visibility_floors(
         min_visible_lengthwise,
         min_visible_cross_court,
     )
+    xp = template_arrays.array_module(device)
     started = perf_counter()
     print(f"[{context.case_id}] line-template: preparing rectangles", flush=True)
     settings = {
@@ -456,16 +423,10 @@ def generate(
 
     union_map = detector.distance_map(context.segments, context.size)
     native_scale = np.asarray(context.native_size, dtype=np.float64) / np.asarray(context.size, dtype=np.float64)
-    all_corners = []
-    all_means = []
-    all_visibility = []
-    all_camera_errors = []
-    all_rectangle_ids = []
-    all_rectangle_orders = []
-    all_templates = []
-    scalar_recheck_count = 0
-    vector_scalar_max_abs_diff = 0.0
-    batch_rectangles = max(1, 1024 // TEMPLATE_COUNT)
+    view = template_arrays.place_view(xp, union_map, context.size, detector)
+    device_rectangles = xp.asarray(rectangles_array)
+    batch_rectangles = BATCH_RECTANGLES[device]
+    batches = []
     last_progress = perf_counter()
     for offset in range(0, len(rectangles_array), batch_rectangles):
         if perf_counter() - last_progress >= 30:
@@ -475,44 +436,26 @@ def generate(
                 flush=True,
             )
             last_progress = perf_counter()
-        rectangle_batch = rectangles_array[offset:offset + batch_rectangles]
-        homographies = (rectangle_batch[:, None] @ detector.TEMPLATE_TRANSFORMS).reshape(-1, 3, 3)
-        corners, means, valid, visibility = geometry_and_support(
-            homographies, union_map, context.size, detector,
-        )
-        if not valid.any():
-            continue
-        valid_homographies = homographies[valid]
-        camera_errors, recheck_count, max_difference = camera_errors_with_frontier_recheck(
-            valid_homographies,
-            corners,
-            context.size,
-            native_scale,
-            context.native_size,
-            runtime["zone"],
-        )
-        scalar_recheck_count += recheck_count
-        vector_scalar_max_abs_diff = max(vector_scalar_max_abs_diff, max_difference)
-        valid_indices = np.flatnonzero(valid)
-        rectangle_indices = valid_indices // TEMPLATE_COUNT
-        all_corners.append(corners)
-        all_means.append(means)
-        all_visibility.append(visibility)
-        all_camera_errors.append(camera_errors)
-        all_rectangle_ids.append(np.asarray(rectangle_ids, dtype=np.int64)[offset + rectangle_indices])
-        all_rectangle_orders.append(np.asarray(rectangle_orders, dtype=np.int64)[offset + rectangle_indices])
-        all_templates.append((valid_indices % TEMPLATE_COUNT).astype(np.int16))
-
-    if not all_corners:
+        rectangle_batch = device_rectangles[offset:offset + batch_rectangles]
+        batches.append(template_arrays.score_rectangles(xp, rectangle_batch, view))
+    scored = template_arrays.ScoredHypotheses(*(np.concatenate(parts) for parts in zip(*batches, strict=True)))
+    if not len(scored.corners):
         return Generation((), _empty_metadata(settings, started, "no_geometry_valid_hypotheses"))
 
-    corners = np.concatenate(all_corners)
-    means = np.concatenate(all_means)
-    visibility = np.concatenate(all_visibility)
-    camera_errors = np.concatenate(all_camera_errors)
-    rectangle_ids = np.concatenate(all_rectangle_ids)
-    rectangle_orders = np.concatenate(all_rectangle_orders)
-    templates = np.concatenate(all_templates)
+    corners, means, visibility = scored.corners, scored.means, scored.visibility
+    camera_errors, scalar_recheck_count, vector_scalar_max_abs_diff = recheck_camera_frontier(
+        scored.camera_errors,
+        corners,
+        native_scale,
+        context.native_size,
+        runtime["zone"],
+    )
+    # Hypothesis numbers run rectangle by rectangle, with the 150 templates varying fastest.
+    valid_indices = np.flatnonzero(scored.valid)
+    rectangle_indices = valid_indices // TEMPLATE_COUNT
+    rectangle_ids = np.asarray(rectangle_ids, dtype=np.int64)[rectangle_indices]
+    rectangle_orders = np.asarray(rectangle_orders, dtype=np.int64)[rectangle_indices]
+    templates = (valid_indices % TEMPLATE_COUNT).astype(np.int16)
     scores = means.min(axis=1)
     camera_eligible = camera_errors <= CAMERA_LIMIT
     admission = select_with_visibility_floor(

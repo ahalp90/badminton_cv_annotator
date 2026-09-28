@@ -24,7 +24,13 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import cv2
 import numpy as np
 
-from scratch.court_det_fix.court_detector import feet, net_choice, search, stripe_refit
+from scratch.court_det_fix.court_detector import (
+    feet,
+    net_choice,
+    search,
+    stripe_refit,
+    template_arrays,
+)
 from scratch.court_det_fix.court_detector.inputs import (
     FrameReader,
     PeopleSource,
@@ -58,6 +64,7 @@ class Switches:
     artefacts_dir: Path | None = None  # write each view's intermediate results here
     workers: int = 1  # search pairs and scoring; run_views limits numerical libraries to one thread
     full_score_limit: int | None = None  # optional 16-sample shortlist before the usual 64-sample score
+    template_device: str = "cpu"  # "cuda" scores line templates with CuPy; other stages keep their devices
 
     def __post_init__(self) -> None:
         if self.workers < 1:
@@ -67,6 +74,9 @@ class Switches:
         # A NaN weight would make every court's score NaN and the net choice pick none.
         if not 0 <= self.geometry_weight <= 1:
             raise ValueError(f"geometry_weight must be between 0 and 1, not {self.geometry_weight}")
+        if self.template_device not in template_arrays.TEMPLATE_DEVICES:
+            raise ValueError(f"template_device must be one of {template_arrays.TEMPLATE_DEVICES}, "
+                             f"not {self.template_device!r}")
 
 
 @dataclass(frozen=True)
@@ -169,6 +179,8 @@ class CourtDetector:
     def __init__(self, switches: Switches) -> None:
         self.switches = switches
         self.live = load_live_modules()
+        # Check CuPy and the GPU now, not when the first view reaches the line templates.
+        template_arrays.array_module(switches.template_device)
 
     def detect(self, view: ViewInputs, people: PeopleSource | None, frames: FrameReader,
                *, known_courts: Sequence[KnownCourt] = ()) -> CourtResult:
@@ -218,7 +230,7 @@ class CourtDetector:
         seeds = search.seed_points(context.families[0])
         generated = live.line_template_source.generate(
             context, live.runtime, live.court_model, min_visible_lengthwise=VISIBILITY_FLOOR[0],
-            min_visible_cross_court=VISIBILITY_FLOOR[1], seed_points=seeds,
+            min_visible_cross_court=VISIBILITY_FLOOR[1], seed_points=seeds, device=switches.template_device,
         )
         templates = list(generated.entries)
         artefacts["line_templates"] = {"entries": templates, "metadata": generated.metadata}

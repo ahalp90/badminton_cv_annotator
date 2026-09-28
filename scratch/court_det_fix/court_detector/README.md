@@ -132,6 +132,15 @@ time, or several serial views whose combined allocation stays within that limit.
 The runner reports peak memory for the parent and largest worker separately;
 those figures do not measure the combined peak of every process.
 
+Both runners accept `--template-device cuda` as an optional trial. It scores the
+line-template hypotheses on a GPU with CuPy. Rectangle setup, admission and the
+court checks stay on the CPU, and other stages keep their own settings.
+CuPy is not a project dependency, so install it where a GPU is available. The
+detector stops at setup when CuPy or a CUDA GPU is missing; it never falls back
+to the CPU. GPU rounding can change the last bits of results, such as each line
+template's `camera_error_before_w5_gates`. It can also occasionally move a line
+sample to a neighbouring pixel. Saved-run comparisons report any such differences.
+
 ## Run from video
 
 The video caller can run DeepLSD for lines and read frame-aligned RTMLib pose
@@ -214,6 +223,7 @@ with `reuse.make_known_court()` from a fully searched result and its input frame
 | `geometry_weight` | 0.1 | Share of line support in the final score; the rest is paint support. The runner accepts `--geometry-weight` |
 | `workers` | 1 | Processes for direction pairs and candidate scoring; the runner accepts `--workers` |
 | `full_score_limit` | `None` | Optional trial: score each pair's courts with 16 samples, then fully score only the best given number with 64 samples. Both runners accept `--full-score-limit`; omitting it keeps exhaustive scoring |
+| `template_device` | `"cpu"` | Line-template scoring device; `"cuda"` uses CuPy on a GPU and fails at setup without one. Both runners accept `--template-device` |
 | `timing` | Off | Report seconds per step |
 | `artefacts_dir` | None | Optionally write intermediate results |
 
@@ -245,7 +255,7 @@ in the older data folders listed in [FP_INDEX.md](../FP_INDEX.md#code-and-input-
 | --- | --- |
 | [generation.py](generation.py), [candidate_pool.py](candidate_pool.py), [proposals.py](proposals.py) | Search direction pairs and keep candidate courts |
 | [directions.py](directions.py), [line_matching.py](line_matching.py), [prepare_lines.py](prepare_lines.py) | Estimate directions, match markings and prepare fragments |
-| [line_templates.py](line_templates.py) | Build candidate courts from crossing lines |
+| [line_templates.py](line_templates.py), [template_arrays.py](template_arrays.py) | Build candidate courts from crossing lines; score them with NumPy or CuPy |
 | [scoring.py](scoring.py), [measurements.py](measurements.py), [sampling.py](sampling.py) | Measure and rank courts, refit candidates and share image samples |
 | [geometry.py](geometry.py), [candidate_geometry.py](candidate_geometry.py), [camera.py](camera.py) | Court coordinates, transforms and camera checks |
 | [court_checks.py](court_checks.py), [players.py](players.py) | Check court shape and whether players fit |

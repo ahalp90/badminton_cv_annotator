@@ -22,6 +22,7 @@ from .detect import CourtDetector, Switches
 from .inputs import FrameReader, PeopleSource, ViewInputs, same_frame_provenance
 from .line_sources import DeepLSDLines, LineSource, SavedLines
 from .scene_sources import PySceneDetectSource, SceneInfo
+from .template_arrays import TEMPLATE_DEVICES
 from .video_inputs import PoseArrays, RtmlibPeople, VideoFrames
 
 
@@ -114,6 +115,8 @@ def main() -> int:
     parser.add_argument('--deeplsd-source', type=Path)
     parser.add_argument('--deeplsd-weights', type=Path)
     parser.add_argument('--device', default='cuda', help='device for live DeepLSD and RTMLib')
+    parser.add_argument('--template-device', choices=TEMPLATE_DEVICES, default='cpu',
+                        help='device for line-template scoring; cuda needs CuPy and a GPU (default: cpu)')
     scene_options = parser.add_mutually_exclusive_group()
     scene_options.add_argument('--scenes', type=Path, help='.json.gz list of inclusive [first,last] scene ranges')
     scene_options.add_argument('--pyscenedetect', action='store_true', help='detect cuts and representative scene histograms')
@@ -141,7 +144,8 @@ def main() -> int:
             raise ValueError('Saved poses do not cover the source video')
         detector = CourtDetector(Switches(workers=args.workers, timing=True,
                                           full_score_limit=args.full_score_limit,
-                                          require_people=args.require_people))
+                                          require_people=args.require_people,
+                                          template_device=args.template_device))
         setup_seconds = perf_counter() - started
         scene_started = perf_counter()
         if args.scenes is not None:
@@ -162,7 +166,7 @@ def main() -> int:
                   'native_size': frames.size, 'setup_seconds': setup_seconds, 'scene_seconds': scene_seconds,
                   'processing_seconds': perf_counter() - processing_started,
                   'total_seconds': perf_counter() - started, 'saved_people': args.people is not None,
-                  'require_people': args.require_people,
+                  'require_people': args.require_people, 'template_device': args.template_device,
                   'saved_lines': args.saved_lines is not None, 'scenes': rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(args.output, 'wt') as stream:
