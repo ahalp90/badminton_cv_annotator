@@ -1,12 +1,12 @@
-"""Choose among the gated W5 courts, rewarding net posts that line fragments support.
+"""Choose among the gated courts, rewarding net posts that line fragments support.
 
 Each gated court implies a net: two tape halves and two posts
 (experiments/annotator/independent_court/net_geometry.py). A post counts as
 supported when a line fragment covers one of its six lowest samples and no
 covering fragment reaches more than overrun_px working pixels below its base.
-The winner has the highest W5 evidence plus weight x post reward (0, 0.5 or 1);
-the first row in W5 rank order wins exact ties. The evidence is W5's ranking score
-(normally the paint score), optionally blended with W5's geometry score.
+The winner has the highest evidence plus weight x post reward (0, 0.5 or 1); the
+first row in the C ranking's order wins exact ties. The evidence is the C ranking's
+score (normally the paint score), optionally blended with the geometry score.
 
 Research scripts import these back, so this module stays a leaf: it imports only
 numpy and the experiments package, and never edits sys.path.
@@ -95,7 +95,7 @@ def net_reward(net_state: str, posts: dict, overrun_px: float) -> float:
 
 
 def evidence_score(row: dict, geometry_weight: float) -> float:
-    """W5's ranking score, with geometry_weight of W5's geometry score blended in.
+    """The C ranking's score, with geometry_weight of the geometry score blended in.
 
     The geometry score counts fragment support alone; the paint score also needs paint at
     each spot. Rows from the research trials carry no geometry score, so they need weight 0.
@@ -141,7 +141,7 @@ def net_posts(corners_native: list, context) -> tuple[str, dict]:
 def net_rows(record: dict, context, *, require_people: bool = True) -> list[dict]:
     """Rows for choose, built as net_recovery/bounded_trial.measure_case builds them.
 
-    :param record: W5 case record, as read back from its JSON file.
+    :param record: The scoring record, as read back from its JSON file.
     :param context: The view's verifier.ViewContext (working-size fragments and size).
     :param require_people: Require player occupancy as well as camera geometry.
         The existing full_court_rank field counts eligible rows in the selected mode.

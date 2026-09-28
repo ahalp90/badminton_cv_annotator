@@ -14,7 +14,7 @@ import numpy as np
 def prepared_measurements(verifier: ModuleType) -> Iterator[dict[str, int]]:
     """Reuse greyscale while a worker measures one immutable view at a time.
 
-    :param verifier: The frozen W5 verifier module used by this worker.
+    :param verifier: The measurements module used by this worker.
     :return: Counts of image conversions and sampling calls for equality checks.
     """
     original_sample = verifier.grayscale_sample

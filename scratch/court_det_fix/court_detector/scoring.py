@@ -20,6 +20,12 @@ if TYPE_CHECKING:
     from .detect import LiveModules
 
 
+# The two direction-pair searches: every line fragment, then only the painted ones. Only
+# their occurrences become legacy occurrences, the input of the research A ranking.
+# Older saved records call these sources G0 and G1.
+LEGACY_SOURCES = ("all_lines", "painted_lines")
+
+
 class ViewAmbiguity(AssertionError):
     """A candidate identity conflict makes one view unsafe to score."""
 
@@ -48,7 +54,7 @@ def validate_generation_record(
     expected_stage: str | None = None,
     validate_entries: bool = True,
 ) -> dict:
-    """Validate the saved identity and membership used by a G0 or G1 population."""
+    """Validate the saved identity and membership used by an all_lines or painted_lines population."""
     if not isinstance(record, dict):
         raise TypeError(f"{case_id}: {source} record must be an object")
     if record.get("schema") != "automatic-directions-axis-matching/1":
@@ -121,7 +127,8 @@ def values_equal_with_nan(left: Any, right: Any) -> bool:
     return left == right
 
 
-def w5_gate_fields(entry: dict) -> tuple[Any, Any, Any]:
+def candidate_gate_fields(entry: dict) -> tuple[Any, Any, Any]:
+    """Geometry validity, camera error and player fractions, which duplicate courts must share."""
     gates = entry.get("gates", {})
     return (
         gates.get("geometry_valid"),
@@ -135,14 +142,14 @@ def compatible_duplicate(entry: dict, record: dict, source: str) -> bool:
     if not np.array_equal(entry["corners_px"], reference["corners_px"]):
         return False
     legacy_metadata_differs = (
-        source in {"G0", "G1"} and record["source"] in {"G0", "G1"}
+        source in LEGACY_SOURCES and record["source"] in LEGACY_SOURCES
         and any(entry.get(field) != reference.get(field) for field in ("pair_id", "rotated_180"))
     )
     if legacy_metadata_differs:
         return False
     return all(
         values_equal_with_nan(left, right)
-        for left, right in zip(w5_gate_fields(entry), w5_gate_fields(reference), strict=True)
+        for left, right in zip(candidate_gate_fields(entry), candidate_gate_fields(reference), strict=True)
     )
 
 
@@ -157,7 +164,9 @@ def source_occurrence(entry: dict, source: str, source_order: int, origin_index:
         "pair_id": entry.get("pair_id"),
         "axis_ids": entry.get("axis_ids"),
         "rotated_180": entry.get("rotated_180"),
-        "w5_gates": dict(zip(("geometry_valid", "camera_error", "player_fractions"), w5_gate_fields(entry), strict=True)),
+        "candidate_gates": dict(
+            zip(("geometry_valid", "camera_error", "player_fractions"), candidate_gate_fields(entry), strict=True)
+        ),
     }
     for field in ("proposal_id", "rectangle_id", "rectangle_order", "template_index"):
         if field in entry:
@@ -168,11 +177,14 @@ def source_occurrence(entry: dict, source: str, source_order: int, origin_index:
 
 
 def canonicalise_populations(
-    g0: list[dict], g1: list[dict], line_template: list[dict] | None = None,
+    all_line_entries: list[dict], painted_line_entries: list[dict], line_template: list[dict] | None = None,
 ) -> tuple[list[dict], dict]:
     """Build collision-safe parent identities while retaining source occurrences."""
-    source_entries = (("G0", g0), ("G1", g1), ("line_template", line_template or []))
-    legacy_sources = {"G0", "G1"}
+    source_entries = (
+        ("all_lines", all_line_entries),
+        ("painted_lines", painted_line_entries),
+        ("line_template", line_template or []),
+    )
     source_ids = {
         source: [str(entry["candidate_id"]) for entry in entries]
         for source, entries in source_entries
@@ -208,7 +220,7 @@ def canonicalise_populations(
                     "source_memberships": [source],
                     "source_occurrences": [occurrence],
                     "occurrence_count": 1,
-                    "_legacy_occurrences": [legacy_occurrence] if source in legacy_sources else [],
+                    "_legacy_occurrences": [legacy_occurrence] if source in LEGACY_SOURCES else [],
                 }
                 geometry_records.append(record)
                 records.append(record)
@@ -217,7 +229,7 @@ def canonicalise_populations(
                 record["source_memberships"].append(source)
             record["source_occurrences"].append(occurrence)
             record["occurrence_count"] += 1
-            if source in legacy_sources:
+            if source in LEGACY_SOURCES:
                 record["_legacy_occurrences"].append(legacy_occurrence)
 
     for record in records:
@@ -252,10 +264,12 @@ def canonicalise_populations(
             for geometry_records in by_geometry.values() if len(geometry_records) > 1
         ],
         "source_occurrence_counts": {
-            "G0": len(g0), "G1": len(g1), "line_template": len(line_template or []),
+            "all_lines": len(all_line_entries),
+            "painted_lines": len(painted_line_entries),
+            "line_template": len(line_template or []),
         },
-        "source_occurrence_count": len(g0) + len(g1) + len(line_template or []),
-        "legacy_source_occurrence_count": len(g0) + len(g1),
+        "source_occurrence_count": len(all_line_entries) + len(painted_line_entries) + len(line_template or []),
+        "legacy_source_occurrence_count": len(all_line_entries) + len(painted_line_entries),
         "canonical_parent_count": len(records),
         "raw_id_collisions": raw_id_collisions,
         "raw_id_collision_count": len(raw_id_collisions),
@@ -291,7 +305,7 @@ def make_parent_record(
                 **occurrence,
                 "gates": entry.get("gates", {}),
                 "legacy": compact_legacy(entry),
-            }] if source in {"G0", "G1"} else []),
+            }] if source in LEGACY_SOURCES else []),
         }
     candidate = {
         "origin_key": identity["origin_key"],
@@ -708,7 +722,7 @@ def measure_and_refit_in_workers(
 
 
 class ScoredPopulations(NamedTuple):
-    """One view's W5 parents, refitted children and C ranking."""
+    """One view's scored parents, refitted children and C ranking."""
 
     parents: list[dict]
     children: list[dict]
@@ -724,8 +738,8 @@ class ScoredPopulations(NamedTuple):
 
 def score_populations(
     context,
-    g0: list[dict],
-    g1: list[dict],
+    all_line_entries: list[dict],
+    painted_line_entries: list[dict],
     line_template: list[dict],
     runtime: dict[str, Any],
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]],
@@ -752,16 +766,19 @@ def score_populations(
     verifier = runtime["verifier"]
     if self_checks:
         contamination_fields = []
-        for index, entry in enumerate(g0 + g1 + line_template):
+        for index, entry in enumerate(all_line_entries + painted_line_entries + line_template):
             contamination_fields.extend(find_forbidden_keys(entry, f"{case_id}.automatic[{index}]"))
         if contamination_fields:
             raise ViewAmbiguity(
                 f"{case_id}: automatic candidate path contains reference fields: {contamination_fields}"
             )
-    parent_identities, identity_resolution = canonicalise_populations(g0, g1, line_template)
+    parent_identities, identity_resolution = canonicalise_populations(
+        all_line_entries, painted_line_entries, line_template,
+    )
     progress(
         f"measuring {len(parent_identities)} parents "
-        f"(G0={len(g0)}, G1={len(g1)}, line_template={len(line_template)}; "
+        f"(all_lines={len(all_line_entries)}, painted_lines={len(painted_line_entries)}, "
+        f"line_template={len(line_template)}; "
         f"conflicting geometry groups={len(identity_resolution['conflicting_geometry_groups'])})"
     )
     line_maps = view_line_maps(context)
@@ -781,7 +798,7 @@ def score_populations(
     if self_checks:
         determinism = verifier["permutation_determinism"](c_candidates)
         if not determinism["match"]:
-            raise RuntimeError(f"{case_id}: W5 ranker is not permutation-deterministic")
+            raise RuntimeError(f"{case_id}: the C ranking is not permutation-deterministic")
     return ScoredPopulations(
         parents, children, fit_rows, all_arrays, identity_resolution, b_candidates, c_candidates, c_rankings,
         determinism, line_maps,

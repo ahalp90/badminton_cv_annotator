@@ -5,9 +5,16 @@ in **279.9 seconds**, down from 872.8 seconds. Court reuse uses median images,
 and line-template scoring has an explicit CUDA option. The 30-second goal and
 90-second upper target remain unmet.
 
+The matched CPU template run takes 355.0 seconds and returns identical scene
+results and corners. Both configurations still use GPU neural inference.
+These are whole-run times. The primary detector metric excludes RTMLib and
+PySceneDetect and includes DeepLSD, as clarified on 28 September. The old runs
+did not separate RTMLib time; the next run will report these costs explicitly.
+
 Continue on `fix/court-det`. Check the current Git state before editing. The
-latest measured implementation is `d0b8c4ce`; naming and readability cleanup is
-in progress. The [detector guide](court_detector/README.md) owns the API and
+latest measured implementation is `d0b8c4ce`. Naming and readability cleanup has
+passed local checks; its CUDA comparison is next. The
+[detector guide](court_detector/README.md) owns the API and
 settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records measurements.
 
 ## What changed since the previous pickup
@@ -51,12 +58,14 @@ its court was not reused elsewhere.
 
 ## Remaining work
 
-Finish descriptive names for the historical W5/G0/G1 stages and their saved
-outputs. Preserve deliberate readers of old records. Complete the current
-readability pass, including explicit array-module names and boolean masks.
-Check the final changes on CPU and CUDA and reconcile the performance report.
+Descriptive names now replace the historical W5/G0/G1 stages in live code and
+new outputs. Readers of old records translate the known fields explicitly.
+The readability pass preserves arithmetic and dtypes. Local checks passed,
+including 2,499 tests in the full suite, with 34 skips. Complete the CUDA
+comparison and measure the clarified detector timing scope.
 
-The broader float32 pass remains deferred. Retain float64 only where a specific
+Production Numba CPU acceleration and the broader float32 pass remain open.
+Assess their benefit in the next bounded tuning pass. Retain float64 only where a specific
 numerical need is demonstrated; assess final court quality, especially far-end
 errors in metres. A later pass should also check hand-written operations against
 library equivalents where that would simplify the code without hurting speed

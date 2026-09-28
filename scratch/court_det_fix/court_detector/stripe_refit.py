@@ -2,7 +2,7 @@
 each stripe every fit fragment sits on.
 
 A line fragment on a painted stripe sits on its centre (position 0) or on one of its
-two edges (1, 2). W5's refit took the position from geometry alone. Here each fit
+two edges (1, 2). The scoring refit took the position from geometry alone. Here each fit
 fragment's position is re-decided from two image cues: the grey contrast across it
 on the working frame (brightness_profiles) and the colour polarity sampled along it
 on the native frame (sample_fragment, infer_polarity). automatic_position keeps the
@@ -11,8 +11,8 @@ and the contrast reaches CONTRAST_LEVELS grey levels. Only the positions change;
 then the court is refitted (fixed_stripe_refit.refine) and validated (fit_geometry).
 
 Research scripts import these back, so this module stays a leaf: it imports numpy,
-OpenCV, the experiments package and, for observable_points, the package-name copy
-of w5_holistic/verifier.py. It never edits sys.path.
+OpenCV, the experiments package and, for observable_points, measurements.py (the
+package copy of the archived w5_holistic/verifier.py). It never edits sys.path.
 """
 
 from __future__ import annotations
@@ -283,12 +283,12 @@ def refit_chosen(record: dict, origin_key: str, context: Any, native_frame: np.n
                  runtime: dict, line_maps: np.ndarray, *, replay_check: bool = True) -> dict:
     """Refit the chosen court with automatic stripe positions.
 
-    :param record: W5 case record as read back from its JSON file: parents,
+    :param record: The scoring record as read back from its JSON file: parents,
         valid_children and fit_attempts.
     :param origin_key: The chosen court.
     :param native_frame: The view's native BGR frame, for colour sampling.
-    :param line_maps: The view's two wide-family distance maps (run_w5.view_line_maps).
-    :param replay_check: First replay the parent's saved W5 fit and require it to
+    :param line_maps: The view's two wide-family distance maps (scoring.view_line_maps).
+    :param replay_check: First replay the parent's saved scoring fit and require it to
         match within REPLAY_ATOL_NATIVE_PX native pixels.
     :return: The chosen and parent geometry, the replay (with replay_check), the
         per-fragment position changes, and "corrected": fit_geometry's result for

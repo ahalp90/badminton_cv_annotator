@@ -184,12 +184,12 @@ def try_reuse(
     moved_working = moved_native / scale
     homography = cv2.getPerspectiveTransform(CORNER_COURT_M.astype(np.float32),
                                              moved_working.astype(np.float32)).astype(float)
-    line_maps = live.run_w5.view_line_maps(context)
+    line_maps = live.scoring.view_line_maps(context)
     zone = live.runtime["zone"]
     with live.prepared_measurements(live.verifier):
         gates = live.runtime["gate_evidence"](moved_native, context.source, scale, context.size, context.families,
                                               line_maps, zone)
-        # The moved court plays the part of W5's chosen parent in refit_chosen's case record.
+        # The moved court acts as the chosen parent in refit_chosen's scoring record.
         moved = {"origin_key": REUSE_KEY, "kind": "parent", "corners_px": moved_native.tolist(),
                  "homography_working": homography.tolist(), "gates": gates}
         valid, reason = live.verifier.hard_validity(moved)

@@ -673,7 +673,7 @@ def legacy_winners(entries: Sequence[dict]) -> dict:
                 }
                 for occurrence in entry["_legacy_occurrences"]
             )
-        elif entry.get("source") in (None, "G0", "G1"):
+        elif entry.get("source") in (None, "all_lines", "painted_lines", "G0", "G1"):  # G0, G1: older records
             occurrences.append({**entry, "_legacy_input_order": entry_index})
 
     occurrences.sort(key=lambda occurrence: (

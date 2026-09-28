@@ -79,7 +79,7 @@ def recheck_camera_frontier(
     native_size: tuple[int, int],
     zone,
 ) -> tuple[np.ndarray, int, float]:
-    """Replace vector camera errors near the hard-gate limit with scalar W5 values.
+    """Replace vector camera errors near the hard-gate limit with the candidate gates' scalar values.
 
     :return: a corrected copy of the errors, the number rechecked and the largest change.
     """
@@ -102,7 +102,7 @@ def camera_errors_with_frontier_recheck(
     native_size: tuple[int, int],
     zone,
 ) -> tuple[np.ndarray, int, float]:
-    """Use scalar W5 camera values at the hard-gate frontier."""
+    """Use the candidate gates' scalar camera values at the hard-gate frontier."""
     errors = vector_camera_errors(homographies, working_size)
     return recheck_camera_frontier(errors, corners, native_scale, native_size, zone)
 
@@ -265,8 +265,8 @@ def _ranked_records(
                     "direction_means": [float(value) for value in means[index]],
                     "visible_lengthwise_pieces": int(visibility[index, 0]),
                     "visible_cross_court_pieces": int(visibility[index, 1]),
-                    "camera_error_before_w5_gates": float(camera_errors[index]),
-                    "geometry_valid_before_w5_gates": True,
+                    "camera_error_before_candidate_gates": float(camera_errors[index]),
+                    "geometry_valid_before_candidate_gates": True,
                 },
             }
         )
@@ -314,8 +314,8 @@ def _empty_metadata(settings: dict, started: float, reason: str) -> dict:
     }
 
 
-def attach_w5_gates(entries: list[dict], context, runtime: dict, detector, native_scale: np.ndarray) -> None:
-    """Attach the established W5 gate record after label-free admission."""
+def attach_candidate_gates(entries: list[dict], context, runtime: dict, detector, native_scale: np.ndarray) -> None:
+    """Attach each entry's candidate gates (court_checks.gate_evidence) after label-free admission."""
     raw_families = detector._wide_line_families(context.segments)
     gate_maps = detector._distance_maps(raw_families, context.size)
     for entry in entries:
@@ -340,18 +340,19 @@ def generate(
     seed_points: np.ndarray | None = None,
     device: str = "cpu",
 ) -> Generation:
-    """Generate the audited line/template source for one prepared W5 view.
+    """Generate the audited line/template source for one prepared view.
 
     :param seed_points: Extra homogeneous vanishing points, (points, 3), appended to the
-        estimator's own before rectangle selection. The G0/G1 direction pairs never see them.
+        estimator's own before rectangle selection. The all_lines and painted_lines direction
+        pairs never see them.
     :param device: "cpu" scores the hypotheses with NumPy; "cuda" scores them with CuPy.
-        Rectangle setup, admission and the W5 gates run on the CPU either way.
+        Rectangle setup, admission and the candidate gates run on the CPU either way.
     """
     min_visible_lengthwise, min_visible_cross_court = _validate_visibility_floors(
         min_visible_lengthwise,
         min_visible_cross_court,
     )
-    xp = template_arrays.array_module(device)
+    array_module = template_arrays.array_module(device)
     started = perf_counter()
     print(f"[{context.case_id}] line-template: preparing rectangles", flush=True)
     settings = {
@@ -375,10 +376,10 @@ def generate(
         "visibility_columns": dict(VISIBILITY_COLUMN_LABELS),
         "corner_diversity_radius": DIVERSITY_RADIUS,
         "camera_limit": CAMERA_LIMIT,
-        "camera_gate": "frozen W5 camera error <= 0.1 before admission ordering",
+        "camera_gate": "frozen candidate-gate camera error <= 0.1 before admission ordering",
         "geometry_validity": "finite positive-depth convex visible-span >= 0.15; rectangle area >= 100",
         "admission_score": "minimum of the two union-map direction supports",
-        "full_w5_gates": "run_diagnosis.gate_evidence after admission, with raw wide-fragment maps",
+        "full_candidate_gates": "run_diagnosis.gate_evidence after admission, with raw wide-fragment maps",
     }
     if len(detector.TEMPLATE_TRANSFORMS) != TEMPLATE_COUNT:
         raise ValueError("frozen detector template count changed")
@@ -423,8 +424,8 @@ def generate(
 
     union_map = detector.distance_map(context.segments, context.size)
     native_scale = np.asarray(context.native_size, dtype=np.float64) / np.asarray(context.size, dtype=np.float64)
-    view = template_arrays.place_view(xp, union_map, context.size, detector)
-    device_rectangles = xp.asarray(rectangles_array)
+    view = template_arrays.place_view(array_module, union_map, context.size, detector)
+    device_rectangles = array_module.asarray(rectangles_array)
     batch_rectangles = BATCH_RECTANGLES[device]
     batches = []
     last_progress = perf_counter()
@@ -437,7 +438,7 @@ def generate(
             )
             last_progress = perf_counter()
         rectangle_batch = device_rectangles[offset:offset + batch_rectangles]
-        batches.append(template_arrays.score_rectangles(xp, rectangle_batch, view))
+        batches.append(template_arrays.score_rectangles(array_module, rectangle_batch, view))
     scored = template_arrays.ScoredHypotheses(*(np.concatenate(parts) for parts in zip(*batches, strict=True)))
     if not len(scored.corners):
         return Generation((), _empty_metadata(settings, started, "no_geometry_valid_hypotheses"))
@@ -484,7 +485,7 @@ def generate(
         detector,
         PROPOSAL_CAP,
     )
-    attach_w5_gates(entries, context, runtime, detector, native_scale)
+    attach_candidate_gates(entries, context, runtime, detector, native_scale)
     metadata = {
         "name": "line_template",
         "status": "generated",
@@ -543,7 +544,7 @@ def generate(
             "camera_scalar_recheck_count": int(scalar_recheck_count),
             "camera_vector_scalar_max_abs_diff": float(vector_scalar_max_abs_diff),
             "scanned_for_proposal_cap": int(scanned),
-            "full_w5_gate_count": len(entries),
+            "full_candidate_gate_count": len(entries),
             "elapsed_seconds": perf_counter() - started,
         },
         "caps": {

@@ -1,10 +1,10 @@
 """Find a badminton court in a prepared image.
 
 Search all detected line fragments, then search only paint-like fragments
-(the saved records call these G0 and G1). Also build courts from crossing lines.
-Measure and refit the candidates, then choose using paint, line and net support.
-Finally adjust the fit to the painted stripe edges or centres. By default,
-reject sideways and upside-down camera geometry.
+(all_lines and painted_lines; older saved records call them G0 and G1). Also
+build courts from crossing lines. Measure and refit the candidates, then choose
+using paint, line and net support. Finally adjust the fit to the painted stripe
+edges or centres. By default, reject sideways and upside-down camera geometry.
 
 Set the numerical-library thread variables to 1 before importing NumPy, as
 run_views.py does. load_live_modules() imports this package and sets OpenCV
@@ -59,7 +59,7 @@ class Switches:
     enforce_scene_consistency: bool = True  # keep only feet from the anchor's shot
     # skip courts that need a camera rolled past MAX_HORIZON_TILT_DEG or upside down
     upright_camera: bool = True
-    geometry_weight: float = 0.1  # share of W5's geometry score in the net choice; the rest is W5's ranking score
+    geometry_weight: float = 0.1  # share of the geometry score in the net choice; the rest is the C ranking's score
     timing: bool = False  # report seconds per step in CourtResult.stage_seconds
     artefacts_dir: Path | None = None  # write each view's intermediate results here
     workers: int = 1  # search pairs and scoring; run_views limits numerical libraries to one thread
@@ -91,7 +91,7 @@ class CourtResult:
 
 
 class LiveModules(NamedTuple):
-    run_w5: ModuleType
+    scoring: ModuleType
     verifier: ModuleType  # runtime["verifier"] holds these same measurement functions
     generation: ModuleType
     automatic_generation: ModuleType
@@ -251,19 +251,19 @@ class CourtDetector:
 
     def search(self, context: Any, source: dict, native_frame: np.ndarray, laps: Laps,
                artefacts: dict[str, Any] | None = None) -> dict[str, list[dict]]:
-        """G0 on every line fragment and G1 on the painted ones; entries as read back from JSON."""
+        """Search every line fragment (all_lines), then painted ones (painted_lines); entries as read back from JSON."""
         live = self.live
         # Direction-pair proposals require player occupancy. The independent line
         # templates below supply the fallback when there are no people inputs.
         if not source["all_feet_px"]:
-            return {"G0": [], "G1": []}
+            return {"all_lines": [], "painted_lines": []}
         direction = live.generation.direction_record(context, search.DIRECTION_SETTINGS, live.vp_pruning)
         dimensions = source["dimensions"]
         scale = np.asarray([dimensions["width"], dimensions["height"]], dtype=float) / np.asarray(context.size, dtype=float)
         filtered = search.filtered_source(source, search.paint_mask(source, native_frame, scale))
         laps.lap("directions_and_paint_filter")
         populations = {}
-        for name, population_source in (("G0", source), ("G1", filtered)):
+        for name, population_source in (("all_lines", source), ("painted_lines", filtered)):
             record = live.automatic_generation.generate(
                 population_source, direction, live.runtime["zone"], ROOT, live.run_automatic, DIRECTION_BUDGET,
                 legacy_evidence=False,
@@ -273,7 +273,7 @@ class CourtDetector:
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
-                live.generation.validate_population(record, context.case_id, live.run_w5, f"fresh {name} generation")
+                live.generation.validate_population(record, context.case_id, live.scoring, f"fresh {name} generation")
             populations[name] = json_round_trip(record["entries"])
             if artefacts is not None and self.switches.full_score_limit is not None:
                 ranks = {}
@@ -289,21 +289,21 @@ class CourtDetector:
     def score_and_choose(self, view: ViewInputs, context: Any, populations: dict[str, list[dict]],
                          templates: list[dict], native_frame: np.ndarray, laps: Laps,
                          artefacts: dict[str, Any]) -> CourtResult:
-        """W5 scoring, the net choice and the stripe refit. Runs inside prepared_measurements."""
+        """Candidate scoring, the net choice and the stripe refit. Runs inside prepared_measurements."""
         live, self_checks = self.live, self.switches.self_checks
-        scored = live.run_w5.score_populations(
-            context, populations["G0"], populations["G1"], templates, live.runtime, {},
+        scored = live.scoring.score_populations(
+            context, populations["all_lines"], populations["painted_lines"], templates, live.runtime, {},
             lambda message: print(f"[{view.view_id}] {message}", flush=True), self_checks=self_checks,
             workers=self.switches.workers,
         )
         record = live.verifier.jsonable({
-            "parents": [live.run_w5.public_candidate(parent) for parent in scored.parents],
-            "valid_children": [live.run_w5.public_candidate(child) for child in scored.children],
+            "parents": [live.scoring.public_candidate(parent) for parent in scored.parents],
+            "valid_children": [live.scoring.public_candidate(child) for child in scored.children],
             "fit_attempts": scored.fit_rows,
             "rankings": {"C": scored.c_rankings},
         })
-        artefacts["w5"] = {"record": record, "identity_resolution": scored.identity_resolution}
-        laps.lap("w5")
+        artefacts["scoring"] = {"record": record, "identity_resolution": scored.identity_resolution}
+        laps.lap("scoring")
 
         return choose_court(view.view_id, record, context, native_frame, scored.line_maps, live, self.switches,
                             laps, artefacts)
@@ -311,7 +311,7 @@ class CourtDetector:
 
 def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndarray, line_maps: np.ndarray,
                  live: LiveModules, switches: Switches, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
-    """The net choice and the stripe refit of its pick, from W5's case record. Runs inside prepared_measurements."""
+    """The net choice and the stripe refit of its pick, from the scoring record. Runs inside prepared_measurements."""
     rows = net_choice.net_rows(record, context, require_people=switches.require_people)
     chosen, net_scores = net_choice.choose(rows, NET_WEIGHT, NET_OVERRUN_WORKING_PX, switches.geometry_weight,
                                            require_people=switches.require_people)

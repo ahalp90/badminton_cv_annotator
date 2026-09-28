@@ -48,8 +48,9 @@ A 16:9 image becomes 960×540.
    direction. Hide person boxes from paint measurements only when the boxes
    belong to this image
 3. **Search for courts.** Match pairs of line directions to court markings.
-   Run once with all fragments (G0), and once with only paint-like fragments
-   (G1). The second search uses pale lines that are brighter than their
+   Run once with all fragments (`all_lines`), and once with only paint-like
+   fragments (`painted_lines`). Older saved records and notes call these G0 and
+   G1. The second search uses pale lines that are brighter than their
    surroundings and not strongly coloured. Players' feet must fit the court.
    Reject sideways and upside-down camera geometry. Keep up to 256 distinct
    courts per pair and 256 per complete search
@@ -61,7 +62,8 @@ A 16:9 image becomes 960×540.
    the courts and successful refits together. A court can win only if its
    geometry and camera are valid and the players fit. At least one player
    must fit in every sampled frame, and one in each half in at least half
-   the frames. The code calls this stage W5
+   the frames. The code calls this stage scoring; older records and notes
+   call it W5
 6. **Choose a court.** Combine 90% paint score and 10% line-support score.
    Add 0.02 for each supported net post, up to 0.04. Missing net support is
    neutral. If no court passed the checks, return no court
@@ -116,10 +118,13 @@ PYTHONPATH=.:src python -m scratch.court_det_fix.court_detector.run_views \
 ```
 
 Add `--baseline ARM_DIR --feet FEET_FILE --artefacts` to compare against a saved
-research run. To reproduce the original 25 September comparison, also use
-`--any-camera-roll --geometry-weight 0`. The newer defaults intentionally
-change results. The [original check](check_20260925/README.md) states exactly
-what was compared; the runner docstring supplies the full command details.
+research run. The baseline arm uses the older names: G0 and G1 for the two
+searches and W5 in some field names. The runner reads them in the current names
+and leaves the saved files unchanged. To reproduce the original 25 September
+comparison, also use `--any-camera-roll --geometry-weight 0`. The newer defaults
+intentionally change results. The [original check](check_20260925/README.md)
+states exactly what was compared; the runner docstring supplies the full command
+details.
 
 The people records and videos used on Carmack are not in git. See
 [the data map](../FP_INDEX.md#data-that-is-not-in-git) before a remote rerun or
@@ -138,8 +143,9 @@ court checks stay on the CPU, and other stages keep their own settings.
 CuPy is not a project dependency, so install it where a GPU is available. The
 detector stops at setup when CuPy or a CUDA GPU is missing; it never falls back
 to the CPU. GPU rounding can change the last bits of results, such as each line
-template's `camera_error_before_w5_gates`. It can also occasionally move a line
-sample to a neighbouring pixel. Saved-run comparisons report any such differences.
+template's `camera_error_before_candidate_gates`. It can also occasionally move a
+line sample to a neighbouring pixel. Saved-run comparisons report any such
+differences.
 
 ## Run from video
 

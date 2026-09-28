@@ -9,8 +9,8 @@ from typing import Any
 import numpy as np
 
 
-def validate_population(record: dict, case_id: str, run_w5: ModuleType, source: str) -> dict:
-    run_w5.validate_generation_record(record, case_id, source, expected_stage="results", validate_entries=False)
+def validate_population(record: dict, case_id: str, scoring: ModuleType, source: str) -> dict:
+    scoring.validate_generation_record(record, case_id, source, expected_stage="results", validate_entries=False)
     entries = record.get("entries")
     if not isinstance(entries, list) or len(entries) > 256:
         raise ValueError(f"{case_id}: {source} has an invalid entry count")
@@ -36,6 +36,7 @@ def direction_record(context: Any, settings: dict, vp_pruning: ModuleType) -> di
         np.asarray(context.segments, dtype=float), working_size, vp_pruning.Settings(**settings)
     )
     return {
+        # The archived direction files' label; nothing in the detector reads it.
         "schema": "wider-w5-direction/1",
         "case_id": context.case_id,
         "working_size": list(working_size),

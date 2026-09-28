@@ -7,9 +7,11 @@ decoded frame count. Each video is decoded once per process, from frame 0, as th
 scripts did, and only the window frames are kept.
 
 With --baseline (needs --artefacts), each view is checked against the baseline arm: the
-chosen court, the whole refit record, the feet, the grey differences, the G0 and G1 entries,
-the line templates' count and metadata, and the W5 record. A view that raises is logged and the run carries on; the exit code is
-1 when any view raised or failed a check.
+chosen court, the whole refit record, the feet, the grey differences, the all_lines and
+painted_lines entries, the line templates' count and metadata, and the scoring record.
+The baseline uses the older names (G0, G1 and W5 fields); the checks read them in the
+current names and leave the saved files as they are. A view that raises is logged and
+the run carries on; the exit code is 1 when any view raised or failed a check.
 
 Usage, from the repository root:
   python -m scratch.court_det_fix.court_detector.run_views --people DIR --output DIR
@@ -60,6 +62,20 @@ CONTROL_PACK = ROOT / "wider_evaluation/runs/20260922/control_inputs.json.gz"
 LEGACY_ENTRY_FIELDS = ("stripe", "profile")
 # refit_selected.refit_selection adds these around the refit itself.
 REFIT_WRAPPER_FIELDS = {"case_id", "label", "source_record", "frame_md5"}
+# The baseline arm predates the current names. Its population folders and source labels
+# use the old names, and so does the prefix of every origin key.
+BASELINE_SOURCE_NAMES = {"G0": "all_lines", "G1": "painted_lines"}
+BASELINE_FIELD_NAMES = {
+    "w5_gates": "candidate_gates",
+    "camera_error_before_w5_gates": "camera_error_before_candidate_gates",
+    "geometry_valid_before_w5_gates": "geometry_valid_before_candidate_gates",
+    "full_w5_gates": "full_candidate_gates",
+    "full_w5_gate_count": "full_candidate_gate_count",
+}
+BASELINE_CAMERA_GATE_TEXT = {
+    "frozen W5 camera error <= 0.1 before admission ordering":
+        "frozen candidate-gate camera error <= 0.1 before admission ordering",
+}
 
 
 def read_json_gz(path: Path) -> Any:
@@ -159,27 +175,132 @@ def first_difference(left: Any, right: Any, path: str = "") -> str | None:
     return None if left == right and not signs_differ else f"{path}: {left!r} != {right!r}"
 
 
+def current_source(name: str) -> str:
+    return BASELINE_SOURCE_NAMES.get(name, name)
+
+
+def current_origin_key(key: str | None) -> str | None:
+    """A baseline origin key in current names: "G0:5:728/child" becomes "all_lines:5:728/child"."""
+    if key is None:
+        return None
+    # Candidate IDs contain colons too, so the source ends at the first one.
+    source, separator, rest = key.partition(":")
+    return current_source(source) + separator + rest
+
+
+def renamed_fields(fields: dict) -> dict:
+    """One level of a baseline dict, with each renamed key in its current name."""
+    return {BASELINE_FIELD_NAMES.get(key, key): value for key, value in fields.items()}
+
+
+def baseline_occurrence(occurrence: dict) -> dict:
+    """One source or legacy occurrence from the baseline, in current names."""
+    converted = renamed_fields(occurrence)
+    converted["origin_key"] = current_origin_key(occurrence["origin_key"])
+    converted["source"] = current_source(occurrence["source"])
+    if "parent_origin_key" in occurrence:
+        converted["parent_origin_key"] = current_origin_key(occurrence["parent_origin_key"])
+    if "line_template" in occurrence:
+        converted["line_template"] = renamed_fields(occurrence["line_template"])
+    return converted
+
+
+def baseline_candidate(candidate: dict) -> dict:
+    """A baseline parent, child or duplicate group, in current names."""
+    converted = dict(candidate)
+    converted["origin_key"] = current_origin_key(candidate["origin_key"])
+    converted["source_memberships"] = [current_source(source) for source in candidate["source_memberships"]]
+    for field in ("source_occurrences", "legacy_occurrences", "line_template_provenance"):
+        if field in candidate:
+            converted[field] = [baseline_occurrence(occurrence) for occurrence in candidate[field]]
+    # Duplicate groups have no source or parent key. Only line-template candidates
+    # have line_template.
+    if "source" in candidate:
+        converted["source"] = current_source(candidate["source"])
+    if "parent_origin_key" in candidate:
+        converted["parent_origin_key"] = current_origin_key(candidate["parent_origin_key"])
+    if "line_template" in candidate:
+        converted["line_template"] = renamed_fields(candidate["line_template"])
+    # A parent's refit names its valid child; a child's refit is the fit itself.
+    if candidate.get("kind") == "parent" and "refit" in candidate:
+        child_key = current_origin_key(candidate["refit"]["child_origin_key"])
+        converted["refit"] = {**candidate["refit"], "child_origin_key": child_key}
+    return converted
+
+
+def baseline_fit_attempt(row: dict) -> dict:
+    return {**row, "origin_key": current_origin_key(row["origin_key"]),
+            "child_origin_key": current_origin_key(row["child_origin_key"])}
+
+
+def baseline_ranking(ranking: dict) -> dict:
+    """The baseline's C ranking in current names. Every *_rank list holds origin keys."""
+    converted = dict(ranking)
+    for field, value in ranking.items():
+        if field.endswith("_rank"):
+            converted[field] = [current_origin_key(key) for key in value]
+    for field in ("selected_origin_key", "r1_selected_origin_key", "r2_selected_origin_key"):
+        converted[field] = current_origin_key(ranking[field])
+    converted["sparse_fallbacks"] = {}
+    for criterion, fallback in ranking["sparse_fallbacks"].items():
+        if fallback is not None:
+            fallback = {**fallback, "origin_key": current_origin_key(fallback["origin_key"])}
+        converted["sparse_fallbacks"][criterion] = fallback
+    return converted
+
+
+def baseline_identity_resolution(resolution: dict) -> dict:
+    converted = dict(resolution)
+    converted["conflicting_geometry_groups"] = [
+        [current_origin_key(key) for key in group] for group in resolution["conflicting_geometry_groups"]
+    ]
+    converted["source_occurrence_counts"] = {
+        current_source(source): count for source, count in resolution["source_occurrence_counts"].items()
+    }
+    # Scoring sorts each collision's sources by name, and the current names sort
+    # in another order.
+    converted["raw_id_collision_sources"] = {
+        candidate_id: sorted(current_source(source) for source in sources)
+        for candidate_id, sources in resolution["raw_id_collision_sources"].items()
+    }
+    converted["duplicate_groups"] = [baseline_candidate(group) for group in resolution["duplicate_groups"]]
+    return converted
+
+
+def baseline_line_template_metadata(metadata: dict) -> dict:
+    settings = renamed_fields(metadata["settings"])
+    settings["camera_gate"] = BASELINE_CAMERA_GATE_TEXT.get(settings["camera_gate"], settings["camera_gate"])
+    return {**metadata, "settings": settings, "generation": renamed_fields(metadata["generation"])}
+
+
+def baseline_refit(polarity: dict | None) -> dict | None:
+    """The baseline's stripe refit without its timings and wrapper fields, in current names."""
+    if polarity is None:
+        return None
+    converted = {key: value for key, value in polarity.items()
+                 if key != "timings_seconds" and key not in REFIT_WRAPPER_FIELDS}
+    converted["selected_origin_key"] = current_origin_key(polarity["selected_origin_key"])
+    converted["parent_origin_key"] = current_origin_key(polarity["parent_origin_key"])
+    return converted
+
+
 def baseline_checks(view_id: str, result: CourtResult, artefacts: dict, baseline: Path, feet_by_view: dict,
                     shot_rows: dict) -> dict[str, str | None]:
     """Each check's first difference from the baseline arm; None means equal."""
     summary = read_json_gz(baseline / "d17" / f"{view_id}.json.gz")
     selection = summary["selection"]
-    polarity = selection["polarity_refit"]
     refit = artefacts.get("stripe_refit")
     if refit is not None:
         refit = {key: value for key, value in refit.items() if key != "timings_seconds"}
-    if polarity is not None:
-        polarity = {key: value for key, value in polarity.items()
-                    if key != "timings_seconds" and key not in REFIT_WRAPPER_FIELDS}
     checks = {
-        "chosen_key": first_difference(result.chosen_key, selection["bounded"]),
-        "refit": first_difference(refit, polarity),
+        "chosen_key": first_difference(result.chosen_key, current_origin_key(selection["bounded"])),
+        "refit": first_difference(refit, baseline_refit(selection["polarity_refit"])),
         "feet": first_difference(artefacts["feet"]["all_feet_px"], feet_by_view[view_id]),
         "grey_differences": first_difference(artefacts["feet"]["grey_differences"],
                                              shot_rows[view_id]["differences"]),
     }
-    for name in ("G0", "G1"):
-        saved = read_json_gz(baseline / "populations" / name / f"{view_id}.json.gz")["entries"]
+    for baseline_name, name in BASELINE_SOURCE_NAMES.items():
+        saved = read_json_gz(baseline / "populations" / baseline_name / f"{view_id}.json.gz")["entries"]
         checks[f"{name}_entries"] = first_difference(artefacts["populations"][name],
                                                      without_keys(saved, set(LEGACY_ENTRY_FIELDS)))
     record = read_json_gz(baseline / "case_records" / f"{view_id}.json.gz")
@@ -187,16 +308,22 @@ def baseline_checks(view_id: str, result: CourtResult, artefacts: dict, baseline
                                                      record["population_counts"]["line_template"])
     checks["line_template_metadata"] = first_difference(
         without_keys(artefacts["line_templates"]["metadata"], {"elapsed_seconds"}),
-        without_keys(record["population_sources"]["line_template"], {"elapsed_seconds"}),
+        without_keys(baseline_line_template_metadata(record["population_sources"]["line_template"]),
+                     {"elapsed_seconds"}),
     )
-    ours = artefacts["w5"]["record"]
-    for key in ("parents", "valid_children", "fit_attempts"):
-        checks[f"w5_{key}"] = first_difference(without_keys(ours[key], {"legacy"}),
-                                               without_keys(record[key], {"legacy"}))
-    checks["w5_c_ranking"] = first_difference(ours["rankings"]["C"], record["rankings"]["C"])
-    checks["w5_identity_resolution"] = first_difference(
-        without_keys(artefacts["w5"]["identity_resolution"], {"legacy"}),
-        without_keys(record["identity_resolution"], {"legacy"}),
+    ours = artefacts["scoring"]["record"]
+    baseline_candidates = {
+        "parents": [baseline_candidate(parent) for parent in record["parents"]],
+        "valid_children": [baseline_candidate(child) for child in record["valid_children"]],
+        "fit_attempts": [baseline_fit_attempt(row) for row in record["fit_attempts"]],
+    }
+    for key, theirs in baseline_candidates.items():
+        checks[f"scoring_{key}"] = first_difference(without_keys(ours[key], {"legacy"}),
+                                                    without_keys(theirs, {"legacy"}))
+    checks["scoring_c_ranking"] = first_difference(ours["rankings"]["C"], baseline_ranking(record["rankings"]["C"]))
+    checks["scoring_identity_resolution"] = first_difference(
+        without_keys(artefacts["scoring"]["identity_resolution"], {"legacy"}),
+        without_keys(baseline_identity_resolution(record["identity_resolution"]), {"legacy"}),
     )
     return checks
 
@@ -220,7 +347,7 @@ def main() -> int:
     parser.add_argument("--any-camera-roll", action="store_true",
                         help="keep courts that need a camera rolled past 45 degrees or upside down")
     parser.add_argument("--geometry-weight", type=float, default=0.1,
-                        help="share of W5's geometry score in the net choice; 0 is the accepted chain's paint alone")
+                        help="share of the geometry score in the net choice; 0 is the accepted chain's paint alone")
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers must be positive")

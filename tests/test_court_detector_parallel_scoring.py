@@ -47,8 +47,8 @@ NO_SAMPLING = {"greyscale_conversions": 0, "sampling_calls": 0}
 class RealView(NamedTuple):
     live: LiveModules
     context: Any  # measurements.ViewContext, frozen
-    g0: list[dict]
-    g1: list[dict]
+    all_line_entries: list[dict]
+    painted_line_entries: list[dict]
     entry_index: dict[str, int]  # candidate ID -> its index in the baseline record's entries
 
 
@@ -66,15 +66,15 @@ def view() -> RealView:
     freeze_arrays(context)
     with gzip.open(COURT_ROOT / f"frozen_views/baseline_generation/{CASE_ID}.json.gz", "rt") as stream:
         entries = json.load(stream)["entries"][:HARD_INVALID_ENTRY + 1]
-    g0 = entries[:HARD_INVALID_ENTRY]
+    all_line_entries = entries[:HARD_INVALID_ENTRY]
     hard_invalid = copy.deepcopy(entries[HARD_INVALID_ENTRY])
     hard_invalid["gates"]["geometry_valid"] = False
-    g0.append(hard_invalid)
-    # G0's first court under another pair ID: a separate parent measuring the same homography.
+    all_line_entries.append(hard_invalid)
+    # Court 0 under another pair ID: a separate parent measuring the same homography.
     conflicting = {**entries[0], "pair_id": entries[0]["pair_id"] + 1000}
-    compatible = copy.deepcopy(entries[1])  # merges into G0's second parent
+    compatible = copy.deepcopy(entries[1])  # merges into the second all-lines parent
     entry_index = {entry["candidate_id"]: index for index, entry in enumerate(entries)}
-    return RealView(live, context, g0, [conflicting, compatible], entry_index)
+    return RealView(live, context, all_line_entries, [conflicting, compatible], entry_index)
 
 
 @pytest.fixture(scope="module")
@@ -85,8 +85,8 @@ def runs(view: RealView) -> dict[int, Run]:
         messages: list[str] = []
         with view.live.prepared_measurements(measurements) as counts:
             callers_sampler = (measurements.grayscale_sample, measurements.raw_junctions)
-            scored = scoring.score_populations(view.context, view.g0, view.g1, [], view.live.runtime, cache,
-                                               messages.append, workers=workers)
+            scored = scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [],
+                                               view.live.runtime, cache, messages.append, workers=workers)
             # The workers patch their own modules, never this process's.
             assert (measurements.grayscale_sample, measurements.raw_junctions) == callers_sampler
         results[workers] = Run(scored, cache, dict(counts), messages)
@@ -176,23 +176,26 @@ def test_the_callers_cache_gains_every_measurement(runs: dict[int, Run]) -> None
 
 def test_parallel_scoring_refuses_other_runtimes_and_callers_outside_the_sampler(view: RealView) -> None:
     with pytest.raises(ValueError, match="measure inside sampling.prepared_measurements"):
-        scoring.score_populations(view.context, view.g0, view.g1, [], view.live.runtime, {}, print, workers=2)
+        scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [],
+                                  view.live.runtime, {}, print, workers=2)
     other_runtime = {**view.live.runtime, "zone": object()}
     with view.live.prepared_measurements(measurements), pytest.raises(ValueError, match="accept only that runtime"):
-        scoring.score_populations(view.context, view.g0, view.g1, [], other_runtime, {}, print, workers=2)
+        scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [], other_runtime,
+                                  {}, print, workers=2)
 
 
 @pytest.mark.parametrize("workers", [0, -1])
 def test_workers_must_be_positive(view: RealView, workers: int) -> None:
     with pytest.raises(ValueError, match="workers must be positive"):
-        scoring.score_populations(view.context, view.g0, view.g1, [], view.live.runtime, {}, print, workers=workers)
+        scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [],
+                                  view.live.runtime, {}, print, workers=workers)
 
 
 def test_a_workers_exception_reaches_the_caller(view: RealView) -> None:
-    broken = {key: value for key, value in view.g0[1].items() if key != "corners_px"}
+    broken = {key: value for key, value in view.all_line_entries[1].items() if key != "corners_px"}
     with view.live.prepared_measurements(measurements), pytest.raises(KeyError, match="corners_px") as raised:
-        scoring.score_populations(view.context, [view.g0[0], broken], [], [], view.live.runtime, {}, print,
-                                  workers=2)
+        scoring.score_populations(view.context, [view.all_line_entries[0], broken], [], [], view.live.runtime, {},
+                                  print, workers=2)
     assert type(raised.value.__cause__).__name__ == '_RemoteTraceback'
 
 

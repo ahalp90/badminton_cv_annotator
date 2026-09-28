@@ -78,7 +78,7 @@ def views() -> RealViews:
         for context, case_id in ((earlier, EARLIER_SCENE), (later, LATER_SCENE)):
             scale = np.asarray(context.native_size) / np.asarray(context.size)
             described = stripe_refit.describe(saved_corners(case_id) / scale, context, live.verifier, live.runtime,
-                                              live.run_w5.view_line_maps(context))
+                                              live.scoring.view_line_maps(context))
             paints.append(described["paint_score"])
     earlier_frame = cv2.imread(str(COURT_ROOT / earlier.frame_relative_path))
     later_frame = cv2.imread(str(COURT_ROOT / later.frame_relative_path))

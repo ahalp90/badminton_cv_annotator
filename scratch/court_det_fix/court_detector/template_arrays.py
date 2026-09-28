@@ -1,10 +1,10 @@
 """Score line-template hypotheses with NumPy on the CPU or CuPy on a GPU.
 
-Each scoring function takes the array module first, as `xp`. NumPy and CuPy then run
-the same expressions, so both devices share one scoring definition. CPU results are
-the reference. CuPy's rounding can differ in the last bits, which occasionally
-moves a line sample to a neighbouring pixel and changes a support mean. Rectangle
-setup, admission and the W5 gates stay on the CPU in line_templates.py.
+Each scoring function takes the array module, NumPy or CuPy, first as `array_module`.
+Both then run the same expressions, so both devices share one scoring definition. CPU
+results are the reference. CuPy's rounding can differ in the last bits, which
+occasionally moves a line sample to a neighbouring pixel and changes a support mean.
+Rectangle setup, admission and the candidate gates stay on the CPU in line_templates.py.
 """
 
 from __future__ import annotations
@@ -68,37 +68,39 @@ def camera_focals(image_width: int) -> np.ndarray:
     return np.geomspace(0.4 * image_width, 4.0 * image_width, 200)
 
 
-def place_view(xp: ModuleType, distance_map: np.ndarray, size: tuple[int, int], court_model: ModuleType) -> ViewArrays:
+def place_view(
+    array_module: ModuleType, distance_map: np.ndarray, size: tuple[int, int], court_model: ModuleType,
+) -> ViewArrays:
     """Copy one view's fixed inputs to the scoring device.
 
     NumPy builds the sample steps and focal lengths, so every device scores with the same values.
     """
     width, _ = size
     return ViewArrays(
-        templates=xp.asarray(court_model.TEMPLATE_TRANSFORMS),
-        distance_map=xp.asarray(distance_map),
-        corner_points=xp.asarray(homogeneous(court_model.CORNER_COURT_M)),
-        segment_points=xp.asarray(homogeneous(court_model.SEGMENTS_M)),
-        sample_steps=xp.asarray(np.linspace(0, 1, SAMPLES_PER_LINE)),
-        focals=xp.asarray(camera_focals(width)),
-        image_size=xp.asarray(np.asarray(size)),
+        templates=array_module.asarray(court_model.TEMPLATE_TRANSFORMS),
+        distance_map=array_module.asarray(distance_map),
+        corner_points=array_module.asarray(homogeneous(court_model.CORNER_COURT_M)),
+        segment_points=array_module.asarray(homogeneous(court_model.SEGMENTS_M)),
+        sample_steps=array_module.asarray(np.linspace(0, 1, SAMPLES_PER_LINE)),
+        focals=array_module.asarray(camera_focals(width)),
+        image_size=array_module.asarray(np.asarray(size)),
         size=size,
     )
 
 
-def project(xp: ModuleType, homographies: Any, points: Any) -> tuple[Any, Any]:
+def project(array_module: ModuleType, homographies: Any, points: Any) -> tuple[Any, Any]:
     """geometry.project, with the homogeneous points prepared once per view.
 
     :return: (hypotheses, points, 2) image points and (hypotheses, points) homogeneous denominators.
     """
-    mapped = xp.einsum("...ij,pj->...pi", homographies, points)
+    mapped = array_module.einsum("...ij,pj->...pi", homographies, points)
     denominator = mapped[..., 2]
     with np.errstate(divide="ignore", invalid="ignore"):
         pixels = mapped[..., :2] / denominator[..., None]
     return pixels, denominator
 
 
-def visible_samples(xp: ModuleType, endpoints: Any, view: ViewArrays) -> tuple[Any, Any]:
+def visible_samples(array_module: ModuleType, endpoints: Any, view: ViewArrays) -> tuple[Any, Any]:
     """geometry._visible_samples: clip each projected line to the image, then sample the rest evenly.
 
     :param endpoints: (hypotheses, lines, 2, 2) projected line ends in working pixels.
@@ -106,27 +108,34 @@ def visible_samples(xp: ModuleType, endpoints: Any, view: ViewArrays) -> tuple[A
     """
     starts = endpoints[:, :, 0]
     vectors = endpoints[:, :, 1] - starts
-    lower = xp.zeros(starts.shape[:2])
-    upper = xp.ones(starts.shape[:2])
-    visible = xp.ones(starts.shape[:2], dtype=bool)
+    lower = array_module.zeros(starts.shape[:2])
+    upper = array_module.ones(starts.shape[:2])
+    # A line that stays still along an axis must start inside the image on that axis.
+    stationary_axes_inside = array_module.ones(starts.shape[:2], dtype=bool)
     for axis, limit in enumerate(view.size):
-        stationary = xp.abs(vectors[..., axis]) < 1e-8
-        visible &= ~stationary | ((starts[..., axis] >= 0) & (starts[..., axis] <= limit - 1))
-        divisor = xp.where(stationary, 1, vectors[..., axis])
+        stationary = array_module.abs(vectors[..., axis]) < 1e-8
+        starts_inside = (starts[..., axis] >= 0) & (starts[..., axis] <= limit - 1)
+        stationary_axes_inside = stationary_axes_inside & (~stationary | starts_inside)
+        divisor = array_module.where(stationary, 1, vectors[..., axis])
         first = -starts[..., axis] / divisor
         last = (limit - 1 - starts[..., axis]) / divisor
-        lower = xp.maximum(lower, xp.where(stationary, -xp.inf, xp.minimum(first, last)))
-        upper = xp.minimum(upper, xp.where(stationary, xp.inf, xp.maximum(first, last)))
-    visible &= upper > lower
+        axis_lower = array_module.where(stationary, -array_module.inf, array_module.minimum(first, last))
+        axis_upper = array_module.where(stationary, array_module.inf, array_module.maximum(first, last))
+        lower = array_module.maximum(lower, axis_lower)
+        upper = array_module.minimum(upper, axis_upper)
+    span_remains = upper > lower
     # np.linalg.norm adds x*x + y*y in this order, so NumPy's bits match geometry's.
-    length = xp.sqrt(vectors[..., 0] * vectors[..., 0] + vectors[..., 1] * vectors[..., 1])
-    visible &= (upper - lower) * length >= 12
+    length = array_module.sqrt(vectors[..., 0] * vectors[..., 0] + vectors[..., 1] * vectors[..., 1])
+    long_enough = (upper - lower) * length >= 12
+    visible = stationary_axes_inside & span_remains & long_enough
     fractions = lower[..., None] + (upper - lower)[..., None] * view.sample_steps
     samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
     return samples, visible
 
 
-def geometry_and_support(xp: ModuleType, homographies: Any, view: ViewArrays) -> tuple[Any, Any, Any, Any, Any]:
+def geometry_and_support(
+    array_module: ModuleType, homographies: Any, view: ViewArrays,
+) -> tuple[Any, Any, Any, Any, Any]:
     """Check each hypothesis's court shape, then score its line support in two directions.
 
     A valid court has finite corners in front of the camera, is convex, and spans at least
@@ -139,41 +148,44 @@ def geometry_and_support(xp: ModuleType, homographies: Any, view: ViewArrays) ->
         homographies, (4, 2) image corners, float32 mean support per direction, and int16
         visible pieces per direction.
     """
-    corners, denominators = project(xp, homographies, view.corner_points)
-    in_front = xp.isfinite(corners).all(axis=(1, 2)) & xp.all(denominators > 1e-6, axis=1)
-    edges = xp.roll(corners, -1, axis=1) - corners
-    turns = edges[..., 0] * xp.roll(edges[..., 1], -1, axis=1) - edges[..., 1] * xp.roll(edges[..., 0], -1, axis=1)
-    convex = xp.all(turns > 0, axis=1)
-    visible_lower = xp.maximum(corners.min(axis=1), 0)
-    visible_upper = xp.minimum(corners.max(axis=1), view.image_size - 1)
-    wide_enough = xp.all((visible_upper - visible_lower) / view.image_size >= 0.15, axis=1)
+    corners, denominators = project(array_module, homographies, view.corner_points)
+    in_front = array_module.isfinite(corners).all(axis=(1, 2)) & array_module.all(denominators > 1e-6, axis=1)
+    edges = array_module.roll(corners, -1, axis=1) - corners
+    # Each edge crossed with the next: positive at every corner of a convex court.
+    next_edge_x = array_module.roll(edges[..., 0], -1, axis=1)
+    next_edge_y = array_module.roll(edges[..., 1], -1, axis=1)
+    turns = edges[..., 0] * next_edge_y - edges[..., 1] * next_edge_x
+    convex = array_module.all(turns > 0, axis=1)
+    visible_lower = array_module.maximum(corners.min(axis=1), 0)
+    visible_upper = array_module.minimum(corners.max(axis=1), view.image_size - 1)
+    wide_enough = array_module.all((visible_upper - visible_lower) / view.image_size >= 0.15, axis=1)
     valid = in_front & convex & wide_enough
 
     valid_homographies = homographies[valid]
-    endpoints, _ = project(xp, valid_homographies, view.segment_points)
-    samples, visible = visible_samples(xp, endpoints.reshape(-1, 12, 2, 2), view)
-    samples = xp.nan_to_num(samples, nan=0.0, posinf=0.0, neginf=0.0)
+    endpoints, _ = project(array_module, valid_homographies, view.segment_points)
+    samples, visible = visible_samples(array_module, endpoints.reshape(-1, 12, 2, 2), view)
+    samples = array_module.nan_to_num(samples, nan=0.0, posinf=0.0, neginf=0.0)
     width, height = view.size
     # Clip before truncating to pixel indices: CuPy wraps out-of-range indices silently.
-    pixel_x = xp.clip(samples[..., 0], 0, width - 1).astype(int)
-    pixel_y = xp.clip(samples[..., 1], 0, height - 1).astype(int)
+    pixel_x = array_module.clip(samples[..., 0], 0, width - 1).astype(int)
+    pixel_y = array_module.clip(samples[..., 1], 0, height - 1).astype(int)
     # NumPy's mean sums then divides. Spelling that out keeps CuPy to the same rounding.
     support = (view.distance_map[pixel_y, pixel_x] <= SUPPORT_DISTANCE).sum(axis=-1) / SAMPLES_PER_LINE
     support *= visible
     lengthwise_visible = visible[:, :6].sum(axis=1)
     cross_court_visible = visible[:, 6:].sum(axis=1)
-    means = xp.stack(
+    means = array_module.stack(
         [
-            support[:, :6].sum(axis=1) / xp.maximum(lengthwise_visible, 1),
-            support[:, 6:].sum(axis=1) / xp.maximum(cross_court_visible, 1),
+            support[:, :6].sum(axis=1) / array_module.maximum(lengthwise_visible, 1),
+            support[:, 6:].sum(axis=1) / array_module.maximum(cross_court_visible, 1),
         ],
         axis=1,
-    ).astype(xp.float32)
-    visibility = xp.stack([lengthwise_visible, cross_court_visible], axis=1).astype(xp.int16)
+    ).astype(array_module.float32)
+    visibility = array_module.stack([lengthwise_visible, cross_court_visible], axis=1).astype(array_module.int16)
     return valid, valid_homographies, corners[valid], means, visibility
 
 
-def camera_errors(xp: ModuleType, homographies: Any, focals: Any, size: tuple[int, int]) -> Any:
+def camera_errors(array_module: ModuleType, homographies: Any, focals: Any, size: tuple[int, int]) -> Any:
     """Vectorise the frozen camera diagnostic over its 200 focal lengths.
 
     Each court direction's x, y and w parts stay separate (courts, focal lengths) arrays, because
@@ -184,26 +196,37 @@ def camera_errors(xp: ModuleType, homographies: Any, focals: Any, size: tuple[in
     if homographies.dtype != np.float64:
         raise TypeError(f"camera errors need float64 homographies, got {homographies.dtype}")
     image_width, image_height = size
+    principal_x, principal_y = image_width / 2.0, image_height / 2.0
     # Column 0 of a homography images the court's width direction, column 1 its length direction.
+    width_column_x, width_column_y, width_column_w = (
+        homographies[:, 0, 0], homographies[:, 1, 0], homographies[:, 2, 0],
+    )
+    length_column_x, length_column_y, length_column_w = (
+        homographies[:, 0, 1], homographies[:, 1, 1], homographies[:, 2, 1],
+    )
     # The image-plane parts move to the principal point and scale by focal length; w does neither.
-    width_x = (homographies[:, 0, 0] - image_width / 2.0 * homographies[:, 2, 0])[:, None] / focals
-    width_y = (homographies[:, 1, 0] - image_height / 2.0 * homographies[:, 2, 0])[:, None] / focals
-    length_x = (homographies[:, 0, 1] - image_width / 2.0 * homographies[:, 2, 1])[:, None] / focals
-    length_y = (homographies[:, 1, 1] - image_height / 2.0 * homographies[:, 2, 1])[:, None] / focals
-    width_w, length_w = homographies[:, 2, 0, None], homographies[:, 2, 1, None]
-    width_norm = xp.sqrt(xp.square(width_x) + xp.square(width_y) + xp.square(width_w))
-    length_norm = xp.sqrt(xp.square(length_x) + xp.square(length_y) + xp.square(length_w))
+    width_x = (width_column_x - principal_x * width_column_w)[:, None] / focals
+    width_y = (width_column_y - principal_y * width_column_w)[:, None] / focals
+    length_x = (length_column_x - principal_x * length_column_w)[:, None] / focals
+    length_y = (length_column_y - principal_y * length_column_w)[:, None] / focals
+    width_w, length_w = width_column_w[:, None], length_column_w[:, None]
+    width_norm = array_module.sqrt(
+        array_module.square(width_x) + array_module.square(width_y) + array_module.square(width_w)
+    )
+    length_norm = array_module.sqrt(
+        array_module.square(length_x) + array_module.square(length_y) + array_module.square(length_w)
+    )
     with np.errstate(divide="ignore", invalid="ignore"):
         dot = width_x * length_x + width_y * length_y + width_w * length_w
         cosine = dot / (width_norm * length_norm)
-        ratio = xp.log(width_norm / length_norm)
-        errors = xp.hypot(cosine, ratio)
-    usable = (xp.isfinite(errors) & xp.isfinite(width_norm) & xp.isfinite(length_norm)
-              & (width_norm > 0) & (length_norm > 0))
-    return xp.where(usable, errors, xp.inf).min(axis=1)
+        ratio = array_module.log(width_norm / length_norm)
+        errors = array_module.hypot(cosine, ratio)
+    all_finite = array_module.isfinite(errors) & array_module.isfinite(width_norm) & array_module.isfinite(length_norm)
+    usable = all_finite & (width_norm > 0) & (length_norm > 0)
+    return array_module.where(usable, errors, array_module.inf).min(axis=1)
 
 
-def score_rectangles(xp: ModuleType, rectangles: Any, view: ViewArrays) -> ScoredHypotheses:
+def score_rectangles(array_module: ModuleType, rectangles: Any, view: ViewArrays) -> ScoredHypotheses:
     """Score every court template inside each rectangle, then copy the compact results to the CPU.
 
     Hypotheses run rectangle by rectangle, with the templates varying fastest.
@@ -211,9 +234,9 @@ def score_rectangles(xp: ModuleType, rectangles: Any, view: ViewArrays) -> Score
     :param rectangles: (rectangles, 3, 3) float64 unit square to working pixels, on the scoring device.
     """
     homographies = (rectangles[:, None] @ view.templates).reshape(-1, 3, 3)
-    valid, valid_homographies, corners, means, visibility = geometry_and_support(xp, homographies, view)
-    errors = camera_errors(xp, valid_homographies, view.focals, view.size)
+    valid, valid_homographies, corners, means, visibility = geometry_and_support(array_module, homographies, view)
+    errors = camera_errors(array_module, valid_homographies, view.focals, view.size)
     scored = (valid, corners, means, visibility, errors)
-    if xp is np:
+    if array_module is np:
         return ScoredHypotheses(*scored)
-    return ScoredHypotheses(*(xp.asnumpy(array) for array in scored))
+    return ScoredHypotheses(*(array_module.asnumpy(array) for array in scored))

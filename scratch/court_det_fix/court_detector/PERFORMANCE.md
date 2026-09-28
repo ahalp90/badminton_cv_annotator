@@ -6,16 +6,37 @@ constraints and checks. [pickup.md](../pickup.md) owns what to do next;
 results. This document replaces the design scattered across the old handovers.
 
 The detector searches using all line fragments and using paint-like fragments.
-The code calls these searches G0 and G1. It also builds courts from crossing
-lines. It scores the resulting courts against painted stripes, refits them,
-then chooses one. The code calls that scoring stage W5.
+The code calls these searches `all_lines` and `painted_lines`; older records and
+notes call them G0 and G1. It also builds courts from crossing lines. It scores
+the resulting courts against painted stripes, refits them, then chooses one. The
+code calls that stage scoring; older records and notes call it W5.
+
+## Current measurements — 28 September 2026
+
+The latest integrated run processes five minutes of video in 279.9 seconds,
+down from 872.8 seconds. Median images improve court reuse; ordered frame reads
+avoid repeated video seeks. The matched CPU template run takes 355.0 seconds.
+CuPy saves 75.1 seconds, or 21% of total runtime, on this interval. Both runs
+still use GPU neural inference. All 33 scene results and corner arrays match.
+
+These are whole-run times on an L40 with at most eight CPU cores. They include live
+DeepLSD, RTMLib and scene detection. They do not meet the 30-second goal or the
+90-second upper target, and do not establish performance on consumer hardware.
+The primary detector metric now excludes RTMLib and PySceneDetect, following the
+28 September clarification. These runs did not time RTMLib separately, so their
+exact detector-only totals cannot be recovered. DeepLSD stays in detector time.
+Candidate scoring and fitting take about 79 seconds; direction searches take
+about 67 seconds. Production Numba CPU acceleration and the float32 pass remain
+open. The sections below retain the design and evaluation requirements.
 
 ## Constraints
 
-[D18](../DETECTOR_DECISIONS.md#d18) gives the whole-video time budget. It covers
-a five-minute video, including cutaways and repeated camera views. Start-up
-and warmup must be reported separately. A fast isolated scoring function is
-only an intermediate result.
+The target is 30 seconds of court detection per five minutes of video, with
+90 seconds as the upper target. Include DeepLSD, cutaways and repeated camera
+views. Report RTMLib and PySceneDetect separately, along with the whole-run
+total. This timing scope supersedes the original whole-video interpretation in
+[D18](../DETECTOR_DECISIONS.md#d18). Report setup and warm throughput separately.
+A fast isolated scoring function is only an intermediate result.
 
 CPU-only use must keep working. The GPU target is a consumer card with about
 16 GB and CUDA 13; development uses the full L40 with 48 GB. The earlier V100
@@ -51,9 +72,12 @@ Two approaches deserve a measured comparison:
   GPU. Numba is the proposed compiler; compilation, supported operations and
   rounding behaviour need a prototype
 
-Neither approach has been measured in this detector. The old suggestion to
-try array code first is a proposal, not a settled backend decision. Check
-installed source and current official documentation before adopting a library.
+Both approaches have now been measured on smaller operations. Shared NumPy/CuPy
+code is integrated for line-template scoring; the CuPy path preserves final
+courts across 28 development views. CUDA-MLIR has promising component timings
+and three final-court checks, with less complete-path evidence. The measured
+Torch scoring gain did not justify adoption. Numba CPU remains a prototype.
+Further choices must use the cost and quality of the complete path.
 
 The proposed split leaves bookkeeping, fitting and the final ranking on the
 CPU. GPU code would first handle the large batches that score line matches
@@ -179,8 +203,9 @@ and [28-view check](check_20260925/README.md) define the original comparison.
   2.5.3, SciPy 1.17.1 and OpenCV 5.0.0.93. Verify it before resuming, and use
   the same environment for both arms
 
-A whole-video test still needs code that supplies lines, people, poses and
-scene cuts. Include that remaining work when reporting gains.
+The live video runner now supplies lines, people, poses and scene cuts. Its
+matched five-minute runs are the current end-to-end timing comparison. Broader
+video evaluation and migration into the shared project pipeline remain open.
 
 ## Sources
 
