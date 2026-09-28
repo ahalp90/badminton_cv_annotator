@@ -28,8 +28,8 @@ follow camera movement frame by frame.
   and `trial.toml` builder configurations enable it.
 
 PySceneDetect is optional. A short clip can run as one scene; use
-`--no-require-people` if it cannot hold the player window. A single prepared
-image can use the Python API with `require_people=False` and supplied lines.
+`--no-require-people` if it cannot hold the player window. A single image file
+can use the [image runner](#run-from-an-image), which runs DeepLSD itself.
 
 See [Sampling and scene reuse](sampling_and_reuse.md) for the sample schedule,
 reuse checks, an example and the limits of this approach.
@@ -384,6 +384,56 @@ These callers use the raw image unless they supply `ViewInputs.alignment_image`
 and the matching `alignment_image=` when building a reference. Prepared alignment
 images are greyscale uint8 at `court_views.VIEW_RESOLUTION`.
 
+## Run from an image
+
+The image runner finds the court in one JPG, PNG or other file OpenCV can read.
+It runs DeepLSD on the image and reports corners in the image's own pixels.
+It needs no video, pose file or scene boundaries, and never loads PySceneDetect.
+An unreadable image fails before any model loads.
+
+```bash
+PYTHONPATH=.:src python -m court_detector.run_image \
+  --image HALL.jpg \
+  --deeplsd-source DEEPLSD_CHECKOUT \
+  --deeplsd-weights DEEPLSD_WEIGHTS.tar \
+  --output hall_court.json.gz
+```
+
+By default RTMLib is not loaded, and the court comes from lines and geometry.
+Add `--with-people` to run RTMLib once on the image. Those people then mask
+occlusions and support the proposal search, as with optional people in video.
+One image cannot supply the three-second player window. The video mode's player
+requirement therefore does not apply: missing or off-court people do not veto a court.
+
+In Python, load the models once and reuse them for several images:
+
+```python
+from court_detector.detect import Switches
+from court_detector.run_image import detect_image, load_image_tools, read_image
+
+tools = load_image_tools(Switches(require_people=False, workers=8, timing=True),
+                         DEEPLSD_CHECKOUT, DEEPLSD_WEIGHTS, with_people=False)
+with tools.detector:
+    results = [detect_image(read_image(path), tools, image_id=path.stem, source=path.name)
+               for path in image_paths]
+```
+
+The result is a gzipped JSON object. `no_court` is a normal result; a search or
+fit error stops the run instead.
+
+| Field | Meaning |
+| --- | --- |
+| `schema` | `court-detector-image/1` |
+| `image_id`, `image` | The image's ID (the file stem on the command line) and file name; `image` is `null` when a Python caller gives none |
+| `native_size` | `[width, height]` of the decoded image |
+| `status` | `court` or `no_court` |
+| `corners_native_px` | Four corners in the image's pixels, or `null`. Corners can lie outside the image |
+| `no_court_reason` | Why no court was returned, or `null` |
+| `with_people` | Whether RTMLib ran on the image |
+| `tools_seconds` | Loading DeepLSD, the detector and, when requested, RTMLib |
+| `line_seconds`, `people_seconds`, `detection_seconds` | This image's DeepLSD, RTMLib (`null` without people) and detector time |
+| `stage_seconds` | The detector's seconds per step, or `null` when `timing` is off |
+
 ## Settings
 
 | `Switches` field | Default | Behaviour |
@@ -417,6 +467,7 @@ research features left out and where they could be restored.
 | [net_choice.py](net_choice.py) | Final choice and net-post reward |
 | [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
 | [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run one video or a batch, and build each scene's inputs |
+| [run_image.py](run_image.py) | Run one image file with live DeepLSD and optional RTMLib |
 | [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines; PySceneDetect or saved scenes |
 
 The search, scoring and geometry code now lives in this package. Imports use

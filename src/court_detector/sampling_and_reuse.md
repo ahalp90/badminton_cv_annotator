@@ -44,12 +44,16 @@ PYTHONPATH=.:src python -m court_detector.run_video \
   --output courts.json.gz
 ```
 
-For a single image, use the Python `CourtDetector` API with
-`Switches(require_people=False)` and `people=None`. The caller supplies the
-image and detected line segments in `ViewInputs`; see the README's
+For a single image file, use `python -m court_detector.run_image`; the README's
+[image section](README.md#run-from-an-image) gives the command and output.
+It runs DeepLSD on the image. RTMLib runs only with `--with-people`, once on
+that image. Those people mask occlusions and support proposals. One image has
+no three-second window, so the video mode's player requirement does not apply.
+
+A caller with its own line segments can instead use the Python `CourtDetector`
+API with `Switches(require_people=False)`; see the README's
 [inputs](README.md#inputs-and-result) and [API example](README.md#run-it).
-There is currently no standalone command that accepts a JPG or PNG directly.
-Neither this API path nor the clip command above invokes PySceneDetect.
+Neither image path nor the clip command above invokes PySceneDetect.
 
 Detection without player checks is supported, but has not been tuned for the
 same precision as detection with player evidence.
