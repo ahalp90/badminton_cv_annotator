@@ -12,6 +12,7 @@ import json
 import logging
 import lzma
 import os
+import sys
 import traceback
 from collections import Counter
 from collections.abc import Iterator, Sequence
@@ -42,9 +43,15 @@ if TYPE_CHECKING:
 VIDEO_RESULT_SCHEMA = 'court-detector-video/1'
 BATCH_SUMMARY_SCHEMA = 'court-detector-batch/1'
 MANIFEST_KEYS = {'id', 'video', 'people', 'scenes'}
+
+
+class PosePrerunError(RuntimeError):
+    """One video's isolated pose process or metadata probe failed."""
+
+
 # A batch video that fails with these had bad files of its own, such as an unreadable
 # video or scenes that miss frames. The shared models and workers are unaffected.
-VIDEO_INPUT_ERRORS = (OSError, ValueError, EOFError, lzma.LZMAError)
+VIDEO_INPUT_ERRORS = (OSError, ValueError, EOFError, lzma.LZMAError, PosePrerunError)
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +79,34 @@ class BatchVideo:
     video: Path
     people: Path | None  # saved pose directory; None means live RTMLib, or no people when they are optional
     scenes: Path | None  # saved scene ranges; None means --pyscenedetect or the whole video
+
+
+@dataclass(frozen=True)
+class PosePrerun:
+    """Where to save full-video poses and which environment runs their extraction."""
+
+    output_dir: Path
+    interpreter: str
+    device: str
+
+
+def prerun_people(video: Path, video_id: str, settings: PosePrerun) -> Path:
+    """Use the dataset builder's eight-shard, ten-person pose settings."""
+    from annotator.video_metadata import probe_video_metadata
+    from dataset_builder.pose_sharding import extract_sharded_rtmlib_pose_stage
+
+    output = settings.output_dir / video_id
+    # An existing folder may belong to different footage. Reuse it explicitly via --people.
+    output.mkdir(parents=True, exist_ok=False)
+    try:
+        extract_sharded_rtmlib_pose_stage(
+            metadata=probe_video_metadata(video), output_dir=output, interpreter=settings.interpreter,
+            shards=8, n_max=10, device=settings.device,
+        )
+    except RuntimeError as error:
+        # These subprocesses cannot leave partial pose state in the court models.
+        raise PosePrerunError(f'{video_id}: pose prerun failed: {error}') from error
+    return output
 
 
 def scene_courts(
@@ -232,7 +267,8 @@ def scene_source_for(scenes: Path | None, pyscenedetect: bool) -> SceneSource | 
 
 
 def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: Path | None,
-                 scene_source: SceneSource | None, reuse_courts: bool) -> dict[str, Any]:
+                 scene_source: SceneSource | None, reuse_courts: bool,
+                 pose_prerun: PosePrerun | None = None) -> dict[str, Any]:
     """Detect one court per scene of one video with the shared tools; return the video result.
 
     Open `tools.detector` as a context manager around one or many calls, so every
@@ -248,6 +284,10 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
     """
     started = perf_counter()
     switches = tools.detector.switches
+    pose_prerun_seconds = 0.0
+    if pose_prerun is not None and people_dir is None:
+        people_dir = prerun_people(video, video_id, pose_prerun)
+        pose_prerun_seconds = perf_counter() - started
     with VideoFrames(video) as frames:
         people: PeopleSource | None = None
         if people_dir is not None:
@@ -274,6 +314,7 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         return {'schema': VIDEO_RESULT_SCHEMA, 'video_id': video_id, 'video': video.name, 'fps': frames.fps,
                 'frame_count': frames.frame_count, 'native_size': frames.size, 'tools_seconds': tools.load_seconds,
                 'setup_seconds': setup_seconds, 'scene_seconds': scene_seconds,
+                'pose_prerun_seconds': pose_prerun_seconds,
                 'processing_seconds': perf_counter() - processing_started, 'total_seconds': perf_counter() - started,
                 'saved_people': people_dir is not None, 'require_people': switches.require_people,
                 'reuse_courts': reuse_courts, 'template_device': switches.template_device,
@@ -303,7 +344,8 @@ def read_manifest(path: Path) -> list[BatchVideo]:
 
 
 def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path, *,
-              pyscenedetect: bool, reuse_courts: bool) -> dict[str, Any]:
+              pyscenedetect: bool, reuse_courts: bool,
+              pose_prerun: PosePrerun | None = None) -> dict[str, Any]:
     """Detect every manifest video with one set of models; return the batch summary.
 
     Write each finished video's result to `output_dir/videos/<id>.json.gz`, and the
@@ -326,7 +368,7 @@ def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path,
             try:
                 result = detect_video(video.video, tools, video_id=video.video_id, people_dir=video.people,
                                       scene_source=scene_source_for(video.scenes, pyscenedetect),
-                                      reuse_courts=reuse_courts)
+                                      reuse_courts=reuse_courts, pose_prerun=pose_prerun)
                 write_json(results_dir / f'{video.video_id}.json.gz', result)
             except Exception as error:
                 logger.exception('%s: video failed', video.video_id)
@@ -360,7 +402,14 @@ def parse_arguments() -> argparse.Namespace:
                              'results go to --output-dir')
     parser.add_argument('--output', type=Path, help='output .json.gz file for --video')
     parser.add_argument('--output-dir', type=Path, help='new directory for --manifest results')
-    parser.add_argument('--people', type=Path, help='native-pixel pose_{bboxes,kps,ndet}.npy.xz directory; otherwise run RTMLib')
+    people_options = parser.add_mutually_exclusive_group()
+    people_options.add_argument('--people', type=Path,
+                                help='native-pixel pose_{bboxes,kps,ndet}.npy.xz directory; otherwise run RTMLib')
+    people_options.add_argument('--pose-prerun', type=Path,
+                                help='extract full-video poses into DIR/VIDEO_ID before detection; '
+                                     'uses eight shards and keeps ten people per frame')
+    parser.add_argument('--pose-python', default=sys.executable,
+                        help='Python executable for --pose-prerun (default: this interpreter)')
     parser.add_argument('--require-people', action=argparse.BooleanOptionalAction, default=True,
                         help='require person boxes and keypoints for court detection (default: on)')
     parser.add_argument('--saved-lines', type=Path, help='.json.gz object mapping source frame numbers to line arrays')
@@ -377,6 +426,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
     args = parser.parse_args()
+    if args.pose_prerun is not None and not args.require_people:
+        parser.error('--pose-prerun requires --require-people')
     if args.video is not None and (args.output is None or args.output_dir is not None):
         parser.error('--video writes one file: give --output, not --output-dir')
     if args.manifest is not None:
@@ -405,18 +456,20 @@ def main() -> int:
     os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:8])
     switches = Switches(workers=args.workers, timing=True, full_score_limit=args.full_score_limit,
                         require_people=args.require_people, template_device=args.template_device)
-    live_pose = args.require_people and any(people is None for people in people_dirs)
+    pose_prerun = (PosePrerun(args.pose_prerun, args.pose_python, args.device)
+                   if args.pose_prerun is not None else None)
+    live_pose = args.require_people and pose_prerun is None and any(people is None for people in people_dirs)
     tools = load_court_tools(switches, saved_lines=args.saved_lines, deeplsd_source=args.deeplsd_source,
                              deeplsd_weights=args.deeplsd_weights, device=args.device, live_pose=live_pose)
     if args.manifest is not None:
         summary = run_batch(videos, tools, args.output_dir, pyscenedetect=args.pyscenedetect,
-                            reuse_courts=args.reuse_courts)
+                            reuse_courts=args.reuse_courts, pose_prerun=pose_prerun)
         return 0 if all(outcome['status'] == 'complete' for outcome in summary['videos']) else 1
     # Every scene's search and scoring share one set of worker processes.
     with tools.detector:
         result = detect_video(args.video, tools, video_id=args.video.stem, people_dir=args.people,
                               scene_source=scene_source_for(args.scenes, args.pyscenedetect),
-                              reuse_courts=args.reuse_courts)
+                              reuse_courts=args.reuse_courts, pose_prerun=pose_prerun)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_json(args.output, result)
     return 0

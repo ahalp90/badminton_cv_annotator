@@ -584,3 +584,101 @@ def test_bad_compressed_inputs_fail_only_their_video(monkeypatch, tmp_path, faul
     summary = read_json_gz(tmp_path / 'out' / 'summary.json.gz')
     assert [video['status'] for video in summary['videos']] == ['failed', 'complete']
     assert summary['finished']
+
+
+def test_pose_prerun_uses_the_existing_sharded_producer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from annotator import video_metadata
+    from dataset_builder import pose_sharding
+
+    metadata = object()
+    monkeypatch.setattr(video_metadata, 'probe_video_metadata', lambda video: metadata)
+    calls = []
+    monkeypatch.setattr(pose_sharding, 'extract_sharded_rtmlib_pose_stage', lambda **kwargs: calls.append(kwargs))
+    settings = run_video.PosePrerun(tmp_path, 'pose-python', 'cuda')
+    output = run_video.prerun_people(Path('clip.mp4'), 'clip', settings)
+    assert output == tmp_path / 'clip'
+    assert calls == [{'metadata': metadata, 'output_dir': output, 'interpreter': 'pose-python',
+                      'shards': 8, 'n_max': 10, 'device': 'cuda'}]
+    with pytest.raises(FileExistsError):
+        run_video.prerun_people(Path('other.mp4'), 'clip', settings)
+    assert len(calls) == 1
+
+
+def test_batch_preruns_only_missing_people(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    tools = LiveTools(monkeypatch)
+    saved = write_poses(tmp_path / 'existing', VideoFileFrames.frame_count)
+    calls = []
+
+    def prerun(video, video_id, settings):
+        calls.append((video, video_id, settings))
+        return write_poses(settings.output_dir / video_id, VideoFileFrames.frame_count)
+
+    monkeypatch.setattr(run_video, 'prerun_people', prerun)
+    root = tmp_path / 'pose-output'
+    root.mkdir()
+    entries = [{'id': 'saved', 'video': 'first.mp4', 'people': str(saved)},
+               {'id': 'fresh', 'video': 'second.mp4'}]
+    assert run_manifest(monkeypatch, tmp_path, entries, '--pose-prerun', str(root),
+                        '--pose-python', 'pose-python') == 0
+    assert calls == [(Path('second.mp4'), 'fresh', run_video.PosePrerun(root, 'pose-python', 'cuda'))]
+    assert tools.extractor_loads == []
+    for video_id in ('saved', 'fresh'):
+        result = read_json_gz(tmp_path / 'out' / 'videos' / f'{video_id}.json.gz')
+        assert result['saved_people'] is True
+        assert [row['status'] for row in result['scenes']] == ['no_court']
+    assert read_json_gz(tmp_path / 'out/videos/saved.json.gz')['pose_prerun_seconds'] == 0
+
+
+def test_single_video_prerun_failure_stops_before_court_detection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    tools = LiveTools(monkeypatch)
+
+    def fail(*args):
+        raise RuntimeError('pose worker failed')
+
+    monkeypatch.setattr(run_video, 'prerun_people', fail)
+    output = tmp_path / 'result.json.gz'
+    monkeypatch.setattr('sys.argv', ['run_video', '--video', 'clip.mp4', '--output', str(output),
+                                    '--deeplsd-source', 'deeplsd', '--deeplsd-weights', 'weights.tar',
+                                    '--pose-prerun', str(tmp_path / 'poses')])
+    with pytest.raises(RuntimeError, match='pose worker failed'):
+        run_video.main()
+    assert tools.extractor_loads == []
+    assert not output.exists()
+
+
+@pytest.mark.parametrize('failing_step', ['probe', 'extract'])
+def test_prerun_process_failures_are_video_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failing_step: str,
+) -> None:
+    from annotator import video_metadata
+    from dataset_builder import pose_sharding
+
+    def fail(*args, **kwargs):
+        raise RuntimeError('child exited with status 1')
+
+    monkeypatch.setattr(video_metadata, 'probe_video_metadata', fail if failing_step == 'probe' else lambda _: object())
+    monkeypatch.setattr(pose_sharding, 'extract_sharded_rtmlib_pose_stage', fail)
+    with pytest.raises(run_video.PosePrerunError, match='clip: pose prerun failed') as caught:
+        run_video.prerun_people(Path('clip.mp4'), 'clip', run_video.PosePrerun(tmp_path, 'python', 'cuda'))
+    assert isinstance(caught.value.__cause__, RuntimeError)
+
+
+def test_batch_continues_after_an_isolated_pose_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    tools = LiveTools(monkeypatch)
+    poses = write_poses(tmp_path / 'good-poses', VideoFileFrames.frame_count)
+
+    def prerun(video, video_id, settings):
+        if video_id == 'bad':
+            raise run_video.PosePrerunError('bad pose child')
+        return poses
+
+    monkeypatch.setattr(run_video, 'prerun_people', prerun)
+    entries = [{'id': 'bad', 'video': 'bad.mp4'}, {'id': 'good', 'video': 'good.mp4'}]
+    assert run_manifest(monkeypatch, tmp_path, entries, '--pose-prerun', str(tmp_path / 'poses')) == 1
+    summary = read_json_gz(tmp_path / 'out/summary.json.gz')
+    assert summary['finished'] is True
+    assert [row['status'] for row in summary['videos']] == ['failed', 'complete']
+    assert 'bad pose child' in summary['videos'][0]['error']
+    assert tools.extractor_loads == []

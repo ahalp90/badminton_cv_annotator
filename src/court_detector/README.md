@@ -52,7 +52,7 @@ The returned `CourtResult` contains:
 | Field | Meaning |
 | --- | --- |
 | `corners_native_px` | Four float64 corners in the original image's pixels, or `None`. Corners can lie outside the image |
-| `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information |
+| `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information. `refit_camera_implausible` and `refit_players_not_on_court` mean the final correction failed those checks |
 | `chosen_key` | The saved identifier of the chosen court |
 | `stage_seconds` | Time per step when timing is enabled |
 | `paint_score` | Paint support after the final stripe fit, for checking later reuse |
@@ -93,8 +93,9 @@ A 16:9 image becomes 960×540.
    neutral. If no court passed the checks, return no court
 7. **Adjust the stripe fit.** Check whether each fitted line lies on the
    centre or an edge of its painted stripe. Change its label only when the
-   image evidence is clear, then refit the corners. A failed fit returns no
-   court
+   image evidence is clear, then refit the corners. The result must pass the
+   camera check and, when required, the player check again. A failed fit or
+   check returns no court
 
 The court checks allow feet up to 15% beyond the court. The shot check keeps
 frames whose small grey thumbnail differs from the target by no more than
@@ -245,8 +246,18 @@ row repeats its scene's `start_frame` and `end_frame`, with the analysed frame
 as `frame_index`. Source codecs need a seek-versus-sequential frame check before
 benchmarking a new dataset.
 
-Running pose on every frame before detection is a planned option, not yet built.
-Meanwhile, pass the pose stage's output as `--people`.
+Use `--pose-prerun DIR` to extract poses for every frame before court detection.
+The pose stage uses the dataset builder's settings: eight shards, ten people per
+frame and the selected `--device`. `--pose-python PYTHON` selects its interpreter;
+the default is the current one. Poses are saved under `DIR/VIDEO_ID`, which must
+not already exist. Reuse completed poses later with `--people`.
+
+In a batch, manifest entries with `people` reuse those files; other entries get
+the full pose pass. Sparse live extraction remains the cheaper default for
+court-only work. Full extraction is useful when later stages also need poses.
+The full pass keeps the ten highest-scoring person detections per frame; sparse
+live extraction keeps all detections above the person threshold. Courts can
+differ when the ten-person limit drops a player in a crowded frame.
 
 ### Scene statuses
 
@@ -277,8 +288,13 @@ The result is a gzipped JSON object:
 | `require_people`, `reuse_courts`, `template_device` | The detector settings used |
 | `tools_seconds` | Loading lines, live pose and the detector, once per run. Every result in a batch repeats the same figure |
 | `setup_seconds`, `scene_seconds`, `processing_seconds` | This video's input setup, scene detection and per-scene work |
+| `pose_prerun_seconds` | Full pose extraction, when requested; included in `setup_seconds` and `total_seconds` |
 | `total_seconds` | This video's time, excluding `tools_seconds` |
 | `scenes` | One row per scene, in order |
+
+With live people, `processing_seconds` includes sparse RTMLib inference. It is
+not a detector-only timing. Saved inputs omit their earlier extraction cost;
+`pose_prerun_seconds` records that cost when this invocation produced the poses.
 
 ### Run a batch
 
