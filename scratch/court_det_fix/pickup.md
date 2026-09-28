@@ -1,17 +1,18 @@
 # Court detector: resume here
 
 Updated 28 September 2026. The detector processes five minutes of video in
-**206.8 seconds with CUDA templates**, or 251.8 seconds with CPU templates.
+**173.2 seconds with CUDA templates**, or 219.9 seconds with CPU templates.
 These times include DeepLSD and exclude RTMLib and PySceneDetect. Whole-run
-totals are 265.7 and 307.4 seconds. Both configurations use GPU neural inference.
+totals are 227.4 and 274.9 seconds. Both configurations use GPU neural inference.
 The 30-second goal and 90-second upper target remain unmet.
 
 CPU and CUDA return identical scene results and corners. The fp32/API and Numba
-changes preserve the preceding version's courts within 0.000004 px. The next
-bounded change reuses worker processes across stages and scenes to avoid repeated
-startup. No further GPU backend comparison is planned; keep CuPy.
+changes preserve the preceding version's courts within 0.000004 px. Persistent
+workers now avoid repeated startup across stages and scenes, with identical
+courts and reuse decisions on the measured interval. No further GPU backend
+comparison is planned; keep CuPy.
 
-Continue on `fix/court-det`. The latest measured implementation is `6cfc7a89`.
+Continue on `fix/court-det`. The latest measured implementation is `c24b45fd`.
 Check current Git state before editing. The [detector guide](court_detector/README.md)
 owns the API and settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records
 measurements and timing scope.
@@ -28,8 +29,9 @@ most eight CPU cores. These observations do not establish consumer-GPU speed.
 All runs cover 7,500 frames at 25 fps across 33 scenes, with live DeepLSD lines,
 RTMLib poses and PySceneDetect cuts. They return 13 courts, reject 11 scenes and
 leave nine scenes unanalysed because they are too short for the feet window.
-The latest integration exactly reproduces the median experiment's scene
-statuses, chosen keys, reuse sources and corners.
+The persistent-pool run exactly reproduces the preceding numerical checkpoint.
+The numerical changes altered two chosen IDs between effectively identical courts;
+scene statuses and reuse decisions remain unchanged.
 
 The previous request to investigate frame 12636 is resolved for this pass.
 The standing-person filter dropped a brief crouch. A simple nearest-person
@@ -58,23 +60,26 @@ its court was not reused elsewhere.
 ## Remaining work
 
 Descriptive names replace the historical W5/G0/G1 stages in live code and new
-outputs. Readers translate the old fields explicitly. The fp32/API and Numba
-changes passed the full CPU suite before the final small template tie fix:
-2,499 tests passed, 34 skipped. That fix passed relevant local tests, and the
-combined Carmack hardware checks passed 43 tests with no skips. Changed-file
-Ruff and whole-project Pyrefly passed. Independent review found the tie issue
-and it is fixed.
+outputs. Readers translate the old fields explicitly. Bulk template, support
+and stripe evidence arrays use float32. Fitting, ill-conditioned direction
+geometry and sensitive checks retain float64. Numba CPU support scoring uses
+one serial cached kernel, with float64 projection/clipping calculations.
 
-Bulk template, support and stripe evidence arrays use float32. Fitting,
-ill-conditioned direction geometry and sensitive acceptance checks retain
-float64. Numba CPU support scoring uses one serial cached kernel. Its small
-projection/clipping calculations also use float64. The combined live run
-preserves the accepted courts; no datatype-specific ablation is needed.
+Worker reuse passed 2,516 tests with 35 skips before small review fixes. Those
+fixes passed 21 recovery tests and the other 72 focused tests. They ensure later
+saved views recover from a crashed worker and input files outlive running tasks.
+Changed-file Ruff, whole-project Pyrefly and 43 hardware tests passed. The live
+CPU/CUDA comparison preserves all 33 scene results exactly.
 
-Direction search still takes about 62 seconds and candidate scoring/refitting
-about 71 seconds. Reusing worker processes is next. Check ordering, fresh state
-for each view and failure/cleanup paths, then compare the existing live interval.
-Later broad evaluation and integration remain required as listed below.
+Direction search now takes about 42 seconds and scoring/refitting about 63 seconds
+with CUDA templates. The transfer audit supports keeping the current small
+read-only input snapshot. A faster record conversion and removal of unused search
+diagnostics follow the timed run; their whole-run gain has not been measured.
+These transfer changes passed 55 focused tests, changed-file Ruff and whole-project
+plus explicit changed-source Pyrefly checks, all with exit code 0.
+The remaining path to 90 seconds needs another 48% reduction. No straightforward
+change with that expected gain has been established. Finish the bounded efficiency
+work, then focus on the integration and broad evaluation below.
 
 ## Follow-up after satisfactory optimisation
 

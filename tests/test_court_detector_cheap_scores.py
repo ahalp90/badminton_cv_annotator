@@ -121,6 +121,7 @@ def test_default_fully_scores_every_usable_court_in_order(
     real_pair: tuple, exhaustive: proposals.RoleProposals,
 ) -> None:
     _, observations, _, size, _ = real_pair
+    assert "axes" not in exhaustive.record
     assert exhaustive.usable_positions is None and "fully_scored" not in exhaustive.record
     assert exhaustive.record["geometry_players"] == len(exhaustive.candidates) == exhaustive.usable.sum() > LIMIT
     corners = np.asarray([candidate.corners_px for candidate in exhaustive.candidates], dtype=np.float32)

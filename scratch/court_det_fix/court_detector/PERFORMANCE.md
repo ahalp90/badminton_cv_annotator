@@ -13,39 +13,60 @@ code calls that stage scoring; older records and notes call it W5.
 
 ## Current measurements — 28 September 2026
 
-The latest run uses fp32 bulk arrays, simpler projection/pairing operations and
-serial cached Numba support scoring. It processes the same five-minute interval
-with these timings:
+The latest measured run keeps worker processes alive across stages and scenes,
+on top of fp32 bulk arrays, simpler projection/pairing operations and serial
+cached Numba support scoring. It processes the same five-minute interval:
 
 | Timing | CUDA templates | CPU templates |
 | --- | ---: | ---: |
-| Court detector, including DeepLSD | 206.788 s | 251.818 s |
-| People provider setup and calls | 39.715 s | 36.004 s |
-| Scene detection | 19.192 s | 19.553 s |
-| Whole run | 265.695 s | 307.375 s |
+| Court detector, including DeepLSD | 173.226 s | 219.878 s |
+| People provider setup and calls | 35.006 s | 36.554 s |
+| Scene detection | 19.163 s | 18.453 s |
+| Whole run | 227.396 s | 274.885 s |
 
 Both configurations use GPU neural inference. These are single runs on an L40
 with at most eight CPU cores. Hardware checks warmed compiler caches before the
-timed runs; neural model setup and spawned-worker startup remain included.
-DeepLSD setup and calls take 7.581 s with CUDA templates and 6.915 s with CPU templates.
+timed runs; neural model setup and worker startup/shutdown remain included.
+Detector setup takes 4.303 s with CUDA templates and 5.386 s with CPU templates.
+DeepLSD setup and calls contribute 6.792 s and 6.827 s respectively.
 
 All 33 scene statuses, choices, reuse sources and corner arrays match between
-CPU and CUDA. Against the preceding integrated version, final corner movement
-is below 0.000004 px. Two chosen IDs change between effectively identical courts.
-No additional visual inspection is useful at that scale. There are still 13
-courts, 11 rejected scenes, 9 short scenes and 8 reused courts.
+CPU and CUDA, and exactly reproduce the preceding fp32/API/Numba run. That
+preceding change moved corners by less than 0.000004 px. There are still 13
+courts, 11 rejected scenes, 9 short scenes and 8 reused courts. The latest
+hardware checks passed 43 tests without skips.
 
-The previous whole-run times were 279.868 s with CUDA templates and 354.972 s with
-CPU templates. The combined changes reduce those totals by 5.1% and 13.4%.
-Those older runs did not separate the people provider, so detector-only savings
-cannot be recovered. The original whole-run time was 872.829 s.
+Worker reuse reduces detector time from 206.788 s to 173.226 s with CUDA
+(16.2%), and from 251.818 s to 219.878 s with CPU templates (12.7%). The previous
+whole-run totals were 265.695 s and 307.375 s. The original total was 872.829 s.
 
 The 30-second goal and 90-second upper target remain unmet. Direction searches
-take 62.0 s and candidate scoring/refitting 71.3 s in the CUDA run. Reusing worker
-processes across stages and scenes is the next bounded change. It should avoid
-repeated imports and Numba cache loading; its benefit still needs measurement.
-These results do not establish accuracy across varied videos or performance on
-a consumer GPU.
+take 41.8 s and candidate scoring/refitting 63.5 s in the CUDA run. Reaching
+90 seconds would need another 48% reduction; no straightforward change with
+that expected gain has been established. The bounded optimisation pass is
+moving towards completion and broader integration/evaluation. These runs do
+not establish accuracy across varied videos or performance on a consumer GPU.
+
+## Worker data transfer
+
+Each scoring view uses one read-only pickle snapshot, about 6 MB in three
+sampled views. A laptop probe measured 8–9 ms to write it and 3.5–6 ms for each
+worker to load it once. The measured server uses memory-backed temporary
+storage. Keep this simple transfer: shared memory would add lifecycle handling
+for a small expected saving. Workers keep private measurement state; there are
+no shared writes or locks.
+
+A separate two-view audit found a more useful saving in the parent's repeated
+conversion of scoring records to JSON-compatible values. Plain scalars and
+containers now take a short path through that conversion. NumPy values,
+subclasses and non-finite values retain the previous handling. Search results
+also omit unused axis diagnostics. These two changes follow the timed run
+above; no whole-run speed gain is claimed for them. Existing archived diagnostic
+readers may still use axis records from older saved outputs.
+
+Repeated search inputs and scoring return arrays have small measured transfer
+costs. Keep them for this pass. Pickle already preserves aliases within a
+returned payload, so the measurement-cache return does not duplicate its arrays.
 
 ## Constraints
 

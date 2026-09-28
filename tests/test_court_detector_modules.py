@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import UserDict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,6 +54,27 @@ def test_measurement_record_is_strict_json_before_serialisation() -> None:
     assert converted == expected
     assert json.loads(json.dumps(converted, allow_nan=False)) == expected
     assert np.signbit(converted["coordinates"][1])
+
+
+def test_measurement_json_keeps_subclass_and_nonfinite_conversion() -> None:
+    class FloatSubclass(float):
+        pass
+
+    class ListSubclass(list):
+        pass
+
+    class TupleSubclass(tuple):
+        pass
+
+    record = UserDict({
+        2: ListSubclass([FloatSubclass("inf"), np.float64("nan"), -0.0]),
+        "tuple": TupleSubclass((np.int32(3), False, "court", None)),
+    })
+    expected = {"2": [None, None, -0.0], "tuple": [3, False, "court", None]}
+    converted = measurements.jsonable(record)
+    assert converted == expected
+    assert json.loads(json.dumps(converted, allow_nan=False)) == expected
+    assert np.signbit(converted["2"][2])
 
 
 @pytest.mark.parametrize("load_runtime", [False, True])

@@ -97,6 +97,16 @@ class ViewContext:
 
 def jsonable(value: Any) -> Any:
     """Convert NumPy and pathlib values into strict JSON values."""
+    # Scoring records mostly contain plain scalars in long fragment-assignment lists.
+    value_type = type(value)
+    if value_type is float:
+        return value if math.isfinite(value) else None
+    if value_type in (int, str, bool, type(None)):
+        return value
+    if value_type is list or value_type is tuple:
+        return [jsonable(item) for item in value]
+    if value_type is dict:
+        return {str(key): jsonable(item) for key, item in value.items()}
     if isinstance(value, np.ndarray):
         return [jsonable(item) for item in value.tolist()]
     if isinstance(value, np.generic):

@@ -65,15 +65,6 @@ def canonicalise(homographies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return homographies, rotate
 
 
-def pack_axis(matches: AxisMatches) -> dict:
-    entries = []
-    for index in matches.retained:
-        entries.append({'axis_id': int(index), 'parameters': matches.parameters[index].tolist(),
-                        'score': float(matches.scores[index]), 'matched_groups': matches.matches[index].tolist(),
-                        'anchors': matches.anchors[index].tolist(), 'support_count': int(matches.supported[index])})
-    return {'diagnostics': matches.diagnostics, 'entries': entries}
-
-
 @dataclass
 class RoleProposals:
     record: dict
@@ -175,7 +166,7 @@ def propose_role(
         valid = valid & below_horizon(points, corners, size)
     one, two = joint_player_fractions(basis, horizontal, vertical, feet)
     usable = valid & (one == 1) & (two >= .5)
-    record.update({'basis_working': basis.tolist(), 'axes': [pack_axis(horizontal), pack_axis(vertical)],
+    record.update({'basis_working': basis.tolist(),
                    'combined': len(transforms), 'geometry_valid': int(valid.sum()),
                    'geometry_players': int(usable.sum())})
     usable_ids = np.flatnonzero(usable)
