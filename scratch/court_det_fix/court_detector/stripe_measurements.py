@@ -75,15 +75,19 @@ def interval_evidence(
     # fragments compatible with at least one position need the finite-segment distances.
     fragments = np.flatnonzero(compatible.any(axis=0))
     samples_per_fragment = observations.samples.shape[1]
-    forward = np.zeros((len(POSITION_OFFSETS_M), len(centre_samples), len(observations.segments)))
+    # Keep projection and boundary decisions in float64; dense fragment evidence needs only float32.
+    sampled_positions = shifted_samples.astype(np.float32)
+    fragment_segments = observations.segments[fragments].astype(np.float32)
+    forward = np.zeros((len(POSITION_OFFSETS_M), len(centre_samples), len(observations.segments)), dtype=np.float32)
     for position in range(len(POSITION_OFFSETS_M)):
-        distances = distances_to_segments(shifted_samples[position], observations.segments[fragments])
+        distances = distances_to_segments(sampled_positions[position], fragment_segments)
         response = np.exp(-0.5 * np.square(distances / DISTANCE_SIGMA_PX))
         forward[position][:, fragments] = np.where(
             inside[position, :, None] & compatible[position, fragments][None], response, 0.0)
 
-    distances = np.full((len(observations.segments), samples_per_fragment, 3), np.inf)
-    compatible_distances = distances_to_segments(observations.samples[fragments].reshape(-1, 2), projected)
+    distances = np.full((len(observations.segments), samples_per_fragment, 3), np.inf, dtype=np.float32)
+    fragment_samples = observations.samples[fragments].reshape(-1, 2).astype(np.float32)
+    compatible_distances = distances_to_segments(fragment_samples, projected.astype(np.float32))
     compatible_distances = compatible_distances.reshape(len(fragments), samples_per_fragment, 3)
     distances[fragments] = np.where(compatible.T[fragments, None], compatible_distances, np.inf)
     width = np.linalg.norm(shifted_samples[1] - shifted_samples[2], axis=1)
@@ -100,7 +104,7 @@ def measure(
     samples, interval_visible = _visible_samples(projected.reshape(1, 12, 2, 2), size, MARKING_SAMPLES)
     inverse = np.linalg.inv(homography)
     forward = []
-    reverse = np.zeros((len(MARKINGS), len(POSITION_OFFSETS_M), len(observations.segments)))
+    reverse = np.zeros((len(MARKINGS), len(POSITION_OFFSETS_M), len(observations.segments)), dtype=np.float32)
     resolvable = []
     visible = np.zeros(len(MARKINGS), dtype=bool)
     for marking, intervals in enumerate(MARKING_INTERVALS):
@@ -121,7 +125,7 @@ def measure(
             reverse[marking] = np.exp(-0.5 * np.square(nearest / DISTANCE_SIGMA_PX)).mean(axis=1).T
             resolvable.append(np.concatenate(resolved_parts))
         else:
-            forward.append(np.empty((3, 0, len(observations.segments))))
+            forward.append(np.empty((3, 0, len(observations.segments)), dtype=np.float32))
             resolvable.append(np.zeros(0, dtype=bool))
     return StripeEvidence(tuple(forward), reverse, tuple(resolvable), visible)
 
@@ -164,8 +168,8 @@ def score_model(
     else:
         resolved = describe_assignment(responses, np.asarray(fixed_assignment["marking"]),
                                        np.asarray(fixed_assignment["position"]))
-    independent_per_marking = np.zeros(len(MARKINGS))
-    exclusive_per_marking = np.zeros(len(MARKINGS))
+    independent_per_marking = np.zeros(len(MARKINGS), dtype=evidence.reverse.dtype)
+    exclusive_per_marking = np.zeros(len(MARKINGS), dtype=evidence.reverse.dtype)
     paired_per_marking: list[float | None] = []
     paired_samples = []
     for marking, full_forward in enumerate(evidence.forward):

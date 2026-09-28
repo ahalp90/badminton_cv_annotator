@@ -18,7 +18,9 @@ from courtkeynet.court_corners import (
     _frame_segments,
 )
 
-SEGMENTS_M = np.asarray(PAINTED_SEGMENTS_M, dtype=np.float64)
+# courtkeynet defines the court in float32, so this keeps its values. float32 homographies
+# then project in float32, and float64 ones still project in float64.
+SEGMENTS_M = np.asarray(PAINTED_SEGMENTS_M, dtype=np.float32)
 X_COORDS = np.unique(SEGMENTS_M[:6, 0, 0])
 Y_COORDS = np.unique(SEGMENTS_M[6:, 0, 1])
 UNIT_CORNERS = np.array([[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
@@ -84,16 +86,16 @@ def _template_transforms() -> np.ndarray:
         for top, bottom in combinations(Y_COORDS, 2):
             transforms.append([[1 / (right - left), 0, -left / (right - left)],
                                [0, 1 / (bottom - top), -top / (bottom - top)], [0, 0, 1]])
-    return np.asarray(transforms)
+    return np.asarray(transforms, dtype=np.float32)
 
 
 TEMPLATE_TRANSFORMS = _template_transforms()
 
 
 def project(homographies: np.ndarray, points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """:return: projected points and homogeneous denominators for each hypothesis."""
-    homogeneous = np.concatenate((points, np.ones((*points.shape[:-1], 1))), axis=-1)
-    mapped = np.einsum("...ij,pj->...pi", homographies, homogeneous.reshape(-1, 3))
+    """:return: projected points and homogeneous denominators, float32 when both inputs are float32."""
+    homogeneous = np.concatenate((points, np.ones((*points.shape[:-1], 1), dtype=points.dtype)), axis=-1)
+    mapped = homogeneous.reshape(-1, 3) @ homographies.swapaxes(-1, -2)
     denominator = mapped[..., 2]
     with np.errstate(divide="ignore", invalid="ignore"):
         pixels = mapped[..., :2] / denominator[..., None]
@@ -274,7 +276,7 @@ def _visible_samples(endpoints: np.ndarray, size: tuple[int, int], count: int) -
     starts = endpoints[:, :, 0]
     vectors = endpoints[:, :, 1] - starts
     lower, upper, visible = _visible_fractions(endpoints, size)
-    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, count, dtype=endpoints.dtype)
     samples = starts[..., None, :] + fractions[..., None] * vectors[..., None, :]
     return samples, visible
 
@@ -283,8 +285,8 @@ def _visible_fractions(endpoints: np.ndarray, size: tuple[int, int]) -> tuple[np
     """Per projected marking: first and last in-image fractions of its length, and whether it counts as visible."""
     starts = endpoints[:, :, 0]
     vectors = endpoints[:, :, 1] - starts
-    lower = np.zeros(starts.shape[:2])
-    upper = np.ones(starts.shape[:2])
+    lower = np.zeros(starts.shape[:2], dtype=starts.dtype)
+    upper = np.ones(starts.shape[:2], dtype=starts.dtype)
     visible = np.ones(starts.shape[:2], dtype=bool)
     for axis, limit in enumerate(size):
         stationary = np.abs(vectors[..., axis]) < 1e-8

@@ -242,8 +242,10 @@ def match_axis(
 
 def combine(basis: np.ndarray, horizontal: AxisMatches, vertical: AxisMatches) -> tuple[np.ndarray, np.ndarray]:
     """Compose every retained axis pair; direction roles and signs remain explicit."""
-    pairs = np.array([(first, second) for first in horizontal.retained for second in vertical.retained], dtype=int)
-    pairs = pairs.reshape(-1, 2)
+    pairs = np.column_stack((
+        np.repeat(horizontal.retained, len(vertical.retained)),
+        np.tile(vertical.retained, len(horizontal.retained)),
+    ))
     maps = np.tile(np.eye(3), (len(pairs), 1, 1))
     maps[:, 0, 0], maps[:, 0, 2] = horizontal.parameters[pairs[:, 0]].T
     maps[:, 1, 1], maps[:, 1, 2] = vertical.parameters[pairs[:, 1]].T

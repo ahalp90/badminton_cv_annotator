@@ -41,7 +41,7 @@ prepare = parallel_search.prepare
 camera_direction_bound = parallel_search.camera_direction_bound
 evaluate_pool = parallel_search.evaluate_pool
 
-LIMIT = 39  # splits a group of the real pair's courts with tied cheap scores (checked below)
+LIMIT = 41  # splits a group of the real pair's courts with tied cheap scores (checked below)
 # The fake pair's four usable courts, 40 px apart so retention keeps them all.
 FAKE_COURTS = parallel_search.COURT_A + np.array([[0., 0.], [40., 0.], [80., 0.], [120., 0.]])[:, None, :]
 FAKE_SCORES = np.array([.6, .9, .5, .8])
@@ -70,7 +70,8 @@ def propose_role(_points: np.ndarray, _observations: object, _feet: np.ndarray, 
 
 
 def scores(proposed: proposals.RoleProposals) -> np.ndarray:
-    return np.asarray([candidate.score for candidate in proposed.candidates])
+    """The candidates' scores, back in the float32 that continuous_support computed them in."""
+    return np.asarray([candidate.score for candidate in proposed.candidates], dtype=np.float32)
 
 
 def comparable_role(proposed: proposals.RoleProposals) -> tuple:

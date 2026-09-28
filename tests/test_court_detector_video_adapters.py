@@ -79,7 +79,7 @@ def test_deeplsd_fragments_return_in_native_pixels_with_separate_axis_factors(
     grey = network.extractions[0]["grey"]
     assert grey.shape == (working_height, working_width) and grey.dtype == np.uint8
     assert network.extractions[0]["field_shapes"] == ((working_height, working_width),) * 2
-    assert segments.dtype == np.float64
+    assert segments.dtype == np.float32
     np.testing.assert_array_equal(segments, [[0, 0, width, height], [width, 0, 0, height]])
 
 
@@ -118,7 +118,7 @@ def test_deeplsd_without_fragments_returns_zero_rows(
 
     segments = lines.segments(np.zeros((540, 960, 3), dtype=np.uint8), 0)
 
-    assert segments.shape == (0, 4) and segments.dtype == np.float64
+    assert segments.shape == (0, 4) and segments.dtype == np.float32
 
 
 def test_cuda_request_fails_rather_than_running_on_cpu(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -140,9 +140,9 @@ def test_saved_lines_return_each_frame_extract() -> None:
     saved = lines.segments(frame, 10)
     empty = lines.segments(frame, 20)
 
-    assert saved.dtype == np.float64
+    assert saved.dtype == np.float32
     np.testing.assert_array_equal(saved, [[1, 2, 3, 4]])
-    assert empty.shape == (0, 4) and empty.dtype == np.float64
+    assert empty.shape == (0, 4) and empty.dtype == np.float32
     with pytest.raises(KeyError):
         lines.segments(frame, 30)
 

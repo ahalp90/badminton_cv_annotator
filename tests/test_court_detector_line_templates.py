@@ -64,53 +64,60 @@ def cuda_available() -> bool:
 
 def test_shared_projection_and_clipping_match_geometry_bit_for_bit() -> None:
     rng = np.random.default_rng(20260928)
-    homographies = court_homography() * (1 + rng.normal(scale=0.2, size=(64, 3, 3)))
+    homographies = (court_homography() * (1 + rng.normal(scale=0.2, size=(64, 3, 3)))).astype(np.float32)
     view = template_arrays.place_view(np, np.zeros(SIZE[::-1], dtype=np.float32), SIZE, geometry)
     for points_m, homogeneous in ((geometry.CORNER_COURT_M, view.corner_points),
                                   (geometry.SEGMENTS_M, view.segment_points)):
         for actual, expected in zip(template_arrays.project(np, homographies, homogeneous),
                                     geometry.project(homographies, points_m), strict=True):
+            assert actual.dtype == np.float32
             np.testing.assert_array_equal(actual, expected)
 
     endpoints = geometry.project(homographies, geometry.SEGMENTS_M)[0].reshape(-1, 12, 2, 2)
-    # Vertical, horizontal, zero-length, off-image, too-short and part-visible lines reach every clipping branch.
+    # Vertical, horizontal, zero-length, off-image, too-short and part-visible lines reach every clipping
+    # branch. One line moves 1e-9 px across, below the stationary threshold.
     edge_cases = np.array([
         [[0, 10], [0, 200]], [[10, 239], [300, 239]], [[50, 50], [50, 50]], [[-40, -5], [-10, -30]],
         [[100, 100], [105, 104]], [[-50, 120], [400, 60]], [[330, 10], [330, 200]], [[160, -20], [160, 260]],
-        [[319, 0], [0, 239]], [[20, 20], [20.000000001, 200]], [[5, 5], [6, 250]], [[-1, -1], [321, 241]],
-    ], dtype=float)
+        [[319, 0], [0, 239]], [[0, 20], [1e-9, 200]], [[5, 5], [6, 250]], [[-1, -1], [321, 241]],
+    ], dtype=np.float32)
     endpoints = np.concatenate((endpoints, edge_cases[None]))
     shared = template_arrays.visible_samples(np, endpoints, view)
     original = geometry._visible_samples(endpoints, SIZE, template_arrays.SAMPLES_PER_LINE)
+    assert shared[0].dtype == np.float32
     for actual, expected in zip(shared, original, strict=True):
         np.testing.assert_array_equal(actual, expected)
 
 
 def test_real_camera_view_scores_full_support_by_direction() -> None:
     homography = court_homography()
+    scored = homography[None].astype(np.float32)
     union_map = geometry.distance_map(court_segments(homography), SIZE)
-    corners, means, valid, visibility = line_templates.geometry_and_support(homography[None], union_map, SIZE,
-                                                                            geometry)
+    corners, means, valid, visibility = line_templates.geometry_and_support(scored, union_map, SIZE, geometry)
     assert valid.tolist() == [True]
-    np.testing.assert_allclose(corners[0], geometry.project(homography[None], geometry.CORNER_COURT_M)[0][0])
+    # float32 keeps the corners within a thousandth of a pixel.
+    np.testing.assert_allclose(corners[0], geometry.project(homography[None], geometry.CORNER_COURT_M)[0][0],
+                               atol=1e-3)
     np.testing.assert_array_equal(means, np.array([[1.0, 1.0]], dtype=np.float32))
     np.testing.assert_array_equal(visibility, np.array([[6, 6]], dtype=np.int16))
-    assert line_templates.vector_camera_errors(homography[None], SIZE)[0] < 1e-12
-    with pytest.raises(TypeError, match="float64"):
-        line_templates.vector_camera_errors(homography[None].astype(np.float32), SIZE)
+    # Zero up to float32 rounding, far inside the frontier recheck margin.
+    assert line_templates.vector_camera_errors(scored, SIZE)[0] < 1e-5
+    with pytest.raises(TypeError, match="float32"):
+        line_templates.vector_camera_errors(homography[None], SIZE)
 
     # The first column holds the lengthwise pieces, so drawing only cross-court lines empties it.
     cross_court_map = geometry.distance_map(court_segments(homography)[6:], SIZE)
-    _, means, _, _ = line_templates.geometry_and_support(homography[None], cross_court_map, SIZE, geometry)
+    _, means, _, _ = line_templates.geometry_and_support(scored, cross_court_map, SIZE, geometry)
     assert means[0, 0] < 0.5
     assert means[0, 1] == 1.0
 
     # A mirror image reverses the corner order, so no hypothesis survives; results stay typed.
     mirror = np.array([[-1.0, 0.0, SIZE[0] - 1], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    corners, means, valid, visibility = line_templates.geometry_and_support((mirror @ homography)[None], union_map,
-                                                                            SIZE, geometry)
+    corners, means, valid, visibility = line_templates.geometry_and_support(
+        (mirror @ homography)[None].astype(np.float32), union_map, SIZE, geometry,
+    )
     assert valid.tolist() == [False]
-    assert (corners.shape, corners.dtype) == ((0, 4, 2), np.float64)
+    assert (corners.shape, corners.dtype) == ((0, 4, 2), np.float32)
     assert (means.shape, means.dtype) == ((0, 2), np.float32)
     assert (visibility.shape, visibility.dtype) == ((0, 2), np.int16)
 
@@ -122,15 +129,17 @@ def test_frontier_recheck_replaces_only_errors_near_the_camera_limit() -> None:
         calls.append((native_corners, native_size))
         return None, 0.101
 
-    vector_errors = np.array([0.05, 0.0995, 0.1008, 0.2])
-    corners = np.arange(4 * 4 * 2, dtype=float).reshape(4, 4, 2)
+    vector_errors = np.array([0.05, 0.0995, 0.1008, 0.2], dtype=np.float32)
+    corners = np.arange(4 * 4 * 2, dtype=np.float32).reshape(4, 4, 2)
     errors, count, largest_change = line_templates.recheck_camera_frontier(
         vector_errors, corners, np.array([2.0, 2.0]), NATIVE_SIZE, SimpleNamespace(net_segments=net_segments),
     )
-    np.testing.assert_array_equal(errors, [0.05, 0.101, 0.101, 0.2])
+    # float64, so the rechecked scalar values meet the camera limit unrounded.
+    assert errors.dtype == np.float64
+    np.testing.assert_array_equal(errors, [np.float32(0.05), 0.101, 0.101, np.float32(0.2)])
     assert count == 2
     assert largest_change == pytest.approx(0.0015)
-    np.testing.assert_array_equal(vector_errors, [0.05, 0.0995, 0.1008, 0.2])
+    np.testing.assert_array_equal(vector_errors, np.array([0.05, 0.0995, 0.1008, 0.2], dtype=np.float32))
     np.testing.assert_array_equal(calls[0][0], (corners[1] * 2).astype(np.float32))
 
 
@@ -218,9 +227,10 @@ def test_cuda_generation_keeps_the_cpu_court(monkeypatch: pytest.MonkeyPatch) ->
     for count in ("valid_geometry_hypotheses", "camera_eligible_hypotheses"):
         assert cuda.metadata["generation"][count] == cpu.metadata["generation"][count]
     cuda_corners = {entry["proposal_id"]: entry["corners_px"] for entry in cuda.entries}
+    # float32 rounding alone moves these corners by up to about 1e-3 native px on the CPU.
     for entry in cpu.entries:
         if entry["proposal_id"] in cuda_corners:
-            np.testing.assert_allclose(cuda_corners[entry["proposal_id"]], entry["corners_px"], atol=1e-5)
+            np.testing.assert_allclose(cuda_corners[entry["proposal_id"]], entry["corners_px"], atol=1e-2)
 
 
 @pytest.mark.parametrize("device", ["cpu", pytest.param("cuda", marks=pytest.mark.skipif(

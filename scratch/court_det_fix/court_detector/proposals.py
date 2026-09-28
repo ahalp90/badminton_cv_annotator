@@ -39,7 +39,7 @@ def finite_scores(
     homographies: np.ndarray, maps: np.ndarray, size: tuple[int, int], samples: int = FULL_SAMPLES,
 ) -> np.ndarray:
     """Score canonically oriented courts against the pair's line maps, 256 courts at a time."""
-    scores = np.empty(len(homographies))
+    scores = np.empty(len(homographies), dtype=np.float32)
     for start in range(0, len(homographies), 256):
         scores[start:start + 256] = continuous_support(homographies[start:start + 256], maps, size, samples)
     return scores
@@ -59,7 +59,7 @@ def canonicalise(homographies: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     corners, _ = detector.project(homographies, detector.CORNER_COURT_M)
     rotate = corners[:, :2, 1].mean(axis=1) > corners[:, 2:, 1].mean(axis=1)
     symmetry = np.array([[-1., 0., detector.CORNER_COURT_M[:, 0].max()],
-                         [0., -1., detector.CORNER_COURT_M[:, 1].max()], [0., 0., 1.]])
+                         [0., -1., detector.CORNER_COURT_M[:, 1].max()], [0., 0., 1.]], dtype=homographies.dtype)
     homographies = homographies.copy()
     homographies[rotate] = homographies[rotate] @ symmetry
     return homographies, rotate
@@ -81,11 +81,11 @@ class RoleProposals:
     axes: tuple[AxisMatches, AxisMatches] | None
     candidates: list[detector.Candidate]
     # One row per candidate, in candidates order, for detail(): the two axis hypothesis IDs,
-    # whether canonicalise turned the court 180 degrees, the mean axis score and the homography.
+    # whether canonicalise turned the court 180 degrees, the mean axis score and the float32 homography.
     axis_ids: np.ndarray = field(default_factory=lambda: np.empty((0, 2), dtype=int))
     rotated: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
     axis_scores: np.ndarray = field(default_factory=lambda: np.empty(0))
-    homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3)))
+    homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3), dtype=np.float32))
     # pregate copy: every combined court in transforms order (working px, float32), the geometry
     # mask, the player mask and the two player fractions. Empty when the basis fails.
     combined_corners: np.ndarray = field(default_factory=lambda: np.empty((0, 4, 2), dtype=np.float32))
@@ -168,7 +168,8 @@ def propose_role(
     horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings, axis_feet)
     vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings, axis_feet)
     transforms, axis_pairs = combine(basis, horizontal, vertical)
-    transforms, rotated = canonicalise(transforms)
+    # The basis and axis matches need float64; scoring every combined court does not.
+    transforms, rotated = canonicalise(transforms.astype(np.float32))
     valid, corners = geometry(transforms, size)
     if upright_only:
         valid = valid & below_horizon(points, corners, size)

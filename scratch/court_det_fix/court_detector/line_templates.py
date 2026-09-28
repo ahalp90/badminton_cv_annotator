@@ -59,6 +59,7 @@ def geometry_and_support(
     template_arrays.geometry_and_support holds the rules. The first six projected pieces
     are the lengthwise x-family. The second six are the cross-court y-family.
 
+    :param homographies: (hypotheses, 3, 3) float32 court metres to working pixels.
     :return: valid corners, direction means, the valid mask and visible pieces per direction.
     """
     view = template_arrays.place_view(np, distance_map, size, detector)
@@ -81,9 +82,12 @@ def recheck_camera_frontier(
 ) -> tuple[np.ndarray, int, float]:
     """Replace vector camera errors near the hard-gate limit with the candidate gates' scalar values.
 
-    :return: a corrected copy of the errors, the number rechecked and the largest change.
+    :param errors: (valid,) float32 vector camera errors.
+    :return: a corrected float64 copy of the errors, the number rechecked and the largest change.
+        The copy is float64 so each rechecked value meets CAMERA_LIMIT exactly as the scalar
+        gate computed it.
     """
-    errors = errors.copy()
+    errors = errors.astype(np.float64)
     frontier = np.flatnonzero(np.abs(errors - CAMERA_LIMIT) <= CAMERA_RECHECK_MARGIN)
     differences = []
     for index in frontier:
@@ -241,9 +245,8 @@ def _ranked_records(
         rectangle_id = int(rectangle_ids[index])
         template_index = int(templates[index])
         proposal_id = f"rectangle_{rectangle_id}:template_{template_index}"
-        corners_working = corners[index].astype(np.float32)
         homography_working = cv2.getPerspectiveTransform(
-            detector.CORNER_COURT_M.astype(np.float32), corners_working,
+            detector.CORNER_COURT_M.astype(np.float32), corners[index],
         ).astype(float)
         records.append(
             {
@@ -418,7 +421,7 @@ def generate(
         rectangle_ids.append(int(rectangle_id))
         rectangle_orders.append(rectangle_order)
         rectangles.append(cv2.getPerspectiveTransform(detector.UNIT_CORNERS, quad))
-    rectangles_array = np.asarray(rectangles, dtype=np.float64).reshape(-1, 3, 3)
+    rectangles_array = np.asarray(rectangles, dtype=np.float32).reshape(-1, 3, 3)
     if not len(rectangles_array):
         return Generation((), _empty_metadata(settings, started, "no_area_valid_rectangles"))
 

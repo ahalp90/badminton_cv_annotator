@@ -12,10 +12,10 @@ Read [pickup.md](../pickup.md) for current work,
 
 `CourtDetector.detect(view, people, frames)` takes three inputs from `inputs.py`:
 
-- `view` (`ViewInputs`): an image, its detected line fragments, person boxes,
-  represented video frame, scene boundaries, and the source frames for the
-  image and boxes. The detector uses that source information to avoid hiding
-  people in the wrong image
+- `view` (`ViewInputs`): an image, its detected line fragments as float32
+  native pixels, person boxes, represented video frame, scene boundaries, and
+  the source frames for the image and boxes. The detector uses that source
+  information to avoid hiding people in the wrong image
 - `people` (`PeopleSource`): boxes and 17 COCO-layout body joints for people
   in nearby video frames
 - `frames` (`FrameReader`): access to those nearby video frames
@@ -27,7 +27,7 @@ The returned `CourtResult` contains:
 
 | Field | Meaning |
 | --- | --- |
-| `corners_native_px` | Four corners in the original image's pixels, or `None`. Corners can lie outside the image |
+| `corners_native_px` | Four float64 corners in the original image's pixels, or `None`. Corners can lie outside the image |
 | `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information |
 | `chosen_key` | The saved identifier of the chosen court |
 | `stage_seconds` | Time per step when timing is enabled |
@@ -184,7 +184,7 @@ pixels. The reader drops padded detection slots using `ndet`.
 
 For saved-line trials, replace the DeepLSD arguments with `--saved-lines FILE`.
 That file is a gzipped JSON object mapping source frame numbers to `(N, 4)`
-native-pixel line arrays. Missing frame entries raise an error.
+native-pixel line arrays, read as float32. Missing frame entries raise an error.
 
 PySceneDetect is optional. Its adapter uses the existing ContentDetector cut
 settings and can supply a normalised luminance histogram for each scene.

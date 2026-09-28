@@ -16,40 +16,48 @@ def continuous_support(
 ) -> np.ndarray:
     """Score finite visible intervals smoothly while counting the split centre once.
 
+    :param homographies: (courts, 3, 3) float32 court metres to working pixels.
+    :param maps: (2, height, width) float32 distance maps, one per direction.
     :param samples: evenly spaced samples along each marking's visible interval. Fewer
         give a cheaper, coarser score.
+    :return: (courts,) float32 scores.
     """
     projected, _ = detector.project(homographies, detector.SEGMENTS_M)
     endpoints = projected.reshape(-1, 12, 2, 2)
     lower, upper, visible = detector._visible_fractions(endpoints, size)
-    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, samples)
+    fractions = lower[..., None] + (upper - lower)[..., None] * np.linspace(0, 1, samples, dtype=endpoints.dtype)
     # Same arithmetic as detector._visible_samples, with x and y as separate arrays: numpy is
     # much slower on a trailing axis of length 2. The scores are bit-identical.
     start_x, start_y = endpoints[:, :, 0, 0, None], endpoints[:, :, 0, 1, None]
     end_x, end_y = endpoints[:, :, 1, 0, None], endpoints[:, :, 1, 1, None]
-    pixel_x = np.clip(start_x + fractions * (end_x - start_x), 0, size[0] - 1).astype(int)
-    pixel_y = np.clip(start_y + fractions * (end_y - start_y), 0, size[1] - 1).astype(int)
+    # int32 covers the working image without the extra storage of int64 indices.
+    pixel_x = np.clip(start_x + fractions * (end_x - start_x), 0, size[0] - 1).astype(np.int32)
+    pixel_y = np.clip(start_y + fractions * (end_y - start_y), 0, size[1] - 1).astype(np.int32)
     family = np.repeat([0, 1], 6)[None, :, None]
     distance = maps[family, pixel_y, pixel_x]
     response = np.exp(-.5 * np.square(distance / assignment.DISTANCE_SIGMA_PX)).mean(axis=2)
     response *= visible
+    # Counts in the response's float type keep each division in float32; int64 would promote it.
     per_marking, marking_visible = [], []
     for intervals in assignment.MARKING_INTERVALS:
-        count = visible[:, intervals].sum(axis=1)
+        count = visible[:, intervals].sum(axis=1, dtype=response.dtype)
         per_marking.append(response[:, intervals].sum(axis=1) / np.maximum(count, 1))
         marking_visible.append(count > 0)
-    return np.sum(per_marking, axis=0) / np.maximum(np.sum(marking_visible, axis=0), 1)
+    return np.sum(per_marking, axis=0) / np.maximum(np.sum(marking_visible, axis=0, dtype=response.dtype), 1)
 
 
 def geometry(homographies: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
     """Use the detector's original positive-depth, convexity and visible-span conditions."""
     corners, denominator = detector.project(homographies, detector.CORNER_COURT_M)
-    edges = np.roll(corners, -1, axis=1) - corners
-    turns = edges[..., 0] * np.roll(edges[..., 1], -1, axis=1) - edges[..., 1] * np.roll(edges[..., 0], -1, axis=1)
-    span = np.minimum(corners.max(axis=1), np.asarray(size) - 1) - np.maximum(corners.min(axis=1), 0)
+    # Corners near the horizon can overflow float32 here; the depth test rejects those courts.
+    with np.errstate(over="ignore", invalid="ignore"):
+        edges = np.roll(corners, -1, axis=1) - corners
+        turns = edges[..., 0] * np.roll(edges[..., 1], -1, axis=1) - edges[..., 1] * np.roll(edges[..., 0], -1, axis=1)
+    image_size = np.asarray(size, dtype=corners.dtype)
+    span = np.minimum(corners.max(axis=1), image_size - 1) - np.maximum(corners.min(axis=1), 0)
     valid = (np.isfinite(corners).all(axis=(1, 2)) & np.all(denominator > 1e-6, axis=1)
              & np.all(turns > 0, axis=1)
-             & np.all(span / size >= detector.DEFAULT_SETTINGS.min_visible_span_fraction, axis=1))
+             & np.all(span / image_size >= detector.DEFAULT_SETTINGS.min_visible_span_fraction, axis=1))
     return valid, corners
 
 

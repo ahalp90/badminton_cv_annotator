@@ -1,6 +1,6 @@
 """Where the court detector's line fragments come from: saved extracts or a live DeepLSD model.
 
-Both sources return (fragments, 4) finite float64 x1, y1, x2, y2 in the frame's
+Both sources return (fragments, 4) finite float32 x1, y1, x2, y2 in the frame's
 native pixels, the layout `ViewInputs.segments_px` expects. Only `DeepLSDLines`
 needs torch, the DeepLSD checkout and the research exporter. It imports them
 when it is built, so this module and `SavedLines` need none of them.
@@ -19,15 +19,15 @@ import numpy.typing as npt
 
 class LineSource(Protocol):
     def segments(self, frame: np.ndarray, frame_index: int) -> np.ndarray:
-        """(fragments, 4) finite float64 x1, y1, x2, y2 in the native pixels of this BGR frame."""
+        """(fragments, 4) finite float32 x1, y1, x2, y2 in the native pixels of this BGR frame."""
         ...
 
 
 def _checked_segments(segments: npt.ArrayLike) -> np.ndarray:
-    """Saved fragments as a (fragments, 4) float64 array; an empty extract becomes zero rows."""
-    array = np.asarray(segments, dtype=np.float64)
+    """Saved fragments as a (fragments, 4) float32 array; an empty extract becomes zero rows."""
+    array = np.asarray(segments, dtype=np.float32)
     if array.size == 0:
-        return np.empty((0, 4), dtype=np.float64)
+        return np.empty((0, 4), dtype=np.float32)
     if array.ndim != 2 or array.shape[1] != 4 or not np.isfinite(array).all():
         raise ValueError(f"expected finite (fragments, 4) line segments, got shape {array.shape}")
     return array
@@ -111,7 +111,7 @@ class DeepLSDLines:
         self._grad_nfa = grad_nfa
 
     def segments(self, frame: np.ndarray, frame_index: int) -> np.ndarray:
-        """(fragments, 4) x1, y1, x2, y2 in native pixels. `frame_index` is unused."""
+        """(fragments, 4) float32 x1, y1, x2, y2 in native pixels. `frame_index` is unused."""
         from experiments.annotator.independent_court import export_lines
 
         grey, (working_width, working_height) = _working_grey(frame, self._max_dimension)
@@ -124,4 +124,5 @@ class DeepLSDLines:
         working_segments = export_lines._segment_array(lines)  # (fragments, 4) in working pixels
         height, width = frame.shape[:2]
         x_factor, y_factor = width / working_width, height / working_height
-        return working_segments * np.array([x_factor, y_factor, x_factor, y_factor])
+        # Scale in float64 and round once, so exact working corners still map to exact native ones.
+        return (working_segments * np.array([x_factor, y_factor, x_factor, y_factor])).astype(np.float32)

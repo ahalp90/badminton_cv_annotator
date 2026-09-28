@@ -407,7 +407,7 @@ def main() -> int:
             view = ViewInputs(
                 view_id=view_id, frame=frame, frame_index=views[view_id]["anchor"],
                 scene_frames=(0, record["frame_count"] - 1),
-                segments_px=np.asarray(source["segments_px"], dtype=float).reshape(-1, 4),
+                segments_px=np.asarray(source["segments_px"], dtype=np.float32).reshape(-1, 4),
                 person_boxes_px=np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4),
                 provenance=provenances[view_id],
             )
