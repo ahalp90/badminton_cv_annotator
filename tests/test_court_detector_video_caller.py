@@ -3,6 +3,7 @@
 import gzip
 import json
 from collections.abc import Sequence
+from typing import Self
 
 import numpy as np
 import pytest
@@ -46,8 +47,17 @@ class Detector:
         self.switches = switches or Switches()
         self.views: list[ViewInputs] = []
         self.people_sources = []
+        self.events: list[str] = []  # 'open' and 'close' for the worker pool's with block, and 'detect'
+
+    def __enter__(self) -> Self:
+        self.events.append('open')
+        return self
+
+    def __exit__(self, *_exception_info: object) -> None:
+        self.events.append('close')
 
     def detect(self, view, people, frames) -> CourtResult:
+        self.events.append('detect')
         self.views.append(view)
         self.people_sources.append(people)
         return CourtResult(view.view_id, None, 'no_gated_court', None, {'feet': .1})
@@ -152,6 +162,8 @@ def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
     assert result['require_people'] is (not flag)
     assert result['scenes'][0]['status'] == expected_status
     assert detectors[0].switches.require_people is (not flag)
+    # One pool serves every scene; the short scene without people never reaches detect.
+    assert detectors[0].events == (['open', 'detect', 'close'] if flag else ['open', 'close'])
     if flag:
         assert detectors[0].people_sources == [None]
         assert detectors[0].views[0].person_boxes_px.shape == (0, 4)

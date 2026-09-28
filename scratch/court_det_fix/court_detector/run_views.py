@@ -36,6 +36,8 @@ import resource
 import sys
 import traceback
 from collections.abc import Sequence
+from concurrent.futures.process import BrokenProcessPool
+from contextlib import ExitStack
 from time import perf_counter
 from typing import Any
 
@@ -388,49 +390,57 @@ def main() -> int:
 
     (args.output / "results").mkdir(parents=True, exist_ok=True)
     failed = []
-    for view_id in args.views:
-        record = people_records[view_id]
-        video = videos[record["video_path"]]
-        row = {"view_id": view_id, "error": None}
-        try:
-            if video.fps != record["fps"] or list(video.size) != record["video_size"]:
-                raise ValueError(f"{view_id}: video fps or size differs from the people record")
-            source = sources[view_id]
-            frame_path = frame_paths.get(view_id) or verifier.frame_path(ROOT, source, provenances[view_id])
-            if not args.no_self_checks:
-                frame_md5 = hashlib.md5(frame_path.read_bytes()).hexdigest()
-                if frame_md5 != manifest[view_id]["image_md5"]:
-                    raise ValueError(f"{view_id}: frame MD5 differs from the manifest")
-            frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
-            if frame is None:
-                raise FileNotFoundError(frame_path)
-            view = ViewInputs(
-                view_id=view_id, frame=frame, frame_index=views[view_id]["anchor"],
-                scene_frames=(0, record["frame_count"] - 1),
-                segments_px=np.asarray(source["segments_px"], dtype=np.float32).reshape(-1, 4),
-                person_boxes_px=np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4),
-                provenance=provenances[view_id],
-            )
-            detect_started = perf_counter()
-            result = detector.detect(view, SavedPeople(record), video)
-            row.update({"detect_seconds": perf_counter() - detect_started, "chosen_key": result.chosen_key,
-                        "no_court_reason": result.no_court_reason, "stage_seconds": result.stage_seconds,
-                        "corners_native_px": None if result.corners_native_px is None
-                        else result.corners_native_px.tolist()})
-            if args.baseline is not None:
-                artefacts = read_json_gz(artefacts_dir / f"{view_id}.json.gz")
-                checks = baseline_checks(view_id, result, artefacts, args.baseline, feet_by_view, shot_rows)
-                row["checks"] = checks
-                row["all_checks_equal"] = all(difference is None for difference in checks.values())
-                if not row["all_checks_equal"]:
-                    failed.append(view_id)
-        except Exception as error:  # noqa: BLE001 - log this view and carry on with the rest
-            traceback.print_exc()
-            row["error"] = repr(error)
-            failed.append(view_id)
-        (args.output / "results" / f"{view_id}.json").write_text(json.dumps(row, indent=1))
-        print(json.dumps({key: row.get(key) for key in ("view_id", "chosen_key", "no_court_reason",
-                                                         "all_checks_equal", "error")}), flush=True)
+    # Every view's search and scoring share one set of worker processes. They close before the
+    # process summary, whose worker memory figure counts only exited processes.
+    with ExitStack() as workers:
+        workers.enter_context(detector)
+        for view_id in args.views:
+            record = people_records[view_id]
+            video = videos[record["video_path"]]
+            row = {"view_id": view_id, "error": None}
+            try:
+                if video.fps != record["fps"] or list(video.size) != record["video_size"]:
+                    raise ValueError(f"{view_id}: video fps or size differs from the people record")
+                source = sources[view_id]
+                frame_path = frame_paths.get(view_id) or verifier.frame_path(ROOT, source, provenances[view_id])
+                if not args.no_self_checks:
+                    frame_md5 = hashlib.md5(frame_path.read_bytes()).hexdigest()
+                    if frame_md5 != manifest[view_id]["image_md5"]:
+                        raise ValueError(f"{view_id}: frame MD5 differs from the manifest")
+                frame = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+                if frame is None:
+                    raise FileNotFoundError(frame_path)
+                view = ViewInputs(
+                    view_id=view_id, frame=frame, frame_index=views[view_id]["anchor"],
+                    scene_frames=(0, record["frame_count"] - 1),
+                    segments_px=np.asarray(source["segments_px"], dtype=np.float32).reshape(-1, 4),
+                    person_boxes_px=np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4),
+                    provenance=provenances[view_id],
+                )
+                detect_started = perf_counter()
+                result = detector.detect(view, SavedPeople(record), video)
+                row.update({"detect_seconds": perf_counter() - detect_started, "chosen_key": result.chosen_key,
+                            "no_court_reason": result.no_court_reason, "stage_seconds": result.stage_seconds,
+                            "corners_native_px": None if result.corners_native_px is None
+                            else result.corners_native_px.tolist()})
+                if args.baseline is not None:
+                    artefacts = read_json_gz(artefacts_dir / f"{view_id}.json.gz")
+                    checks = baseline_checks(view_id, result, artefacts, args.baseline, feet_by_view, shot_rows)
+                    row["checks"] = checks
+                    row["all_checks_equal"] = all(difference is None for difference in checks.values())
+                    if not row["all_checks_equal"]:
+                        failed.append(view_id)
+            except Exception as error:  # noqa: BLE001 - log this view and carry on with the rest
+                traceback.print_exc()
+                row["error"] = repr(error)
+                failed.append(view_id)
+                if isinstance(error, BrokenProcessPool):
+                    # A dead worker makes its whole pool unusable for later views.
+                    workers.close()
+                    workers.enter_context(detector)
+            (args.output / "results" / f"{view_id}.json").write_text(json.dumps(row, indent=1))
+            print(json.dumps({key: row.get(key) for key in ("view_id", "chosen_key", "no_court_reason",
+                                                             "all_checks_equal", "error")}), flush=True)
     process = {"views": args.views, "startup_seconds": startup_seconds, "wall_seconds": perf_counter() - started,
                "require_people": args.require_people, "template_device": args.template_device,
                "parent_peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,

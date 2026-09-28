@@ -6,12 +6,13 @@ from __future__ import annotations
 import math
 import pickle
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, wait
+from contextlib import nullcontext
 from itertools import islice
-from multiprocessing import get_context
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, NamedTuple
+from uuid import uuid4
 
 import cv2
 import numpy as np
@@ -598,16 +599,17 @@ class ParentScore(NamedTuple):
 
 
 class WorkerView(NamedTuple):
-    """What every task in one scoring worker process shares."""
+    """What every task for one view shares in one worker process."""
 
+    view_path: Path  # the caller's pickle of this view, unique to one scoring call
     context: Any
     line_maps: np.ndarray
     live: LiveModules  # this process's own load_live_modules()
     cache: dict[bytes, tuple[dict, dict[str, np.ndarray]]]  # starts as a copy of the caller's
 
 
-# Set once in each scoring worker process by start_scoring_worker; never set in the caller.
-worker_view: WorkerView
+# Set in a worker process by its first task for each view; never set in the caller.
+worker_view: WorkerView | None = None
 
 
 def require_live_runtime(runtime: dict[str, Any]) -> None:
@@ -634,24 +636,31 @@ def require_live_runtime(runtime: dict[str, Any]) -> None:
         raise ValueError("scoring workers measure inside sampling.prepared_measurements, so the caller must too")
 
 
-def start_scoring_worker(view_path: Path) -> None:
-    """Prepare one spawned worker process to score one view's parents.
+def load_worker_view(view_path: Path) -> WorkerView:
+    """Read one view's scoring inputs from the caller's pickle, in a worker process.
 
-    Runs once per worker, so the view crosses the process boundary once per worker rather
-    than once per parent. load_live_modules also sets this process's OpenCV to one thread.
+    load_live_modules also sets this process's OpenCV to one thread.
     """
     from .detect import freeze_arrays, load_live_modules
 
-    global worker_view
     with view_path.open('rb') as stream:
         context, line_maps, cache = pickle.load(stream)
     # The copies arrive writeable. As in the caller, a stray in-place write must fail loudly.
     freeze_arrays((context, line_maps))
-    worker_view = WorkerView(context, line_maps, load_live_modules(), cache)
+    return WorkerView(view_path, context, line_maps, load_live_modules(), cache)
 
 
-def score_parent_in_worker(identity: dict) -> ParentScore:
-    """Measure and refit one parent identity in a scoring worker process."""
+def score_parent_in_worker(view_path: Path, identity: dict) -> ParentScore:
+    """Measure and refit one parent identity in a worker process.
+
+    A worker reads each view once, at its first task for that view, so the view crosses
+    the process boundary once per worker rather than once per parent. One worker can serve
+    several views in turn, and view_path says which view this task belongs to.
+    """
+    global worker_view
+    if worker_view is None or worker_view.view_path != view_path:
+        worker_view = None  # free the earlier view before reading this one
+        worker_view = load_worker_view(view_path)
     view = worker_view
     live = view.live
     cache_size = len(view.cache)
@@ -673,6 +682,7 @@ def measure_and_refit_in_workers(
     line_maps: np.ndarray,
     progress: Callable[[str], None],
     workers: int,
+    pool: ProcessPoolExecutor | None = None,
 ) -> tuple[list[dict], list[dict], list[dict], dict[str, np.ndarray]]:
     """Measure and refit each parent in a spawned worker process; return what the serial path does.
 
@@ -681,28 +691,41 @@ def measure_and_refit_in_workers(
     and the entries the workers add are merged back into it. A worker's exception is
     raised here, and parents still waiting are cancelled.
 
-    Workers inherit this process's environment. Set the numerical-library thread variables
+    The workers are pool's, which stay open, or else ones started and closed here. They
+    inherit this process's environment. Set the numerical-library thread variables
     before importing NumPy, as run_views.py does, and they apply in the workers too.
     """
+    from .generation import worker_pool
+
     require_live_runtime(runtime)
     worker_count = min(workers, len(parent_identities))
     progress(f"measuring and refitting each parent in one of {worker_count} worker processes")
     scores = []
     valid_children = 0
-    # A large spawn payload can block the parent pipe if a worker dies on import.
-    # Pass a small path instead, so failed starts reach the caller as BrokenProcessPool.
+    # The view reaches the workers through this file rather than with each task, so each
+    # worker reads it once rather than once per parent.
     with TemporaryDirectory(prefix='court-scoring-') as directory:
-        view_path = Path(directory) / 'view.pickle'
+        # Workers tell views apart by this path, so a later view must never get the same one.
+        view_path = Path(directory) / f'view-{uuid4().hex}.pickle'
         with view_path.open('wb') as stream:
             pickle.dump((context, line_maps, cache), stream, protocol=pickle.HIGHEST_PROTOCOL)
-        with ProcessPoolExecutor(worker_count, mp_context=get_context("spawn"), initializer=start_scoring_worker,
-                                 initargs=(view_path,)) as executor:
-            for parent_index, score in enumerate(executor.map(score_parent_in_worker, parent_identities), start=1):
-                scores.append(score)
-                if score.child is not None:
-                    valid_children += 1
-                if parent_index % 250 == 0:
-                    progress(f"parents {parent_index}/{len(parent_identities)}; valid children={valid_children}")
+        with worker_pool(worker_count) if pool is None else nullcontext(pool) as executor:
+            futures = []
+            try:
+                for identity in parent_identities:
+                    futures.append(executor.submit(score_parent_in_worker, view_path, identity))
+                for parent_index, future in enumerate(futures, start=1):
+                    score = future.result()
+                    scores.append(score)
+                    if score.child is not None:
+                        valid_children += 1
+                    if parent_index % 250 == 0:
+                        progress(f"parents {parent_index}/{len(parent_identities)}; valid children={valid_children}")
+            finally:
+                for future in futures:
+                    future.cancel()
+                # Running tasks may still need the pickle after another task has failed.
+                wait(futures)
     # The serial order: every parent's arrays, then every child's.
     all_arrays: dict[str, np.ndarray] = {}
     for score in scores:
@@ -747,6 +770,7 @@ def score_populations(
     *,
     self_checks: bool = True,
     workers: int = 1,
+    pool: ProcessPoolExecutor | None = None,
 ) -> ScoredPopulations:
     """Merge the three populations, measure every parent, refit each once and rank them.
 
@@ -759,6 +783,8 @@ def score_populations(
     :param workers: Processes that measure and refit the parents. Above 1, runtime must be
         load_live_modules().runtime and the caller must be inside its prepared_measurements;
         see measure_and_refit_in_workers. Ranking stays in this process.
+    :param pool: With workers above 1, score in these worker processes and leave them open.
+        None starts workers for this call and closes them before returning.
     """
     if workers < 1:
         raise ValueError(f"workers must be positive, not {workers}")
@@ -789,7 +815,7 @@ def score_populations(
         )
     else:
         parents, fit_rows, children, all_arrays = measure_and_refit_in_workers(
-            context, parent_identities, runtime, cache, line_maps, progress, workers,
+            context, parent_identities, runtime, cache, line_maps, progress, workers, pool,
         )
     b_candidates = [parent for parent in parents if parent.get("hard_valid") and "evidence" in parent]
     c_candidates = b_candidates + children

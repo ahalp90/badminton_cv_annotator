@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from concurrent.futures import ProcessPoolExecutor
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from functools import partial
 from importlib import import_module
@@ -141,13 +142,25 @@ def search_pair_in_worker(helpers_name: str, inputs: SearchInputs, pair_id: int,
     return search_pair(import_module(helpers_name), inputs, pair_id, pair_points)
 
 
+def worker_pool(workers: int) -> ProcessPoolExecutor:
+    """Spawned worker processes for the pair search and candidate scoring.
+
+    Processes start as tasks arrive, up to workers. They inherit this process's environment,
+    such as the numerical-library thread variables.
+    """
+    # A spawned process starts with OpenCV's default thread count, so pass this process's on.
+    return ProcessPoolExecutor(workers, mp_context=get_context("spawn"), initializer=cv2.setNumThreads,
+                               initargs=(cv2.getNumThreads(),))
+
+
 def search_pairs(helpers: ModuleType, inputs: SearchInputs, pairs: list[tuple[int, np.ndarray]],
-                 workers: int) -> Iterator[PairSearch]:
+                 workers: int, pool: ProcessPoolExecutor | None = None) -> Iterator[PairSearch]:
     """Search each (pair ID, pair points) and yield the results in the order of pairs.
 
-    Several workers search in fresh spawned processes. Each imports helpers by module name,
-    so changes made to the helpers object in this process never reach them. A worker's
-    exception is raised here, and pairs still waiting are cancelled.
+    Several workers search in spawned processes: pool's, or else ones started and closed
+    here. Each imports helpers by module name, so changes made to the helpers object in
+    this process never reach them. A worker's exception is raised here. Pairs still waiting
+    are cancelled then, and also when the caller closes this generator early.
     """
     if workers == 1 or not pairs:
         for pair_id, pair_points in pairs:
@@ -155,14 +168,16 @@ def search_pairs(helpers: ModuleType, inputs: SearchInputs, pairs: list[tuple[in
         return
     pair_ids = [pair_id for pair_id, _ in pairs]
     pair_points = [points for _, points in pairs]
-    # A spawned process starts with OpenCV's default thread count, so pass this process's on.
-    with ProcessPoolExecutor(min(workers, len(pairs)), mp_context=get_context("spawn"),
-                             initializer=cv2.setNumThreads, initargs=(cv2.getNumThreads(),)) as executor:
+    # A caller's pool stays open for its later searches.
+    with worker_pool(min(workers, len(pairs))) if pool is None else nullcontext(pool) as executor:
         yield from executor.map(partial(search_pair_in_worker, helpers.__name__, inputs), pair_ids, pair_points)
 
 
 def cpu_seconds() -> float:
-    """CPU time of this process plus its finished child processes, such as search workers."""
+    """CPU time of this process plus its child processes that have exited.
+
+    A worker pool's processes count only once the pool has closed.
+    """
     times = os.times()
     return process_time() + times.children_user + times.children_system
 
@@ -172,7 +187,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
              max_matched_pairs: int | None = None, legacy_evidence: bool = True,
              max_horizon_tilt_deg: float | None = None, workers: int = 1,
-             full_score_limit: int | None = None) -> dict:
+             full_score_limit: int | None = None, pool: ProcessPoolExecutor | None = None) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
     :param legacy_evidence: Also score each entry's stripes and paint profile and pick the
@@ -182,11 +197,14 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
         down. None keeps every pair and court.
     :param workers: Processes that search the eligible pairs. Above 1, each worker imports
         helpers by module name (see search_pairs). The record is the same apart from its
-        timings; cpu_s then includes the workers' CPU time.
+        timings.
     :param full_score_limit: Fully score only each pair's best this many usable courts by a
         cheaper line-support score (propose_role). None fully scores every court. Candidate
         IDs still count every usable court. Pool capture needs every court, so pool_path
         must then be None.
+    :param pool: With workers above 1, search in these worker processes and leave them
+        open. None starts workers for this call and closes them before the record is made,
+        so only then does cpu_s include the workers' CPU time.
     """
     started = perf_counter()
     cpu_started = cpu_seconds()
@@ -248,7 +266,7 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
     inputs = SearchInputs(observations, feet, size, settings, max_horizon_tilt_deg is not None, keep_per_pair,
                           pool_path is not None, full_score_limit)
     searches = search_pairs(helpers, inputs, [(pair_id, pair_points) for pair_id, _, pair_points, _ in eligible],
-                            workers)
+                            workers, pool)
     # Global retention breaks score ties by pool order, so the pool grows in pair order.
     pooled, provenance, pool_records = [], {}, []
     for (pair_id, pencil_ids, _, record), searched in zip(eligible, searches, strict=True):
@@ -297,4 +315,5 @@ def generate(source: dict, saved: dict, zone: object, root: Path, helpers: Modul
             "raw_groups": [observations.fragment_ids[group].tolist() for group in observations.groups],
             "line_winner_id": line_id, "paint_winner_id": paint_id,
             "elapsed_s": perf_counter() - started, "cpu_s": cpu_seconds() - cpu_started,
+            "cpu_scope": "parent_only" if pool is not None else "parent_and_completed_workers",
             "global_cap_reached": len(retained) == keep_global, **upright, **score_limit}

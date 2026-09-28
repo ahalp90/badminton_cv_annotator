@@ -3,6 +3,7 @@
 The parents are real: the committed am3 frame-0 baseline generation record's first five
 entries (three refit to a valid child, two have a rank-deficient refit), one entry made
 hard-invalid, a compatible duplicate and a conflicting duplicate that shares a homography.
+The gxBQ frame-0 record's first four entries give a second view for one pool to score next.
 
 This module doubles as the probe that one test runs inside a worker. Spawned workers import
 it by module name, so the probe lives at module scope.
@@ -19,8 +20,7 @@ import pickle
 import signal
 import subprocess
 import sys
-from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import get_context
+import tempfile
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -28,7 +28,7 @@ import cv2
 import numpy as np
 import pytest
 
-from scratch.court_det_fix.court_detector import measurements, scoring
+from scratch.court_det_fix.court_detector import generation, measurements, scoring
 from scratch.court_det_fix.court_detector.detect import (
     LiveModules,
     freeze_arrays,
@@ -37,6 +37,8 @@ from scratch.court_det_fix.court_detector.detect import (
 
 COURT_ROOT = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
 CASE_ID = "am3_window_00_frame_0"
+SECOND_CASE_ID = "gxBQ_window_00_frame_0"
+SECOND_VIEW_ENTRIES = 4
 VALID_CHILD_ENTRIES = (0, 1, 2)
 RANK_DEFICIENT_ENTRIES = (3, 4)
 HARD_INVALID_ENTRY = 5
@@ -52,6 +54,13 @@ class RealView(NamedTuple):
     entry_index: dict[str, int]  # candidate ID -> its index in the baseline record's entries
 
 
+class SecondView(NamedTuple):
+    context: Any  # measurements.ViewContext, frozen
+    all_line_entries: list[dict]
+    serial: scoring.ScoredPopulations
+    serial_cache: dict
+
+
 class Run(NamedTuple):
     scored: scoring.ScoredPopulations
     cache: dict  # the caller's measurement cache afterwards
@@ -59,13 +68,19 @@ class Run(NamedTuple):
     messages: list[str]  # progress lines
 
 
+def baseline_view(case_id: str, entry_count: int) -> tuple[Any, list[dict]]:
+    """A frozen view's context and its baseline generation record's first entries."""
+    context = measurements.prepare_view(COURT_ROOT, case_id)
+    freeze_arrays(context)
+    with gzip.open(COURT_ROOT / f"frozen_views/baseline_generation/{case_id}.json.gz", "rt") as stream:
+        entries = json.load(stream)["entries"][:entry_count]
+    return context, entries
+
+
 @pytest.fixture(scope="module")
 def view() -> RealView:
     live = load_live_modules()
-    context = measurements.prepare_view(COURT_ROOT, CASE_ID)
-    freeze_arrays(context)
-    with gzip.open(COURT_ROOT / f"frozen_views/baseline_generation/{CASE_ID}.json.gz", "rt") as stream:
-        entries = json.load(stream)["entries"][:HARD_INVALID_ENTRY + 1]
+    context, entries = baseline_view(CASE_ID, HARD_INVALID_ENTRY + 1)
     all_line_entries = entries[:HARD_INVALID_ENTRY]
     hard_invalid = copy.deepcopy(entries[HARD_INVALID_ENTRY])
     hard_invalid["gates"]["geometry_valid"] = False
@@ -93,6 +108,15 @@ def runs(view: RealView) -> dict[int, Run]:
     return results
 
 
+@pytest.fixture(scope="module")
+def second_view(view: RealView) -> SecondView:
+    context, entries = baseline_view(SECOND_CASE_ID, SECOND_VIEW_ENTRIES)
+    cache: dict = {}
+    with view.live.prepared_measurements(measurements):
+        serial = scoring.score_populations(context, entries, [], [], view.live.runtime, cache, print)
+    return SecondView(context, entries, serial, cache)
+
+
 def assert_same(serial: Any, parallel: Any, path: str = "") -> None:
     """Equal types and values, with NaN equal to NaN; arrays also keep their dtype and shape."""
     assert type(parallel) is type(serial), path
@@ -113,10 +137,20 @@ def assert_same(serial: Any, parallel: Any, path: str = "") -> None:
         assert parallel == serial, path
 
 
-def test_two_workers_give_every_serial_field(runs: dict[int, Run]) -> None:
-    serial, parallel = runs[1].scored, runs[2].scored
+def assert_same_scoring(serial: scoring.ScoredPopulations, parallel: scoring.ScoredPopulations) -> None:
     for field in scoring.ScoredPopulations._fields:
         assert_same(getattr(serial, field), getattr(parallel, field), field)
+
+
+def assert_same_cache(serial_cache: dict, parallel_cache: dict) -> None:
+    """The same measurements. Workers add each parent's and its child's in turn, so the key order differs."""
+    assert set(parallel_cache) == set(serial_cache)
+    for key, measured in serial_cache.items():
+        assert_same(measured, parallel_cache[key], repr(key[:8]))
+
+
+def test_two_workers_give_every_serial_field(runs: dict[int, Run]) -> None:
+    assert_same_scoring(runs[1].scored, runs[2].scored)
 
 
 def test_the_fixture_covers_children_rejections_and_duplicates(view: RealView, runs: dict[int, Run]) -> None:
@@ -169,9 +203,7 @@ def test_the_callers_cache_gains_every_measurement(runs: dict[int, Run]) -> None
     serial_cache, parallel_cache = runs[1].cache, runs[2].cache
     # Two parents share one homography, and so do their children.
     assert len(serial_cache) == len(runs[1].scored.c_candidates) - 2
-    assert set(parallel_cache) == set(serial_cache)
-    for key, measured in serial_cache.items():
-        assert_same(measured, parallel_cache[key], repr(key[:8]))
+    assert_same_cache(serial_cache, parallel_cache)
 
 
 def test_parallel_scoring_refuses_other_runtimes_and_callers_outside_the_sampler(view: RealView) -> None:
@@ -197,6 +229,51 @@ def test_a_workers_exception_reaches_the_caller(view: RealView) -> None:
         scoring.score_populations(view.context, [view.all_line_entries[0], broken], [], [], view.live.runtime, {},
                                   print, workers=2)
     assert type(raised.value.__cause__).__name__ == '_RemoteTraceback'
+
+
+def test_one_pool_scores_consecutive_views_with_each_views_own_inputs(
+    view: RealView, runs: dict[int, Run], second_view: SecondView,
+) -> None:
+    """A worker that kept the first view's image or cache would change the second view's scores."""
+    first_cache: dict = {}
+    second_cache: dict = {}
+    with view.live.prepared_measurements(measurements), generation.worker_pool(2) as pool:
+        first = scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [],
+                                          view.live.runtime, first_cache, print, workers=2, pool=pool)
+        second = scoring.score_populations(second_view.context, second_view.all_line_entries, [], [],
+                                           view.live.runtime, second_cache, print, workers=2, pool=pool)
+    assert_same_scoring(runs[1].scored, first)
+    assert_same_scoring(second_view.serial, second)
+    assert_same_cache(runs[1].cache, first_cache)
+    assert_same_cache(second_view.serial_cache, second_cache)
+
+
+def test_a_failed_view_leaves_the_pool_usable_and_removes_its_pickle(
+    view: RealView, runs: dict[int, Run], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    broken = {key: value for key, value in view.all_line_entries[1].items() if key != "corners_px"}
+    waited = []
+    original_wait = scoring.wait
+
+    def wait_before_removing_input(futures: list) -> Any:
+        assert len(list(tmp_path.glob('court-scoring-*/view-*.pickle'))) == 1
+        result = original_wait(futures)
+        assert all(future.done() for future in futures)
+        waited.append(True)
+        return result
+
+    monkeypatch.setattr(scoring, "wait", wait_before_removing_input)
+    with view.live.prepared_measurements(measurements), generation.worker_pool(2) as pool:
+        with pytest.raises(KeyError, match="corners_px"):
+            entries = [broken, view.all_line_entries[0], *view.all_line_entries[2:]]
+            scoring.score_populations(view.context, entries, [], [], view.live.runtime,
+                                      {}, print, workers=2, pool=pool)
+        assert waited == [True]
+        assert list(tmp_path.iterdir()) == []
+        after = scoring.score_populations(view.context, view.all_line_entries, view.painted_line_entries, [],
+                                          view.live.runtime, {}, print, workers=2, pool=pool)
+    assert_same_scoring(runs[1].scored, after)
 
 
 def test_worker_startup_failure_with_a_large_view_reaches_the_caller() -> None:
@@ -226,8 +303,9 @@ with live.prepared_measurements(live.verifier):
 
 
 def worker_settings() -> tuple[int, bool, bool]:
-    """In a scoring worker: OpenCV's thread count and whether its view's arrays are writeable."""
+    """In a worker after a scoring task: OpenCV's thread count and whether its view's arrays are writeable."""
     worker_view = scoring.worker_view
+    assert worker_view is not None
     return cv2.getNumThreads(), worker_view.context.frame.flags.writeable, worker_view.line_maps.flags.writeable
 
 
@@ -236,6 +314,8 @@ def test_a_worker_uses_one_opencv_thread_and_a_read_only_view(view: RealView, tm
     view_path = tmp_path / 'view.pickle'
     with view_path.open('wb') as stream:
         pickle.dump((view.context, line_maps, {}), stream)
-    with ProcessPoolExecutor(1, mp_context=get_context("spawn"), initializer=scoring.start_scoring_worker,
-                             initargs=(view_path,)) as executor:
+    parent_identities, _ = scoring.canonicalise_populations(view.all_line_entries, [], [])
+    # One worker runs both tasks, so the probe sees the view that the scoring task read.
+    with generation.worker_pool(1) as executor:
+        executor.submit(scoring.score_parent_in_worker, view_path, parent_identities[0]).result()
         assert executor.submit(worker_settings).result() == (1, False, False)

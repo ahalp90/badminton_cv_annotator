@@ -178,10 +178,12 @@ def main() -> int:
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()
         rows = []
-        for row in scene_courts(detector, frames, people, lines, scenes, video_id=args.video.stem,
-                                reuse_courts=args.reuse_courts):
-            rows.append(row)
-            print(json.dumps(row), flush=True)
+        # Every scene's search and scoring share one set of worker processes.
+        with detector:
+            for row in scene_courts(detector, frames, people, lines, scenes, video_id=args.video.stem,
+                                    reuse_courts=args.reuse_courts):
+                rows.append(row)
+                print(json.dumps(row), flush=True)
         result = {'video': args.video.name, 'fps': frames.fps, 'frame_count': frames.frame_count,
                   'native_size': frames.size, 'setup_seconds': setup_seconds, 'scene_seconds': scene_seconds,
                   'processing_seconds': perf_counter() - processing_started,

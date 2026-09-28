@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, Self
 
 import cv2
 import numpy as np
@@ -38,6 +38,8 @@ from scratch.court_det_fix.court_detector.inputs import (
 )
 
 if TYPE_CHECKING:
+    from concurrent.futures import ProcessPoolExecutor
+
     from .reuse import KnownCourt
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -174,13 +176,34 @@ def json_round_trip(value: Any) -> Any:
 
 
 class CourtDetector:
-    """Loads the detector modules once, then finds the court in one view per detect() call."""
+    """Loads the detector modules once, then finds the court in one view per detect() call.
+
+    With workers above 1, use it as a context manager. Every detect() call inside the with
+    block then shares one pool of worker processes, and the pool closes when the block ends.
+    Outside a with block, each search and scoring step starts and closes its own workers.
+    """
 
     def __init__(self, switches: Switches) -> None:
         self.switches = switches
         self.live = load_live_modules()
         # Check CuPy and the GPU now, not when the first view reaches the line templates.
         template_arrays.array_module(switches.template_device)
+        self.pool: ProcessPoolExecutor | None = None  # open only inside a with block with several workers
+
+    def __enter__(self) -> Self:
+        if self.pool is not None:
+            raise RuntimeError("this detector's worker pool is already open")
+        if self.switches.workers > 1:
+            from .generation import worker_pool
+
+            self.pool = worker_pool(self.switches.workers)
+        return self
+
+    def __exit__(self, *_exception_info: object) -> None:
+        if self.pool is not None:
+            # Tasks still waiting after a failure are dropped; running ones finish before the workers close.
+            self.pool.shutdown(cancel_futures=True)
+            self.pool = None
 
     def detect(self, view: ViewInputs, people: PeopleSource | None, frames: FrameReader,
                *, known_courts: Sequence[KnownCourt] = ()) -> CourtResult:
@@ -270,6 +293,7 @@ class CourtDetector:
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
                 workers=self.switches.workers,
                 full_score_limit=self.switches.full_score_limit,
+                pool=self.pool,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
@@ -294,7 +318,7 @@ class CourtDetector:
         scored = live.scoring.score_populations(
             context, populations["all_lines"], populations["painted_lines"], templates, live.runtime, {},
             lambda message: print(f"[{view.view_id}] {message}", flush=True), self_checks=self_checks,
-            workers=self.switches.workers,
+            workers=self.switches.workers, pool=self.pool,
         )
         record = live.verifier.jsonable({
             "parents": [live.scoring.public_candidate(parent) for parent in scored.parents],

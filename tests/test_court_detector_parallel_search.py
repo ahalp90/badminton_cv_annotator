@@ -9,6 +9,7 @@ retention is the detector's own.
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import pickle
 import sys
@@ -23,6 +24,7 @@ from scratch.court_det_fix.court_detector import (
     directions,
     generation,
     geometry,
+    line_observations,
     players,
     proposals,
     search,
@@ -134,7 +136,7 @@ def fake_inputs(failing_direction: int | None = None) -> tuple[dict, dict]:
 
 def comparable(result: dict) -> str:
     """The record without its timings or the searching process's identity, as JSON text."""
-    process_keys = {"elapsed_s", "cpu_s", "worker_pid", "patched_in_parent"}
+    process_keys = {"elapsed_s", "cpu_s", "cpu_scope", "worker_pid", "patched_in_parent"}
 
     def strip(value: Any) -> Any:
         if isinstance(value, dict):
@@ -234,6 +236,59 @@ def test_a_failing_pair_raises_in_the_caller(workers: int) -> None:
         generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=workers, **FAKE_SETTINGS)
 
 
+def child_pids() -> set[int]:
+    """This process's live child processes, such as pool workers."""
+    return {child.pid for child in multiprocessing.active_children() if child.pid is not None}
+
+
+def matched_worker_pids(result: dict) -> set[int]:
+    return {pair["role"]["worker_pid"] for pair in result["pairs"] if pair["status"] == "matched"}
+
+
+def test_one_pool_serves_consecutive_searches_and_stays_open() -> None:
+    source, saved = fake_inputs()
+    serial = generation.generate(source, saved, None, Path("."), HELPERS, 16, **FAKE_SETTINGS)
+    with generation.worker_pool(2) as pool:
+        results = [generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+                                       **FAKE_SETTINGS) for _ in range(2)]
+        # Workers that each search had started and closed itself would no longer be running.
+        assert matched_worker_pids(results[0]) | matched_worker_pids(results[1]) <= child_pids()
+    for result in results:
+        assert comparable(result) == comparable(serial)
+
+
+def test_a_failing_pair_leaves_a_shared_pool_usable() -> None:
+    failing_source, failing_saved = fake_inputs(failing_direction=2)
+    source, saved = fake_inputs()
+    serial = generation.generate(source, saved, None, Path("."), HELPERS, 16, **FAKE_SETTINGS)
+    with generation.worker_pool(2) as pool:
+        with pytest.raises(RuntimeError, match=r"search failed for pencils \(0, 2\)"):
+            generation.generate(failing_source, failing_saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+                                **FAKE_SETTINGS)
+        after = generation.generate(source, saved, None, Path("."), HELPERS, 16, workers=2, pool=pool,
+                                    **FAKE_SETTINGS)
+    assert comparable(after) == comparable(serial)
+
+
+def test_closing_a_search_early_closes_only_its_own_workers() -> None:
+    inputs = generation.SearchInputs(line_observations.prepare_observations(np.empty((0, 4)), SIZE),
+                                     np.full((1, 2, 2), np.nan), SIZE, Settings(), True, 2, False, None)
+    pairs = [(pair_id, np.array([[0., 1., 1.], [second, 1., 1.]])) for pair_id, second in enumerate((1., 2., 3.))]
+    before = child_pids()
+    searches = generation.search_pairs(HELPERS, inputs, pairs, 2)
+    assert next(searches).role["worker_pid"] != os.getpid()
+    searches.close()
+    assert child_pids() == before
+
+    with generation.worker_pool(2) as pool:
+        searches = generation.search_pairs(HELPERS, inputs, pairs, 2, pool)
+        next(searches)
+        searches.close()
+        searched = generation.search_pairs(HELPERS, inputs, pairs, 2, pool)
+        assert [pair.role["pencils"] for pair in searched] == [[0, 1], [0, 2], [0, 3]]
+    assert child_pids() == before
+
+
 @pytest.mark.parametrize("workers", [0, -1])
 def test_workers_must_be_positive(workers: int) -> None:
     source, saved = fake_inputs()
@@ -277,4 +332,3 @@ def test_real_search_in_two_workers_gives_the_serial_record() -> None:
     assert [pair["status"] for pair in serial["pairs"]].count("matched") == 3
     assert serial["entries"]
     assert comparable(parallel) == comparable(serial)
-

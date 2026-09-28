@@ -137,6 +137,17 @@ time, or several serial views whose combined allocation stays within that limit.
 The runner reports peak memory for the parent and largest worker separately;
 those figures do not measure the combined peak of every process.
 
+Both runners keep one set of worker processes for the whole run, so each worker
+starts and imports the detector once. The workers close when the run ends,
+including when it fails. A script that calls `CourtDetector.detect` itself
+shares workers the same way inside `with CourtDetector(switches) as detector:`.
+Without the `with` block, each search and scoring step starts its own workers.
+A worker holds the last view it scored until it scores another view or closes.
+Parallel candidate scoring writes one temporary input pickle per view. Each
+worker loads it once into memory; results return through the process pool.
+Workers never write to the file, which is removed after the tasks finish.
+The saved-view batch runner replaces a crashed pool before trying the next view.
+
 Direction-pair support scoring uses a serial Numba kernel. Numba is a project
 runtime dependency. The first call compiles and caches the kernel; later
 processes load that cache. It adds no threads beyond the selected worker count.
