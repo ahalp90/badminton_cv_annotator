@@ -44,5 +44,5 @@ positions. Offscreen corners cannot be drawn within the image.
 
 To regenerate an overlay, decompress both CSVs into the same temporary directory
 with their original `.csv` names. Run
-`src/courtkeynet/validation_scripts/render_ground_truth.py` with `--corners-csv`,
+`scripts/court_annotation/render_ground_truth.py` with `--corners-csv`,
 `--video`, `--frame` and `--out`. The renderer currently reads uncompressed CSVs.

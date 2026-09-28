@@ -809,15 +809,16 @@ PRIMITIVE_ARTIFACT_NOTES: tuple[ArtifactNote, ...] = (
     ),
     ArtifactNote(
         "court_evidence", ReliabilityClass.PREDICTED,
-        "Scene homography rows and gate inputs. Median corner error 4.34 px on ShuttleSet.",
+        "Scene homography rows, gate inputs and each scene's court_detector status and reason.",
     ),
     ArtifactNote(
         "court_keep_vote", ReliabilityClass.PREDICTED,
-        "(frame_count,) CourtKeyNet keep vote mask.",
+        "(frame_count,) frames with exactly two people inside their scene's detected court.",
     ),
     ArtifactNote(
         "court_present", ReliabilityClass.PREDICTED,
-        "(frame_count,) court-present mask that bounds every interpolation segment.",
+        "(frame_count,) court-present mask that bounds every interpolation segment. "
+        "court_evidence gives the reason for each absent scene.",
     ),
     ArtifactNote(
         "raw_replay_mask", ReliabilityClass.PREDICTED,

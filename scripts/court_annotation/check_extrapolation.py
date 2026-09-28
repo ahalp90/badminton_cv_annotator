@@ -15,7 +15,7 @@ skipped, since they are outputs of the same fit rather than ground truth.
 
 Usage::
 
-    python src/courtkeynet/validation_scripts/check_extrapolation.py \\
+    python scripts/court_annotation/check_extrapolation.py \\
         --corners-csv hand_corners.csv
 """
 from __future__ import annotations
@@ -27,11 +27,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
-import court_landmarks as court  # noqa: E402
+from court_annotation import court_landmarks as court  # noqa: E402
 
 
 def frame_errors(

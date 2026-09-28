@@ -11,6 +11,9 @@ weights:
 - `checkpoints/tracknetv3/` for TrackNetV3 and InpaintNet
 - `checkpoints/yolo11/` for the YOLO player detector
 
+The dataset builder's court stage reads `checkpoints/deeplsd/DeepLSD`: a DeepLSD
+checkout with its `weights/deeplsd_md.tar`. Place or link that checkout there.
+
 The weight files are gitignored. The tracked `.gitkeep` files preserve the
 expected directory layout.
 

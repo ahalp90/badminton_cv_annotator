@@ -143,7 +143,6 @@ exclude = [
     "notebooks/",
     "**/deprecated/",
     "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
-    "src/courtkeynet/_vendor/",       # Vendored CourtKeyNet (see src/courtkeynet/PROVENANCE.md)
     "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
 ]
 

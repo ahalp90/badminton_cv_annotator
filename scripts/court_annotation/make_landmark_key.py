@@ -9,7 +9,7 @@ shareable copy.
 
 Usage::
 
-    python src/courtkeynet/validation_scripts/make_landmark_key.py --out landmark_key.png
+    python scripts/court_annotation/make_landmark_key.py --out landmark_key.png
 """
 from __future__ import annotations
 
@@ -20,12 +20,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
-import court_landmarks as court  # noqa: E402
-from annotate_court_corners_offframe import draw_court_key  # noqa: E402
+from court_annotation import court_landmarks as court  # noqa: E402
+from court_annotation.annotate_court_corners_offframe import draw_court_key  # noqa: E402
 
 SCALE = 60  # px per court metre
 LEFT, TOP, RIGHT, BOTTOM = 250, 130, 70, 60

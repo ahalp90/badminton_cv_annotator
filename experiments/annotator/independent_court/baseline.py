@@ -1,4 +1,8 @@
-"""Run the frozen CourtKeyNet baseline beside the independent detector proposals."""
+"""Run the frozen CourtKeyNet baseline beside the independent detector proposals.
+
+Retired: this CLI imports ``src/courtkeynet``, which has been removed, so it no
+longer runs.
+"""
 
 from __future__ import annotations
 

@@ -30,7 +30,12 @@ from court_detector.geometry import (
     _score,
     _wide_line_families,
 )
-from courtkeynet.court_corners import _frame_segments
+
+# Canny and probabilistic Hough settings from the retired CourtKeyNet corner module.
+CANNY_LO, CANNY_HI = 50, 150
+HOUGH_THRESHOLD = 50
+HOUGH_MIN_LINE_PX = 40
+HOUGH_MAX_GAP_PX = 15
 
 
 @dataclass(frozen=True)
@@ -44,10 +49,26 @@ class Detection:
     hypotheses_scored: int
 
 
+def _hough_segments(frame: np.ndarray) -> np.ndarray:
+    """Canny and probabilistic Hough segments over the whole frame.
+
+    :param frame: (H, W, 3) uint8 BGR frame
+    :return: (m, 4) int segments (x1, y1, x2, y2), possibly empty
+    """
+    edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), CANNY_LO, CANNY_HI)
+    lines = cv2.HoughLinesP(
+        edges, rho=1, theta=np.pi / 180, threshold=HOUGH_THRESHOLD,
+        minLineLength=HOUGH_MIN_LINE_PX, maxLineGap=HOUGH_MAX_GAP_PX,
+    )
+    if lines is None:
+        return np.empty((0, 4), dtype=np.int32)
+    return lines.reshape(-1, 4)
+
+
 def extract_segments(frame: np.ndarray, method: str) -> np.ndarray:
     """Extract full-frame fragments; no court mask or manual region is used."""
     if method in ("hough", "ridge"):
-        segments = _frame_segments(frame, np.full(frame.shape[:2], 255, dtype=np.uint8)).astype(np.float64)
+        segments = _hough_segments(frame).astype(np.float64)
         return _filter_painted_stripes(frame, segments) if method == "ridge" else segments
     if method == "lsd":
         lines = cv2.createLineSegmentDetector().detect(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))[0]

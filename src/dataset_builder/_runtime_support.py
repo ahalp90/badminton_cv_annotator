@@ -116,6 +116,7 @@ class RuntimeSupport:
         self.current_interpreter: InterpreterIdentity | None = None
         self.tracknet_interpreter: InterpreterIdentity | None = None
         self.pose_interpreter: InterpreterIdentity | None = None
+        self.court_interpreter: InterpreterIdentity | None = None
         self.ffmpeg_interpreter: InterpreterIdentity | None = None
 
     def _plan(
@@ -168,6 +169,11 @@ class RuntimeSupport:
         if self.pose_interpreter is None:
             raise RuntimeError("runtime preflight did not resolve the pose interpreter")
         return self.pose_interpreter
+
+    def _court(self) -> InterpreterIdentity:
+        if self.court_interpreter is None:
+            raise RuntimeError("runtime preflight did not resolve the court interpreter")
+        return self.court_interpreter
 
     def _ffmpeg(self) -> InterpreterIdentity:
         if self.ffmpeg_interpreter is None:

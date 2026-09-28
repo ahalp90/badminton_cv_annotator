@@ -153,7 +153,8 @@ python -m experiments.annotator.independent_court.baseline \
 ```
 
 The evaluator needs the repository's NumPy/OpenCV environment. The baseline
-also needs the existing CourtKeyNet weights and PyTorch. It records raw model
+is retired: it imports `src/courtkeynet`, which has been removed, so it no
+longer runs. It needed the CourtKeyNet weights and PyTorch. It records raw model
 validity and availability of the existing model-plus-line proposal separately.
 It does not run the production scene acceptance, repair or sharing stages.
 

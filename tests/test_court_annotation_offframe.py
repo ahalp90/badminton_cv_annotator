@@ -1,9 +1,9 @@
 """Tests for the off-frame corner annotation tool and the court landmark maths.
 
-Same loading trick as ``test_courtkeynet_annotation.py``: the modules are loaded
+Same loading trick as ``test_court_annotation.py``: the modules are loaded
 straight from their file paths so the pure helpers run without importing torch,
 opening a cv2 window, or decoding video. ``court_landmarks`` is registered under
-its canonical name first, so the tool's own ``import court_landmarks`` resolves
+its canonical name first, so the tool's own import resolves
 to the same module object.
 """
 
@@ -39,16 +39,16 @@ def _load_module(name: str, relpath: str) -> ModuleType:
     return module
 
 
-court = _load_module("court_landmarks", "src/courtkeynet/validation_scripts/court_landmarks.py")
+court = _load_module("court_annotation.court_landmarks", "scripts/court_annotation/court_landmarks.py")
 offframe = _load_module(
     "annotate_court_corners_offframe_under_test",
-    "src/courtkeynet/validation_scripts/annotate_court_corners_offframe.py",
+    "scripts/court_annotation/annotate_court_corners_offframe.py",
 )
 # Loading the tool imported the base clicker; its loupe maths drives click_at.
-base_clicker = sys.modules["annotate_court_corners"]
+base_clicker = sys.modules["court_annotation.annotate_court_corners"]
 check = _load_module(
     "check_extrapolation_under_test",
-    "src/courtkeynet/validation_scripts/check_extrapolation.py",
+    "scripts/court_annotation/check_extrapolation.py",
 )
 
 WIDTH, HEIGHT = 1280, 720
@@ -743,7 +743,7 @@ def test_offframe_tool_imports_without_torch() -> None:
     script = (
         "import sys\n"
         "sys.modules['torch'] = None\n"  # any `import torch` on the chain now raises
-        "sys.path.insert(0, 'src/courtkeynet/validation_scripts')\n"
+        "sys.path.insert(0, 'scripts/court_annotation')\n"
         "import annotate_court_corners_offframe\n"
         "import court_landmarks\n"
         "assert len(court_landmarks.LANDMARK_NAMES) == 30\n"

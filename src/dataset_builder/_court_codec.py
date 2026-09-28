@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 import numpy as np
 
 if TYPE_CHECKING:
-    from annotator.court_evidence import CourtSceneRecord
-    from courtkeynet.court_corners import ConsensusRepair, FallbackDiagnostics
+    from annotator.court_evidence import CourtSceneRecord, SceneStatus
 
 
 T = TypeVar("T")
@@ -19,12 +18,11 @@ T = TypeVar("T")
 
 def load_court_provenance(
     scene_payload: object,
-    consensus_payload: object,
     *,
     raw_cuts: Sequence[tuple[int, int]],
     video_id: str,
-) -> tuple[tuple[CourtSceneRecord, ...], ConsensusRepair | None]:
-    """Decode and cross-check scene records and their consensus arrays."""
+) -> tuple[CourtSceneRecord, ...]:
+    """Decode and cross-check the per-scene court records."""
     if not isinstance(scene_payload, list):
         raise ValueError("court scene_records must be a list")
     records = tuple(
@@ -32,8 +30,7 @@ def load_court_provenance(
         for index, item in enumerate(scene_payload)
     )
     _validate_scene_records(records, raw_cuts, video_id)
-    consensus = _consensus(consensus_payload, records)
-    return records, consensus
+    return records
 
 
 def _scene_record(payload: object, name: str) -> CourtSceneRecord:
@@ -41,10 +38,8 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
 
     record = _object(payload, name)
     expected = {field.name for field in fields(CourtSceneRecord)}
-    optional_fields = {'painted_line_support', 'view_group_index'}
-    if set(record) - expected or expected - set(record) - optional_fields:
+    if set(record) != expected:
         raise ValueError(f"{name} fields differ from CourtSceneRecord")
-    support = _optional_array(record.get('painted_line_support'), f'{name}.painted_line_support', (2,))
     return CourtSceneRecord(
         video_id=_video_id(record["video_id"], f"{name}.video_id"),
         case_id=_string(record["case_id"], f"{name}.case_id"),
@@ -52,96 +47,25 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
         scene_index=_integer(record["scene_index"], f"{name}.scene_index"),
         start_frame=_integer(record["start_frame"], f"{name}.start_frame"),
         end_frame=_integer(record["end_frame"], f"{name}.end_frame"),
-        sampled_frame_indices=_integer_tuple(
-            record["sampled_frame_indices"],
-            f"{name}.sampled_frame_indices",
-        ),
-        raw_corners_px=_optional_array(record["raw_corners_px"], f"{name}.raw_corners_px", (4, 2)),
-        raw_source=_optional_string(record["raw_source"], f"{name}.raw_source"),
-        raw_peaks=_optional_array(record["raw_peaks"], f"{name}.raw_peaks", (4,)),
-        raw_corner_source=_optional_strings(
-            record["raw_corner_source"],
-            f"{name}.raw_corner_source",
-            4,
-        ),
-        fallback_diagnostics=_fallback_diagnostics(
-            record["fallback_diagnostics"],
-            f"{name}.fallback_diagnostics",
-        ),
+        status=_status(record["status"], f"{name}.status"),
+        analysed_frame=_optional(record["analysed_frame"], _integer, f"{name}.analysed_frame"),
+        corners_native_px=_optional_array(record["corners_native_px"], f"{name}.corners_native_px", (4, 2)),
+        no_court_reason=_optional_string(record["no_court_reason"], f"{name}.no_court_reason"),
+        reused_from=_optional_string(record["reused_from"], f"{name}.reused_from"),
+        error=_optional_string(record["error"], f"{name}.error"),
         exactly_two_count=_integer(record["exactly_two_count"], f"{name}.exactly_two_count"),
         exactly_two_fraction=_finite(record["exactly_two_fraction"], f"{name}.exactly_two_fraction"),
         scene_valid=_boolean(record["scene_valid"], f"{name}.scene_valid"),
-        consensus_distance_px=_optional(record["consensus_distance_px"], _finite, f"{name}.consensus_distance_px"),
-        consensus_flag=_optional(record["consensus_flag"], _boolean, f"{name}.consensus_flag"),
-        active_corners_native_px=_optional_array(
-            record["active_corners_native_px"],
-            f"{name}.active_corners_native_px",
-            (4, 2),
-        ),
-        painted_line_support=None if support is None else (float(support[0]), float(support[1])),
-        view_group_index=_optional(record.get('view_group_index'), _integer, f'{name}.view_group_index'),
     )
 
 
-def _fallback_diagnostics(payload: object, name: str) -> FallbackDiagnostics | None:
-    from courtkeynet.court_corners import FallbackDiagnostics
+def _status(payload: object, name: str) -> SceneStatus:
+    from annotator.court_evidence import SceneStatus
 
-    if payload is None:
-        return None
-    record = _object(payload, name)
-    expected = {field.name for field in fields(FallbackDiagnostics)}
-    if set(record) != expected:
-        raise ValueError(f"{name} fields differ from FallbackDiagnostics")
-    return FallbackDiagnostics(
-        reproj_line_px=_finite(record["reproj_line_px"], f"{name}.reproj_line_px"),
-        reproj_anchor_px=_finite(record["reproj_anchor_px"], f"{name}.reproj_anchor_px"),
-        gate_line_frac=_finite(record["gate_line_frac"], f"{name}.gate_line_frac"),
-        gate_anchor_frac=_finite(record["gate_anchor_frac"], f"{name}.gate_anchor_frac"),
-        n_lines_used=_integer(record["n_lines_used"], f"{name}.n_lines_used"),
-        n_correspondences=_integer(record["n_correspondences"], f"{name}.n_correspondences"),
-        max_sagitta_px=_finite(record["max_sagitta_px"], f"{name}.max_sagitta_px"),
-    )
-
-
-def _consensus(
-    payload: object,
-    records: Sequence[CourtSceneRecord],
-) -> ConsensusRepair | None:
-    from courtkeynet.court_corners import ConsensusRepair
-
-    if payload is None:
-        if any(
-            record.consensus_distance_px is not None or record.consensus_flag is not None
-            for record in records
-        ):
-            raise ValueError("court scene consensus fields require consensus evidence")
-        return None
-    record = _object(payload, "consensus")
-    expected = {field.name for field in fields(ConsensusRepair)}
-    if set(record) != expected:
-        raise ValueError("consensus fields differ from ConsensusRepair")
-    accepted = [item for item in records if item.consensus_distance_px is not None]
-    count = len(accepted)
-    if count == 0:
-        raise ValueError("court consensus requires at least one accepted scene")
-    if any(item.scene_valid != (item.consensus_distance_px is not None) for item in records):
-        raise ValueError("court scene validity differs from consensus membership")
-    result = ConsensusRepair(
-        consensus_quad=_array(record["consensus_quad"], "consensus.consensus_quad", (4, 2)),
-        distances_px=_array(record["distances_px"], "consensus.distances_px", (count,)),
-        flagged=_bool_array(record["flagged"], "consensus.flagged", (count,)),
-        repaired_quads=_array(record["repaired_quads"], "consensus.repaired_quads", (count, 4, 2)),
-    )
-    for index, scene in enumerate(accepted):
-        if scene.consensus_flag is None or scene.active_corners_native_px is None:
-            raise ValueError("accepted court consensus records require flags and active corners")
-        if scene.consensus_flag != bool(result.flagged[index]):
-            raise ValueError("court scene consensus flag differs from consensus array")
-        if scene.consensus_distance_px != float(result.distances_px[index]):
-            raise ValueError("court scene consensus distance differs from consensus array")
-        if not np.array_equal(scene.active_corners_native_px, result.repaired_quads[index]):
-            raise ValueError("court scene active corners differ from repaired consensus quad")
-    return result
+    try:
+        return SceneStatus(_string(payload, name))
+    except ValueError as error:
+        raise ValueError(f"{name} {payload!r} is not a court scene status") from error
 
 
 def _validate_scene_records(
@@ -149,7 +73,7 @@ def _validate_scene_records(
     raw_cuts: Sequence[tuple[int, int]],
     video_id: str,
 ) -> None:
-    from annotator.court_views import MIN_SHARED_SCENES
+    from annotator.court_evidence import SceneStatus
 
     if len(records) != len(raw_cuts):
         raise ValueError("court scene record count differs from raw cuts")
@@ -158,33 +82,20 @@ def _validate_scene_records(
             raise ValueError("court scene video_id differs from the exact requested string")
         if record.scene_index != index or (record.start_frame, record.end_frame) != interval:
             raise ValueError("court scene ordering or interval differs from raw cuts")
-        if any(frame < record.start_frame or frame >= record.end_frame for frame in record.sampled_frame_indices):
-            raise ValueError("court sampled frame lies outside its scene interval")
+        if record.analysed_frame is not None and not record.start_frame <= record.analysed_frame < record.end_frame:
+            raise ValueError("court analysed frame lies outside its scene interval")
+        if (record.corners_native_px is not None) != (record.status is SceneStatus.COURT):
+            raise ValueError("court scene corners must be present exactly when its status is court")
+        if record.scene_valid and record.status is not SceneStatus.COURT:
+            raise ValueError("court scene without a court cannot be valid")
+        if (record.error is not None) != (record.status is SceneStatus.DETECTION_FAILED):
+            raise ValueError("court scene error must be present exactly when detection failed")
         duration = record.end_frame - record.start_frame
         if not 0 <= record.exactly_two_count <= duration:
             raise ValueError("court exactly-two count lies outside its scene")
         expected_fraction = record.exactly_two_count / duration
         if not math.isclose(record.exactly_two_fraction, expected_fraction):
             raise ValueError("court exactly-two fraction differs from its count")
-        if record.painted_line_support is not None and any(
-            fraction < 0.0 or fraction > 1.0 for fraction in record.painted_line_support
-        ):
-            raise ValueError('court painted-line support must lie between zero and one')
-    groups = {}
-    for record in records:
-        if record.view_group_index is None:
-            continue
-        if not record.scene_valid or not 0 <= record.view_group_index < len(records):
-            raise ValueError('court view group requires an accepted scene and an in-range group index')
-        groups.setdefault(record.view_group_index, []).append(record)
-    for group_index, members in groups.items():
-        if len(members) < MIN_SHARED_SCENES:
-            raise ValueError('court view group requires at least three members')
-        if group_index != min(record.scene_index for record in members):
-            raise ValueError('court view group index must identify its first member')
-        if any(not np.array_equal(record.active_corners_native_px, members[0].active_corners_native_px)
-               for record in members):
-            raise ValueError('court view group members must share the same active corners')
 
 
 def _object(payload: object, name: str) -> dict[str, object]:
@@ -234,20 +145,6 @@ def _optional_string(payload: object, name: str) -> str | None:
     return _optional(payload, _string, name)
 
 
-def _integer_tuple(payload: object, name: str) -> tuple[int, ...]:
-    if not isinstance(payload, list):
-        raise ValueError(f"{name} must be a list")
-    return tuple(_integer(item, f"{name}[]") for item in payload)
-
-
-def _optional_strings(payload: object, name: str, length: int) -> tuple[str, ...] | None:
-    if payload is None:
-        return None
-    if not isinstance(payload, list) or len(payload) != length:
-        raise ValueError(f"{name} must contain {length} strings")
-    return tuple(_string(item, f"{name}[]") for item in payload)
-
-
 def _array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarray:
     try:
         values = np.asarray(payload, dtype=float)
@@ -260,10 +157,3 @@ def _array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarray:
 
 def _optional_array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarray | None:
     return None if payload is None else _array(payload, name, shape)
-
-
-def _bool_array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarray:
-    values = np.asarray(payload)
-    if values.shape != shape or values.dtype != np.dtype(bool):
-        raise ValueError(f"{name} must be a boolean array with shape {shape}")
-    return values

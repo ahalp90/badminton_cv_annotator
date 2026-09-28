@@ -152,7 +152,7 @@ def format_report(summary: dict[str, Any]) -> str:
         "",
         *rows,
         "",
-        "Live CourtKeyNet/OpenCV detection is the operational default. Static homography is the controlled "
+        "Live court_detector detection is the operational default. Static homography is the controlled "
         "reference and manual fixed-camera fallback.",
         f"Compressed masks and arrays: {compressed['file_count']} NPY.XZ files "
         f"({human_bytes(compressed['total_bytes'])}). Git will preserve them with the run.",

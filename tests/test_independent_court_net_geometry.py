@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from court_detector.net_geometry import project_net
-from courtkeynet.court_corners import CORNER_COURT_M
+from shared.court_model import CORNER_COURT_M
 
 FRAME_SIZE = (1600.0, 900.0)
 

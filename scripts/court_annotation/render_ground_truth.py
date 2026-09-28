@@ -8,7 +8,7 @@ The visual audit: the green grid should hug the real painted lines.
 
 Usage::
 
-    python src/courtkeynet/validation_scripts/render_ground_truth.py \\
+    python scripts/court_annotation/render_ground_truth.py \\
         --corners-csv hand_corners.csv --video clip.mkv --frame 150 --out gt.jpg
 """
 from __future__ import annotations
@@ -21,11 +21,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-_HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
-import court_landmarks as court  # noqa: E402
+from court_annotation import court_landmarks as court  # noqa: E402
 
 BOUNDARY = (0, 94, 213)  # orange, Wong palette
 GRID = (80, 200, 80)

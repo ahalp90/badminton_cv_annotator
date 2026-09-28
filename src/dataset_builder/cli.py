@@ -94,10 +94,12 @@ class BuilderConfig:
     download_workers: int
     tracknet_python_environment: str
     pose_python_environment: str
+    court_python_environment: str
     tracknet_dir: Path
     tracknet_model: Path
     inpaint_model: Path | None
-    court_model: Path
+    deeplsd_source: Path
+    deeplsd_weights: Path
     tracknet_workers: int
     tracknet_batch_size: int
     tracknet_stride: int
@@ -107,7 +109,8 @@ class BuilderConfig:
     pose_n_max: int
     pose_shards: int
     court_device: str
-    court_resize_mode: str
+    court_template_device: str
+    court_reuse_courts: bool
     commentary_enabled: bool
     commentary_provider: str
     commentary_triage_model: str
@@ -221,15 +224,17 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
     _exact_fields(payload, expected_sections, "dataset-builder configuration")
     run = _section(payload, "run", {"source_dataset", "max_videos", "download_workers"})
     search = _section(payload, "search", {"result_count", "terms"})
-    environment = _section(payload, "environment", {"tracknet_python", "pose_python"})
-    models = _section(payload, "models", {"tracknet_dir", "tracknet", "inpaint", "court"})
+    environment = _section(payload, "environment", {"tracknet_python", "pose_python", "court_python"})
+    models = _section(
+        payload, "models", {"tracknet_dir", "tracknet", "inpaint", "deeplsd_source", "deeplsd_weights"},
+    )
     vision = _section(
         payload,
         "vision",
         {
             "tracknet_workers", "tracknet_batch_size", "tracknet_stride",
             "tracknet_large_video", "tracknet_input_mode", "pose_device", "pose_n_max",
-            "pose_shards", "court_device", "court_resize_mode",
+            "pose_shards", "court_device", "court_template_device", "court_reuse_courts",
         },
     )
     commentary = _section(
@@ -294,10 +299,14 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         pose_python_environment=_nonempty(
             environment["pose_python"], "environment.pose_python",
         ),
+        court_python_environment=_nonempty(
+            environment["court_python"], "environment.court_python",
+        ),
         tracknet_dir=_repo_path(models["tracknet_dir"], "models.tracknet_dir", repo_root),
         tracknet_model=_repo_path(models["tracknet"], "models.tracknet", repo_root),
         inpaint_model=inpaint_model,
-        court_model=_repo_path(models["court"], "models.court", repo_root),
+        deeplsd_source=_repo_path(models["deeplsd_source"], "models.deeplsd_source", repo_root),
+        deeplsd_weights=_repo_path(models["deeplsd_weights"], "models.deeplsd_weights", repo_root),
         tracknet_workers=_positive_integer(
             vision["tracknet_workers"], "vision.tracknet_workers",
         ),
@@ -313,9 +322,10 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         court_device=_choice(
             vision["court_device"], {"cpu", "cuda"}, "vision.court_device",
         ),
-        court_resize_mode=_choice(
-            vision["court_resize_mode"], {"pad", "squash"}, "vision.court_resize_mode",
+        court_template_device=_choice(
+            vision["court_template_device"], {"cpu", "cuda"}, "vision.court_template_device",
         ),
+        court_reuse_courts=_boolean(vision["court_reuse_courts"], "vision.court_reuse_courts"),
         commentary_enabled=_boolean(commentary["enabled"], "commentary.enabled"),
         commentary_provider=_choice(
             commentary["provider"],

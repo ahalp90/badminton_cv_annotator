@@ -1,10 +1,8 @@
-"""Tests for the CourtKeyNet hand-annotation tool and its scoring adapter.
+"""Tests for the court-corner hand-annotation helpers.
 
-Both scripts live under the ``courtkeynet`` package, whose ``__init__`` imports
-the wrapper (and so torch). These tests load the two modules straight from their
-file paths instead, so the pure helpers are exercised without importing torch,
-loading the model, opening a cv2 window, or decoding any video. Frames, when
-needed, are tiny numpy arrays.
+The tool lives in ``scripts/court_annotation``, outside any package. These tests
+load it straight from its file path, so the pure helpers run without opening a
+cv2 window or decoding any video. Frames, when needed, are tiny numpy arrays.
 """
 
 import importlib.util
@@ -40,11 +38,7 @@ def _load_module(name: str, relpath: str) -> ModuleType:
 
 annotate = _load_module(
     "annotate_court_corners_under_test",
-    "src/courtkeynet/validation_scripts/annotate_court_corners.py",
-)
-score = _load_module(
-    "score_hand_corners_under_test",
-    "src/courtkeynet/validation_scripts/score_hand_corners.py",
+    "scripts/court_annotation/annotate_court_corners.py",
 )
 
 
@@ -172,114 +166,6 @@ def test_events_out_of_state_are_noops(tmp_path: Path) -> None:
     assert session.begin_capture(frame_idx=2).kind is annotate.ActionKind.NOOP  # already capturing
     assert session.coarse_click(50, 50).kind is annotate.ActionKind.OPEN_LOUPE
     assert session.coarse_click(60, 60).kind is annotate.ActionKind.NOOP  # awaiting refine, not coarse
-
-
-# A court-like perspective trapezium in TL, TR, BR, BL order: narrow top, wide
-# bottom, in native-ish pixels.
-TRAPEZIUM = np.array([[150, 80], [360, 80], [470, 250], [40, 250]], dtype=np.float64)
-
-
-# --- Adapter error maths ---------------------------------------------------
-
-def test_per_corner_error_zero_on_identical() -> None:
-    """Identical quads give zero error at every corner."""
-    assert np.allclose(score.per_corner_error(TRAPEZIUM, TRAPEZIUM), np.zeros(4))
-
-
-def test_per_corner_error_recovers_known_offset() -> None:
-    """A known per-corner shift is recovered as its Euclidean magnitude."""
-    shifted = TRAPEZIUM.copy()
-    shifted[0] += [3.0, 4.0]   # 3-4-5 triangle -> 5 px
-    shifted[2] += [0.0, -2.0]  # 2 px straight up
-    err = score.per_corner_error(TRAPEZIUM, shifted)
-    assert err == pytest.approx([5.0, 0.0, 2.0, 0.0])
-
-
-# --- hand_quad_px + row filtering ------------------------------------------
-
-def test_hand_quad_px_from_normalised() -> None:
-    """Normalised rows rebuild to native pixels in tl, tr, br, bl slot order."""
-    frame_rows = pd.DataFrame({
-        "corner_idx": [2, 0, 3, 1],  # agrees with corner_label, as the annotator writes it; the label drives the ordering
-        "corner_label": ["br", "tl", "bl", "tr"],  # deliberately unsorted
-        "x_norm": [0.9, 0.1, 0.05, 0.7],
-        "y_norm": [0.8, 0.3, 0.8, 0.3],
-    })
-    quad = score.hand_quad_px(frame_rows, width=512, height=288)
-    # ordered tl, tr, br, bl -> the (0.1,0.3), (0.7,0.3), (0.9,0.8), (0.05,0.8) rows
-    assert quad[0] == pytest.approx([0.1 * 512, 0.3 * 288])
-    assert quad[3] == pytest.approx([0.05 * 512, 0.8 * 288])
-
-
-def test_hand_quad_px_requires_four_rows() -> None:
-    """Fewer than four corner rows for a frame fails loudly."""
-    frame_rows = pd.DataFrame({
-        "corner_idx": [0, 1], "corner_label": ["tl", "tr"], "x_norm": [0.1, 0.2], "y_norm": [0.3, 0.4],
-    })
-    with pytest.raises(ValueError):
-        score.hand_quad_px(frame_rows, width=512, height=288)
-
-
-def test_hand_quad_px_scrambled_rows_still_tl_tr_br_bl() -> None:
-    """Rows can arrive in any order, with no corner_idx column at all; corner_label alone drives the slot."""
-    frame_rows = pd.DataFrame({
-        "corner_label": ["bl", "br", "tl", "tr"],  # shuffled
-        "x_norm": [0.05, 0.9, 0.1, 0.7],
-        "y_norm": [0.8, 0.8, 0.3, 0.3],
-    })
-    quad = score.hand_quad_px(frame_rows, width=512, height=288)
-    assert quad[0] == pytest.approx([0.1 * 512, 0.3 * 288])   # tl
-    assert quad[1] == pytest.approx([0.7 * 512, 0.3 * 288])   # tr
-    assert quad[2] == pytest.approx([0.9 * 512, 0.8 * 288])   # br
-    assert quad[3] == pytest.approx([0.05 * 512, 0.8 * 288])  # bl
-
-
-def test_hand_quad_px_missing_corner_label_column_raises() -> None:
-    """No corner_label column fails loud instead of silently falling back to click order."""
-    frame_rows = pd.DataFrame({
-        "corner_idx": [0, 1, 2, 3], "x_norm": [0.1, 0.7, 0.9, 0.05], "y_norm": [0.3, 0.3, 0.8, 0.8],
-    })
-    with pytest.raises(ValueError, match="corner_label"):
-        score.hand_quad_px(frame_rows, width=512, height=288)
-
-
-def test_hand_quad_px_duplicate_label_raises() -> None:
-    """Two tl rows and no bl row fails loud: the CSV must carry exactly one of each label."""
-    frame_rows = pd.DataFrame({
-        "corner_label": ["tl", "tl", "tr", "br"],
-        "x_norm": [0.1, 0.15, 0.7, 0.9],
-        "y_norm": [0.3, 0.32, 0.3, 0.8],
-    })
-    with pytest.raises(ValueError):
-        score.hand_quad_px(frame_rows, width=512, height=288)
-
-
-def test_hand_quad_px_regression_bkjerias_zu4_frame150() -> None:
-    """Real GT case where geometric canonicalisation used to mispair corners: BL is
-    extrapolated to (-82.2, 577.8), nearer the pixel origin than TL's (1047.8,
-    422.6), so a nearest-origin rule rolled the ring to bl, tl, tr, br. Ordering by
-    corner_label instead holds tl, tr, br, bl, matching the CSV's own labels.
-    """
-    annotations = pd.read_csv(REPO_ROOT / "data/amateur_court_corners/hand_corners.csv")
-    frame_rows = annotations[(annotations["video"] == "BkjErIAsZu4.mkv") & (annotations["frame"] == 150)]
-    assert len(frame_rows) == 4  # sanity: the tracked fixture still has this frame
-    width, height = 1920, 1080  # the clip's native resolution (x_px / x_norm in the CSV)
-    quad = score.hand_quad_px(frame_rows, width=width, height=height)
-    expected = frame_rows.set_index("corner_label").loc[list(score.CORNER_NAMES), ["x_px", "y_px"]].to_numpy()
-    assert quad == pytest.approx(expected, abs=0.1)
-    assert quad[0] == pytest.approx([1047.8158029590911, 422.5816366627653], abs=0.1)  # tl
-    assert quad[3] == pytest.approx([-82.1618184025611, 577.7633792671987], abs=0.1)   # bl, still off-frame
-
-
-def test_rows_for_video_matches_basename() -> None:
-    """Rows are matched by video basename, tolerating a different path prefix."""
-    annotations = pd.DataFrame({
-        "video": ["/some/host/clip.mp4", "/some/host/clip.mp4", "other.mp4"],
-        "frame": [1, 1, 5],
-    })
-    matched = score.rows_for_video(annotations, Path("/a/different/prefix/clip.mp4"))
-    assert len(matched) == 2
-    assert set(matched["frame"]) == {1}
 
 
 # --- Intersection tour: point table ----------------------------------------
@@ -553,21 +439,20 @@ def test_append_rows_refuses_mismatched_header(tmp_path: Path) -> None:
 # --- Torch decouple: the annotator runs without torch installed ------------
 
 def test_annotator_imports_without_torch() -> None:
-    """court_corners.py and the annotator's build_point_table import and run with torch
-    blocked, pinning the decouple so a future import can't re-couple torch onto the
+    """The annotator's build_point_table imports and runs with torch blocked,
+    pinning the decouple so a future import can't re-couple torch onto the
     annotator's path (the GUI-capable OpenCV venv has no torch).
 
     A subprocess, so torch is blocked from interpreter start: this pytest process
-    has already imported torch (via the wrapper tests), so an in-process block
-    would not model torch being absent. The proof is the subprocess exiting 0: a
-    blocked ``import torch`` anywhere on the chain raises and crashes it.
+    may already have imported torch, so an in-process block would not model torch
+    being absent. The proof is the subprocess exiting 0: a blocked
+    ``import torch`` anywhere on the chain raises and crashes it.
     """
     script = (
         "import sys\n"
-        "sys.path.insert(0, 'src')\n"  # court_corners imports shared.court_model from src
         "sys.modules['torch'] = None\n"  # None in sys.modules makes any `import torch` raise ImportError
-        "import src.courtkeynet.court_corners\n"
-        "from src.courtkeynet.validation_scripts.annotate_court_corners import build_point_table\n"
+        "sys.path.insert(0, 'scripts/court_annotation')\n"
+        "from annotate_court_corners import build_point_table\n"
         "table = build_point_table()\n"
         "assert len(table) == 30, f'expected 30 tour points, got {len(table)}'\n"
         "print('OK', len(table))\n"

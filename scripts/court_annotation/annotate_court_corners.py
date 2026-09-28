@@ -8,11 +8,11 @@ still imports:
 
 - the loupe coordinate maths and ``render_loupe``/``read_frame``, which the
   off-frame tool reuses
-- the corners-CSV and points-sidecar helpers (both formats stay byte-compatible;
-  ``score_hand_corners.py`` and the eval consume them)
+- the corners-CSV and points-sidecar helpers (both formats stay byte-compatible
+  with the saved hand-corner sets)
 - ``build_point_table`` and the court-plan chain
 - ``fit_corner_quad`` with its gates, and both capture state machines, pinned by
-  ``tests/test_courtkeynet_annotation.py`` (including the torch-free regression)
+  ``tests/test_court_annotation.py`` (including the torch-free regression)
 
 The corners CSV stays the frontend CourtBoundaryStep contract: normalised xy,
 any click order (the scorer re-sorts to TL TR BR BL), an orientation flag, one
@@ -35,9 +35,9 @@ from typing import NamedTuple
 import cv2
 import numpy as np
 
-# Put src (three parents up) on the path so the `shared.` import below works when
-# this file is run as a plain script.
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# Put src on the path so the `shared.` import below works when this file is run as
+# a plain script.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from shared.court_model import (  # noqa: E402

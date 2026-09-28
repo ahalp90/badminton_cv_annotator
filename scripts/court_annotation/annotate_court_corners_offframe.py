@@ -18,8 +18,8 @@ near-left. The court is symmetric end to end, so any consistent far/near
 reading of a frame gives a valid homography.
 
 The corners CSV is a superset of the original clicker's: the first eight
-columns keep their names and meanings, so ``score_hand_corners.py`` reads these
-files unchanged. Long form, one row per corner::
+columns keep their names and meanings, so readers of the original format read
+these files unchanged. Long form, one row per corner::
 
     video,frame,corner_idx,x_px,y_px,x_norm,y_norm,orientation,corner_label,visible,source,fit_rms_px
 
@@ -64,7 +64,7 @@ Controls (a help panel opens at launch; ``h`` brings it back any time):
 
 Usage::
 
-    python src/courtkeynet/validation_scripts/annotate_court_corners_offframe.py \\
+    python scripts/court_annotation/annotate_court_corners_offframe.py \\
         --video path/to/clip.mp4 --out-csv hand_corners.csv
 """
 from __future__ import annotations
@@ -80,16 +80,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Sibling imports: this script runs from its own directory (python puts the
-# script's dir on sys.path), and tests load it by file path, where __file__
-# still resolves. The package __init__ pulls in torch, so the package route is
-# avoided on purpose.
-_HERE = Path(__file__).resolve().parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+# Direct script launches need the scripts directory for the shared annotation helpers.
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
-import court_landmarks as court  # noqa: E402
-from annotate_court_corners import (  # noqa: E402
+from court_annotation import court_landmarks as court  # noqa: E402
+from court_annotation.annotate_court_corners import (  # noqa: E402
     CORNER_COLOUR,
     TEXT_COLOUR,
     loupe_origin,
