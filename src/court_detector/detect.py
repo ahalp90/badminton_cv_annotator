@@ -352,7 +352,10 @@ def choose_court(view_id: str, record: dict, context: Any, native_frame: np.ndar
     corrected = refit["corrected"]
     if not corrected["valid"]:
         return CourtResult(view_id, None, corrected["validity_reason"], chosen, None)
-    if not switches.require_people and not corrected["measurement"]["historical"]["historical_camera"]:
+    historical = corrected["measurement"]["historical"]
+    if not historical["historical_camera"]:
         return CourtResult(view_id, None, "refit_camera_implausible", chosen, None)
+    if switches.require_people and not historical["historical_fullcourt"]:
+        return CourtResult(view_id, None, "refit_players_not_on_court", chosen, None)
     return CourtResult(view_id, np.asarray(corrected["corners_native_px"]), None, chosen, None,
                        corrected["measurement"]["paint_score"])
