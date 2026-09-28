@@ -137,6 +137,12 @@ time, or several serial views whose combined allocation stays within that limit.
 The runner reports peak memory for the parent and largest worker separately;
 those figures do not measure the combined peak of every process.
 
+Direction-pair support scoring uses a serial Numba kernel. Numba is a project
+runtime dependency. The first call compiles and caches the kernel; later
+processes load that cache. It adds no threads beyond the selected worker count.
+Bulk scoring arrays and responses use float32. Fitting, sensitive geometry and
+the compiled scorer's small projection/clipping calculations use float64.
+
 Both runners accept `--template-device cuda` as an explicit option. It scores the
 line-template hypotheses on a GPU with CuPy. Rectangle setup, admission and the
 court checks stay on the CPU, and other stages keep their own settings.

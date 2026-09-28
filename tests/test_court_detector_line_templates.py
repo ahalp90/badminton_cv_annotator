@@ -323,3 +323,30 @@ def test_runners_pass_the_template_device(monkeypatch: pytest.MonkeyPatch, tmp_p
     with pytest.raises(SwitchesSeen) as video_stop:
         run_video.main()
     assert video_stop.value.args[0].template_device == device
+
+
+@pytest.mark.parametrize("device", ["cpu", pytest.param("cuda", marks=pytest.mark.skipif(
+    not cuda_available(), reason="needs CuPy and a CUDA GPU"))])
+def test_equal_sample_counts_keep_exact_template_ties(device: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    array_module = template_arrays.array_module(device)
+    counts = np.asarray([[16, 18, 18, 20, 9, 20], [18, 20, 20, 18, 16, 9]])
+    counts = np.tile(counts, (1, 2))
+    distance_map = np.full(SIZE[::-1], 10, dtype=np.float32)
+    samples = np.zeros((2, 12, template_arrays.SAMPLES_PER_LINE, 2), dtype=np.float32)
+    for court in range(2):
+        for interval in range(12):
+            row = court * 12 + interval
+            distance_map[row, :counts[court, interval]] = 0
+            samples[court, interval, :, 0] = np.arange(template_arrays.SAMPLES_PER_LINE)
+            samples[court, interval, :, 1] = row
+    monkeypatch.setattr(template_arrays, "visible_samples", lambda *args: (
+        array_module.asarray(samples), array_module.ones((2, 12), dtype=bool)))
+    view = template_arrays.place_view(array_module, distance_map, SIZE, geometry)
+    homographies = array_module.asarray(np.repeat(court_homography()[None], 2, axis=0), dtype=array_module.float32)
+
+    _, _, _, means, _ = template_arrays.geometry_and_support(array_module, homographies, view)
+
+    if device == "cuda":
+        means = array_module.asnumpy(means)
+    expected = np.full((2, 2), np.float32(101 / 144), dtype=np.float32)
+    np.testing.assert_array_equal(means, expected)

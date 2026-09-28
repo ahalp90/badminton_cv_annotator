@@ -12,8 +12,8 @@ PySceneDetect and includes DeepLSD, as clarified on 28 September. The old runs
 did not separate RTMLib time; the next run will report these costs explicitly.
 
 Continue on `fix/court-det`. Check the current Git state before editing. The
-latest measured implementation is `d0b8c4ce`. Naming and readability cleanup has
-passed local checks; its CUDA comparison is next. The
+latest measured implementation is `d0b8c4ce`. Naming and readability cleanup is committed. Bulk arrays now use float32, and
+Numba CPU scoring is integrated for the next end-to-end comparison. The
 [detector guide](court_detector/README.md) owns the API and
 settings. [PERFORMANCE.md](court_detector/PERFORMANCE.md) records measurements.
 
@@ -61,15 +61,17 @@ its court was not reused elsewhere.
 Descriptive names now replace the historical W5/G0/G1 stages in live code and
 new outputs. Readers of old records translate the known fields explicitly.
 The readability pass preserves arithmetic and dtypes. Local checks passed,
-including 2,499 tests in the full suite, with 34 skips. Complete the CUDA
-comparison and measure the clarified detector timing scope.
+including 2,499 tests in the full suite, with 34 skips. A separate cleanup
+replay was cancelled in favour of checking the combined numerical changes.
+Measure the clarified detector timing scope on the next end-to-end run.
 
-Production Numba CPU acceleration and the broader float32 pass remain open.
-Assess their benefit in the next bounded tuning pass. Retain float64 only where a specific
-numerical need is demonstrated; assess final court quality, especially far-end
-errors in metres. A later pass should also check hand-written operations against
-library equivalents where that would simplify the code without hurting speed
-or CPU/GPU compatibility.
+Bulk template, support and stripe evidence arrays now use float32. Fitting,
+ill-conditioned direction geometry and sensitive acceptance checks retain
+float64. Projection uses matrix multiplication; candidate pairing uses array
+operations. Relevant checks pass. Numba CPU support scoring now uses one serial cached
+kernel. An independent review found a template tie-rounding issue; integer
+sample counts now preserve equal scores before division. Check final court
+quality and timing after the combined changes, including Numba worker startup.
 
 Candidate scoring and fitting still take about 79 seconds in the latest live
 run, and the two direction searches take about 67 seconds. These are substantial

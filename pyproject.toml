@@ -32,6 +32,7 @@ dependencies = [
     "torchvision",
     # Numerics
     "numpy",
+    "numba==0.67.0",
     "pandas",
     "scipy",
     # Video / image I/O

@@ -14,6 +14,8 @@
 torch                 # installed via explicit --index-url before this file; unpinned on purpose
 torchvision           # ditto
 numpy==2.4.4
+numba==0.67.0               # Court line-support scoring on the CPU
+llvmlite==0.49.0            # Numba compiler runtime
 pandas==2.3.3
 matplotlib==3.10.9
 scikit-learn==1.8.0

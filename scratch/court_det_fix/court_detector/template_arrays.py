@@ -176,21 +176,20 @@ def geometry_and_support(
     # int32 covers the working image without the extra storage of int64 indices.
     pixel_x = array_module.clip(samples[..., 0], 0, width - 1).astype(array_module.int32)
     pixel_y = array_module.clip(samples[..., 1], 0, height - 1).astype(array_module.int32)
-    # NumPy's mean sums then divides. Spelling that out keeps CuPy to the same rounding.
+    # Sum integer sample counts before dividing so equal support keeps an exact tie.
     supported_samples = view.distance_map[pixel_y, pixel_x] <= SUPPORT_DISTANCE
-    support = supported_samples.sum(axis=-1, dtype=array_module.float32) / SAMPLES_PER_LINE
-    support *= visible
-    # int16 counts keep the float32 division below in float32; an int64 count would promote it.
-    lengthwise_visible = visible[:, :6].sum(axis=1, dtype=array_module.int16)
-    cross_court_visible = visible[:, 6:].sum(axis=1, dtype=array_module.int16)
-    means = array_module.stack(
-        [
-            support[:, :6].sum(axis=1) / array_module.maximum(lengthwise_visible, 1),
-            support[:, 6:].sum(axis=1) / array_module.maximum(cross_court_visible, 1),
-        ],
-        axis=1,
+    support_counts = supported_samples.sum(axis=-1, dtype=array_module.int16)
+    support_counts *= visible
+    direction_counts = array_module.stack(
+        [support_counts[:, :6].sum(axis=1, dtype=array_module.int16),
+         support_counts[:, 6:].sum(axis=1, dtype=array_module.int16)], axis=1,
     )
-    visibility = array_module.stack([lengthwise_visible, cross_court_visible], axis=1)
+    visibility = array_module.stack(
+        [visible[:, :6].sum(axis=1, dtype=array_module.int16),
+         visible[:, 6:].sum(axis=1, dtype=array_module.int16)], axis=1,
+    )
+    means = direction_counts.astype(array_module.float32) / (
+        array_module.maximum(visibility, 1) * SAMPLES_PER_LINE)
     return valid, valid_homographies, corners[valid], means, visibility
 
 
