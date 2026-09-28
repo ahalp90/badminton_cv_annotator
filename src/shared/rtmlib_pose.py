@@ -5,7 +5,8 @@ over onnxruntime to reproduce the per-person output the mmpose extraction path
 consumed (``keypoints`` / ``bbox`` / ``bbox_score`` / ``keypoint_scores``)
 without the mmcv / mmdet / mmpose / mmengine stack or its ``numpy < 2`` pin. It
 replaces ``MMPoseInferencer("human")`` for ``raw_extract`` and
-``detect_players_2d``.
+``detect_players_2d``. The dataset builder and the court detector's live people
+inputs use the same extractor.
 
 The default detector is the ONNX export of the same RTMDet-M person checkpoint
 (235e8209) that ``MMPoseInferencer("human")`` resolves at mmpose 1.3.2, run at
@@ -26,8 +27,8 @@ The N_max cap, NaN padding and dtype are the *caller's* concern (``raw_extract``
 pads to N_max as float32; ``detect_players_2d`` casts to float64 to match the old
 ``np.array(list)`` path). This module returns only the real detections.
 
-Consumers import this module lazily (inside their functions) so
-``prepare_train_on_shuttleset`` stays importable without onnxruntime installed.
+Consumers import this module lazily (inside their functions) so they stay
+importable without rtmlib or onnxruntime installed.
 """
 from __future__ import annotations
 
@@ -40,12 +41,12 @@ import numpy as np
 from rtmlib.tools.object_detection.rtmdet import RTMDet
 from rtmlib.tools.pose_estimation.rtmpose import RTMPose
 
-from bst_x.pipeline.config import COCO_N_JOINTS
+from shared.coco_keypoints import COCO_N_JOINTS
 
 # rtmlib-loadable mmdeploy ONNX-SDK archives. The detector is the ONNX export of
 # the RTMDet-M person checkpoint (235e8209) that MMPoseInferencer("human")
 # resolves at mmpose 1.3.2; the pose model is the updated body7 RTMPose-L.
-# Pin + SHA-verify via validation_scripts/rtmlib_migration.
+# Pin + SHA-verify via src/bst_x/validation_scripts/rtmlib_migration.
 # The "256x192" in the pose filename is OpenMMLab's height x width naming (named
 # HxW upstream); every resolution we write elsewhere is width x height (W x H).
 _MODEL_BASE = "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
@@ -172,7 +173,7 @@ class RtmlibPoseExtractor:
                     "site-packages/nvidia/cudnn/lib and site-packages/nvidia/cu13/lib "
                     "BEFORE python starts (the loader reads it once at process start, so "
                     "the repo .env cannot deliver it); see the GPU note in "
-                    "preparing_data/requirements.txt."
+                    "src/bst_x/preparing_data/requirements.txt."
                 )
 
     def detect_frame(self, frame_bgr: np.ndarray) -> FrameDetections:

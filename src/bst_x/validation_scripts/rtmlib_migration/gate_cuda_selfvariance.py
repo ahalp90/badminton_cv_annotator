@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 from _common import assemble_raw_clip, court_setup, find_clip, match_dets
 
-from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+from shared.rtmlib_pose import RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
 STEMFILE = Path(os.environ.get(

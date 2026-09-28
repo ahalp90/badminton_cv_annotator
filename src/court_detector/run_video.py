@@ -165,7 +165,9 @@ def main() -> int:
         if args.people is not None:
             people: PeopleSource | None = PoseArrays.from_directory(args.people)
         elif args.require_people:
-            people = RtmlibPeople(frames, args.device)
+            from shared.rtmlib_pose import RtmlibPoseExtractor
+
+            people = RtmlibPeople(frames, RtmlibPoseExtractor(device=args.device))
         else:
             people = None
         if isinstance(people, PoseArrays) and people.frame_count < frames.frame_count:

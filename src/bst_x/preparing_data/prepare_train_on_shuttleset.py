@@ -76,7 +76,7 @@ from preparing_data.heuristics.base import (
 )
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
 
 @jaxtyped(typechecker=beartype)
@@ -303,7 +303,7 @@ def prepare_dataset_npy_from_raw_video(
     :param joints_center_align: If True, center-align joints within bounding box.
     :param device: onnxruntime device for the rtmlib adapter ("cuda" or "cpu").
     """
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor  # lazy: keeps the module rtmlib-free at import (see top)
+    from shared.rtmlib_pose import RtmlibPoseExtractor  # lazy: keeps the module rtmlib-free at import (see top)
     pose_extractor = RtmlibPoseExtractor(device=device)
 
     # Flat layout: per-clip files sit alongside each other under save_root_dir.

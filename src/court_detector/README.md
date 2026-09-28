@@ -197,11 +197,11 @@ three-second people window. Supplying `--people` still uses those saved inputs,
 but leaves the player checks optional. The saved-view runner supports the same
 gate toggle while retaining its required fixture directory.
 
-Live pose extraction temporarily reuses `bst_x.preparing_data.rtmlib_pose`,
-which also imports BST-X pipeline configuration. This is a practical compromise.
-Move the reusable extractor and its pose-format constants into shared code so
-both callers can use it without that dependency. The dependency is loaded only
-when the live-pose adapter is constructed.
+Live pose extraction uses `shared.rtmlib_pose`, the same extractor as BST-X
+preparation and the dataset builder. RTMLib is imported only when the live-pose
+extractor is built. `RtmlibPeople` serves one video because it caches by frame
+number. Give each video's `RtmlibPeople` the same `RtmlibPoseExtractor` so a
+batch loads the models once.
 
 DeepLSD uses gradient validation by default. This matches the saved amateur
 example's line extract; the less selective hard variant remains available through

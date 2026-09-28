@@ -876,7 +876,8 @@ def _extract_pose_child(
     n_max: int,
 ) -> int:
     from preparing_data.raw_extract import extract_one_clip
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
     if not video_path.is_file():
         raise FileNotFoundError(f"pose source video is not a regular file: {video_path}")

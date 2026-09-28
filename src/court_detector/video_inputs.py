@@ -6,12 +6,15 @@ import lzma
 from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import cv2
 import numpy as np
 
 from .inputs import FrameReader, PersonSample
+
+if TYPE_CHECKING:
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
 FRAME_CACHE_SIZE = 64  # Enough for two 31-frame foot windows; images stay at native size.
 
@@ -111,17 +114,16 @@ class PoseArrays:
 
 
 class RtmlibPeople:
-    """Run the project's person/pose extractor once per requested source frame.
+    """Run the shared person/pose extractor once per requested frame of one video.
 
-    This temporarily reuses BST-X's extractor. Move that extractor and its pose
-    constants into shared code so live court inputs do not depend on BST-X.
+    The cache is keyed by this video's frame numbers, so each video needs its own
+    RtmlibPeople. The extractor holds the loaded models; pass the same one to every
+    video so a batch loads them once.
     """
 
-    def __init__(self, frames: FrameReader, device: str = 'cuda') -> None:
-        from bst_x.preparing_data.rtmlib_pose import RtmlibPoseExtractor
-
+    def __init__(self, frames: FrameReader, extractor: RtmlibPoseExtractor) -> None:
         self.frames = frames
-        self.extractor = RtmlibPoseExtractor(device=device)
+        self.extractor = extractor
         self.cache: dict[int, PersonSample] = {}
 
     def samples(self, frame_indices: Sequence[int]) -> list[PersonSample]:

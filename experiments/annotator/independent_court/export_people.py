@@ -296,7 +296,7 @@ def export_window(
 
 def _build_detector(device: str, score_min: float) -> Any:
     # Keep this import inside the command path: importing this adapter loads rtmlib.
-    from preparing_data.rtmlib_pose import DET_INPUT_SIZE, DET_URL, RTMDetScored
+    from shared.rtmlib_pose import DET_INPUT_SIZE, DET_URL, RTMDetScored
 
     detector = RTMDetScored(DET_URL, model_input_size=DET_INPUT_SIZE, device=device)
     if device.startswith("cuda") and "CUDAExecutionProvider" not in detector.session.get_providers():

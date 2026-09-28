@@ -2,6 +2,8 @@
 
 import gzip
 import json
+import sys
+import types
 from collections.abc import Sequence
 from typing import Self
 
@@ -144,9 +146,18 @@ def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
         detectors.append(detector)
         return detector
 
-    def make_live_people(frames, device):
-        live_setups.append((frames, device))
+    class Extractor:
+        def __init__(self, device):
+            self.device = device
+
+    def make_live_people(frames, extractor):
+        live_setups.append((frames, extractor.device))
         return People()
+
+    # The live branch imports the shared extractor, which needs RTMLib; stand in for it.
+    rtmlib_pose = types.ModuleType('shared.rtmlib_pose')
+    rtmlib_pose.RtmlibPoseExtractor = Extractor  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, 'shared.rtmlib_pose', rtmlib_pose)
 
     output = tmp_path / 'result.json.gz'
     monkeypatch.setattr(run_video, 'VideoFrames', lambda path: VideoFileFrames())
@@ -161,7 +172,7 @@ def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
     assert run_video.main() == 0
     with gzip.open(output, 'rt') as stream:
         result = json.load(stream)
-    assert len(live_setups) == live_setup_count
+    assert [device for _, device in live_setups] == ['cuda'] * live_setup_count
     assert result['require_people'] is (not flag)
     assert result['scenes'][0]['status'] == expected_status
     # Without scene options the whole video is one scene.

@@ -7,8 +7,8 @@ skipped (never crashing on ``np.stack([])``), and the batch must abort loudly
 once failures exceed 0.3 of the clips slated for extraction this run.
 
 Runs with NO rtmlib installed (CI has none). Both entry points import the
-adapter lazily via ``from preparing_data.rtmlib_pose import RtmlibPoseExtractor``,
-so we inject a stub module into ``sys.modules['preparing_data.rtmlib_pose']``
+adapter lazily via ``from shared.rtmlib_pose import RtmlibPoseExtractor``,
+so we inject a stub module into ``sys.modules['shared.rtmlib_pose']``
 before the call. The stub's ``iter_video`` is driven by a per-stem frame count:
 a stem mapped to 0 yields nothing (the zero-frame failure), any other yields a
 few duck-typed FrameDetections whose keypoints/bboxes/scores are correctly
@@ -63,7 +63,7 @@ def _make_stub_rtmlib_module(
     default_frames: int = 3,
     people_per_frame: int = 2,
 ) -> types.ModuleType:
-    """Build a fake ``preparing_data.rtmlib_pose`` module to inject into sys.modules.
+    """Build a fake ``shared.rtmlib_pose`` module to inject into sys.modules.
 
     :param frames_per_stem: per-stem frame count override; a stem mapped to 0
         yields nothing (the zero-frame failure the guard must catch).
@@ -71,7 +71,7 @@ def _make_stub_rtmlib_module(
     :param people_per_frame: detections per yielded frame (2 for raw_extract's
         padding path, 1 for detect_players_2d's zero-fill path).
     """
-    module = types.ModuleType("preparing_data.rtmlib_pose")
+    module = types.ModuleType("shared.rtmlib_pose")
 
     class StubExtractor:
         def __init__(self, device: str = "cpu", **kwargs) -> None:
@@ -111,7 +111,7 @@ def _seed_done_raw_clip(save_dir: Path, stem: str, n_max: int, n_frames: int = 1
 
 def _run_raw_extract(monkeypatch, stub_module, clips_dir, stems_file, save_dir, n_max):
     """Inject the stub adapter, set argv, and run raw_extract.main()."""
-    monkeypatch.setitem(sys.modules, "preparing_data.rtmlib_pose", stub_module)
+    monkeypatch.setitem(sys.modules, "shared.rtmlib_pose", stub_module)
     monkeypatch.setattr(sys, "argv", [
         "raw_extract",
         "--clips-dir", str(clips_dir),
@@ -278,7 +278,7 @@ def test_prepare_zero_frame_logged_and_skipped_below_threshold(tmp_path, monkeyp
 
     bad = "11_1_1_2"
     stub = _make_stub_rtmlib_module({bad: 0}, default_frames=3, people_per_frame=1)
-    monkeypatch.setitem(sys.modules, "preparing_data.rtmlib_pose", stub)
+    monkeypatch.setitem(sys.modules, "shared.rtmlib_pose", stub)
     all_court_info, res_df = _dummy_court_and_res()
 
     prepare_dataset_npy_from_raw_video(
@@ -309,7 +309,7 @@ def test_prepare_aborts_past_threshold_raises(tmp_path, monkeypatch):
     stub = _make_stub_rtmlib_module(
         {stem: 0 for stem in stems}, default_frames=3, people_per_frame=1
     )
-    monkeypatch.setitem(sys.modules, "preparing_data.rtmlib_pose", stub)
+    monkeypatch.setitem(sys.modules, "shared.rtmlib_pose", stub)
     all_court_info, res_df = _dummy_court_and_res()
 
     with pytest.raises(RuntimeError, match=r"failed_clips\.log"):
