@@ -290,7 +290,7 @@ def test_detector_passes_its_template_device_to_generation(monkeypatch: pytest.M
     detector.search = lambda *args, **kwargs: {}
     detector.score_and_choose = lambda view, *args: detect.CourtResult(view.view_id, None, "no_gated_court", None,
                                                                          None)
-    view = ViewInputs("view", np.zeros((10, 20, 3), dtype=np.uint8), 0, (0, 9), np.empty((0, 4)),
+    view = ViewInputs("view", np.zeros((10, 20, 3), dtype=np.uint8), 0, (0, 10), np.empty((0, 4)),
                       np.empty((0, 4)), same_frame_provenance("view", 0))
     detector.detect(view, None, None)
     assert requests[0]["device"] == "cuda"

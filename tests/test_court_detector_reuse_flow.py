@@ -62,7 +62,7 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
     monkeypatch.setattr(reuse, 'try_reuse', try_reuse)
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
     alignment_image = np.full((540, 960), 100, dtype=np.uint8)
-    view = ViewInputs('later', frame, 50, (0, 99), np.empty((0, 4)), np.empty((0, 4)),
+    view = ViewInputs('later', frame, 50, (0, 100), np.empty((0, 4)), np.empty((0, 4)),
                       same_frame_provenance('later', 50), alignment_image)
     result = detector.detect(view, object(), None, known_courts=[object()])
     assert len(prepared) == 1
@@ -81,7 +81,7 @@ def test_required_people_can_reject_before_candidate_search(monkeypatch) -> None
     detector.switches = detect.Switches(timing=True)
     detector.live = SimpleNamespace(verifier=SimpleNamespace(view_context=lambda *args: SimpleNamespace()))
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
-    view = ViewInputs('empty', frame, 50, (0, 99), np.empty((0, 4)), np.empty((0, 4)),
+    view = ViewInputs('empty', frame, 50, (0, 100), np.empty((0, 4)), np.empty((0, 4)),
                       same_frame_provenance('empty', 50))
     result = detector.detect(view, object(), None)
     assert result.no_court_reason == 'no_gated_court'

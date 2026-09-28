@@ -65,11 +65,13 @@ class Detector:
 
 def test_scenes_keep_native_inputs_together_and_report_short_scenes() -> None:
     detector, lines = Detector(), Lines()
-    scenes = [SceneInfo(0, 99), SceneInfo(100, 109), SceneInfo(110, 209)]
+    scenes = [SceneInfo(0, 100), SceneInfo(100, 110), SceneInfo(110, 210)]
     rows = list(scene_courts(detector, Frames(), People(), lines, scenes, video_id='clip'))  # type: ignore[arg-type]
     assert [row['status'] for row in rows] == ['no_court', 'scene_too_short_for_feet', 'no_court']
+    assert [(row['start_frame'], row['end_frame'], row['frame_index']) for row in rows] == [
+        (0, 100, 49), (100, 110, 104), (110, 210, 159)]
     assert lines.indices == [49, 159]
-    assert [view.scene_frames for view in detector.views] == [(0, 99), (110, 209)]
+    assert [view.scene_frames for view in detector.views] == [(0, 100), (110, 210)]
     for view in detector.views:
         assert view.person_boxes_px[0, 0] == view.frame_index
         np.testing.assert_array_equal(view.segments_px, [[1., 2., 30., 40.]])
@@ -79,17 +81,18 @@ def test_scenes_keep_native_inputs_together_and_report_short_scenes() -> None:
 
 def test_optional_people_analyse_short_scene_without_pose_source() -> None:
     detector, lines = Detector(Switches(require_people=False)), Lines()
-    rows = list(scene_courts(detector, Frames(), None, lines, [SceneInfo(0, 9)], video_id='clip'))  # type: ignore[arg-type]
+    rows = list(scene_courts(detector, Frames(), None, lines, [SceneInfo(0, 10)],  # type: ignore[arg-type]
+                            video_id='clip'))
     assert [row['status'] for row in rows] == ['no_court']
     assert lines.indices == [4]
     assert detector.people_sources == [None]
-    assert detector.views[0].scene_frames == (0, 9)
+    assert detector.views[0].scene_frames == (0, 10)
     assert detector.views[0].person_boxes_px.shape == (0, 4)
 
 
 def test_optional_people_uses_supplied_pose_source() -> None:
     detector = Detector(Switches(require_people=False))
-    rows = list(scene_courts(detector, Frames(), People(), Lines(), [SceneInfo(0, 9)],  # type: ignore[arg-type]
+    rows = list(scene_courts(detector, Frames(), People(), Lines(), [SceneInfo(0, 10)],  # type: ignore[arg-type]
                             video_id='clip'))
     assert rows[0]['status'] == 'no_court'
     np.testing.assert_array_equal(detector.views[0].person_boxes_px, [[4, 2, 30, 40]])
@@ -105,7 +108,7 @@ def test_empty_line_extract_returns_no_court_and_continues_video(with_people: bo
     detector = CourtDetector(Switches(require_people=False))
     lines = EmptyThenSingleLine()
     rows = list(scene_courts(detector, Frames(), People() if with_people else None, lines,
-                            [SceneInfo(0, 9), SceneInfo(10, 19)], video_id='clip'))
+                            [SceneInfo(0, 10), SceneInfo(10, 20)], video_id='clip'))
     assert lines.indices == [4, 14]
     assert [row['status'] for row in rows] == ['no_court', 'no_court']
     assert [row['no_court_reason'] for row in rows] == ['no_gated_court', 'no_gated_court']
@@ -113,7 +116,7 @@ def test_empty_line_extract_returns_no_court_and_continues_video(with_people: bo
 
 def test_required_people_rejects_missing_source() -> None:
     with pytest.raises(ValueError, match='people source is required'):
-        list(scene_courts(Detector(), Frames(), None, Lines(), [SceneInfo(0, 99)],  # type: ignore[arg-type]
+        list(scene_courts(Detector(), Frames(), None, Lines(), [SceneInfo(0, 100)],  # type: ignore[arg-type]
                           video_id='clip'))
 
 
@@ -161,6 +164,9 @@ def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
     assert len(live_setups) == live_setup_count
     assert result['require_people'] is (not flag)
     assert result['scenes'][0]['status'] == expected_status
+    # Without scene options the whole video is one scene.
+    assert (result['scenes'][0]['start_frame'], result['scenes'][0]['end_frame']) == (0, 10)
+    assert result['scenes'][0]['frame_index'] == 4
     assert detectors[0].switches.require_people is (not flag)
     # One pool serves every scene; the short scene without people never reaches detect.
     assert detectors[0].events == (['open', 'detect', 'close'] if flag else ['open', 'close'])
@@ -169,15 +175,101 @@ def test_cli_defaults_to_live_people_but_optional_mode_skips_it(
         assert detectors[0].views[0].person_boxes_px.shape == (0, 4)
 
 
-@pytest.mark.parametrize('scenes', [[], [SceneInfo(1, 9)], [SceneInfo(0, 8)],
-                                    [SceneInfo(0, 4), SceneInfo(6, 9)], [SceneInfo(0, 5), SceneInfo(5, 9)]])
+@pytest.mark.parametrize(('saved_scenes', 'expected_rows'), [
+    ([[0, 5], [5, 10]], [(0, 5, 2), (5, 10, 7)]),
+    ([[0, 1], [1, 10]], [(0, 1, 0), (1, 10, 5)]),
+    ([[0, 4], [5, 9]], None),  # old inclusive bounds leave frames 4 and 9 uncovered
+])
+def test_cli_scene_file_uses_exclusive_ends(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, saved_scenes: list[list[int]],
+    expected_rows: list[tuple[int, int, int]] | None,
+) -> None:
+    class VideoFileFrames(Frames):
+        frame_count = 10
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    saved = {'lines.json.gz': {}, 'scenes.json.gz': saved_scenes}
+    output = tmp_path / 'result.json.gz'
+    monkeypatch.setattr(run_video, 'VideoFrames', lambda path: VideoFileFrames())
+    monkeypatch.setattr(run_video, 'SavedLines', lambda records: Lines())
+    monkeypatch.setattr(run_video, 'read_json', lambda path: saved[path.name])
+    monkeypatch.setattr(run_video, 'CourtDetector', Detector)
+    monkeypatch.setattr(run_video.os, 'sched_setaffinity', lambda *_: None)
+    monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(output),
+                                    '--saved-lines', 'lines.json.gz', '--scenes', 'scenes.json.gz',
+                                    '--no-require-people'])
+
+    if expected_rows is None:
+        with pytest.raises(ValueError, match='must start at frame'):
+            run_video.main()
+        return
+    assert run_video.main() == 0
+    with gzip.open(output, 'rt') as stream:
+        rows = json.load(stream)['scenes']
+    assert [(row['start_frame'], row['end_frame'], row['frame_index']) for row in rows] == expected_rows
+
+
+@pytest.mark.parametrize('scenes', [
+    pytest.param([], id='no-scenes'),
+    pytest.param([SceneInfo(1, 10)], id='starts-after-frame-0'),
+    pytest.param([SceneInfo(-1, 10)], id='starts-before-frame-0'),
+    pytest.param([SceneInfo(0, 9)], id='misses-final-frame'),
+    pytest.param([SceneInfo(0, 11)], id='ends-past-frame-count'),
+    pytest.param([SceneInfo(0, 4), SceneInfo(5, 10)], id='gap'),
+    pytest.param([SceneInfo(0, 6), SceneInfo(5, 10)], id='overlap'),
+    pytest.param([SceneInfo(0, 5), SceneInfo(5, 5), SceneInfo(5, 10)], id='empty-scene'),
+    # An old inclusive partition, (0, 4) and (5, 9), leaves frames 4 and 9 uncovered.
+    pytest.param([SceneInfo(0, 4), SceneInfo(5, 9)], id='old-inclusive-bounds'),
+])
 def test_incomplete_or_overlapping_external_scenes_fail(scenes: list[SceneInfo]) -> None:
     with pytest.raises(ValueError):
         validate_scenes(scenes, 10)
 
 
-def test_valid_scene_partition() -> None:
-    validate_scenes([SceneInfo(0, 4), SceneInfo(5, 9)], 10)
+@pytest.mark.parametrize('scenes', [
+    pytest.param([SceneInfo(0, 10)], id='whole-video'),
+    pytest.param([SceneInfo(0, 5), SceneInfo(5, 10)], id='cut-at-frame-5'),
+    pytest.param([SceneInfo(0, 1), SceneInfo(1, 9), SceneInfo(9, 10)], id='one-frame-scenes-at-both-ends'),
+])
+def test_valid_scene_partition(scenes: list[SceneInfo]) -> None:
+    validate_scenes(scenes, 10)
+
+
+@pytest.mark.parametrize(('start_frame', 'end_frame', 'middle_frame'), [(0, 10, 4), (0, 11, 5), (7, 8, 7), (5, 7, 5)])
+def test_scene_middle_is_the_lower_middle_frame(start_frame: int, end_frame: int, middle_frame: int) -> None:
+    assert SceneInfo(start_frame, end_frame).middle_frame == middle_frame
+
+
+def test_cut_frame_starts_the_following_scene_only() -> None:
+    class ThirtyFpsFrames(Frames):
+        fps = 30.0
+
+        def __init__(self) -> None:
+            self.requests: list[list[int]] = []
+
+        def read(self, indices: Sequence[int]) -> list[np.ndarray]:
+            self.requests.append(list(indices))
+            return super().read(indices)
+
+    class ReusingDetector(Detector):
+        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+            return super().detect(view, people, frames)
+
+    # At 30 fps the 31 samples span exactly 91 frames. Frame 91 is the cut, and the
+    # 90-frame final scene is one frame too short.
+    frames, lines, detector = ThirtyFpsFrames(), Lines(), ReusingDetector()
+    scenes = [SceneInfo(0, 91), SceneInfo(91, 182), SceneInfo(182, 272)]
+    rows = list(scene_courts(detector, frames, People(), lines, scenes,  # type: ignore[arg-type]
+                            video_id='clip', reuse_courts=True))
+    assert [row['status'] for row in rows] == ['no_court', 'no_court', 'scene_too_short_for_feet']
+    assert frames.requests == [list(range(0, 91, 3)), list(range(91, 182, 3))]
+    assert lines.indices == [45, 136]
+    assert [view.scene_frames for view in detector.views] == [(0, 91), (91, 182)]
 
 
 def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> None:
@@ -193,8 +285,8 @@ def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> N
             return CourtResult(view.view_id, corners, None, 'reuse' if source else 'searched', None, .9, source)
 
     detector = ReusingDetector()
-    scenes = [SceneInfo(0, 79, np.array([1., 0.])), SceneInfo(80, 159, np.array([0., 1.])),
-              SceneInfo(160, 239, np.array([.9, .1]))]
+    scenes = [SceneInfo(0, 80, np.array([1., 0.])), SceneInfo(80, 160, np.array([0., 1.])),
+              SceneInfo(160, 240, np.array([.9, .1]))]
     rows = list(scene_courts(detector, Frames(), People(), Lines(), scenes,  # type: ignore[arg-type]
                             video_id='clip', reuse_courts=True))
     first, second = rows[0]['view_id'], rows[1]['view_id']
@@ -214,7 +306,7 @@ def test_reused_court_does_not_become_a_template() -> None:
             return CourtResult(view.view_id, np.zeros((4, 2)), None, 'court', None, .9, source)
 
     detector = ReusingDetector()
-    scenes = [SceneInfo(0, 79), SceneInfo(80, 159), SceneInfo(160, 239)]
+    scenes = [SceneInfo(0, 80), SceneInfo(80, 160), SceneInfo(160, 240)]
     rows = list(scene_courts(detector, Frames(), People(), Lines(), scenes,  # type: ignore[arg-type]
                             video_id='clip', reuse_courts=True))
     first = rows[0]['view_id']
@@ -260,13 +352,13 @@ def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: in
             return CourtResult(view.view_id, np.zeros((4, 2)), None, 'court', None, .9)
 
     frames, detector = MovingFrames(), MedianDetector()
-    scenes = [SceneInfo(0, scene_length - 1), SceneInfo(scene_length, 2 * scene_length - 1)]
+    scenes = [SceneInfo(0, scene_length), SceneInfo(scene_length, 2 * scene_length)]
     rows = list(scene_courts(detector, frames, None, AnchorLines(), scenes,  # type: ignore[arg-type]
                             video_id='clip', reuse_courts=True))
     assert [row['status'] for row in rows] == ['court', 'court']
     assert len(frames.requested) == 6
     for scene, requested in zip(scenes, (frames.requested[:3], frames.requested[3:]), strict=True):
-        assert requested == [scene.first_frame + index for index in expected_samples]
+        assert requested == [scene.start_frame + index for index in expected_samples]
 
 
 @pytest.mark.parametrize('scene_consistency', [False, True])
@@ -286,7 +378,7 @@ def test_reuse_decodes_in_order_and_preloads_the_feet_window_when_needed(scene_c
 
     frames = RecordingFrames()
     detector = ReusingDetector(Switches(enforce_scene_consistency=scene_consistency))
-    list(scene_courts(detector, frames, People(), Lines(), [SceneInfo(0, 79)],  # type: ignore[arg-type]
+    list(scene_courts(detector, frames, People(), Lines(), [SceneInfo(0, 80)],  # type: ignore[arg-type]
                      video_id='clip', reuse_courts=True))
     assert len(frames.requests) == 1
     requested = frames.requests[0]

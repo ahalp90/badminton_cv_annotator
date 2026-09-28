@@ -33,7 +33,8 @@ def scene_courts(
     """Detect the middle frame of each scene without crossing a cut for foot samples.
 
     When people are required, a scene too short for the foot window is
-    reported as unanalysed, not as evidence that no court is present.
+    reported as unanalysed, not as evidence that no court is present. Each row
+    repeats its scene's `[start_frame, end_frame)` bounds.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -41,16 +42,17 @@ def scene_courts(
     known_views = []
     for scene_index, scene in enumerate(scenes):
         started = perf_counter()
-        anchor = (scene.first_frame + scene.last_frame) // 2
+        anchor = scene.middle_frame
         view_id = f'{video_id}_scene_{scene_index:04d}_frame_{anchor}'
-        row: dict[str, Any] = {'view_id': view_id, 'first_frame': scene.first_frame, 'last_frame': scene.last_frame,
+        row: dict[str, Any] = {'view_id': view_id, 'start_frame': scene.start_frame, 'end_frame': scene.end_frame,
                                'frame_index': anchor}
-        alignment_frames = (scene.first_frame, anchor, scene.last_frame)
+        # The scene's first, middle and last frames. The end is exclusive, so the last is end_frame - 1.
+        alignment_frames = (scene.start_frame, anchor, scene.end_frame - 1)
         frame_indices = list(alignment_frames) if reuse_courts else [anchor]
         if detector.switches.require_people or reuse_courts:
             # Validate this input boundary before spending time on line/pose inference.
             try:
-                window = feet.window_frames(anchor, frames.fps, scene.first_frame, scene.last_frame)
+                window = feet.window_frames(anchor, frames.fps, scene.start_frame, scene.end_frame)
                 alignment_frames = (window[0], anchor, window[-1])
                 if reuse_courts:
                     if people is not None and detector.switches.enforce_scene_consistency:
@@ -83,7 +85,7 @@ def scene_courts(
             images = [view_image(decoded[frame_indices.index(index)]) for index in alignment_frames]
             alignment_image = np.median(images, axis=0).astype(np.uint8)
             alignment_image.flags.writeable = False
-        view = ViewInputs(view_id, frame, anchor, (scene.first_frame, scene.last_frame), segments,
+        view = ViewInputs(view_id, frame, anchor, (scene.start_frame, scene.end_frame), segments,
                           boxes, same_frame_provenance(view_id, anchor), alignment_image)
         if reuse_courts:
             # Histograms only order the attempts. Image alignment and court checks
@@ -109,14 +111,19 @@ def scene_courts(
 
 
 def validate_scenes(scenes: Sequence[SceneInfo], frame_count: int) -> None:
-    """External scene inputs must partition the source timeline exactly."""
+    """External scene inputs must partition the source timeline `[0, frame_count)` exactly.
+
+    Each scene must start where the previous one ended, hold at least one frame
+    and end by `frame_count`.
+    """
     next_frame = 0
     for scene in scenes:
-        if scene.first_frame != next_frame or not scene.first_frame <= scene.last_frame < frame_count:
-            raise ValueError(f'Scene {scene.first_frame}..{scene.last_frame} does not continue at frame {next_frame}')
-        next_frame = scene.last_frame + 1
+        if scene.start_frame != next_frame or not scene.start_frame < scene.end_frame <= frame_count:
+            raise ValueError(f'Scene [{scene.start_frame}, {scene.end_frame}) must start at frame {next_frame} '
+                             f'and end after it, by frame {frame_count}')
+        next_frame = scene.end_frame
     if next_frame != frame_count:
-        raise ValueError(f'Scenes end at {next_frame - 1}, expected {frame_count - 1}')
+        raise ValueError(f'Scenes end at frame {next_frame}, expected {frame_count}')
 
 
 def read_json(path: Path) -> Any:
@@ -138,7 +145,8 @@ def main() -> int:
     parser.add_argument('--template-device', choices=TEMPLATE_DEVICES, default='cpu',
                         help='device for line-template scoring; cuda needs CuPy and a GPU (default: cpu)')
     scene_options = parser.add_mutually_exclusive_group()
-    scene_options.add_argument('--scenes', type=Path, help='.json.gz list of inclusive [first,last] scene ranges')
+    scene_options.add_argument('--scenes', type=Path,
+                               help='.json.gz list of [start_frame, end_frame] scene ranges; end_frame is exclusive')
     scene_options.add_argument('--pyscenedetect', action='store_true', help='detect cuts and representative scene histograms')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
@@ -173,7 +181,7 @@ def main() -> int:
         elif args.pyscenedetect:
             scenes = PySceneDetectSource(histograms=True).scenes(args.video, frames.frame_count, frames.fps)
         else:
-            scenes = [SceneInfo(0, frames.frame_count - 1)]
+            scenes = [SceneInfo(0, frames.frame_count)]
         validate_scenes(scenes, frames.frame_count)
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()

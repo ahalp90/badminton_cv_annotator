@@ -29,9 +29,9 @@ from experiments.annotator.independent_court import export_lines
 
 REPO = Path(__file__).resolve().parents[1]
 FPS = 25
-# (first frame, last frame, grey level of the first frame). The level rises by
-# two per frame so each frame is identifiable; the jumps between scenes are cuts.
-SCENE_SPANS = ((0, 19, 10), (20, 44, 150), (45, 59, 60))
+# (start frame, exclusive end frame, grey level of the first frame). The level rises
+# by two per frame so each frame is identifiable; the jumps between scenes are cuts.
+SCENE_SPANS = ((0, 20, 10), (20, 45, 150), (45, 60, 60))
 
 
 class FakeDeepLSD:
@@ -171,8 +171,8 @@ def write_video(path: Path, frames: list[np.ndarray]) -> Path:
 @pytest.fixture(scope="module")
 def three_scene_video(tmp_path_factory: pytest.TempPathFactory) -> Path:
     frames = []
-    for first_frame, last_frame, first_level in SCENE_SPANS:
-        for offset in range(last_frame - first_frame + 1):
+    for start_frame, end_frame, first_level in SCENE_SPANS:
+        for offset in range(end_frame - start_frame):
             frames.append(np.full((48, 64, 3), first_level + 2 * offset, dtype=np.uint8))
     return write_video(tmp_path_factory.mktemp("scenes") / "three_scenes.mp4", frames)
 
@@ -195,14 +195,15 @@ def test_scenes_start_at_each_cut_and_cover_every_frame(three_scene_video: Path)
 
     scenes = source.scenes(three_scene_video, expected_frames=60, fps=FPS)
 
-    assert scenes == [SceneInfo(first_frame, last_frame) for first_frame, last_frame, _ in SCENE_SPANS]
+    # Cuts at frames 20 and 45 each start the following scene.
+    assert scenes == [SceneInfo(start_frame, end_frame) for start_frame, end_frame, _ in SCENE_SPANS]
 
 
 def test_video_without_cuts_is_one_scene(tmp_path: Path) -> None:
     frames = [np.full((48, 64, 3), 90, dtype=np.uint8)] * 30
     video_path = write_video(tmp_path / "one_scene.mp4", frames)
 
-    assert PySceneDetectSource().scenes(video_path, expected_frames=30, fps=FPS) == [SceneInfo(0, 29)]
+    assert PySceneDetectSource().scenes(video_path, expected_frames=30, fps=FPS) == [SceneInfo(0, 30)]
 
 
 def test_frame_count_mismatch_fails(three_scene_video: Path) -> None:
@@ -214,8 +215,10 @@ def test_scene_histograms_describe_each_middle_frame(three_scene_video: Path) ->
     scenes = PySceneDetectSource(histograms=True).scenes(three_scene_video, expected_frames=60, fps=FPS)
     levels = decoded_luma_levels(three_scene_video)
 
+    # Lower middle of the 20-frame scene, then the middles of the 25- and 15-frame scenes.
+    assert [scene.middle_frame for scene in scenes] == [9, 32, 52]
     for scene in scenes:
-        middle_frame = (scene.first_frame + scene.last_frame) // 2
+        middle_frame = scene.middle_frame
         # Neighbouring frames differ in level, so a seek to the wrong frame fails here.
         assert levels[middle_frame] not in (levels[middle_frame - 1], levels[middle_frame + 1])
         assert scene.histogram is not None and scene.histogram.shape == (HISTOGRAM_BINS,)

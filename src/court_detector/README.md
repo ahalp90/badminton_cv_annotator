@@ -23,6 +23,26 @@ Read [pickup.md](../../scratch/court_det_fix/pickup.md) for current work,
 A caller supplies these inputs directly, or uses the video runner below to
 build them from video frames, line detections and people detections.
 
+### Frame ranges
+
+Frame indices are zero-based. Scene ranges are half-open, like Python's
+`range`: `[start_frame, end_frame)` holds `start_frame` up to `end_frame - 1`.
+This applies to `SceneInfo`, `ViewInputs.scene_frames`,
+`feet.window_frames(anchor, fps, start_frame, end_frame)`, `--scenes` files
+and the runner's output rows.
+
+- A whole video is `[0, frame_count)`
+- A cut frame is the `end_frame` of one scene and the `start_frame` of the next,
+  so it belongs only to the following scene
+- The analysed frame is `SceneInfo.middle_frame`, `(start_frame + end_frame - 1) // 2`.
+  An even-length scene uses the lower of its two middle frames
+- Explicit frame lists, such as foot samples and `FrameReader.read` requests,
+  are plain indices
+
+Older versions used inclusive scene ends. Their runner rows store
+`first_frame` and `last_frame`. An old scene `[first, last]` is
+`[first, last + 1)` now, and it samples the same frames.
+
 The returned `CourtResult` contains:
 
 | Field | Meaning |
@@ -211,13 +231,16 @@ Histograms can prioritise camera comparisons; they do not establish that courts
 match. The `SceneSource` and `LineSource` protocols allow other input providers.
 The prepared-image detector needs neither PySceneDetect nor DeepLSD installed.
 
-Use `--scenes FILE` for a gzipped list of inclusive `[first_frame, last_frame]`
-ranges instead of detecting cuts. With neither scene option, the caller analyses
-one middle frame from the whole video. It analyses one middle frame per supplied
-scene and keeps foot samples inside that scene. Short scenes that cannot hold
-the existing foot window receive `scene_too_short_for_feet`; they remain
-unanalysed. Source codecs need a seek-versus-sequential frame check before
-benchmarking a new dataset.
+Use `--scenes FILE` for a gzipped list of `[start_frame, end_frame]` pairs, with
+exclusive ends, instead of detecting cuts. The scenes must cover
+`[0, frame_count)` in order without gaps or overlaps. An old file of inclusive
+ranges leaves gaps, so the runner rejects it. With neither scene option, the
+caller analyses one middle frame from the whole video. It analyses one middle
+frame per supplied scene and keeps foot samples inside that scene. Each output
+row repeats its scene's `start_frame` and `end_frame`, with the analysed frame
+as `frame_index`. Short scenes that cannot hold the existing foot window receive
+`scene_too_short_for_feet`; they remain unanalysed. Source codecs need a
+seek-versus-sequential frame check before benchmarking a new dataset.
 
 The output separates model/input setup, scene detection and per-scene work.
 It records whether people and lines were supplied from saved extracts, so those
@@ -230,9 +253,10 @@ the most recent court comes first. A reused court never becomes a new template.
 
 Video reuse aligns three-frame median images to reduce moving-player interference.
 The samples are the first, middle and last frames of the existing feet window.
-Optional-people scenes shorter than that window use their scene endpoints and
-middle frame. One image is shared by the alignment attempts and any new stored
-reference. Court search and stripe refitting still use the actual middle frame.
+Optional-people scenes shorter than that window use their scene's first frame,
+middle frame and last frame, `end_frame - 1`. One image is shared by the
+alignment attempts and any new stored reference. Court search and stripe
+refitting still use the actual middle frame.
 
 Each attempt aligns the images, refits the court to the current stripes, and
 checks the current geometry, camera, players' feet and paint support. It also

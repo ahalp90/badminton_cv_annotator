@@ -42,19 +42,22 @@ class FeetWindow(NamedTuple):
     all_feet_px: list[list]  # one row per kept frame: [x, y] or None, padded to one width
 
 
-def window_frames(anchor: int, fps: float, first_frame: int, last_frame: int) -> list[int]:
+def window_frames(anchor: int, fps: float, start_frame: int, end_frame: int) -> list[int]:
     """31 frames at 10 fps around the anchor, shifted as a block to stay inside the scene.
 
-    :param first_frame: The scene's first frame.
-    :param last_frame: The scene's last frame, inclusive.
+    :param start_frame: The scene's first frame.
+    :param end_frame: The frame after the scene's last frame (exclusive end).
     """
     step = fps / SAMPLE_FPS
-    lowest_k = -int((anchor - first_frame) // step)
+    # Measure to the last frame itself. Flooring the distance to end_frame instead can
+    # put the final sample on end_frame, outside the scene.
+    last_frame = end_frame - 1
+    lowest_k = -int((anchor - start_frame) // step)
     highest_k = int((last_frame - anchor) // step)
     first_k = min(max(-(SAMPLES // 2), lowest_k), highest_k - (SAMPLES - 1))
     frames = [anchor + round(k * step) for k in range(first_k, first_k + SAMPLES)]
-    if frames[0] < first_frame or frames[-1] > last_frame or anchor not in frames:
-        raise ValueError(f"window {frames[0]}..{frames[-1]} does not fit scene {first_frame}..{last_frame} "
+    if frames[0] < start_frame or frames[-1] >= end_frame or anchor not in frames:
+        raise ValueError(f"window {frames[0]}..{frames[-1]} does not fit scene [{start_frame}, {end_frame}) "
                          f"around {anchor}")
     return frames
 

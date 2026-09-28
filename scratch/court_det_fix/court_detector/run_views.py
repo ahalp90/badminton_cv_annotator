@@ -375,7 +375,7 @@ def main() -> int:
     people_records = {view_id: read_json_gz(args.people / f"{view_id}.json.gz") for view_id in args.views}
     keep_by_video: dict[str, set[int]] = {}
     for view_id, record in people_records.items():
-        window = feet.window_frames(views[view_id]["anchor"], record["fps"], 0, record["frame_count"] - 1)
+        window = feet.window_frames(views[view_id]["anchor"], record["fps"], 0, record["frame_count"])
         keep_by_video.setdefault(record["video_path"], set()).update(window)
     videos = {}
     for path, keep in keep_by_video.items():
@@ -407,7 +407,7 @@ def main() -> int:
                     raise FileNotFoundError(frame_file)
                 view = ViewInputs(
                     view_id=view_id, frame=frame, frame_index=views[view_id]["anchor"],
-                    scene_frames=(0, record["frame_count"] - 1),
+                    scene_frames=(0, record["frame_count"]),
                     segments_px=np.asarray(source["segments_px"], dtype=np.float32).reshape(-1, 4),
                     person_boxes_px=np.asarray(source["bbox_px"], dtype=float).reshape(-1, 4),
                     provenance=provenances[view_id],

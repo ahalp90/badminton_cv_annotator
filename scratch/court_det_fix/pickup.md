@@ -92,13 +92,22 @@ package. The old pipeline still uses CourtKeyNet until its replacement batch.
 The move passed 2,518 tests with 35 skips and whole-project Pyrefly, both exit 0.
 Two saved views returned identical courts and records after excluding timings.
 Changed-file Ruff retains 11 existing findings in four CourtKeyNet files; the
-migration introduced none. A live DeepLSD check remains for the server environment.
+migration introduced none. A live CUDA DeepLSD check also passed after the move.
 
-Next, standardise detector scene ranges to zero-based `[start, end)`. Preserve
-actual sampled frames and the lower midpoint in even-length scenes. Check scene
-cuts, short scenes, foot windows, reuse samples and end-of-video boundaries.
+Scene ranges now use zero-based `[start, end)` throughout the detector. The
+initial conversion keeps the same sampled frames and centralises midpoint choice
+in `SceneInfo.middle_frame`. Boundary tests cover cuts, short scenes, foot windows,
+reuse samples and the last video frame. Focused tests passed 228 cases with six
+GPU skips; Ruff and Pyrefly passed. The full suite passed 2,541 tests with 35 skips
+and one interpreter-PATH failure. The affected 15-test file then passed with the
+venv on PATH.
+
+Independent review of the range change remains pending. The simpler midpoint
+`(start + end) // 2` is preferred if a bounded comparison shows comparable court
+quality. The current implementation retains the lower midpoint until that check;
+its parity results do not establish the effect of choosing the next frame.
 Shared pose extraction, the complete entry point and old-pipeline replacement
-follow that change.
+follow the range review and midpoint decision.
 
 ## Follow-up after satisfactory optimisation
 

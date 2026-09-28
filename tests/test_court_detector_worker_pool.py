@@ -79,7 +79,7 @@ def test_search_and_scoring_use_the_open_pool(monkeypatch: pytest.MonkeyPatch) -
     context = SimpleNamespace(size=(20, 10))
     source = {"all_feet_px": [[[1., 2.]]], "dimensions": {"width": 20, "height": 10}}
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
-    view = ViewInputs("view", frame, 0, (0, 9), np.empty((0, 4)), np.empty((0, 4)), same_frame_provenance("view", 0))
+    view = ViewInputs("view", frame, 0, (0, 10), np.empty((0, 4)), np.empty((0, 4)), same_frame_provenance("view", 0))
 
     def search_and_score() -> None:
         populations = detector.search(context, source, frame, detect.Laps())

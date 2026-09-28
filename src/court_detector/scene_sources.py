@@ -8,7 +8,7 @@ runs without them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -19,19 +19,27 @@ HISTOGRAM_BINS = 256  # one per 8-bit luma level, as in PySceneDetect's Histogra
 
 @dataclass(frozen=True)
 class SceneInfo:
-    """One scene: the video frames between two cuts."""
+    """One scene: the video frames from one cut up to the next, `[start_frame, end_frame)`."""
 
-    first_frame: int
-    last_frame: int  # inclusive, like ViewInputs.scene_frames
+    start_frame: int  # the scene's first frame, zero-based
+    end_frame: int  # exclusive: the next scene's first frame, or the video's frame count
     # (HISTOGRAM_BINS,) luma distribution of the middle frame, summing to one. Similar
     # histograms suggest which scenes to compare first. They never show that two
     # scenes share a court.
     histogram: np.ndarray | None = None
 
+    @property
+    def middle_frame(self) -> int:
+        """The scene's middle frame, which the detector analyses.
+
+        An even-length scene has two middle frames; this is the lower one.
+        """
+        return (self.start_frame + self.end_frame - 1) // 2
+
 
 class SceneSource(Protocol):
     def scenes(self, video_path: Path, expected_frames: int, fps: float) -> list[SceneInfo]:
-        """Every scene in frame order, covering frames 0 to `expected_frames - 1` without gaps."""
+        """Every scene in frame order, covering `[0, expected_frames)` without gaps or overlaps."""
         ...
 
 
@@ -73,14 +81,14 @@ class PySceneDetectSource:
 
     Cuts use the composition mask's settings: ContentDetector threshold 27 and a
     minimum scene length of half a second, rounded to frames (13 at 25 fps).
-    Histograms add one seek and one frame read per scene, at its middle frame.
+    Histograms add one seek and one frame read per scene, at `SceneInfo.middle_frame`.
     """
 
     def __init__(self, histograms: bool = False) -> None:
         self.histograms = histograms
 
     def scenes(self, video_path: Path, expected_frames: int, fps: float) -> list[SceneInfo]:
-        """Every scene in frame order, covering frames 0 to `expected_frames - 1` without gaps.
+        """Every scene in frame order, covering `[0, expected_frames)` without gaps or overlaps.
 
         :param video_path: the video whose frame indices the detector uses.
         :param expected_frames: frame count of that timeline. The container and
@@ -95,16 +103,14 @@ class PySceneDetectSource:
 
         min_scene_len = scale_for_fps(fps).composition_min_scene_len
         # detect_cuts raises unless both frame counts equal expected_frames. Each cut
-        # is the first frame of a new scene, in ascending order.
+        # is the first frame of a new scene, in ascending order, and so the exclusive
+        # end of the scene before it.
         cut_frames = detect_cuts(video_path, expected_frames, COMPOSITION_CONTENT_THRESHOLD, min_scene_len).tolist()
-        first_frames = [0, *cut_frames]
-        last_frames = [cut_frame - 1 for cut_frame in cut_frames] + [expected_frames - 1]
+        start_frames = [0, *cut_frames]
+        end_frames = [*cut_frames, expected_frames]
+        scenes = [SceneInfo(start_frame, end_frame) for start_frame, end_frame in zip(start_frames, end_frames)]
         if not self.histograms:
-            return [SceneInfo(first_frame, last_frame) for first_frame, last_frame in zip(first_frames, last_frames)]
+            return scenes
 
-        middle_frames = [(first_frame + last_frame) // 2 for first_frame, last_frame in zip(first_frames, last_frames)]
-        histograms = _frame_histograms(video_path, middle_frames)
-        scenes = []
-        for first_frame, last_frame, histogram in zip(first_frames, last_frames, histograms):
-            scenes.append(SceneInfo(first_frame, last_frame, histogram))
-        return scenes
+        histograms = _frame_histograms(video_path, [scene.middle_frame for scene in scenes])
+        return [replace(scene, histogram=histogram) for scene, histogram in zip(scenes, histograms, strict=True)]

@@ -41,7 +41,7 @@ class ViewInputs:
     view_id: str
     frame: np.ndarray  # (height, width, 3) BGR uint8 at native size: the image the court is found in
     frame_index: int  # the video frame it shows; for a composite, its middle frame
-    scene_frames: tuple[int, int]  # first and last frame of the scene, inclusive
+    scene_frames: tuple[int, int]  # (start_frame, end_frame) of the scene; end_frame is exclusive
     segments_px: np.ndarray  # (fragments, 4) float32 DeepLSD x1, y1, x2, y2 in native pixels
     person_boxes_px: np.ndarray  # (boxes, 4) in native pixels; masked out only when provenance allows
     provenance: CaseProvenance

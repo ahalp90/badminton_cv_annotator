@@ -35,9 +35,37 @@ def test_window_matches_the_evidence_script(fps: float, frame_count: int) -> Non
             expected = sample_frames(anchor, fps, frame_count)
         except ValueError:
             with pytest.raises(ValueError):
-                feet.window_frames(anchor, fps, 0, frame_count - 1)
+                feet.window_frames(anchor, fps, 0, frame_count)
             continue
-        assert feet.window_frames(anchor, fps, 0, frame_count - 1) == expected
+        assert feet.window_frames(anchor, fps, 0, frame_count) == expected
+
+
+# Expected frames come from the detector before scene ends became exclusive.
+@pytest.mark.parametrize(("fps", "start_frame", "end_frame", "anchor", "expected"), [
+    pytest.param(30.0, 7, 98, 52, list(range(7, 98, 3)), id="exactly-fits-91-frames"),
+    pytest.param(30.0, 7, 100, 55, list(range(7, 98, 3)), id="spare-frames-after-window"),
+    pytest.param(25.0, 7, 85, 52, [7, 10, 12, 14, 17, 20, 22, 24, 27, 30, 32, 34, 37, 40, 42, 44, 47, 50, 52, 54,
+                                   57, 60, 62, 64, 67, 70, 72, 74, 77, 80, 82], id="shifted-back-from-end-25fps"),
+    pytest.param(59.94005994005994, 0, 181, 0, list(range(0, 181, 6)), id="anchored-at-frame-0-fractional-fps"),
+    pytest.param(29.97002997002997, 0, 28142, 28141, list(range(28051, 28142, 3)), id="anchored-at-final-frame"),
+    pytest.param(60.0000826168432, 7, 189, 7, list(range(7, 188, 6)), id="fractional-step-fits-with-spare-frame"),
+])
+def test_window_keeps_reference_samples_at_scene_edges(
+    fps: float, start_frame: int, end_frame: int, anchor: int, expected: list[int],
+) -> None:
+    assert feet.window_frames(anchor, fps, start_frame, end_frame) == expected
+
+
+@pytest.mark.parametrize(("fps", "start_frame", "end_frame", "anchor"), [
+    pytest.param(30.0, 7, 97, 52, id="one-frame-short-of-91"),
+    pytest.param(59.94005994005994, 0, 180, 0, id="one-frame-short-at-frame-0"),
+    # Rounding would put the 31st sample on frame 187, but the unrounded span ends just past it.
+    pytest.param(60.0000826168432, 7, 188, 7, id="unrounded-span-ends-past-last-frame"),
+    pytest.param(25.0, 7, 8, 7, id="one-frame-scene"),
+])
+def test_window_rejects_scenes_that_cannot_hold_it(fps: float, start_frame: int, end_frame: int, anchor: int) -> None:
+    with pytest.raises(ValueError, match="does not fit scene"):
+        feet.window_frames(anchor, fps, start_frame, end_frame)
 
 
 def test_same_shot_run_matches_the_evidence_script() -> None:
@@ -145,14 +173,14 @@ class BlankFrames:
 
 
 def test_window_feet_rejects_people_from_other_frames() -> None:
-    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 20, (0, 100), np.zeros((0, 4)),
+    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 20, (0, 101), np.zeros((0, 4)),
                       np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (20,), 20))
     with pytest.raises(ValueError, match="people source returned frames"):
         feet.window_feet(view, ShiftedPeople(), BlankFrames(), enforce_scene_consistency=True)
 
 
 def test_absent_people_need_no_frame_window_or_fake_foot_measurements() -> None:
-    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 0), np.zeros((0, 4)),
+    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 1), np.zeros((0, 4)),
                       np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (0,), 0))
     window = feet.window_feet(view, None, BlankFrames(), True, allow_short_window=True)
     assert window == feet.FeetWindow([], None, [], [])
@@ -163,7 +191,7 @@ def test_optional_short_window_uses_available_anchor_people() -> None:
         def samples(self, frame_indices: list[int]) -> list[PersonSample]:
             return [PersonSample(index, np.empty((0, 4)), np.empty((0, 17, 2))) for index in frame_indices]
 
-    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 0), np.zeros((0, 4)),
+    view = ViewInputs("view", np.zeros((36, 64, 3), dtype=np.uint8), 0, (0, 1), np.zeros((0, 4)),
                       np.zeros((0, 4)), CaseProvenance("view", ImageKind.SOURCE_FRAME, (0,), 0))
     with pytest.raises(ValueError, match="does not fit scene"):
         feet.window_feet(view, EmptyPeople(), BlankFrames(), True)
