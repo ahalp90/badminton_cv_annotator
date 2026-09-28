@@ -8,6 +8,32 @@ Read [pickup.md](../../scratch/court_det_fix/pickup.md) for current work,
 [the decisions](../../scratch/court_det_fix/DETECTOR_DECISIONS.md#d19) for measured results, and
 [PERFORMANCE.md](../../scratch/court_det_fix/court_detector/PERFORMANCE.md) for the speed-up design.
 
+## Scenes, sampling and returning views
+
+For video, the runner returns **at most one court per scene**, with a reason
+when none is returned. The projection is fixed within that scene; it does not
+follow camera movement frame by frame.
+
+- **Scene boundaries:** use `--pyscenedetect` to find cuts, or `--scenes` for
+  saved boundaries. Without either, the whole video is treated as one scene.
+  The dataset builder requests PySceneDetect unless supplied with boundaries.
+- **Samples:** court lines and fitting use the middle frame. Player checks use
+  up to 31 samples across a three-second window around it. With players required
+  (the default), scenes unable to hold that window are marked unanalysed.
+- **Returning views:** `--reuse-courts` checks earlier courts against fresh
+  evidence from each new scene, including non-consecutive scenes. It keeps eight
+  recent fully searched courts and tries up to three. Reuse can adjust the
+  projection; it does not assign one identical projection to a video-wide group.
+- **Defaults:** standalone reuse is off. The supplied `shuttleset_fixed.toml`
+  and `trial.toml` builder configurations enable it.
+
+PySceneDetect is optional. A short clip can run as one scene; use
+`--no-require-people` if it cannot hold the player window. A single prepared
+image can use the Python API with `require_people=False` and supplied lines.
+
+See [Sampling and scene reuse](sampling_and_reuse.md) for the sample schedule,
+reuse checks, an example and the limits of this approach.
+
 ## Inputs and result
 
 `CourtDetector.detect(view, people, frames)` takes three inputs from `inputs.py`:
@@ -346,24 +372,11 @@ the batch, because the shared models, GPU or workers may be in an unknown
 state. `stopped_after` then names that video, `finished` is false and the later
 videos stay `not_run`. The exit status is 1 unless every video is complete.
 
-`--reuse-courts` enables an optional trial for returning camera views. The caller
-keeps up to eight recent courts found by full searches and tries up to three
-for each later scene. Histograms order those attempts when available; otherwise
-the most recent court comes first. A reused court never becomes a new template.
+### Reuse from prepared images
 
-Video reuse aligns three-frame median images to reduce moving-player interference.
-The samples are the first, middle and last frames of the existing feet window.
-Optional-people scenes shorter than that window use their scene's first frame,
-middle frame and last frame, `end_frame - 1`. One image is shared by the
-alignment attempts and any new stored reference. Court search and stripe
-refitting still use the actual middle frame.
-
-Each attempt aligns the images, refits the court to the current stripes, and
-checks the current geometry, camera, players' feet and paint support. It also
-bounds the refit's movement in court metres, including the far baseline. Failed
-attempts fall through to the full search using the same prepared inputs. The
-paint-ratio and movement limits are provisional until checked on representative
-video pairs. Reuse stays off by default during that evaluation.
+The video runner's reuse behaviour is described in
+[Sampling and scene reuse](sampling_and_reuse.md). Rejected reuse attempts fall
+through to a full search using the same prepared inputs.
 
 Prepared-image callers can pass `known_courts=` to `detect()`. Build each entry
 with `reuse.make_known_court()` from a fully searched result and its input frame.
