@@ -50,6 +50,7 @@ ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
 SHUTTLE_QUALITY_FILENAME = "shuttle_quality.json.gz"
 TRACK_FILENAME = "shuttle_track.npy.xz"
 COURT_EVIDENCE_FILENAME = "court_evidence.json.gz"
+COURT_FAILURE_FILENAME = "court_failure.json.gz"
 COURT_KEEP_VOTE_FILENAME = "court_keep_vote.npy.xz"
 COURT_PRESENT_FILENAME = "court_present.npy.xz"
 COURT_DETECTOR_RESULT_FILENAME = "court_detector_result.json.gz"
@@ -479,6 +480,7 @@ def build_detected_court_stage(
     :param pose_dir: where ``pose`` is saved; the detector reads those native-pixel arrays.
     """
     from annotator.court_evidence import (
+        NoAcceptedCourtError,
         build_court_detector_evidence,
         read_detector_scenes,
     )
@@ -486,6 +488,8 @@ def build_detected_court_stage(
     validate_pose_arrays(pose, metadata.frame_count)
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
+    failure_path = root / COURT_FAILURE_FILENAME
+    failure_path.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(prefix=".court-detector-", dir=root) as work_dir:
         detector_result = run_court_detector(
             settings,
@@ -499,17 +503,22 @@ def build_detected_court_stage(
         native_size=(metadata.width, metadata.height),
     )
     resolution = (float(metadata.width), float(metadata.height))
-    result = build_court_detector_evidence(
-        case_id or video_id,
-        video_id,
-        resolution,
-        resolution,
-        scenes,
-        pose.bboxes,
-        pose.scores,
-        pose.ndet,
-        ref_err_px=ref_err_px,
-    )
+    try:
+        result = build_court_detector_evidence(
+            case_id or video_id,
+            video_id,
+            resolution,
+            resolution,
+            scenes,
+            pose.bboxes,
+            pose.scores,
+            pose.ndet,
+            ref_err_px=ref_err_px,
+        )
+    except NoAcceptedCourtError as error:
+        save_json_gz(failure_path, {"video_id": video_id, "error": str(error),
+                                   "scene_records": error.result.scene_records})
+        raise
     raw_cuts = tuple((scene.start_frame, scene.end_frame) for scene in scenes)
     artifacts = persist_court_vision(
         root,

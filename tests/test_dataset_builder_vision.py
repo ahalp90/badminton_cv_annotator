@@ -670,8 +670,9 @@ def test_detected_court_stage_fails_when_no_scene_has_an_accepted_court(
 ) -> None:
     metadata = _metadata(tmp_path, frame_count=6)
     rows = [
-        _detector_row(0, 2, "scene_too_short_for_feet"),
-        _detector_row(2, 6, "detection_failed", error="CourtFitError()", traceback="..."),
+        _detector_row(0, 1, "scene_too_short_for_feet"),
+        _detector_row(1, 3, "no_court", no_court_reason="refit_camera_implausible"),
+        _detector_row(3, 6, "detection_failed", error="CourtFitError()", traceback="..."),
     ]
     monkeypatch.setattr(vision, "run_court_detector", lambda *_args, **_kwargs: _detector_result(6, rows))
     with pytest.raises(NoAcceptedCourtError, match="detection_failed"):
@@ -679,6 +680,22 @@ def test_detected_court_stage_fails_when_no_scene_has_an_accepted_court(
             video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
             settings=_settings(), output_dir=tmp_path / "court",
         )
+    failure_path = tmp_path / "court" / vision.COURT_FAILURE_FILENAME
+    failure = vision.load_json_gz(failure_path)
+    assert failure["video_id"] == "0012"
+    assert [row["status"] for row in failure["scene_records"]] == [
+        "scene_too_short_for_feet", "no_court", "detection_failed",
+    ]
+    assert failure["scene_records"][1]["no_court_reason"] == "refit_camera_implausible"
+    assert failure["scene_records"][2]["error"] == "CourtFitError()"
+    assert all(not row["scene_valid"] for row in failure["scene_records"])
+
+    rows[:] = [_detector_row(0, 6, "court")]
+    vision.build_detected_court_stage(
+        video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+        settings=_settings(), output_dir=tmp_path / "court",
+    )
+    assert not failure_path.exists()
 
 
 def _detected_evidence(frame_count: int) -> CourtEvidenceResult:
@@ -1055,3 +1072,22 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     )
     assert raw_rows[0]["chunk_id"] == ""
     assert definitive_rows[0]["chunk_id"] == "c0"
+
+
+def test_court_failure_keeps_the_vote_for_a_detected_but_rejected_court(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=6)
+    rows = [_detector_row(0, 6, "court", corners_native_px=[[0., 0.], [10., 0.], [10., 50.], [0., 50.]])]
+    monkeypatch.setattr(vision, "run_court_detector", lambda *_args, **_kwargs: _detector_result(6, rows))
+    with pytest.raises(NoAcceptedCourtError):
+        vision.build_detected_court_stage(
+            video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+            settings=_settings(), output_dir=tmp_path / "court",
+        )
+    failure = vision.load_json_gz(tmp_path / "court" / vision.COURT_FAILURE_FILENAME)
+    record, = failure["scene_records"]
+    assert record["status"] == "court"
+    assert record["exactly_two_count"] == 0
+    assert record["exactly_two_fraction"] == 0
+    assert record["scene_valid"] is False
