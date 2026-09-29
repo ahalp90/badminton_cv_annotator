@@ -20,6 +20,9 @@ follow camera movement frame by frame.
 - **Samples:** court lines and fitting use the middle frame. Player checks use
   up to 31 samples across a three-second window around it. With players required
   (the default), scenes unable to hold that window are marked unanalysed.
+- **Composition:** when a fresh search finds a court, the runner also searches
+  the first and last frames of that window. A court fitted to the best markings
+  from all three frames can replace the middle frame's court.
 - **Returning views:** `--reuse-courts` checks earlier courts against fresh
   evidence from each new scene, including non-consecutive scenes. It keeps eight
   recent fully searched courts and tries up to three. Reuse can adjust the
@@ -79,10 +82,11 @@ The returned `CourtResult` contains:
 | --- | --- |
 | `corners_native_px` | Four float64 corners in the original image's pixels, or `None`. Corners can lie outside the image |
 | `no_court_reason` | Why no court was returned. `no_gated_court` means none passed the court checks; `rank_deficient` means the final fit lacked enough independent information. `refit_camera_implausible` and `refit_players_not_on_court` mean the final correction failed those checks |
-| `chosen_key` | The saved identifier of the chosen court |
-| `stage_seconds` | Time per step when timing is enabled |
-| `paint_score` | Paint support after the final stripe fit, for checking later reuse |
+| `chosen_key` | The saved identifier of the chosen court; `reuse` for a reused court, `composite` for a court composed across frames |
+| `stage_seconds` | Time per step when timing is enabled. Composing adds `endpoint_inputs`, `first_frame_search`, `last_frame_search` and `composition` |
+| `paint_score` | Paint support after the final stripe fit, for checking later reuse. A composite's is measured in the middle frame |
 | `reused_from` | Earlier view used for checked reuse, or `None` for a full search |
+| `composition` | `None` unless the endpoint frames were searched. Then `court` is `middle` or `composite`, with `fallback_reason`, the `reference` frame, `used_frames`, each endpoint's outcome, any `errors` and `middle_chosen_key` |
 
 ## How it finds the court
 
@@ -122,6 +126,18 @@ A 16:9 image becomes 960×540.
    image evidence is clear, then refit the corners. The result must pass the
    camera check and, when required, the player check again. A failed fit or
    check returns no court
+8. **Compose across frames (video only).** When the runner supplies a scene's
+   endpoint frames and step 7 returns a court, repeat steps 2 to 7 on the first
+   and last scheduled frames of the player window. They use the middle frame's
+   feet. Rank the frames that found a court by the step 6 blend; the best is the
+   reference. Align the others to it with people hidden, and drop weak
+   alignments. For each marking, take the stripes from the frame with the
+   strongest paint on it. Fit one court to them in the reference frame, then carry
+   it into the middle frame. There it must pass the geometry, camera and required
+   player checks, plus the upright-camera check when enabled. A passing composite
+   replaces the court, and its paint support is measured in the middle
+   frame. Otherwise, or when the middle frame does not align, the middle frame's
+   own court stands. A failed endpoint search is logged and left out
 
 The court checks allow feet up to 15% beyond the court. The shot check keeps
 frames whose small grey thumbnail differs from the target by no more than
@@ -255,6 +271,8 @@ pixels. The reader drops padded detection slots using `ndet`.
 For saved-line trials, replace the DeepLSD arguments with `--saved-lines FILE`.
 That file is a gzipped JSON object mapping source frame numbers to `(N, 4)`
 native-pixel line arrays, read as float32. Missing frame entries raise an error.
+It needs each scene's middle frame. A scene that holds the player window also
+needs the window's first and last frames, which are read only when composing.
 
 PySceneDetect is optional. Its adapter uses the existing ContentDetector cut
 settings and can supply a normalised luminance histogram for each scene.
@@ -298,8 +316,10 @@ Each output row has one `status`:
 
 A scene fails alone for a `CourtFitError` from geometry search, scoring or refitting
 after input validation. Other errors stop the video, such as a broken worker
-pool, a GPU error or a people source that returns the wrong frames. Only `court` rows from a full search can become reuse
-templates.
+pool, a GPU error or a people source that returns the wrong frames. A fit error
+in an endpoint frame or the composition keeps the middle frame's court and is
+recorded under `composition.errors`. Only `court` rows from a full search or a
+composite can become reuse templates.
 
 ### Video result
 
@@ -466,6 +486,7 @@ research features left out and where they could be restored.
 | [search.py](search.py) | Search settings, paint-like fragments and extra starting points |
 | [net_choice.py](net_choice.py) | Final choice and net-post reward |
 | [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
+| [composition.py](composition.py) | Compose one court from a scene's middle and endpoint frames |
 | [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run one video or a batch, and build each scene's inputs |
 | [run_image.py](run_image.py) | Run one image file with live DeepLSD and optional RTMLib |
 | [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines; PySceneDetect or saved scenes |

@@ -35,6 +35,7 @@ import numpy as np
 
 from annotator import court_views
 from court_detector import feet, proposals, reuse, search
+from court_detector.composition import ENDPOINT_ROLES, FRAME_ROLES
 from court_detector.detect import (
     MAX_HORIZON_TILT_DEG,
     VISIBILITY_FLOOR,
@@ -62,12 +63,10 @@ from shared.court_model import CORNER_COURT_M
 
 MANIFEST_SCHEMA = "court-scene-sampling-manifest/1"
 METHODS = ("full_three", "cheap_first", "seed_refit")
-# Production detect() on the middle frame alone, as run_video runs it. It keeps its own history too.
+# The original middle-frame-only detector, with its own reuse history.
 BASELINE = "baseline"
 ARMS = (BASELINE, *METHODS)
-# Every choice between frames breaks exact ties in this order: middle, then first, then last.
-FRAME_ROLES = ("middle", "first", "last")
-ENDPOINT_ROLES = ("first", "last")
+# Every choice between frames breaks exact ties in FRAME_ROLES order: middle, then first, then last.
 # cheap_first's searches fully score only each direction pair's best 2048 courts by 16-sample support.
 CHEAP_FIRST_SCORE_LIMIT = 2048
 # run_video.scene_courts keeps a video's 8 newest searched courts and tries the first 3 on a new scene.
@@ -462,7 +461,7 @@ def seed_court(attempt: FrameAttempt) -> KnownCourt | None:
 
 def middle_detection(detector: CourtDetector, inputs: SceneInputs,
                      known_courts: Sequence[KnownCourt]) -> FrameAttempt:
-    """The middle frame as run_video detects it: earlier courts against the median image, then a full search."""
+    """The middle-frame-only baseline: try earlier courts against the median image, then search."""
     return detect_fixed_feet(detector, "middle", inputs.views["middle"], inputs.feet, known_courts,
                              inputs.alignment_median)
 

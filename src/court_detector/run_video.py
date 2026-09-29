@@ -19,6 +19,7 @@ from collections.abc import Iterator, Sequence
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import ExitStack
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
@@ -109,6 +110,28 @@ def prerun_people(video: Path, video_id: str, settings: PosePrerun) -> Path:
     return output
 
 
+def frame_view(view_id: str, frame: np.ndarray, frame_index: int, scene: SceneInfo, lines: LineSource,
+               people: PeopleSource | None, alignment_image: np.ndarray | None = None) -> ViewInputs:
+    """One scene frame with its own lines and person boxes."""
+    segments = lines.segments(frame, frame_index)
+    if people is None:
+        boxes = np.empty((0, 4), dtype=float)
+    else:
+        samples = people.samples([frame_index])
+        if len(samples) != 1 or samples[0].frame_index != frame_index:
+            raise ValueError(f'{view_id}: people source did not return the requested frame {frame_index}')
+        boxes = samples[0].boxes_px
+    return ViewInputs(view_id, frame, frame_index, (scene.start_frame, scene.end_frame), segments,
+                      boxes, same_frame_provenance(view_id, frame_index), alignment_image)
+
+
+def endpoint_views(decoded: dict[int, np.ndarray], endpoints: Sequence[int], scene_id: str, scene: SceneInfo,
+                   lines: LineSource, people: PeopleSource | None) -> list[ViewInputs]:
+    """The endpoint frames' views, in order. The detector asks for them only when it composes."""
+    return [frame_view(f'{scene_id}_frame_{index}', decoded[index], index, scene, lines, people)
+            for index in endpoints]
+
+
 def scene_courts(
     detector: CourtDetector, frames: FrameReader, people: PeopleSource | None, lines: LineSource,
     scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False,
@@ -120,6 +143,11 @@ def scene_courts(
     whose search or fit fails is reported as `detection_failed` with its error,
     and the next scene runs. Each row repeats its scene's `[start_frame, end_frame)`
     bounds.
+
+    When a fresh search finds the middle frame's court, the detector also searches
+    the first and last frames of the foot window and may report a composite court
+    in the middle frame's pixels. A scene too short for the window, or one that
+    reuses an earlier court, keeps the middle frame alone.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -128,39 +156,36 @@ def scene_courts(
     for scene_index, scene in enumerate(scenes):
         started = perf_counter()
         anchor = scene.middle_frame
-        view_id = f'{video_id}_scene_{scene_index:04d}_frame_{anchor}'
+        scene_id = f'{video_id}_scene_{scene_index:04d}'
+        view_id = f'{scene_id}_frame_{anchor}'
         row: dict[str, Any] = {'view_id': view_id, 'start_frame': scene.start_frame, 'end_frame': scene.end_frame,
                                'frame_index': anchor}
-        # The scene's first, middle and last frames. The end is exclusive, so the last is end_frame - 1.
-        alignment_frames = (scene.start_frame, anchor, scene.end_frame - 1)
-        frame_indices = list(alignment_frames) if reuse_courts else [anchor]
-        if detector.switches.require_people or reuse_courts:
-            # Validate this input boundary before spending time on line/pose inference.
-            try:
-                window = feet.window_frames(anchor, frames.fps, scene.start_frame, scene.end_frame)
-                alignment_frames = (window[0], anchor, window[-1])
-                if reuse_courts:
-                    if people is not None and detector.switches.enforce_scene_consistency:
-                        frame_indices = window
-                    else:
-                        frame_indices = list(alignment_frames)
-            except ValueError:
-                if detector.switches.require_people:
-                    row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
-                    yield row
-                    continue
+        # Validate this input boundary before spending time on line/pose inference.
+        try:
+            window = feet.window_frames(anchor, frames.fps, scene.start_frame, scene.end_frame)
+        except ValueError:
+            if detector.switches.require_people:
+                row.update(status='scene_too_short_for_feet', corners_native_px=None, seconds=perf_counter() - started)
+                yield row
+                continue
+            window = None
+        endpoints = [] if window is None else [window[0], window[-1]]
+        # The reuse median's frames: the window's ends when it fits, else the scene's.
+        # The end is exclusive, so the scene's last frame is end_frame - 1.
+        if window is None:
+            alignment_frames = (scene.start_frame, anchor, scene.end_frame - 1)
+        else:
+            alignment_frames = (window[0], anchor, window[-1])
+        if window is not None and people is not None and detector.switches.enforce_scene_consistency:
+            frame_indices = window
+        elif window is not None or reuse_courts:
+            frame_indices = list(alignment_frames)
+        else:
+            frame_indices = [anchor]
         # Decode in order. The feet check can then use the cached window without
         # seeking backwards after the median's last sample.
-        decoded = frames.read(frame_indices)
-        frame = decoded[frame_indices.index(anchor)]
-        segments = lines.segments(frame, anchor)
-        if people is None:
-            boxes = np.empty((0, 4), dtype=float)
-        else:
-            anchor_people = people.samples([anchor])
-            if len(anchor_people) != 1 or anchor_people[0].frame_index != anchor:
-                raise ValueError(f'{view_id}: people source did not return the requested anchor')
-            boxes = anchor_people[0].boxes_px
+        decoded = dict(zip(frame_indices, frames.read(frame_indices), strict=True))
+        frame = decoded[anchor]
         alignment_image = None
         known_courts = []
         if reuse_courts:
@@ -168,7 +193,7 @@ def scene_courts(
 
             # Moving players occupy different pixels across these samples. A median
             # retains the static court for alignment with returning camera views.
-            images = [view_image(decoded[frame_indices.index(index)]) for index in alignment_frames]
+            images = [view_image(decoded[index]) for index in alignment_frames]
             alignment_image = np.median(images, axis=0).astype(np.uint8)
             alignment_image.flags.writeable = False
             # Histograms only order the attempts. Image alignment and court checks
@@ -178,10 +203,12 @@ def scene_courts(
                 ordered = sorted(known_views, key=lambda known: float('inf') if known[1] is None
                                  else float(abs(scene.histogram - known[1]).sum()))
             known_courts = [known[0] for known in ordered[:3]]
-        view = ViewInputs(view_id, frame, anchor, (scene.start_frame, scene.end_frame), segments,
-                          boxes, same_frame_provenance(view_id, anchor), alignment_image)
+        view = frame_view(view_id, frame, anchor, scene, lines, people, alignment_image)
+        endpoint_inputs = None
+        if endpoints:
+            endpoint_inputs = partial(endpoint_views, decoded, endpoints, scene_id, scene, lines, people)
         try:
-            result = detector.detect(view, people, frames, known_courts=known_courts)
+            result = detector.detect(view, people, frames, known_courts=known_courts, endpoint_views=endpoint_inputs)
         except CourtFitError as error:
             # Long-video rule: record this scene's failure and keep going. A failed
             # scene skips the reuse store below, so it never becomes a template.
@@ -190,6 +217,8 @@ def scene_courts(
                        traceback=traceback.format_exc(), seconds=perf_counter() - started)
             yield row
             continue
+        # A composite court is stored like a searched one: in the middle frame's pixels,
+        # with its paint support measured there.
         if (reuse_courts and result.corners_native_px is not None and result.reused_from is None
                 and result.paint_score is not None and result.paint_score > 0):
             from .reuse import make_known_court
@@ -201,7 +230,8 @@ def scene_courts(
         row.update(status='court' if result.corners_native_px is not None else 'no_court',
                    corners_native_px=None if result.corners_native_px is None else result.corners_native_px.tolist(),
                    chosen_key=result.chosen_key, no_court_reason=result.no_court_reason, reused_from=result.reused_from,
-                   stage_seconds=result.stage_seconds, seconds=perf_counter() - started)
+                   composition=result.composition, stage_seconds=result.stage_seconds,
+                   seconds=perf_counter() - started)
         yield row
 
 

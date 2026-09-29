@@ -25,7 +25,7 @@ from typing import Any
 
 import numpy as np
 
-from court_detector import measurements, net_choice
+from court_detector import composition, measurements, net_choice
 from court_detector.detect import NET_OVERRUN_WORKING_PX, NET_WEIGHT, Switches
 
 from .sampling import FRAME_ROLES, METHODS, preference_key, read_json
@@ -79,10 +79,8 @@ def net_evidence(corners_native: list | np.ndarray, context: Any) -> dict[str, A
 
 
 def score_parts(paint: float, geometry: float, net_reward: float) -> dict[str, float]:
-    """The net choice's combined score: paint blended with line support, plus the weighted post reward."""
-    evidence_value = net_choice.evidence_score({"paint_score": paint, "geometry_score": geometry}, GEOMETRY_WEIGHT)
-    net_bonus = NET_WEIGHT * net_reward
-    return {"evidence_score": evidence_value, "net_bonus": net_bonus, "combined_score": evidence_value + net_bonus}
+    """The net choice's combined score at the detector's default geometry weight."""
+    return composition.score_parts(paint, geometry, net_reward, GEOMETRY_WEIGHT)
 
 
 def score_candidate(position: int, frame: dict[str, Any], lines: dict[str, Any]) -> dict[str, Any]:

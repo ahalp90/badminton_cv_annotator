@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from annotator import court_views
-from court_detector import reuse
+from court_detector import composition, reuse
 from court_detector.detect import LiveModules, load_live_modules
 from court_detector.line_observations import MARKINGS, distances_to_segments
 from court_detector.paint_geometry import CENTRE_SEGMENTS_M, STRIPE_WIDTH_M
@@ -82,7 +82,7 @@ def render(homography: np.ndarray, shift_px: np.ndarray, boxes: list, seed: int 
         stripe = np.array([segment[0] - half_width, segment[1] - half_width,
                            segment[1] + half_width, segment[0] + half_width])
         # 4 fractional bits: OpenCV draws at 1/16 px.
-        cv2.fillConvexPoly(grey, np.rint(compose.carry(stripe, homography) * 16).astype(np.int32), 235,
+        cv2.fillConvexPoly(grey, np.rint(composition.carry(stripe, homography) * 16).astype(np.int32), 235,
                            cv2.LINE_AA, 4)
     for x1, y1, x2, y2 in np.asarray(boxes, dtype=int):
         grey[y1:y2, x1:x2] = rng.integers(60, 200, (y2 - y1, x2 - x1))
@@ -101,7 +101,7 @@ def fragments(homography: np.ndarray, hidden_by: list, offsets_px: dict[int, flo
     offsets_px = offsets_px or {}
     pieces = []
     for index, segment in enumerate(CENTRE_SEGMENTS_M):
-        ends = compose.carry(segment, homography)
+        ends = composition.carry(segment, homography)
         direction = (ends[1] - ends[0]) / np.linalg.norm(ends[1] - ends[0])
         sideways = np.array([-direction[1], direction[0]]) * offsets_px.get(index, 0.0)
         for start, end in FRAGMENT_SPANS:
@@ -121,7 +121,7 @@ def frame_spec(role: str, shift_px: np.ndarray, boxes: list, corners: np.ndarray
 
 
 def true_corners(shift_px: np.ndarray) -> np.ndarray:
-    return compose.carry(CORNER_COURT_M, shifted(camera_homography(), shift_px))
+    return composition.carry(CORNER_COURT_M, shifted(camera_homography(), shift_px))
 
 
 def write_gz(path: Path, value: Any) -> None:
@@ -168,7 +168,7 @@ def compose_saved(live: LiveModules, paths: dict[str, Path], tmp_path: Path) -> 
     return compose.compose_scene(live, video, video["scenes"][0], lines, people, paths["frames"], tmp_path / "out")
 
 
-def loaded(live: LiveModules, paths: dict[str, Path], role: str) -> compose.Frame:
+def loaded(live: LiveModules, paths: dict[str, Path], role: str) -> composition.SearchedFrame:
     results = compose.read_json(paths["results"])
     rows = results["videos"][0]["scenes"][0]["methods"][compose.METHOD]["frames"]
     row = next(row for row in rows if row["role"] == role)
@@ -187,8 +187,8 @@ def test_view_warp_becomes_the_same_warp_in_working_pixels() -> None:
     point_working = np.array([[300.0, 500.0]])
     # By hand: working px to view px, through the warp, and back.
     view_per_working = np.asarray((960, 540)) / np.asarray(working_size)
-    expected = compose.carry(point_working * view_per_working, warp_view) / view_per_working
-    moved = compose.carry(point_working, compose.to_reference_working(warp_view, working_size))
+    expected = composition.carry(point_working * view_per_working, warp_view) / view_per_working
+    moved = composition.carry(point_working, composition.to_reference_working(warp_view, working_size))
     np.testing.assert_allclose(moved, expected, atol=1e-9)
 
 
@@ -197,11 +197,11 @@ def test_alignment_carries_frame_pixels_onto_the_reference(tmp_path: Path, live:
              frame_spec("first", JITTER_PX, [], true_corners(JITTER_PX))]
     paths = write_run(tmp_path, live, specs)
     reference, frame = loaded(live, paths, "middle"), loaded(live, paths, "first")
-    record, to_reference = compose.align(frame, reference)
+    record, to_reference = composition.align(frame, reference)
     assert record["usable"] and not record["same_camera"]
     assert to_reference is not None
     # The first frame's content sits JITTER_PX further on, so the warp must take it back.
-    moved_native = compose.carry(true_corners(JITTER_PX) / frame.native_per_working, to_reference)
+    moved_native = composition.carry(true_corners(JITTER_PX) / frame.native_per_working, to_reference)
     np.testing.assert_allclose(moved_native * reference.native_per_working, true_corners(np.zeros(2)), atol=0.5)
 
 
@@ -234,7 +234,7 @@ def test_moving_people_are_cut_from_each_image_in_its_own_pixels(tmp_path: Path,
         return real_ecc(template, sample, template_mask, input_mask, *rest)
 
     monkeypatch.setattr(cv2, "findTransformECCWithMask", recording_ecc)
-    record, to_reference = compose.align(frame, reference)
+    record, to_reference = composition.align(frame, reference)
 
     # The template is this frame and the input is the reference. Each mask loses only its
     # own image's players, placed at view scale, which differs from working scale in y.
@@ -245,7 +245,7 @@ def test_moving_people_are_cut_from_each_image_in_its_own_pixels(tmp_path: Path,
     assert record["usable"] and record["same_camera"] == (not camera_shift.any())
     assert 0 < record["mask_kept_fraction"] < 1
     assert to_reference is not None
-    moved = compose.carry(true_corners(camera_shift) / frame.native_per_working, to_reference)
+    moved = composition.carry(true_corners(camera_shift) / frame.native_per_working, to_reference)
     np.testing.assert_allclose(moved * reference.native_per_working, true_corners(np.zeros(2)), atol=0.5)
 
 
@@ -253,11 +253,11 @@ def test_alignment_with_no_pixels_left_is_unmeasurable(tmp_path: Path, live: Liv
     specs = [frame_spec(role, np.zeros(2), [], true_corners(np.zeros(2))) for role in ("middle", "first")]
     paths = write_run(tmp_path, live, specs)
     reference, frame = loaded(live, paths, "middle"), loaded(live, paths, "first")
-    assert compose.align(frame, reference)[0]["usable"]
+    assert composition.align(frame, reference)[0]["usable"]
     # One person box over the whole reference leaves no pixel valid in both masks.
     whole_image = np.array([[0.0, 0.0, *reference.context.size]])
     covered = dataclasses.replace(reference, context=dataclasses.replace(reference.context, mask_boxes=whole_image))
-    record, to_reference = compose.align(frame, covered)
+    record, to_reference = composition.align(frame, covered)
     assert record == {"mask_kept_fraction": 0.0, "usable": False, "skip_reason": "alignment_unmeasurable"}
     assert to_reference is None
 
@@ -266,12 +266,12 @@ def test_turned_court_is_reordered_and_names_the_same_painted_lines(tmp_path: Pa
     corners = true_corners(np.zeros(2))
     paths = write_run(tmp_path, live, [frame_spec("middle", np.zeros(2), [LEFT_BOX], corners)])
     frame = loaded(live, paths, "middle")
-    turned = np.roll(corners, compose.HALF_TURN_ROLL, axis=0)
+    turned = np.roll(corners, composition.HALF_TURN_ROLL, axis=0)
     working = corners / frame.native_per_working
-    assert compose.half_turn_roll(turned / frame.native_per_working, working) == compose.HALF_TURN_ROLL
-    assert compose.half_turn_roll(working, working) == 0
-    as_saved = compose.measure(live, frame, corners)["markings"]
-    after_turn = {marking["marking"]: marking for marking in compose.measure(live, frame, turned)["markings"]}
+    assert composition.half_turn_roll(turned / frame.native_per_working, working) == composition.HALF_TURN_ROLL
+    assert composition.half_turn_roll(working, working) == 0
+    as_saved = composition.measure(live, frame, corners)["markings"]
+    after_turn = {marking["marking"]: marking for marking in composition.measure(live, frame, turned)["markings"]}
     # The box hides the left doubles line, so the turned court's right doubles shows the same drop.
     assert as_saved[0]["q_paint10"] < as_saved[4]["q_paint10"]
     for marking in as_saved:
@@ -286,9 +286,9 @@ def test_donated_samples_are_observed_fragments_outside_person_boxes(tmp_path: P
     # stay visible inside the box, so the box alone must drop their samples.
     spec = frame_spec("middle", np.zeros(2), [LEFT_BOX], corners, hidden_by=[], offsets_px={0: 1.25})
     frame = loaded(live, write_run(tmp_path, live, [spec]), "middle")
-    evidence = compose.measure(live, frame, corners)
-    used = compose.UsedFrame(frame, np.eye(3), corners, evidence)
-    constraints, summary = compose.donated_constraints(used, [left_doubles])
+    evidence = composition.measure(live, frame, corners)
+    used = composition.UsedFrame(frame, np.eye(3), corners, evidence)
+    constraints, summary = composition.donated_constraints(used, [left_doubles])
 
     assert summary[left_doubles]["samples"] > 0 and summary[left_doubles]["occluded_samples"] > 0
     observed = frame.context.observations.samples.reshape(-1, 2)
@@ -296,7 +296,7 @@ def test_donated_samples_are_observed_fragments_outside_person_boxes(tmp_path: P
         assert np.isclose(observed, point, atol=1e-9).all(axis=1).any()
     box_working = np.asarray(LEFT_BOX) / np.tile(frame.native_per_working, 2)
     assert not any(inside(point, [box_working]) for point in constraints.points)
-    stripe = compose.carry(CENTRE_SEGMENTS_M[0], compose.court_homography(frame, corners))
+    stripe = composition.carry(CENTRE_SEGMENTS_M[0], composition.court_homography(frame, corners))
     np.testing.assert_allclose(distances_to_segments(constraints.points, stripe[None]), 1.0, atol=0.05)
     np.testing.assert_allclose(constraints.weights.sum(), summary[left_doubles]["weight"])
 
@@ -372,7 +372,7 @@ def test_composite_takes_each_marking_from_the_frame_that_shows_it(tmp_path: Pat
     middle_corners = true_corners(np.zeros(2)) + [[4.0, 0.0], [0, 0], [0, 0], [0, 0]]
     first_corners = true_corners(JITTER_PX) + [[0, 0], [0, 0], [-4.0, 0.0], [0, 0]]
     specs = [frame_spec("middle", np.zeros(2), [LEFT_BOX], middle_corners),
-             frame_spec("first", JITTER_PX, [RIGHT_BOX], np.roll(first_corners, compose.HALF_TURN_ROLL, axis=0))]
+             frame_spec("first", JITTER_PX, [RIGHT_BOX], np.roll(first_corners, composition.HALF_TURN_ROLL, axis=0))]
     paths = write_run(tmp_path, live, specs)
     before = {name: path.read_bytes() for name, path in paths.items() if name != "frames"}
     output_dir = tmp_path / "composed"
@@ -388,7 +388,7 @@ def test_composite_takes_each_marking_from_the_frame_that_shows_it(tmp_path: Pat
     assert scene["state"] == "composed"
     reference = scene["reference"]
     other = next(frame for frame in scene["frames"] if not frame["is_reference"])
-    assert other["half_turn_roll"] == compose.HALF_TURN_ROLL
+    assert other["half_turn_roll"] == composition.HALF_TURN_ROLL
     # Each box hides a doubles line in one frame, so the other frame donates it. Marking
     # names follow the reference court, and the first frame's court is turned.
     donors = {marking["marking"]: marking["donor_role"] for marking in scene["markings"]}

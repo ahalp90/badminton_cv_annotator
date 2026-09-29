@@ -67,6 +67,7 @@ of frames, it uses the later of the two middle frames.
 | --- | --- |
 | Detect court lines, search and fit the court | The anchor image |
 | Check player positions | 31 scheduled frames at approximately 10 per second, spanning three seconds around the anchor |
+| Compose a court after a fresh search | The anchor plus the first and last scheduled images of that window, all using the anchor's player samples |
 | Compare a returning camera view | The first, middle and last images of that sampling window |
 
 The player window shifts when necessary to stay inside the scene. Frame indices
@@ -88,7 +89,8 @@ With players required, a scene that cannot hold the scheduled window gets
 `scene_too_short_for_feet`. This means **unanalysed**, not that the scene contains
 no court. With `--no-require-people`, short scenes can still be analysed. If poses
 are supplied in that mode, a short scene uses only its anchor's people. Its
-reuse image uses the scene's first, middle and last frames instead.
+reuse image uses the scene's first, middle and last frames instead, and it is
+not composed.
 
 Saved pose arrays and sparse live pose extraction supply the same requested
 frame positions. A full pose prerun extracts every frame for later pipeline use;
@@ -117,11 +119,13 @@ The runner processes scenes in time order:
    Also limit how far the stripe refit moves the court, including its far end.
 5. **Accept the first passing reuse, or search afresh.** Record the earlier
    reference in `reused_from` when reuse succeeds. If every attempt fails, run
-   the full court search using the already prepared evidence.
+   the full court search using the already prepared evidence. A court from that
+   search leads to composition, below.
 
-Only a court found through a full search can become a reference. A reused court
-never becomes another reference, which avoids accumulating adjustments through
-a chain of reused results. The reference store starts empty for each video.
+Only a court found through a full search can become a reference, whether it is
+the anchor's own court or a composite. A reused court never becomes another
+reference, which avoids accumulating adjustments through a chain of reused
+results. The reference store starts empty for each video.
 
 ### Example: wide view, close-up, wide view
 
@@ -135,6 +139,26 @@ Scene 3 does not trigger another sampling round or a reread of scene 1. The
 runner does not pool evidence across the two scenes or revise scene 1's result.
 An older reference may also have fallen out of the eight-court store, or may
 not be among the three tried.
+
+## Composing a court within a scene
+
+After a fresh search finds a court, the runner searches the window's first and
+last images the same way. Each gets its own lines and person boxes, but all three
+use the anchor's player samples. The best-scoring image becomes the reference,
+and the others are aligned to it with people hidden. Each court marking takes
+its stripes from the image that paints it most strongly. One court is fitted to
+those stripes and carried into the anchor image.
+
+The sampled endpoints remain the scheduled window ends, even if the feet check
+excludes one as a different shot. Image alignment and the final anchor checks
+must reject incompatible contributions.
+
+The composite must pass the anchor's geometry and camera checks, and its player
+check when players are required. It then replaces the anchor's court, and later
+scenes can reuse it. It is stored in the anchor's pixels, with paint support
+measured in the anchor. Otherwise the anchor's own court stands. The fallback is
+always that court, because the endpoint courts sit in other images' pixels. A
+reused scene is not composed.
 
 ## What the output does and does not establish
 
@@ -175,4 +199,5 @@ courts. Reuse checks reduce risk; they do not guarantee a correct projection.
 - [run_video.py](run_video.py): anchor selection, median images and reference store
 - [feet.py](feet.py): sample schedule, image-consistency check and player evidence
 - [reuse.py](reuse.py): alignment, stripe refitting and reuse acceptance checks
+- [composition.py](composition.py): composing one court from the anchor and window endpoints
 - [court_evidence.py](../annotator/court_evidence.py): per-scene pipeline evidence

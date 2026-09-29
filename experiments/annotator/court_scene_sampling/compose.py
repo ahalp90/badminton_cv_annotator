@@ -27,6 +27,7 @@ then scores the saved courts and the composite on the same frames.
    used frame and scored there with the net choice's formula. The highest mean over
    those same frames wins, and an exact tie keeps a saved court.
 
+Steps 2 to 6 call court_detector.composition, the detector's own composition code.
 Scores measure detector evidence, not accuracy. The source results stay untouched.
 """
 
@@ -34,10 +35,8 @@ from __future__ import annotations
 
 import argparse
 import csv
-import dataclasses
 import gzip
 import json
-from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -46,20 +45,25 @@ import cv2
 import numpy as np
 
 from annotator import court_views
-from court_detector import reuse, stripe_fitting, stripe_refit
+from court_detector import reuse, stripe_fitting
+from court_detector.composition import (
+    HALF_TURN_ROLL,
+    SearchedFrame,
+    UsedFrame,
+    align,
+    corners_between,
+    donated_samples,
+    fit_in_reference,
+    measure,
+    use_frame,
+)
 from court_detector.detect import (
     MAX_HORIZON_TILT_DEG,
     LiveModules,
     freeze_arrays,
     load_live_modules,
 )
-from court_detector.geometry import project
 from court_detector.inputs import same_frame_provenance
-from court_detector.line_observations import MARKINGS
-from court_detector.measurements import ViewContext, observable_points
-from court_detector.paint_geometry import CENTRE_SEGMENTS_M
-from shared.court import HOMOGRAPHY_RESOLUTION
-from shared.court_model import CORNER_COURT_M
 
 from . import rescore
 from .render import draw_outline
@@ -69,8 +73,6 @@ COMPOSE_SCHEMA = "court-scene-compose/2"
 PEOPLE_SCHEMA = "court-scene-people/1"
 METHOD = "full_three"
 COMPOSITE = "composite"
-# Rolling TL TR BR BL corners by two describes the same court turned 180 degrees.
-HALF_TURN_ROLL = 2
 # Saved evidence fields that a fresh measurement of the same court should reproduce.
 SCORE_FIELDS = ("q_paint10_span_weighted", "q_geom_span_weighted")
 MARKING_COUNT_FIELDS = ("visible_samples", "known_photometry_samples", "exclusive_fragment_count")
@@ -84,35 +86,6 @@ COMPARISON_FIELDS = (
 )
 
 
-@dataclass(frozen=True)
-class Frame:
-    """One accepted frame: its cached image, its rebuilt measurement context and its saved row."""
-
-    saved: dict[str, Any]  # the source frame row; read only
-    native_frame: np.ndarray  # (height, width, 3) BGR, the cached source PNG
-    context: ViewContext
-    # measure_candidate's cache for this context, keyed by the homography's bytes
-    evidence_cache: dict = field(default_factory=dict)
-
-    @property
-    def role(self) -> str:
-        return self.saved["role"]
-
-    @property
-    def native_per_working(self) -> np.ndarray:
-        return np.asarray(self.context.native_size, dtype=float) / np.asarray(self.context.size, dtype=float)
-
-
-@dataclass(frozen=True)
-class UsedFrame:
-    """An aligned frame, with its saved court in the reference court's orientation."""
-
-    frame: Frame
-    to_reference: np.ndarray  # (3, 3) this frame's working px to the reference's; identity for the reference
-    corners_native: np.ndarray  # (4, 2) the saved court in this frame's native px, reordered if turned
-    evidence: dict[str, Any]  # measure_candidate of that court in this frame
-
-
 def read_people_cache(path: Path) -> dict[str, Any]:
     cache = read_json(path)
     if cache.get("schema") != PEOPLE_SCHEMA:
@@ -120,16 +93,17 @@ def read_people_cache(path: Path) -> dict[str, Any]:
     return cache
 
 
-def candidate_label(frame_row: dict[str, Any]) -> str:
-    return f"original_{frame_row['role']}"
+def candidate_label(role: str) -> str:
+    return f"original_{role}"
 
 
 def load_frame(live: LiveModules, saved: dict[str, Any], lines: dict[str, Any], people: dict[str, Any],
-               frames_dir: Path, native_size: list[int]) -> Frame:
-    """Rebuild a frame's measurement context from its cached PNG, lines and person boxes.
+               frames_dir: Path, native_size: list[int]) -> SearchedFrame:
+    """Rebuild a saved frame's court and measurement context from its cached PNG, lines and person boxes.
 
     The boxes were measured on the same image, so photometry hides them as the run did.
-    No feet are known, so the player gates stay empty.
+    No feet are known, so the player gates stay empty. rescore, not the frame's paint
+    score, ranks the frames here.
     """
     view_id = saved["view_id"]
     path = frames_dir / f"{view_id}.png"
@@ -148,21 +122,8 @@ def load_frame(live: LiveModules, saved: dict[str, Any], lines: dict[str, Any], 
     provenance = same_frame_provenance(view_id, saved["frame_index"])
     context = live.verifier.view_context(view_id, source, provenance, native_frame, view_id)
     freeze_arrays(context)
-    return Frame(saved, native_frame, context)
-
-
-def court_homography(frame: Frame, corners_native: np.ndarray) -> np.ndarray:
-    """Court metres to the frame's working px, built as the run built it for its saved evidence."""
-    working = np.asarray(corners_native, dtype=float) / frame.native_per_working
-    return cv2.getPerspectiveTransform(CORNER_COURT_M, working.astype(np.float32)).astype(float)
-
-
-def measure(live: LiveModules, frame: Frame, corners_native: np.ndarray) -> dict[str, Any]:
-    """A court's paint and line evidence and fragment assignments in one frame."""
-    entry = {"homography_working": court_homography(frame, corners_native)}
-    with live.prepared_measurements(live.verifier):
-        evidence, _ = live.verifier.measure_candidate(frame.context, entry, frame.evidence_cache)
-    return evidence
+    return SearchedFrame(saved["role"], native_frame, context, np.asarray(saved["corners_native_px"], dtype=float),
+                         saved.get("paint_score"))
 
 
 def reproduction(saved: dict[str, Any], measured: dict[str, Any]) -> dict[str, Any]:
@@ -196,181 +157,6 @@ def reproduction(saved: dict[str, Any], measured: dict[str, Any]) -> dict[str, A
     return {"max_score_difference": largest, "largest_at": largest_at, "mismatches": mismatches}
 
 
-def carry(points: np.ndarray, homography: np.ndarray) -> np.ndarray:
-    """Points through a homography, keeping their array shape."""
-    points = np.asarray(points, dtype=float)
-    moved, _ = project(np.asarray(homography, dtype=float)[None], points)
-    return moved.reshape(points.shape)
-
-
-def to_reference_working(warp_view: np.ndarray, working_size: tuple[int, int]) -> np.ndarray:
-    """An ECC warp between VIEW_RESOLUTION images, as the same warp between working images.
-
-    Working and view pixels differ by one scale per axis, the same for every frame of a video.
-    """
-    working_per_view = np.asarray(working_size, dtype=float) / np.asarray(court_views.VIEW_RESOLUTION, dtype=float)
-    scale = np.diag([*working_per_view, 1.0])
-    return scale @ np.asarray(warp_view, dtype=float) @ np.linalg.inv(scale)
-
-
-def without_people(mask: np.ndarray, frame: Frame) -> np.ndarray:
-    """Clear the frame's person boxes from a VIEW_RESOLUTION mask of that same frame, rounding outward."""
-    view_per_working = np.asarray(court_views.VIEW_RESOLUTION, dtype=float) / np.asarray(frame.context.size, dtype=float)
-    boxes = frame.context.mask_boxes * np.tile(view_per_working, 2)
-    outward = np.column_stack((np.floor(boxes[:, :2]), np.ceil(boxes[:, 2:]))).astype(int)
-    for x1, y1, x2, y2 in outward.tolist():
-        cv2.rectangle(mask, (x1, y1), (x2, y2), 0, cv2.FILLED)
-    return mask
-
-
-def view_alignment_without_people(frame: Frame,
-                                  reference: Frame) -> tuple[court_views.ViewAlignment | None, float]:
-    """court_views.measure_view_alignment's ECC, with each image's person boxes cut from its own mask.
-
-    Players move between samples, so their pixels disagree even when the camera stays still.
-    The template (this frame) keeps measure_view_alignment's court polygon, less its own boxes.
-    That polygon comes from this frame's court, so it sits in this frame's pixels. The input
-    (the reference) keeps every pixel outside its own boxes. On each step ECC carries the
-    input mask into template pixels through the current warp and uses pixels valid in both,
-    so a moved camera moves the reference's boxes with it. A mask with too little left makes
-    ECC fail, which reads as unmeasurable, as in measure_view_alignment.
-
-    :return: The alignment, or None when ECC cannot measure one. Then the share of the court
-        polygon valid in both masks at the identity warp, where ECC starts.
-    """
-    view_per_refpx = np.asarray(court_views.VIEW_RESOLUTION) / np.asarray(HOMOGRAPHY_RESOLUTION)
-    native_size = np.asarray(frame.context.native_size, dtype=float)
-    corners_refpx = np.asarray(frame.saved["corners_native_px"]) * np.asarray(HOMOGRAPHY_RESOLUTION) / native_size
-    corners = corners_refpx * view_per_refpx
-    centre = corners.mean(axis=0)
-    template_image, input_image = reuse.view_image(frame.native_frame), reuse.view_image(reference.native_frame)
-    court = np.zeros(template_image.shape, np.uint8)
-    polygon = centre + court_views.ALIGNMENT_MASK_SCALE * (corners - centre)
-    cv2.fillConvexPoly(court, np.rint(polygon).astype(np.int32), 255)
-    template_mask = without_people(court.copy(), frame)
-    input_mask = without_people(np.full(input_image.shape, 255, np.uint8), reference)
-    kept = float(np.count_nonzero(template_mask & input_mask) / np.count_nonzero(court))
-    criteria = (cv2.TERM_CRITERIA_COUNT | cv2.TERM_CRITERIA_EPS, court_views.ALIGNMENT_ITERATIONS,
-                court_views.ALIGNMENT_EPSILON)
-    try:
-        correlation, warp = cv2.findTransformECCWithMask(
-            template_image, input_image, template_mask, input_mask, np.eye(3, dtype=np.float32),
-            cv2.MOTION_HOMOGRAPHY, criteria, court_views.ALIGNMENT_BLUR_SIZE,
-        )
-    except cv2.error:
-        return None, kept
-    moved = cv2.perspectiveTransform(corners[None].astype(np.float32), warp)[0]
-    shift = np.linalg.norm((moved - corners) / view_per_refpx, axis=1).max()
-    return court_views.ViewAlignment(correlation, warp, moved / view_per_refpx, shift), kept
-
-
-def align(frame: Frame, reference: Frame) -> tuple[dict[str, Any], np.ndarray | None]:
-    """Align a frame's image to the reference's inside the frame's saved court, without people.
-
-    This is in_middle_frame's alignment with the reference in the middle frame's place, except
-    that both images' person boxes are left out.
-
-    :return: The alignment record, and the frame-to-reference working homography when usable.
-    """
-    # The warp maps the template (this frame) to the input (the reference).
-    alignment, kept = view_alignment_without_people(frame, reference)
-    if alignment is None:
-        return {"mask_kept_fraction": kept, "usable": False, "skip_reason": "alignment_unmeasurable"}, None
-    correlation = float(alignment.correlation)
-    usable = correlation >= court_views.MIN_ALIGNMENT_CORRELATION
-    record = {"correlation": correlation, "max_corner_shift_refpx": float(alignment.shift_refpx),
-              "same_camera": alignment.matches, "mask_kept_fraction": kept, "usable": usable,
-              "skip_reason": None if usable else "correlation_below_reuse_level"}
-    return record, to_reference_working(alignment.warp, frame.context.size) if usable else None
-
-
-def half_turn_roll(corners_in_reference: np.ndarray, reference_corners: np.ndarray) -> int:
-    """0 when a court's corner order matches the reference court's, 2 when it is turned 180 degrees.
-
-    Both courts' corners are in reference px. An exact tie keeps the saved order.
-    """
-    as_saved = np.linalg.norm(corners_in_reference - reference_corners, axis=1).max()
-    turned = np.linalg.norm(np.roll(corners_in_reference, HALF_TURN_ROLL, axis=0) - reference_corners, axis=1).max()
-    return HALF_TURN_ROLL if turned < as_saved else 0
-
-
-def use_frame(live: LiveModules, frame: Frame, to_reference: np.ndarray,
-              reference_corners_working: np.ndarray) -> tuple[UsedFrame, int]:
-    """An aligned frame's court in the reference orientation, measured again in its own frame."""
-    saved = np.asarray(frame.saved["corners_native_px"], dtype=float)
-    roll = half_turn_roll(carry(saved / frame.native_per_working, to_reference), reference_corners_working)
-    corners = np.roll(saved, roll, axis=0)
-    return UsedFrame(frame, to_reference, corners, measure(live, frame, corners)), roll
-
-
-def corners_between(corners_native: np.ndarray, source: UsedFrame, target: UsedFrame) -> np.ndarray:
-    """A court's corners carried from one used frame's native px to another's, through the reference."""
-    if source is target:
-        return np.asarray(corners_native, dtype=float)
-    working = np.asarray(corners_native, dtype=float) / source.frame.native_per_working
-    return carry(working, np.linalg.inv(target.to_reference) @ source.to_reference) * target.frame.native_per_working
-
-
-def choose_donors(used: list[UsedFrame]) -> list[UsedFrame | None]:
-    """Each marking's donor: the used court with the most q_paint10 on it.
-
-    A marking without positive q_paint10 anywhere has no donor. used comes in own-frame
-    score order, so the first of equal values wins.
-    """
-    donors: list[UsedFrame | None] = []
-    for marking in range(len(MARKINGS)):
-        best, best_q_paint = None, 0.0
-        for candidate in used:
-            q_paint = candidate.evidence["markings"][marking]["q_paint10"]
-            if q_paint is not None and q_paint > best_q_paint:
-                best, best_q_paint = candidate, q_paint
-        donors.append(best)
-    return donors
-
-
-def donated_constraints(donor: UsedFrame, markings: list[int]) -> tuple[stripe_fitting.Constraints, dict[int, dict]]:
-    """The donor's observed fragment samples on the given markings, in reference working px.
-
-    stripe_fitting.prepare picks each assigned fragment's samples near its marking, with
-    their stripe positions, as the stripe refit does. Samples inside a person box are
-    dropped. Each kept weight is prepare's weight times the donor's q_paint10 on that marking.
-
-    :return: The constraints, and per marking index its kept and occluded samples and total weight.
-    """
-    context = donor.frame.context
-    assignments = donor.evidence["stripe_assignments"]
-    prepared = stripe_fitting.prepare(court_homography(donor.frame, donor.corners_native), context.observations,
-                                      assignments, context.weights, centres=CENTRE_SEGMENTS_M)
-    index_by_id = {int(raw_id): index for index, raw_id in enumerate(context.observations.fragment_ids)}
-    # One marking index per prepared sample, from its fragment's assignment.
-    sample_markings = np.asarray([assignments["marking"][index_by_id[int(raw_id)]]
-                                  for raw_id in prepared.fragment_ids], dtype=int)
-    donated = np.isin(sample_markings, markings)
-    visible = observable_points(prepared.points, context.size, context.mask_boxes)
-    kept = donated & visible
-    q_paint = np.zeros(len(sample_markings))
-    for marking in markings:
-        q_paint[sample_markings == marking] = donor.evidence["markings"][marking]["q_paint10"]
-    weights = prepared.weights * q_paint
-    summary = {}
-    for marking in markings:
-        on_marking = sample_markings == marking
-        summary[marking] = {"samples": int((on_marking & kept).sum()),
-                            "occluded_samples": int((on_marking & ~visible).sum()),
-                            "weight": float(weights[on_marking & kept].sum())}
-    constraints = stripe_fitting.Constraints(
-        carry(prepared.points[kept], donor.to_reference), prepared.intervals[kept], prepared.positions[kept],
-        weights[kept], prepared.fragment_ids[kept], prepared.sample_ids[kept],
-    )
-    return constraints, summary
-
-
-def joined(parts: list[stripe_fitting.Constraints]) -> stripe_fitting.Constraints:
-    arrays = [np.concatenate([getattr(part, item.name) for part in parts])
-              for item in dataclasses.fields(stripe_fitting.Constraints)]
-    return stripe_fitting.Constraints(*arrays)
-
-
 def fit_composite(live: LiveModules, reference: UsedFrame, constraints: stripe_fitting.Constraints) -> dict[str, Any]:
     """Fit one court to the donated samples in reference px, then check it as reuse does.
 
@@ -378,12 +164,8 @@ def fit_composite(live: LiveModules, reference: UsedFrame, constraints: stripe_f
     camera must be plausible and upright. Player positions are not checked.
     """
     context = reference.frame.context
-    start = reference.corners_native / reference.frame.native_per_working
-    fit = stripe_fitting.refine(start, constraints, context.size, use_positions=True, centres=CENTRE_SEGMENTS_M)
-    with live.prepared_measurements(live.verifier):
-        geometry = stripe_refit.fit_geometry(fit, context, live.verifier, live.runtime,
-                                             live.scoring.view_line_maps(context))
-    record = {"status": fit["status"], "sample_count": len(constraints.points), "fit": geometry["fit"],
+    geometry = fit_in_reference(live, reference, constraints)
+    record = {"status": geometry["status"], "sample_count": len(constraints.points), "fit": geometry["fit"],
               "valid": geometry["valid"], "validity_reason": geometry["validity_reason"],
               "corners_reference_native_px": geometry.get("corners_native_px")}
     if not geometry["valid"]:
@@ -404,24 +186,8 @@ def compose_court(live: LiveModules, used: list[UsedFrame]) -> tuple[list[dict[s
 
     :return: One row per marking, and the fit record.
     """
-    donors = choose_donors(used)
-    parts, summaries = [], {}
-    for candidate in used:
-        # Every used frame adds its part, possibly empty, so the join always has one.
-        markings = [marking for marking, donor in enumerate(donors) if donor is candidate]
-        part, summary = donated_constraints(candidate, markings)
-        parts.append(part)
-        summaries.update(summary)
-    rows = []
-    for marking, name in enumerate(MARKINGS):
-        donor = donors[marking]
-        if donor is None:
-            rows.append({"marking": name, "donor_role": None, "q_paint10": None, "samples": 0,
-                         "occluded_samples": 0, "weight": 0.0})
-            continue
-        rows.append({"marking": name, "donor_role": donor.frame.role,
-                     "q_paint10": donor.evidence["markings"][marking]["q_paint10"], **summaries[marking]})
-    return rows, fit_composite(live, used[0], joined(parts))
+    rows, constraints = donated_samples(used)
+    return rows, fit_composite(live, used[0], constraints)
 
 
 def score_in(live: LiveModules, target: UsedFrame, corners_native: np.ndarray) -> dict[str, Any]:
@@ -447,7 +213,7 @@ def evaluate(live: LiveModules, used: list[UsedFrame], skipped: list[dict[str, A
 
     A candidate missing a score in any frame, or whose frame did not align, has no mean.
     """
-    sources = [(candidate_label(item.frame.saved), item, item.corners_native) for item in used]
+    sources = [(candidate_label(item.frame.role), item, item.corners_native) for item in used]
     if composite_corners is not None:
         sources.append((COMPOSITE, used[0], np.asarray(composite_corners, dtype=float)))
     rows = []
@@ -458,7 +224,7 @@ def evaluate(live: LiveModules, used: list[UsedFrame], skipped: list[dict[str, A
         role = None if label == COMPOSITE else source.frame.role
         rows.append({"candidate": label, "role": role, "scores": scores, "mean_combined_score": mean})
     for frame_row in skipped:
-        rows.append({"candidate": candidate_label(frame_row), "role": frame_row["role"], "scores": [],
+        rows.append({"candidate": candidate_label(frame_row["role"]), "role": frame_row["role"], "scores": [],
                      "mean_combined_score": None, "unscored_reason": frame_row["alignment"]["skip_reason"]})
     return rows
 
@@ -493,14 +259,14 @@ def prepare_frames(live: LiveModules, video: dict[str, Any], outcome: dict[str, 
     :return: One record per accepted frame, and the frames the composition uses, both in that order.
     """
     frame_rows, used = [], []
-    reference: Frame | None = None
+    reference: SearchedFrame | None = None
     for position in order:
-        frame = load_frame(live, outcome["frames"][position], lines, people, frames_dir, video["native_size"])
-        saved_corners = np.asarray(frame.saved["corners_native_px"], dtype=float)
-        row: dict[str, Any] = {"position": position, "role": frame.role, "view_id": frame.saved["view_id"],
-                               "frame_index": frame.saved["frame_index"], "is_reference": reference is None,
-                               "reproduction": reproduction(frame.saved["evidence"],
-                                                            measure(live, frame, saved_corners))}
+        saved = outcome["frames"][position]
+        frame = load_frame(live, saved, lines, people, frames_dir, video["native_size"])
+        row: dict[str, Any] = {"position": position, "role": frame.role, "view_id": saved["view_id"],
+                               "frame_index": saved["frame_index"], "is_reference": reference is None,
+                               "reproduction": reproduction(saved["evidence"],
+                                                            measure(live, frame, frame.corners_native))}
         if reference is None:
             reference = frame
             row["alignment"], to_reference = None, np.eye(3)
@@ -508,7 +274,7 @@ def prepare_frames(live: LiveModules, video: dict[str, Any], outcome: dict[str, 
             row["alignment"], to_reference = align(frame, reference)
         row["half_turn_roll"] = None
         if to_reference is not None:
-            reference_working = np.asarray(reference.saved["corners_native_px"]) / reference.native_per_working
+            reference_working = reference.corners_native / reference.native_per_working
             item, row["half_turn_roll"] = use_frame(live, frame, to_reference, reference_working)
             used.append(item)
         frame_rows.append(row)
@@ -543,7 +309,7 @@ def final_fields(choice: dict[str, Any], evaluated: list[dict[str, Any]], outcom
     if choice["final"] == COMPOSITE:
         view_id, corners = reference_view_id, in_reference
     else:
-        saved = next(frame for frame in outcome["frames"] if candidate_label(frame) == choice["final"])
+        saved = next(frame for frame in outcome["frames"] if candidate_label(frame["role"]) == choice["final"])
         view_id, corners = saved["view_id"], saved["corners_native_px"]
     choice.update(final_view_id=view_id, final_corners_native_px=corners,
                   final_corners_reference_native_px=in_reference)
@@ -565,12 +331,12 @@ def compose_scene(live: LiveModules, video: dict[str, Any], scene: dict[str, Any
         # no_evaluation, no_court or score_evidence_missing: the saved outcome stands.
         record["state"] = rescored["state"]
         if "selected" in rescored:
-            paint_label = candidate_label(outcome["frames"][rescored["selected"]["paint"]])
+            paint_label = candidate_label(outcome["frames"][rescored["selected"]["paint"]]["role"])
             record["choice"] = {"paint": paint_label, "own_frame": None, "final": paint_label, "changed": False}
         return record
-    paint_label = candidate_label(outcome["frames"][rescored["selected"]["paint"]])
+    paint_label = candidate_label(outcome["frames"][rescored["selected"]["paint"]]["role"])
     record["choice"] = {"paint": paint_label,
-                        "own_frame": candidate_label(outcome["frames"][rescored["selected"]["ranked"]])}
+                        "own_frame": candidate_label(outcome["frames"][rescored["selected"]["ranked"]]["role"])}
     record["frames"], used = prepare_frames(live, video, outcome, rescored["ranked_order"], lines, people,
                                             frames_dir)
     record["reference"] = record["frames"][0]["role"]
@@ -590,7 +356,7 @@ def compose_scene(live: LiveModules, video: dict[str, Any], scene: dict[str, Any
     evaluated = evaluate(live, used, skipped, composite_corners)
     record["evaluation"] = {"frames": [item.frame.role for item in used], "candidates": evaluated}
     choice = decide(evaluated, record["choice"]["own_frame"])
-    final_fields(choice, evaluated, outcome, used[0].frame.saved["view_id"])
+    final_fields(choice, evaluated, outcome, record["frames"][0]["view_id"])
     record["choice"].update(choice, changed=choice["final"] != paint_label)
     if composite_corners is not None:
         record["outlines"] = write_outlines(outlines_dir, scene["scene_id"], used[0], evaluated)

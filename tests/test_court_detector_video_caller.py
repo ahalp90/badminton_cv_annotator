@@ -13,13 +13,13 @@ from typing import Self
 import numpy as np
 import pytest
 
-from court_detector import run_video
+from court_detector import feet, run_video
 from court_detector.detect import (
     CourtDetector,
     CourtResult,
     Switches,
 )
-from court_detector.inputs import PersonSample, ViewInputs
+from court_detector.inputs import PersonSample, ViewInputs, same_frame_provenance
 from court_detector.run_video import scene_courts, validate_scenes
 from court_detector.scene_sources import SceneInfo
 from court_detector.video_inputs import PoseArrays
@@ -53,6 +53,7 @@ class Detector:
         self.switches = switches or Switches()
         self.views: list[ViewInputs] = []
         self.people_sources = []
+        self.endpoint_views = []  # each scene's lazy endpoint builder, or None
         self.events: list[str] = []  # 'open' and 'close' for the worker pool's with block, and 'detect'
 
     def __enter__(self) -> Self:
@@ -62,10 +63,11 @@ class Detector:
     def __exit__(self, *_exception_info: object) -> None:
         self.events.append('close')
 
-    def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+    def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
         self.events.append('detect')
         self.views.append(view)
         self.people_sources.append(people)
+        self.endpoint_views.append(endpoint_views)
         return CourtResult(view.view_id, None, 'no_gated_court', None, {'feet': .1})
 
 
@@ -76,7 +78,9 @@ def test_scenes_keep_native_inputs_together_and_report_short_scenes() -> None:
     assert [row['status'] for row in rows] == ['no_court', 'scene_too_short_for_feet', 'no_court']
     assert [(row['start_frame'], row['end_frame'], row['frame_index']) for row in rows] == [
         (0, 100, 50), (100, 110, 105), (110, 210, 160)]
+    # Each analysed scene offers its endpoints, but their lines wait until the detector asks.
     assert lines.indices == [50, 160]
+    assert all(callable(endpoint_views) for endpoint_views in detector.endpoint_views)
     assert [view.scene_frames for view in detector.views] == [(0, 100), (110, 210)]
     for view in detector.views:
         assert view.person_boxes_px[0, 0] == view.frame_index
@@ -91,6 +95,8 @@ def test_optional_people_analyse_short_scene_without_pose_source() -> None:
                             video_id='clip'))
     assert [row['status'] for row in rows] == ['no_court']
     assert lines.indices == [5]
+    # Too short for the foot window, so there are no endpoint frames to compose from.
+    assert detector.endpoint_views == [None]
     assert detector.people_sources == [None]
     assert detector.views[0].scene_frames == (0, 10)
     assert detector.views[0].person_boxes_px.shape == (0, 4)
@@ -312,13 +318,52 @@ def test_cut_frame_starts_the_following_scene_only() -> None:
     assert [view.scene_frames for view in detector.views] == [(0, 91), (91, 182)]
 
 
+@pytest.mark.parametrize('people', [People(), None], ids=['with-people', 'optional-without-people'])
+def test_endpoint_views_bring_their_own_inputs_and_a_composite_is_stored(people: People | None) -> None:
+    composite = np.array([[11., 10.], [51., 10.], [50., 41.], [10., 40.]])
+
+    class ComposingDetector(Detector):
+        def __init__(self) -> None:
+            super().__init__(Switches(require_people=people is not None))
+            self.known: list[list] = []
+            self.endpoints: list[list[ViewInputs]] = []
+
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
+            self.known.append(list(known_courts))
+            self.endpoints.append(endpoint_views())
+            return CourtResult(view.view_id, composite, None, 'composite', None, .7, composition={'court': 'composite'})
+
+    detector, lines = ComposingDetector(), Lines()
+    scenes = [SceneInfo(0, 100), SceneInfo(100, 200)]
+    rows = list(scene_courts(detector, Frames(), people, lines, scenes,  # type: ignore[arg-type]
+                            video_id='clip', reuse_courts=True))
+    window = feet.window_frames(50, Frames.fps, 0, 100)
+    views = detector.endpoints[0]
+    assert [view.view_id for view in views] == [f'clip_scene_0000_frame_{window[0]}', f'clip_scene_0000_frame_{window[-1]}']
+    assert lines.indices[:3] == [50, window[0], window[-1]]
+    for view in views:
+        assert np.all(view.frame == view.frame_index)
+        assert view.scene_frames == (0, 100)
+        assert view.provenance == same_frame_provenance(view.view_id, view.frame_index)
+        assert view.alignment_image is None
+        if people is None:
+            assert view.person_boxes_px.shape == (0, 4)
+        else:
+            assert view.person_boxes_px[0, 0] == view.frame_index
+    assert (rows[0]['chosen_key'], rows[0]['composition']) == ('composite', {'court': 'composite'})
+    # The next scene tries the composite, in the middle frame's pixels with its paint support.
+    stored, = detector.known[1]
+    assert (stored.view_id, stored.paint_score) == (rows[0]['view_id'], .7)
+    np.testing.assert_array_equal(stored.corners_native_px, composite)
+
+
 def test_reuse_keeps_searched_templates_and_orders_by_optional_histograms() -> None:
     class ReusingDetector:
         def __init__(self) -> None:
             self.switches = Switches()
             self.attempts: list[list[str]] = []
 
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             self.attempts.append([known.view_id for known in known_courts])
             source = known_courts[0].view_id if len(self.attempts) == 3 else None
             corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
@@ -340,7 +385,7 @@ def test_reused_court_does_not_become_a_template() -> None:
             self.switches = Switches()
             self.attempts: list[list[str]] = []
 
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             self.attempts.append([known.view_id for known in known_courts])
             source = known_courts[0].view_id if known_courts else None
             return CourtResult(view.view_id, np.zeros((4, 2)), None, 'court', None, .9, source)
@@ -380,7 +425,7 @@ def test_reuse_shares_median_image_and_keeps_live_anchor_inputs(scene_length: in
         def __init__(self) -> None:
             self.images = []
 
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             assert np.all(view.frame[:, 20:40] == 240)
             assert np.all(view.alignment_image == 40)
             assert view.alignment_image.shape == (540, 960)
@@ -412,7 +457,7 @@ def test_reuse_decodes_in_order_and_preloads_the_feet_window_when_needed(scene_c
             return super().read(indices)
 
     class ReusingDetector(Detector):
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             assert np.all(view.alignment_image == 40)
             return super().detect(view, people, frames)
 
@@ -434,7 +479,7 @@ def test_failed_scene_is_recorded_and_never_becomes_a_template() -> None:
             super().__init__()
             self.attempts: list[list[str]] = []
 
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             self.attempts.append([known.view_id for known in known_courts])
             if len(self.attempts) == 2:
                 raise run_video.CourtFitError('original fit returned no corners')
@@ -458,11 +503,11 @@ def test_input_and_worker_failures_stop_the_video() -> None:
             return super().samples([index + 1 for index in indices])
 
     class BrokenPoolDetector(Detector):
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             raise BrokenProcessPool('a worker died')
 
     scenes = [SceneInfo(0, 100), SceneInfo(100, 200)]
-    with pytest.raises(ValueError, match='did not return the requested anchor'):
+    with pytest.raises(ValueError, match='did not return the requested frame'):
         list(scene_courts(Detector(), Frames(), WrongFramePeople(), Lines(), scenes,  # type: ignore[arg-type]
                           video_id='clip'))
     with pytest.raises(BrokenProcessPool):
@@ -483,7 +528,7 @@ def test_batch_loads_models_once_and_keeps_each_video_separate(monkeypatch: pyte
             super().__init__(switches)
             self.attempts: dict[str, list[str]] = {}
 
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             super().detect(view, people, frames)
             self.attempts[view.view_id] = [known.view_id for known in known_courts]
             return CourtResult(view.view_id, np.zeros((4, 2)), None, 'searched', None, .9)
@@ -524,7 +569,7 @@ def test_batch_replaces_a_broken_pool_but_stops_after_unknown_failures(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, error: Exception, statuses: list[str], events: list[str],
 ) -> None:
     class FailsFirstVideo(Detector):
-        def detect(self, view, people, frames, *, known_courts=()) -> CourtResult:
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
             result = super().detect(view, people, frames)
             if len(self.views) == 1:
                 raise error
