@@ -60,6 +60,8 @@ Returning camera views provide another opportunity. Optional chronological reuse
 
 Combining more evidence does not always help. In video 003, two scenes gave the same physical stripe different names—singles in one, doubles in the other. Pooling those observations pulled the fit onto blank floor. The detector now compares the pooled court with each donor scene's complete court across the same group. A valid whole-scene alternative can win instead. Reused courts can receive the shared result, but do not donate evidence back into it.
 
+Optional `fast-robust` mode skips the two endpoint searches. Every scene gets one fresh middle-frame fit, and every matching scene can contribute to the final pool. A group needs at least three independent fits; that is a minimum, not a cap. The pool must score higher than the best complete fit to replace it. Temporal player checks still run. This saves repeated searches, while giving each scene fewer observations of obscured lines.
+
 ## What the evidence supports so far
 
 The development checks show a workable detector and useful gains from combining observations. They do not yet supply an accuracy rate on unseen footage.

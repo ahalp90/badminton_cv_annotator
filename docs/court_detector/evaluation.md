@@ -37,7 +37,8 @@ with worn or obscured paint can score lower.
 | Scene checks | 24 videos, 533 scenes | Complete |
 | Composition checks | Eight selected scenes; first 218 of 405 scenes of video 040 | Complete; visual review plus consistency |
 | Cached pooling checks | Video 003 (two scenes) and video 040 (11 scenes) | Complete |
-| Full video-robust GPU run of video 040 | Whole 69-minute match | **Pending** |
+| Full video-robust GPU run of video 040 | Whole 69-minute match | Complete; timings, group comparison and five inspected scenes below |
+| Fast-robust checks | 11 cached matching scenes; four live scenes from video 040 | Complete; all scenes contribute, with complete-court fallback |
 
 Representative image backgrounds come from the match videos named by project
 video ID and scene number in each caption. The underlying broadcast footage
@@ -267,6 +268,58 @@ boundary lies across the court interior in a low-angle shot. Both groups had
 too few donors, so pooling left those detections unchanged. Five selected
 scenes cannot estimate a false-positive rate or the accuracy of all 120 courts.
 
+## Fast-robust: cached comparison
+
+The opt-in `fast-robust` mode was checked on the same 11 recurring views used in
+the earlier cached video 040 comparison, plus two standalone scenes (0018 and
+0152). Each middle-frame court came from a fresh search. Both modes used the
+same saved images, lines and person boxes. The saved boxes lack foot windows,
+so this comparison does not exercise live player checks or measure full runtime.
+
+All 11 matching scenes donated and all 11 complete courts were considered.
+Three is the minimum group size in fast-robust, not a limit on contributions.
+The two standalone scenes kept their own courts.
+
+| Mode | Selected court | Mean objective on the same 11 member images |
+| --- | --- | ---: |
+| Video-robust, three-frame scene inputs | Pooled fit | 0.956844 |
+| Fast-robust, middle-frame inputs | Scene 0080's complete fit | 0.967513 |
+
+Fast-robust's pooled candidate scored 0.954471, so the complete fit won. Its
+corners differ from the video-robust result by at most 3.93 native pixels.
+In the inspected scene 0022, the fast result places the far baseline a few
+pixels above the visible paint. The higher objective therefore does not establish
+better accuracy. These outlines use the same middle image and 1 px red dashes.
+
+| Video-robust from cached three-frame scenes | Fast-robust from cached middle frames |
+| --- | --- |
+| [Outline](assets/cached_0022_video-robust.png) | [Outline](assets/cached_0022_fast-robust.png) |
+
+## Fast-robust: live smoke
+
+Four existing scene ranges from video 040 (0022, 0184, 0201 and 0342) ran with
+fresh GPU line and pose inference, full temporal player checks, and eight CPU
+workers. The run used commit `5670fe7a` and exited successfully in **125.05 s**.
+This includes model loading but reuses the earlier scene boundaries. It is a
+smoke test, not a full-video timing comparison.
+
+All four scenes produced courts. Each ran one middle-frame search and stripe
+refit, with no endpoint searches. All four donated to one group, and all four
+complete courts were compared on the member images. Scene 0342's complete court
+won with a mean objective of 0.957229, against 0.932078 for the pooled fit.
+Pooling took 1.22 s; that time is included in the total.
+
+The two inspected outlines follow the visible outer markings. This live result
+does not remove the small offset seen in the separate cached comparison, or
+establish accuracy across other scenes and venues.
+
+| Scene 0022 | Scene 0342 |
+| --- | --- |
+| [1 px dashed outline](assets/live_fast_0022.png) | [1 px dashed outline](assets/live_fast_0342.png) |
+
+The [retained result](data/fast_robust_live_video040.json.gz) contains the four
+scene outputs, stage timings, pooled fit and complete-court candidate scores.
+
 ## Limits of this evaluation
 
 - Most views are development views; there is no held-out labelled test set.
@@ -319,6 +372,7 @@ manifest are not required inputs.
 | Files in [data/](data/) | Purpose |
 | --- | --- |
 | `full_video040_video_robust.json.gz`, `full_video040_summary.json.gz` | Complete final run rows and group comparisons; derived counts, timings and score means |
+| `fast_robust_cached_video040.json.gz` | Both modes on identical saved observations: 11 matching scenes and two standalone scenes |
 | `pool_fallback_video003.json.gz`, `pool_fallback_video040.json.gz` | Group membership, court alternatives, scores and final rows for the cached fallback checks |
 | `label_conflict_video003.json.gz` | Distances that exposed the singles/doubles naming conflict |
 | `pool_reference_frame_scores.json.gz` | Earlier unconditional-pool comparison on scene reference frames; distinct from the final middle-frame comparison |
