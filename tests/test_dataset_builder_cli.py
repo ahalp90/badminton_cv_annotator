@@ -329,10 +329,11 @@ def test_optional_court_mode_defaults_to_scene_robust_and_is_validated(tmp_path:
     config_path = _write_config(tmp_path / "trial.toml")
     assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == "scene-robust"
     original = config_path.read_text(encoding="utf-8")
-    config_path.write_text(original.replace(
-        "court_reuse_courts = false", 'court_reuse_courts = false\ncourt_mode = "video-robust"',
-    ), encoding="utf-8")
-    assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == "video-robust"
+    for mode in ("video-robust", "fast-robust"):
+        config_path.write_text(original.replace(
+            "court_reuse_courts = false", f'court_reuse_courts = false\ncourt_mode = "{mode}"',
+        ), encoding="utf-8")
+        assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == mode
     config_path.write_text(original.replace(
         "court_reuse_courts = false", 'court_reuse_courts = false\ncourt_mode = "per-video"',
     ), encoding="utf-8")

@@ -1,20 +1,23 @@
-"""Pool scene composites across a video's returning camera views, then refit once per view.
+"""Pool scene courts across a video's returning camera views, then refit once per view.
 
 Video-robust mode (run_video --court-mode video-robust) runs this after every scene
-has its scene-robust court, so no court changes until the video is done.
+has its scene-robust court, so no court changes until the video is done. Fast-robust
+mode (--court-mode fast-robust) runs the same steps on courts that each come from one
+fresh search of the scene's middle frame, with no endpoint frames or composite.
 
 1. Groups. Each scene with a court joins the first group whose fixed reference it
    matches, or becomes a new group's reference. A perceptual hash within
    court_views.MAX_HASH_DISTANCE only shortlists a group. composition.align must then
    give a usable warp. Camera movement is allowed because the warp carries donated
    samples into reference coordinates. Members align directly to the reference.
-2. Donors. A scene whose fresh search ended in an accepted composite donates the
-   frames that won its markings, with their observed samples and stripe assignments.
-   Reused, middle-frame and fallback courts donate nothing. The donors are carried
-   into the reference's pixels and turned to its court's orientation. Each marking
-   keeps the donor with the most q_paint10 across the group; exact ties keep the
-   earlier scene.
-3. Fit. A group with MIN_DONOR_SCENES independent composites gets one stripe fit to
+2. Donors. In video-robust mode, a scene whose fresh search ended in an accepted
+   composite donates the frames that won its markings, with their observed samples
+   and stripe assignments. Reused, middle-frame and fallback courts donate nothing.
+   In fast-robust mode every court is a fresh middle-frame fit, so its middle frame
+   donates. The donors are carried into the reference's pixels and turned to its
+   court's orientation. Each marking keeps the donor with the most q_paint10 across
+   the group; exact ties keep the earlier scene.
+3. Fit. A group with MIN_DONOR_SCENES independent donor scenes gets one stripe fit to
    its kept donors' samples, starting from the reference's court. One scene may win
    every marking; the pool does not require a mixture of scenes.
 4. Scores. In every member's middle frame, the pooled court, the scene's court and
@@ -27,11 +30,14 @@ has its scene-robust court, so no court changes until the video is done.
    every member and checked and scored there. A candidate that fails a member's
    check or lacks a member's score is out. The best remaining candidate replaces the
    pool only when its mean over the same members beats the pool's mean, or when the
-   pool has no mean. An exact tie keeps the pool.
+   pool has no mean. An exact tie keeps the pool in video-robust mode and the scene
+   court in fast-robust mode. Fast-robust mode also compares the candidates when the
+   pooled fit fails.
 6. Output. A winning scene court replaces every member's court. Otherwise a valid
    pooled court replaces each member's court that passes that member's own checks
    (composition.check_in_frame, with its feet). A member that fails keeps its scene
-   court, as does every member of a group whose fit fails.
+   court, as does every member of a group that has neither a valid fit nor a winning
+   scene court.
 """
 
 from __future__ import annotations
@@ -62,13 +68,16 @@ logger = logging.getLogger(__name__)
 class CourtMode(StrEnum):
     SCENE_ROBUST = "scene-robust"  # each scene keeps its own court
     VIDEO_ROBUST = "video-robust"  # scenes of one camera view may share a pooled court
+    FAST_ROBUST = "fast-robust"  # video-robust pooling of fresh middle-frame courts, without endpoint frames
 
 
 POOLED_KEY = "video_pool"  # chosen_key of a pooled court
-GROUP_SCENE_KEY = "video_pool_scene"  # chosen_key of another scene's composite carried into this scene
+GROUP_SCENE_KEY = "video_pool_scene"  # chosen_key of another scene's court carried into this scene
 # The courts each member's scores compare
 COMPARED_COURTS = ("pooled", "scene", "middle")
-MIN_DONOR_SCENES = 2
+# Independent donor scenes a group needs before it pools
+MIN_DONOR_SCENES = {CourtMode.VIDEO_ROBUST: 2, CourtMode.FAST_ROBUST: 3}
+NO_POOLED_FIT = "no_valid_pooled_fit"  # a member's pooled_rejection when the group's fit failed
 
 
 @dataclass(frozen=True)
@@ -81,7 +90,7 @@ class Member:
     alignment: dict[str, Any] | None  # composition.align's record; None for the reference itself
     scene_corners: np.ndarray  # (4, 2) native px
     middle_corners: np.ndarray  # (4, 2) native px
-    middle_score: dict[str, Any] | None  # composition.own_frame_score of middle_corners, when it ran
+    middle_score: dict[str, Any] | None  # middle_corners scored in this frame, when composition or join measured it
     composite_measurement: dict[str, Any] | None  # the scene composite's middle-frame measurement
 
 
@@ -188,9 +197,10 @@ def replace_court(row: dict[str, Any], corners: np.ndarray, chosen_key: str, reu
 class VideoPool:
     """Group a video's scene courts by camera view as they finish, then apply pooled courts at the end."""
 
-    def __init__(self, live: LiveModules, switches: Switches) -> None:
+    def __init__(self, live: LiveModules, switches: Switches, court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> None:
         self.live = live
         self.switches = switches
+        self.court_mode = court_mode
         self.groups: list[ViewGroup] = []
 
     def add(self, row: dict[str, Any], scene: SceneCourts) -> None:
@@ -220,15 +230,22 @@ class VideoPool:
         if group is None:
             group = ViewGroup(frame, hashed)
         # Measure everything before changing the group, so a failure leaves it as it was.
+        used_frames, middle_score = scene.used_frames, scene.middle_score
+        if self.court_mode == CourtMode.FAST_ROBUST:
+            # run_video forbids reuse in this mode, so this court is the middle frame's own
+            # fresh fit. That one measurement gives both its donated samples and its score.
+            evidence = composition.measure(self.live, frame, frame.corners_native)
+            used_frames = (composition.UsedFrame(frame, np.eye(3), frame.corners_native, evidence),)
+            middle_score = self.evidence_score(scene.context, frame.corners_native, evidence)
         winners = []
-        if scene.used_frames:
-            winners = scene_donors(self.live, scene.used_frames, to_reference, group.reference)
+        if used_frames:
+            winners = scene_donors(self.live, used_frames, to_reference, group.reference)
         if new_group:
             self.groups.append(group)
         group.members.append(Member(row, scene.context, to_reference, alignment, frame.corners_native,
-                                    np.asarray(scene.middle_corners_native_px, dtype=float), scene.middle_score,
+                                    np.asarray(scene.middle_corners_native_px, dtype=float), middle_score,
                                     scene.composite_measurement))
-        if not scene.used_frames:
+        if not used_frames:
             return
         for marking, used in enumerate(winners):
             known = group.donors[marking]
@@ -249,7 +266,7 @@ class VideoPool:
                 "donor_view_ids": group.donor_view_ids, "pooled_view_ids": [], "reason": None,
                 "chosen_court": None, "chosen_view_id": None,
             }
-            if len(group.donor_view_ids) < MIN_DONOR_SCENES:
+            if len(group.donor_view_ids) < MIN_DONOR_SCENES[self.court_mode]:
                 summary["reason"] = "too_few_donor_scenes"
             else:
                 try:
@@ -267,16 +284,25 @@ class VideoPool:
 
         Rows change only after every court is measured, so a failure changes none.
         """
+        fast = self.court_mode == CourtMode.FAST_ROBUST
         reference = composition.UsedFrame(group.reference, np.eye(3), group.reference.corners_native, {})
         constraints, summary["markings"] = pooled_constraints(group.donors)
         fit = composition.fit_in_reference(self.live, reference, constraints)
+        fit_corners = fit.get("corners_native_px")
+        # Fast-robust can continue after a failed fit; its unusable corners must not
+        # prevent the complete-court fallback from being written as strict JSON.
+        if fast and not fit["valid"]:
+            fit_corners = None
         summary["fit"] = {"status": fit["status"], "sample_count": len(constraints.points), "valid": fit["valid"],
-                          "validity_reason": fit["validity_reason"],
-                          "corners_reference_native_px": fit.get("corners_native_px")}
-        if not fit["valid"]:
+                          "validity_reason": fit["validity_reason"], "corners_reference_native_px": fit_corners}
+        pooled_reference = None
+        if fit["valid"]:
+            pooled_reference = np.asarray(fit_corners, dtype=float)
+        else:
             summary["reason"] = f"fit_{fit['validity_reason']}"
-            return
-        pooled_reference = np.asarray(fit["corners_native_px"], dtype=float)
+            # Video-robust keeps the scene courts. Fast-robust can still give the group one scene's court.
+            if not fast:
+                return
         outcomes = [self.member_outcome(group, member, pooled_reference) for member in group.members]
         means: dict[str, float | None] = {}
         for court in COMPARED_COURTS:
@@ -284,15 +310,21 @@ class VideoPool:
             means[court] = None if None in scores else float(np.mean(scores))
         summary["mean_combined_scores"] = means
         winner, summary["scene_candidates"] = self.best_scene_candidate(group, outcomes)
-        # A scene court must beat the pool; an exact tie keeps the pool.
-        if winner is not None and means["pooled"] is not None and winner["mean_combined_score"] <= means["pooled"]:
-            winner = None
+        if winner is not None and means["pooled"] is not None:
+            # On an exact tie, video-robust keeps the pool and fast-robust keeps the scene court.
+            pool_beats_scene = means["pooled"] > winner["mean_combined_score"]
+            tie = means["pooled"] == winner["mean_combined_score"]
+            if pool_beats_scene or (tie and not fast):
+                winner = None
+        if winner is None and pooled_reference is None:
+            return
         summary.update(chosen_court="pooled" if winner is None else "group_scene",
                        chosen_view_id=None if winner is None else winner["view_id"])
         for index, (member, outcome) in enumerate(zip(group.members, outcomes, strict=True)):
+            pooled_corners = None if outcome["pooled_corners"] is None else outcome["pooled_corners"].tolist()
             record = {"reference_view_id": summary["reference_view_id"], "alignment": member.alignment,
-                      "pooled_rejection": outcome["pooled_rejection"],
-                      "pooled_corners_native_px": outcome["pooled_corners"].tolist(), "scores": outcome["scores"]}
+                      "pooled_rejection": outcome["pooled_rejection"], "pooled_corners_native_px": pooled_corners,
+                      "scores": outcome["scores"]}
             member.row["view_pool"] = record
             if winner is not None:
                 corners = winner["corners"][index]
@@ -345,7 +377,7 @@ class VideoPool:
         corners, scores = [], []
         for member, outcome in zip(members, outcomes, strict=True):
             if member is source:
-                # Composition checked this court in this frame before accepting it.
+                # The scene's own detection checked this court in this frame before accepting it.
                 court, score, rejection = member.scene_corners, outcome["scores"]["scene"], None
             else:
                 court = carry_to_member(in_reference, member)
@@ -361,10 +393,16 @@ class VideoPool:
                          corners=corners, scores=scores)
         return candidate
 
-    def member_outcome(self, group: ViewGroup, member: Member, pooled_reference: np.ndarray) -> dict[str, Any]:
-        """The pooled court in this member's middle frame and corner order, its checks, and all three scores."""
-        pooled = carry_to_member(pooled_reference / group.reference.native_per_working, member)
-        pooled_score, rejection = self.checked_score(member, pooled)
+    def member_outcome(self, group: ViewGroup, member: Member, pooled_reference: np.ndarray | None) -> dict[str, Any]:
+        """The pooled court in this member's middle frame and corner order, its checks, and all three scores.
+
+        :param pooled_reference: (4, 2) the pooled court in the reference's native px; None
+            when the fit failed, which leaves the member no pooled court or score.
+        """
+        pooled, pooled_score, rejection = None, {}, NO_POOLED_FIT
+        if pooled_reference is not None:
+            pooled = carry_to_member(pooled_reference / group.reference.native_per_working, member)
+            pooled_score, rejection = self.checked_score(member, pooled)
         weight = self.switches.geometry_weight
         if member.middle_score is None:
             middle_score = self.measured_score(member.context, member.middle_corners)
@@ -406,5 +444,9 @@ class VideoPool:
         entry = {"homography_working": homography}
         with live.prepared_measurements(live.verifier):
             evidence, _ = live.verifier.measure_candidate(context, entry, {})
+        return self.evidence_score(context, corners_native, evidence)
+
+    def evidence_score(self, context: ViewContext, corners_native: np.ndarray, evidence: dict[str, Any]) -> dict[str, Any]:
+        """A court's combined score from its measure_candidate evidence in the same frame."""
         return score_row(evidence["q_paint10_span_weighted"], evidence["q_geom_span_weighted"],
                          self.net_reward(context, corners_native), self.switches.geometry_weight)

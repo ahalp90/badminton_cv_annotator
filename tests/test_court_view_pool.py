@@ -1,7 +1,8 @@
 """Video-robust courts: view groups, donors carried between scenes, one pooled fit and where it applies.
 
 The measured cases reuse test_court_scene_compose's synthetic painted court and compose
-real scenes from it. The output cases replace the fit, member checks and scores with stand-ins.
+real scenes from it. The fast-robust cases give the pool fresh middle-frame courts
+instead. The output cases replace the fit, member checks and scores with stand-ins.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import pytest
 
 from court_detector import composition, view_pool
 from court_detector.detect import CourtDetector, SceneCourts, Switches
-from court_detector.view_pool import Member, VideoPool, ViewGroup
+from court_detector.view_pool import CourtMode, Member, VideoPool, ViewGroup
 from tests.test_court_detector_composition import (
     OFF_COURT_FEET_PX,
     compose,
@@ -61,8 +62,11 @@ def turned_scene(detector: CourtDetector) -> SceneCourts:
     return composed(detector, [searched(detector, middle, .5, feet), searched(detector, first, .9, feet)])
 
 
-def reused_scene(detector: CourtDetector, spec: dict, all_feet_px: list[list]) -> SceneCourts:
-    """A scene whose court came without a composite, so it has nothing to donate."""
+def middle_only_scene(detector: CourtDetector, spec: dict, all_feet_px: list[list]) -> SceneCourts:
+    """A scene whose court came from its middle frame alone: reused, or searched without endpoints.
+
+    Video-robust mode takes no donors from it; fast-robust mode takes its middle frame.
+    """
     frame = searched(detector, spec, .8, all_feet_px)
     return SceneCourts(frame.context, frame.native_frame, frame.corners_native, frame.corners_native)
 
@@ -77,7 +81,7 @@ def scenes(detector: CourtDetector) -> dict[str, SceneCourts]:
     first_scene = composed(detector, middle_and_first(detector, .9, .5, players_feet(np.zeros(2))))
     unmoved = frame_spec("middle", np.zeros(2), [LEFT_BOX], true_corners(np.zeros(2)))
     return {"first": first_scene, "turned": turned_scene(detector),
-            "feet_off_court": reused_scene(detector, unmoved, OFF_COURT_FEET_PX)}
+            "feet_off_court": middle_only_scene(detector, unmoved, OFF_COURT_FEET_PX)}
 
 
 def test_turned_donors_from_another_scene_reference_land_on_the_group_reference(detector, scenes) -> None:
@@ -188,10 +192,10 @@ def test_matching_hashes_need_usable_alignment_not_a_stationary_camera(
 ) -> None:
     monkeypatch.setattr(view_pool, "image_hash", lambda native_frame: np.zeros((16, 16), dtype=bool))
     if case == "unrelated_image":
-        other = reused_scene(detector, unrelated("middle", np.zeros(2)), players_feet(np.zeros(2)))
+        other = middle_only_scene(detector, unrelated("middle", np.zeros(2)), players_feet(np.zeros(2)))
     else:
         moved = frame_spec("middle", JITTER_PX, [RIGHT_BOX], true_corners(JITTER_PX))
-        other = reused_scene(detector, moved, players_feet(JITTER_PX))
+        other = middle_only_scene(detector, moved, players_feet(JITTER_PX))
     pool = VideoPool(detector.live, detector.switches)
     pool.add(row("first", scenes["first"]), scenes["first"])
     pool.add(row("other", other), other)
@@ -200,6 +204,69 @@ def test_matching_hashes_need_usable_alignment_not_a_stationary_camera(
         alignment = pool.groups[0].members[1].alignment
         assert alignment["usable"] and not alignment["same_camera"]
         assert alignment["max_corner_shift_refpx"] > 1.0
+
+
+@pytest.fixture(scope="module")
+def middle_scenes(detector: CourtDetector) -> dict[str, SceneCourts]:
+    """Fresh middle-frame courts of one camera view, as fast-robust mode hands them to the pool.
+
+    A person hides the left doubles line in the first two scenes and the right singles line
+    in the third. The first court is 4 px off at one corner; the second is labelled from the
+    other end.
+    """
+    specs = {
+        "left_box": (np.zeros(2), LEFT_BOX, true_corners(np.zeros(2)) + [[4.0, 0.0], [0, 0], [0, 0], [0, 0]]),
+        "turned": (NUDGE_PX, LEFT_BOX, np.roll(true_corners(NUDGE_PX), composition.HALF_TURN_ROLL, axis=0)),
+        "right_box": (np.zeros(2), RIGHT_BOX, true_corners(np.zeros(2))),
+    }
+    scenes = {}
+    for name, (shift, box, corners) in specs.items():
+        scenes[name] = middle_only_scene(detector, frame_spec("middle", shift, [box], corners), players_feet(shift))
+    return scenes
+
+
+def test_fast_robust_pools_fresh_middle_frames_and_scores_them_from_their_own_measurement(
+        detector, middle_scenes, monkeypatch) -> None:
+    # A member's own court is scored from the measurement its donation came from.
+    monkeypatch.setattr(VideoPool, "measured_score", lambda *args: pytest.fail("measured a scene court again"))
+    pool = VideoPool(detector.live, detector.switches, CourtMode.FAST_ROBUST)
+    rows = {name: row(name, scene) for name, scene in middle_scenes.items()}
+    for name, scene in middle_scenes.items():
+        pool.add(rows[name], scene)
+    (group,) = pool.groups
+    assert group.donor_view_ids == list(middle_scenes)
+    # The boxes hide different lines, so the markings come from more than one scene.
+    donors = {marking: donor.view_id for marking, donor in zip(view_pool.MARKINGS, group.donors, strict=True)
+              if donor is not None}
+    assert donors["left_doubles"] == "right_box" and donors["right_singles"] != "right_box"
+    (summary,) = pool.apply()
+    assert summary["fit"]["valid"], summary
+    np.testing.assert_allclose(summary["fit"]["corners_reference_native_px"], true_corners(np.zeros(2)), atol=2.0)
+    means = summary["mean_combined_scores"]
+    assert means["pooled"] is not None and means["scene"] == means["middle"]
+    assert summary["chosen_court"] in ("pooled", "group_scene")
+    for name, member_row in rows.items():
+        record = member_row["view_pool"]
+        assert record["scores"]["scene"] == record["scores"]["middle"]
+        assert record["scores"]["scene"]["combined_score"] is not None, name
+    json.dumps([summary, rows], allow_nan=False)
+
+
+@pytest.mark.parametrize(("court_mode", "donor_view_ids"), [
+    (CourtMode.FAST_ROBUST, ["left_box", "turned"]),
+    (CourtMode.VIDEO_ROBUST, []),
+])
+def test_two_middle_frame_courts_do_not_pool_in_either_mode(detector, middle_scenes, court_mode: CourtMode,
+                                                            donor_view_ids: list[str]) -> None:
+    # Fast-robust counts each fresh middle frame as a donor but needs three scenes;
+    # video-robust takes donors only from composites.
+    pool = VideoPool(detector.live, detector.switches, court_mode)
+    rows = {name: row(name, middle_scenes[name]) for name in ("left_box", "turned")}
+    for name, member_row in rows.items():
+        pool.add(member_row, middle_scenes[name])
+    (summary,) = pool.apply()
+    assert (summary["donor_view_ids"], summary["reason"]) == (donor_view_ids, "too_few_donor_scenes")
+    assert all("view_pool" not in member_row for member_row in rows.values())
 
 
 # Far enough off the painted sideline to lose its paint support
@@ -272,6 +339,7 @@ def test_a_scene_court_must_pass_every_member_including_reused_ones(detector, sc
 
 SCENE = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
 SCENE_B = SCENE + 3.0
+SCENE_C = SCENE - 3.0
 MIDDLE = SCENE + 2.0
 POOLED = SCENE + 1.0
 # One native px per working px
@@ -283,29 +351,40 @@ def score(value: float | None) -> dict:
 
 
 def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None]], own: dict[str, float],
-                   carried: dict[tuple[str, str], tuple[float | None, str | None]],
-                   fit_valid: bool = True) -> tuple[VideoPool, dict]:
-    """Donor scenes a and b, and scene r reusing a's court, in one camera view.
+                   carried: dict[tuple[str, str], tuple[float | None, str | None]], fit_valid: bool = True,
+                   court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> tuple[VideoPool, dict]:
+    """Donor scenes a and b in one camera view, and a third scene.
+
+    In video-robust mode the third is scene r, reusing a's court. Fast-robust mode reuses
+    nothing, so the third is donor c with its own court.
 
     :param pooled: each member's pooled combined score (None when missing) and rejection
     :param own: each donor's combined score for its own scene court
     :param carried: (member, source scene) to that scene court's combined score and rejection
     """
     monkeypatch.setattr(view_pool, "pooled_constraints", lambda donors: (SimpleNamespace(points=[0] * 9), []))
+    # An invalid fit can hold a diverged solver's corners.
+    fit_corners = POOLED if fit_valid else np.full((4, 2), np.nan)
     monkeypatch.setattr(composition, "fit_in_reference", lambda live, reference, constraints: {
         "status": "ok", "valid": fit_valid, "validity_reason": None if fit_valid else "no_fit_corners",
-        "corners_native_px": POOLED.tolist()})
+        "corners_native_px": fit_corners.tolist()})
 
     def member_outcome(self, group, member, pooled_reference) -> dict:
         view_id = member.row["view_id"]
+        pooled_corners = POOLED
         value, rejection = pooled[view_id]
-        return {"pooled_corners": POOLED, "pooled_rejection": rejection,
+        if pooled_reference is None:
+            pooled_corners, value, rejection = None, None, view_pool.NO_POOLED_FIT
+        return {"pooled_corners": pooled_corners, "pooled_rejection": rejection,
                 "scores": {"pooled": score(value), "scene": score(own.get(view_id, .5)), "middle": score(.5)}}
 
+    third = ("r", SCENE, "a") if court_mode == CourtMode.VIDEO_ROBUST else ("c", SCENE_C, None)
+    scenes = (("a", SCENE, None), ("b", SCENE_B, None), third)
     checked = []
 
     def checked_score(self, member, corners_native) -> tuple[dict, str | None]:
-        source = "a" if np.allclose(corners_native, SCENE) else "b"
+        # r's court is a's, which comes first.
+        source = next(view_id for view_id, corners, _ in scenes if np.allclose(corners_native, corners))
         checked.append((member.row["view_id"], source))
         # Each scene court is measured at most once in each other member.
         assert len(set(checked)) == len(checked) and checked[-1][0] != source
@@ -315,13 +394,16 @@ def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None
     monkeypatch.setattr(VideoPool, "member_outcome", member_outcome)
     monkeypatch.setattr(VideoPool, "checked_score", checked_score)
     rows, members = {}, []
-    for view_id, corners, reused_from in (("a", SCENE, None), ("b", SCENE_B, None), ("r", SCENE, "a")):
+    donor_view_ids = []
+    for view_id, corners, reused_from in scenes:
         rows[view_id] = {"view_id": view_id, "corners_native_px": corners.tolist(),
                          "chosen_key": "reuse" if reused_from else "composite", "reused_from": reused_from}
         members.append(Member(rows[view_id], CONTEXT, np.eye(3), None, corners, MIDDLE, None, None))
+        if reused_from is None:
+            donor_view_ids.append(view_id)
     group = ViewGroup(SimpleNamespace(corners_native=SCENE, native_per_working=np.ones(2)), np.zeros(1), members,
-                      [None], ["a", "b"])
-    pool = VideoPool(None, Switches())
+                      [None], donor_view_ids)
+    pool = VideoPool(None, Switches(), court_mode)
     pool.groups.append(group)
     return pool, rows
 
@@ -407,3 +489,70 @@ def test_failed_member_checks_or_an_invalid_fit_keep_scene_courts(monkeypatch) -
     assert (summary["reason"], summary["pooled_view_ids"], summary["chosen_court"]) == ("fit_no_fit_corners", [], None)
     assert rows["a"]["corners_native_px"] == SCENE.tolist() and rows["b"]["corners_native_px"] == SCENE_B.tolist()
     assert all("view_pool" not in member_row for member_row in rows.values())
+
+
+def carried_everywhere(by_source: dict[str, float]) -> dict:
+    """Each source scene's court with the same score and no rejection in every other member."""
+    carried = {}
+    for source, value in by_source.items():
+        for member in by_source:
+            if member != source:
+                carried[(member, source)] = (value, None)
+    return carried
+
+
+@pytest.mark.parametrize(("pooled_score", "chosen_court"), [(.80, "group_scene"), (.81, "pooled")])
+def test_fast_robust_pool_must_beat_the_best_complete_court_on_the_same_members(
+        monkeypatch, pooled_score: float, chosen_court: str) -> None:
+    pooled = {view_id: (pooled_score, None) for view_id in "abc"}
+    # The pool fails c's own checks, so c keeps its scene court when the pool wins.
+    pooled["c"] = (pooled_score, "players_not_on_court")
+    # a's court scores .80 in every member; b's and c's score less.
+    carried = carried_everywhere({"a": .80, "b": .60, "c": .60})
+    pool, rows = stand_in_group(monkeypatch, pooled, {"a": .80, "b": .70, "c": .70}, carried,
+                                court_mode=CourtMode.FAST_ROBUST)
+    (summary,) = pool.apply()
+    assert summary["donor_view_ids"] == ["a", "b", "c"]
+    best = summary["scene_candidates"][0]
+    assert (best["view_id"], best["rejection"], best["mean_combined_score"]) == ("a", None, pytest.approx(.80))
+    assert summary["chosen_court"] == chosen_court
+    if chosen_court == "group_scene":
+        # An exact tie keeps the complete court, which every member now holds.
+        assert best["mean_combined_score"] == summary["mean_combined_scores"]["pooled"]
+        assert (summary["chosen_view_id"], summary["pooled_view_ids"]) == ("a", [])
+        assert all(member_row["corners_native_px"] == SCENE.tolist() for member_row in rows.values())
+        assert (rows["a"]["chosen_key"], rows["c"]["chosen_key"]) == ("composite", view_pool.GROUP_SCENE_KEY)
+        return
+    assert summary["pooled_view_ids"] == ["a", "b"]
+    assert rows["b"]["corners_native_px"] == POOLED.tolist()
+    assert (rows["c"]["corners_native_px"], rows["c"]["view_pool"]["court"]) == (SCENE_C.tolist(), "scene")
+
+
+@pytest.mark.parametrize("candidates_pass", [True, False])
+def test_fast_robust_can_share_a_complete_court_when_the_pooled_fit_fails(monkeypatch, candidates_pass: bool) -> None:
+    carried = carried_everywhere({"a": .70, "b": .60, "c": .60})
+    if not candidates_pass:
+        carried = {pair: (.99, "camera_implausible") for pair in carried}
+    pooled = {view_id: (.99, None) for view_id in "abc"}
+    pool, rows = stand_in_group(monkeypatch, pooled, {"a": .90, "b": .90, "c": .90}, carried, fit_valid=False,
+                                court_mode=CourtMode.FAST_ROBUST)
+    (summary,) = pool.apply()
+    assert summary["reason"] == "fit_no_fit_corners"
+    # The diverged corners are left out of the strict JSON output.
+    assert summary["fit"]["corners_reference_native_px"] is None
+    assert summary["mean_combined_scores"]["pooled"] is None
+    json.dumps([summary, rows], allow_nan=False)
+    if not candidates_pass:
+        # No court holds the whole group, so every scene keeps its own.
+        assert all(candidate["rejection"] is not None for candidate in summary["scene_candidates"])
+        assert (summary["chosen_court"], summary["pooled_view_ids"]) == (None, [])
+        assert [rows[view_id]["corners_native_px"] for view_id in "abc"] == [
+            SCENE.tolist(), SCENE_B.tolist(), SCENE_C.tolist()]
+        assert all("view_pool" not in member_row for member_row in rows.values())
+        return
+    assert (summary["chosen_court"], summary["chosen_view_id"], summary["pooled_view_ids"]) == ("group_scene", "a", [])
+    assert all(member_row["corners_native_px"] == SCENE.tolist() for member_row in rows.values())
+    record = rows["b"]["view_pool"]
+    assert (record["court"], record["pooled_rejection"], record["pooled_corners_native_px"]) == (
+        "group_scene", view_pool.NO_POOLED_FIT, None)
+    assert record["scores"]["pooled"] == {}

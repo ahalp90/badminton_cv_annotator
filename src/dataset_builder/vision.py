@@ -56,7 +56,7 @@ COURT_PRESENT_FILENAME = "court_present.npy.xz"
 COURT_DETECTOR_RESULT_FILENAME = "court_detector_result.json.gz"
 # court_detector.view_pool.CourtMode's values; the default comes first. The detector
 # runs in its own interpreter, so this module does not import it.
-COURT_MODES = ("scene-robust", "video-robust")
+COURT_MODES = ("scene-robust", "video-robust", "fast-robust")
 POSE_FILENAMES = {
     "kps": "pose_kps.npy.xz", "bboxes": "pose_bboxes.npy.xz", "scores": "pose_scores.npy.xz",
     "kp_scores": "pose_kp_scores.npy.xz", "ndet": "pose_ndet.npy.xz",

@@ -244,11 +244,14 @@ off, and `--court-mode` defaults to `scene-robust`.
 | --- | --- |
 | `--court-mode scene-robust` (default) | Each scene keeps its own court |
 | `--court-mode video-robust` | After the last scene, groups scenes that show the same camera view and may give the group one shared court. Rows print only after that step |
+| `--court-mode fast-robust` | Searches only each scene's middle frame, then pools matching views with at least three independent scene fits. Keeps the best complete court unless the pooled fit scores higher |
 | `--reuse-courts` | While scenes run in order, tries to carry an earlier court into a returning view, checked against the new scene. Otherwise it searches afresh |
 
 Reuse and video-robust mode can run together, but a reused scene cannot donate
 to the shared court. [Sampling and scene reuse](sampling_and_reuse.md) is the
-full contract for both.
+full contract for both. Fast-robust requires fresh fits and cannot be combined
+with `--reuse-courts`. It retains the usual temporal player checks even though
+it fits the court in only one frame per scene.
 
 ### Dataset-builder integration
 
@@ -259,7 +262,7 @@ config key controls `--reuse-courts`; both supplied configs,
 [shuttleset_fixed.toml](../../configs/dataset_builder/shuttleset_fixed.toml)
 and [trial.toml](../../configs/dataset_builder/trial.toml), turn it on. The
 optional `vision.court_mode` key sets `--court-mode` and defaults to
-`scene-robust`.
+`scene-robust`. To use `fast-robust`, also set `court_reuse_courts = false`.
 
 Both supplied configurations read the court interpreter from
 `BADMINTON_COURT_PYTHON`; set it to the absolute path of the court environment's

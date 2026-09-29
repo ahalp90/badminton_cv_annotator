@@ -7,16 +7,18 @@ evidence. The [README](README.md) has the commands, setup and top-level output
 fields. The [design page](../../docs/court_detector/design.md) explains why, and
 the [evaluation page](../../docs/court_detector/evaluation.md) holds the evidence.
 
-Three behaviours decide how scenes relate to each other:
+These options decide how scenes relate to each other:
 
 | Behaviour | Option | When it acts | What a scene can end up with |
 | --- | --- | --- | --- |
 | Scene-robust (default) | `--court-mode scene-robust` | Per scene | Its own searched or composed court |
 | Chronological reuse | `--reuse-courts` | Per scene, in time order, before the search | An earlier scene's court, refitted and checked in this scene |
 | Video-robust | `--court-mode video-robust` | Once, after every scene has finished | One court shared by scenes of the same camera view, or its own court |
+| Fast-robust | `--court-mode fast-robust` | Fits each middle frame, then pools after every scene has finished | A pooled court, the best complete middle-frame court, or its own middle-frame court |
 
 Reuse and video-robust mode are independent and can run together. Both are
 described in full below.
+Fast-robust requires independent fresh fits and rejects `--reuse-courts`.
 
 ## Scenes and frame ranges
 
@@ -272,9 +274,30 @@ Reuse still uses scene courts, never pooled ones. A reused scene runs no fresh
 search, so it cannot donate. Turning reuse on therefore leaves fewer donors and
 fewer groups able to pool.
 
+## Fast-robust pooling (`--court-mode fast-robust`)
+
+Each scene gets one fresh middle-frame search, including stripe refitting and
+scoring. It skips the endpoint searches and three-frame composition. The full
+temporal foot window still runs when people are required.
+
+The middle frame's observed markings go directly into the same view grouping
+and pooling machinery described above. Image alignment confirms the view;
+histogram similarity alone does not establish a match. A group needs at least
+three independent scene fits. Smaller groups keep their individual courts.
+
+The pooled fit and complete scene courts are compared on the same member images.
+The pool must score strictly higher than the best valid complete court to win;
+a tie keeps the complete court. An invalid pool can also fall back to that
+complete court. If no shared court passes the relevant checks, individual
+scene courts remain. Final rows print after pooling.
+
+This saves endpoint work but gives each scene fewer observations. A line hidden
+in its middle frame may be visible in another scene; a unique view gets no such
+help. Fast-robust therefore trades some scene-level evidence for less work.
+
 ## Output fields by mode
 
-Every analysed row carries these fields in both modes:
+Every analysed row carries these fields in all modes:
 
 | Field | Meaning |
 | --- | --- |
@@ -284,7 +307,7 @@ Every analysed row carries these fields in both modes:
 | `stage_seconds` | Detector seconds per step for this scene. Composition adds `endpoint_inputs`, `first_frame_search`, `last_frame_search` and `composition` |
 | `seconds` | This scene's wall time up to its row |
 
-Video-robust mode adds:
+Video-robust and fast-robust modes add:
 
 - **On a row whose court changed:** `scene_corners_native_px`,
   `scene_chosen_key` and `scene_reused_from` keep the scene's own court.
@@ -312,12 +335,12 @@ actually took the pooled court.
 
 **Timing.** `stage_seconds` and `seconds` stop before a scene joins a view group,
 so they leave out all grouping and pooling time. `processing_seconds` covers
-them. In video-robust mode, `processing_seconds` minus the sum of scene `seconds`
+them. In either pooling mode, `processing_seconds` minus the sum of scene `seconds`
 roughly shows the grouping and pooling cost.
 
 **Progress.** Scene-by-scene progress and pooling start, per-group and end
 messages go to stderr. In scene-robust mode each row also prints to stdout as its
-scene finishes. In video-robust mode rows print after pooling. Stdout can also
+scene finishes. In either pooling mode rows print after pooling. Stdout can also
 hold other diagnostics, so read results from the saved file.
 
 ## What the modes establish, and their limits

@@ -135,7 +135,7 @@ def endpoint_views(decoded: dict[int, np.ndarray], endpoints: Sequence[int], sce
 
 def scene_courts(
     detector: CourtDetector, frames: FrameReader, people: PeopleSource | None, lines: LineSource,
-    scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False,
+    scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False, compose_scenes: bool = True,
     on_court: Callable[[dict[str, Any], SceneCourts], None] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Detect the middle frame of each scene without crossing a cut for foot samples.
@@ -149,10 +149,12 @@ def scene_courts(
     When a fresh search finds the middle frame's court, the detector also searches
     the first and last frames of the foot window and may report a composite court
     in the middle frame's pixels. A scene too short for the window, or one that
-    reuses an earlier court, keeps the middle frame alone.
+    reuses an earlier court, keeps the middle frame alone. compose_scenes=False
+    (fast-robust mode) skips the endpoint frames for every scene; the foot window
+    still runs.
 
     on_court receives each row with a court and its scene's finished courts before the
-    row is yielded. Video-robust mode passes VideoPool.add.
+    row is yielded. Video-robust and fast-robust modes pass VideoPool.add.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -174,7 +176,7 @@ def scene_courts(
                 yield row
                 continue
             window = None
-        endpoints = [] if window is None else [window[0], window[-1]]
+        endpoints = [window[0], window[-1]] if window is not None and compose_scenes else []
         # The reuse median's frames: the window's ends when it fits, else the scene's.
         # The end is exclusive, so the scene's last frame is end_frame - 1.
         if window is None:
@@ -183,7 +185,7 @@ def scene_courts(
             alignment_frames = (window[0], anchor, window[-1])
         if window is not None and people is not None and detector.switches.enforce_scene_consistency:
             frame_indices = window
-        elif window is not None or reuse_courts:
+        elif endpoints or reuse_courts:
             frame_indices = list(alignment_frames)
         else:
             frame_indices = [anchor]
@@ -319,9 +321,12 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
     :param scene_source: where the cuts come from; None analyses the whole video as one scene.
     :param reuse_courts: try this video's earlier fully searched courts before a full search.
     :param court_mode: video-robust pools scene courts across returning camera views
-        (view_pool.py) after the last scene, then prints the rows.
+        (view_pool.py) after the last scene, then prints the rows. fast-robust does the
+        same with one fresh middle-frame search per scene, so it cannot reuse courts.
     :return: the `VIDEO_RESULT_SCHEMA` result that README.md describes.
     """
+    if court_mode == CourtMode.FAST_ROBUST and reuse_courts:
+        raise ValueError('fast-robust fits every scene afresh, so it cannot reuse courts')
     started = perf_counter()
     switches = tools.detector.switches
     pose_prerun_seconds = 0.0
@@ -347,9 +352,10 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()
         rows = []
-        pool = VideoPool(tools.detector.live, switches) if court_mode == CourtMode.VIDEO_ROBUST else None
+        pool = None if court_mode == CourtMode.SCENE_ROBUST else VideoPool(tools.detector.live, switches, court_mode)
         for row in scene_courts(tools.detector, frames, people, tools.lines, scenes, video_id=video_id,
-                                reuse_courts=reuse_courts, on_court=None if pool is None else pool.add):
+                                reuse_courts=reuse_courts, compose_scenes=court_mode != CourtMode.FAST_ROBUST,
+                                on_court=None if pool is None else pool.add):
             rows.append(row)
             logger.info('%s: scene %d/%d %s', video_id, len(rows), len(scenes), row['status'])
             if pool is None:
@@ -480,10 +486,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
     parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.SCENE_ROBUST,
                         help='scene-robust keeps each scene\'s court; video-robust may share one pooled court '
-                             'across scenes of the same camera view (default: scene-robust)')
+                             'across scenes of the same camera view; fast-robust pools like video-robust but '
+                             'searches only each scene\'s middle frame (default: scene-robust)')
     args = parser.parse_args()
     if args.pose_prerun is not None and not args.require_people:
         parser.error('--pose-prerun requires --require-people')
+    if args.court_mode == CourtMode.FAST_ROBUST and args.reuse_courts:
+        parser.error('--court-mode fast-robust fits every scene afresh; it cannot combine with --reuse-courts')
     if args.video is not None and (args.output is None or args.output_dir is not None):
         parser.error('--video writes one file: give --output, not --output-dir')
     if args.manifest is not None:

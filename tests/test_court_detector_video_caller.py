@@ -232,6 +232,7 @@ def test_cli_uses_live_optional_or_saved_people(
     assert tools.extractor_loads == (['cuda'] if people_source is People else [])
     assert result['require_people'] is ('--no-require-people' not in flag)
     assert result['saved_people'] is (people_source is PoseArrays)
+    assert (result['court_mode'], result['reuse_courts']) == (CourtMode.SCENE_ROBUST, False)
     # Without scene options the whole video is one scene.
     assert [(row['start_frame'], row['end_frame'], row['frame_index']) for row in result['scenes']] == [(0, 100, 50)]
     assert result['scenes'][0]['status'] == 'no_court'
@@ -247,6 +248,7 @@ class CourtDetectorStandIn(Detector):
 
     def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
         self.events.append('detect')
+        self.endpoint_views.append(endpoint_views)
         corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
         scene = SceneCourts(None, view.frame, corners, corners)
         return CourtResult(view.view_id, corners, None, 'searched', None, .9, scene=scene)
@@ -256,11 +258,14 @@ class CourtDetectorStandIn(Detector):
 def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: CourtMode,
 ) -> None:
-    LiveTools(monkeypatch, CourtDetectorStandIn)
+    tools = LiveTools(monkeypatch, CourtDetectorStandIn)
+    # Four-second scenes fit the feet window, so the endpoint frames are on offer.
+    monkeypatch.setattr(VideoFileFrames, 'frame_count', 200)
     pools = []
 
     class Pool:
-        def __init__(self, live: object, switches: Switches) -> None:
+        def __init__(self, live: object, switches: Switches, court_mode: CourtMode) -> None:
+            self.court_mode = court_mode
             self.rows: list[dict] = []
             pools.append(self)
 
@@ -274,28 +279,86 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
             return [{'reference_view_id': self.rows[0]['view_id']}]
 
     monkeypatch.setattr(run_video, 'VideoPool', Pool)
-    scenes = write_json_gz(tmp_path / 'scenes.json.gz', [[0, 50], [50, 100]])
+    scenes = write_json_gz(tmp_path / 'scenes.json.gz', [[0, 100], [100, 200]])
     output = tmp_path / 'result.json.gz'
     monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(output), '--people',
                                      str(write_poses(tmp_path / 'poses', VideoFileFrames.frame_count)),
                                      '--saved-lines', str(write_json_gz(tmp_path / 'lines.json.gz', {})),
-                                     '--scenes', str(scenes), '--court-mode', str(mode),
-                                     # Two-second scenes are too short for the feet window.
-                                     '--no-require-people'])
+                                     '--scenes', str(scenes), '--court-mode', str(mode)])
 
     assert run_video.main() == 0
     result = read_json_gz(output)
     printed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert result['court_mode'] == mode
+    # Only fast-robust leaves every scene without endpoint frames.
+    offered = [endpoint_views is not None for endpoint_views in tools.detectors[0].endpoint_views]
+    assert offered == [mode != CourtMode.FAST_ROBUST] * 2
     # stdout and the saved result agree, pooled rows included.
     assert printed == result['scenes']
     if mode == CourtMode.SCENE_ROBUST:
         assert pools == [] and 'view_groups' not in result
         return
     view_ids = [row['view_id'] for row in result['scenes']]
+    assert pools[0].court_mode == mode
     assert [row['view_id'] for row in pools[0].rows] == view_ids
     assert result['view_groups'] == [{'reference_view_id': view_ids[0]}]
     assert printed[0]['corners_native_px'] == 'pooled'
+
+
+def test_fast_robust_rejects_court_reuse_before_any_model_loads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    tools = LiveTools(monkeypatch)
+    monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(tmp_path / 'out.json.gz'),
+                                     '--saved-lines', 'lines.json.gz', '--court-mode', 'fast-robust',
+                                     '--reuse-courts'])
+    with pytest.raises(SystemExit) as exited:
+        run_video.main()
+    assert exited.value.code == 2 and 'cannot combine with --reuse-courts' in capsys.readouterr().err
+    assert tools.detectors == []
+    # Callers that skip the command line get the same refusal.
+    with pytest.raises(ValueError, match='cannot reuse courts'):
+        run_video.detect_video(Path('input.mp4'), types.SimpleNamespace(),  # type: ignore[arg-type]
+                               video_id='clip', people_dir=None, scene_source=None, reuse_courts=True,
+                               court_mode=CourtMode.FAST_ROBUST)
+
+
+@pytest.mark.parametrize('scene_consistency', [False, True])
+def test_middle_frame_only_scenes_skip_endpoint_work_but_keep_the_foot_window(scene_consistency: bool) -> None:
+    class RecordingFrames(Frames):
+        def __init__(self) -> None:
+            self.requests: list[list[int]] = []
+
+        def read(self, indices: Sequence[int]) -> list[np.ndarray]:
+            self.requests.append(list(indices))
+            return super().read(indices)
+
+    class FootWindowDetector(Detector):
+        def __init__(self) -> None:
+            super().__init__(Switches(enforce_scene_consistency=scene_consistency))
+            self.feet_frames: list[list[int]] = []
+
+        def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
+            # The detector gathers its feet from these same inputs.
+            gathered = feet.window_feet(view, people, frames, self.switches.enforce_scene_consistency)
+            self.feet_frames.append(gathered.kept_frames)
+            return super().detect(view, people, frames, known_courts=known_courts, endpoint_views=endpoint_views)
+
+    frames, lines, detector = RecordingFrames(), Lines(), FootWindowDetector()
+    list(scene_courts(detector, frames, People(), lines, [SceneInfo(0, 100)],  # type: ignore[arg-type]
+                      video_id='clip', compose_scenes=False))
+    window = feet.window_frames(50, Frames.fps, 0, 100)
+    assert detector.endpoint_views == [None]
+    assert lines.indices == [50]
+    if scene_consistency:
+        # The shot check reads the whole window. These test frames change brightness
+        # every frame, so it keeps only the frames near the anchor.
+        assert frames.requests == [window, window]
+        assert 50 in detector.feet_frames[0] and len(detector.feet_frames[0]) > 1
+    else:
+        # Only the middle frame is decoded; the feet still come from the whole window.
+        assert frames.requests == [[50]]
+        assert detector.feet_frames == [window]
 
 
 @pytest.mark.parametrize(('saved_scenes', 'expected_rows'), [
