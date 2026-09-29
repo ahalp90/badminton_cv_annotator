@@ -231,3 +231,111 @@ reuse, plus the real detector on minimal inputs. It checks the scheduled
 endpoints and shared feet, the stop rule, single searches in `cheap_first`,
 selection, timing, histories and the manifest. It also checks that the middle
 detection reproduces `detect()`, with and without earlier courts.
+
+## Rescoring saved fits
+
+`rescore.py` re-ranks each method's saved accepted courts without running a new
+search. It reads a finished or partial `results.json.gz` and a lines cache, and
+writes to a new directory. The source results stay unchanged.
+
+```bash
+PYTHONPATH=.:src python -m experiments.annotator.court_scene_sampling.rescore \
+  --results results/results.json.gz --lines-cache lines.json.gz --output-dir rescored/
+```
+
+The lines cache holds the DeepLSD fragments of every accepted frame, keyed by the
+frame row's `view_id`. Its native size must match the video's.
+
+Recover missing lines on a machine with the source videos and DeepLSD available:
+
+```bash
+PYTHONPATH=.:src OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+  python -m experiments.annotator.court_scene_sampling.recover_lines \
+  --results results/results.json.gz --output lines.json.gz \
+  --deeplsd-source /path/to/DeepLSD \
+  --deeplsd-weights /path/to/DeepLSD/weights/deeplsd_md.tar
+```
+
+This runs line inference once per accepted source frame, without court searches
+or player detection. Add `--frames-dir frames/` to save original PNGs for local
+outline checks. Model setup and evidence recovery times are stored separately.
+
+```json
+{"schema": "court-scene-lines/1", "recovery_seconds": 12.3,
+ "frames": {"video_005_13361_middle_frame_13361": {"native_size": [1920, 1080],
+                                                   "segments_native_px": [[100.0, 200.0, 400.0, 210.0]]}}}
+```
+
+### Three choices per method
+
+- `paint`: the saved choice, the highest final paint score. The command checks
+  that the saved `chosen_position` matches this rule.
+- `ranked`: the net choice's combined score, `0.9 * paint + 0.1 * line support +
+  0.04 * net reward`, on each saved **final** court. The weights come from
+  `detect.py`. Line support is the evidence's `q_geom_span_weighted`. Net posts
+  are measured again from the cached lines, prepared as the detector's context
+  prepares them. A net that fails to project keeps production's zero reward, and
+  its `net_state` records the failure.
+- `guarded`: the ranked order with a boundary check. Starting from the top, a
+  court loses to any lower-ranked court within 0.01 combined score that has at
+  least 0.10 more `q_paint10` on the same outer boundary. The first court no
+  lower court vetoes wins, so the lowest-ranked court always survives.
+
+Paint and full-score ties prefer middle, then first, then last. The guard starts
+in that order and can veto a candidate even on a score tie. No-court and failed
+methods, unanalysed scenes and the baseline stay as they were.
+
+The guard's values are fixed and provisional; they are not tuned:
+
+| Check | Value |
+| --- | --- |
+| Largest combined-score lead the guard questions | 0.01 |
+| Boundary `q_paint10` drop that vetoes | 0.10 absolute |
+| Known photometry samples, on both courts | at least 32 |
+| Known over visible samples, on both courts | at least 0.75 |
+| Projected visible span, on both courts | at least 50 working px |
+| Photometry occlusion-aware | on both courts |
+| Largest corner distance after matching orientation | 0.15 × the lower court's median edge length |
+
+Both courts must be `comparable` in the middle frame. The guard compares their
+`in_middle_frame` corners as saved or turned 180 degrees, whichever is closer.
+The four outer boundaries (`far_baseline`, `right_doubles`, `near_baseline`,
+`left_doubles`) join corners TL–TR, TR–BR, BR–BL and BL–TL. On a turned court,
+the far baseline is compared with the other court's near baseline, and left with
+right. A pair that fails a check is recorded as skipped with its reason.
+A boundary with too little evidence is recorded as ineligible and cannot veto.
+
+**Missing evidence.** If any accepted court in a method lacks cached lines, a
+paint score or line support, that method keeps its saved choice for all three
+choices. Its state reads `score_evidence_missing`, and each gap is listed. A gap
+never counts as zero, and the method is never ranked on the courts that remain.
+
+### Outputs
+
+- `results.json.gz`: the rule's values, the cache's `line_recovery_seconds`,
+  the time spent rescoring, and one row per scene. Each method row holds every
+  candidate's frame, role, position, score parts, post evidence and outer
+  boundary evidence. It also holds the missing evidence, the three selected
+  positions, the ranked order, whether the choice changed and every guard check.
+- `comparison.csv.gz`: one row per scene and method with the three choices'
+  roles and frames, their combined scores and `vs_baseline` distances, vetoes and
+  skipped guard pairs.
+
+### Limits
+
+- Normal selection applies the formula before the stripe refit. Here it applies
+  to final courts, so it is not a replay of the detector's choice.
+- The guard's 0.01 limit applies to each pair, not the final score loss. Vetoes
+  can chain: A can lose to B, then B to C, leaving C more than 0.01 below A.
+  This experimental rule does not guarantee that the final choice preserves
+  every boundary that caused an earlier veto.
+- Rescoring picks among the courts each run saved. `cheap_first` chose its
+  leading frame before any court was final, and frames it never fitted cannot
+  enter the ranking.
+- A different winner could have donated a different court to later scenes.
+  Rescoring keeps the saved histories, reuse and timing, so it cannot show the
+  quality or timing of that other chronological run.
+- The source run's timings stay as measured. Line recovery and rescoring times
+  are reported apart from them.
+- Rescoring ranks by detector evidence. Paint and line support are not accuracy
+  measures, and `vs_baseline` measures disagreement, not error.
