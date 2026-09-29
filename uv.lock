@@ -68,6 +68,7 @@ dependencies = [
     { name = "pycocotools" },
     { name = "pyrefly" },
     { name = "pyyaml" },
+    { name = "scenedetect" },
     { name = "scipy" },
     { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'linux'" },
     { name = "torch", version = "2.12.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
@@ -143,6 +144,7 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "ripgrep", marker = "extra == 'annotator-experiments'", specifier = "==15.1.0" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scenedetect", specifier = "==0.7.1" },
     { name = "scikit-learn", marker = "extra == 'bric-train'" },
     { name = "scikit-learn", marker = "extra == 'bst-x-runtime'" },
     { name = "scipy" },
@@ -1642,6 +1644,15 @@ wheels = [
 ]
 
 [[package]]
+name = "platformdirs"
+version = "4.12.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/8a/84ef03c1c83eacd7cc4540b05428a93b5cd4e42f62fb0b98ac2cb6ed3a6d/platformdirs-4.12.1.tar.gz", hash = "sha256:38da801a4af303033cbffccb39030db22bf0473e6414309b02acebeee7ca8bf1", size = 59427, upload-time = "2026-09-28T05:05:16.264Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/31/1521c38d175108ac395941adbcb9f11e085340bed81ad166e8ad8c21c17b/platformdirs-4.12.1-py3-none-any.whl", hash = "sha256:7f251621befae78b2cb74616f9fc99d3fa3db0afba5035987731f8dcd430337d", size = 33011, upload-time = "2026-09-28T05:05:15.06Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2168,6 +2179,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4a/d8/0c8a7dc9b41dcac53c4cbf9df2b9c83e0e0097203de8b37a712b345c0be5/safetensors-0.7.0-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:b0f6d66c1c538d5a94a73aa9ddca8ccc4227e6c9ff555322ea40bdd142391dd4", size = 677368, upload-time = "2025-11-19T15:18:41.627Z" },
     { url = "https://files.pythonhosted.org/packages/05/e5/cb4b713c8a93469e3c5be7c3f8d77d307e65fe89673e731f5c2bfd0a9237/safetensors-0.7.0-cp38-abi3-win32.whl", hash = "sha256:c74af94bf3ac15ac4d0f2a7c7b4663a15f8c2ab15ed0fc7531ca61d0835eccba", size = 326423, upload-time = "2025-11-19T15:18:45.74Z" },
     { url = "https://files.pythonhosted.org/packages/5d/e6/ec8471c8072382cb91233ba7267fd931219753bb43814cbc71757bfd4dab/safetensors-0.7.0-cp38-abi3-win_amd64.whl", hash = "sha256:d1239932053f56f3456f32eb9625590cc7582e905021f94636202a864d470755", size = 341380, upload-time = "2025-11-19T15:18:44.427Z" },
+]
+
+[[package]]
+name = "scenedetect"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+    { name = "platformdirs" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e3/b8/a111612a976c80c76f3a4372514d0a66b6200badd43c6dce57c55de0b0bb/scenedetect-0.7.1.tar.gz", hash = "sha256:2bc082056f231d35f9d5eed6d8077a5d417c77c2787d965d7f03be3802cb6f7f", size = 263670, upload-time = "2026-07-22T02:57:10.255Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/a2/938555bc170ee504ecf33f328dc838b40c3b887d58bf4ee8beefb6c33fd8/scenedetect-0.7.1-py3-none-any.whl", hash = "sha256:91b67902275b2e0d29a12f6d70435f04e0bd7852a6dc8a69c901c6069328dffa", size = 146194, upload-time = "2026-07-22T02:57:05.239Z" },
 ]
 
 [[package]]

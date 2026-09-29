@@ -6,6 +6,8 @@ README.md owns the options and the output format.
 
 from __future__ import annotations
 
+# ruff: noqa: E402 -- Set worker thread limits before importing NumPy.
+
 import argparse
 import gzip
 import json
