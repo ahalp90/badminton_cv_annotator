@@ -289,10 +289,6 @@ class VideoPool:
         constraints, summary["markings"] = pooled_constraints(group.donors)
         fit = composition.fit_in_reference(self.live, reference, constraints)
         fit_corners = fit.get("corners_native_px")
-        # Fast-robust can continue after a failed fit; its unusable corners must not
-        # prevent the complete-court fallback from being written as strict JSON.
-        if fast and not fit["valid"]:
-            fit_corners = None
         summary["fit"] = {"status": fit["status"], "sample_count": len(constraints.points), "valid": fit["valid"],
                           "validity_reason": fit["validity_reason"], "corners_reference_native_px": fit_corners}
         pooled_reference = None

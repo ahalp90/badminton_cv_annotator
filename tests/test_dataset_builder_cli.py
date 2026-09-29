@@ -339,6 +339,11 @@ def test_optional_court_mode_defaults_to_scene_robust_and_is_validated(tmp_path:
     ), encoding="utf-8")
     with pytest.raises(ValueError, match="vision.court_mode must be one of"):
         cli.load_builder_config(config_path, repo_root=tmp_path)
+    config_path.write_text(original.replace(
+        "court_reuse_courts = false", 'court_reuse_courts = true\ncourt_mode = "fast-robust"',
+    ), encoding="utf-8")
+    with pytest.raises(ValueError, match="fast-robust requires vision.court_reuse_courts = false"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
 
 
 def test_configuration_rejects_unknown_commentary_provider(tmp_path: Path) -> None:

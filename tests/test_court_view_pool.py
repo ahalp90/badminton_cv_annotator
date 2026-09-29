@@ -218,6 +218,7 @@ def middle_scenes(detector: CourtDetector) -> dict[str, SceneCourts]:
         "left_box": (np.zeros(2), LEFT_BOX, true_corners(np.zeros(2)) + [[4.0, 0.0], [0, 0], [0, 0], [0, 0]]),
         "turned": (NUDGE_PX, LEFT_BOX, np.roll(true_corners(NUDGE_PX), composition.HALF_TURN_ROLL, axis=0)),
         "right_box": (np.zeros(2), RIGHT_BOX, true_corners(np.zeros(2))),
+        "fourth": (NUDGE_PX, LEFT_BOX, true_corners(NUDGE_PX)),
     }
     scenes = {}
     for name, (shift, box, corners) in specs.items():
@@ -235,11 +236,13 @@ def test_fast_robust_pools_fresh_middle_frames_and_scores_them_from_their_own_me
         pool.add(rows[name], scene)
     (group,) = pool.groups
     assert group.donor_view_ids == list(middle_scenes)
+    assert len(group.members) == 4
     # The boxes hide different lines, so the markings come from more than one scene.
     donors = {marking: donor.view_id for marking, donor in zip(view_pool.MARKINGS, group.donors, strict=True)
               if donor is not None}
     assert donors["left_doubles"] == "right_box" and donors["right_singles"] != "right_box"
     (summary,) = pool.apply()
+    assert len(summary["scene_candidates"]) == 4
     assert summary["fit"]["valid"], summary
     np.testing.assert_allclose(summary["fit"]["corners_reference_native_px"], true_corners(np.zeros(2)), atol=2.0)
     means = summary["mean_combined_scores"]
@@ -363,11 +366,10 @@ def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None
     :param carried: (member, source scene) to that scene court's combined score and rejection
     """
     monkeypatch.setattr(view_pool, "pooled_constraints", lambda donors: (SimpleNamespace(points=[0] * 9), []))
-    # An invalid fit can hold a diverged solver's corners.
-    fit_corners = POOLED if fit_valid else np.full((4, 2), np.nan)
+    fit_corners = POOLED.tolist() if fit_valid else None
     monkeypatch.setattr(composition, "fit_in_reference", lambda live, reference, constraints: {
         "status": "ok", "valid": fit_valid, "validity_reason": None if fit_valid else "no_fit_corners",
-        "corners_native_px": fit_corners.tolist()})
+        "corners_native_px": fit_corners})
 
     def member_outcome(self, group, member, pooled_reference) -> dict:
         view_id = member.row["view_id"]
@@ -538,7 +540,6 @@ def test_fast_robust_can_share_a_complete_court_when_the_pooled_fit_fails(monkey
                                 court_mode=CourtMode.FAST_ROBUST)
     (summary,) = pool.apply()
     assert summary["reason"] == "fit_no_fit_corners"
-    # The diverged corners are left out of the strict JSON output.
     assert summary["fit"]["corners_reference_native_px"] is None
     assert summary["mean_combined_scores"]["pooled"] is None
     json.dumps([summary, rows], allow_nan=False)

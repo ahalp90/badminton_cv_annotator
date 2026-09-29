@@ -275,6 +275,10 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         {mode.value for mode in TrackNetInputMode},
         "vision.tracknet_input_mode",
     ))
+    court_mode = _choice(vision.get("court_mode", COURT_MODES[0]), set(COURT_MODES), "vision.court_mode")
+    court_reuse_courts = _boolean(vision["court_reuse_courts"], "vision.court_reuse_courts")
+    if court_mode == "fast-robust" and court_reuse_courts:
+        raise ValueError("vision.court_mode fast-robust requires vision.court_reuse_courts = false")
     if tracknet_input_mode is TrackNetInputMode.EXACT_FFV1_STREAM:
         if tracknet_stride != 8:
             raise ValueError("vision.tracknet_input_mode exact_ffv1_stream requires stride 8")
@@ -329,8 +333,8 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         court_template_device=_choice(
             vision["court_template_device"], {"cpu", "cuda"}, "vision.court_template_device",
         ),
-        court_reuse_courts=_boolean(vision["court_reuse_courts"], "vision.court_reuse_courts"),
-        court_mode=_choice(vision.get("court_mode", COURT_MODES[0]), set(COURT_MODES), "vision.court_mode"),
+        court_reuse_courts=court_reuse_courts,
+        court_mode=court_mode,
         commentary_enabled=_boolean(commentary["enabled"], "commentary.enabled"),
         commentary_provider=_choice(
             commentary["provider"],
