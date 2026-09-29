@@ -15,11 +15,12 @@ Three other pages hold the rest:
 - [Design](../../docs/court_detector/design.md): why the detector works this way
   and the settled design decisions
 - [Evaluation](../../docs/court_detector/evaluation.md): the evidence behind it,
-  and what is still pending
+  and its remaining limits
 
-**Status.** `--court-mode video-robust` is new. A full GPU run is still being
-evaluated, so its quality and speed are not settled here. Check the evaluation
-page for current evidence before relying on it.
+**Status.** A full `--court-mode video-robust` GPU run completed with live player
+checks. Its main recurring view fitted well in three inspected scenes, but
+false courts remain in standalone views. Processing took about twice the
+video's duration. See the evaluation page for results and remaining limits.
 
 ## How it finds a court
 

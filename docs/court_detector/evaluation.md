@@ -3,8 +3,11 @@
 The detector runs end to end on real videos. Development checks support
 three-frame composition and the optional video-robust mode, with the limits
 below. There is no measured accuracy rate for the final detector on unseen
-footage. The full GPU evaluation of video-robust mode on video 040 is
-**pending**, so this record does not establish that it is ready to merge.
+footage. The full GPU evaluation of video-robust mode on video 040 completed
+successfully. Its main recurring view fits the visible court well in three
+sampled scenes, but false courts remain in two inspected standalone views.
+The results support offline use with those limits; they do not establish
+accuracy on new venues or improved contact and rally recovery.
 
 The [operator guide](../../src/court_detector/README.md) explains how to run it;
 [design.md](design.md) explains the choices behind it.
@@ -191,20 +194,78 @@ The pooled fit compromised between incompatible marking names.
 In the final court, the right boundary follows the outer yellow stripe. The
 scene's own court misses the visible doubles stripe.
 
-## Pending: full video-robust GPU run
+## Completed full video-robust GPU run, 29 September
 
-A complete run of video 040 (Denmark Open 2019 quarter-final, 103,476 frames at
-25 fps) started on 29 September from commit `6fa3bf44`. It uses fresh scene
-detection, live GPU line and pose inference, GPU templates, eight CPU workers
-and `--court-mode video-robust`, with chronological reuse off. It is the first
-test of pooling with real foot checks and the first timing of whole-group
-scoring. Its outcome is not known at the time of writing.
+Video 040 (Denmark Open 2019 quarter-final, 103,476 frames at 25 fps) completed
+from commit `6fa3bf44`, with process exit 0 and complete video status. It used
+fresh scene detection, live GPU line and pose inference, GPU templates, eight
+CPU workers and `--court-mode video-robust`. Chronological reuse was off.
+All 405 scenes cover the video continuously: **120 court, 187 no-court and
+98 short/unanalysed**, with no failed scene status. These are output counts,
+not counts of correct detections.
 
-Before a merge decision, record process and per-video completion, scene
-coverage, court/no-court/failure counts, full wall time, pooling time and group
-winners. Inspect a few scene/final pairs on identical images, including any
-member rejections and whole-scene fallback. This run is an end-to-end check,
-not a controlled speed comparison or a labelled accuracy benchmark.
+### Runtime
+
+The video lasts 1 h 8 min 59 s. Processing took about 1.97 times that duration.
+This is one complete run, not a controlled speed comparison.
+
+| Measurement | Seconds | Boundary |
+| --- | ---: | --- |
+| Full process wall time | 8,145.65 | Includes startup and scene detection |
+| Scene detection | 289.48 | Finding shot boundaries |
+| Detector stages | 7,003.63 | Sum of recorded detector stages, including endpoint searches and composition |
+| Scene processing | 7,481.29 | Sum of scene row timers; includes decoding and inference outside detector stages |
+| Final group comparison | 345.992 | Between the pooling start and finish log messages |
+
+The timers overlap and must not be added. The video's `processing_seconds`
+is 7,845.37 s: it includes scene processing, group assignment, final pooling
+and output overhead. Pooling took 4.25% of full wall time. The earlier speed
+target remains unmet.
+
+### Group choices and player checks
+
+There were 45 view groups. One had 71 independent donor scenes; the other
+44 lacked enough donors and kept their scene results. The large group chose
+scene 0201's complete court over the pooled fit. All 71 members accepted it:
+70 rows changed, while scene 0201 retained its own court. No group selected
+the pooled fit. The saved `pooled_view_ids` list is therefore empty even though
+the shared whole-scene court was used across this group.
+
+All 71 whole-scene candidates passed the checks on every member. The pooled
+candidate also had no member rejections. This run exercises live player-foot
+checks on the acceptance path; it supplies no example of a pooling rejection.
+The means below use the same 71 middle-frame images.
+
+| Court alternative | Mean objective score | Members scoring above their own scene court |
+| --- | ---: | ---: |
+| Each member's own scene court | 0.931287 | — |
+| Each member's middle-frame court | 0.948284 | 58/71 |
+| Pooled fit | 0.968745 | 70/71 |
+| Selected complete court from scene 0201 | **0.974607** | 69/71 |
+
+The shared court wins on the group mean, so it need not beat every member's
+own court. These scores measure the detector objective, not labelled accuracy.
+
+### Five inspected scenes
+
+Scenes 0022, 0184 and 0342 are the first, middle and last members of the large
+group. Their final courts follow the visible outer markings. Their own scene
+fits were already close; these images do not establish a measured accuracy gain.
+Each pair below uses the identical middle frame and plain 1 px red dashes.
+
+| Scene and frame | Own scene court | Final shared court |
+| --- | --- | --- |
+| 0022, frame 8677 | [Scene outline](assets/full_run_video040_0022_scene.png) | [Final outline](assets/full_run_video040_0022_final.png) |
+| 0184, frame 47697 | [Scene outline](assets/full_run_video040_0184_scene.png) | [Final outline](assets/full_run_video040_0184_final.png) |
+| 0342, frame 91944 | [Scene outline](assets/full_run_video040_0342_scene.png) | [Final outline](assets/full_run_video040_0342_final.png) |
+
+Two deliberately selected standalone views expose remaining errors.
+[Scene 0152](assets/full_run_video040_0152_final.png), frame 41652, retains the
+known false court across the advertising boards. In
+[scene 0396](assets/full_run_video040_0396_final.png), frame 101355, the far
+boundary lies across the court interior in a low-angle shot. Both groups had
+too few donors, so pooling left those detections unchanged. Five selected
+scenes cannot estimate a false-positive rate or the accuracy of all 120 courts.
 
 ## Limits of this evaluation
 
@@ -216,8 +277,8 @@ not a controlled speed comparison or a labelled accuracy benchmark.
 - Visual reviews include early qualitative development rulings and the project
   owner's later composition review. They were not a blinded, independent
   accuracy assessment.
-- Cached pooling covers two groups. Video 040's group is 11 scenes of one
-  camera view, not 11 independent tests.
+- Cached pooling covers two groups. The full run adds 71 donor scenes from one
+  recurring camera view; these are not 71 independent venue tests.
 
 ## Reproducing the numbers
 
@@ -249,13 +310,15 @@ environment was Python 3.12.13, NumPy 2.5.3, SciPy 1.17.1 and OpenCV 5.0.0.93.
 
 ## Retained evidence
 
-The [provenance manifest](data/provenance.json.gz) records each file's exact
-historical source path and content MD5. Compressed files retain their original
-contents; all five PNGs are unchanged source outlines. The images total about
-9.7 MiB. Historical paths in the manifest are provenance, not required inputs.
+The [provenance manifest](data/provenance.json.gz) covers the earlier retained
+files. Those compressed files and five source outlines are unchanged. The
+completed run adds its original video JSON, a compact numerical summary and
+eight outlines rendered on five middle frames. Historical paths in the older
+manifest are not required inputs.
 
 | Files in [data/](data/) | Purpose |
 | --- | --- |
+| `full_video040_video_robust.json.gz`, `full_video040_summary.json.gz` | Complete final run rows and group comparisons; derived counts, timings and score means |
 | `pool_fallback_video003.json.gz`, `pool_fallback_video040.json.gz` | Group membership, court alternatives, scores and final rows for the cached fallback checks |
 | `label_conflict_video003.json.gz` | Distances that exposed the singles/doubles naming conflict |
 | `pool_reference_frame_scores.json.gz` | Earlier unconditional-pool comparison on scene reference frames; distinct from the final middle-frame comparison |

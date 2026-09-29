@@ -169,7 +169,8 @@ current defaults above.
 - **Pooling scores and costs need care.** A pooled diagnostic mean may include
   a member that rejects that court. Checking every donor court in every member
   also grows with the product of those counts; line maps are rebuilt for each
-  check. The full GPU evaluation must establish the practical cost.
+  check. In the completed video 040 run, final group comparison took 346 s
+  (4.25% of wall time), with 71 donors in the one eligible group.
 - **Pose extraction can omit people.** The full pose pre-run keeps ten people
   per frame. A crowded image can lose a player and change the court decision.
 
