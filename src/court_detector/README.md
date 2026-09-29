@@ -356,8 +356,11 @@ last scene. [view_pool.py](view_pool.py) owns the steps:
 
 1. **Groups.** Each scene with a court joins the first group whose fixed
    reference scene shows the same camera view. A perceptual hash only shortlists
-   groups. The people-free alignment used by composition must then pass the reuse
-   correlation and the one-reference-pixel movement limit.
+   groups. The people-free alignment used by composition must then pass the
+   correlation check. Camera movement is allowed: the warp carries observations
+   into the reference's coordinates and the fitted court back into each scene.
+   The recorded corner shift and `same_camera` flag are diagnostics; they do not
+   limit pooling.
 2. **Donors.** Only a scene whose fresh search ended in an accepted composite
    donates. It offers the observed line samples that won its markings. Reused,
    middle-frame and fallback courts can receive a pooled court but never donate.
@@ -365,22 +368,47 @@ last scene. [view_pool.py](view_pool.py) owns the steps:
 3. **One fit.** A group with at least two independently computed composites gets
    one stripe fit to those samples, in the reference scene's pixels. One scene
    may win every marking; the pool does not force a mixture.
-4. **Output.** A valid pooled court replaces each member's court that passes
-   that member's own checks, including its players' feet. A member that fails
-   keeps its scene court, as does every member when the fit fails.
-5. **Scores.** In every member's middle frame, the pooled court, the scene's
+4. **Scores.** In every member's middle frame, the pooled court, the scene's
    court and the middle frame's court before composition get the net choice's
-   combined score. These scores are reported for comparison; they do not choose
-   the output. A missing score term stays missing, never zero.
+   combined score. A missing score term stays missing, never zero.
+5. **Scene fallback.** Two donors can name the same painted stripe as different
+   markings, so the one fit can land between them on blank floor. Each donor's
+   finished composite is also a candidate for the whole group. It is carried
+   into every member's middle frame and checked and scored there. A candidate
+   that fails any member's check or lacks any member's score is out. The best
+   remaining candidate wins only when its mean over the same members beats the
+   pool's mean, or when the pool has no mean. An exact tie keeps the pool.
+6. **Output.** A winning scene court replaces every member's court, in that
+   member's pixels and corner order, with no refit. Otherwise a valid pooled
+   court replaces each member's court that passes that member's own checks,
+   including its players' feet. A member that fails keeps its scene court, as
+   does every member when the fit fails.
 
 A changed row keeps its earlier court as `scene_corners_native_px`,
 `scene_chosen_key` and `scene_reused_from`. A pooled court's `chosen_key` is
-`video_pool`. Each member of a group with a valid fit gets a `view_pool` record: the
-group's `reference_view_id`, its `alignment`, the `court` the row now holds, the
-pooled corners and any `pooled_rejection`, and all three courts' `scores`.
+`video_pool`; a scene court carried from another scene has `video_pool_scene`.
+The winning scene keeps its own row unchanged. Each member of a group with a
+valid fit gets a `view_pool` record:
+
+- `reference_view_id` and `alignment`
+- `court`: `pooled`, `scene` (its own court, after the pool failed a check) or
+  `group_scene` (the winning scene court)
+- `pooled_corners_native_px` and any `pooled_rejection`, kept when a scene wins
+- `scores` for `pooled`, `scene` and `middle`, plus `group_scene` when a scene wins
+- `group_scene_view_id` and `group_scene_corners_native_px` when a scene wins
+
 `view_groups` lists each group's members, donors, `pooled_view_ids`, per-marking
-donors, fit and mean scores. Its `reason` says why a group kept its scene
-courts. A mean is `None` unless every member has that court's score.
+donors, fit and mean scores. `chosen_court` is `pooled` or `group_scene`, and
+`chosen_view_id` names the winning scene. `scene_candidates` gives each
+candidate's `mean_combined_score` and its first `rejection` (member and
+reason). The two `chosen_*` fields are `None` when no court was selected;
+`scene_candidates` is absent when the pooled fit did not succeed. The group's
+`reason` says why it kept its scene courts. A mean is `None` unless every
+member has that court's score.
+
+A video run logs each finished scene and the start and end of pooling to
+stderr, so a detached run's log shows progress. Result rows print to stdout
+once pooling finishes; existing search diagnostics can also appear there.
 
 `--reuse-courts` works as before and uses scene courts, not pooled ones. A
 scene that reuses a court runs no fresh search, so reuse leaves fewer donors.

@@ -351,12 +351,15 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         for row in scene_courts(tools.detector, frames, people, tools.lines, scenes, video_id=video_id,
                                 reuse_courts=reuse_courts, on_court=None if pool is None else pool.add):
             rows.append(row)
+            logger.info('%s: scene %d/%d %s', video_id, len(rows), len(scenes), row['status'])
             if pool is None:
                 print(json.dumps(row), flush=True)
         extra: dict[str, Any] = {}
         if pool is not None:
             # Pooling can change earlier rows, so they print only once every court is final.
+            logger.info('%s: pooling courts across scenes', video_id)
             extra['view_groups'] = pool.apply()
+            logger.info('%s: pooling finished with %d view groups', video_id, len(extra['view_groups']))
             for row in rows:
                 print(json.dumps(row), flush=True)
         return {'schema': VIDEO_RESULT_SCHEMA, 'video_id': video_id, 'video': video.name, 'fps': frames.fps,
@@ -496,6 +499,8 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def main() -> int:
+    # Send scene and pooling progress to stderr alongside any existing diagnostics.
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     args = parse_arguments()
     videos = [] if args.manifest is None else read_manifest(args.manifest)
     if args.pyscenedetect and any(video.scenes is not None for video in videos):
