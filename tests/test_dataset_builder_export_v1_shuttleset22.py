@@ -109,7 +109,7 @@ def _receipt(**overrides: object) -> dict[str, object]:
         "video": VIDEO,
         "completed": True,
         "code_id": COURT_CODE_ID,
-        "model": {"name": "courtkeynet_weights", "md5": "0" * 32, "size_bytes": 1},
+        "model": {"name": "deeplsd_weights", "md5": "0" * 32, "size_bytes": 1},
         "metadata": dict(RECEIPT_METADATA),
         **overrides,
     }

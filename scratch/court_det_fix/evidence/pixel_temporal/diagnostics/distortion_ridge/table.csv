@@ -1,0 +1,13 @@
+case_id,role,edge,status,clipped_length_px,n_survive,rms_residual_line_px,sagitta_px
+gxBQ_window_00_frame_0,GX0 (test),far_baseline,ok,472.0,11,6.908,4.8139
+gxBQ_window_00_frame_0,GX0 (test),near_baseline,ok,622.98,59,2.3319,1.771
+gxBQ_window_00_frame_0,GX0 (test),left_sideline,ok,847.66,48,2.327,2.3424
+gxBQ_window_00_frame_0,GX0 (test),right_sideline,ok,959.69,25,6.0333,3.4734
+am3_window_00_frame_0,Amateur-3 (control),far_baseline,ok,654.5,33,6.9078,4.0283
+am3_window_00_frame_0,Amateur-3 (control),near_baseline,ok,1031.77,59,2.9793,0.2759
+am3_window_00_frame_0,Amateur-3 (control),left_sideline,ok,711.08,32,4.5503,-5.4683
+am3_window_00_frame_0,Amateur-3 (control),right_sideline,ok,1202.65,56,2.6439,4.0385
+shuttleset_03_scene_0016,ShuttleSet-03 scene 16 (control),far_baseline,ok,323.83,53,1.2033,-1.0306
+shuttleset_03_scene_0016,ShuttleSet-03 scene 16 (control),near_baseline,ok,548.36,58,0.6718,-2.3193
+shuttleset_03_scene_0016,ShuttleSet-03 scene 16 (control),left_sideline,ok,298.68,59,0.1724,-0.3248
+shuttleset_03_scene_0016,ShuttleSet-03 scene 16 (control),right_sideline,ok,296.74,60,0.2101,-0.536

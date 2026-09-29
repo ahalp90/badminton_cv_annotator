@@ -1,0 +1,173 @@
+GX0: gate passed (unfiltered replay equals the saved direction record); 751 fragments, 18 person boxes
+  baseline      dropped    0 of 751 (on markings 0 of 36); lines 106; angles to control x 0.2594 y 0.476; bound 6.0226; best fit 6.7984 (pair 143); selection identical to baseline
+  person        dropped   69 of 751 (on markings 0 of 36); lines 105; angles to control x 0.1208 y 0.0908; bound 1.2187; best fit 1.4983 (pair 20)
+  paint         dropped  543 of 751 (on markings 17 of 36); lines 105; angles to control x 0.1825 y 3.1024; bound 15.3715; best fit 32.8164 (pair 21)
+  paint_person  dropped  565 of 751 (on markings 17 of 36); lines  92; angles to control x 0.1825 y 3.1024; bound 15.3715; best fit 32.8164 (pair 19)
+  paint15       dropped  441 of 751 (on markings 12 of 36); lines 128; angles to control x 0.4644 y 1.6588; bound 8.0712; best fit 17.5966 (pair 19)
+  paint25       dropped  603 of 751 (on markings 19 of 36); lines  79; angles to control x 0.4293 y 3.2816; bound 15.1085; best fit 37.9493 (pair 20)
+  axis baseline                pair 143 fit   6.798 horizontal distinct 6.2767 (rank 1459 of 2344) kept 34.4016 (rank 178); kept x kept 34.3268; uncapped 6.4003
+  axis baseline                pair 143 fit   6.798 vertical   distinct 7.3472 (rank 504 of 1944) kept 7.3472 (rank 504); kept x kept 34.3268; uncapped 6.4003
+  axis person                  pair  20 fit   1.498 horizontal distinct 1.8156 (rank 20 of 1740) kept 1.8156 (rank 20); kept x kept 1.6162; uncapped 1.6162
+  axis person                  pair  20 fit   1.498 vertical   distinct 1.5884 (rank 87 of 1834) kept 1.5884 (rank 87); kept x kept 1.6162; uncapped 1.6162
+  axis paint                   pair  21 fit  32.816 horizontal distinct 857.3152 (rank 0 of 2) kept 857.3152 (rank 0); kept x kept 605.2214; uncapped 605.2214
+  axis paint                   pair  21 fit  32.816 vertical   distinct 46.1334 (rank 58 of 310) kept 46.1334 (rank 58); kept x kept 605.2214; uncapped 605.2214
+  axis paint_person            pair  19 fit  32.816 horizontal distinct None (rank None of 0) kept None (rank None); kept x kept None
+  axis paint_person            pair  19 fit  32.816 vertical   distinct 46.1334 (rank 44 of 180) kept 46.1334 (rank 44); kept x kept None
+  axis paint_observations      pair 143 fit   6.798 horizontal distinct 6.2767 (rank 181 of 220) kept 6.2767 (rank 181); kept x kept 12.5775; uncapped 12.5775
+  axis paint_observations      pair 143 fit   6.798 vertical   distinct 24.5078 (rank 108 of 190) kept 24.5078 (rank 108); kept x kept 12.5775; uncapped 12.5775
+  axis person_observations     pair 143 fit   6.798 horizontal distinct 6.2767 (rank 773 of 1364) kept 7.5941 (rank 376); kept x kept 8.2719; uncapped 6.4003
+  axis person_observations     pair 143 fit   6.798 vertical   distinct 7.3472 (rank 376 of 1522) kept 7.3472 (rank 376); kept x kept 8.2719; uncapped 6.4003
+GX5: gate passed (unfiltered replay equals the saved direction record); 790 fragments, 17 person boxes
+  baseline      dropped    0 of 790 (on markings 0 of 40); lines 108; angles to control x 0.7045 y 1.9336; bound 9.7287; best fit 23.8002 (pair 17); selection identical to baseline
+  person        dropped   70 of 790 (on markings 1 of 40); lines 107; angles to control x 0.6012 y 0.911; bound 3.1306; best fit 11.472 (pair 17)
+  paint         dropped  585 of 790 (on markings 18 of 40); lines 102; angles to control x 0.5752 y 0.6755; bound 4.3643; best fit 8.3955 (pair 21)
+  paint_person  dropped  606 of 790 (on markings 18 of 40); lines  87; angles to control x 0.5763 y 1.6343; bound 6.0918; best fit 18.7612 (pair 19)
+  paint15       dropped  471 of 790 (on markings 10 of 40); lines 128; angles to control x 0.519 y 1.7263; bound 8.4069; best fit 19.0972 (pair 33)
+  paint25       dropped  639 of 790 (on markings 21 of 40); lines  82; angles to control x 0.1478 y 0.6829; bound 3.2778; best fit 6.2804 (pair 22)
+  axis baseline                pair  17 fit  23.800 horizontal distinct 21.4246 (rank 1676 of 1768) kept 22.3125 (rank 211); kept x kept 23.6585; uncapped 20.7151
+  axis baseline                pair  17 fit  23.800 vertical   distinct 20.959 (rank 874 of 2302) kept 25.1675 (rank 134); kept x kept 23.6585; uncapped 20.7151
+  axis person                  pair  17 fit  11.472 horizontal distinct 11.1809 (rank 5 of 2230) kept 11.1809 (rank 5); kept x kept 11.0622; uncapped 11.0622
+  axis person                  pair  17 fit  11.472 vertical   distinct 10.3154 (rank 169 of 1890) kept 10.3154 (rank 169); kept x kept 11.0622; uncapped 11.0622
+  axis paint                   pair  21 fit   8.396 horizontal distinct 9.0414 (rank 15 of 72) kept 9.0414 (rank 15); kept x kept 10.0125; uncapped 10.0125
+  axis paint                   pair  21 fit   8.396 vertical   distinct 11.6478 (rank 106 of 288) kept 11.6478 (rank 106); kept x kept 10.0125; uncapped 10.0125
+  axis paint_person            pair  19 fit  18.761 horizontal distinct 18.2833 (rank 1 of 68) kept 18.2833 (rank 1); kept x kept 19.3551; uncapped 19.3551
+  axis paint_person            pair  19 fit  18.761 vertical   distinct 19.8371 (rank 141 of 306) kept 19.8371 (rank 141); kept x kept 19.3551; uncapped 19.3551
+  axis paint_observations      pair  17 fit  23.800 horizontal distinct 23.7183 (rank 16 of 44) kept 23.7183 (rank 16); kept x kept 25.0844; uncapped 25.0844
+  axis paint_observations      pair  17 fit  23.800 vertical   distinct 25.1675 (rank 58 of 198) kept 25.1675 (rank 58); kept x kept 25.0844; uncapped 25.0844
+  axis person_observations     pair  17 fit  23.800 horizontal distinct 22.3125 (rank 117 of 1152) kept 22.3125 (rank 117); kept x kept 23.6585; uncapped 21.1743
+  axis person_observations     pair  17 fit  23.800 vertical   distinct 20.959 (rank 758 of 2038) kept 25.1675 (rank 102); kept x kept 23.6585; uncapped 21.1743
+Am2-150: gate passed (unfiltered replay equals the saved direction record); 397 fragments, 29 person boxes
+  baseline      dropped    0 of 397 (on markings 0 of 36); lines 128; angles to control x 0.8151 y 0.2071; bound 2.8589; best fit 3.2564 (pair 30); selection identical to baseline
+  person        dropped   48 of 397 (on markings 5 of 36); lines 124; angles to control x 4.7268 y 0.1892; bound 6.0943; best fit 8.8878 (pair 32)
+  paint         dropped  243 of 397 (on markings 14 of 36); lines  68; angles to control x 5.0841 y 0.1654; bound 8.6678; best fit 11.9797 (pair 28)
+  paint_person  dropped  261 of 397 (on markings 15 of 36); lines  62; angles to control x 2.5166 y 0.1652; bound 12.1127; best fit 14.3246 (pair 15)
+  paint15       dropped  226 of 397 (on markings 14 of 36); lines  77; angles to control x 2.5455 y 0.221; bound 7.4223; best fit 14.2515 (pair 195)
+  paint25       dropped  260 of 397 (on markings 14 of 36); lines  59; angles to control x 2.8648 y 0.1652; bound 3.9438; best fit 4.9373 (pair 15)
+  axis baseline                pair  30 fit   3.256 horizontal distinct 5.2008 (rank 6 of 4172) kept 5.2008 (rank 6); kept x kept 8.6567; uncapped 5.432
+  axis baseline                pair  30 fit   3.256 vertical   distinct 3.2451 (rank 702 of 3376) kept 7.9674 (rank 36); kept x kept 8.6567; uncapped 5.432
+  axis person                  pair  32 fit   8.888 horizontal distinct 14.3206 (rank 1790 of 5990) kept 20.3734 (rank 262); kept x kept 57.5016; uncapped 17.4107
+  axis person                  pair  32 fit   8.888 vertical   distinct 15.4667 (rank 1142 of 1192) kept 63.9942 (rank 390); kept x kept 57.5016; uncapped 17.4107
+  axis paint                   pair  28 fit  11.980 horizontal distinct 16.3456 (rank 1351 of 2010) kept 16.3456 (rank 103); kept x kept 40.5141; uncapped 12.9342
+  axis paint                   pair  28 fit  11.980 vertical   distinct 16.0405 (rank 1200 of 1350) kept 32.2995 (rank 109); kept x kept 40.5141; uncapped 12.9342
+  axis paint_person            pair  15 fit  14.325 horizontal distinct 16.3283 (rank 1741 of 2390) kept 22.7206 (rank 30); kept x kept 46.2199; uncapped 22.6297
+  axis paint_person            pair  15 fit  14.325 vertical   distinct 26.8713 (rank 1049 of 1274) kept 32.6896 (rank 374); kept x kept 46.2199; uncapped 22.6297
+  axis paint_observations      pair  30 fit   3.256 horizontal distinct 8.8668 (rank 2 of 1162) kept 8.8668 (rank 2); kept x kept 6.5543; uncapped 6.5543
+  axis paint_observations      pair  30 fit   3.256 vertical   distinct 3.3076 (rank 238 of 1240) kept 3.3076 (rank 238); kept x kept 6.5543; uncapped 6.5543
+  axis person_observations     pair  30 fit   3.256 horizontal distinct 5.2008 (rank 6 of 4922) kept 5.2008 (rank 6); kept x kept 8.6567; uncapped 5.432
+  axis person_observations     pair  30 fit   3.256 vertical   distinct 3.2451 (rank 568 of 3078) kept 4.6119 (rank 429); kept x kept 8.6567; uncapped 5.432
+Am2-28019: gate passed (unfiltered replay equals the saved direction record); 416 fragments, 38 person boxes
+  baseline      dropped    0 of 416 (on markings 0 of 32); lines 128; angles to control x 0.4086 y 0.1233; bound 2.5901; best fit 2.9722 (pair 15); selection identical to baseline
+  person        dropped  116 of 416 (on markings 3 of 32); lines 128; angles to control x 0.0532 y 0.423; bound 2.0596; best fit 5.1996 (pair 15)
+  paint         dropped  257 of 416 (on markings 12 of 32); lines  80; angles to control x 0.2783 y 0.1808; bound 2.1609; best fit 2.684 (pair 15)
+  paint_person  dropped  305 of 416 (on markings 15 of 32); lines  58; angles to control x 0.2784 y 0.0198; bound 0.2661; best fit 0.607 (pair 27)
+  paint15       dropped  242 of 416 (on markings 12 of 32); lines  86; angles to control x 0.0858 y 0.0349; bound 0.4855; best fit 0.5479 (pair 15)
+  paint25       dropped  272 of 416 (on markings 12 of 32); lines  73; angles to control x 0.2783 y 0.0566; bound 0.7451; best fit 0.842 (pair 15)
+  axis baseline                pair  15 fit   2.972 horizontal distinct 4.9309 (rank 3 of 7102) kept 4.9309 (rank 3); kept x kept 61.6207; uncapped 5.9399
+  axis baseline                pair  15 fit   2.972 vertical   distinct 3.9427 (rank 729 of 3958) kept 60.9274 (rank 345); kept x kept 61.6207; uncapped 5.9399
+  axis person                  pair  15 fit   5.200 horizontal distinct 4.8431 (rank 78 of 6308) kept 4.8431 (rank 78); kept x kept 4.6218; uncapped 4.6218
+  axis person                  pair  15 fit   5.200 vertical   distinct 4.84 (rank 3 of 2582) kept 4.84 (rank 3); kept x kept 4.6218; uncapped 4.6218
+  axis paint                   pair  15 fit   2.684 horizontal distinct 5.6523 (rank 43 of 1504) kept 5.6523 (rank 43); kept x kept 5.2466; uncapped 5.2466
+  axis paint                   pair  15 fit   2.684 vertical   distinct 3.1315 (rank 413 of 774) kept 3.1315 (rank 413); kept x kept 5.2466; uncapped 5.2466
+  axis paint_person            pair  27 fit   0.607 horizontal distinct 4.3908 (rank 5 of 604) kept 4.3908 (rank 5); kept x kept 3.4733; uncapped 3.4733
+  axis paint_person            pair  27 fit   0.607 vertical   distinct 4.018 (rank 10 of 386) kept 4.018 (rank 10); kept x kept 3.4733; uncapped 3.4733
+  axis paint_observations      pair  15 fit   2.972 horizontal distinct 4.9634 (rank 1 of 298) kept 4.9634 (rank 1); kept x kept 7.553; uncapped 7.553
+  axis paint_observations      pair  15 fit   2.972 vertical   distinct 5.5156 (rank 1 of 764) kept 5.5156 (rank 1); kept x kept 7.553; uncapped 7.553
+  axis person_observations     pair  15 fit   2.972 horizontal distinct 4.9309 (rank 2 of 4366) kept 4.9309 (rank 2); kept x kept 5.9399; uncapped 5.9399
+  axis person_observations     pair  15 fit   2.972 vertical   distinct 3.9427 (rank 190 of 2632) kept 3.9427 (rank 190); kept x kept 5.9399; uncapped 5.9399
+Am3-0: gate passed (unfiltered replay equals the saved direction record); 507 fragments, 15 person boxes
+  baseline      dropped    0 of 507 (on markings 0 of 52); lines 128; angles to control x 0.442 y 0.1136; bound 3.1258; best fit 3.7492 (pair 43); selection identical to baseline
+  person        dropped   50 of 507 (on markings 0 of 52); lines 121; angles to control x 0.5307 y 0.1738; bound 3.6555; best fit 4.1533 (pair 42)
+  paint         dropped  381 of 507 (on markings 13 of 52); lines  52; angles to control x 0.6441 y 0.8241; bound 6.0584; best fit 9.0149 (pair 16)
+  paint_person  dropped  395 of 507 (on markings 13 of 52); lines  42; angles to control x 0.6441 y 0.0692; bound 3.9991; best fit 4.6579 (pair 24)
+  paint15       dropped  365 of 507 (on markings 13 of 52); lines  60; angles to control x 0.5309 y 0.0691; bound 3.6555; best fit 4.2561 (pair 44)
+  paint25       dropped  391 of 507 (on markings 16 of 52); lines  47; angles to control x 0.5309 y 0.0692; bound 3.6555; best fit 4.2602 (pair 42)
+  axis baseline                pair  43 fit   3.749 horizontal distinct 5.2329 (rank 6585 of 23758) kept 5.3944 (rank 366); kept x kept 4.2708; uncapped 4.2708
+  axis baseline                pair  43 fit   3.749 vertical   distinct 3.9241 (rank 15 of 1930) kept 3.9241 (rank 15); kept x kept 4.2708; uncapped 4.2708
+  axis person                  pair  42 fit   4.153 horizontal distinct 6.2413 (rank 2660 of 23980) kept 48.0445 (rank 238); kept x kept 35.5327; uncapped 5.295
+  axis person                  pair  42 fit   4.153 vertical   distinct 5.0681 (rank 370 of 1898) kept 5.0681 (rank 370); kept x kept 35.5327; uncapped 5.295
+  axis paint                   pair  16 fit   9.015 horizontal distinct 9.3046 (rank 65 of 98) kept 9.3046 (rank 65); kept x kept 11.1136; uncapped 11.1136
+  axis paint                   pair  16 fit   9.015 vertical   distinct 9.506 (rank 35 of 274) kept 9.506 (rank 35); kept x kept 11.1136; uncapped 11.1136
+  axis paint_person            pair  24 fit   4.658 horizontal distinct 9.6797 (rank 1 of 92) kept 9.6797 (rank 1); kept x kept 8.818; uncapped 8.818
+  axis paint_person            pair  24 fit   4.658 vertical   distinct 4.838 (rank 28 of 288) kept 4.838 (rank 28); kept x kept 8.818; uncapped 8.818
+  axis paint_observations      pair  43 fit   3.749 horizontal distinct 6.2763 (rank 1 of 66) kept 6.2763 (rank 1); kept x kept 6.1925; uncapped 6.1925
+  axis paint_observations      pair  43 fit   3.749 vertical   distinct 3.9241 (rank 8 of 290) kept 3.9241 (rank 8); kept x kept 6.1925; uncapped 6.1925
+  axis person_observations     pair  43 fit   3.749 horizontal distinct 5.2329 (rank 6584 of 23758) kept 5.3944 (rank 367); kept x kept 4.2708; uncapped 4.2708
+  axis person_observations     pair  43 fit   3.749 vertical   distinct 3.9241 (rank 14 of 1930) kept 3.9241 (rank 14); kept x kept 4.2708; uncapped 4.2708
+SS03-17: gate passed (unfiltered replay equals the saved direction record); 675 fragments, 10 person boxes
+  baseline      dropped    0 of 675 (on markings 0 of 58); lines 128; angles to control x 0.3069 y 0.2634; bound 1.5212; best fit 1.9829 (pair 1); selection identical to baseline
+  person        dropped   49 of 675 (on markings 13 of 58); lines 128; angles to control x 0.3069 y 0.2634; bound 1.5212; best fit 1.9829 (pair 1)
+  paint         dropped  286 of 675 (on markings 3 of 58); lines 128; angles to control x 2.5088 y 0.2659; bound 1.8572; best fit 2.1159 (pair 1)
+  paint_person  dropped  319 of 675 (on markings 15 of 58); lines 128; angles to control x 1.4581 y 0.3696; bound 1.3269; best fit 2.0581 (pair 1)
+  paint15       dropped  237 of 675 (on markings 3 of 58); lines 128; angles to control x 2.5088 y 0.0747; bound 1.8572; best fit 1.9709 (pair 3)
+  paint25       dropped  325 of 675 (on markings 4 of 58); lines 128; angles to control x 0.6392 y 0.2659; bound 1.7276; best fit 1.9442 (pair 2)
+  axis baseline                pair   1 fit   1.983 horizontal distinct 3.3724 (rank 506 of 1064) kept 3.3724 (rank 506); kept x kept 3.5114; uncapped 3.5114
+  axis baseline                pair   1 fit   1.983 vertical   distinct 2.2207 (rank 684 of 10254) kept 3.0026 (rank 214); kept x kept 3.5114; uncapped 3.5114
+  axis person                  pair   1 fit   1.983 horizontal distinct 3.3724 (rank 506 of 1064) kept 3.3724 (rank 506); kept x kept 3.5114; uncapped 3.5114
+  axis person                  pair   1 fit   1.983 vertical   distinct 3.0026 (rank 78 of 9484) kept 3.0026 (rank 78); kept x kept 3.5114; uncapped 3.5114
+  axis paint                   pair   1 fit   2.116 horizontal distinct 2.3087 (rank 8 of 192) kept 2.3087 (rank 8); kept x kept 3.0547; uncapped 3.0547
+  axis paint                   pair   1 fit   2.116 vertical   distinct 3.0356 (rank 27 of 5886) kept 3.0356 (rank 27); kept x kept 3.0547; uncapped 3.0547
+  axis paint_person            pair   1 fit   2.058 horizontal distinct 2.2503 (rank 129 of 234) kept 2.2503 (rank 129); kept x kept 2.2513; uncapped 2.2513
+  axis paint_person            pair   1 fit   2.058 vertical   distinct 2.0592 (rank 24 of 4820) kept 2.0592 (rank 24); kept x kept 2.2513; uncapped 2.2513
+  axis paint_observations      pair   1 fit   1.983 horizontal distinct 3.3724 (rank 134 of 272) kept 3.3724 (rank 134); kept x kept 3.5114; uncapped 3.5114
+  axis paint_observations      pair   1 fit   1.983 vertical   distinct 2.2207 (rank 146 of 5376) kept 2.2207 (rank 146); kept x kept 3.5114; uncapped 3.5114
+  axis person_observations     pair   1 fit   1.983 horizontal distinct 3.3724 (rank 506 of 1064) kept 3.3724 (rank 506); kept x kept 3.5114; uncapped 3.5114
+  axis person_observations     pair   1 fit   1.983 vertical   distinct 3.0026 (rank 172 of 9484) kept 3.0026 (rank 172); kept x kept 3.5114; uncapped 3.5114
+SS03-19: gate passed (unfiltered replay equals the saved direction record); 678 fragments, 10 person boxes
+  baseline      dropped    0 of 678 (on markings 0 of 71); lines 124; angles to control x 0.6275 y 0.1185; bound 2.2033; best fit 2.2689 (pair 1); selection identical to baseline
+  person        dropped   39 of 678 (on markings 3 of 71); lines 128; angles to control x 1.6107 y 0.1185; bound 4.1998; best fit 4.5466 (pair 137)
+  paint         dropped  289 of 678 (on markings 13 of 71); lines 128; angles to control x 5.9206 y 0.0457; bound 3.5069; best fit 3.6861 (pair 2)
+  paint_person  dropped  314 of 678 (on markings 16 of 71); lines 128; angles to control x 0.8126 y 0.0457; bound 3.2095; best fit 3.2381 (pair 1)
+  paint15       dropped  239 of 678 (on markings 11 of 71); lines 128; angles to control x 1.6128 y 0.1185; bound 1.0558; best fit 1.2509 (pair 2)
+  paint25       dropped  328 of 678 (on markings 13 of 71); lines 128; angles to control x 2.1165 y 0.0928; bound 6.1753; best fit 6.2002 (pair 1)
+  axis baseline                pair   1 fit   2.269 horizontal distinct 3.1899 (rank 7 of 758) kept 3.1899 (rank 7); kept x kept 3.134; uncapped 3.134
+  axis baseline                pair   1 fit   2.269 vertical   distinct 2.8774 (rank 325 of 9469) kept 2.8774 (rank 325); kept x kept 3.134; uncapped 3.134
+  axis person                  pair 137 fit   4.547 horizontal distinct 5.4023 (rank 0 of 564) kept 5.4023 (rank 0); kept x kept 7.9066; uncapped 5.0631
+  axis person                  pair 137 fit   4.547 vertical   distinct 4.6024 (rank 2447 of 3396) kept 8.4869 (rank 486); kept x kept 7.9066; uncapped 5.0631
+  axis paint                   pair   2 fit   3.686 horizontal distinct 4.4841 (rank 3 of 136) kept 4.4841 (rank 3); kept x kept 4.4751; uncapped 4.4751
+  axis paint                   pair   2 fit   3.686 vertical   distinct 3.6768 (rank 37 of 3586) kept 3.6768 (rank 37); kept x kept 4.4751; uncapped 4.4751
+  axis paint_person            pair   1 fit   3.238 horizontal distinct 3.7765 (rank 5 of 154) kept 3.7765 (rank 5); kept x kept 6.3335; uncapped 3.7441
+  axis paint_person            pair   1 fit   3.238 vertical   distinct 3.4119 (rank 541 of 4800) kept 6.4431 (rank 24); kept x kept 6.3335; uncapped 3.7441
+  axis paint_observations      pair   1 fit   2.269 horizontal distinct 3.1899 (rank 4 of 150) kept 3.1899 (rank 4); kept x kept 3.134; uncapped 3.134
+  axis paint_observations      pair   1 fit   2.269 vertical   distinct 2.8774 (rank 70 of 5640) kept 2.8774 (rank 70); kept x kept 3.134; uncapped 3.134
+  axis person_observations     pair   1 fit   2.269 horizontal distinct 3.1899 (rank 6 of 584) kept 3.1899 (rank 6); kept x kept 3.134; uncapped 3.134
+  axis person_observations     pair   1 fit   2.269 vertical   distinct 2.8774 (rank 1466 of 8761) kept 2.8774 (rank 368); kept x kept 3.134; uncapped 3.134
+SS03-16: gate passed (unfiltered replay equals the saved direction record); 669 fragments, 10 person boxes
+  baseline      dropped    0 of 669 (on markings 0 of 62); lines 128; angles to control x 1.264 y 0.3428; bound 0.958; best fit 1.5011 (pair 1); selection identical to baseline
+  person        dropped   32 of 669 (on markings 5 of 62); lines 128; angles to control x 1.1071 y 0.3428; bound 4.8837; best fit 5.0816 (pair 1)
+  paint         dropped  281 of 669 (on markings 11 of 62); lines 128; angles to control x 0.2258 y 0.3048; bound 1.6315; best fit 2.0264 (pair 1)
+  paint_person  dropped  300 of 669 (on markings 16 of 62); lines 128; angles to control x 0.1478 y 0.3048; bound 1.6315; best fit 2.0299 (pair 1)
+  paint15       dropped  236 of 669 (on markings 10 of 62); lines 128; angles to control x 0.0756 y 0.3048; bound 1.6315; best fit 2.0429 (pair 1)
+  paint25       dropped  315 of 669 (on markings 11 of 62); lines 128; angles to control x 0.491 y 0.0597; bound 0.5295; best fit 0.5923 (pair 2)
+  axis baseline                pair   1 fit   1.501 horizontal distinct 2.359 (rank 32 of 962) kept 2.359 (rank 32); kept x kept 2.3283; uncapped 2.3283
+  axis baseline                pair   1 fit   1.501 vertical   distinct 1.531 (rank 167 of 8358) kept 1.531 (rank 167); kept x kept 2.3283; uncapped 2.3283
+  axis person                  pair   1 fit   5.082 horizontal distinct 5.0915 (rank 7 of 1036) kept 5.0915 (rank 7); kept x kept 28.1372; uncapped 5.1891
+  axis person                  pair   1 fit   5.082 vertical   distinct 5.18 (rank 857 of 6672) kept 28.5165 (rank 417); kept x kept 28.1372; uncapped 5.1891
+  axis paint                   pair   1 fit   2.026 horizontal distinct 2.9722 (rank 7 of 358) kept 2.9722 (rank 7); kept x kept 2.6792; uncapped 2.6792
+  axis paint                   pair   1 fit   2.026 vertical   distinct 2.2481 (rank 6 of 6134) kept 2.2481 (rank 6); kept x kept 2.6792; uncapped 2.6792
+  axis paint_person            pair   1 fit   2.030 horizontal distinct 2.9707 (rank 7 of 360) kept 2.9707 (rank 7); kept x kept 3.0936; uncapped 3.0936
+  axis paint_person            pair   1 fit   2.030 vertical   distinct 2.4771 (rank 2 of 5660) kept 2.4771 (rank 2); kept x kept 3.0936; uncapped 3.0936
+  axis paint_observations      pair   1 fit   1.501 horizontal distinct 2.359 (rank 8 of 234) kept 2.359 (rank 8); kept x kept 2.3283; uncapped 2.3283
+  axis paint_observations      pair   1 fit   1.501 vertical   distinct 1.531 (rank 59 of 5002) kept 1.531 (rank 59); kept x kept 2.3283; uncapped 2.3283
+  axis person_observations     pair   1 fit   1.501 horizontal distinct 2.359 (rank 32 of 962) kept 2.359 (rank 32); kept x kept 3.712; uncapped 2.3283
+  axis person_observations     pair   1 fit   1.501 vertical   distinct 1.5725 (rank 523 of 8060) kept 3.6673 (rank 196); kept x kept 3.712; uncapped 2.3283
+SS21-20: gate passed (unfiltered replay equals the saved direction record); 487 fragments, 10 person boxes
+  baseline      dropped    0 of 487 (on markings 0 of 57); lines 128; angles to control x 1.4347 y 0.0626; bound 0.8881; best fit 1.0335 (pair 0); selection identical to baseline
+  person        dropped   32 of 487 (on markings 4 of 57); lines 128; angles to control x 1.0597 y 0.0626; bound 4.4474; best fit 4.4818 (pair 0)
+  paint         dropped  229 of 487 (on markings 0 of 57); lines 120; angles to control x 8.2188 y 0.1481; bound 11.5644; best fit 12.2641 (pair 31)
+  paint_person  dropped  243 of 487 (on markings 4 of 57); lines 114; angles to control x 8.2188 y 0.1627; bound 11.5644; best fit 12.2973 (pair 31)
+  paint15       dropped  196 of 487 (on markings 0 of 57); lines 128; angles to control x 6.514 y 0.1481; bound 3.5754; best fit 3.8043 (pair 1)
+  paint25       dropped  248 of 487 (on markings 1 of 57); lines 112; angles to control x 5.4064 y 0.1481; bound 6.1397; best fit 6.3752 (pair 0)
+  axis baseline                pair   0 fit   1.034 horizontal distinct 1.4025 (rank 0 of 1230) kept 1.4025 (rank 0); kept x kept 1.6483; uncapped 1.6483
+  axis baseline                pair   0 fit   1.034 vertical   distinct 1.7864 (rank 26 of 9162) kept 1.7864 (rank 26); kept x kept 1.6483; uncapped 1.6483
+  axis person                  pair   0 fit   4.482 horizontal distinct 4.7231 (rank 6 of 1228) kept 4.7231 (rank 6); kept x kept 27.9474; uncapped 4.7828
+  axis person                  pair   0 fit   4.482 vertical   distinct 4.7598 (rank 1345 of 7064) kept 28.3288 (rank 364); kept x kept 27.9474; uncapped 4.7828
+  axis paint                   pair  31 fit  12.264 horizontal distinct 12.0273 (rank 95 of 138) kept 12.0273 (rank 95); kept x kept 13.579; uncapped 13.579
+  axis paint                   pair  31 fit  12.264 vertical   distinct 14.1673 (rank 42 of 266) kept 14.1673 (rank 42); kept x kept 13.579; uncapped 13.579
+  axis paint_person            pair  31 fit  12.297 horizontal distinct 12.0716 (rank 90 of 138) kept 12.0716 (rank 90); kept x kept 13.5865; uncapped 13.5865
+  axis paint_person            pair  31 fit  12.297 vertical   distinct 14.2016 (rank 43 of 266) kept 14.2016 (rank 43); kept x kept 13.5865; uncapped 13.5865
+  axis paint_observations      pair   0 fit   1.034 horizontal distinct 1.4025 (rank 0 of 158) kept 1.4025 (rank 0); kept x kept 1.495; uncapped 1.495
+  axis paint_observations      pair   0 fit   1.034 vertical   distinct 1.7125 (rank 6 of 3868) kept 1.7125 (rank 6); kept x kept 1.495; uncapped 1.495
+  axis person_observations     pair   0 fit   1.034 horizontal distinct 1.4025 (rank 0 of 1230) kept 1.4025 (rank 0); kept x kept 1.6464; uncapped 1.6464
+  axis person_observations     pair   0 fit   1.034 vertical   distinct 1.7844 (rank 30 of 8642) kept 1.7844 (rank 30); kept x kept 1.6464; uncapped 1.6464
+wrote runs/filter_replay/table.csv (54 rows) and axis_table.csv (108 rows)
+exit 0

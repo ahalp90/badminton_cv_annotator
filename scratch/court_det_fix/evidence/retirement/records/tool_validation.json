@@ -1,0 +1,7 @@
+{
+  "retained_and_synthetic_baseline_assertions": "passed",
+  "tracer_cli_synthetic_video_and_fake_repo": "passed",
+  "tracer_output_overwrite_guard": "passed",
+  "AST_loader_against_reviewed_extracts_not_full_checkout": "passed",
+  "scope": "Retained numerical and synthetic tooling checks. No real video, actual repository import graph, model, Hough fallback or annotation pipeline was run."
+}

@@ -1,0 +1,4 @@
+started=2026-09-15T06:17:25Z
+finished=2026-09-15T06:17:39Z
+script=diagnose_matrix
+args=--allow-missing --ids gxBQ_window_00_frame_0

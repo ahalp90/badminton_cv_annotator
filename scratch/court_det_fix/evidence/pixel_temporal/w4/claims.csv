@@ -1,0 +1,9 @@
+claim,classification,what_the_test_shows,source_notes
+C2 fixed the GX explanation and identified the right duplicate.,Supported,Pair 143 improves while the wider saved set worsens; 29665 is the duplicate kept.,EVIDENCE_INDEX.md#c2
+The L1 rule is a better replacement.,Contradicted,It helps the tested Am2 pair but loses a close court on Am3.,EVIDENCE_INDEX.md#l1
+L1 improves the detector's final chosen court.,Not measured,"It tests what survives on six direction pairs, not the final winner.",EVIDENCE_INDEX.md#l1
+L2 separates changes to available courts from changes to scoring.,Supported,Some gains come from scoring existing courts differently; others need different courts.,EVIDENCE_INDEX.md#l2
+The L3 median-line result rules out useful several-frame scoring.,Contradicted,Combining line and paint ranks makes a much better choice on the same data.,EVIDENCE_INDEX.md#l3
+The rank calculation found a newly correct court.,Not measured,It chose an existing court previously judged skewed.,EVIDENCE_INDEX.md#l3
+W2 establishes a rule to reject all courts with shared or broken-up pixel support.,Contradicted,Its known good court would be a counterexample.,EVIDENCE_INDEX.md#w2
+"Untested direction, temporal and distortion ideas remain open.",Supported,These tests only settle the specific questions they measured.,EVIDENCE_INDEX.md#corrections

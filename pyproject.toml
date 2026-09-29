@@ -32,10 +32,12 @@ dependencies = [
     "torchvision",
     # Numerics
     "numpy",
+    "numba==0.67.0",
     "pandas",
     "scipy",
     # Video / image I/O
     "opencv-python",
+    "scenedetect==0.7.1",
     "Pillow",
     # Vendored TrackNetV3 runtime deps (both arches do shuttle tracking)
     "tqdm",
@@ -142,8 +144,9 @@ exclude = [
     "notebooks/",
     "**/deprecated/",
     "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
-    "src/courtkeynet/_vendor/",       # Vendored CourtKeyNet (see src/courtkeynet/PROVENANCE.md)
     "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
+    "scratch/court_det_fix/archive/",  # Historical court experiment snapshots
+    "scratch/court_det_fix/evidence/",  # Saved experiment outputs and the source copies that produced them
 ]
 
 [tool.ruff.lint]
@@ -159,6 +162,14 @@ ignore = [
     "F722",  # forward-annotation "syntax error" on multi-axis / scalar shapes
     "F821",  # "undefined name" on single-axis shapes
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Research entry points set thread limits or import paths before loading their modules.
+"scratch/court_det_fix/court_detector/run_views.py" = ["E402"]
+"scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/**/*.py" = ["E402"]
+"experiments/annotator/court_geometry_repair/scripts/evaluate_court_comparison.py" = ["E402"]
+"experiments/annotator/court_scene_sampling/run.py" = ["E402"]
+"experiments/annotator/independent_court/evaluate.py" = ["E402"]
 
 # Undefined-name linting that ruff's F821 handed off above. Narrowed to unknown-name only
 # (preset off), so it's a name check, not a type checker: no torch type-inference noise. Only

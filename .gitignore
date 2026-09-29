@@ -63,6 +63,8 @@ src/bst_x/preparing_data/ShuttleSet_data_*
 # ---------------------------------------------------------------------------
 
 # runtime/
+runtime/checkpoints/deeplsd/*
+!runtime/checkpoints/deeplsd/.gitkeep
 runtime/checkpoints/tracknetv3/*
 !runtime/checkpoints/tracknetv3/.gitkeep
 runtime/checkpoints/yolo11/*

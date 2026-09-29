@@ -3,6 +3,8 @@ from pathlib import Path
 
 from classifier_shared.dataset import parse_flaw_records
 
+# Re-exported: BST-X pose tensors size their joint axis by the COCO-17 joint count.
+from shared.coco_keypoints import COCO_N_JOINTS  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Default paths (anchored to project root, not cwd)
@@ -39,10 +41,6 @@ NOSIDE_FOLDERS: frozenset[str] = frozenset({'unknown', 'driven_flight'})
 # Pipeline scalars (clip window, homography reference)
 # ---------------------------------------------------------------------------
 CLIP_WINDOW = 'between_2_hits_with_max_limits'
-
-# COCO-17 keypoint count. MMPoseInferencer('human') / RTMPose-L return 17
-# joints per person; every pose tensor's joint axis is sized by this.
-COCO_N_JOINTS = 17
 
 # homography.csv matrices were computed at this resolution; coordinates must
 # scale to match before applying the homography.

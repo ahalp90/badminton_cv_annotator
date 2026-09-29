@@ -2,14 +2,13 @@
 
 See ``docs/scraper_pipeline/scraper_architecture.md`` for the pipeline context.
 
-Three independent per-frame boolean signals unioned into one `(frames,)` mask,
+Court absence and slow-motion evidence are unioned into one `(frames,)` mask,
 true where the frame is a replay or otherwise off-rally. Saved per video to
 `config.MASKS_DIR / f'{video_id}_replay.npy'`, the same 1-D bool-over-frames
 convention as the pose `_failed.npy`.
 
-The three signals are independent producers (court, homography, shuttle), so a
-missing input contributes an all-False mask with a log line rather than killing
-the union: an absent court mask must not veto a real perspective-shift replay.
+Missing inputs contribute an all-False component with a log line. Camera geometry
+describes the view but cannot distinguish live alternate coverage from a replay.
 
 Speed and its helpers come from the shared annotator declarations, re-exported
 by rally segmentation. The slow-motion signal therefore reads the same per-frame speed as
@@ -25,11 +24,11 @@ from pathlib import Path
 import numpy as np
 
 from .config import (
-    BaseAnnotatorConfig,
     MASKS_DIR,
     PERSPECTIVE_SHIFT_THRESHOLD,
     RALLY_SPANS_CSV,
     SLOWMO_SPEED_FRAC,
+    BaseAnnotatorConfig,
 )
 from .fps_constants import scale_for_fps
 from .inpaint_guard import code_counts, grade_track
@@ -103,12 +102,11 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
     The dominant broadcast view is the duration-weighted median of each corner
     coordinate across all segments; a segment whose mean corner displacement
     from it (normalised by the reference court's bounding-box diagonal) exceeds
-    PERSPECTIVE_SHIFT_THRESHOLD is a replay or cutaway angle and its frames fire.
+    PERSPECTIVE_SHIFT_THRESHOLD has a different view and its frames fire.
 
-    Comparing every segment to the dominant view avoids masking the whole tail
-    after one legitimate camera change. The deviant minority view is the replay,
-    and the normalisation is self-contained (diagonal of the reference corners),
-    so no frame resolution is needed.
+    This is a descriptive camera-change signal, not a replay classification.
+    The normalisation uses the reference court's diagonal, so no frame resolution
+    is needed.
 
     :param homography_rows: per-segment dict rows for this video, or None/empty.
     :param n_frames: video frame count (the mask length).
@@ -230,17 +228,19 @@ def combine_mask(
     fps: float,
     *, non_evidence: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Union the three replay/off-rally signals using an any-of rule.
+    """Combine court absence and shuttle-speed evidence for off-rally masking.
+
+    ``homography_rows`` remains accepted for existing callers. A different court
+    view cannot establish replay and must not bias the normal-speed baseline.
 
     :return: `(n_frames,)` bool mask, True where any signal fires.
     """
     court = court_absence_signal(court_present, n_frames, fps)
-    perspective = perspective_shift_signal(homography_rows, n_frames)
     velocity = velocity_drop_signal(
         track, rally_spans, n_frames, fps,
-        non_evidence=non_evidence, baseline_exclude=court | perspective,
+        non_evidence=non_evidence, baseline_exclude=court,
     )
-    return court | perspective | velocity
+    return court | velocity
 
 
 def filter_short_exclusion_runs(mask: np.ndarray, min_frames: int) -> np.ndarray:

@@ -14,10 +14,13 @@
 torch                 # installed via explicit --index-url before this file; unpinned on purpose
 torchvision           # ditto
 numpy==2.4.4
+numba==0.67.0               # Court line-support scoring on the CPU
+llvmlite==0.49.0            # Numba compiler runtime
 pandas==2.3.3
 matplotlib==3.10.9
 scikit-learn==1.8.0
 opencv-python==5.0.0.93      # cv2; classifier video metadata and video tests
+scenedetect==0.7.1     # scene cuts and image hashes; uses the OpenCV package above
 ultralytics==8.4.50          # YOLO11 + ByteTrack; perception/players.py + scripts/preprocess_videos.py
 positional-encodings==6.0.4  # Positional encoding layers used by BST-X transformer model (bst_x/model/)
 torchinfo==1.8.0             # Model summary utility used by tempose.py in the BST-X model module

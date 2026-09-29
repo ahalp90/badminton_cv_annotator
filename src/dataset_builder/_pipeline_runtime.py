@@ -89,7 +89,6 @@ class DefaultPipelineRuntime(RuntimeSupport):
     def __init__(self, config: BuilderConfig, run_dir: Path, source_commit: str) -> None:
         super().__init__(config, run_dir)
         self.source_commit = source_commit
-        self.detector: object | None = None
         self.fixed_manifest: FixedSourceManifest | None = None
         self.fixed_entries: tuple[FixedSourceEntry, ...] = ()
         self.fixed_source_root: Path | None = None
@@ -118,15 +117,20 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self.pose_interpreter = resolve_interpreter(
             self._required_environment(self.config.pose_python_environment),
         )
+        self.court_interpreter = resolve_interpreter(
+            self._required_environment(self.config.court_python_environment),
+        )
         self.ffmpeg_interpreter = resolve_interpreter("ffmpeg", version_option="-version")
         required_files = {
             "TrackNet batch predictor": self.config.tracknet_dir / "batch_predict.py",
             "TrackNet weights": self.config.tracknet_model,
-            "CourtKeyNet weights": self.config.court_model,
+            "DeepLSD weights": self.config.deeplsd_weights,
         }
         if self.config.inpaint_model is not None:
             required_files["InpaintNet weights"] = self.config.inpaint_model
         missing = [name for name, path in required_files.items() if not path.is_file()]
+        if not self.config.deeplsd_source.is_dir():
+            missing.append("DeepLSD source")
         if missing:
             raise FileNotFoundError(f"required model files are unavailable: {missing}")
         self._prepare_fixed_sources()
@@ -145,7 +149,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         self.current_interpreter = resolve_interpreter(sys.executable)
         required_files = {
             "TrackNet weights": self.config.tracknet_model,
-            "CourtKeyNet weights": self.config.court_model,
+            "DeepLSD weights": self.config.deeplsd_weights,
         }
         if self.config.inpaint_model is not None:
             required_files["InpaintNet weights"] = self.config.inpaint_model
@@ -935,26 +939,32 @@ class DefaultPipelineRuntime(RuntimeSupport):
         return tuple(self._court_plan(video_id) for video_id in self._active_video_ids())
 
     def _court_plan(self, video_id: str) -> StagePlan:
-        from dataset_builder.vision import build_detected_court_stage
+        from dataset_builder.vision import (
+            CourtDetectorSettings,
+            build_detected_court_stage,
+        )
 
         metadata = self.state.metadata[video_id]
         output_dir = self._video_dir("court", video_id)
+        settings = CourtDetectorSettings(
+            # Launch the configured path: its resolved symlink target would bypass the venv.
+            python=Path(self._required_environment(self.config.court_python_environment)),
+            deeplsd_source=self.config.deeplsd_source,
+            deeplsd_weights=self.config.deeplsd_weights,
+            device=self.config.court_device,
+            template_device=self.config.court_template_device,
+            reuse_courts=self.config.court_reuse_courts,
+            court_mode=self.config.court_mode,
+        )
 
         def execute() -> StageExecution:
             self._reset_stage_dir("court", video_id)
-            if self.detector is None:
-                from courtkeynet.wrapper import CourtKeyNetDetector
-
-                self.detector = CourtKeyNetDetector(
-                    weights_path=self.config.court_model,
-                    device=self.config.court_device,
-                    resize_mode=self.config.court_resize_mode,
-                )
             court = build_detected_court_stage(
                 video_id=video_id,
                 metadata=metadata,
                 pose=self.state.poses[video_id],
-                detector=self.detector,
+                pose_dir=self._video_dir("pose", video_id),
+                settings=settings,
                 output_dir=output_dir,
             )
             if court.artifacts is None:
@@ -969,12 +979,13 @@ class DefaultPipelineRuntime(RuntimeSupport):
         return self._plan(
             name=self._video_stage("court", video_id),
             dependencies=(self._video_stage("pose", video_id),),
-            command=(self._current().path, "CourtKeyNet", os.fspath(metadata.source_path)),
+            command=(self._court().path, "-m", "court_detector.run_video", "--pyscenedetect"),
             configuration={
-                "device": self.config.court_device,
-                "resize_mode": self.config.court_resize_mode,
+                **settings.configuration(),
+                "deeplsd_source": os.fspath(self.config.deeplsd_source),
             },
-            model_weights={"courtkeynet": self.config.court_model},
+            interpreter=self._court(),
+            model_weights={"deeplsd": self.config.deeplsd_weights},
             inputs={"source_video": metadata.source_path, **self._pose_files(video_id)},
             execute=execute,
             restore=lambda: self._restore_court(video_id, output_dir),

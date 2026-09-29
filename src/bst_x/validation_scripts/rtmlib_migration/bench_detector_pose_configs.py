@@ -45,7 +45,7 @@ import cv2
 import numpy as np
 
 from _common import find_clip, load_mmpose_raw, matched_kp_l2
-from preparing_data.rtmlib_pose import _MODEL_BASE, RtmlibPoseExtractor
+from shared.rtmlib_pose import _MODEL_BASE, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cpu")
 STEMS = os.environ.get(
@@ -98,7 +98,7 @@ class _Timed:
         self.det_ms.append((t1 - t0) * 1e3)
         self.pose_ms.append((t2 - t1) * 1e3)
         # Shape-compatible with FrameDetections for matched_kp_l2.
-        from preparing_data.rtmlib_pose import FrameDetections
+        from shared.rtmlib_pose import FrameDetections
         return FrameDetections(
             keypoints=np.asarray(kps, np.float32),
             bboxes=np.asarray(boxes, np.float32),

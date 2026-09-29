@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import json
+import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,16 +15,34 @@ import pandas as pd
 import pytest
 
 import annotator.e2e_court_annotator as runner
-from annotator.artifact_io import load_npy, open_text_artifact, read_json_object, write_json_object
+from annotator.artifact_io import (
+    load_npy,
+    open_text_artifact,
+    read_json_object,
+    write_json_object,
+)
 from annotator.court_evidence import (
-    COURT_SCENE_SAMPLE_LIMIT,
+    DETECTED_PARENT,
+    DETECTOR_RESULT_SCHEMA,
     PERSON_COURT_MARGIN,
     SCENE_VALID_MIN_FRACTION,
     CourtEvidenceResult,
     CourtInputs,
     CourtSceneRecord,
+    SceneStatus,
 )
 from annotator.run_video import AnnotatorResult
+from dataset_builder import vision
+from dataset_builder.vision import CourtDetectorSettings
+
+COURT_SETTINGS = CourtDetectorSettings(
+    python=Path("court-python"),
+    deeplsd_source=Path("DeepLSD"),
+    deeplsd_weights=Path("deeplsd_md.tar"),
+    device="cpu",
+    template_device="cpu",
+    reuse_courts=False,
+)
 
 
 @pytest.mark.parametrize(
@@ -59,7 +80,7 @@ def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
 def test_configuration_reports_the_executable_measurement_policy() -> None:
     resolved = runner.resolve(runner.BASE_ANNOTATOR_CONFIG, runner.CASES[0].fps)
     configuration = runner._configuration_values(resolved.dead_mask_mode)
-    assert configuration['court_samples'] == COURT_SCENE_SAMPLE_LIMIT
+    assert 'court_samples' not in configuration
     assert configuration['person_margin'] == PERSON_COURT_MARGIN
     assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
     assert configuration['dead_mask_mode'] == resolved.dead_mask_mode.value
@@ -75,7 +96,7 @@ def test_configuration_reports_the_executable_measurement_policy() -> None:
 def _manifest_payload() -> dict[str, object]:
     producers = {key: f"producer:{key}" for key in runner._PRODUCER_KEYS}
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "videos": {
             "sset_01": _pin("videos/sset_01.mp4"),
             "sset_15": _pin("videos/sset_15.mp4"),
@@ -84,10 +105,7 @@ def _manifest_payload() -> dict[str, object]:
         "track_overrides": {
             "sset_01/tracknet-stride-1": _pin("tracks/sset_01_stride1.npy"),
         },
-        "courtkeynet_config": _pin(
-            runner.CONFIG_PATH.resolve().relative_to(runner.REPO_ROOT.resolve()).as_posix(), "repo"
-        ),
-        "courtkeynet_weights": _pin("weights/courtkeynet.safetensors"),
+        "deeplsd_weights": _pin("weights/deeplsd_md.tar"),
         "producers": producers,
     }
 
@@ -101,6 +119,16 @@ def test_input_manifest_rejects_unknown_missing_and_historical_fields() -> None:
     payload = _manifest_payload()
     del payload["track_overrides"]
     with pytest.raises(ValueError, match="fields differ"):
+        runner.parse_input_manifest(payload)
+
+    payload = _manifest_payload()
+    payload["schema_version"] = 1
+    with pytest.raises(ValueError, match="schema_version must be integer 2"):
+        runner.parse_input_manifest(payload)
+
+    payload = _manifest_payload()
+    payload["deeplsd_weights"] = _pin("weights/deeplsd_md.tar", "repo")
+    with pytest.raises(ValueError, match="deeplsd_weights must use the fixtures root"):
         runner.parse_input_manifest(payload)
 
 
@@ -130,7 +158,7 @@ def test_fixed_matrix_and_parent_order_are_deterministic() -> None:
         "nonoverlap", "weight", "nonoverlap", "nonoverlap",
     ]
     assert [parent for parent in runner.PARENTS for _case in runner.CASES] == (
-        ["static_shuttleset_homography"] * 4 + ["detected_ckn_opencv_consensus"] * 4
+        ["static_shuttleset_homography"] * 4 + ["court_detector"] * 4
     )
 
 
@@ -248,12 +276,21 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
         scene_rows = list(csv.reader(handle))
     assert scene_rows[0] == list(runner.COURT_SCENES_COLUMNS)
     scene_row = dict(zip(scene_rows[0], scene_rows[1]))
-    assert scene_row["sampled_frame_indices"] == "[]"
-    assert scene_row["quad_source"] == ""
-    assert scene_row["raw_tl_x"] == "0.0"
-    assert scene_row["raw_br_x"] == "1.0"
-    assert scene_row["active_bl_y"] == "1.0"
+    assert scene_row["status"] == "court"
+    assert scene_row["analysed_frame"] == ""
+    assert scene_row["no_court_reason"] == ""
+    assert scene_row["tl_x"] == "0.0"
+    assert scene_row["br_x"] == "1.0"
+    assert scene_row["bl_y"] == "1.0"
     assert scene_row["scene_valid"] == "true"
+    failed_row = runner._scene_row(replace(
+        court_result.scene_records[0], status=SceneStatus.DETECTION_FAILED, analysed_frame=1,
+        corners_native_px=None, error="CourtFitError()", scene_valid=False,
+    ))
+    assert failed_row["status"] is SceneStatus.DETECTION_FAILED
+    assert failed_row["analysed_frame"] == 1
+    assert failed_row["error"] == "CourtFitError()"
+    assert failed_row["tl_x"] is None
     with open_text_artifact(directory / "scene_rows.csv.gz", newline="") as handle:
         assert next(csv.reader(handle)) == [
             "video_id", "start_frame", "end_frame", "upleft_x", "upleft_y",
@@ -427,12 +464,11 @@ def _fake_court_result(case: runner.CaseData, parent: str) -> CourtEvidenceResul
         active_corners_refpx=np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
     )
     record = CourtSceneRecord(
-        case.fixture.video_id, case.fixed.case_id, parent, 0, 0, 2, (),
-        np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), None, None, None, None,
-        2, 1.0, True, None, None,
-        np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
+        case.fixture.video_id, case.fixed.case_id, parent, 0, 0, 2, SceneStatus.COURT, None,
+        np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), None, None, None,
+        2, 1.0, True,
     )
-    return CourtEvidenceResult(inputs, (record,), np.ones(2, dtype=bool), np.ones(2, dtype=bool), None)
+    return CourtEvidenceResult(inputs, (record,), np.ones(2, dtype=bool), np.ones(2, dtype=bool))
 
 
 def _install_synthetic_runner(
@@ -459,13 +495,11 @@ def _install_synthetic_runner(
         lambda: (pd.DataFrame({"vid": []}), pd.DataFrame(), {}, pd.DataFrame()),
     )
 
-    def fake_make_detector(driver: runner.RunDriver) -> None:
+    def fake_prepare_court_detector(driver: runner.RunDriver) -> None:
         events["detector"] += 1
-        driver.detector = object()
-        driver.resolved_device = driver.device
+        driver.court_settings = COURT_SETTINGS
 
-    monkeypatch.setattr(runner, "_make_detector", fake_make_detector)
-    monkeypatch.setattr(runner, "detect_scene_evidence", lambda *_args: [])
+    monkeypatch.setattr(runner, "_prepare_court_detector", fake_prepare_court_detector)
     monkeypatch.setattr(
         runner,
         "build_static_court_evidence",
@@ -475,10 +509,8 @@ def _install_synthetic_runner(
     )
     monkeypatch.setattr(
         runner,
-        "build_detected_court_evidence",
-        lambda case_id, parent, *_args, **_kwargs: _fake_court_result(
-            next(case for case in synthetic_cases if case.fixed.case_id == case_id), parent
-        ),
+        "detect_case_courts",
+        lambda case, settings, *_args: _fake_court_result(case, DETECTED_PARENT),
     )
     monkeypatch.setattr(runner, "verify_eligible_gt_files", lambda: {})
 
@@ -539,13 +571,12 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
         return pd.DataFrame({"vid": []}), pd.DataFrame(), {}, pd.DataFrame()
 
     monkeypatch.setattr(runner, "load_gt_tables", fake_load_gt_tables)
-    def fake_make_detector(driver: runner.RunDriver) -> None:
+    def fake_prepare_court_detector(driver: runner.RunDriver) -> None:
         nonlocal detector_calls
         detector_calls += 1
-        driver.detector = object()
-        driver.resolved_device = driver.device
+        driver.court_settings = COURT_SETTINGS
 
-    monkeypatch.setattr(runner, "_make_detector", fake_make_detector)
+    monkeypatch.setattr(runner, "_prepare_court_detector", fake_prepare_court_detector)
     monkeypatch.setattr(
         runner,
         "build_static_court_evidence",
@@ -553,13 +584,10 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
             next(case for case in synthetic_cases if case.fixed.case_id == case_id), parent
         ),
     )
-    monkeypatch.setattr(runner, "detect_scene_evidence", lambda *_args: [])
     monkeypatch.setattr(
         runner,
-        "build_detected_court_evidence",
-        lambda case_id, parent, *_args, **_kwargs: _fake_court_result(
-            next(case for case in synthetic_cases if case.fixed.case_id == case_id), parent
-        ),
+        "detect_case_courts",
+        lambda case, settings, *_args: _fake_court_result(case, DETECTED_PARENT),
     )
     gt_verified = False
 
@@ -709,3 +737,118 @@ def test_local_scoring_failure_does_not_stop_later_scoring(
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
     assert statuses[f"{runner.PARENTS[1]}/{target.case_id}"] == "succeeded"
     assert events["score"] == 8
+
+
+def test_detected_parent_runs_the_detector_on_scaled_poses_and_shared_scenes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fixture poses use the source resolution; the detector gets them in 512x288 video pixels."""
+    fixed = runner.CASES[0]
+    fixture = next(item for item in runner.FIXTURES if item.name == fixed.fixture_name)
+    case = _fake_case(fixed, fixture)
+    case.fixed = replace(fixed, n_frames=2)
+    width, height = fixture.resolution
+    case.raw_cuts = [(0, 1), (1, 2)]
+    case.bboxes[:, 0] = (0.25 * width, 0.25 * height, 0.5 * width, 0.75 * height)
+    case.bboxes[:, 1] = (0.6 * width, 0.2 * height, 0.7 * width, 0.8 * height)
+    case.scores[:] = 0.9
+    case.ndet[:] = 2
+    case.kps[:] = (0.5 * width, 0.5 * height)
+    seen: dict[str, object] = {}
+
+    def fake_detector(settings, *, video_path, pose_dir, work_dir, scenes_path):
+        seen.update(settings=settings, video_path=video_path, work_dir=work_dir)
+        seen["bboxes"] = vision.load_npy_xz(pose_dir / "pose_bboxes.npy.xz")
+        seen["kps"] = vision.load_npy_xz(pose_dir / "pose_kps.npy.xz")
+        seen["ndet"] = vision.load_npy_xz(pose_dir / "pose_ndet.npy.xz")
+        with gzip.open(scenes_path, "rt") as handle:
+            seen["scenes"] = json.load(handle)
+        corners = [[0.0, 0.0], [512.0, 0.0], [512.0, 288.0], [0.0, 288.0]]
+        return {
+            "schema": DETECTOR_RESULT_SCHEMA, "frame_count": 2, "native_size": [512, 288],
+            "scenes": [
+                {"start_frame": 0, "end_frame": 1, "frame_index": 0, "status": "court",
+                 "corners_native_px": corners, "no_court_reason": None, "reused_from": None},
+                {"start_frame": 1, "end_frame": 2, "frame_index": 1,
+                 "status": "scene_too_short_for_feet", "corners_native_px": None},
+            ],
+        }
+
+    monkeypatch.setattr(vision, "run_court_detector", fake_detector)
+    result = runner.detect_case_courts(case, COURT_SETTINGS, tmp_path / "configuration", None)
+
+    assert seen["settings"] is COURT_SETTINGS
+    assert seen["video_path"] == case.video_path
+    assert not Path(str(seen["work_dir"])).exists()
+    assert list((tmp_path / "configuration").iterdir()) == []
+    assert seen["scenes"] == [[0, 1], [1, 2]]
+    np.testing.assert_allclose(seen["bboxes"][:, 0], [[128.0, 72.0, 256.0, 216.0]] * 2)
+    np.testing.assert_allclose(seen["kps"][:, 0, 0], [[256.0, 144.0]] * 2)
+    np.testing.assert_array_equal(seen["ndet"], case.ndet)
+    assert [record.status for record in result.scene_records] == [
+        SceneStatus.COURT, SceneStatus.SCENE_TOO_SHORT_FOR_FEET,
+    ]
+    assert all(record.parent == DETECTED_PARENT for record in result.scene_records)
+    assert result.court_present.tolist() == [True, False]
+
+
+def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed = runner.CASES[0]
+    fixture = next(item for item in runner.FIXTURES if item.name == fixed.fixture_name)
+    case = _fake_case(fixed, fixture)
+    output_root = tmp_path / "run"
+    output_root.mkdir()
+    driver = runner.RunDriver(
+        tmp_path / "inputs.json", output_root, "cpu", ("runner",), "now", 0.0,
+        input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
+        resolved_device="cpu", court_settings=COURT_SETTINGS,
+    )
+    state = runner.ConfigurationState(
+        fixed, DETECTED_PARENT, fixture, case, output_root / DETECTED_PARENT / fixed.case_id, [], "now", 0.0,
+    )
+
+    def no_court(case, *_args):
+        result = _fake_court_result(case, DETECTED_PARENT)
+        record = replace(
+            result.scene_records[0], status=SceneStatus.NO_COURT, corners_native_px=None,
+            no_court_reason="no_candidates", analysed_frame=1, scene_valid=False,
+        )
+        failed = CourtEvidenceResult(None, (record,), np.zeros(2, dtype=bool), np.zeros(2, dtype=bool))
+        raise runner.NoAcceptedCourtError(failed, "no scene has an accepted court; scene statuses: {'no_court': 1}")
+
+    monkeypatch.setattr(runner, "detect_case_courts", no_court)
+    monkeypatch.setattr(runner, "run_video", lambda *_args, **_kwargs: pytest.fail("inference must not run"))
+    runner._run_one_configuration(state, driver)
+
+    assert state.status == "failed"
+    failure = read_json_object(state.directory / "failure.json.gz")
+    assert failure["stage"] == "court_acceptance"
+    with open_text_artifact(state.directory / "court_scenes.csv.gz", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [(row["status"], row["no_court_reason"]) for row in rows] == [("no_court", "no_candidates")]
+    assert not load_npy(state.directory / "court_present.npy.xz").any()
+    assert state.manifest_path is not None
+    inputs = read_json_object(state.manifest_path)["inputs"]
+    assert [record["role"] for record in inputs] == ["deeplsd_weights"]
+
+
+def test_court_detector_setup_needs_the_launch_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANNOTATOR_FIXTURES_ROOT", str(tmp_path))
+    driver = runner.RunDriver(
+        tmp_path / "inputs.json", tmp_path, "cuda", ("runner",), "now", 0.0,
+        input_manifest=runner.parse_input_manifest(_manifest_payload()),
+    )
+    with pytest.raises(ValueError, match="--court-python and --deeplsd-source"):
+        runner._prepare_court_detector(driver)
+
+    deeplsd = tmp_path / "DeepLSD"
+    deeplsd.mkdir()
+    driver.court_program = runner.CourtProgram(Path(sys.executable), deeplsd, "cuda", True)
+    runner._prepare_court_detector(driver)
+    assert driver.court_settings is not None
+    assert driver.court_settings.python == Path(sys.executable)
+    assert driver.court_settings.device == "cuda"
+    assert (driver.court_settings.template_device, driver.court_settings.reuse_courts) == ("cuda", True)
+    assert driver.court_settings.deeplsd_weights.name == "deeplsd_md.tar"

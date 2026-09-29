@@ -1,0 +1,27 @@
+{
+ "view_id": "am2_window_01_frame_28019",
+ "error": null,
+ "choose_seconds": 0.664583820005646,
+ "chosen_key": "G1:15:0/child",
+ "no_court_reason": null,
+ "corners_native_px": [
+  [
+   1042.0963793842977,
+   425.28567657931114
+  ],
+  [
+   1484.3977421645116,
+   446.8598664140886
+  ],
+  [
+   1160.3694855634535,
+   893.9937842329907
+  ],
+  [
+   -92.69082493382696,
+   578.9728984044971
+  ]
+ ],
+ "stripe_refit_difference": ".corrected.fit.corners_px[0][0]: 521.0481896921489 != 521.0481896922142",
+ "net_choice_difference": null
+}

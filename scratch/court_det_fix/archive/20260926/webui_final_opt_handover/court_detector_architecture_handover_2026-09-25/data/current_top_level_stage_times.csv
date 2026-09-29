@@ -1,0 +1,7 @@
+stage,seconds,share_of_total,source
+search_populations,5319,0.6447272727272727,claude_evidence/w5_savings/carmack_stage_times_vs_item12.txt
+w5_record,2754,0.3338181818181818,claude_evidence/w5_savings/carmack_stage_times_vs_item12.txt
+stripe_polarity_refit,48,0.005818181818181818,claude_evidence/w5_savings/carmack_stage_times_vs_item12.txt
+net_choice,47,0.005696969696969697,claude_evidence/w5_savings/carmack_stage_times_vs_item12.txt
+prepare_view,27,0.0032727272727272726,claude_evidence/w5_savings/carmack_stage_times_vs_item12.txt
+startup_and_unlisted,55.0,0.006666666666666667,derived

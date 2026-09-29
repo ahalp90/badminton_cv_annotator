@@ -1,0 +1,19 @@
+view	old median / max px	new median / max px
+am1_window_00_frame_54	1.23 / 6.71	1.23 / 6.71
+am2_window_00_frame_150	1.76 / 3.19	1.76 / 3.19
+am2_window_01_frame_28019	2.35 / 3.83	2.35 / 3.83
+am3_window_00_frame_0	2.17 / 8.14	2.17 / 8.14
+am3_window_02_frame_17174	1.72 / 4.57	1.72 / 4.57
+gxBQ_window_00_frame_0	3.61 / 7.81	2.23 / 4.53
+gxBQ_window_00_frame_5	2.20 / 5.45	2.20 / 5.45
+gxBQ_window_00_frame_689	2.76 / 8.52	2.78 / 4.89
+gxBQ_window_03_frame_77876	1.86 / 4.99	3.39 / 7.20
+letterboxed_short_frame_78	1.58 / 2.87	1.58 / 2.87
+shuttleset_03_scene_0016	1.96 / 3.20	1.96 / 3.20
+shuttleset_03_scene_0017	2.05 / 2.50	2.05 / 2.50
+shuttleset_03_scene_0019	1.77 / 2.97	1.77 / 2.97
+shuttleset_03_scene_0023	2.12 / 3.00	2.12 / 3.00
+shuttleset_03_scene_0032	1.72 / 3.21	1.72 / 3.21
+shuttleset_03_scene_0034	2.33 / 2.93	2.33 / 2.93
+shuttleset_21_scene_0034	2.47 / 3.49	2.47 / 3.49
+shuttleset_21_scene_0044	2.21 / 4.00	2.21 / 4.00

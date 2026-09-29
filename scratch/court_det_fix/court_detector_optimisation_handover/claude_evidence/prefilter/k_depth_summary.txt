@@ -1,0 +1,21 @@
+4 samples per marking. Deepest: chosen court 429, top five 16169, overall shortlist 21087, every kept court 70121
+  K   256: views fully within K: chosen court 14/18, top five 14/21, overall shortlist 1/23, every kept court 1/23
+  K   512: views fully within K: chosen court 18/18, top five 18/21, overall shortlist 1/23, every kept court 1/23
+  K  1024: views fully within K: chosen court 18/18, top five 19/21, overall shortlist 2/23, every kept court 1/23
+  K  2048: views fully within K: chosen court 18/18, top five 20/21, overall shortlist 4/23, every kept court 1/23
+  K  4096: views fully within K: chosen court 18/18, top five 20/21, overall shortlist 12/23, every kept court 2/23
+  K  8192: views fully within K: chosen court 18/18, top five 20/21, overall shortlist 19/23, every kept court 2/23
+8 samples per marking. Deepest: chosen court 341, top five 403, overall shortlist 2283, every kept court 22863
+  K   256: views fully within K: chosen court 17/18, top five 18/21, overall shortlist 1/23, every kept court 1/23
+  K   512: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 5/23, every kept court 1/23
+  K  1024: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 13/23, every kept court 1/23
+  K  2048: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 22/23, every kept court 2/23
+  K  4096: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 23/23, every kept court 2/23
+  K  8192: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 23/23, every kept court 5/23
+16 samples per marking. Deepest: chosen court 189, top five 367, overall shortlist 1211, every kept court 4511
+  K   256: views fully within K: chosen court 18/18, top five 19/21, overall shortlist 3/23, every kept court 1/23
+  K   512: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 11/23, every kept court 1/23
+  K  1024: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 18/23, every kept court 1/23
+  K  2048: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 23/23, every kept court 5/23
+  K  4096: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 23/23, every kept court 22/23
+  K  8192: views fully within K: chosen court 18/18, top five 21/21, overall shortlist 23/23, every kept court 23/23

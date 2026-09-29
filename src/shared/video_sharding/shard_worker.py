@@ -55,7 +55,7 @@ def build_extractor(spec: str):
         )
         return DeterministicFakeExtractor()
     if spec in ("cpu", "cuda"):
-        from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+        from shared.rtmlib_pose import RtmlibPoseExtractor
         return RtmlibPoseExtractor(device=spec)
     raise ValueError(f"unknown extractor spec {spec!r}; expected one of {EXTRACTOR_SPECS}")
 

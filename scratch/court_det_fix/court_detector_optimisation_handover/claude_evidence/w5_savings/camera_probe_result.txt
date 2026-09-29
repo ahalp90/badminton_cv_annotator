@@ -1,0 +1,2 @@
+camera probe: batches 683, homographies 412333, vector 28.10 s, whole check 28.49 s, frontier rechecks 866
+selection: scanned 358 eligible; score-order prefix needed 1058 of 277192 visibility-admitted (0.38%); floor-zero pass needs 1306 of 412333 (0.32%)

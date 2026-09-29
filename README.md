@@ -75,6 +75,18 @@ Performance largely falls down where broadcast footage interweaves cutaways with
 
 See the [contact-detector follow-up](scratch/contact_det_followup/report.md).
 
+## Court detector
+
+The court detector finds the four outer court corners from line markings and
+player positions. It can combine evidence within a scene or across returning
+camera views. Each scene still receives one fixed court projection.
+
+Start with the [court detector guide](src/court_detector/README.md) for setup,
+commands, output formats and maintenance pointers. The
+[design notes](docs/court_detector/design.md) explain the main choices and
+limitations. The [evaluation record](docs/court_detector/evaluation.md) separates
+measured results from what remains unverified.
+
 ## Earlier work: BST-X
 
 This project grew out of our earlier badminton stroke-classification work.

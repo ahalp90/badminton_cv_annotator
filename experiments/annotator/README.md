@@ -1,5 +1,8 @@
 # Annotator experiment runs
 
+The [court geometry repair bundle](court_geometry_repair/README.md) contains
+paired issue #148 evidence, saved-output checks and a pipeline reproduction recipe.
+
 The fixed annotator CLI writes each successful or failed measurement to `runs/<UTC timestamp>/`.
 Successful runs add `summary.json.gz` and `report.md`, then clean commit-candidate files in place.
 

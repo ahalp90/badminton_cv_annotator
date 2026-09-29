@@ -1,0 +1,35 @@
+
+gxBQ_window_00_frame_0 arm M: 134 matched pairs, 3810512 proposed, 29696 retained
+  nearest proposed court   33.822475 px  candidate 23:10986  (pair 23)
+  nearest retained court   33.822475 px  candidate 23:10986  (pair 23); float64 from the record shortlists 33.822484574 px candidate 23:10987
+  cap gain (nearest retained minus nearest proposed): 0.000009 px; within the rounding margin, so no loss at the cap
+  proposed courts more than 0.001 px closer than the pool's nearest retained court: 0 in 0 pairs []
+  pairs where the cap discarded a court closer than that pair's own nearest retained court: 107 of 134
+  GATE 2 accounting nearest pooled 33.822 px candidate 23:10987: float64 from record PASS; float32 recording value PASS (gap 9.37e-06 px); float32 argmin candidate 23:10986, a tie on the worst corner broken by ordering
+
+am3_window_00_frame_0 arm R: 100 matched pairs, 2449344 proposed, 22593 retained
+  nearest proposed court   40.139707 px  candidate 30:21176  (pair 30)
+  nearest retained court   44.207806 px  candidate 30:16137  (pair 30); float64 from the record shortlists 44.207753298 px candidate 30:16137
+  cap gain (nearest retained minus nearest proposed): 4.068046 px; real
+  proposed courts more than 0.001 px closer than the pool's nearest retained court: 8 in 2 pairs [30, 44]
+    candidate 30:21176  40.139707 px  discarded by the cap
+    candidate 30:21266  40.139811 px  discarded by the cap
+    candidate 44:14115  40.337172 px  discarded by the cap
+    candidate 44:14028  40.337286 px  discarded by the cap
+    candidate 30:21178  40.869208 px  discarded by the cap
+    candidate 30:21268  40.869312 px  discarded by the cap
+    candidate 44:14134  42.993793 px  discarded by the cap
+    candidate 44:14047  42.993898 px  discarded by the cap
+  pairs where the cap discarded a court closer than that pair's own nearest retained court: 79 of 100
+  GATE 2 accounting nearest pooled 44.208 px candidate 30:16137: float64 from record PASS; float32 recording value PASS (gap 5.31e-05 px); float32 argmin candidate same
+
+am2_window_01_frame_28019 arm B: 104 matched pairs, 812540 proposed, 22762 retained
+  nearest proposed court   15.321411 px  candidate 16:501  (pair 16)
+  nearest retained court   15.321477 px  candidate 16:381  (pair 16); float64 from the record shortlists 15.321459062 px candidate 16:381
+  cap gain (nearest retained minus nearest proposed): 0.000048 px; within the rounding margin, so no loss at the cap
+  proposed courts more than 0.001 px closer than the pool's nearest retained court: 0 in 0 pairs []
+  pairs where the cap discarded a court closer than that pair's own nearest retained court: 64 of 104
+  GATE 2 accounting nearest pooled 15.321 px candidate 16:381: float64 from record PASS; float32 recording value PASS (gap 1.76e-05 px); float32 argmin candidate same
+
+wrote <repo>/scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/cap_loss/table.csv with 338 rows
+GATE 2 PASS

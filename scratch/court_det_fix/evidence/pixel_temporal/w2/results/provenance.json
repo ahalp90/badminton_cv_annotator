@@ -1,0 +1,30 @@
+{
+  "input_archive_sha256": "e51d9c6bc56e63d81560d665525016362f165e737c8378dd9bfe3097bdaff1ec",
+  "input_archive_name": "return_pack.zip",
+  "unmodified_evidence_files": 19,
+  "scope": "Fresh local output based on pinned repository evidence; not a newer detector population or a freshly resolved branch head.",
+  "previous_supplied_atlas_script_sha256": "28ee44916b1884561355ecba4a6d1a291306b1192c95fc43c09f60fd65c6fa8f",
+  "executed_atlas_script_sha256_from_manifest": "80c0e9c0b97135e08bef4d9f03da2b38b73ddc5b59526d3e2e44800e1a091252",
+  "executed_atlas_source_available": false,
+  "previous_helper_hashes_independently_match_manifest": true,
+  "output_location_note": "User intentionally allowed output inside repository. No scientific invalidation follows from the directory location.",
+  "independent_checks_completed": [
+    "four detailed interval replays",
+    "960 bilateral contrasts",
+    "480 offset flags",
+    "four CSV row checks",
+    "two native/working crop checks",
+    "two shared-strip checks",
+    "same input-pixel footprint examples",
+    "six tests"
+  ],
+  "not_independently_replayed": [
+    "full 48 detailed interval rows",
+    "original full-file Git hashes",
+    "detector",
+    "candidate generation",
+    "full-pool scoring"
+  ],
+  "review_changes_repository": false,
+  "recommended_remote_followup": null
+}

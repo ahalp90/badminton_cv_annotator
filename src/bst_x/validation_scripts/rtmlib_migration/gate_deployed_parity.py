@@ -53,7 +53,7 @@ from pathlib import Path
 import numpy as np
 from _common import RAW, court_setup, deployed_parity, find_clip
 
-from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+from shared.rtmlib_pose import RtmlibPoseExtractor
 
 FMATCH_MIN = 0.85       # per-clip failed-frame agreement floor (all categories)
 MEAN_FMATCH_MIN = 0.95  # aggregate over the default representative set

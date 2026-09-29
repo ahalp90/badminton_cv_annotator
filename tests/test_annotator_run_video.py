@@ -749,6 +749,50 @@ def test_run_video_court_invalid_union_is_full_chain_only() -> None:
     assert capture.definitive_exclusion_mask[~court_present].all()
 
 
+@pytest.mark.parametrize('gap', [(0, 10), (150, 160), (290, 300)])
+@pytest.mark.parametrize('exclude_invalid', [False, True])
+@pytest.mark.parametrize('stop_early', [False, True])
+def test_run_video_excludes_scene_gaps_only_in_full_chain(
+    gap: tuple[int, int], exclude_invalid: bool, stop_early: bool,
+) -> None:
+    inputs = _synthetic_inputs()
+    n_frames = len(inputs['track'])
+    scene_inputs = _default_scene_inputs(n_frames)
+    row = scene_inputs['homography_rows'][0]
+    gap_start, gap_end = gap
+    scene_inputs['homography_rows'] = [
+        dict(row, start_frame=start, end_frame=end)
+        for start, end in [(0, gap_start), (gap_end, n_frames)]
+        if start < end
+    ]
+    scene_inputs['court_present'][gap_start:gap_end] = False
+    # Frame 120 has geometry but fails the separate court-presence check.
+    scene_inputs['court_present'][120] = False
+    gap_contact = (gap_start + gap_end) // 2
+    contact_frames = sorted([120, gap_contact, 180])
+    capture = RunCapture()
+
+    result = run_video(
+        **inputs, **scene_inputs,
+        spans=[(0, n_frames)], contacts={0: contact_frames}, capture=capture,
+        court_invalid_is_excluded=exclude_invalid,
+        stop_after_segmentation=stop_early,
+    )
+
+    assert not capture.raw_exclusion_mask.any()
+    assert [contact.contact_frame for contact in result.contacts] == contact_frames
+    if stop_early:
+        assert not capture.definitive_exclusion_mask.any()
+        assert result.filtered_contacts == []
+    else:
+        expected_mask = np.zeros(n_frames, dtype=bool)
+        expected_mask[gap_start:gap_end] = True
+        expected_mask[120] = exclude_invalid
+        np.testing.assert_array_equal(capture.definitive_exclusion_mask, expected_mask)
+        expected_contacts = [180] if exclude_invalid else [120, 180]
+        assert [contact.contact_frame for contact in result.filtered_contacts] == expected_contacts
+
+
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
     inputs = _synthetic_inputs()
     capture = RunCapture()

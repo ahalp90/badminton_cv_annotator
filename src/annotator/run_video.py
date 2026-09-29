@@ -1,9 +1,9 @@
 """GT-free annotation-chain composition for one video."""
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-import math
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -15,12 +15,15 @@ from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
 from annotator.dead_mask import build_dead_mask
 from annotator.replay_mask import filter_short_exclusion_runs
 from annotator.resolve import resolve
+from annotator.scene_courts import SceneCourt, build_scene_courts
 from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 from annotator.video_outcomes import (
     LandingHorizonRow,
     build_contact_data,
     build_hit_heights,
     build_verdict_data,
+)
+from annotator.video_outcomes import (
     scoring_filter as scoring_filter,
 )
 
@@ -347,6 +350,7 @@ def _run_court_segmentation(
     fps: float,
     court: _CourtInputs,
     homography_rows: object,
+    scene_courts: tuple[SceneCourt, ...],
     raw_exclusion_mask: np.ndarray | None,
     positions: np.ndarray | None,
     serve_start: ServeStartConfig | None,
@@ -368,6 +372,7 @@ def _run_court_segmentation(
         track, segments, court.bboxes, court.scores, court.kps, court.ndet,
         str(court.video_id), court.gate_court_info, court.gate_resolution_table,
         court.resolution, resolved.constants.body_unit_half_window,
+        scene_courts=scene_courts,
     )
 
     serve_options = None
@@ -405,15 +410,21 @@ def _run_court_segmentation(
             )
 
     assert raw_exclusion_mask is not None
+    # Full-chain contact attribution needs the geometry of its own scene.
+    usable_court_frames = np.zeros(len(track), dtype=bool)
+    for scene in scene_courts:
+        start = max(0, scene.start_frame)
+        end = max(0, min(len(track), scene.end_frame))
+        usable_court_frames[start:end] = True
+    if court_invalid_is_excluded:
+        usable_court_frames = usable_court_frames & court.court_present
     definitive_exclusion_mask = _finalize_exclusion_mask(
         raw_exclusion_mask,
         n_frames=len(track),
         replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
         capture=capture,
-        court_present=court.court_present,
-        include_court_invalid=(
-            court_invalid_is_excluded and not stop_after_segmentation
-        ),
+        court_present=usable_court_frames,
+        include_court_invalid=not stop_after_segmentation,
     )
     if contacts is None:
         final_spans, raw_contacts = rally_segmentation.segment_video(
@@ -497,8 +508,9 @@ def run_video(
     Full-chain mode also appends to caller-owned ``rejection_diagnostics`` and
     records requested ``landing_horizons_s`` in ``capture``. Horizons require a
     capture and must be finite, positive, and strictly increasing.
-    ``court_invalid_is_excluded`` adds invalid-court frames only in full-chain
-    mode, not when stopping after segmentation.
+    Full-chain mode always excludes frames outside the supplied scene geometry.
+    ``court_invalid_is_excluded`` also excludes frames where ``court_present``
+    is false. Neither exclusion is added when stopping after segmentation.
     """
     court = _CourtInputs(
         bboxes=bboxes, scores=scores, kps=kps, ndet=ndet, resolution=resolution,
@@ -541,11 +553,13 @@ def run_video(
         return _empty_result(segmentation.spans, segmentation.contacts)
 
     assert homography_rows is not None
+    scene_courts = build_scene_courts(homography_rows, court.resolution, ref_err_px)
     segmentation = _run_court_segmentation(
         track,
         fps=fps,
         court=court,
         homography_rows=homography_rows,
+        scene_courts=scene_courts,
         raw_exclusion_mask=raw_exclusion_mask,
         positions=positions,
         serve_start=serve_start,
@@ -571,6 +585,7 @@ def run_video(
         spans=segmentation.spans, contacts=segmentation.contacts,
         definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
         track=track, sticky=segmentation.sticky, bboxes=court.bboxes, net_band=net_band,
+        scene_courts=scene_courts,
     )
     verdict_data = build_verdict_data(
         track,
@@ -585,10 +600,12 @@ def run_video(
         source_codes=source_codes, rejection_diagnostics=rejection_diagnostics,
         landing_horizons_s=landing_horizons_s,
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
+        scene_courts=scene_courts,
     )
     hit_height_by_frame, hit_height_failures = build_hit_heights(
         spans=segmentation.spans, filtered_by_rally=contact_data.filtered_by_rally,
         track=track, net_band=net_band, resolution=court.resolution,
+        scene_courts=scene_courts,
     )
     return AnnotatorResult(
         spans=segmentation.spans,

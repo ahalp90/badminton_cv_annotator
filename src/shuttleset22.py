@@ -20,17 +20,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from annotator.video_metadata import VideoMetadata
+    from dataset_builder.vision import CourtDetectorSettings
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCES = REPO_ROOT / "configs" / "shuttleset22" / "sources.toml"
 DEFAULT_TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"
-DEFAULT_COURT_WEIGHTS = (
-    REPO_ROOT / "src" / "courtkeynet" / "weights" / "courtkeynet_finetuned.safetensors"
-)
-COURT_RECEIPT_SCHEMA = "shuttleset22-court/0.1"
+COURT_RECEIPT_SCHEMA = "shuttleset22-court/0.2"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
-COURT_PARENT = "detected_ckn_opencv_consensus"
 COURT_REF_ERR_PX = 3.5
 YOUTUBE_FORMAT = (
     "bv*[ext=mp4][vcodec^=avc1][fps=30][height<=1080]+ba[ext=m4a]/"
@@ -426,8 +423,7 @@ def _court_receipt_base(
     output: Path,
     metadata: VideoMetadata,
     model_identity: dict[str, object],
-    device: str,
-    resize_mode: str,
+    settings: CourtDetectorSettings,
     code_id: str,
 ) -> dict[str, object]:
     from dataset_builder.vision import pose_artifact_paths
@@ -443,12 +439,7 @@ def _court_receipt_base(
         "match_id": source.match_id,
         "video": source.video,
         "code_id": code_id,
-        "configuration": {
-            "device": device,
-            "resize_mode": resize_mode,
-            "parent": COURT_PARENT,
-            "ref_err_px": COURT_REF_ERR_PX,
-        },
+        "configuration": {**settings.configuration(), "ref_err_px": COURT_REF_ERR_PX},
         "metadata": {
             "fps_numerator": metadata.fps.numerator,
             "fps_denominator": metadata.fps.denominator,
@@ -473,6 +464,10 @@ def _validate_completed_court(
     from dataset_builder.vision import load_court_vision, load_json_gz
 
     receipt = load_json_gz(output / COURT_RECEIPT_FILENAME)
+    if receipt.get("schema") != COURT_RECEIPT_SCHEMA:
+        raise ValueError(
+            f"unsupported court receipt schema {receipt.get('schema')!r}; expected {COURT_RECEIPT_SCHEMA!r}"
+        )
     required = {*expected, "completed", "scene_count", "outputs"}
     if set(receipt) != required:
         raise ValueError(f"court receipt fields differ from {COURT_RECEIPT_SCHEMA}")
@@ -498,10 +493,8 @@ def court_source(
     *,
     source_root: Path,
     output_root: Path,
-    detector: object,
+    settings: CourtDetectorSettings,
     model_identity: dict[str, object],
-    device: str,
-    resize_mode: str,
     code_id: str,
 ) -> bool:
     """Build or validate the court stage for one previously extracted video."""
@@ -524,8 +517,7 @@ def court_source(
         output=output,
         metadata=metadata,
         model_identity=model_identity,
-        device=device,
-        resize_mode=resize_mode,
+        settings=settings,
         code_id=code_id,
     )
     receipt_path = output / COURT_RECEIPT_FILENAME
@@ -545,9 +537,9 @@ def court_source(
         video_id=str(source.match_id),
         metadata=metadata,
         pose=pose,
-        detector=detector,
+        pose_dir=output,
+        settings=settings,
         output_dir=output,
-        parent=COURT_PARENT,
         ref_err_px=COURT_REF_ERR_PX,
     )
     court = load_court_vision(
@@ -575,33 +567,21 @@ def court_sources(
     *,
     source_root: Path,
     output_root: Path,
-    court_weights: Path,
-    device: str,
-    resize_mode: str,
+    settings: CourtDetectorSettings,
     code_id: str,
-    detector_factory: Callable[..., object] | None = None,
 ) -> int:
-    """Run only PySceneDetect and CourtKeyNet over existing pose outputs."""
+    """Run the court detector program over existing pose outputs."""
     from dataset_builder.manifest import artifact_integrity
 
     if len(code_id) != 64 or any(character not in "0123456789abcdef" for character in code_id):
         raise ValueError("--code-id must be a lowercase SHA-256 digest")
-    weights = Path(court_weights).resolve(strict=True)
+    weights = Path(settings.deeplsd_weights).resolve(strict=True)
     model_identity = dict(
         artifact_integrity(
-            "courtkeynet_weights",
+            "deeplsd_weights",
             weights,
             relative_to=weights.parent,
         ).to_dict()
-    )
-    if detector_factory is None:
-        from courtkeynet.wrapper import CourtKeyNetDetector
-
-        detector_factory = CourtKeyNetDetector
-    detector = detector_factory(
-        weights_path=weights,
-        device=device,
-        resize_mode=resize_mode,
     )
     failures = 0
     for source in sources:
@@ -614,10 +594,8 @@ def court_sources(
                 source,
                 source_root=source_root,
                 output_root=output_root,
-                detector=detector,
+                settings=settings,
                 model_identity=model_identity,
-                device=device,
-                resize_mode=resize_mode,
                 code_id=code_id,
             )
         except Exception as error:
@@ -650,9 +628,12 @@ def build_parser() -> argparse.ArgumentParser:
     court = subparsers.add_parser("court")
     court.add_argument("--source-root", type=Path, required=True)
     court.add_argument("--output-root", type=Path, required=True)
-    court.add_argument("--court-weights", type=Path, default=DEFAULT_COURT_WEIGHTS)
+    court.add_argument("--court-python", type=Path, required=True)
+    court.add_argument("--deeplsd-source", type=Path, required=True)
+    court.add_argument("--deeplsd-weights", type=Path, required=True)
     court.add_argument("--device", default="cuda")
-    court.add_argument("--resize-mode", choices=("pad", "squash"), default="pad")
+    court.add_argument("--template-device", choices=("cpu", "cuda"), default="cpu")
+    court.add_argument("--reuse-courts", action="store_true")
     court.add_argument("--code-id", required=True)
     court.add_argument("--ids", type=int, nargs="+")
     return parser
@@ -673,14 +654,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             > 0
         )
     if arguments.command == "court":
+        from dataset_builder.vision import CourtDetectorSettings
+
+        settings = CourtDetectorSettings(
+            python=arguments.court_python,
+            deeplsd_source=arguments.deeplsd_source,
+            deeplsd_weights=arguments.deeplsd_weights,
+            device=arguments.device,
+            template_device=arguments.template_device,
+            reuse_courts=arguments.reuse_courts,
+        )
         return int(
             court_sources(
                 sources,
                 source_root=arguments.source_root,
                 output_root=arguments.output_root,
-                court_weights=arguments.court_weights,
-                device=arguments.device,
-                resize_mode=arguments.resize_mode,
+                settings=settings,
                 code_id=arguments.code_id,
             )
             > 0

@@ -1,0 +1,62 @@
+blend_default: 28 views, errors in none
+line_paint: 28 views, errors in none
+
+picks: outcome per arm; line paint against blend: same chosen court? / largest corner move, native px
+view	blend_default	line_paint	line paint against blend
+am1_window_00_frame_54	court	court	changed / 21.6
+am2_window_00_frame_150	court	court	changed / 5.2
+am2_window_01_frame_28019	court	court	changed / 289.9
+am3_window_00_frame_0	court	court	same / 0.0
+am3_window_02_frame_17174	court	court	same / 0.0
+gxBQ_window_00_frame_0	court	court	changed / 3.4
+gxBQ_window_00_frame_5	court	court	same / 0.0
+gxBQ_window_00_frame_689	court	court	changed / 13.2
+gxBQ_window_03_frame_77876	court	court	changed / 8.1
+letterboxed_short_frame_78	court	court	changed / 23.5
+shuttleset_03_scene_0016	court	court	changed / 0.9
+shuttleset_03_scene_0017	court	court	changed / 0.0
+shuttleset_03_scene_0019	court	court	changed / 0.7
+shuttleset_03_scene_0023	court	court	changed / 1.3
+shuttleset_03_scene_0032	court	court	same / 0.0
+shuttleset_03_scene_0034	court	court	changed / 0.7
+shuttleset_21_scene_0034	court	court	changed / 0.7
+shuttleset_21_scene_0039	court	court	changed / 1.1
+shuttleset_21_scene_0044	court	court	same / 0.0
+sset_21_gloiZ_gTJaE_frame_00000001	court	court	changed / 6.6
+sset_21_gloiZ_gTJaE_frame_00000300	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00009558	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00014336	court	court	same / 0.0
+sset_21_gloiZ_gTJaE_frame_00023893	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00038228	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00062120	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00090790	no_gated_court	no_gated_court	same / -
+sset_21_gloiZ_gTJaE_frame_00100347	court	court	changed / 21650.4
+
+agreement with the local replay: views whose chosen court or outcome differs, or whose corners
+differ by more than 0.0001 native px
+blend_default: sset_21_gloiZ_gTJaE_frame_00100347 (not replayable on the laptop)
+line_paint: sset_21_gloiZ_gTJaE_frame_00100347 (not replayable on the laptop)
+
+largest hand-mark error, floor metres: before refit / after refit
+view	blend_default	line_paint
+am1_window_00_frame_54	0.31 / 0.30	0.60 / 0.48
+am2_window_00_frame_150	0.32 / 0.24	0.26 / 0.18
+am2_window_01_frame_28019	0.69 / 0.62	0.75 / 0.76
+am3_window_00_frame_0	0.26 / 0.24	0.26 / 0.24
+am3_window_02_frame_17174	0.59 / 0.55	0.59 / 0.55
+gxBQ_window_00_frame_0	0.34 / 0.19	0.34 / 0.31
+gxBQ_window_00_frame_5	0.23 / 0.14	0.23 / 0.14
+gxBQ_window_00_frame_689	0.58 / 0.32	0.43 / 0.14
+gxBQ_window_03_frame_77876	1.40 / 1.06	0.41 / 0.35
+letterboxed_short_frame_78	0.18 / 0.12	0.22 / 0.25
+
+keep rule, after refit, line_paint against blend_default (margin 0.2 m)
+views better: gxBQ_window_03_frame_77876
+views worse: -
+total error over the marked views, blend_default: 3.79
+total error over the marked views, line_paint: 3.40
+
+detect seconds over the 28 views, self-checks on, 8 views at a time on Carmack
+upright check (W5's paint alone)	3413
+blend_default	4059	against the upright check +18.9%
+line_paint	3823	against the upright check +12.0%

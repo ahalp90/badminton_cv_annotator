@@ -1,0 +1,35 @@
+rows (scoring calls): 3369 over 23 views; full shortlists (256 kept): 2576
+exact scoring, all calls: 2601 s
+
+4 samples per marking: shortlist rebuilt identically from needed_k in 3369 of 3369 calls
+  needed_k: median 2481, max 70121 (gxBQ_window_03_frame_77876 call 39, 95916 courts)
+  needed_k / courts: median 67.4%, max 100.0% (am2_window_01_frame_28019 call 148)
+  maps and coarse pass 729 s (28% of exact); with oracle K = needed_k, two passes 1537 s (59%)
+  fixed K   1024: exact in 1102/3369 calls; two passes about 837 s (32% of exact scoring)
+  fixed K   2048: exact in 1552/3369 calls; two passes about 926 s (36% of exact scoring)
+  fixed K   4096: exact in 2089/3369 calls; two passes about 1076 s (41% of exact scoring)
+  fixed K   8192: exact in 2624/3369 calls; two passes about 1320 s (51% of exact scoring)
+  fixed K  16384: exact in 3050/3369 calls; two passes about 1689 s (65% of exact scoring)
+  fixed K  32768: exact in 3298/3369 calls; two passes about 2198 s (85% of exact scoring)
+
+8 samples per marking: shortlist rebuilt identically from needed_k in 3369 of 3369 calls
+  needed_k: median 1207, max 22863 (shuttleset_21_scene_0034 call 68, 71540 courts)
+  needed_k / courts: median 33.0%, max 100.0% (am2_window_01_frame_28019 call 120)
+  maps and coarse pass 874 s (34% of exact); with oracle K = needed_k, two passes 1117 s (43%)
+  fixed K   1024: exact in 1444/3369 calls; two passes about 985 s (38% of exact scoring)
+  fixed K   2048: exact in 2445/3369 calls; two passes about 1075 s (41% of exact scoring)
+  fixed K   4096: exact in 3099/3369 calls; two passes about 1227 s (47% of exact scoring)
+  fixed K   8192: exact in 3321/3369 calls; two passes about 1474 s (57% of exact scoring)
+  fixed K  16384: exact in 3365/3369 calls; two passes about 1847 s (71% of exact scoring)
+  fixed K  32768: exact in 3369/3369 calls; two passes about 2353 s (90% of exact scoring)
+
+16 samples per marking: shortlist rebuilt identically from needed_k in 3369 of 3369 calls
+  needed_k: median 771, max 4511 (shuttleset_03_scene_0017 call 88, 12466 courts)
+  needed_k / courts: median 19.2%, max 100.0% (am2_window_01_frame_28019 call 54)
+  maps and coarse pass 1119 s (43% of exact); with oracle K = needed_k, two passes 1237 s (48%)
+  fixed K   1024: exact in 2471/3369 calls; two passes about 1232 s (47% of exact scoring)
+  fixed K   2048: exact in 3291/3369 calls; two passes about 1325 s (51% of exact scoring)
+  fixed K   4096: exact in 3368/3369 calls; two passes about 1476 s (57% of exact scoring)
+  fixed K   8192: exact in 3369/3369 calls; two passes about 1724 s (66% of exact scoring)
+  fixed K  16384: exact in 3369/3369 calls; two passes about 2097 s (81% of exact scoring)
+  fixed K  32768: exact in 3369/3369 calls; two passes about 2573 s (99% of exact scoring)

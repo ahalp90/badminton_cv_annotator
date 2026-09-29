@@ -1,0 +1,15 @@
+largest hand-mark error before the final refit, floor metres, by geometry weight
+view	eligible	best eligible	w=0	w=0.1	w=0.2	w=0.3	w=0.5	w=0.7	w=1
+am1_window_00_frame_54	126	0.31	0.31	0.31	0.31	0.31	0.31	0.60	0.60
+am2_window_00_frame_150	295	0.22	0.32	0.32	0.32	0.32	0.27	0.27	1.32
+am2_window_01_frame_28019	241	0.46	0.69	0.69	0.75	0.75	0.75	0.74	0.74
+am3_window_00_frame_0	518	0.18	0.26	0.26	0.26	0.26	0.26	0.26	0.31
+am3_window_02_frame_17174	503	0.17	0.59	0.59	0.59	0.59	0.59	0.59	0.59
+gxBQ_window_00_frame_0	179	0.23	0.34	0.34	0.34	0.34	0.34	0.34	0.34
+gxBQ_window_00_frame_5	29	0.23	0.23	0.23	0.23	0.23	0.23	0.23	0.23
+gxBQ_window_00_frame_689	211	0.43	1.18	0.58	0.58	0.58	0.58	0.58	0.43
+gxBQ_window_03_frame_77876	78	0.41	1.40	1.40	1.40	1.40	1.40	1.22	1.22
+letterboxed_short_frame_78	696	0.17	0.18	0.18	0.18	0.18	0.18	0.22	0.22
+worst			1.40	1.40	1.40	1.40	1.40	1.22	1.32
+sum			5.51	4.91	4.98	4.98	4.92	5.07	6.01
+picks changed from w=0, all views with eligible courts			0	1	4	5	10	14	16

@@ -1,0 +1,16 @@
+1475 candidates scored, 503 passed the full-court checks
+winner G1:30:220/child: largest error 0.59 m
+191 candidates have a smaller largest error; 189 of them passed the checks
+
+largest m	median m	candidate	net-choice place	paint score	net bonus	combined score
+0.17	0.07	G1:43:708/child	84	0.4687	0.04	0.5087
+0.17	0.07	G1:43:272/child	41	0.5201	0.02	0.5401
+0.17	0.07	line_template:rectangle_53070:template_29/child	74	0.4783	0.04	0.5183
+0.17	0.08	G1:43:404/child	58	0.5068	0.02	0.5268
+0.18	0.08	G1:43:536/child	168	0.3972	0.02	0.4172
+0.18	0.05	G0:43:15360/child	10	0.5590	0.02	0.5790
+0.19	0.05	G1:43:700/child	70	0.4810	0.04	0.5210
+0.19	0.08	G1:43:264/child	118	0.4510	0.02	0.4710
+0.21	0.09	G0:43:15340/child	46	0.5158	0.02	0.5358
+0.21	0.09	G1:43:132/child	47	0.5158	0.02	0.5358
+0.59	0.17	G1:30:220/child	1	0.5808	0.04	0.6208

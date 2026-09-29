@@ -1,0 +1,59 @@
+view                                    d17 base d17 rerun d17 phases   det on  det off  rss d17  rss det
+am1_window_00_frame_54                       296       271        269      281      158     1028      948
+am2_window_00_frame_150                      186       256        244      217      212      996     1189
+am2_window_01_frame_28019                    157       244        237      217      199     1025     1093
+am3_window_00_frame_0                        283       357        345      316      330     1475     1662
+am3_window_02_frame_17174                    323       228        217      316      170     1217     1349
+gxBQ_window_00_frame_0                       659       565        559      697      445     2137     2078
+gxBQ_window_00_frame_5                       604       384        377      418      501     1785     1802
+gxBQ_window_00_frame_689                     666       630        623      505      546     1758     1925
+gxBQ_window_03_frame_77876                   737       542        536      460      496     1738     1769
+letterboxed_short_frame_78                   100        98         97       89       83      419      410
+shuttleset_03_scene_0016                     454       284        282      318      310     1847     1803
+shuttleset_03_scene_0017                     493       368        367      321      434     1743     1695
+shuttleset_03_scene_0019                     367       414        412      252      359     1520     1591
+shuttleset_03_scene_0023                     434       316        315      376      352     1744     1723
+shuttleset_03_scene_0032                     425       446        445      301      390     1664     1723
+shuttleset_03_scene_0034                     413       418        417      370      386     1722     1869
+shuttleset_21_scene_0034                     306       293        291      290      153     1142     1347
+shuttleset_21_scene_0039                     334       308        307      249      225     1130     1316
+shuttleset_21_scene_0044                     264       238        236      161      130      990     1081
+sset_21_gloiZ_gTJaE_frame_00000001           251       186        184      178      221      986     1185
+sset_21_gloiZ_gTJaE_frame_00000300            59        59         58       38       55      275      476
+sset_21_gloiZ_gTJaE_frame_00009558            55        58         57       56       51      283      487
+sset_21_gloiZ_gTJaE_frame_00014336            90        88         87       77       45      392      505
+sset_21_gloiZ_gTJaE_frame_00023893            47        50         49       53       26      286      484
+sset_21_gloiZ_gTJaE_frame_00038228            31        42         41       23       33      218      405
+sset_21_gloiZ_gTJaE_frame_00062120            60        64         63       59       38      283      482
+sset_21_gloiZ_gTJaE_frame_00090790            36        40         39       40       20      249      447
+sset_21_gloiZ_gTJaE_frame_00100347           118       134        132       62       65      497      548
+total                                       8250      7379       7288     6737     6434
+
+run_d17.py rerun phases, summed over views (s):
+  prepare_view                       27
+  populations                      4645
+  w5_record                        2531
+  net_choice                         43
+  stripe_polarity_refit              41
+
+detector checks_on stages, summed over views (s):
+  feet                                2
+  context                            24
+  directions_and_paint_filter        10
+  G0_search                        3705
+  G1_search                         682
+  line_templates                    425
+  w5                               1864
+  net_choice                         16
+  stripe_refit                        6
+
+detector checks_off stages, summed over views (s):
+  feet                                2
+  context                            20
+  directions_and_paint_filter         8
+  G0_search                        3346
+  G1_search                         785
+  line_templates                    409
+  w5                               1837
+  net_choice                         17
+  stripe_refit                        6

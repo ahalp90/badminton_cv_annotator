@@ -1,0 +1,37 @@
+   Ordered by: internal time
+   List reduced from 168 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     9456    1.764    0.000    1.888    0.000 experiments/annotator/independent_court/assignment.py:131(distances_to_segments)
+     2364    1.465    0.001    3.990    0.002 experiments/annotator/independent_court/stripe_observations.py:49(interval_evidence)
+    80341    0.973    0.000    0.973    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+      200    0.637    0.003    5.152    0.026 experiments/annotator/independent_court/stripe_observations.py:94(measure)
+      200    0.350    0.002    0.750    0.004 experiments/annotator/independent_court/stripe_observations.py:157(score_model)
+     2364    0.298    0.000    0.492    0.000 scratch/court_det_fix/w5_holistic/verifier.py:373(exclusive_sample_support)
+     2400    0.226    0.000    0.563    0.000 scratch/court_det_fix/w5_holistic/verifier.py:356(quantile_summary)
+    62536    0.192    0.000    0.192    0.000 {built-in method numpy.asarray}
+     7692    0.164    0.000    0.326    0.000 experiments/annotator/independent_court/detector.py:95(project)
+     2364    0.142    0.000    0.452    0.000 scratch/court_det_fix/w5_holistic/verifier.py:328(photometric_samples)
+      200    0.108    0.001    1.916    0.010 scratch/court_det_fix/w5_holistic/verifier.py:394(physical_marking_evidence)
+    14844    0.080    0.000    0.531    0.000 numpy/_core/_methods.py:115(_mean)
+     9456    0.077    0.000    0.077    0.000 numpy/_core/_methods.py:96(_clip)
+     8328    0.072    0.000    0.072    0.000 {built-in method numpy.zeros}
+     2364    0.067    0.000    0.070    0.000 experiments/annotator/independent_court/paint_geometry.py:44(positioned_segments)
+     7092    0.066    0.000    0.142    0.000 scratch/court_det_fix/w5_holistic/verifier.py:318(observable_points)
+     7692    0.065    0.000    0.065    0.000 {built-in method numpy._core._multiarray_umath.c_einsum}
+     7092    0.061    0.000    0.061    0.000 {remap}
+     9856    0.061    0.000    0.117    0.000 numpy/linalg/_linalg.py:2598(norm)
+     2364    0.051    0.000    0.265    0.000 numpy/lib/_function_base_impl.py:4726(_quantile)
+    14844    0.049    0.000    0.055    0.000 numpy/_core/_methods.py:73(_count_reduce_items)
+    37460    0.039    0.000    0.039    0.000 {method 'reshape' of 'numpy.ndarray' objects}
+      400    0.035    0.000    0.046    0.000 experiments/annotator/independent_court/detector.py:284(_visible_fractions)
+     4728    0.034    0.000    0.046    0.000 numpy/_core/numeric.py:323(full)
+     2364    0.031    0.000    0.031    0.000 numpy/lib/_function_base_impl.py:4594(_lerp)
+     8492    0.030    0.000    0.041    0.000 numpy/_core/numeric.py:170(ones)
+     7092    0.027    0.000    0.118    0.000 scratch/court_det_fix/wider_evaluation/measurement.py:26(sample)
+     2364    0.027    0.000    0.053    0.000 numpy/lib/_function_base_impl.py:4691(_get_indexes)
+     9456    0.021    0.000    0.121    0.000 numpy/_core/fromnumeric.py:2245(clip)
+     7097    0.019    0.000    0.102    0.000 numpy/_core/fromnumeric.py:66(_wrapreduction)
+
+
+         1135960 function calls (1134960 primitive calls) in 7.905 seconds

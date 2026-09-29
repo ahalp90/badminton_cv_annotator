@@ -10,6 +10,8 @@ from dataset_builder.features import (
     InterpolationType,
     PlayerFeatureInputs,
     clip_frames,
+    court_position_speed_mps,
+    half_court_centre_distance_m,
     interpolate_internal_gaps,
     median_absolute_deviation,
     player_rally_features,
@@ -17,6 +19,49 @@ from dataset_builder.features import (
     rally_timestamps,
     select_sticky_keypoints,
 )
+
+
+def test_court_distances_and_speed_use_metres_and_video_fps() -> None:
+    positions = np.array([
+        [[0.5, 0.25], [0.5, 0.75]],
+        [[0.6, 0.25], [0.5, 0.85]],
+        [[1.5, 0.25], [np.inf, 0.75]],
+    ])
+    provenance = np.zeros((3, 2), dtype=np.int8)
+    speed = court_position_speed_mps(positions, provenance, [(0, 3)], 25.0)
+    distance = half_court_centre_distance_m(positions)
+
+    assert np.isnan(speed[0]).all()
+    np.testing.assert_allclose(speed[1], [15.25, 33.5])
+    np.testing.assert_allclose(distance[:2], [[0.0, 0.0], [0.61, 1.34]])
+    assert distance[2, 0] == pytest.approx(6.10)
+    assert np.isnan(distance[2, 1])
+    assert np.isnan(speed[2, 1])
+
+
+def test_court_speed_excludes_cuts_gaps_and_interpolated_endpoints() -> None:
+    positions = np.zeros((10, 2, 2))
+    positions[:, :, 0] = np.arange(10)[:, None] / 100
+    provenance = np.zeros((10, 2), dtype=np.int8)
+    provenance[2, 0] = InterpolationType.LINEAR
+    positions[5, 1] = np.nan
+
+    speed = court_position_speed_mps(positions, provenance, [(0, 4), (4, 7), (8, 10)], 25.0)
+
+    # Frame 4 starts an adjacent scene; frame 7 is a court gap; frame 8 restarts.
+    assert np.isnan(speed[[0, 4, 7, 8]]).all()
+    assert np.isnan(speed[[2, 3], 0]).all()
+    assert np.isnan(speed[[5, 6], 1]).all()
+    assert np.isfinite(speed).sum() == 8
+    np.testing.assert_allclose(speed[np.isfinite(speed)], 1.525)
+
+
+def test_court_speed_validates_fps_and_provenance_shape() -> None:
+    positions = np.zeros((3, 2, 2))
+    with pytest.raises(ValueError, match="positive and finite"):
+        court_position_speed_mps(positions, np.zeros((3, 2)), [(0, 3)], 0.0)
+    with pytest.raises(ValueError, match="position_interpolation must have shape"):
+        court_position_speed_mps(positions, np.zeros(3), [(0, 3)], 25.0)
 
 
 def test_posture_signal_formula_and_nan_cases() -> None:

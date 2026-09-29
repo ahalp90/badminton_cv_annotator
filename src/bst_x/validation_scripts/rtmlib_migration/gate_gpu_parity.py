@@ -56,7 +56,7 @@ from _common import (
 from gate_deployed_parity import FMATCH_MIN, JNT_MED_MAX, POS_MED_MAX
 from gate_keypoint_value import CONF_P90_MAX, MEDIAN_MAX
 
-from preparing_data.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
+from shared.rtmlib_pose import DET_SCORE_THR, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cuda")
 # Detector keep-threshold override for calibration sweeps. This is a
