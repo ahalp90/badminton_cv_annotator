@@ -31,13 +31,24 @@ def test_real_source_list_records_downloads_overlaps_and_missing_sources() -> No
         for source in sources
         if source.kind is shuttleset22.SourceKind.UNRESOLVED
     } == {14, 45, 56}
+    assert {
+        source.match_id for source in sources if source.excluded_reason is not None
+    } == {15}
 
 
-def test_default_source_selection_excludes_overlaps_and_unavailable_sources() -> None:
+def test_default_source_selection_excludes_overlaps_unavailable_and_excluded_sources() -> None:
     selected = shuttleset22.select_sources(shuttleset22.load_sources(), ids=None)
 
-    assert len(selected) == 47
+    assert len(selected) == 46
     assert all(source.kind is shuttleset22.SourceKind.DOWNLOAD for source in selected)
+    assert 15 not in {source.match_id for source in selected}
+
+
+def test_explicit_ids_still_select_an_excluded_source() -> None:
+    (selected,) = shuttleset22.select_sources(shuttleset22.load_sources(), ids=[15])
+
+    assert selected.match_id == 15
+    assert selected.excluded_reason is not None
 
 
 def test_download_command_uses_pinned_url_and_compressed_mp4_format() -> None:
@@ -472,6 +483,6 @@ def test_main_routes_the_court_command_without_extraction_arguments(
     )
 
     assert result == 0
-    assert captured["count"] == 47
+    assert captured["count"] == 46
     assert captured["settings"] == replace(COURT_SETTINGS, reuse_courts=True)
     assert captured["code_id"] == "a" * 64

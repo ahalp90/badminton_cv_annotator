@@ -7,6 +7,9 @@ official_channel_id = "UChh-akEbUM8_6ghGVnJd6cQ"
 
 # `overlap_shuttleset_id` uses the separate, pre-existing ShuttleSet ID
 # namespace. It does not refer to another `id` in this ShuttleSet22 manifest.
+#
+# `excluded_reason` drops a video from the default corpus. Its extracts stay on
+# disk, and explicit `--ids` or `--match-id` still select it.
 [[videos]]
 id = 1
 video = "Ng_Ka_Long_Angus_Lee_Cheuk_Yiu_YONEX_Thailand_Open_2021_QuarterFinals"
@@ -117,6 +120,7 @@ video = "AN_Se_Young_Akane_YAMAGUCHI_TotalEnergies_BWF_Thomas_and_Uber_Cup_Final
 url = "https://www.youtube.com/watch?v=NfrOuB5UTdI"
 youtube_id = "NfrOuB5UTdI"
 source_kind = "download"
+excluded_reason = "Labels point to the wrong parts of the match (issue #147); kept on disk, dropped from the default corpus"
 
 [[videos]]
 id = 16
