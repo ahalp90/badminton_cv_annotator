@@ -310,7 +310,7 @@ def scene_source_for(scenes: Path | None, pyscenedetect: bool) -> SceneSource | 
 def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: Path | None,
                  scene_source: SceneSource | None, reuse_courts: bool,
                  pose_prerun: PosePrerun | None = None,
-                 court_mode: CourtMode = CourtMode.SCENE_ROBUST) -> dict[str, Any]:
+                 court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> dict[str, Any]:
     """Detect one court per scene of one video with the shared tools; return the video result.
 
     Open `tools.detector` as a context manager around one or many calls, so every
@@ -406,7 +406,7 @@ def read_manifest(path: Path) -> list[BatchVideo]:
 def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path, *,
               pyscenedetect: bool, reuse_courts: bool,
               pose_prerun: PosePrerun | None = None,
-              court_mode: CourtMode = CourtMode.SCENE_ROBUST) -> dict[str, Any]:
+              court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> dict[str, Any]:
     """Detect every manifest video with one set of models; return the batch summary.
 
     Write each finished video's result to `output_dir/videos/<id>.json.gz`, and the
@@ -486,10 +486,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
-    parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.SCENE_ROBUST,
+    parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.VIDEO_ROBUST,
                         help='scene-robust keeps each scene\'s court; video-robust may share one pooled court '
                              'across scenes of the same camera view; fast-robust pools like video-robust but '
-                             'searches only each scene\'s middle frame (default: scene-robust)')
+                             'searches only each scene\'s middle frame (default: video-robust)')
     args = parser.parse_args()
     if args.pose_prerun is not None and not args.require_people:
         parser.error('--pose-prerun requires --require-people')

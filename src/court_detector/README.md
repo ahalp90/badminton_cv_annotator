@@ -238,12 +238,12 @@ PYTHONPATH=.:src python -m court_detector.run_video \
 ### Output modes
 
 Two options control how scenes relate to each other. `--reuse-courts` defaults
-off, and `--court-mode` defaults to `scene-robust`.
+off, and `--court-mode` defaults to `video-robust`.
 
 | Option | What it does |
 | --- | --- |
-| `--court-mode scene-robust` (default) | Each scene keeps its own court |
-| `--court-mode video-robust` | After the last scene, groups scenes that show the same camera view and may give the group one shared court. Rows print only after that step |
+| `--court-mode scene-robust` | Each scene keeps its own court |
+| `--court-mode video-robust` (default) | After the last scene, groups scenes that show the same camera view and may give the group one shared court. Rows print only after that step |
 | `--court-mode fast-robust` | Searches only each scene's middle frame, then pools matching views with at least three independent scene fits. Keeps the best complete court unless the pooled fit scores higher |
 | `--reuse-courts` | While scenes run in order, tries to carry an earlier court into a returning view, checked against the new scene. Otherwise it searches afresh |
 
@@ -262,7 +262,7 @@ config key controls `--reuse-courts`; both supplied configs,
 [shuttleset_fixed.toml](../../configs/dataset_builder/shuttleset_fixed.toml)
 and [trial.toml](../../configs/dataset_builder/trial.toml), turn it on. The
 optional `vision.court_mode` key sets `--court-mode` and defaults to
-`scene-robust`. To use `fast-robust`, also set `court_reuse_courts = false`.
+`video-robust`. To use `fast-robust`, also set `court_reuse_courts = false`.
 
 Both supplied configurations read the court interpreter from
 `BADMINTON_COURT_PYTHON`; set it to the absolute path of the court environment's

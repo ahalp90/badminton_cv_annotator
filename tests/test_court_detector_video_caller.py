@@ -51,6 +51,8 @@ class Lines:
 
 
 class Detector:
+    live = None
+
     def __init__(self, switches: Switches | None = None) -> None:
         self.switches = switches or Switches()
         self.views: list[ViewInputs] = []
@@ -232,7 +234,7 @@ def test_cli_uses_live_optional_or_saved_people(
     assert tools.extractor_loads == (['cuda'] if people_source is People else [])
     assert result['require_people'] is ('--no-require-people' not in flag)
     assert result['saved_people'] is (people_source is PoseArrays)
-    assert (result['court_mode'], result['reuse_courts']) == (CourtMode.SCENE_ROBUST, False)
+    assert (result['court_mode'], result['reuse_courts']) == (CourtMode.VIDEO_ROBUST, False)
     # Without scene options the whole video is one scene.
     assert [(row['start_frame'], row['end_frame'], row['frame_index']) for row in result['scenes']] == [(0, 100, 50)]
     assert result['scenes'][0]['status'] == 'no_court'
@@ -254,9 +256,9 @@ class CourtDetectorStandIn(Detector):
         return CourtResult(view.view_id, corners, None, 'searched', None, .9, scene=scene)
 
 
-@pytest.mark.parametrize('mode', list(CourtMode))
+@pytest.mark.parametrize('mode', [None, *CourtMode])
 def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: CourtMode,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: CourtMode | None,
 ) -> None:
     tools = LiveTools(monkeypatch, CourtDetectorStandIn)
     # Four-second scenes fit the feet window, so the endpoint frames are on offer.
@@ -284,7 +286,8 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
     monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(output), '--people',
                                      str(write_poses(tmp_path / 'poses', VideoFileFrames.frame_count)),
                                      '--saved-lines', str(write_json_gz(tmp_path / 'lines.json.gz', {})),
-                                     '--scenes', str(scenes), '--court-mode', str(mode)])
+                                     '--scenes', str(scenes), *([] if mode is None else ['--court-mode', str(mode)])])
+    mode = CourtMode.VIDEO_ROBUST if mode is None else mode
 
     assert run_video.main() == 0
     result = read_json_gz(output)

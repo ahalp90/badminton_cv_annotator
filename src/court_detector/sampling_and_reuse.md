@@ -11,9 +11,9 @@ These options decide how scenes relate to each other:
 
 | Behaviour | Option | When it acts | What a scene can end up with |
 | --- | --- | --- | --- |
-| Scene-robust (default) | `--court-mode scene-robust` | Per scene | Its own searched or composed court |
+| Scene-robust | `--court-mode scene-robust` | Per scene | Its own searched or composed court |
 | Chronological reuse | `--reuse-courts` | Per scene, in time order, before the search | An earlier scene's court, refitted and checked in this scene |
-| Video-robust | `--court-mode video-robust` | Once, after every scene has finished | One court shared by scenes of the same camera view, or its own court |
+| Video-robust (default) | `--court-mode video-robust` | Once, after every scene has finished | One court shared by scenes of the same camera view, or its own court |
 | Fast-robust | `--court-mode fast-robust` | Fits each middle frame, then pools after every scene has finished | A pooled court, the best complete middle-frame court, or its own middle-frame court |
 
 Reuse and video-robust mode are independent and can run together. Both are

@@ -541,7 +541,7 @@ def test_court_detector_command_launches_the_program_with_saved_poses() -> None:
         "/venv/bin/python", "-m", "court_detector.run_video",
         "--video", "video.mp4", "--people", "pose",
         "--deeplsd-source", "deeplsd", "--deeplsd-weights", "deeplsd/weights/deeplsd_md.tar",
-        "--device", "cuda", "--template-device", "cpu", "--court-mode", "scene-robust",
+        "--device", "cuda", "--template-device", "cpu", "--court-mode", "video-robust",
         "--output", "out.json.gz", "--pyscenedetect",
     ]
     reused = vision.court_detector_command(
@@ -553,11 +553,11 @@ def test_court_detector_command_launches_the_program_with_saved_poses() -> None:
     assert reused[-3:] == ["--scenes", "scenes.json.gz", "--reuse-courts"]
     assert "--pyscenedetect" not in reused
     assert reused[reused.index("--template-device") + 1] == "cuda"
-    pooled = vision.court_detector_command(
-        replace(_settings(Path("python")), court_mode="video-robust"),
+    per_scene = vision.court_detector_command(
+        replace(_settings(Path("python")), court_mode="scene-robust"),
         video_path=Path("v"), pose_dir=Path("p"), output_path=Path("o"),
     )
-    assert pooled[pooled.index("--court-mode") + 1] == "video-robust"
+    assert per_scene[per_scene.index("--court-mode") + 1] == "scene-robust"
 
 
 def test_run_court_detector_runs_a_separate_program_and_loads_its_result(
