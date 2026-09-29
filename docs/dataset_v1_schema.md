@@ -1011,10 +1011,6 @@ One note per artifact name that can appear in the `primitive_artifacts` table. T
 | `posture_interpolation` | derived | (frame_count, 2) int8. interpolation_type per posture frame: 0 observed, 1 linear, 2 backward extrapolated (never emitted in v1). |
 | `position_interpolation` | derived | (frame_count, 2) int8. interpolation_type per court_position frame, same codes as posture_interpolation. |
 
-When no scene passes the court stage, it saves `court_failure.json.gz` in that
-video's court output folder. This records each scene's detector status, rejection
-reason and person-vote count. The video remains excluded from annotation.
-
 ### Feature dispositions
 
 Every trial feature and where it ended up. Exported columns are named as `table.column`. A feature with no columns is absent from v1.
@@ -1051,6 +1047,10 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Net-game share, clear share, backhand proportion, forced-to-unforced error ratio, shot-outcome success by type, footwork-to-shot coupling, hit height, shot-selection deception | out_of_scope | none | Outside the trial. No gate planned. |
 
 <!-- dictionary:end -->
+
+When no scene passes the court stage, it saves `court_failure.json.gz` in that
+video's court output folder. This records each scene's detector status, rejection
+reason and person-vote count. The video remains excluded from annotation.
 
 ## Provenance
 
