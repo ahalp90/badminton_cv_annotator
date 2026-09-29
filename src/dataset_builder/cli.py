@@ -111,6 +111,7 @@ class BuilderConfig:
     court_device: str
     court_template_device: str
     court_reuse_courts: bool
+    court_mode: str
     commentary_enabled: bool
     commentary_provider: str
     commentary_triage_model: str
@@ -216,6 +217,8 @@ class ReplayPipelineRuntime(PipelineRuntime, Protocol):
 
 def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderConfig:
     """Read and strictly validate one dataset-builder TOML configuration."""
+    from dataset_builder.vision import COURT_MODES
+
     with Path(path).open("rb") as handle:
         payload = tomllib.load(handle)
     expected_sections = {"run", "search", "environment", "models", "vision", "commentary"}
@@ -236,6 +239,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
             "tracknet_large_video", "tracknet_input_mode", "pose_device", "pose_n_max",
             "pose_shards", "court_device", "court_template_device", "court_reuse_courts",
         },
+        optional_fields=frozenset({"court_mode"}),
     )
     commentary = _section(
         payload,
@@ -326,6 +330,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
             vision["court_template_device"], {"cpu", "cuda"}, "vision.court_template_device",
         ),
         court_reuse_courts=_boolean(vision["court_reuse_courts"], "vision.court_reuse_courts"),
+        court_mode=_choice(vision.get("court_mode", COURT_MODES[0]), set(COURT_MODES), "vision.court_mode"),
         commentary_enabled=_boolean(commentary["enabled"], "commentary.enabled"),
         commentary_provider=_choice(
             commentary["provider"],
@@ -652,9 +657,10 @@ def _section(
     payload: Mapping[str, object],
     name: str,
     expected_fields: set[str],
+    optional_fields: frozenset[str] = frozenset(),
 ) -> Mapping[str, object]:
     section = _object(payload.get(name), name)
-    _exact_fields(section, expected_fields, name)
+    _exact_fields(section, expected_fields | (optional_fields & set(section)), name)
     return section
 
 

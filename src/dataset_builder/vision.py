@@ -54,6 +54,9 @@ COURT_FAILURE_FILENAME = "court_failure.json.gz"
 COURT_KEEP_VOTE_FILENAME = "court_keep_vote.npy.xz"
 COURT_PRESENT_FILENAME = "court_present.npy.xz"
 COURT_DETECTOR_RESULT_FILENAME = "court_detector_result.json.gz"
+# court_detector.view_pool.CourtMode's values; the default comes first. The detector
+# runs in its own interpreter, so this module does not import it.
+COURT_MODES = ("scene-robust", "video-robust")
 POSE_FILENAMES = {
     "kps": "pose_kps.npy.xz", "bboxes": "pose_bboxes.npy.xz", "scores": "pose_scores.npy.xz",
     "kp_scores": "pose_kp_scores.npy.xz", "ndet": "pose_ndet.npy.xz",
@@ -112,10 +115,12 @@ class CourtDetectorSettings:
     device: str  # DeepLSD device
     template_device: str  # line-template scoring device
     reuse_courts: bool  # try earlier fully searched courts before a full search
+    court_mode: str = COURT_MODES[0]  # run_video --court-mode
 
     def configuration(self) -> dict[str, object]:
         """The settings that can change detected courts, for fingerprints and receipts."""
-        return {"device": self.device, "template_device": self.template_device, "reuse_courts": self.reuse_courts}
+        return {"device": self.device, "template_device": self.template_device, "reuse_courts": self.reuse_courts,
+                "court_mode": self.court_mode}
 
 
 @dataclass(frozen=True)
@@ -416,6 +421,7 @@ def court_detector_command(
         "--deeplsd-weights", os.fspath(settings.deeplsd_weights),
         "--device", settings.device,
         "--template-device", settings.template_device,
+        "--court-mode", settings.court_mode,
         "--output", os.fspath(output_path),
     ]
     if scenes_path is None:

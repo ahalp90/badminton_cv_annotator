@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from concurrent.futures import ProcessPoolExecutor
 
+    from .composition import UsedFrame
     from .reuse import KnownCourt
 
 DIRECTION_BUDGET = 16
@@ -76,6 +77,19 @@ class Switches:
 
 
 @dataclass(frozen=True)
+class SceneCourts:
+    """A scene's finished courts in its middle frame, for pooling across a video's views (view_pool.py)."""
+
+    context: Any  # measurements.ViewContext of the middle frame, frozen
+    native_frame: np.ndarray  # the middle frame, read-only
+    corners_native_px: np.ndarray  # (4, 2) the scene's court: searched, reused or composite
+    middle_corners_native_px: np.ndarray  # (4, 2) the middle frame's own court, before composition
+    middle_score: dict[str, Any] | None = None  # composition.own_frame_score of that court, when it ran
+    composite_measurement: dict[str, Any] | None = None  # an accepted composite's check_in_frame measurement
+    used_frames: tuple[UsedFrame, ...] = ()  # an accepted composite's frames; empty for every other court
+
+
+@dataclass(frozen=True)
 class CourtResult:
     view_id: str
     corners_native_px: np.ndarray | None  # (4, 2); None means no court
@@ -86,6 +100,7 @@ class CourtResult:
     reused_from: str | None = None  # source view ID; reused courts must not become reuse templates
     # With endpoint views: which court the scene kept and why; see CourtDetector.compose
     composition: dict[str, Any] | None = None
+    scene: SceneCourts | None = None  # with a court; not part of the saved output
 
 
 class LiveModules(NamedTuple):
@@ -262,8 +277,10 @@ class CourtDetector:
                     if attempt.court is not None:
                         court = attempt.court
                         laps.lap("reuse")
+                        scene = SceneCourts(prepared.context, prepared.native_frame, court.corners_native_px,
+                                            court.corners_native_px)
                         result = CourtResult(view.view_id, court.corners_native_px, None, "reuse", None,
-                                             court.paint_score, court.source_view_id)
+                                             court.paint_score, court.source_view_id, scene=scene)
                         return self.finish(result, laps, artefacts)
                 laps.lap("reuse")
             result = self.search_and_choose(prepared, laps, artefacts)
@@ -273,6 +290,10 @@ class CourtDetector:
             # Building the endpoint inputs stays outside the fit-error boundary, so bad
             # lines or people still stop the video.
             result = self.compose(prepared, result, endpoint_views(), feet_window.all_feet_px, laps, artefacts)
+        elif result.corners_native_px is not None:
+            scene = SceneCourts(prepared.context, prepared.native_frame, result.corners_native_px,
+                                result.corners_native_px)
+            result = dataclasses.replace(result, scene=scene)
         return self.finish(result, laps, artefacts)
 
     def prepare(self, view: ViewInputs, all_feet_px: list[list]) -> PreparedView:
@@ -351,10 +372,16 @@ class CourtDetector:
                    "fallback_reason": record["fallback_reason"], "reference": record.get("reference"),
                    "used_frames": record.get("used_frames", []), "endpoints": endpoints, "errors": errors,
                    "middle_chosen_key": middle_result.chosen_key}
+        middle_score = next((row for row in record.get("scores", []) if row["role"] == composition.MIDDLE), None)
+        scene = SceneCourts(middle.context, middle.native_frame, middle_result.corners_native_px,
+                            middle_result.corners_native_px, middle_score)
         if composite is None:
-            return dataclasses.replace(middle_result, composition=summary)
+            return dataclasses.replace(middle_result, composition=summary, scene=scene)
+        scene = dataclasses.replace(scene, corners_native_px=composite.corners_native_px,
+                                    composite_measurement=record["middle"]["measurement"],
+                                    used_frames=composite.used_frames)
         return CourtResult(middle.view.view_id, composite.corners_native_px, None, composition.COMPOSITE_KEY, None,
-                           composite.paint_score, composition=summary)
+                           composite.paint_score, composition=summary, scene=scene)
 
     def finish(self, result: CourtResult, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
         """Save diagnostics and attach timings for searched and reused courts alike."""

@@ -234,7 +234,8 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
     def compose_scene(live, frames, **settings):
         composed.append((frames, settings))
         return composition.Composite(COMPOSITE_CORNERS, .6), {"fallback_reason": None, "reference": "first",
-                                                              "used_frames": ["first", "middle"]}
+                                                              "used_frames": ["first", "middle"],
+                                                              "middle": {"measurement": {"paint_score": .6}}}
 
     monkeypatch.setattr(composition, "compose_scene", compose_scene)
     requested = []
@@ -250,6 +251,12 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
         assert requested == [] and composed == [] and result.composition is None
         assert calls["searched"] == ([] if route == "reused" else ["middle"])
         assert result.reused_from == ("earlier" if route == "reused" else None)
+        # The video pool gets each court's middle frame, and nothing to donate without a composite.
+        if route == "no_court":
+            assert result.scene is None
+        else:
+            assert result.scene is not None and result.scene.used_frames == ()
+            np.testing.assert_array_equal(result.scene.middle_corners_native_px, MIDDLE_CORNERS)
         return
     assert requested == [True]
     # Each frame gets its own context, all with the middle frame's feet.
@@ -265,6 +272,10 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
     assert result.composition == {"court": "composite", "fallback_reason": None, "reference": "first",
                                   "used_frames": ["first", "middle"], "endpoints": {"first": "court", "last": "court"},
                                   "errors": {}, "middle_chosen_key": "middle_key"}
+    scene = result.scene
+    assert scene is not None and scene.composite_measurement == {"paint_score": .6}
+    np.testing.assert_array_equal(scene.corners_native_px, COMPOSITE_CORNERS)
+    np.testing.assert_array_equal(scene.middle_corners_native_px, MIDDLE_CORNERS)
     assert result.stage_seconds is not None
     assert list(result.stage_seconds)[-4:] == ["endpoint_inputs", "first_frame_search", "last_frame_search",
                                                "composition"]

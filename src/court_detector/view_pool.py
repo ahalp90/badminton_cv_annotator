@@ -1,0 +1,324 @@
+"""Pool scene composites across a video's returning camera views, then refit once per view.
+
+Video-robust mode (run_video --court-mode video-robust) runs this after every scene
+has its scene-robust court, so no court changes until the video is done.
+
+1. Groups. Each scene with a court joins the first group whose fixed reference it
+   matches, or becomes a new group's reference. A perceptual hash within
+   court_views.MAX_HASH_DISTANCE only shortlists a group. composition.align must then
+   give a usable warp and the same camera. Members align to the reference directly,
+   never through another member.
+2. Donors. A scene whose fresh search ended in an accepted composite donates the
+   frames that won its markings, with their observed samples and stripe assignments.
+   Reused, middle-frame and fallback courts donate nothing. The donors are carried
+   into the reference's pixels and turned to its court's orientation. Each marking
+   keeps the donor with the most q_paint10 across the group; exact ties keep the
+   earlier scene.
+3. Fit. A group with MIN_DONOR_SCENES independent composites gets one stripe fit to
+   its kept donors' samples, starting from the reference's court. One scene may win
+   every marking; the pool does not require a mixture of scenes.
+4. Output. A valid pooled court replaces each member's court that passes that
+   member's own checks (composition.check_in_frame, with its feet). A member that
+   fails keeps its scene court, as does every member of a group whose fit fails.
+5. Scores. In every member's middle frame, the pooled court, the scene's court and
+   the middle frame's court before composition get the net choice's combined score.
+   The scores are reported for comparison only; they never choose the output. A
+   missing score term stays missing, and a mean over members is reported only when
+   every member has that court's score.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import logging
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
+import cv2
+import numpy as np
+
+from annotator import court_views
+from shared.court_model import CORNER_COURT_M
+
+from . import composition, net_choice
+from .detect import MAX_HORIZON_TILT_DEG, NET_OVERRUN_WORKING_PX
+from .line_observations import MARKINGS
+
+if TYPE_CHECKING:
+    from .detect import LiveModules, SceneCourts, Switches
+    from .measurements import ViewContext
+
+logger = logging.getLogger(__name__)
+
+
+class CourtMode(StrEnum):
+    SCENE_ROBUST = "scene-robust"  # each scene keeps its own court
+    VIDEO_ROBUST = "video-robust"  # scenes of one camera view may share a pooled court
+
+
+POOLED_KEY = "video_pool"  # chosen_key of a pooled court
+# The courts each member's scores compare
+COMPARED_COURTS = ("pooled", "scene", "middle")
+MIN_DONOR_SCENES = 2
+
+
+@dataclass(frozen=True)
+class Member:
+    """A scene in a view group. It keeps its middle frame's context, not its native image."""
+
+    row: dict[str, Any]  # the scene's output row; apply() updates it
+    context: ViewContext  # the middle frame's, for the final checks and scores
+    to_reference: np.ndarray  # (3, 3) this middle frame's working px to the reference's
+    alignment: dict[str, Any] | None  # composition.align's record; None for the reference itself
+    scene_corners: np.ndarray  # (4, 2) native px
+    middle_corners: np.ndarray  # (4, 2) native px
+    middle_score: dict[str, Any] | None  # composition.own_frame_score of middle_corners, when it ran
+    composite_measurement: dict[str, Any] | None  # the scene composite's middle-frame measurement
+
+
+@dataclass(frozen=True)
+class Donor:
+    view_id: str  # the donor scene's middle view
+    used: composition.UsedFrame  # to_reference and corners in the group reference's pixels and orientation
+
+
+@dataclass
+class ViewGroup:
+    reference: composition.SearchedFrame  # the first member's middle frame and scene court; fixed
+    image_hash: np.ndarray
+    members: list[Member] = field(default_factory=list)
+    donors: list[Donor | None] = field(default_factory=lambda: [None] * len(MARKINGS))  # one per marking
+    # Independent composites considered, including those that win no markings.
+    donor_view_ids: list[str] = field(default_factory=list)
+
+
+def image_hash(native_frame: np.ndarray) -> np.ndarray:
+    return court_views.describe_court_view([native_frame]).hashes[0]
+
+
+def q_paint(used: composition.UsedFrame, marking: int) -> float:
+    return used.evidence["markings"][marking]["q_paint10"]
+
+
+def score_row(paint: float | None, geometry: float | None, net_reward: float, geometry_weight: float) -> dict:
+    """composition's combined score terms. A missing paint or geometry score leaves no combined score."""
+    row: dict[str, Any] = {"paint_score": paint, "geometry_score": geometry, "net_reward": net_reward}
+    if paint is not None and geometry is not None:
+        row.update(composition.score_parts(paint, geometry, net_reward, geometry_weight))
+    return row
+
+
+def scene_donors(live: LiveModules, used_frames: tuple[composition.UsedFrame, ...], to_group: np.ndarray,
+                 reference: composition.SearchedFrame) -> list[composition.UsedFrame | None]:
+    """A composite's winning frames, carried into the group reference and turned to its court.
+
+    :param to_group: (3, 3) the scene's middle frame working px to the group reference's.
+    :return: Each marking's donor in the group's orientation, or None.
+    """
+    middle = next(item for item in used_frames if item.frame.role == composition.MIDDLE)
+    # Scene-reference px back to the scene's middle frame, then on to the group reference.
+    scene_to_group = to_group @ np.linalg.inv(middle.to_reference)
+    reference_working = reference.corners_native / reference.native_per_working
+    winners = composition.choose_donors(list(used_frames))
+    turned = []
+    for used in used_frames:
+        if not any(used is winner for winner in winners):
+            continue
+        to_reference = scene_to_group @ used.to_reference
+        own_working = used.corners_native / used.frame.native_per_working
+        roll = composition.half_turn_roll(composition.carry(own_working, to_reference), reference_working)
+        if roll == 0:
+            turned.append(dataclasses.replace(used, to_reference=to_reference))
+            continue
+        # A turned court names each painted line by the opposite marking, so measure it again.
+        corners = np.roll(used.corners_native, roll, axis=0)
+        turned.append(composition.UsedFrame(used.frame, to_reference, corners,
+                                            composition.measure(live, used.frame, corners)))
+    return composition.choose_donors(turned)
+
+
+def pooled_constraints(donors: list[Donor | None]) -> tuple[composition.stripe_fitting.Constraints, list[dict]]:
+    """Every kept donor's samples on its markings, in the group reference's working px.
+
+    :return: The joined constraints, and one row per marking naming its donor.
+    """
+    parts, summaries, seen = [], {}, []
+    for donor in donors:
+        if donor is None or any(donor.used is used for used in seen):
+            continue
+        seen.append(donor.used)
+        markings = [marking for marking, other in enumerate(donors) if other is not None and other.used is donor.used]
+        part, summary = composition.donated_constraints(donor.used, markings)
+        parts.append(part)
+        summaries.update(summary)
+    rows = []
+    for marking, name in enumerate(MARKINGS):
+        donor = donors[marking]
+        if donor is None:
+            rows.append({"marking": name, "donor_view_id": None})
+            continue
+        rows.append({"marking": name, "donor_view_id": donor.view_id, "donor_role": donor.used.frame.role,
+                     "q_paint10": q_paint(donor.used, marking), **summaries[marking]})
+    return composition.joined(parts), rows
+
+
+def replace_court(row: dict[str, Any], corners: np.ndarray, chosen_key: str, reused_from: str | None) -> None:
+    """Replace a row's court and keep the scene's court beside it."""
+    row.update(scene_corners_native_px=row["corners_native_px"], scene_chosen_key=row["chosen_key"],
+               scene_reused_from=row["reused_from"], corners_native_px=np.asarray(corners).tolist(),
+               chosen_key=chosen_key, reused_from=reused_from)
+
+
+class VideoPool:
+    """Group a video's scene courts by camera view as they finish, then apply pooled courts at the end."""
+
+    def __init__(self, live: LiveModules, switches: Switches) -> None:
+        self.live = live
+        self.switches = switches
+        self.groups: list[ViewGroup] = []
+
+    def add(self, row: dict[str, Any], scene: SceneCourts) -> None:
+        """Place one scene's court in a view group. Call it for each scene with a court, in video order.
+
+        A failure leaves this scene out of every group, logs it and records it on the row.
+        """
+        try:
+            self.join(row, scene)
+        except (ValueError, ArithmeticError) as error:
+            logger.exception("%s: could not join a view group; keeping the scene court", row["view_id"])
+            row["view_pool"] = {"error": repr(error)}
+
+    def join(self, row: dict[str, Any], scene: SceneCourts) -> None:
+        frame = composition.SearchedFrame(composition.MIDDLE, scene.native_frame, scene.context,
+                                          np.asarray(scene.corners_native_px, dtype=float), None)
+        hashed = image_hash(scene.native_frame)
+        group, alignment, to_reference = None, None, np.eye(3)
+        for candidate in self.groups:
+            if np.mean(hashed != candidate.image_hash) > court_views.MAX_HASH_DISTANCE:
+                continue
+            record, warp = composition.align(frame, candidate.reference)
+            if warp is not None and record["same_camera"]:
+                group, alignment, to_reference = candidate, record, warp
+                break
+        new_group = group is None
+        if group is None:
+            group = ViewGroup(frame, hashed)
+        # Measure everything before changing the group, so a failure leaves it as it was.
+        winners = []
+        if scene.used_frames:
+            winners = scene_donors(self.live, scene.used_frames, to_reference, group.reference)
+        if new_group:
+            self.groups.append(group)
+        group.members.append(Member(row, scene.context, to_reference, alignment, frame.corners_native,
+                                    np.asarray(scene.middle_corners_native_px, dtype=float), scene.middle_score,
+                                    scene.composite_measurement))
+        if not scene.used_frames:
+            return
+        for marking, used in enumerate(winners):
+            known = group.donors[marking]
+            if used is not None and (known is None or q_paint(used, marking) > q_paint(known.used, marking)):
+                group.donors[marking] = Donor(row["view_id"], used)
+        group.donor_view_ids.append(row["view_id"])
+
+    def apply(self) -> list[dict[str, Any]]:
+        """Fit and apply one pooled court per group with enough donor scenes.
+
+        :return: One summary per group. A group that fails logs it and keeps its scene courts.
+        """
+        summaries = []
+        for group in self.groups:
+            summary: dict[str, Any] = {
+                "reference_view_id": group.members[0].row["view_id"],
+                "member_view_ids": [member.row["view_id"] for member in group.members],
+                "donor_view_ids": group.donor_view_ids, "pooled_view_ids": [], "reason": None,
+            }
+            if len(group.donor_view_ids) < MIN_DONOR_SCENES:
+                summary["reason"] = "too_few_donor_scenes"
+            else:
+                try:
+                    self.pool_group(group, summary)
+                except (ValueError, ArithmeticError) as error:
+                    logger.exception("%s: pooled court failed; keeping the scene courts", summary["reference_view_id"])
+                    summary.update(reason="pooling_failed", error=repr(error))
+            summaries.append(summary)
+        return summaries
+
+    def pool_group(self, group: ViewGroup, summary: dict[str, Any]) -> None:
+        """Fit the group's pooled court, check and score it in every member, and apply it where it passes.
+
+        Rows change only after every member is measured, so a failure changes none.
+        """
+        reference = composition.UsedFrame(group.reference, np.eye(3), group.reference.corners_native, {})
+        constraints, summary["markings"] = pooled_constraints(group.donors)
+        fit = composition.fit_in_reference(self.live, reference, constraints)
+        summary["fit"] = {"status": fit["status"], "sample_count": len(constraints.points), "valid": fit["valid"],
+                          "validity_reason": fit["validity_reason"],
+                          "corners_reference_native_px": fit.get("corners_native_px")}
+        if not fit["valid"]:
+            summary["reason"] = f"fit_{fit['validity_reason']}"
+            return
+        pooled_reference = np.asarray(fit["corners_native_px"], dtype=float)
+        outcomes = [self.member_outcome(group, member, pooled_reference) for member in group.members]
+        means: dict[str, float | None] = {}
+        for court in COMPARED_COURTS:
+            scores = [outcome["scores"][court].get("combined_score") for outcome in outcomes]
+            means[court] = None if None in scores else float(np.mean(scores))
+        summary["mean_combined_scores"] = means
+        for member, outcome in zip(group.members, outcomes, strict=True):
+            pooled = outcome["pooled_rejection"] is None
+            member.row["view_pool"] = {
+                "reference_view_id": summary["reference_view_id"], "alignment": member.alignment,
+                "court": "pooled" if pooled else "scene", "pooled_rejection": outcome["pooled_rejection"],
+                "pooled_corners_native_px": outcome["pooled_corners"].tolist(), "scores": outcome["scores"],
+            }
+            if pooled:
+                replace_court(member.row, outcome["pooled_corners"], POOLED_KEY, None)
+                summary["pooled_view_ids"].append(member.row["view_id"])
+
+    def member_outcome(self, group: ViewGroup, member: Member, pooled_reference: np.ndarray) -> dict[str, Any]:
+        """The pooled court in this member's middle frame and corner order, its checks, and all three scores."""
+        working = pooled_reference / group.reference.native_per_working
+        carried = composition.carry(working, np.linalg.inv(member.to_reference)) * composition.native_per_working(
+            member.context)
+        pooled = np.roll(carried, composition.half_turn_roll(carried, member.scene_corners), axis=0)
+        measurement, rejection = composition.check_in_frame(
+            self.live, member.context, pooled, require_people=self.switches.require_people,
+            max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
+        )
+        weight = self.switches.geometry_weight
+        if measurement is None:
+            pooled_score = {}
+        else:
+            pooled_score = score_row(measurement["paint_score"], measurement["geometry_score"],
+                                     self.net_reward(member.context, pooled), weight)
+        if member.middle_score is None:
+            middle_score = self.measured_score(member.context, member.middle_corners)
+        else:
+            known = member.middle_score
+            middle_score = score_row(known["paint_score"], known["geometry_score"], known["net_reward"], weight)
+        if member.composite_measurement is not None:
+            known = member.composite_measurement
+            scene_score = score_row(known["paint_score"], known["geometry_score"],
+                                    self.net_reward(member.context, member.scene_corners), weight)
+        elif np.array_equal(member.scene_corners, member.middle_corners):
+            scene_score = middle_score
+        else:
+            scene_score = self.measured_score(member.context, member.scene_corners)
+        return {"pooled_corners": pooled, "pooled_rejection": rejection,
+                "scores": {"pooled": pooled_score, "scene": scene_score, "middle": middle_score}}
+
+    def net_reward(self, context: ViewContext, corners_native: np.ndarray) -> float:
+        net_state, posts = net_choice.net_posts(corners_native, context)
+        return net_choice.net_reward(net_state, posts, NET_OVERRUN_WORKING_PX)
+
+    def measured_score(self, context: ViewContext, corners_native: np.ndarray) -> dict[str, Any]:
+        """A court's combined score in a frame, measured as composition.own_frame_score measures it."""
+        live = self.live
+        working = np.asarray(corners_native, dtype=float) / composition.native_per_working(context)
+        homography = cv2.getPerspectiveTransform(CORNER_COURT_M, working.astype(np.float32)).astype(float)
+        entry = {"homography_working": homography}
+        with live.prepared_measurements(live.verifier):
+            evidence, _ = live.verifier.measure_candidate(context, entry, {})
+        return score_row(evidence["q_paint10_span_weighted"], evidence["q_geom_span_weighted"],
+                         self.net_reward(context, corners_native), self.switches.geometry_weight)

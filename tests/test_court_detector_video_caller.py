@@ -17,12 +17,14 @@ from court_detector import feet, run_video
 from court_detector.detect import (
     CourtDetector,
     CourtResult,
+    SceneCourts,
     Switches,
 )
 from court_detector.inputs import PersonSample, ViewInputs, same_frame_provenance
 from court_detector.run_video import scene_courts, validate_scenes
 from court_detector.scene_sources import SceneInfo
 from court_detector.video_inputs import PoseArrays
+from court_detector.view_pool import CourtMode
 
 
 class Frames:
@@ -236,6 +238,64 @@ def test_cli_uses_live_optional_or_saved_people(
     # One pool serves every scene.
     assert tools.detectors[0].events == ['open', 'detect', 'close']
     assert isinstance(tools.detectors[0].people_sources[0], people_source)
+
+
+class CourtDetectorStandIn(Detector):
+    """Finds a court in every scene and hands the video pool its scene state."""
+
+    live = None
+
+    def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
+        self.events.append('detect')
+        corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
+        scene = SceneCourts(None, view.frame, corners, corners)
+        return CourtResult(view.view_id, corners, None, 'searched', None, .9, scene=scene)
+
+
+@pytest.mark.parametrize('mode', list(CourtMode))
+def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: CourtMode,
+) -> None:
+    LiveTools(monkeypatch, CourtDetectorStandIn)
+    pools = []
+
+    class Pool:
+        def __init__(self, live: object, switches: Switches) -> None:
+            self.rows: list[dict] = []
+            pools.append(self)
+
+        def add(self, row: dict, scene: SceneCourts) -> None:
+            # Nothing prints before every scene has joined the pool.
+            assert capsys.readouterr().out == ''
+            self.rows.append(row)
+
+        def apply(self) -> list[dict]:
+            self.rows[0]['corners_native_px'] = 'pooled'
+            return [{'reference_view_id': self.rows[0]['view_id']}]
+
+    monkeypatch.setattr(run_video, 'VideoPool', Pool)
+    scenes = write_json_gz(tmp_path / 'scenes.json.gz', [[0, 50], [50, 100]])
+    output = tmp_path / 'result.json.gz'
+    monkeypatch.setattr('sys.argv', ['run_video', '--video', 'input.mp4', '--output', str(output), '--people',
+                                     str(write_poses(tmp_path / 'poses', VideoFileFrames.frame_count)),
+                                     '--saved-lines', str(write_json_gz(tmp_path / 'lines.json.gz', {})),
+                                     '--scenes', str(scenes), '--court-mode', str(mode),
+                                     # Two-second scenes are too short for the feet window.
+                                     '--no-require-people'])
+
+    assert run_video.main() == 0
+    result = read_json_gz(output)
+    printed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert result['court_mode'] == mode
+    # stdout and the saved result agree, pooled rows included.
+    assert printed == result['scenes']
+    if mode == CourtMode.SCENE_ROBUST:
+        assert pools == [] and 'view_groups' not in result
+        return
+    view_ids = [row['view_id'] for row in result['scenes']]
+    assert [row['view_id'] for row in pools[0].rows] == view_ids
+    assert result['view_groups'] == [{'reference_view_id': view_ids[0]}]
+    assert printed[0]['corners_native_px'] == 'pooled'
 
 
 @pytest.mark.parametrize(('saved_scenes', 'expected_rows'), [

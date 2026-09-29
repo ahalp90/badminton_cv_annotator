@@ -954,6 +954,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
             device=self.config.court_device,
             template_device=self.config.court_template_device,
             reuse_courts=self.config.court_reuse_courts,
+            court_mode=self.config.court_mode,
         )
 
         def execute() -> StageExecution:

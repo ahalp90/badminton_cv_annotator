@@ -325,6 +325,21 @@ def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Pat
         cli.load_builder_config(config_path, repo_root=tmp_path)
 
 
+def test_optional_court_mode_defaults_to_scene_robust_and_is_validated(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "trial.toml")
+    assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == "scene-robust"
+    original = config_path.read_text(encoding="utf-8")
+    config_path.write_text(original.replace(
+        "court_reuse_courts = false", 'court_reuse_courts = false\ncourt_mode = "video-robust"',
+    ), encoding="utf-8")
+    assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == "video-robust"
+    config_path.write_text(original.replace(
+        "court_reuse_courts = false", 'court_reuse_courts = false\ncourt_mode = "per-video"',
+    ), encoding="utf-8")
+    with pytest.raises(ValueError, match="vision.court_mode must be one of"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
 def test_configuration_rejects_unknown_commentary_provider(tmp_path: Path) -> None:
     config_path = _write_config(
         tmp_path / "trial.toml",
@@ -1519,6 +1534,7 @@ def test_court_stage_launches_the_configured_detector_program(
         "device": "cuda",
         "template_device": "cpu",
         "reuse_courts": False,
+        "court_mode": "scene-robust",
         "deeplsd_source": str(fixture.deeplsd_source),
     }
     assert [artifact.name for artifact in court.fingerprint.model_weights] == ["deeplsd"]

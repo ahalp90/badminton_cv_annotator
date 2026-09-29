@@ -74,7 +74,7 @@ class SearchedFrame:
 
     @property
     def native_per_working(self) -> np.ndarray:
-        return np.asarray(self.context.native_size, dtype=float) / np.asarray(self.context.size, dtype=float)
+        return native_per_working(self.context)
 
 
 @dataclass(frozen=True)
@@ -90,6 +90,14 @@ class UsedFrame:
 class Composite(NamedTuple):
     corners_native_px: np.ndarray  # (4, 2) in the middle frame's native px and its own court's corner order
     paint_score: float | None  # q_paint10_span_weighted measured in the middle frame
+    # The aligned frames the composite was fitted from, in own-frame score order. view_pool.py
+    # takes their donated samples without measuring them again.
+    used_frames: tuple[UsedFrame, ...] = ()
+
+
+def native_per_working(context: ViewContext) -> np.ndarray:
+    """Native px per working px, one scale per axis."""
+    return np.asarray(context.native_size, dtype=float) / np.asarray(context.size, dtype=float)
 
 
 def court_homography(frame: SearchedFrame, corners_native: np.ndarray) -> np.ndarray:
@@ -335,27 +343,29 @@ def fit_in_reference(live: LiveModules, reference: UsedFrame, constraints: strip
         return stripe_refit.fit_geometry(fit, context, live.verifier, live.runtime, live.scoring.view_line_maps(context))
 
 
-def check_in_frame(live: LiveModules, frame: SearchedFrame, corners_native: np.ndarray, *, require_people: bool,
+def check_in_frame(live: LiveModules, context: ViewContext, corners_native: np.ndarray, *, require_people: bool,
                    max_horizon_tilt_deg: float | None) -> tuple[dict[str, Any] | None, str | None]:
     """A court's final measurement in one frame, checked as the final stripe refit and reuse check courts.
+
+    It needs only the frame's context, so callers can check a court without keeping the native image.
 
     :param require_people: Also require the players' feet on the court.
     :param max_horizon_tilt_deg: The upright-camera limit; None allows any camera roll.
     :return: stripe_refit.describe's measurement, or None when the corners cannot be measured,
         and the first failed check's reason, or None when every check passes.
     """
-    working = np.asarray(corners_native, dtype=float) / frame.native_per_working
+    working = np.asarray(corners_native, dtype=float) / native_per_working(context)
     if not np.isfinite(working).all() or not live.verifier.convex_corners(working):
         return None, "non_finite_or_non_convex_corners"
     homography = cv2.getPerspectiveTransform(CORNER_COURT_M, working.astype(np.float32)).astype(float)
     with live.prepared_measurements(live.verifier):
-        measurement = stripe_refit.describe(working, frame.context, live.verifier, live.runtime,
-                                            live.scoring.view_line_maps(frame.context))
+        measurement = stripe_refit.describe(working, context, live.verifier, live.runtime,
+                                            live.scoring.view_line_maps(context))
     valid, reason = live.verifier.hard_validity({"homography_working": homography, "gates": measurement["gates"]})
     if not valid:
         return measurement, reason
     historical = measurement["historical"]
-    upright = max_horizon_tilt_deg is None or reuse.upright_court(homography, working, frame.context.size,
+    upright = max_horizon_tilt_deg is None or reuse.upright_court(homography, working, context.size,
                                                                   max_horizon_tilt_deg)
     checks = (
         ("camera_implausible", historical["historical_camera"]),
@@ -428,10 +438,10 @@ def compose_scene(live: LiveModules, frames: Sequence[SearchedFrame], *, geometr
     # Back into the corner order of the middle frame's own court. Rolling by two undoes itself.
     corners = np.roll(carried, rolls[MIDDLE], axis=0)
     # The middle frame is checked even when it is the reference, so every composite passes the same checks.
-    measurement, reason = check_in_frame(live, middle.frame, corners, require_people=require_people,
+    measurement, reason = check_in_frame(live, middle.frame.context, corners, require_people=require_people,
                                          max_horizon_tilt_deg=max_horizon_tilt_deg)
     record["middle"] = {"corners_native_px": corners.tolist(), "rejection": reason, "measurement": measurement}
     if reason is not None:
         return fallback(record, f"middle_{reason}")
     assert measurement is not None  # a measured court is the only one that can pass
-    return Composite(corners, measurement["paint_score"]), record
+    return Composite(corners, measurement["paint_score"], tuple(used)), record

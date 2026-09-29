@@ -27,6 +27,10 @@ follow camera movement frame by frame.
   evidence from each new scene, including non-consecutive scenes. It keeps eight
   recent fully searched courts and tries up to three. Reuse can adjust the
   projection; it does not assign one identical projection to a video-wide group.
+- **Video-robust courts:** `--court-mode video-robust` pools composites across
+  scenes of the same camera view after the last scene, then refits one court per
+  view. See [Video-robust courts](#video-robust-courts). The default,
+  `scene-robust`, keeps each scene's own court.
 - **Defaults:** standalone reuse is off. The supplied `shuttleset_fixed.toml`
   and `trial.toml` builder configurations enable it.
 
@@ -87,6 +91,7 @@ The returned `CourtResult` contains:
 | `paint_score` | Paint support after the final stripe fit, for checking later reuse. A composite's is measured in the middle frame |
 | `reused_from` | Earlier view used for checked reuse, or `None` for a full search |
 | `composition` | `None` unless the endpoint frames were searched. Then `court` is `middle` or `composite`, with `fallback_reason`, the `reference` frame, `used_frames`, each endpoint's outcome, any `errors` and `middle_chosen_key` |
+| `scene` | With a court, the middle frame's context and image, its own court and any composite's frames, for [video-robust courts](#video-robust-courts). It is not saved |
 
 ## How it finds the court
 
@@ -331,7 +336,8 @@ The result is a gzipped JSON object:
 | `video_id` | The start of each row's `view_id`: the video's file stem, or its manifest `id` |
 | `video`, `fps`, `frame_count`, `native_size` | The source video's file name and properties |
 | `saved_people`, `saved_lines` | Whether people and lines came from saved extracts, so those timings exclude live inference |
-| `require_people`, `reuse_courts`, `template_device` | The detector settings used |
+| `require_people`, `reuse_courts`, `court_mode`, `template_device` | The detector settings used |
+| `view_groups` | Video-robust mode only: one summary per camera-view group; see [Video-robust courts](#video-robust-courts) |
 | `tools_seconds` | Loading lines, live pose and the detector, once per run. Every result in a batch repeats the same figure |
 | `setup_seconds`, `scene_seconds`, `processing_seconds` | This video's input setup, scene detection and per-scene work |
 | `pose_prerun_seconds` | Full pose extraction, when requested; included in `setup_seconds` and `total_seconds` |
@@ -341,6 +347,43 @@ The result is a gzipped JSON object:
 With live people, `processing_seconds` includes sparse RTMLib inference. It is
 not a detector-only timing. Saved inputs omit their earlier extraction cost;
 `pose_prerun_seconds` records that cost when this invocation produced the poses.
+
+### Video-robust courts
+
+`--court-mode video-robust` can give scenes of one camera view a shared court.
+It waits for every scene's scene-robust court, so rows print only after the
+last scene. [view_pool.py](view_pool.py) owns the steps:
+
+1. **Groups.** Each scene with a court joins the first group whose fixed
+   reference scene shows the same camera view. A perceptual hash only shortlists
+   groups. The people-free alignment used by composition must then pass the reuse
+   correlation and the one-reference-pixel movement limit.
+2. **Donors.** Only a scene whose fresh search ended in an accepted composite
+   donates. It offers the observed line samples that won its markings. Reused,
+   middle-frame and fallback courts can receive a pooled court but never donate.
+   Each marking keeps its strongest donor across the group.
+3. **One fit.** A group with at least two independently computed composites gets
+   one stripe fit to those samples, in the reference scene's pixels. One scene
+   may win every marking; the pool does not force a mixture.
+4. **Output.** A valid pooled court replaces each member's court that passes
+   that member's own checks, including its players' feet. A member that fails
+   keeps its scene court, as does every member when the fit fails.
+5. **Scores.** In every member's middle frame, the pooled court, the scene's
+   court and the middle frame's court before composition get the net choice's
+   combined score. These scores are reported for comparison; they do not choose
+   the output. A missing score term stays missing, never zero.
+
+A changed row keeps its earlier court as `scene_corners_native_px`,
+`scene_chosen_key` and `scene_reused_from`. A pooled court's `chosen_key` is
+`video_pool`. Each member of a group with a valid fit gets a `view_pool` record: the
+group's `reference_view_id`, its `alignment`, the `court` the row now holds, the
+pooled corners and any `pooled_rejection`, and all three courts' `scores`.
+`view_groups` lists each group's members, donors, `pooled_view_ids`, per-marking
+donors, fit and mean scores. Its `reason` says why a group kept its scene
+courts. A mean is `None` unless every member has that court's score.
+
+`--reuse-courts` works as before and uses scene courts, not pooled ones. A
+scene that reuses a court runs no fresh search, so reuse leaves fewer donors.
 
 ### Run a batch
 
@@ -487,6 +530,7 @@ research features left out and where they could be restored.
 | [net_choice.py](net_choice.py) | Final choice and net-post reward |
 | [stripe_refit.py](stripe_refit.py) | Adjust stripe labels and refit |
 | [composition.py](composition.py) | Compose one court from a scene's middle and endpoint frames |
+| [view_pool.py](view_pool.py) | Pool composites across a video's returning camera views and refit once per view |
 | [run_video.py](run_video.py), [video_inputs.py](video_inputs.py) | Run one video or a batch, and build each scene's inputs |
 | [run_image.py](run_image.py) | Run one image file with live DeepLSD and optional RTMLib |
 | [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines; PySceneDetect or saved scenes |

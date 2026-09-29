@@ -15,7 +15,7 @@ import os
 import sys
 import traceback
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -31,12 +31,13 @@ for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', '
 import numpy as np
 
 from . import feet
-from .detect import CourtDetector, CourtFitError, Switches
+from .detect import CourtDetector, CourtFitError, SceneCourts, Switches
 from .inputs import FrameReader, PeopleSource, ViewInputs, same_frame_provenance
 from .line_sources import DeepLSDLines, LineSource, SavedLines
 from .scene_sources import PySceneDetectSource, SavedScenes, SceneInfo, SceneSource
 from .template_arrays import TEMPLATE_DEVICES
 from .video_inputs import PoseArrays, RtmlibPeople, VideoFrames
+from .view_pool import CourtMode, VideoPool
 
 if TYPE_CHECKING:
     from shared.rtmlib_pose import RtmlibPoseExtractor
@@ -135,6 +136,7 @@ def endpoint_views(decoded: dict[int, np.ndarray], endpoints: Sequence[int], sce
 def scene_courts(
     detector: CourtDetector, frames: FrameReader, people: PeopleSource | None, lines: LineSource,
     scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False,
+    on_court: Callable[[dict[str, Any], SceneCourts], None] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Detect the middle frame of each scene without crossing a cut for foot samples.
 
@@ -148,6 +150,9 @@ def scene_courts(
     the first and last frames of the foot window and may report a composite court
     in the middle frame's pixels. A scene too short for the window, or one that
     reuses an earlier court, keeps the middle frame alone.
+
+    on_court receives each row with a court and its scene's finished courts before the
+    row is yielded. Video-robust mode passes VideoPool.add.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -232,6 +237,8 @@ def scene_courts(
                    chosen_key=result.chosen_key, no_court_reason=result.no_court_reason, reused_from=result.reused_from,
                    composition=result.composition, stage_seconds=result.stage_seconds,
                    seconds=perf_counter() - started)
+        if on_court is not None and result.scene is not None:
+            on_court(row, result.scene)
         yield row
 
 
@@ -298,7 +305,8 @@ def scene_source_for(scenes: Path | None, pyscenedetect: bool) -> SceneSource | 
 
 def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: Path | None,
                  scene_source: SceneSource | None, reuse_courts: bool,
-                 pose_prerun: PosePrerun | None = None) -> dict[str, Any]:
+                 pose_prerun: PosePrerun | None = None,
+                 court_mode: CourtMode = CourtMode.SCENE_ROBUST) -> dict[str, Any]:
     """Detect one court per scene of one video with the shared tools; return the video result.
 
     Open `tools.detector` as a context manager around one or many calls, so every
@@ -310,6 +318,8 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         `tools.pose_extractor` when it is loaded, and are absent otherwise.
     :param scene_source: where the cuts come from; None analyses the whole video as one scene.
     :param reuse_courts: try this video's earlier fully searched courts before a full search.
+    :param court_mode: video-robust pools scene courts across returning camera views
+        (view_pool.py) after the last scene, then prints the rows.
     :return: the `VIDEO_RESULT_SCHEMA` result that README.md describes.
     """
     started = perf_counter()
@@ -337,18 +347,27 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()
         rows = []
+        pool = VideoPool(tools.detector.live, switches) if court_mode == CourtMode.VIDEO_ROBUST else None
         for row in scene_courts(tools.detector, frames, people, tools.lines, scenes, video_id=video_id,
-                                reuse_courts=reuse_courts):
+                                reuse_courts=reuse_courts, on_court=None if pool is None else pool.add):
             rows.append(row)
-            print(json.dumps(row), flush=True)
+            if pool is None:
+                print(json.dumps(row), flush=True)
+        extra: dict[str, Any] = {}
+        if pool is not None:
+            # Pooling can change earlier rows, so they print only once every court is final.
+            extra['view_groups'] = pool.apply()
+            for row in rows:
+                print(json.dumps(row), flush=True)
         return {'schema': VIDEO_RESULT_SCHEMA, 'video_id': video_id, 'video': video.name, 'fps': frames.fps,
                 'frame_count': frames.frame_count, 'native_size': frames.size, 'tools_seconds': tools.load_seconds,
                 'setup_seconds': setup_seconds, 'scene_seconds': scene_seconds,
                 'pose_prerun_seconds': pose_prerun_seconds,
                 'processing_seconds': perf_counter() - processing_started, 'total_seconds': perf_counter() - started,
                 'saved_people': people_dir is not None, 'require_people': switches.require_people,
-                'reuse_courts': reuse_courts, 'template_device': switches.template_device,
-                'saved_lines': tools.saved_lines, 'scenes': rows}
+                'reuse_courts': reuse_courts, 'court_mode': str(court_mode),
+                'template_device': switches.template_device, 'saved_lines': tools.saved_lines, 'scenes': rows,
+                **extra}
 
 
 def read_manifest(path: Path) -> list[BatchVideo]:
@@ -375,7 +394,8 @@ def read_manifest(path: Path) -> list[BatchVideo]:
 
 def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path, *,
               pyscenedetect: bool, reuse_courts: bool,
-              pose_prerun: PosePrerun | None = None) -> dict[str, Any]:
+              pose_prerun: PosePrerun | None = None,
+              court_mode: CourtMode = CourtMode.SCENE_ROBUST) -> dict[str, Any]:
     """Detect every manifest video with one set of models; return the batch summary.
 
     Write each finished video's result to `output_dir/videos/<id>.json.gz`, and the
@@ -390,7 +410,7 @@ def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path,
     outcomes = [{'id': video.video_id, 'video': str(video.video), 'status': 'not_run'} for video in videos]
     summary = {'schema': BATCH_SUMMARY_SCHEMA, 'finished': False, 'stopped_after': None,
                'tools_seconds': tools.load_seconds, 'require_people': tools.detector.switches.require_people,
-               'reuse_courts': reuse_courts, 'videos': outcomes}
+               'reuse_courts': reuse_courts, 'court_mode': str(court_mode), 'videos': outcomes}
     with ExitStack() as workers:
         workers.enter_context(tools.detector)
         for video, outcome in zip(videos, outcomes, strict=True):
@@ -398,7 +418,7 @@ def run_batch(videos: Sequence[BatchVideo], tools: CourtTools, output_dir: Path,
             try:
                 result = detect_video(video.video, tools, video_id=video.video_id, people_dir=video.people,
                                       scene_source=scene_source_for(video.scenes, pyscenedetect),
-                                      reuse_courts=reuse_courts, pose_prerun=pose_prerun)
+                                      reuse_courts=reuse_courts, pose_prerun=pose_prerun, court_mode=court_mode)
                 write_json(results_dir / f'{video.video_id}.json.gz', result)
             except Exception as error:
                 logger.exception('%s: video failed', video.video_id)
@@ -455,6 +475,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
+    parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.SCENE_ROBUST,
+                        help='scene-robust keeps each scene\'s court; video-robust may share one pooled court '
+                             'across scenes of the same camera view (default: scene-robust)')
     args = parser.parse_args()
     if args.pose_prerun is not None and not args.require_people:
         parser.error('--pose-prerun requires --require-people')
@@ -493,13 +516,14 @@ def main() -> int:
                              deeplsd_weights=args.deeplsd_weights, device=args.device, live_pose=live_pose)
     if args.manifest is not None:
         summary = run_batch(videos, tools, args.output_dir, pyscenedetect=args.pyscenedetect,
-                            reuse_courts=args.reuse_courts, pose_prerun=pose_prerun)
+                            reuse_courts=args.reuse_courts, pose_prerun=pose_prerun, court_mode=args.court_mode)
         return 0 if all(outcome['status'] == 'complete' for outcome in summary['videos']) else 1
     # Every scene's search and scoring share one set of worker processes.
     with tools.detector:
         result = detect_video(args.video, tools, video_id=args.video.stem, people_dir=args.people,
                               scene_source=scene_source_for(args.scenes, args.pyscenedetect),
-                              reuse_courts=args.reuse_courts, pose_prerun=pose_prerun)
+                              reuse_courts=args.reuse_courts, pose_prerun=pose_prerun,
+                              court_mode=args.court_mode)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_json(args.output, result)
     return 0

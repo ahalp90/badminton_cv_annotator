@@ -347,6 +347,7 @@ def test_court_source_publishes_receipt_and_validates_resume(
         "device": "cuda",
         "template_device": "cpu",
         "reuse_courts": False,
+        "court_mode": "scene-robust",
         "ref_err_px": shuttleset22.COURT_REF_ERR_PX,
     }
     assert receipt["model"] == DEEPLSD_IDENTITY
@@ -379,6 +380,7 @@ def test_court_source_rejects_a_stale_completed_receipt(
     for changed_settings in (
         replace(COURT_SETTINGS, reuse_courts=True),
         replace(COURT_SETTINGS, template_device="cuda"),
+        replace(COURT_SETTINGS, court_mode="video-robust"),
     ):
         with np.testing.assert_raises_regex(ValueError, "configuration does not match"):
             shuttleset22.court_source(source, **{**arguments, "settings": changed_settings})
