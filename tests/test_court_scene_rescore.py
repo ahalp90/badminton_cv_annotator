@@ -1,4 +1,4 @@
-"""Saved-fit rescoring: the combined score, ties, missing evidence, the boundary guard and untouched inputs."""
+"""Saved-fit rescoring: the combined score, ties, missing evidence and untouched inputs."""
 
 from __future__ import annotations
 
@@ -31,22 +31,10 @@ def post_segments(corners: list[list[float]]) -> list[list[float]]:
     return [pieces[2].ravel().tolist(), pieces[3].ravel().tolist()]
 
 
-def marking(name: str, q_paint: float, known: int = 64, span: float = 200.0) -> dict:
-    return {"marking": name, "visible_samples": 64, "known_photometry_samples": known,
-            "projected_visible_span_px": span, "q_paint10": q_paint, "exclusive_fragment_count": 3}
-
-
-def accepted(role: str, paint: float, geometry: float | None = 0.5, corners: list | None = None,
-             boundary_q: dict[str, float] | None = None, known: dict[str, int] | None = None) -> dict:
-    corners = CORNERS if corners is None else corners
-    boundary_q = boundary_q or {}
-    known = known or {}
-    markings = [marking(name, boundary_q.get(name, 0.8), known.get(name, 64)) for name in rescore.OUTER_BOUNDARIES]
+def accepted(role: str, paint: float, geometry: float | None = 0.5) -> dict:
     return {"role": role, "frame_index": {"first": 10, "middle": 20, "last": 30}[role], "view_id": f"v_{role}",
-            "route": "full_search", "status": "court", "corners_native_px": corners, "paint_score": paint,
-            "evidence": {"q_paint10_span_weighted": paint, "q_geom_span_weighted": geometry,
-                         "photometry_occlusion_aware": True, "markings": markings},
-            "in_middle_frame": {"corners_native_px": corners, "alignment": None, "comparable": True}}
+            "route": "full_search", "status": "court", "corners_native_px": CORNERS, "paint_score": paint,
+            "evidence": {"q_paint10_span_weighted": paint, "q_geom_span_weighted": geometry}}
 
 
 def outcome(frames: list[dict], chosen_position: int) -> dict:
@@ -80,8 +68,8 @@ def test_combined_score_uses_measured_net_posts() -> None:
     assert last["net_state"] == "measured" and last["net_reward"] == 0.0
     assert middle["combined_score"] == pytest.approx(0.9 * 0.50 + 0.1 * 0.60 + NET_WEIGHT)
     assert last["combined_score"] == pytest.approx(0.9 * 0.52 + 0.1 * 0.40)
-    assert method["selected"] == {"paint": 1, "ranked": 0, "guarded": 0}
-    assert method["changes"] == {"ranked": True, "guarded": True}
+    assert method["selected"] == {"paint": 1, "ranked": 0}
+    assert method["changes"] == {"ranked": True}
 
 
 def test_exact_ties_go_middle_then_first_then_last() -> None:
@@ -89,7 +77,7 @@ def test_exact_ties_go_middle_then_first_then_last() -> None:
     cache = cache_for({"v_last": FAR_SEGMENT, "v_first": FAR_SEGMENT, "v_middle": FAR_SEGMENT})
     method = only_method(results_with(outcome(frames, 2)), cache)
     assert method["ranked_order"] == [2, 1, 0]
-    assert method["selected"] == {"paint": 2, "ranked": 2, "guarded": 2}
+    assert method["selected"] == {"paint": 2, "ranked": 2}
 
 
 def test_no_court_and_unevaluated_outcomes_stay_unchanged() -> None:
@@ -110,48 +98,9 @@ def test_missing_score_evidence_keeps_the_original_winner_for_the_whole_method(g
     method = only_method(results_with(outcome(frames, 1)), cache_for(lines))
     assert method["state"] == "score_evidence_missing"
     assert method["missing_score_evidence"] == [{"position": 0, "view_id": "v_middle", "missing": [gap]}]
-    assert method["selected"] == {"paint": 1, "ranked": 1, "guarded": 1}
+    assert method["selected"] == {"paint": 1, "ranked": 1}
     assert "combined_score" not in method["candidates"][0]
     assert method["candidates"][1]["combined_score"] == pytest.approx(0.9 * 0.52 + 0.1 * 0.5)
-
-
-def test_guard_vetoes_a_small_gain_that_loses_a_boundary() -> None:
-    frames = [accepted("middle", 0.500, boundary_q={"right_doubles": 0.55}),
-              accepted("last", 0.505, boundary_q={"right_doubles": 0.44})]
-    cache = cache_for({"v_middle": FAR_SEGMENT, "v_last": FAR_SEGMENT})
-    method = only_method(results_with(outcome(frames, 1)), cache)
-    assert method["selected"] == {"paint": 1, "ranked": 1, "guarded": 0}
-    check = method["guard_checks"][0]
-    assert (check["candidate"], check["against"], check["veto"]) == (1, 0, True)
-    right = next(item for item in check["boundaries"] if item["candidate_boundary"] == "right_doubles")
-    assert right["q_paint10_drop"] == pytest.approx(0.11)
-
-
-def test_guard_skips_a_boundary_with_too_little_known_photometry() -> None:
-    frames = [accepted("middle", 0.500, boundary_q={"right_doubles": 0.55}, known={"right_doubles": 40}),
-              accepted("last", 0.505, boundary_q={"right_doubles": 0.44})]
-    cache = cache_for({"v_middle": FAR_SEGMENT, "v_last": FAR_SEGMENT})
-    method = only_method(results_with(outcome(frames, 1)), cache)
-    assert method["selected"]["guarded"] == 1
-    assert method["candidates"][0]["boundaries"]["right_doubles"]["reasons"] == ["known_fraction_too_low"]
-    right = next(item for item in method["guard_checks"][0]["boundaries"]
-                 if item["candidate_boundary"] == "right_doubles")
-    assert right == {"candidate_boundary": "right_doubles", "against_boundary": "right_doubles",
-                     "eligible": False, "veto": False}
-
-
-def test_guard_matches_boundaries_across_a_court_turned_180_degrees() -> None:
-    turned = np.roll(np.asarray(CORNERS), 2, axis=0).tolist()
-    # The turned court's left doubles line is the same painted line as the other court's right doubles.
-    frames = [accepted("middle", 0.500, corners=turned, boundary_q={"left_doubles": 0.60, "right_doubles": 0.44}),
-              accepted("last", 0.505, boundary_q={"right_doubles": 0.44})]
-    cache = cache_for({"v_middle": FAR_SEGMENT, "v_last": FAR_SEGMENT})
-    method = only_method(results_with(outcome(frames, 1)), cache)
-    check = method["guard_checks"][0]
-    assert check["orientation"]["roll"] == 2
-    right = next(item for item in check["boundaries"] if item["candidate_boundary"] == "right_doubles")
-    assert right["against_boundary"] == "left_doubles"
-    assert right["veto"] and method["selected"]["guarded"] == 0
 
 
 def test_command_writes_new_outputs_without_changing_its_inputs(tmp_path: Path, monkeypatch) -> None:

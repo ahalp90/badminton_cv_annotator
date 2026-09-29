@@ -232,6 +232,12 @@ endpoints and shared feet, the stop rule, single searches in `cheap_first`,
 selection, timing, histories and the manifest. It also checks that the middle
 detection reproduces `detect()`, with and without earlier courts.
 
+`tests/test_court_scene_rescore.py` and `tests/test_court_scene_compose.py` cover
+the saved-fit tools. The compose tests draw a painted court through a pinhole
+camera, with line fragments and person boxes. They check the warp direction and
+scale, alignment without people, turned courts, donated samples, fallbacks, tie
+and missing-score rules, and one composite end to end.
+
 ## Rescoring saved fits
 
 `rescore.py` re-ranks each method's saved accepted courts without running a new
@@ -266,7 +272,7 @@ outline checks. Model setup and evidence recovery times are stored separately.
                                                    "segments_native_px": [[100.0, 200.0, 400.0, 210.0]]}}}
 ```
 
-### Three choices per method
+### Two choices per method
 
 - `paint`: the saved choice, the highest final paint score. The command checks
   that the saved `chosen_position` matches this rule.
@@ -276,59 +282,30 @@ outline checks. Model setup and evidence recovery times are stored separately.
   are measured again from the cached lines, prepared as the detector's context
   prepares them. A net that fails to project keeps production's zero reward, and
   its `net_state` records the failure.
-- `guarded`: the ranked order with a boundary check. Starting from the top, a
-  court loses to any lower-ranked court within 0.01 combined score that has at
-  least 0.10 more `q_paint10` on the same outer boundary. The first court no
-  lower court vetoes wins, so the lowest-ranked court always survives.
 
-Paint and full-score ties prefer middle, then first, then last. The guard starts
-in that order and can veto a candidate even on a score tie. No-court and failed
-methods, unanalysed scenes and the baseline stay as they were.
-
-The guard's values are fixed and provisional; they are not tuned:
-
-| Check | Value |
-| --- | --- |
-| Largest combined-score lead the guard questions | 0.01 |
-| Boundary `q_paint10` drop that vetoes | 0.10 absolute |
-| Known photometry samples, on both courts | at least 32 |
-| Known over visible samples, on both courts | at least 0.75 |
-| Projected visible span, on both courts | at least 50 working px |
-| Photometry occlusion-aware | on both courts |
-| Largest corner distance after matching orientation | 0.15 × the lower court's median edge length |
-
-Both courts must be `comparable` in the middle frame. The guard compares their
-`in_middle_frame` corners as saved or turned 180 degrees, whichever is closer.
-The four outer boundaries (`far_baseline`, `right_doubles`, `near_baseline`,
-`left_doubles`) join corners TL–TR, TR–BR, BR–BL and BL–TL. On a turned court,
-the far baseline is compared with the other court's near baseline, and left with
-right. A pair that fails a check is recorded as skipped with its reason.
-A boundary with too little evidence is recorded as ineligible and cannot veto.
+Paint and full-score ties prefer middle, then first, then last. No-court and
+failed methods, unanalysed scenes and the baseline stay as they were.
 
 **Missing evidence.** If any accepted court in a method lacks cached lines, a
-paint score or line support, that method keeps its saved choice for all three
+paint score or line support, that method keeps its saved choice for both
 choices. Its state reads `score_evidence_missing`, and each gap is listed. A gap
 never counts as zero, and the method is never ranked on the courts that remain.
 
 ### Outputs
 
-- `results.json.gz`: the rule's values, the cache's `line_recovery_seconds`,
-  the time spent rescoring, and one row per scene. Each method row holds every
-  candidate's frame, role, position, score parts, post evidence and outer
-  boundary evidence. It also holds the missing evidence, the three selected
-  positions, the ranked order, whether the choice changed and every guard check.
-- `comparison.csv.gz`: one row per scene and method with the three choices'
-  roles and frames, their combined scores and `vs_baseline` distances, vetoes and
-  skipped guard pairs.
+- `results.json.gz` (schema `court-scene-rescore/2`): the rule's values, the
+  cache's `line_recovery_seconds`, the time spent rescoring, and one row per
+  scene. Each method row holds every candidate's frame, role, position, score
+  parts and post evidence. It also holds the missing evidence, both selected
+  positions, the ranked order and whether the choice changed. Schema
+  `court-scene-rescore/1` outputs also carry the retired boundary guard.
+- `comparison.csv.gz`: one row per scene and method with both choices' roles and
+  frames, their combined scores and `vs_baseline` distances.
 
 ### Limits
 
 - Normal selection applies the formula before the stripe refit. Here it applies
   to final courts, so it is not a replay of the detector's choice.
-- The guard's 0.01 limit applies to each pair, not the final score loss. Vetoes
-  can chain: A can lose to B, then B to C, leaving C more than 0.01 below A.
-  This experimental rule does not guarantee that the final choice preserves
-  every boundary that caused an earlier veto.
 - Rescoring picks among the courts each run saved. `cheap_first` chose its
   leading frame before any court was final, and frames it never fitted cannot
   enter the ranking.
@@ -339,3 +316,112 @@ never counts as zero, and the method is never ranked on the courts that remain.
   are reported apart from them.
 - Rescoring ranks by detector evidence. Paint and line support are not accuracy
   measures, and `vs_baseline` measures disagreement, not error.
+
+## Composing one court per scene
+
+`compose.py` fits one extra court per scene for `full_three`, from the best-painted
+markings across its accepted frames. It then scores that composite and the saved
+courts on the same frames. It runs no search and writes to a new directory; the
+source results and caches stay unchanged. Other methods keep only the rescore
+comparison.
+
+```bash
+PYTHONPATH=.:src python -m experiments.annotator.court_scene_sampling.compose \
+  --results results/results.json.gz --lines-cache lines.json.gz \
+  --people-cache people.json.gz --frames-dir frames/ --output-dir composed/
+```
+
+`--frames-dir` holds each accepted frame's source PNG as `<view_id>.png`, as
+`recover_lines.py --frames-dir` writes them. The people cache holds same-frame
+person boxes from `recover_people.py`:
+
+```json
+{"schema": "court-scene-people/1", "recovery_seconds": 4.2,
+ "frames": {"video_005_13361_middle_frame_13361": {"native_size": [1920, 1080],
+                                                   "boxes_native_px": [[810.0, 300.0, 900.0, 520.0]]}}}
+```
+
+Every PNG, line entry and box entry must match the video's native size.
+
+### Steps
+
+1. **Reference.** rescore's `ranked` court sets the reference frame. The
+   reference supplies coordinates and the fit's starting court only.
+2. **Alignment.** Each other accepted frame is ECC-aligned to the reference inside
+   its own saved court, as `in_middle_frame` does, but without people. Players
+   move between samples, so their pixels disagree even when the camera is still.
+   Each image's same-frame person boxes are cut from that image's own ECC mask:
+   the frame's from its court mask, the reference's from an otherwise full mask.
+   ECC carries the reference's mask through the current warp on every step, so a
+   moved camera moves the reference's boxes with it. A warp is usable when its
+   correlation reaches the reuse check's 0.8. Camera movement is allowed. A frame
+   without a usable warp is skipped and recorded. That includes masks that leave
+   ECC too little to converge, which read as `alignment_unmeasurable`.
+3. **Orientation.** A court turned 180 degrees against the reference gets its
+   corners rolled by two, so each marking name means the same painted line.
+4. **Evidence.** Each used court's marking evidence and fragment assignments are
+   measured again in its own frame. Its context is rebuilt from the PNG, cached
+   lines and same-frame boxes, so boxes hide paint as in the run. No feet are
+   known. Each accepted court's saved evidence is also measured again as saved,
+   and `reproduction` records the largest score difference and any count
+   mismatches.
+5. **Donors.** Each marking comes from the used court with the most `q_paint10`
+   on it; ties follow own-frame score order. A marking with no positive
+   `q_paint10` anywhere contributes nothing. The donor's observed fragment samples
+   (`stripe_fitting.prepare`, with their assigned stripe centre or edge) are
+   carried into reference pixels. Samples inside a person box are dropped. Each
+   sample keeps prepare's weight times the donor's `q_paint10` on that marking.
+6. **Fit.** `stripe_fitting.refine` fits one court to all donated samples.
+   `stripe_refit.fit_geometry` checks the solver, rank, depth, convexity and hard
+   validity, then the camera must be plausible and upright. Player positions are
+   not checked. A failed fit is recorded and the saved courts remain.
+7. **Comparison.** Every used frame's saved court and the composite are carried
+   into every used frame and scored there with rescore's formula, on that frame's
+   lines, paint and boxes. The highest mean over those same frames wins. An exact
+   tie keeps a saved court, then goes middle, first, last. If any accepted saved
+   court lacks a mean, including one whose frame did not align, the own-frame
+   full-score choice stands.
+
+A scene with fewer than two used frames keeps the own-frame full-score choice.
+Missing score evidence or no court preserves the original saved outcome.
+
+### Outputs
+
+- `results.json.gz` (schema `court-scene-compose/2`): the rule's values, cache
+  recovery times, compose time and one record per scene. A composed scene holds
+  each frame's alignment, orientation and reproduction; each marking's donor,
+  samples, occluded samples and weight; the fit and its checks; every
+  candidate's per-frame scores and mean; and the choice.
+- The choice records the saved `paint` choice, the `own_frame` (rescore
+  `ranked`) choice, the `common_frame_original` winner, whether the composite
+  beats every saved court, the `final` court and `changed` against the paint
+  choice. Final corners are given in their own frame and, when they can be
+  carried there, in the reference frame's native pixels.
+- Each alignment records `mask_kept_fraction`: the share of the court mask that
+  both masks keep at the identity warp, where ECC starts. Schema
+  `court-scene-compose/1` outputs aligned with players inside the mask.
+- `comparison.csv.gz`: one compact row per scene.
+- `outlines/`: for each scene with a valid composite, every compared court as a
+  plain 1 px red dashed outline on the reference frame, one PNG per court.
+
+### Limits
+
+- Scores measure detector evidence. A higher common-frame mean is not ground
+  truth; judge the outlines.
+- The comparison can change the choice among saved courts even when the
+  composite loses, because it averages over frames rather than using each court's
+  own frame.
+- Stripe positions come from each saved court's own assignment, without the
+  stripe refit's colour-polarity pass. A saved court a few pixels off can read
+  some centre fragments as edges, which leaves up to half a stripe of error.
+- A donor whose marking has positive `q_paint10` but no strongly assigned
+  fragments contributes no samples; no other frame stands in.
+- Recovered lines or boxes can differ from the run's. Scores then differ from
+  the saved ones, and `reproduction` shows by how much.
+- Cutting players out leaves ECC less texture to lock onto. In one synthetic
+  pair, half the court was masked and the camera moved about 9 view px. ECC then
+  reached a warp 40 native px wrong that still passed 0.8. Without masking, that
+  pair failed to align at all. The correlation check alone does not catch this.
+- The court polygon masks the frame's own image here. `measure_view_alignment`
+  applies it to the reference image; the two differ only by the camera's
+  movement.
