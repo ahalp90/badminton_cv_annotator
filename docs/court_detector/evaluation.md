@@ -44,6 +44,24 @@ Representative image backgrounds come from the match videos named by project
 video ID and scene number in each caption. The underlying broadcast footage
 remains under its source rights; see [data attribution](../../data/ATTRIBUTION.md).
 
+## Two amateur frames: CourtKeyNet and the current detector
+
+These selected development frames have cropped boundaries, neighbouring courts,
+people and floor reflections. CourtKeyNet's raw predictions below failed its
+confidence check; the old stage returned no court. The new outlines recover the
+court layout in both frames, though small boundary offsets remain.
+
+| Frame | CourtKeyNet raw prediction (rejected) | Current geometric detector |
+| --- | --- | --- |
+| Amateur-2, frame 150 | ![Old court on the blue floor](assets/am2_frame_00000150_old.png) | ![New court on the blue floor](assets/am2_frame_00000150_new.png) |
+| Amateur-3, frame 0 | ![Old court across the wall](assets/am3_frame_00000000_old.png) | ![New court on the reflective floor](assets/am3_frame_00000000_new.png) |
+
+The new results were generated at `17a50b57` from the same saved source images,
+DeepLSD segments and person boxes, in single-image mode without temporal player
+checks. Both outputs were accepted. All outlines use 1 px red dashes.
+[The saved comparison](data/amateur_same_frame_comparison.json.gz) contains both
+sets of corners. These two examples do not establish an accuracy rate.
+
 ## Development views
 
 These views were used to develop the method. Their counts show how choices
