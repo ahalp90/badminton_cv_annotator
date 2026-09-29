@@ -1,203 +1,359 @@
-# Sampling and scene reuse
+# Video sampling, reuse and output modes
 
-The video runner produces **at most one court projection for each scene**.
-A projection describes where the court's four corners lie in the image.
-Returning camera views can reuse an earlier court after checks against the
-current scene. Each scene keeps its own result, which may differ slightly from
-the earlier projection.
+The video runner gives **at most one court per scene**. A court here means four
+corner points in the image, which together fix where the whole court floor sits.
+This page is the contract for how each scene is sampled and how scenes can share
+evidence. The [README](README.md) has the commands, setup and top-level output
+fields. The [design page](../../docs/court_detector/design.md) explains why, and
+the [evaluation page](../../docs/court_detector/evaluation.md) holds the evidence.
 
-This guide describes the current video runner and dataset-builder integration.
-See the [detector README](README.md) for commands, input files and output schemas.
+Three behaviours decide how scenes relate to each other:
 
-## What counts as a scene?
+| Behaviour | Option | When it acts | What a scene can end up with |
+| --- | --- | --- | --- |
+| Scene-robust (default) | `--court-mode scene-robust` | Per scene | Its own searched or composed court |
+| Chronological reuse | `--reuse-courts` | Per scene, in time order, before the search | An earlier scene's court, refitted and checked in this scene |
+| Video-robust | `--court-mode video-robust` | Once, after every scene has finished | One court shared by scenes of the same camera view, or its own court |
 
-A scene runs from one detected cut to the next. **PySceneDetect finds the cuts**;
-the court detector then analyses the resulting scenes. The adapter uses
-ContentDetector with threshold 27 and a minimum scene length of about half a
-second. That minimum controls cut detection, not whether a scene is long enough
-for the court detector's player checks.
+Reuse and video-robust mode are independent and can run together. Both are
+described in full below.
 
-| How you run it | Where boundaries come from |
+## Scenes and frame ranges
+
+A scene runs from one camera cut to the next.
+
+| How you run it | Where the cuts come from |
 | --- | --- |
-| Standalone with `--pyscenedetect` | The runner invokes PySceneDetect |
-| Standalone with `--scenes FILE` | Your saved scene boundaries |
-| Standalone with neither option | The entire video becomes one scene |
-| Dataset builder | PySceneDetect, unless supplied with saved boundaries |
+| `--pyscenedetect` | PySceneDetect's ContentDetector, threshold 27, with the annotation pipeline's minimum scene length (about half a second) |
+| `--scenes FILE` | Your saved ranges |
+| Neither | The whole video is one scene |
+| Dataset builder | PySceneDetect |
+| End-to-end annotator | Its fixture's saved, shared scene ranges |
 
-Frames are numbered from zero. A scene range `[start, end)` includes `start`
-through `end - 1`. The cut frame belongs to the following scene. Saved boundaries
-must cover the whole video without gaps or overlaps.
+The minimum scene length only controls cut detection. It does not decide
+whether a scene is long enough for the player checks.
 
-### A short clip or single image without PySceneDetect
+Frame numbers start at zero. Scene ranges are **half-open**, like Python's
+`range`: `[start_frame, end_frame)` holds `start_frame` up to `end_frame - 1`.
 
-For a clip, omit both `--pyscenedetect` and `--scenes`. The runner analyses its
-middle frame and treats the clip as one scene. Keep the usual player checks if
-the clip can hold the three-second window. For a shorter clip, add
-`--no-require-people` to allow detection from lines and geometry:
+- A whole video is `[0, frame_count)`
+- A cut frame is one scene's `end_frame` and the next scene's `start_frame`, so
+  it belongs only to the later scene
+- Saved ranges must cover `[0, frame_count)` in order with no gaps or overlaps.
+  An old file of inclusive ranges leaves gaps, so the runner rejects it
 
-```bash
-PYTHONPATH=.:src python -m court_detector.run_video \
-  --video CLIP.mp4 \
-  --deeplsd-source DEEPLSD_CHECKOUT \
-  --deeplsd-weights DEEPLSD_WEIGHTS.tar \
-  --no-require-people \
-  --output courts.json.gz
-```
+Older results used inclusive ends and stored `first_frame` and `last_frame`. An
+old `[first, last]` is `[first, last + 1)` now. Results with no `schema` field
+analysed the lower middle frame of an even-length scene, one frame earlier than
+now.
 
-For a single image file, use `python -m court_detector.run_image`; the README's
-[image section](README.md#run-from-an-image) gives the command and output.
-It runs DeepLSD on the image. RTMLib runs only with `--with-people`, once on
-that image. Those people mask occlusions and support proposals. One image has
-no three-second window, so the video mode's player requirement does not apply.
+## What gets sampled
 
-A caller with its own line segments can instead use the Python `CourtDetector`
-API with `Switches(require_people=False)`; see the README's
-[inputs](README.md#inputs-and-result) and [API example](README.md#run-it).
-Neither image path nor the clip command above invokes PySceneDetect.
+Each scene has one **anchor**: its middle frame, `(start_frame + end_frame) // 2`.
+For an even number of frames this is the later of the two middle frames.
 
-Detection without player checks is supported, but has not been tuned for the
-same precision as detection with player evidence.
-
-## What gets sampled?
-
-The runner chooses the scene's middle frame as its **anchor**. For an even number
-of frames, it uses the later of the two middle frames.
-
-| Purpose | Images used |
+| Purpose | Frames used |
 | --- | --- |
-| Detect court lines, search and fit the court | The anchor image |
-| Check player positions | 31 scheduled frames at approximately 10 per second, spanning three seconds around the anchor |
-| Compose a court after a fresh search | The anchor plus the first and last scheduled images of that window, all using the anchor's player samples |
-| Compare a returning camera view | The first, middle and last images of that sampling window |
+| Find lines, search and fit the court | The anchor |
+| Check players' positions | 31 frames at about 10 per second, three seconds around the anchor |
+| Compose a court (fresh search only) | The anchor plus the first and last frames of that player window |
+| Compare views for `--reuse-courts` | A median image of the window's first frame, the anchor and the window's last frame |
+| Group views in video-robust mode | The anchor alone, with people left out of the alignment |
 
-The player window shifts when necessary to stay inside the scene. Frame indices
-are rounded to the video's frame rate. For example, in a 30 fps video with an
-anchor at frame 300, a centred window samples frames 255, 258, …, 345.
+The player window slides as a block to stay inside the scene. Frame numbers are
+rounded to the video's frame rate. For example, a 30 fps video with its anchor
+at frame 300 samples frames 255, 258, …, 345.
 
-An additional check compares small greyscale images with the anchor. It keeps
-the continuous run around the anchor whose average difference is at most eight
-grey levels. This can shorten the 31-frame window. It helps exclude frames across
-a missed cut or transition, but moving players and camera motion can also cause
-differences. A discarded sample does not prove a cut was missed.
+A shot check then compares small greyscale thumbnails of each sample with the
+anchor. It keeps the unbroken run of samples around the anchor whose average
+difference is at most eight grey levels. This drops frames from across a missed
+cut. Moving players and camera motion can also trip it, so a dropped sample does
+not prove a missed cut.
 
-Player checks use the retained frames. The detector filters seated people and
-restores brief crouches on tracks whose observations are mostly standing. It
-checks the resulting feet against each candidate court. These samples provide
-player evidence; they are not 31 independent court detections.
+The detector keeps standing people in those samples. It filters out seated
+people and restores brief crouches on tracks that mostly stand. Their feet are
+checked against every candidate court. These samples are player evidence; they
+are not 31 separate court detections.
 
-With players required, a scene that cannot hold the scheduled window gets
-`scene_too_short_for_feet`. This means **unanalysed**, not that the scene contains
-no court. With `--no-require-people`, short scenes can still be analysed. If poses
-are supplied in that mode, a short scene uses only its anchor's people. Its
-reuse image uses the scene's first, middle and last frames instead, and it is
-not composed.
+**Short scenes.** With people required, a scene that cannot hold the window gets
+`scene_too_short_for_feet`. That means unanalysed, not "no court". With
+`--no-require-people`, a short scene is still analysed. It uses only the anchor's
+people, if any, and is never composed. For reuse, its median image uses the
+scene's first frame, anchor and last frame instead.
 
-Saved pose arrays and sparse live pose extraction supply the same requested
-frame positions. A full pose prerun extracts every frame for later pipeline use;
-it does not increase the court detector's sampling schedule.
-
-## How returning views reuse a court
-
-Reuse is optional in the standalone runner: enable `--reuse-courts`.
-The supplied [ShuttleSet configuration](../../configs/dataset_builder/shuttleset_fixed.toml)
-and [trial configuration](../../configs/dataset_builder/trial.toml) enable it.
-
-The runner processes scenes in time order:
-
-1. **Gather the new scene's evidence.** Read its anchor, detect its lines and
-   gather its player samples. Combine three window images into a median image
-   to reduce interference from moving players when comparing views.
-2. **Choose earlier courts to try.** Keep up to eight recent courts from full
-   searches. Try at most three for the new scene. When scene histograms are
-   available, their similarity sets the order; otherwise try the most recent
-   first. A histogram describes image brightness and cannot establish a match.
-3. **Align and refit.** Align each reference image to the new scene's median
-   image. Carry its corners across, then refit them to the stripes in the new
-   anchor image.
-4. **Check the result.** Require acceptable image alignment, court geometry,
-   camera orientation and paint support. Check player positions when required.
-   Also limit how far the stripe refit moves the court, including its far end.
-5. **Accept the first passing reuse, or search afresh.** Record the earlier
-   reference in `reused_from` when reuse succeeds. If every attempt fails, run
-   the full court search using the already prepared evidence. A court from that
-   search leads to composition, below.
-
-Only a court found through a full search can become a reference, whether it is
-the anchor's own court or a composite. A reused court never becomes another
-reference, which avoids accumulating adjustments through a chain of reused
-results. The reference store starts empty for each video.
-
-### Example: wide view, close-up, wide view
-
-Suppose scene 1 shows the whole court, scene 2 is a player close-up, and scene 3
-returns to the wide view. Scene 1 can supply the reference for scene 3 even
-though they are not consecutive. Scene 3 still gets fresh line and player
-evidence. If alignment and court checks pass, it uses an adjusted version of
-scene 1's court. Otherwise it gets a full search.
-
-Scene 3 does not trigger another sampling round or a reread of scene 1. The
-runner does not pool evidence across the two scenes or revise scene 1's result.
-An older reference may also have fallen out of the eight-court store, or may
-not be among the three tried.
+Saved poses and live sparse RTMLib give the same sample frames. A full pose
+prerun extracts every frame for later pipeline stages; it does not add samples.
 
 ## Composing a court within a scene
 
-After a fresh search finds a court, the runner searches the window's first and
-last images the same way. Each gets its own lines and person boxes, but all three
-use the anchor's player samples. The best-scoring image becomes the reference,
-and the others are aligned to it with people hidden. Each court marking takes
-its stripes from the image that paints it most strongly. One court is fitted to
-those stripes and carried into the anchor image.
+Players hide different markings in different frames. Composition fits one court
+from the frames that show each marking best.
 
-The sampled endpoints remain the scheduled window ends, even if the feet check
-excludes one as a different shot. Image alignment and the final anchor checks
-must reject incompatible contributions.
+It runs only when the scene holds the player window and a **fresh search** of
+the anchor found a court. It is skipped for a reused court, a short scene and an
+anchor with no court.
 
-The composite must pass the anchor's geometry and camera checks, and its player
-check when players are required. It then replaces the anchor's court, and later
-scenes can reuse it. It is stored in the anchor's pixels, with paint support
-measured in the anchor. Otherwise the anchor's own court stands. The fallback is
-always that court, because the endpoint courts sit in other images' pixels. A
-reused scene is not composed.
+1. **Search the endpoints.** The window's first and last frames are searched like
+   the anchor, with their own lines and person boxes but the anchor's feet. An
+   endpoint whose search fails or finds nothing is left out, and the failure is
+   logged.
+2. **Pick a reference.** The frame with the highest combined score becomes the
+   reference. Exact ties go middle, then first, then last.
+3. **Align.** Each other frame is aligned to the reference inside its own court,
+   with person boxes left out. The alignment must reach a correlation of 0.8.
+   Camera movement is allowed. At least two frames, including the anchor, must
+   align.
+4. **Choose donors.** Each court marking takes its stripe samples from the frame
+   with the strongest paint on that marking.
+5. **Fit and check.** One court is fitted to those samples, then carried into the
+   anchor. It must pass the anchor's geometry and camera checks, the player check
+   when people are required, and the upright-camera check.
 
-## What the output does and does not establish
+A passing composite replaces the anchor's court, with `chosen_key` set to
+`composite`. Otherwise the anchor's own court stands. The row's `composition`
+record says which happened. Its `fallback_reason` is one of
+`too_few_accepted_frames`, `score_evidence_missing`, `too_few_aligned_frames`,
+`middle_not_aligned`, `composition_failed`, `fit_<reason>` or `middle_<reason>`.
 
-Every scene gets a separate result: a court, no accepted court, a short-scene
-status or a detection failure. Accepted scenes retain their own corners. The
-annotation pipeline applies a scene's fixed projection across its frame range;
-it also applies its own player-vote acceptance rule. That rule requires exactly
-two people inside the court's margin in at least half of the scene's frames.
-It uses the full pose arrays, separately from the detector's 31-frame window.
+The endpoints are always the scheduled window ends, even when the shot check
+dropped one. The alignment and the anchor checks must reject a bad contribution.
 
-There is **no video-wide grouping pass that assigns one identical projection
-to every occurrence of a camera view**. The older hash-grouping helpers remain
-in `annotator/court_views.py`, but the new runner does not call them. Reuse is a
-forward pass through scenes with a limited set of earlier references.
+## Chronological reuse (`--reuse-courts`)
 
-The runner also does not track a pan or zoom within a scene. Its extra image
-check can restrict player samples, but it does not create new scene boundaries
-or additional court projections. Long scenes still receive one anchor-based
-projection. Missed cuts, camera movement and poor visibility can therefore
-make that projection unsuitable for parts of the scene.
+Reuse tries to carry an earlier court into a scene that returns to the same
+camera view. It works one scene at a time, in time order, and changes only the
+current scene. It is off in the standalone runner and on in both supplied
+dataset-builder configs.
 
-### What has been checked
+For each new scene the runner:
 
-A 24-video comparison on 29 September 2026 covered 533 scenes and returned 188 courts. Of 76
-accepted reuse pairs, the older hash-grouping method placed 74 in the same group.
-This supports agreement between the methods on those pairs; it does not establish
-that every reused court was accurate. The image-consistency check shortened 244
-of 359 eligible player windows, so removing it would materially change the
-player evidence.
+1. **Builds the scene's evidence.** It reads the anchor, finds its lines and
+   player samples, and makes the median image. The median keeps the static court
+   and removes most moving players.
+2. **Picks earlier courts to try.** It keeps a store of up to **eight** recent
+   courts and tries at most **three**. With PySceneDetect, scenes are tried in
+   order of luminance-histogram similarity. Saved scene files carry no histograms,
+   so the most recent court comes first. Histograms only set the order; they do
+   not decide a match.
+3. **Aligns and refits.** It aligns the earlier median image with the new one
+   inside the earlier court. It carries the court's corners across, then refits
+   them to the new anchor's painted stripes.
+4. **Checks the result.** An attempt is accepted only if:
+   - the images correlate at 0.8 or more, and every corner shifts by at most
+     one pixel at the 1280 × 720 reference size; the alignment images themselves
+     are 960 × 540
+   - the carried court and the refitted court pass the court-shape checks
+   - the camera is plausible and upright, and players fit when required
+   - the refit moves no point of the court floor by more than about 0.23 m, half
+     the spacing between the singles and doubles sidelines
+   - the new paint support is at least 80% of the earlier court's
+5. **Accepts the first passing court, or searches afresh.** A reused scene gets
+   `chosen_key` `reuse` and names its source in `reused_from`. If every attempt
+   fails, the scene gets a full search on the same prepared inputs, and then
+   composition.
 
-Reuse has been exercised on real videos, but its paint-support and movement
-thresholds remain heuristic choices. Difficult views can still produce false
-courts. Reuse checks reduce risk; they do not guarantee a correct projection.
+**Which courts enter the store.** Only a court from a fresh search with positive
+paint support, whether the anchor's own court or a composite. A reused court
+never enters, so small refit shifts cannot pile up along a chain of reuses.
+Unanalysed short scenes, no-court rows and failed scenes never enter. A short
+scene analysed with `--no-require-people` can enter if its fresh search returns a
+court with positive paint support. The store starts empty for each video; the
+newest court pushes out the oldest past eight.
+
+`reuse.py` marks the 80% paint ratio and the 0.23 m shift limit as unvalidated
+placeholders.
+
+**Example.** Scene 1 shows the whole court, scene 2 is a close-up and scene 3
+returns to the wide view. Scene 3 gets fresh lines and player samples. If
+scene 1's court passes every check, scene 3 gets an adjusted copy of it.
+Otherwise scene 3 gets a full search. Scene 1's own result never changes, and
+scene 1 may have left the eight-court store or missed the top three.
+
+## Video-robust pooling (`--court-mode video-robust`)
+
+Video-robust mode lets scenes of one camera view share evidence and, when it
+passes the selection and validity checks below, one court. Grouping happens
+as scenes finish. Fitting and comparison run after the last scene, and final
+rows print only after that pass.
+[view_pool.py](view_pool.py) owns these steps.
+
+Only scenes with `status` `court` take part. That includes reused courts and
+anchor-only courts. No-court rows, unanalysed short scenes and failed scenes are
+left exactly as they are.
+
+### 1. Group scenes by camera view
+
+As each scene finishes, it joins the first existing group that shows the same
+view. Otherwise it starts a new group and becomes that group's fixed
+**reference**.
+
+- A perceptual hash of the anchor shortlists groups. It must differ from the
+  reference's hash in at most 30% of its bits
+- The anchor must then align with the reference's anchor, with people left out,
+  at a correlation of 0.8 or more
+- Camera movement is allowed. The alignment carries evidence into the
+  reference's pixels and the fitted court back into each scene. The recorded
+  `same_camera` flag and corner shift are diagnostics only
+- Every member aligns directly with the reference, never with another member
+
+A scene that cannot join because of an error keeps its court. Its row records the
+error under `view_pool`.
+
+### 2. Donors: who contributes evidence
+
+A scene donates only if its fresh search ended in an **accepted composite**. In
+code, this is a scene whose `SceneCourts.used_frames` is non-empty. It offers the
+frames that won its markings, with their line samples and stripe labels. These
+are carried into the reference's pixels and turned to match the reference's
+court if needed.
+
+These scenes never donate, but can still receive a shared court:
+
+- a reused court
+- an anchor-only court, where composition fell back
+- a scene that was not composed, such as a short scene
+
+For each marking, the group keeps the donor with the strongest paint across all
+donors. An exact tie keeps the earlier scene.
+
+### 3. Fit one pooled court
+
+A group needs **at least two donor scenes**. One donor may still win every
+marking. Otherwise the group's `reason` is `too_few_donor_scenes` and every
+member keeps its court.
+
+The pooled court is one stripe fit to the kept samples, in the reference's
+pixels, starting from the reference's court. If the fit is invalid, `reason` is
+`fit_<reason>` and every member keeps its court.
+
+### 4. Score in every member
+
+In every member's anchor, three courts get the same combined score the detector
+uses to choose courts:
+
+- `pooled`: the pooled court, carried into this member and checked there
+- `scene`: the member's own finished court
+- `middle`: the anchor's own court before composition
+
+A missing score term leaves no combined score; it is never treated as zero. A
+group mean exists only when every member has that court's score.
+
+### 5. Whole-scene fallback
+
+Two donors can call the same painted stripe by different marking names. The one
+fit can then land between them on blank floor. So each donor's finished court is
+also a candidate for the whole group, with no refit.
+
+- The candidate is carried into every member and checked and scored there
+- It is out if it fails any member's check or lacks any member's score
+- Among the remaining candidates, the highest mean wins. An exact tie keeps the
+  earlier scene
+- The winner replaces the pool only if its mean beats the pool's mean, or the
+  pool has no mean. **An exact tie keeps the pool**
+
+The pool's mean counts every member, including members whose pooled court fails
+its check.
+
+### 6. Apply
+
+- **A scene candidate wins:** every member gets that court in its own pixels and
+  corner order. `chosen_key` becomes `video_pool_scene`. The winning scene's row
+  is unchanged
+- **The pool wins:** each member whose pooled court passed its own checks gets
+  it, with `chosen_key` `video_pool`. A member that failed keeps its own court
+- **The fit or scoring raised an error:** `reason` is `pooling_failed` and no row
+  changes
+
+Rows change only after every court in the group is measured.
+
+### Pooling and reuse together
+
+Reuse still uses scene courts, never pooled ones. A reused scene runs no fresh
+search, so it cannot donate. Turning reuse on therefore leaves fewer donors and
+fewer groups able to pool.
+
+## Output fields by mode
+
+Every analysed row carries these fields in both modes:
+
+| Field | Meaning |
+| --- | --- |
+| `chosen_key` | Where the court came from: a search key, `reuse`, `composite`, `video_pool` or `video_pool_scene` |
+| `reused_from` | The earlier `view_id` for a reused court, else `null` |
+| `composition` | `null` unless endpoints were searched. Otherwise `court` (`middle` or `composite`), `fallback_reason`, `reference`, `used_frames` (roles), each endpoint's outcome, any `errors` and `middle_chosen_key` |
+| `stage_seconds` | Detector seconds per step for this scene. Composition adds `endpoint_inputs`, `first_frame_search`, `last_frame_search` and `composition` |
+| `seconds` | This scene's wall time up to its row |
+
+Video-robust mode adds:
+
+- **On a row whose court changed:** `scene_corners_native_px`,
+  `scene_chosen_key` and `scene_reused_from` keep the scene's own court.
+  `reused_from` becomes `null`
+- **On each member of a successfully scored group:** a `view_pool` record with
+  `reference_view_id`, `alignment` (`null` for the reference), `court`
+  (`pooled`, `scene` or `group_scene`), `pooled_corners_native_px`,
+  `pooled_rejection` and `scores` (`pooled`, `scene`, `middle`, and
+  `group_scene` when a scene wins). A winning scene also adds
+  `group_scene_view_id` and `group_scene_corners_native_px`
+- **At the top of the result:** `view_groups`, one summary per group. It lists
+  `reference_view_id`, `member_view_ids`, `donor_view_ids`, `pooled_view_ids`,
+  `reason`, `chosen_court` and `chosen_view_id`. As processing proceeds, it adds
+  `markings` (each marking's donor), `fit`, `mean_combined_scores` and
+  `scene_candidates` (each candidate's mean and first rejection). A group that
+  stops early lacks the later fields
+
+If a scene cannot join a group because of a handled error, its row instead has
+`view_pool.error` and keeps its own court.
+
+`chosen_court` is `pooled` when no eligible scene candidate displaced the pool.
+Some or all
+members may still have rejected it; `pooled_view_ids` lists the members that
+actually took the pooled court.
+
+**Timing.** `stage_seconds` and `seconds` stop before a scene joins a view group,
+so they leave out all grouping and pooling time. `processing_seconds` covers
+them. In video-robust mode, `processing_seconds` minus the sum of scene `seconds`
+roughly shows the grouping and pooling cost.
+
+**Progress.** Scene-by-scene progress and pooling start, per-group and end
+messages go to stderr. In scene-robust mode each row also prints to stdout as its
+scene finishes. In video-robust mode rows print after pooling. Stdout can also
+hold other diagnostics, so read results from the saved file.
+
+## What the modes establish, and their limits
+
+- **Every mode:** one fixed court per scene. The runner does not follow a pan or
+  zoom within a scene. The shot check can trim player samples but never adds a
+  scene boundary. Missed cuts, camera movement and poor visibility can make a
+  scene's court wrong for part of it.
+- **Scene-robust** retains the result of the per-scene pass, including a
+  validated reuse when that option is on. Scenes of the same view can disagree.
+- **Reuse** makes a returning, barely moved view agree with an earlier
+  searched court, and skips that scene's search. It sees only a few recent
+  references, and its thresholds are placeholders.
+- **Video-robust** lets returning views share the best-painted evidence across
+  the video, with each member's own checks as a safeguard. A hash and an image
+  alignment cannot prove two scenes show the same court. Extra scoring grows
+  with donors times members.
+- **Scores are internal.** The combined score ranks courts; it is not accuracy
+  against hand-labelled courts.
+
+The annotation pipeline applies each scene's court across its whole frame range.
+It then applies its own player vote with the full pose arrays, separate from the
+detector's 31-frame window. It requires exactly two people inside the court's
+margin in at least half the scene's frames. See
+[court_evidence.py](../annotator/court_evidence.py).
+
+The [design page](../../docs/court_detector/design.md) records why composition
+and pooling work this way. The [evaluation page](../../docs/court_detector/evaluation.md)
+holds the scene checks, the cached pooling checks and the pending full GPU run.
 
 ## Where the behaviour lives
 
-- [scene_sources.py](scene_sources.py): PySceneDetect adapter and saved boundaries
-- [run_video.py](run_video.py): anchor selection, median images and reference store
-- [feet.py](feet.py): sample schedule, image-consistency check and player evidence
-- [reuse.py](reuse.py): alignment, stripe refitting and reuse acceptance checks
-- [composition.py](composition.py): composing one court from the anchor and window endpoints
-- [court_evidence.py](../annotator/court_evidence.py): per-scene pipeline evidence
+- [scene_sources.py](scene_sources.py): PySceneDetect cuts, histograms and saved ranges
+- [feet.py](feet.py): player window, shot check and feet
+- [run_video.py](run_video.py): anchors, median images and the reuse store
+- [composition.py](composition.py): composing one court within a scene
+- [reuse.py](reuse.py): reuse alignment, refit and checks
+- [view_pool.py](view_pool.py): video-robust grouping, donors, pooling and fallback
+- [court_views.py](../annotator/court_views.py): perceptual hashes and image alignment, shared by all three
