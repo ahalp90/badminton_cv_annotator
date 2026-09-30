@@ -2,7 +2,7 @@
 name = "badminton-cv-annotator"
 version = "0.1.0"
 description = "Badminton video auto-annotation pipeline with optional BST-X and BRIC stroke classification."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 # ---------------------------------------------------------------------------
 # Shared base — installed by every `uv sync`.
@@ -31,10 +31,13 @@ dependencies = [
     "torch>=2.5",
     "torchvision",
     # Numerics
-    "numpy",
-    "numba==0.67.0",
-    "pandas",
-    "scipy",
+    "numpy>=2.5.3",
+    "numba>=0.68.0",
+    "pandas>=3.0.6",
+    "scipy>=1.18.1",
+    # Hybrid annotator contact and sequence trees.
+    "scikit-learn>=1.9.1",
+    "joblib>=1.6.0",
     # Video / image I/O
     "opencv-python",
     "scenedetect==0.7.1",
