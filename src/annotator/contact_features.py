@@ -87,7 +87,7 @@ def _finite_or_nan(values: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(values), values, np.nan).astype(np.float32)
 
 
-def _difference(values: np.ndarray) -> np.ndarray:
+def frame_differences(values: np.ndarray) -> np.ndarray:
     """Return frame-aligned first differences without bridging missing rows."""
     result = np.full_like(values, np.nan, dtype=np.float64)
     valid = np.isfinite(values[1:]) & np.isfinite(values[:-1])
@@ -96,7 +96,7 @@ def _difference(values: np.ndarray) -> np.ndarray:
     return result
 
 
-def _player_signals(
+def build_player_signals(
     track: np.ndarray,
     pose_kps: np.ndarray,
     sticky: StickyResult,
@@ -135,8 +135,8 @@ def _player_signals(
     relative = nearest_wrist - track[:, :2]
 
     ankle = _finite_or_nan(np.asarray(sticky.ankle_pos, dtype=np.float64))
-    ankle_dx = np.column_stack([_difference(ankle[:, slot, 0]) for slot in range(2)])
-    ankle_dy = np.column_stack([_difference(ankle[:, slot, 1]) for slot in range(2)])
+    ankle_dx = np.column_stack([frame_differences(ankle[:, slot, 0]) for slot in range(2)])
+    ankle_dy = np.column_stack([frame_differences(ankle[:, slot, 1]) for slot in range(2)])
     ankle_speed = np.hypot(ankle_dx, ankle_dy)
 
     return {
@@ -160,7 +160,7 @@ def _player_signals(
     }
 
 
-def _shuttle_signals(
+def build_shuttle_signals(
     track: np.ndarray,
     spans: Sequence[tuple[int, int]],
     fps: float,
@@ -174,8 +174,8 @@ def _shuttle_signals(
     visible = track[:, 2] == 1
     x = np.where(visible, track[:, 0], np.nan)
     y = np.where(visible, track[:, 1], np.nan)
-    vx = _difference(x)
-    vy = _difference(y)
+    vx = frame_differences(x)
+    vy = frame_differences(y)
     speed = np.hypot(vx, vy)
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
@@ -216,7 +216,7 @@ def _shuttle_signals(
     }
 
 
-def _local_minima(values: np.ndarray, limit: float, radius: int) -> np.ndarray:
+def find_local_minima(values: np.ndarray, limit: float, radius: int) -> np.ndarray:
     finite = np.isfinite(values) & (values <= limit)
     minima = np.zeros(len(values), dtype=bool)
     for frame in np.flatnonzero(finite):
@@ -271,7 +271,7 @@ def extend_intervals_with_lookback(
     return merged
 
 
-def _expand_within_span(seed: np.ndarray, start: int, end: int, radius: int) -> np.ndarray:
+def expand_seed_region(seed: np.ndarray, start: int, end: int, radius: int) -> np.ndarray:
     expanded = np.zeros(len(seed), dtype=bool)
     local_seed = seed[start:end]
     if local_seed.any():
@@ -302,7 +302,7 @@ def build_region_masks(
     wrist_radius = _scaled_frames(WRIST_MINIMUM_RADIUS_BASE30, fps)
     visible = signals["shuttle_visible"].astype(bool)
     for start, end in eligible_intervals:
-        seeds["region_wrist"][start:end] = _local_minima(
+        seeds["region_wrist"][start:end] = find_local_minima(
             signals["wrist_gap_min"][start:end],
             WRIST_LOCAL_MINIMUM_LIMIT,
             radius=wrist_radius,
@@ -319,12 +319,12 @@ def build_region_masks(
     for start, end in eligible_intervals:
         for name in REGION_FIELDS[:-1]:
             radius = _scaled_frames(REGION_RADII_BASE30[name], fps)
-            regions[name] |= _expand_within_span(seeds[name], start, end, radius)
+            regions[name] |= expand_seed_region(seeds[name], start, end, radius)
         regions["region_serve_lookback"][max(0, start - serve_lookback) : start] = True
     return regions
 
 
-def _shift_inside_interval(
+def shift_within_interval(
     values: np.ndarray,
     frames: np.ndarray,
     offset: int,
@@ -338,7 +338,7 @@ def _shift_inside_interval(
     return result
 
 
-def _feature_family_names() -> dict[str, list[str]]:
+def contact_feature_families() -> dict[str, list[str]]:
     physics = [f"{signal}_t{offset:+d}" for signal in BASE_PHYSICS_SIGNALS for offset in WINDOW_OFFSETS_BASE30]
     missingness = [
         f"{signal}_t{offset:+d}"
@@ -348,7 +348,7 @@ def _feature_family_names() -> dict[str, list[str]]:
     return {"physics": physics, "context": list(CONTEXT_FIELDS), "missingness": missingness}
 
 
-def _record_dtype(feature_families: Mapping[str, Sequence[str]], identity_bytes: int) -> np.dtype:
+def contact_feature_dtype(feature_families: Mapping[str, Sequence[str]], identity_bytes: int) -> np.dtype:
     fields: list[tuple[str, str]] = [
         ("fixture", f"S{identity_bytes}"),
         ("interval_id", "<i4"),
@@ -406,8 +406,8 @@ def build_contact_features(
     encoded_identity = video_identity.encode("utf-8")
     eligible_intervals = build_eligible_intervals(tracker_intervals, exclusion_mask)
     search_intervals = extend_intervals_with_lookback(eligible_intervals, len(track), fps)
-    signals = _shuttle_signals(track, search_intervals, fps)
-    signals.update(_player_signals(track, pose_kps, sticky, resolution))
+    signals = build_shuttle_signals(track, search_intervals, fps)
+    signals.update(build_player_signals(track, pose_kps, sticky, resolution))
     signals["standing_count"] = np.asarray(sticky.standing_count, dtype=np.float32)
     regions = build_region_masks(
         signals,
@@ -417,8 +417,8 @@ def build_contact_features(
         scene_spans,
         fps,
     )
-    feature_families = _feature_family_names()
-    dtype = _record_dtype(feature_families, max(1, len(encoded_identity)))
+    feature_families = contact_feature_families()
+    dtype = contact_feature_dtype(feature_families, max(1, len(encoded_identity)))
     chunks: list[np.ndarray] = []
     scene_starts = np.asarray([start for start, _end in scene_spans], dtype=int)
     for interval_id, (start, end) in enumerate(search_intervals):
@@ -436,7 +436,7 @@ def build_contact_features(
                 offset = 0
                 if offset_base30:
                     offset = int(math.copysign(_scaled_frames(abs(offset_base30), fps), offset_base30))
-                rows[f"{signal}_t{offset_base30:+d}"] = _shift_inside_interval(
+                rows[f"{signal}_t{offset_base30:+d}"] = shift_within_interval(
                     signals[signal], frames, offset, start, end
                 )
 
