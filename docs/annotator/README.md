@@ -25,6 +25,35 @@ version. Keep both bundle files together.
 The next court-based retune is still required. Code cleanup alone does not
 establish prediction quality on the new court evidence.
 
+## Run annotation on saved inputs
+
+Use this command when shuttle, pose and court extraction has already finished
+and you want to run annotation separately:
+
+```bash
+PYTHONPATH=src python -m annotator \
+  --run-dir data/dataset-run \
+  --video-id match-alpha \
+  --models models/annotator \
+  --output-dir data/annotations/match-alpha
+```
+
+Replace `match-alpha` with the video's directory name in the extraction run.
+The command reads that video's saved files from `stages/metadata`,
+`stages/shuttle`, `stages/pose` and `stages/court` beneath `--run-dir`.
+It expects the dataset builder's saved extraction formats, including the
+shuttle fill flags and operational court evidence.
+
+This runs the complete mixed annotator. It uses the same annotation function as
+the dataset builder and writes `annotator_result.json.gz`, both exclusion masks
+and the shuttle-quality summary. The output directory must be new or empty.
+The command does not update an existing dataset run's annotations or manifest.
+It needs neither the original video nor labels, and it does not run scraping,
+vision extraction or model fitting.
+
+The older `python -m annotator.rally_segmentation` command only performs
+preliminary heuristic segmentation. Use `python -m annotator` for full annotation.
+
 ## Dataset builder
 
 Set the model directory in your existing dataset-builder TOML configuration:

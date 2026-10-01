@@ -24,6 +24,10 @@ These heuristics remain part of the mixed model. Their detailed settings are
 fixed preprocessing policy, carried with the fitted bundle. They are not an
 independent set of knobs to adjust around an already-trained tree.
 
+The court detector supplies scene boundaries and court geometry. The annotator
+uses those results to interpret player positions and shuttle landings. Scene
+histograms are not inputs to its contact or sequence models.
+
 ## The base contact tree
 
 [`contacts/features.py`](../../src/annotator/contacts/features.py) describes each
