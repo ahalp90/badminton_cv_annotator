@@ -1,0 +1,14 @@
+{
+  "model": "yanziang/InternVideo3-8B-Instruct",
+  "revision": "c4602918b65225650d152db2850fe34e01d21fcd",
+  "prompt": "You are an experienced badminton coach reviewing a rally from a professional singles match. The rally ends when one player makes an error on the final shot. Identify that final shot and what went wrong with it, then give the player one specific technical correction. Answer in two or three sentences of coaching advice addressed to the player. Do not describe the venue, the score, the sponsors or what the players are wearing.",
+  "fps": 2.0,
+  "max_new_tokens": 200,
+  "max_frames": 32,
+  "frame_pixels": [
+    448,
+    252
+  ],
+  "decoding": "greedy",
+  "clips": "/clips/clips.csv"
+}

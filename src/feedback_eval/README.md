@@ -444,15 +444,41 @@ The floor on this subset is already scored (`experiments/feedback_eval/shuttlese
 the 543-clip figures (0.879 / 0.282 and 0.897 / 0.387), so the subset is not an
 unusually easy or hard draw.
 
+### Version A result (2 October 2026)
+
+| On the 100-clip subset | Raw F1 | Rescaled F1 | Beats it on |
+|---|---|---|---|
+| `random_template` | 0.894 | 0.370 | — |
+| `constant` | 0.879 | 0.280 | — |
+| **Version A** — InternVideo3-8B, no fine-tuning | **0.853** | **0.178** | `constant` 8/99, `random_template` 3/99 clips |
+
+Run on `bourbaki` (A100 40 GB), ~57 s per clip, settings in
+`experiments/feedback_eval/shuttleset_v1_test100/version_a_predictions.meta.json`.
+Excluding the one blank clip gives 0.862 / 0.180, so the blank does not drive
+the result.
+
+**Version A is below both model-free baselines.** It writes in a coaching
+register but does not diagnose the rally: 54 of 99 answers open with the same
+sentence ("The final shot was a high, soft backhand lift…"), there are only 25
+distinct opening sentences, and a keyword check finds the right stroke family
+in the opening sentence on 24 of 99 clips — no better than always answering
+"lift or drop" (22 of these clips). Its invented specifics ("the opponent then
+won with a drop shot") cost precision, which is why it falls below generic
+advice. That is the gap Version B's fine-tuning is meant to close.
+
+**One clip is blank.** `..._TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s2_r25`,
+the longest clip at 39.5 s, fails in torchvision's decoder every time
+(`swscaler: Failed initializing scaling graph`), at 720p and when shrunk to
+360p, and was written with `--blank-failures`. The container has no
+`torchcodec`; rebuilding it with one is the likely fix.
+
 ## Not done yet
 
-- **A model version to score.** This is now the only thing between the harness
-  and a Version A result. The reference set, the split, the baselines, the
-  100-clip subset and the clip cutter are built; what is missing is a
-  `predictions.jsonl`. `src/mllm/` on `mllm_coach` runs InternVideo3 on a single
-  clip and prints a description; it needs a loop over `clips.csv` and JSONL
-  output in the shape `records.load_predictions` reads. See *Getting to a
-  Version A score*.
+- **Version B.** Version A is scored (above). The next model version needs
+  Ego-Exo4D access and a LoRA fine-tuning setup; score it against the same
+  subset file so the comparison holds.
+- **`torchcodec` in the container.** One Version A clip could not be decoded by
+  the torchvision fallback; see *Version A result*.
 - **Excluded matches in the reference set.** `video_metadata.csv` marks four
   matches as excluded (ids 9, 10, 12: labelling or frame numbers incorrect;
   27: video removed). `shuttleset_faults` does not read that file, so 192 of
@@ -484,7 +510,7 @@ unusually easy or hard draw.
 python -m pytest tests/test_feedback_eval_*.py
 ```
 
-All 171 run on CPU in well under a second with no transformers install: the
+All 175 run on CPU in well under a second with no transformers install: the
 scorer is injected, so the tests drive a fake with the same signature as
 `bert_score.BERTScorer.score`.
 
