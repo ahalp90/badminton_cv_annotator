@@ -101,6 +101,11 @@ mixed model.
 Use `filtered_by_rally` for contact membership. Do not reconstruct it by
 filtering the full event stream against rally bounds.
 
+In model runs, `contacts` and `filtered_contacts` both contain the final chosen
+contacts. The builder's historical `raw_candidates` field also contains those
+contacts; it is not the tree's input shortlist. Older benchmark reports therefore
+give identical raw and final contact metrics for these runs. Use the final metrics.
+
 `Top` is the far court half and `Bot` is the near court half. These are camera
 positions, not stable player identities across a change of ends.
 
