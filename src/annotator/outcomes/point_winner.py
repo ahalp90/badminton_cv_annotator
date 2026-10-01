@@ -1,28 +1,12 @@
-"""Point-winner verdicts (D5 chain — attribution, alternation fit, landing, verdict).
+"""Estimate rally outcomes from contact sides, shuttle flight and court geometry.
 
-Wrist-anchored striker attribution in body-height units, an alternation-rhythm fit for the
-final-contact half, a kinematic landing filter (a settle cap plus a carry filter, both refined by
-an ankle rule), and a next-server winner call with a landing-geometry best-guess fallback. Promoted
-from the D5 point-winner detector proven out in
-local_scratch/autograder_architecture/d5_winner_retest.py and d5_landing_arms.py (measured on the
-ShuttleSet sset_01 and trial videos, GT-anchored against the per-set winner labels). Only the SHIPPED
-chain lands here: the box-height attribution arm, the window fix (a lob that leaves the frame top
-waits for re-entry), the combined landing filter with the ankle rule on, and the next-server
-verdict. The three attribution ablation arms, the parameter sweeps, and the GT reconciliation that
-measured all of this stay in the scratch harness — they answer "is this the right chain", which is
-already settled; this module only carries the chain itself.
+The next server determines the winner when known. Otherwise, a filtered landing
+provides a geometric estimate. Contact attribution uses wrist proximity and the
+rally's alternating player order; outcome estimates do not change those sides.
 
-The chain assumes full-frame broadcast footage: the top-exit wait treats the frame's top edge as
-sky (a lob leaving it will fall back into view), which a tight crop whose top edge cuts through
-play would break. That assumption rides the measured configuration and is not a parameter.
-
-Library-only: no argparse main. Every function here reads precomputed per-video arrays (a shuttle
-track, court-scale pose boxes, a replay/dead mask, a homography) for one rally or one frame at a
-time; there is no established path convention yet for wiring rally-segmentation and replay-mask
-outputs into a point-winner CLI, so this stays a library the caller composes over a rally list, the way the
-harness's own per-rally loop does. See
-the pinned D5 example under local_scratch/autograder_architecture for a runnable reproduction of
-the D5 retest's arm-2 verdict CSVs from this module.
+Landing filters reject carried shuttle motion and stop at ground settling. They
+assume full-frame broadcast footage: a shuttle leaving the image's top edge may
+be a lob that returns to view. Each landing search stays within one camera view.
 """
 from __future__ import annotations
 
@@ -55,8 +39,7 @@ from shared.court import (
 
 
 class Half(StrEnum):
-    """Which court half a striker, receiver, or landing sits in. Byte-identical to the harness's
-    plain `'Top'`/`'Bot'` strings, so a CSV written from these serialises the same way."""
+    """Camera-relative court half of a player or landing: far (Top) or near (Bot)."""
 
     TOP = 'Top'
     BOT = 'Bot'
@@ -66,14 +49,14 @@ OTHER_HALF = {Half.TOP: Half.BOT, Half.BOT: Half.TOP}
 
 
 class Verdict(StrEnum):
-    """A rally's outcome relative to the striker. Byte-identical to the harness's 'won'/'lost'."""
+    """A rally's outcome relative to the player who hit last."""
 
     WON = 'won'
     LOST = 'lost'
 
 
 class VerdictSource(StrEnum):
-    """Where a verdict row's winner call came from. Byte-identical to the harness's strings."""
+    """The observation or rule used to determine the winner."""
 
     NEXT_SERVER = 'next_server'      # winner-serves-next: rally n+1's fitted first-stroke half
     LANDING_GEOMETRY = 'landing_geometry'  # in/out of the receiver's singles half
@@ -95,7 +78,7 @@ SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
 
 # Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
-# (2% of any edge): matches the harness's single source of truth for "at the top edge".
+# (2% of any edge).
 TOP_EDGE_FRAC = 0.02
 
 # ---------------------------------------------------------------------------
@@ -106,11 +89,9 @@ def project_pixels_to_court(
 ) -> np.ndarray:
     """(2, N) pixels at `resolution` -> (2, N) normalised court coords (doubles outline = unit sq).
 
-    One source of truth for the two projections the harness kept separate: homography-resolution
-    pixels (pass `shared.court.HOMOGRAPHY_RESOLUTION`; the resolution scale is then an exact 1.0
-    no-op) and working-resolution pixels (pass the pose/track resolution; scaled down to the
-    homography's recorded resolution before the matrix multiply). `H` lives inside `court_info`
-    (the `shared.court.get_court_info`/`load_all_court_info` shape).
+    Pixel positions are scaled from the supplied image resolution to the
+    homography's reference resolution before projection through `court_info['H']`.
+    Passing `shared.court.HOMOGRAPHY_RESOLUTION` leaves pixel coordinates unchanged.
 
     :param px_xy: (2, N) pixel coordinates at `resolution`.
     :param resolution: (width, height) `px_xy` is expressed in.
@@ -123,7 +104,7 @@ def project_pixels_to_court(
 
 
 # ---------------------------------------------------------------------------
-# Striker attribution (the shipped wrist_boxh arm: nearer-wrist px / mean windowed box height)
+# Contact-side attribution from tracked wrist proximity
 # ---------------------------------------------------------------------------
 def attribute_half(
     frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, net_band: tuple[float, float],
@@ -238,9 +219,7 @@ def landing_window(
     A sustained-loss gap does NOT close the window when the last visible sample before it sits at
     the frame top: the shuttle lobbed out of the top of the picture and will descend back into
     view, so the search waits for the re-entry, still bounded by the next serve and the replay
-    mask (and by any LATER sustained-loss gap that did not follow a top exit). This is the shipped
-    window-fix behaviour (the harness's ``--window-fix``); there is no toggle here, it always
-    applies.
+    mask and by any later sustained-loss gap that did not follow a top exit.
     """
     if shuttle_hallucination_mask is not None and len(shuttle_hallucination_mask) != len(track):
         raise ValueError('shuttle_hallucination_mask length must match track length')
@@ -715,8 +694,13 @@ def pick_landing_to_end(
     constants: FpsConstants, fps: float,
     shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
+    *, infer_net_fault: bool = True,
 ) -> Landing | None:
-    """Pick a landing in an explicit half-open window endpoint."""
+    """Pick a landing within one camera view.
+
+    Disable net-fault inference when the start is a returning view rather than
+    the contact: the unseen flight may already have crossed the net.
+    """
     landing = filtered_descending_landing(
         final_contact, end_frame, track, kin, convert_landing_options(opts, fps),
         constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
@@ -731,7 +715,7 @@ def pick_landing_to_end(
     return Landing(
         frame=landing_frame, norm=norm, half=half,
         at_border=at_frame_border(landing_xy),
-        net_ender=is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
+        net_ender=infer_net_fault and is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
     )
 
 
@@ -741,14 +725,17 @@ def geometric_verdict(
     """(verdict, winner_half, source) from the landing geometry at M=0: net rule, else in/out.
 
     best_guess=False (the confident path): None where no confident call is available (off-frame /
-    exactly on a line). best_guess=True (the shipped next-server fallback, for a rally
-    with no attributable next serve): the raw landing's side membership always yields won/lost, so
-    the only blank is a rally with no landing at all.
+    exactly on a line). best_guess=True permits a call at borders or without a
+    margin, but still withholds a call for an out landing on the hitter's own half.
     """
     receiver = OTHER_HALF[striker_half]
     if landing is not None and landing.net_ender:
         return Verdict.LOST, receiver, VerdictSource.NET_RULE
     if landing is None:
+        return None, None, VerdictSource.LANDING_GEOMETRY
+    # An out landing behind or wide of the attributed hitter contradicts the
+    # assumed receiving half. Keep the contact assignment; withhold this winner.
+    if landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0:
         return None, None, VerdictSource.LANDING_GEOMETRY
     if best_guess:
         # Which side of the receiver singles half does the raw terminal fall on? Never None.
@@ -786,7 +773,7 @@ class VerdictRow(NamedTuple):
 
 
 class GeometricVerdictRow(NamedTuple):
-    """The geometric winner arm and its consistency check for one rally."""
+    """Landing-based winner and its agreement with the main winner estimate."""
 
     rally_id: int
     geometric_verdict: Verdict | None
@@ -804,9 +791,9 @@ def rally_verdict(
     Rally n's winner is rally n+1's fitted first-stroke half whenever one is attributable
     (winner-serves-next), sidestepping the landing estimate for the winner call entirely — a
     next-server row never checks `landing.net_ender`. Only when no next serve is attributable
-    does the call fall back to the landing's best-guess court-half membership (the ported
-    best_guess=True semantics: the raw terminal's side always yields a call, so verdict is blank
-    only when there is no landing at all). Margins and band flags always read the landing
+    does the call fall back to the landing's best-guess court-half membership.
+    An out landing on the attributed hitter's own half leaves that call unresolved.
+    Margins and band flags always read the landing
     geometry, diagnostic even on a next-server row.
     """
     if next_server is not None:

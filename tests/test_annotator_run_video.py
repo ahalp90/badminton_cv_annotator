@@ -380,7 +380,7 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     assert 0 in result.geometric_verdict_rows
 
 
-def test_run_video_uses_latest_unmasked_contact_for_landing(monkeypatch):
+def test_run_video_does_not_use_earlier_contact_when_final_is_rejected(monkeypatch):
     inputs = _synthetic_inputs()
     codes = np.zeros(len(inputs['track']), dtype=np.uint8)
     codes[16] = 1
@@ -401,7 +401,7 @@ def test_run_video_uses_latest_unmasked_contact_for_landing(monkeypatch):
         contacts={0: [12, 14, 16]}, heuristic_only=True,
     )
 
-    assert called_frames == [14]
+    assert called_frames == []
 
 
 def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch):
@@ -543,7 +543,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
 
     def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
                   _resolution, _court_info, _constants, _fps, *, shuttle_hallucination_mask,
-                  rejected_intervals):
+                  rejected_intervals, infer_net_fault):
         assert shuttle_hallucination_mask[40]
         rejected_intervals.append((39, 41))
         return None

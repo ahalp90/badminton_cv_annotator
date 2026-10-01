@@ -104,6 +104,25 @@ individual guesses, including unknown sides. Contacts outside all rallies also
 keep their raw guesses. Downstream outcome estimates use the finished contacts
 and sides.
 
+## Landings and point winners
+
+The next rally's server determines the winner when that player is known.
+Otherwise, the annotator uses the observed landing and court lines. An out
+landing behind or wide of the player attributed with the last hit leaves this
+geometry-based winner undecided. It does not change the contact's player side.
+
+If the final contact occurs before a normal court view returns, the landing
+search can begin in the first accepted scene within the predicted rally. It
+uses that scene's geometry and ends at its boundary or the rally end. A masked
+returning view is not used. The contact retains its original time and player.
+The partial flight cannot establish that the shuttle never crossed the net,
+so it cannot produce a net-fault verdict.
+
+If the shuttle data at the last predicted hit is marked unreliable, the landing
+is left unavailable. Searching from the previous hit could measure the other
+player's shot while retaining the last hitter's identity. Contacts and player
+sides are kept, and the next-server winner rule can still apply.
+
 ## Review scores and settings
 
 The review-ranking tree learns whether a whole predicted rally was correct.

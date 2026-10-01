@@ -88,6 +88,7 @@ class LandingSelection:
     """Landing evidence derived from one rally's final usable contact."""
 
     final_contact: int
+    search_start: int
     safe_window: point_winner.LandingWindow
     landing: point_winner.Landing | None
     window_closed_by_mask: bool
@@ -292,10 +293,11 @@ def select_landing(
     striker: point_winner.Half,
     next_start: int,
     context: LandingContext,
+    *, search_start: int,
 ) -> LandingSelection:
     """Select one landing and record event-mask rejections around its window."""
     safe_window = point_winner.landing_window(
-        final_contact,
+        search_start,
         next_start,
         context.track,
         context.definitive_exclusion_mask,
@@ -304,7 +306,7 @@ def select_landing(
     )
     if context.rejection_diagnostics is not None:
         window_end_without_events = point_winner.window_end(
-            final_contact,
+            search_start,
             next_start,
             context.track,
             context.definitive_exclusion_mask,
@@ -315,14 +317,14 @@ def select_landing(
                 context.rejection_diagnostics,
                 'lost_shuttle_guard',
                 rally_id,
-                final_contact + 1,
+                search_start + 1,
                 window_end_without_events,
                 context.shuttle_hallucination_mask,
                 context.source_codes,
             )
     all_false_exclusion_mask = np.zeros_like(context.definitive_exclusion_mask)
     window_end_without_exclusion_mask = point_winner.window_end(
-        final_contact,
+        search_start,
         next_start,
         context.track,
         all_false_exclusion_mask,
@@ -331,7 +333,7 @@ def select_landing(
     )
     landing_rejections: list[tuple[int, int]] = []
     landing = point_winner.pick_landing_to_end(
-        final_contact,
+        search_start,
         safe_window.end_frame,
         context.track,
         context.kinematics,
@@ -344,6 +346,7 @@ def select_landing(
         context.fps,
         shuttle_hallucination_mask=context.shuttle_hallucination_mask,
         rejected_intervals=landing_rejections,
+        infer_net_fault=search_start == final_contact,
     )
     for start_frame, end_frame in landing_rejections:
         record_rejection(
@@ -357,6 +360,7 @@ def select_landing(
         )
     return LandingSelection(
         final_contact=final_contact,
+        search_start=search_start,
         safe_window=safe_window,
         landing=landing,
         window_closed_by_mask=(
@@ -389,20 +393,23 @@ def build_horizon_rows(
             closure_reasons.append('horizon_cap')
         if effective_end_frame == selection.safe_window.end_frame:
             closure_reasons.extend(selection.safe_window.closure_reasons)
-        capped_landing = point_winner.pick_landing_to_end(
-            selection.final_contact,
-            effective_end_frame,
-            context.track,
-            context.kinematics,
-            context.landing_options,
-            striker,
-            context.net_band,
-            context.resolution,
-            context.court_info,
-            context.resolved.constants,
-            context.fps,
-            shuttle_hallucination_mask=context.shuttle_hallucination_mask,
-        )
+        capped_landing = None
+        if effective_end_frame > selection.search_start:
+            capped_landing = point_winner.pick_landing_to_end(
+                selection.search_start,
+                effective_end_frame,
+                context.track,
+                context.kinematics,
+                context.landing_options,
+                striker,
+                context.net_band,
+                context.resolution,
+                context.court_info,
+                context.resolved.constants,
+                context.fps,
+                shuttle_hallucination_mask=context.shuttle_hallucination_mask,
+                infer_net_fault=selection.search_start == selection.final_contact,
+            )
         capped_verdict = point_winner.rally_verdict(
             rally_id, striker, next_server, capped_landing, context.band_m,
         )
@@ -434,9 +441,22 @@ def build_rally_outcome(
     next_start: int,
     frames: list[int],
     context: LandingContext,
+    *, rally_end: int,
 ) -> RallyOutcome:
     """Build strict and horizon outputs for one rally with a fitted striker."""
     final_contact = final_usable_contact(rally_id, frames, context)
+    # A rejected last hit leaves the final flight unknown. An earlier hit may
+    # belong to the other player, so it cannot stand in for the final one.
+    if final_contact != frames[-1]:
+        final_contact = None
+    scene = None
+    if final_contact is not None and context.scene_courts is not None:
+        scene = next((scene for scene in context.scene_courts
+                      if scene.end_frame > final_contact and scene.start_frame < rally_end), None)
+        if scene is None or (
+            scene.start_frame > final_contact and context.definitive_exclusion_mask[scene.start_frame]
+        ):
+            final_contact = None
     if final_contact is None:
         landing = None
         verdict = point_winner.rally_verdict(
@@ -448,15 +468,24 @@ def build_rally_outcome(
         )
         return RallyOutcome(verdict, landing, geometric_verdict)
 
-    if context.scene_courts is not None:
-        scene = court_at_frame(context.scene_courts, final_contact)
+    search_start = final_contact
+    if scene is not None:
         context = replace(
             context, court_info=scene.court_info, net_band=scene.net_band,
             band_m=scene.landing_error_band_m,
         )
         # A landing search cannot carry one camera's geometry across a scene cut.
         next_start = min(next_start, scene.end_frame)
-    selection = select_landing(rally_id, final_contact, striker, next_start, context)
+        if scene.start_frame > final_contact:
+            search_start = scene.start_frame
+            next_start = min(next_start, rally_end)
+            # The camera cut is not shuttle motion in the returning view.
+            speed = context.kinematics.speed.copy()
+            speed[search_start] = np.nan
+            context = replace(context, kinematics=context.kinematics._replace(speed=speed))
+    selection = select_landing(
+        rally_id, final_contact, striker, next_start, context, search_start=search_start,
+    )
     verdict = point_winner.rally_verdict(
         rally_id, striker, next_server, selection.landing, context.band_m,
     )
@@ -550,6 +579,7 @@ def build_verdict_data(
             next_start,
             contact_data.filtered_by_rally[rally_id],
             context,
+            rally_end=span[1],
         )
         verdict_rows[rally_id] = outcome.verdict
         landings[rally_id] = outcome.landing
