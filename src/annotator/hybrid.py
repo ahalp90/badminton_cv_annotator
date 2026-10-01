@@ -74,6 +74,9 @@ def sequence_inputs(
     def side_for_frame(frame: int) -> Half | None:
         net_band = evidence.net_band
         if side_geometry is SideGeometry.SCENE:
+            # Serve look-back frames can precede the accepted scene and its tracker.
+            if evidence.track[frame, 2] != 1 or not np.isfinite(evidence.sticky.distances_per_slot[frame]).any():
+                return None
             net_band = court_at_frame(evidence.scene_courts, frame).net_band
         return attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, net_band)
 
