@@ -60,6 +60,9 @@ The [court-detector follow-up (#148)](https://github.com/ahalp90/badminton_cv_an
 
 ## Auto-annotator
 
+Start with the [auto-annotator guide](docs/annotator/README.md) for the supported
+annotation path, model bundles and retuning instructions.
+
 Our most ambitious sub-project is the auto-annotator. It automates processing any badminton video into a scored sequence of rallies: detect the court, find live-play sections, identify shuttle contacts, work out which player hit them, and reconstruct each rally.
 
 The annotator combines pretrained CV components with court geometry, shuttle motion, wrist position and other hand-engineered evidence, then uses lightweight learned models where they help. A deep model would probably make short work of it within its own dataset distribution. But we're trying to build a system that will transfer cleanly to unfamiliar contexts, so that it might work equally well on professional broadcast footage, amateur YouTube videos, and even matches down at the local club. All without needing annotated exemplars from each of those contexts.

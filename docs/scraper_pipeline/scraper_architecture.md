@@ -1,5 +1,9 @@
 # Scraper architecture
 
+For the current mixed heuristic and tree-model annotator, use the
+[auto-annotator guide](../annotator/README.md). The notes below describe the
+earlier scraper and heuristic pipeline.
+
 ## Scope and current status
 
 `src/scraper` contains the acquisition and commentary side of the dataset
