@@ -145,3 +145,5 @@ data/scrape_output/
 data/feedback_eval/references_*.jsonl
 data/feedback_eval/shuttleset_clip_*.csv
 experiments/feedback_eval/*/predictions_*.jsonl
+data/feedback_eval/clips/
+data/feedback_eval/*_matches.csv
