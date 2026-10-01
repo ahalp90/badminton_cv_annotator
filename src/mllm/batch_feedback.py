@@ -132,12 +132,34 @@ def run(
 
 
 class InternVideo3:
-    """The model, loaded once. Imports are deferred so the loop is testable without a GPU."""
+    """The model, loaded once. Imports are deferred so the loop is testable without a GPU.
 
-    def __init__(self, model: str, revision: str, fps: float, max_new_tokens: int) -> None:
+    The input budget follows COSC595's tested adapter
+    (`annotator/vlm_scene_benchmark/backends/internvideo3.py`): a cap on frames
+    and a fixed per-frame pixel budget. Without them the processor keeps the
+    clip's native 720p, the visual prompt runs to tens of thousands of tokens,
+    and one 10-second clip took ~3-4 minutes on an A100 with the GPU mostly
+    idle. Each clip's sampled frames and token counts are logged so the input
+    the model actually saw is on record.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        revision: str,
+        fps: float,
+        max_new_tokens: int,
+        *,
+        max_frames: int,
+        frame_width: int,
+        frame_height: int,
+    ) -> None:
         import torch
         from transformers import AutoModelForCausalLM, AutoProcessor
 
+        if not torch.cuda.is_available():
+            raise RuntimeError("InternVideo3 needs a CUDA device")
+        self.torch = torch
         self.fps = fps
         self.max_new_tokens = max_new_tokens
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -145,10 +167,21 @@ class InternVideo3:
             revision=revision,
             dtype=torch.bfloat16,
             attn_implementation="sdpa",
-            device_map="auto",
+            device_map={"": "cuda:0"},
+            low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
+        self.model.eval()
+        devices = {parameter.device.type for parameter in self.model.parameters()}
+        if devices != {"cuda"}:
+            raise RuntimeError(f"model is not wholly on the GPU: {sorted(devices)}")
         self.processor = AutoProcessor.from_pretrained(model, revision=revision, trust_remote_code=True)
+
+        video_processor = self.processor.video_processor
+        video_processor.min_frames = 4
+        video_processor.max_frames = max_frames
+        total_pixels = max_frames * frame_width * frame_height
+        video_processor.size = {"shortest_edge": total_pixels, "longest_edge": total_pixels}
 
     def __call__(self, video: Path, prompt: str) -> str:
         messages = [
@@ -166,14 +199,37 @@ class InternVideo3:
             add_generation_prompt=True,
             return_dict=True,
             fps=self.fps,
-            return_tensors="pt",
-        ).to(self.model.device)
-        # Greedy, so a re-run of the same clip gives the same text.
-        output = self.model.generate(
-            **inputs, max_new_tokens=self.max_new_tokens, do_sample=False, use_cache=True
+            return_metadata=True,
+            padding=True,
         )
-        generated = [o[len(i):] for i, o in zip(inputs.input_ids, output)]
-        return self.processor.batch_decode(generated, skip_special_tokens=True)[0]
+        metadata = inputs.pop("video_metadata", None)
+        if isinstance(metadata, (list, tuple)):
+            metadata = metadata[0] if metadata else None
+        inputs.convert_to_tensors("pt")
+        grid_t, grid_h, grid_w = (int(v) for v in inputs["video_grid_thw"][0].tolist())
+        merge = int(self.processor.video_processor.merge_size)
+        input_tokens = int(inputs["attention_mask"].sum().item())
+        frames = len(metadata.frames_indices) if metadata is not None else "?"
+
+        inputs = inputs.to("cuda:0")
+        try:
+            with self.torch.inference_mode():
+                # Greedy, so a re-run of the same clip gives the same text.
+                output = self.model.generate(
+                    **inputs, max_new_tokens=self.max_new_tokens, do_sample=False, use_cache=True
+                )
+            generated = output[:, inputs["input_ids"].shape[-1]:]
+            text = self.processor.batch_decode(
+                generated, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )[0]
+            logger.info(
+                "  %s frames, visual tokens %d, input tokens %d, output tokens %d",
+                frames, grid_t * grid_h * grid_w // merge**2, input_tokens, generated.shape[-1],
+            )
+        finally:
+            del inputs
+            self.torch.cuda.empty_cache()
+        return text
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -184,6 +240,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--revision", default=REVISION)
     parser.add_argument("--fps", type=float, default=2.0, help="frames sampled per second of clip")
     parser.add_argument("--max-new-tokens", type=int, default=200)
+    parser.add_argument(
+        "--max-frames", type=int, default=32, help="cap on sampled frames; long rallies are thinned"
+    )
+    parser.add_argument("--frame-width", type=int, default=448, help="per-frame pixel budget, width")
+    parser.add_argument("--frame-height", type=int, default=252, help="per-frame pixel budget, height")
     parser.add_argument("--prompt-file", type=Path, help="replace the built-in prompt")
     parser.add_argument("--limit", type=int, help="only the first N clips (a smoke test)")
     parser.add_argument(
@@ -210,6 +271,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "prompt": prompt,
         "fps": args.fps,
         "max_new_tokens": args.max_new_tokens,
+        "max_frames": args.max_frames,
+        "frame_pixels": [args.frame_width, args.frame_height],
         "decoding": "greedy",
         "clips": str(args.clips),
     }
@@ -222,7 +285,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
 
     started = time.monotonic()
-    generate = InternVideo3(args.model, args.revision, args.fps, args.max_new_tokens)
+    generate = InternVideo3(
+        args.model,
+        args.revision,
+        args.fps,
+        args.max_new_tokens,
+        max_frames=args.max_frames,
+        frame_width=args.frame_width,
+        frame_height=args.frame_height,
+    )
     logger.info("model loaded in %.0fs", time.monotonic() - started)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
