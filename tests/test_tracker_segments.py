@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
+from annotator.outcomes.video import scoring_filter
 from annotator.rally_segmentation import tracker_segments, wrist_contact_near
-from annotator.run_video import scoring_filter
 from annotator.types import ContactCandidate
 
 
