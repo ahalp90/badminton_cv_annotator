@@ -33,6 +33,10 @@ python -m feedback_eval.split_cli --references ... --seed 20260903 --out ...
 
 # 3.3  score one model version on one side of that split
 python -m feedback_eval.score_cli --references ... --predictions ... --split ... --model-version A
+
+# Version A inputs: a fixed subset of the test side, and the clips it names
+python -m feedback_eval.subset_split --split ... --references ... --size 100 --seed ... --out ...
+python -m feedback_eval.shuttleset_clips --split ... --fetch
 ```
 
 ## Inputs
@@ -345,17 +349,116 @@ python -m feedback_eval.score_cli \
     --out runs/version_a/scores.json
 ```
 
+## Getting to a Version A score
+
+Scoring all 543 held-out clips means cutting and running the model on all of
+them. A seeded 100-clip subset is enough to separate a model from the floor:
+
+```bash
+export PYTHONPATH=src
+
+# 1. the subset, written as a split file (committed: score everything against it)
+python -m feedback_eval.subset_split \
+    --split data/feedback_eval/split_shuttleset_v1.json \
+    --references data/feedback_eval/references_shuttleset_v1.jsonl \
+    --size 100 --seed 20261002 \
+    --out data/feedback_eval/split_shuttleset_v1_test100.json
+
+# 2. download just the 100 clips' spans at 720p (~18 min of video, ~80 MB, ~20 min;
+#    resumable) -> data/feedback_eval/clips/ + clips.csv. Needs yt-dlp and ffmpeg.
+python -m feedback_eval.shuttleset_clips \
+    --split data/feedback_eval/split_shuttleset_v1_test100.json --fetch
+
+# (alternative: whole matches through the existing ShuttleSet downloader, then cut
+#  locally. 11 full broadcasts at 1080p need 10 GB or more of disk.)
+#   python -m feedback_eval.shuttleset_clips --split ... --write-match-csv data/feedback_eval/test100_matches.csv
+#   PYTHONPATH=src:src/bst_x python src/bst_x/pipeline/download_adapter.py \
+#       --match-csv data/feedback_eval/test100_matches.csv --output-dir data/shuttleset/raw_video
+#   python -m feedback_eval.shuttleset_clips --split ...
+```
+
+**Why a split file and not a smaller reference file.** `splits.select` requires
+every clip a split names to be present, so a 100-clip reference file scored
+against the full split is refused. The full reference file scored against the
+subset split selects exactly the 100, and the player-disjoint guard still runs
+because the train side is unchanged.
+
+**Clip bounds** are ShuttleSet's own: first stroke minus 1 s to last stroke plus
+2 s, converted with the fps ShuttleSet annotated at. Checked by eye on
+`..._TOYOTA_THAILAND_OPEN_2021_QuarterFinals_s1_r9` against the current YouTube
+upload: the broadcast is on a close-up for the serve (which is why ShuttleSet
+types that stroke `未知球種`), cuts to the court about 0.3 s after the clip's
+first stroke, and returns to a close-up about 0.5 s after the clip ends. A
+re-uploaded or re-edited source would shift every clip silently, so spot-check
+a few before running the model on all 100.
+
+**3. Predictions** (GPU): `src/mllm/batch_feedback.py`, run through
+`src/mllm/run_batch.sh` on `bourbaki` (A100 40 GB) or `carmack` (L40 48 GB) —
+not `engelbart`, whose 16 GB V100 cannot hold the 8B model in bf16 (see
+`docs/gpu-access.md`). It loops InternVideo3 over `clips.csv`, asks for a
+correction rather than a description, writes each prediction as it goes, and
+resumes after an interruption. Settings are recorded in `<out>.meta.json`.
+
+```bash
+# on the node, from src/mllm/, after copying data/feedback_eval/clips/ to /scratch
+apptainer build --fakeroot container.sif container.def       # once
+HF_CACHE=/scratch/comp320a/hf-cache ./run_batch.sh /scratch/comp320a/clips \
+    /scratch/comp320a/runs/version_a/predictions.jsonl --limit 3   # smoke test
+HF_CACHE=/scratch/comp320a/hf-cache ./run_batch.sh /scratch/comp320a/clips \
+    /scratch/comp320a/runs/version_a/predictions.jsonl            # all 100
+```
+
+Read the three smoke-test outputs before the full run: if they describe the
+venue instead of correcting a shot, fix the prompt (`--prompt-file`) first, and
+use a new output path, because the run refuses to mix settings in one file.
+
+**4. Score A and re-score the floor on the same 100.** The baseline figures
+above are over all 543 clips and are not comparable with a 100-clip mean:
+
+```bash
+SUB=data/feedback_eval/split_shuttleset_v1_test100.json
+REFS=data/feedback_eval/references_shuttleset_v1.jsonl
+OUT=experiments/feedback_eval/shuttleset_v1_test100
+for b in constant random_template; do
+  python -m feedback_eval.baselines --references $REFS --baseline $b --seed 0 \
+      --templates data/feedback_eval/templates/badminton_singles_shuttleset_v1.jsonl \
+      --out $OUT/predictions_$b.jsonl
+  python -m feedback_eval.score_cli --references $REFS --predictions $OUT/predictions_$b.jsonl \
+      --split $SUB --model-version $b --model-type roberta-large --rescale-with-baseline \
+      --out $OUT/scores_${b}_rescaled.json
+done
+python -m feedback_eval.score_cli --references $REFS --predictions runs/version_a/predictions.jsonl \
+    --split $SUB --model-version A --model-type roberta-large --rescale-with-baseline \
+    --out $OUT/scores_version_a_rescaled.json
+```
+
+Report Version A as its distance above `random_template` on the rescaled scale.
+The floor on this subset is already scored (`experiments/feedback_eval/shuttleset_v1_test100/`):
+
+| Baseline | Raw F1 | Rescaled F1 |
+|---|---|---|
+| `constant` | 0.879 | 0.280 |
+| `random_template` | 0.894 | 0.370 |
+
+100 clips, 11 players, `--model-type roberta-large`, baseline seed 0. Close to
+the 543-clip figures (0.879 / 0.282 and 0.897 / 0.387), so the subset is not an
+unusually easy or hard draw.
+
 ## Not done yet
 
 - **A model version to score.** This is now the only thing between the harness
-  and a Version A result. The reference set, the split and the baselines are
-  built; what is missing is a `predictions.jsonl` — feedback generated for the
-  543 test clips. `src/mllm/` on `mllm_coach` runs InternVideo3 on a single clip
-  and prints a description; it needs batch inference over a clip list and
-  JSONL output in the shape `records.load_predictions` reads.
-- **Clips.** The derivation runs off ShuttleSet's annotation CSVs, which are in
-  the repo; the **videos are not**. Generating predictions needs the rally clips
-  cut from the source matches.
+  and a Version A result. The reference set, the split, the baselines, the
+  100-clip subset and the clip cutter are built; what is missing is a
+  `predictions.jsonl`. `src/mllm/` on `mllm_coach` runs InternVideo3 on a single
+  clip and prints a description; it needs a loop over `clips.csv` and JSONL
+  output in the shape `records.load_predictions` reads. See *Getting to a
+  Version A score*.
+- **Excluded matches in the reference set.** `video_metadata.csv` marks four
+  matches as excluded (ids 9, 10, 12: labelling or frame numbers incorrect;
+  27: video removed). `shuttleset_faults` does not read that file, so 192 of
+  the 2247 reference clips come from them. All four are men's matches and sit
+  on the train side, so no test score is affected, but the 128 clips from 9, 10
+  and 12 should be dropped before any training run uses the train side.
 - **Attaching the cause-keyed templates to clips.** `badminton_singles_v1.jsonl`
   (16 cause-keyed templates: late preparation, no trunk rotation, …) still has
   no `clip_faults.csv`, and deriving one from ShuttleSet is exactly the
@@ -381,7 +484,7 @@ python -m feedback_eval.score_cli \
 python -m pytest tests/test_feedback_eval_*.py
 ```
 
-All 149 run on CPU in well under a second with no transformers install: the
+All 171 run on CPU in well under a second with no transformers install: the
 scorer is injected, so the tests drive a fake with the same signature as
 `bert_score.BERTScorer.score`.
 
