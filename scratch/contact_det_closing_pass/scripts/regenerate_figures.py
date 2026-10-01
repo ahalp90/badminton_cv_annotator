@@ -15,7 +15,6 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "figures"
 
 
 def save(fig: Figure, out: Path, stem: str) -> None:
@@ -628,6 +627,8 @@ def selection_metrics(result: Mapping[str, Any], key: str, population: str = "re
 
 
 def historical_figures(result: Mapping[str, Any], results: Path, out: Path, counts: Mapping[str, Any]) -> None:
+    """Draw figures that compare against rejected alternatives or read other closing-pass experiment files."""
+    final_followup(out, stage_recall(result, ["later", "local", "boundaries", "recommended", "early"]))
     whole = read_result(results, "whole_rally_result.json.gz")
     comparison = whole["validation"]["opening_sides_and_physics"]["evaluation"]["10"]["paired_fixed_side"]
     whole_sequence_comparison(
@@ -707,10 +708,11 @@ def historical_figures(result: Mapping[str, Any], results: Path, out: Path, coun
 
 def regenerate_metric_figures(
     result: Mapping[str, Any],
-    out: Path = OUT,
+    out: Path,
     results: Path = ROOT / "results",
+    historical: bool = True,
 ) -> None:
-    """Render the complete report bundle, using the supplied summary for final metrics."""
+    """Render the report figures; historical ones also need the other experiment files under results."""
     out.mkdir(parents=True, exist_ok=True)
     stages = ["original", "opening", "combined", "later", "local", "recommended"]
     for population, title, stem in (
@@ -720,7 +722,6 @@ def regenerate_metric_figures(
         labelled = result["stages"]["recommended"][population]["10"]["labelled_rallies"]
         progression(stage_recall(result, stages, population), f"{title} — {labelled:,} rallies", stem, out)
     broader_gain(out, stage_recall(result, ["original", "opening", "combined"]))
-    final_followup(out, stage_recall(result, ["later", "local", "boundaries", "recommended", "early"]))
 
     selected = result["selected"]["retained"]["10"]
     counts = {
@@ -756,15 +757,25 @@ def regenerate_metric_figures(
             100 * contacts["serve_side_correct"] / contacts["labelled_serves"],
         ],
     )
-    historical_figures(result, results, out, counts)
+    if historical:
+        historical_figures(result, results, out, counts)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results", type=Path, default=ROOT / "results")
-    parser.add_argument("--output-dir", type=Path, default=OUT)
+    parser.add_argument("--results", type=Path, default=ROOT / "results", help="historical experiment files")
+    parser.add_argument(
+        "--summary", type=Path, default=None, help="metric summary; defaults to <results>/metric_summary.json.gz",
+    )
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--selected-only", action="store_true", help="skip figures that need rejected-experiment files",
+    )
     args = parser.parse_args()
-    regenerate_metric_figures(read_result(args.results, "metric_summary.json.gz"), args.output_dir, args.results)
+    summary = args.summary or args.results / "metric_summary.json.gz"
+    with gzip.open(summary, "rt") as source:
+        result = json.load(source)
+    regenerate_metric_figures(result, args.output_dir, args.results, historical=not args.selected_only)
 
 
 if __name__ == "__main__":
