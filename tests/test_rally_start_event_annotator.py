@@ -10,15 +10,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import annotator.rally_start_event_annotator as tool
-import annotator.rally_start_events as events
-from annotator.broadcast_timeline_labels import (
+import annotator.review.rally_start_editor as tool
+import annotator.review.rally_starts as events
+from annotator.review.broadcast_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,
     write_label_csv,
 )
-
 
 METADATA = VideoMetadata("sset_01", 25.0, 100)
 

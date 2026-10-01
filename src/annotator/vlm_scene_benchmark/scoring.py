@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-from bisect import bisect_left
 import json
 import math
+from bisect import bisect_left
 from pathlib import Path
 from statistics import median
 from typing import Any, Sequence
 
 import numpy as np
 
-from annotator.broadcast_timeline_labels import LabelInterval, SceneTruth, VideoMetadata, validate_partition
+from annotator.review.broadcast_labels import (
+    LabelInterval,
+    SceneTruth,
+    VideoMetadata,
+    validate_partition,
+)
 
 from .contracts import BenchmarkRunRecord, RunOutcome
-
 
 SCORE_SCHEMA_VERSION = 1
 LABEL_ORDER = tuple(SceneTruth)

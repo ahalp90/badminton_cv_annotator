@@ -17,16 +17,15 @@ See ``docs/dataset_v1_schema.md``.
 
 from __future__ import annotations
 
-from enum import StrEnum
 import gzip
 import io
 import os
+from enum import StrEnum
 from pathlib import Path
 from typing import NamedTuple
 from uuid import uuid4
 
 import pandas as pd
-
 
 DATASET_SCHEMA = "rally-dataset/1.3"
 SCHEMA_FROZEN_ON = "2026-09-04"

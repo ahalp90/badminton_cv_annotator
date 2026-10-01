@@ -23,33 +23,31 @@ import json
 import math
 from pathlib import Path
 
-from annotator.broadcast_timeline_labels import (
-    LabelInterval,
-    SceneTruth,
-    VideoMetadata,
-    interval_index_at,
-    read_label_csv,
-    validate_partition,
-)
-from annotator.calibration.fixtures import FIXTURES, SHARED_FILES, Fixture
-from annotator.rally_start_events import (
-    CONTRACT_PATH,
-    DECISION_COLUMNS as DECISION_COLUMNS,
-    DECISION_VALUE_COLUMNS,
-    TARGET_COLUMNS,
-    RallyStartDecision,
-    RallyStartKey,
-    RallyStartTarget,
-    ReviewStatus,
-    ServeVisibility,
-    build_decision_seed,
-    decision_from_row,
-    decision_to_row,
-    read_decision_csv,
-    target_from_row,
-    validate_decision,
-    write_decision_csv,
-)
+from annotator.review.broadcast_labels import LabelInterval
+from annotator.review.broadcast_labels import SceneTruth
+from annotator.review.broadcast_labels import VideoMetadata
+from annotator.review.broadcast_labels import interval_index_at
+from annotator.review.broadcast_labels import read_label_csv
+from annotator.review.broadcast_labels import validate_partition
+from annotator.evaluation.fixtures import FIXTURES
+from annotator.evaluation.fixtures import SHARED_FILES
+from annotator.evaluation.fixtures import Fixture
+from annotator.review.rally_starts import CONTRACT_PATH
+from annotator.review.rally_starts import DECISION_COLUMNS as DECISION_COLUMNS
+from annotator.review.rally_starts import DECISION_VALUE_COLUMNS
+from annotator.review.rally_starts import TARGET_COLUMNS
+from annotator.review.rally_starts import RallyStartDecision
+from annotator.review.rally_starts import RallyStartKey
+from annotator.review.rally_starts import RallyStartTarget
+from annotator.review.rally_starts import ReviewStatus
+from annotator.review.rally_starts import ServeVisibility
+from annotator.review.rally_starts import build_decision_seed
+from annotator.review.rally_starts import decision_from_row
+from annotator.review.rally_starts import decision_to_row
+from annotator.review.rally_starts import read_decision_csv
+from annotator.review.rally_starts import target_from_row
+from annotator.review.rally_starts import validate_decision
+from annotator.review.rally_starts import write_decision_csv
 
 
 SCRIPT_PATH = Path(__file__).resolve()

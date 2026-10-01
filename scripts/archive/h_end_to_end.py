@@ -147,7 +147,7 @@ class DetectedChain(NamedTuple):
 def _first_stroke_half(final_half, n_strokes: int):
     """The rally's own fitted first-stroke half, from its fitted final-contact half.
 
-    Same parity formula as point_winner's private `_phase_assignment` at index 0 (last =
+    Same parity formula as point_winner's private `alternating_player_sides` at index 0 (last =
     n_strokes - 1; step back from the last stroke, flipping each step): duplicated here as a
     one-line arithmetic fact rather than reaching into that module-private helper, since
     `next_server_half` only ever exposes rally n+1's fitted first stroke (as rally n's winner),

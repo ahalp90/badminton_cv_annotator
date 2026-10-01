@@ -7,7 +7,6 @@ from ..fps_constants import scale_for_fps
 from ..types import ContactCandidate, SmoothingMode
 from .trajectory import _nan_rolling_mean, _rolling_mean
 
-
 # Contact-chain constants: the base-30 table in fps_constants.py scaled once
 # to the 25 fps surface these module defaults serve.
 IMPULSE_FLOOR_HALF_WINDOW_FRAMES = scale_for_fps(25.0).impulse_floor_half_window_frames

@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.calibration.scoring import RallyBoundary, classify_all, load_gt_rallies
+from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
 
 from .score_trials import TRUTH_SCHEMA
 from .trial_schema import EXPECTED_FRAMES, HEIGHT, MANIFEST_SCHEMA, WIDTH, load_manifest

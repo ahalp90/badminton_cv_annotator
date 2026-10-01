@@ -1,17 +1,22 @@
-"""Contact feature rules and transitional numerical equivalence checks."""
+"""Contact feature rules and fixed numerical regression cases."""
 
-import importlib
+import gzip
+import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from annotator.contact_features import build_contact_features, build_eligible_intervals
+from annotator.contacts.features import (
+    REGION_FIELDS,
+    build_contact_features,
+    build_eligible_intervals,
+)
+from annotator.contacts.model import CONTACT_FEATURE_NAMES
 from annotator.types import StickyResult
 
 
-def _inputs() -> dict:
+def feature_inputs() -> dict:
     frame_count = 180
     frames = np.arange(frame_count)
     track = np.column_stack((0.2 + frames * 0.001, 0.3 + np.sin(frames / 8) * 0.05, np.ones(frame_count)))
@@ -35,44 +40,28 @@ def _inputs() -> dict:
         'tracker_intervals': [(50, 160)], 'exclusion_mask': mask,
         'heuristic_spans': [(55, 75), (90, 150)], 'raw_contact_frames': [60, 110],
         'scene_spans': [(0, 100), (100, 180)], 'resolution': (1920.0, 1080.0),
-        'video_identity': 'video01',
     }
 
 
+REFERENCE_DIR = Path(__file__).parent / 'fixtures' / 'annotator_reference'
+
+
 @pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
-def test_feature_values_match_research_freezer(monkeypatch: pytest.MonkeyPatch, fps: float) -> None:
-    """Keep this comparison until the old freezer is retired from research paths."""
-    scripts = Path(__file__).resolve().parents[1] / 'scratch/contact_det/scripts'
-    monkeypatch.syspath_prepend(str(scripts))
-    freezer = importlib.import_module('freeze_tree_contact_features')
-    fixture_module = importlib.import_module('freeze_contact_evidence')
-    inputs = _inputs()
-    fixture = fixture_module.FixtureSpec('video01', 1, fps)
-    annotation = SimpleNamespace(
-        spans=inputs['heuristic_spans'],
-        contacts=[{'contact_frame': frame} for frame in inputs['raw_contact_frames']],
-    )
-    loaded = (
-        inputs['track'], SimpleNamespace(kps=inputs['pose_kps']), SimpleNamespace(raw_cuts=inputs['scene_spans']),
-        inputs['tracker_intervals'], inputs['sticky'], annotation,
-    )
-    monkeypatch.setattr(freezer, '_load_inputs', lambda *_args: loaded)
-    monkeypatch.setattr('dataset_builder.vision.load_npy_xz', lambda *_args: inputs['exclusion_mask'])
-    expected, summary = freezer._fixture_rows(Path('/unused'), fixture)
-    actual = build_contact_features(**inputs, fps=fps)
-    assert actual.rows.dtype.names == expected.dtype.names
-    for name in expected.dtype.names:
+def test_feature_values_match_reference(fps: float) -> None:
+    with np.load(REFERENCE_DIR / 'contact_features.npz') as reference:
+        expected = reference[f'fps_{int(fps)}']
+    intervals = json.loads(gzip.decompress((REFERENCE_DIR / 'contact_intervals.json.gz').read_bytes()))[str(int(fps))]
+    actual = build_contact_features(**feature_inputs(), fps=fps)
+    expected_fields = ("interval_id", "frame", *REGION_FIELDS, *CONTACT_FEATURE_NAMES)
+    assert actual.rows.dtype.names == expected_fields
+    for name in expected_fields:
         np.testing.assert_array_equal(actual.rows[name], expected[name], err_msg=name)
-    assert actual.eligible_intervals == [tuple(interval) for interval in summary['eligible_intervals']]
-    assert actual.search_intervals == [tuple(interval) for interval in summary['search_intervals']]
+    assert actual.eligible_intervals == [tuple(interval) for interval in intervals['eligible_intervals']]
+    assert actual.search_intervals == [tuple(interval) for interval in intervals['search_intervals']]
 
 
-def test_identity_and_empty_domain() -> None:
-    inputs = _inputs()
-    identity = 'a-long-video-name-with-unicode-雪'
-    result = build_contact_features(**(inputs | {'video_identity': identity}), fps=30.0)
-    assert result.rows['fixture'][0].decode('utf-8') == identity
-    assert result.rows.dtype['interval_id'] == np.dtype('int32')
+def test_empty_domain() -> None:
+    inputs = feature_inputs()
     empty = build_contact_features(**(inputs | {'exclusion_mask': np.ones(180, dtype=bool)}), fps=30.0)
     assert len(empty.rows) == 0
     assert empty.search_intervals == []
@@ -86,7 +75,7 @@ def test_exclusion_splits_half_open_intervals() -> None:
 
 
 def test_invisible_motion_and_window_edges() -> None:
-    rows = build_contact_features(**_inputs(), fps=30.0).rows
+    rows = build_contact_features(**feature_inputs(), fps=30.0).rows
     invisible = np.isin(rows['frame'], [30, 31, 32, 33, 34])
     assert np.isnan(rows['shuttle_vx_t+0'][invisible]).all()
     assert np.isnan(rows['shuttle_vx_t-10'][:10]).all()

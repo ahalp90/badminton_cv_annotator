@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from annotator.point_winner import project_pixels_to_court
-from annotator.scene_courts import (
+from annotator.courts.scenes import (
     SceneCourt,
     build_scene_courts,
     court_at_frame,
     scene_ref_corners,
 )
+from annotator.outcomes.point_winner import project_pixels_to_court
 
 
 def _empty_scene(start_frame: int, end_frame: int) -> SceneCourt:

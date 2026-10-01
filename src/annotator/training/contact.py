@@ -7,12 +7,13 @@ sampling. Validation and test videos belong to the caller's evaluation path.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 
-from annotator.contact_features import REGION_FIELDS
-from annotator.contact_model import contact_feature_matrix
+from annotator.contacts.features import REGION_FIELDS
+from annotator.contacts.model import contact_feature_matrix
 from annotator.fps_constants import ScalingKind
 
 POSITIVE_RADIUS_AT_30_FPS = 1
@@ -41,6 +42,7 @@ class ContactFitConfig:
     min_samples_leaf: int = 40
     l2_regularization: float = 1.0
     random_seed: int = 20260824
+    early_stopping: bool | Literal["auto"] = "auto"
 
 
 DEFAULT_CONTACT_FIT_CONFIG = ContactFitConfig()
@@ -161,6 +163,7 @@ def fit_contact_model(
         l2_regularization=config.l2_regularization,
         class_weight='balanced',
         random_state=config.random_seed,
+        early_stopping=config.early_stopping,
     )
     model.fit(contact_feature_matrix(selection.rows), selection.labels)
     return ContactModelFit(model, selection)

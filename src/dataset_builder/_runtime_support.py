@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
 import csv
-from dataclasses import dataclass, field
 import json
 import math
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import tomllib
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from functools import cached_property
+from pathlib import Path
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
-from annotator.point_winner import (
+from annotator.models import AnnotatorModels, load_models
+from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
     Landing,
@@ -25,15 +26,25 @@ from annotator.point_winner import (
     VerdictSource,
 )
 from annotator.run_video import AnnotatorResult
+from annotator.sequence import ContactEvent
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._commentary_status import (
     load_cleaning_statuses,
     save_cleaning_statuses,
 )
-from dataset_builder.cli import BuilderConfig, SemanticValidator, StageExecution, StagePlan
+from dataset_builder.cli import (
+    BuilderConfig,
+    SemanticValidator,
+    StageExecution,
+    StagePlan,
+)
 from dataset_builder.models import InterpreterIdentity, StageOutcome
-from dataset_builder.records import RallyRecordProjection, SourceReference, load_rally_records
+from dataset_builder.records import (
+    RallyRecordProjection,
+    SourceReference,
+    load_rally_records,
+)
 from dataset_builder.selection import (
     COMMENTARY_AVAILABLE,
     COMMENTARY_FAILED,
@@ -49,8 +60,14 @@ from dataset_builder.shuttle_evidence import (
     ShuttleEvidenceArtifacts,
     load_shuttle_evidence,
 )
+from dataset_builder.shuttle_quality import (
+    ShuttleQualitySummary,
+    summarize_shuttle_quality,
+)
+from dataset_builder.tracknet_input import TrackNetInput
 from dataset_builder.vision import (
     ANNOTATOR_RESULT_FILENAME,
+    ANNOTATOR_RESULT_SCHEMA,
     COURT_EVIDENCE_FILENAME,
     COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
@@ -68,11 +85,6 @@ from dataset_builder.vision import (
     load_npy_xz,
     load_pose_arrays,
 )
-from dataset_builder.shuttle_quality import (
-    ShuttleQualitySummary,
-    summarize_shuttle_quality,
-)
-from dataset_builder.tracknet_input import TrackNetInput
 from scraper import config as scraper_config
 from scraper._llm_provider import LLMSettings
 from scraper.commentary_pairing import CanonicalPairing
@@ -118,6 +130,11 @@ class RuntimeSupport:
         self.pose_interpreter: InterpreterIdentity | None = None
         self.court_interpreter: InterpreterIdentity | None = None
         self.ffmpeg_interpreter: InterpreterIdentity | None = None
+
+    @cached_property
+    def annotator_models(self) -> AnnotatorModels:
+        """Load the selected bundle once for this pipeline run."""
+        return load_models(self.config.annotator_model_dir)
 
     def _plan(
         self,
@@ -544,7 +561,7 @@ class RuntimeSupport:
             shuttle.track,
             shuttle.inpaint_fill_mask,
             shuttle.guard_codes,
-            BaseAnnotatorConfig().rejected_grades,
+            self.annotator_models.preprocessing.rejected_grades,
         )
         self.state.annotations[video_id] = _load_annotation(
             output_dir,
@@ -848,7 +865,7 @@ def _load_annotation(
     payload = load_json_gz(output_dir / ANNOTATOR_RESULT_FILENAME)
     if set(payload) != {"schema", "video_id", "result"}:
         raise ValueError("annotator result payload fields differ")
-    if payload["schema"] != "annotator-result/0.1" or payload["video_id"] != video_id:
+    if payload["schema"] != ANNOTATOR_RESULT_SCHEMA or payload["video_id"] != video_id:
         raise ValueError("annotator result identity differs")
     result = _annotation_result(payload["result"])
     raw_mask = _boolean_mask(output_dir / RAW_REPLAY_MASK_FILENAME, frame_count)
@@ -903,6 +920,19 @@ def _annotation_result(payload: object) -> AnnotatorResult:
             for key, value in _dict(payload["hit_height_by_frame"]).items()
         },
         hit_height_failures=_hit_height_failures(payload["hit_height_failures"]),
+        contact_events=tuple(restore_contact_event(event) for event in _list(payload["contact_events"])),
+        rally_confidence=tuple(_finite_float(score, 'rally confidence') for score in _list(payload['rally_confidence'])),
+    )
+
+
+def restore_contact_event(payload: object) -> ContactEvent:
+    row = _dict(payload)
+    if set(row) != {'frame', 'probability', 'side'}:
+        raise ValueError('persisted final contact fields differ')
+    return ContactEvent(
+        _integer(row['frame'], 'contact frame'),
+        _finite_float(row['probability'], 'contact probability'),
+        None if row['side'] is None else Half(row['side']),
     )
 
 

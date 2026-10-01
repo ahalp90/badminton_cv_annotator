@@ -15,6 +15,7 @@ pose_python = "BADMINTON_POSE_PYTHON"
 court_python = "BADMINTON_COURT_PYTHON"
 
 [models]
+annotator = "models/annotator"
 tracknet_dir = "src/shared/tracknetv3"
 tracknet = "src/shared/tracknetv3/ckpts/TrackNet_best.pt"
 inpaint = "src/shared/tracknetv3/ckpts/InpaintNet_best.pt"

@@ -4,7 +4,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from annotator.rally_segmentation import ServeSetupInputs, series_drift, serve_setup_still
+from annotator.rally_segmentation import (
+    ServeSetupInputs,
+    series_drift,
+    serve_setup_still,
+)
 from annotator.types import Slot
 
 

@@ -13,10 +13,10 @@ source videos, which may be absent because only their paths are recorded.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
-import logging
 from pathlib import Path
 
 from annotator.video_metadata import VideoMetadata
@@ -45,8 +45,13 @@ from dataset_builder.vision import (
     TRACK_FILENAME,
     load_json_gz,
 )
-from shuttleset22 import DEFAULT_SOURCES, Source, SourceKind, load_sources, select_sources
-
+from shuttleset22 import (
+    DEFAULT_SOURCES,
+    Source,
+    SourceKind,
+    load_sources,
+    select_sources,
+)
 
 log = logging.getLogger(__name__)
 

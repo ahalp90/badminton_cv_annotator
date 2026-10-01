@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-import math
 from pathlib import Path
 
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.manifest import redact_configuration
 from dataset_builder.models import RunManifest, StageOutcome
 
-
-RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.2"
-RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.2"
-RALLY_RECORD_SCHEMA = "rally-record/0.2"
+RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.3"
+RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.3"
+RALLY_RECORD_SCHEMA = "rally-record/0.3"
 RALLY_RECORDS_FILENAME = "rally_records.json.gz"
 RAW_REPLAY_ARTIFACT = "raw_replay_mask"
 DEFINITIVE_EXCLUSION_ARTIFACT = "definitive_exclusion_mask"
@@ -243,10 +242,13 @@ def _contacts(payload: object, rally: tuple[int, int]) -> int:
     contacts = _object(payload, "record contacts")
     _exact_fields(
         contacts,
-        {"raw_candidates", "accepted", "stroke_count", "hit_height_failures"},
+        {"raw_candidates", "accepted", "stroke_count", "hit_height_failures", "review_score"},
         "record contacts",
     )
     raw_frames = _raw_contacts(contacts["raw_candidates"], rally)
+    review_score = contacts['review_score']
+    if review_score is not None and not 0 <= _number(review_score, 'review score') <= 1:
+        raise ValueError('review score must be between zero and one')
     accepted = _accepted_contacts(contacts["accepted"], rally, raw_frames)
     stroke_count = _integer(contacts["stroke_count"], "record stroke_count")
     if stroke_count != len(accepted):
@@ -289,7 +291,7 @@ def _accepted_contacts(
     for expected_stroke_idx, raw_row in enumerate(rows):
         row = _object(raw_row, "accepted contact")
         _exact_fields(
-            row, {"stroke_idx", "contact_frame", "hit_height_code"}, "accepted contact",
+            row, {"stroke_idx", "contact_frame", "hit_height_code", "player_half"}, "accepted contact",
         )
         if _integer(row["stroke_idx"], "accepted stroke_idx") != expected_stroke_idx:
             raise ValueError("accepted stroke_idx must be contiguous from zero")
@@ -297,6 +299,8 @@ def _accepted_contacts(
         if frame not in raw_frames:
             raise ValueError("accepted contact has no matching raw candidate")
         code = row["hit_height_code"]
+        if row['player_half'] is not None and row['player_half'] not in _HALVES:
+            raise ValueError('accepted player_half must be Top, Bot, or null')
         if code is not None and _integer(code, "accepted hit_height_code") not in (1, 2):
             raise ValueError("accepted hit_height_code must be 1, 2, or null")
         frames.append(frame)

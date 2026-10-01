@@ -248,9 +248,9 @@ def _load_inputs(
     data_root: Path, fixture: FixtureSpec
 ) -> tuple[np.ndarray, Any, Any, list[tuple[int, int]], Any, AnnotationData]:
     """Restore arrays, court inputs, sticky evidence, and saved annotation."""
+    from annotator.courts.scenes import build_scene_courts
     from annotator.fps_constants import scale_for_fps
     from annotator.rally.evidence import build_sticky_result, tracker_segments
-    from annotator.scene_courts import build_scene_courts
     from dataset_builder.vision import load_court_vision, load_npy_xz, load_pose_arrays
 
     paths = _stage_paths(data_root, fixture)
@@ -378,7 +378,7 @@ def _fixture_evidence(
     data_root: Path, fixture: FixtureSpec
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build one fixture's evidence and its path-free input digest rows."""
-    from annotator import point_winner
+    from annotator.outcomes import point_winner
 
     track, pose, court, segments, sticky, annotation = _load_inputs(data_root, fixture)
     court_inputs = court.evidence.inputs

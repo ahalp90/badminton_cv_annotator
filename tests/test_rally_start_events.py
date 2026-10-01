@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import replace
 import gzip
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-import annotator.rally_start_events as events
-from annotator.broadcast_timeline_labels import VideoMetadata
-
+import annotator.review.rally_starts as events
+from annotator.review.broadcast_labels import VideoMetadata
 
 METADATA = VideoMetadata("sset_01", 25.0, 1_000)
 

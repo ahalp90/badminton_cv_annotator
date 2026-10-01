@@ -13,9 +13,12 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from annotator import replay_mask
-from annotator.court_evidence import SceneEvidence, build_detected_court_evidence
-from annotator.court_views import HASH_SIZE, VIEW_RESOLUTION, CourtView
+from annotator.masks import replay as replay_mask
+from annotator.courts.evidence import SceneEvidence
+from annotator.courts.evidence import build_detected_court_evidence
+from annotator.courts.views import HASH_SIZE
+from annotator.courts.views import VIEW_RESOLUTION
+from annotator.courts.views import CourtView
 from annotator.video_metadata import VideoMetadata, probe_video_fps
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
 from dataset_builder.vision import (
@@ -226,7 +229,7 @@ def _baseline_replay_mask_mode(enabled: bool) -> Iterator[None]:
     if not enabled:
         yield
         return
-    dead_mask_module = importlib.import_module("annotator.dead_mask")
+    dead_mask_module = importlib.import_module("annotator.masks.dead")
     original_replay = replay_mask.combine_mask
     original_dead_mask = dead_mask_module.combine_mask
     replay_mask.combine_mask = _baseline_combine_mask
@@ -243,7 +246,7 @@ def _global_tracker_mode(enabled: bool) -> Iterator[None]:
     if not enabled:
         yield
         return
-    scene_module = importlib.import_module("annotator.scene_courts")
+    scene_module = importlib.import_module("annotator.courts.scenes")
     run_module = importlib.import_module("annotator.run_video")
     original_scene = scene_module.build_scene_courts
     original_run = run_module.build_scene_courts

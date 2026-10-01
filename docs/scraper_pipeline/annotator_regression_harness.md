@@ -114,7 +114,7 @@ adds a `RunCapture`, and calls `run_video()`
 `build_run_video_inputs()` validates the length and Boolean dtype of the pinned
 `court_present` array. It loads the pinned scene rows and converts them to the
 homography-row input expected by `run_video()`
-([`gt_scoring.py` lines 401-448](../../src/annotator/calibration/gt_scoring.py#L401-L448)).
+([`gt_scoring.py` lines 401-448](../../src/annotator/evaluation/gt_scoring.py#L401-L448)).
 
 ### Ground-truth use
 
@@ -298,7 +298,7 @@ path:
 `load_gt_rallies()` exposes inclusive first and last stroke frames. A wrapper
 would convert each extent to `(first_frame, last_frame + 1)` before passing it
 as a half-open span
-([`scoring.py` lines 34-77](../../src/annotator/calibration/scoring.py#L34-L77)).
+([`scoring.py` lines 34-77](../../src/annotator/evaluation/scoring.py#L34-L77)).
 
 This future comparison would not bypass every policy. Injected contacts would
 still be subject to exclusion and hallucination filtering. The selected mask
@@ -312,7 +312,7 @@ mode identity in an output path or small manifest.
 Do not add a new package, generic experiment-axis framework, resume system,
 derived-array hashing, or shared CSV-schema field until an actual consumer
 requires it. Do not extend the fixed
-`src/annotator/e2e_court_annotator.py` measurement matrix for this purpose. It
+`experiments/annotator/measurement.py` measurement matrix for this purpose. It
 has a separate job measuring static and detected court-evidence configurations.
 
 ## Scope and minimum validation
@@ -353,11 +353,11 @@ Primary current evidence:
 
 Relevant execution seams:
 
-- `src/annotator/calibration/gt_scoring.py:401-448` for pinned fixture input assembly
-- `src/annotator/calibration/gt_scoring.py:527-645` for existing calibration scoring
-- `src/annotator/calibration/gt_scoring.py:690-702` for the current automatic floors
+- `src/annotator/evaluation/gt_scoring.py:401-448` for pinned fixture input assembly
+- `src/annotator/evaluation/gt_scoring.py:527-645` for existing calibration scoring
+- `src/annotator/evaluation/gt_scoring.py:690-702` for the current automatic floors
 - `src/annotator/run_video.py:199-231,349-465` for ordinary and injected input paths
-- `src/annotator/calibration/scoring.py:34-77` for GT rally extents
+- `src/annotator/evaluation/scoring.py:34-77` for GT rally extents
 
 The recorded summary was generated at Git SHA
 `63f40938a62f6612ca9a63b61127d24442a80865`, which matches the current `HEAD`.

@@ -99,9 +99,9 @@ class PySceneDetectSource:
         :return: one `SceneInfo` per scene, including the opening and closing
             scenes. A video without cuts is one scene.
         """
-        from annotator.composition_mask import detect_cuts
         from annotator.config import COMPOSITION_CONTENT_THRESHOLD
         from annotator.fps_constants import scale_for_fps
+        from annotator.masks.composition import detect_cuts
 
         min_scene_len = scale_for_fps(fps).composition_min_scene_len
         # detect_cuts raises unless both frame counts equal expected_frames. Each cut

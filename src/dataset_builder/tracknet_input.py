@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from fractions import Fraction
-import os
 from pathlib import Path
-import subprocess
 
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder.vision import load_json_gz, save_json_gz
-
 
 TRACKNET_INPUT_WIDTH = 512
 TRACKNET_INPUT_HEIGHT = 288

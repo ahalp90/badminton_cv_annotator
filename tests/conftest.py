@@ -11,6 +11,18 @@ import pytest
 
 
 @pytest.fixture
+def annotator_models():
+    """A current-runtime fitted bundle for annotation and persistence tests."""
+    from sklearn.dummy import DummyClassifier
+
+    from annotator.models import AnnotatorModels
+    from annotator.sequence import SequenceModels
+
+    tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 0, 1])
+    return AnnotatorModels(tree, SequenceModels(tree, tree, tree, tree, tree, tree), tree)
+
+
+@pytest.fixture
 def serve_setup_defaults():
     """Build the shared analysed, ankle, and height arrays for serve-setup tests."""
     def build(n_frames: int) -> dict[str, np.ndarray]:

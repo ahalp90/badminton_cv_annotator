@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.contact_features import REGION_FIELDS
-from annotator.contact_model import (
+from annotator.contacts.features import REGION_FIELDS
+from annotator.contacts.model import (
     CONTACT_FEATURE_NAMES,
     ContactModelConfig,
     contact_feature_matrix,

@@ -22,17 +22,16 @@ from .serve import (
     ServeStartClose,
     ServeStartMode,
     ServeStartOptions,
-    _resolve_serve_gate,
+    resolve_serve_gate,
 )
 from .trajectory import _rolling_mean
-
 
 # Fraction of a window that must be tracked for it to read as seeing the shuttle.
 VISIBILITY_REST_FRAC = 0.5
 QUIET_START_REST_FRACTION = 0.8
 
 
-def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int, constants: FpsConstants) -> bool:
+def gap_is_high_shot_outside_frame(track: np.ndarray, gap_start: int, constants: FpsConstants) -> bool:
     run_start = gap_start
     while (run_start > 0 and track[run_start - 1, 2] == 1
            and gap_start - run_start < constants.high_shot_oob_lookback_frames):
@@ -46,7 +45,7 @@ def _gap_is_high_shot_oob(track: np.ndarray, gap_start: int, constants: FpsConst
     return bool(last_xy[1] + constants.high_shot_oob_extrap_frames * mean_velocity[1] < 0.0)
 
 
-def _gap_passes_reentry_guard(
+def gap_passes_reentry_guard(
     track: np.ndarray, gap_start: int, gap_end: int, variant: ReentryGuardVariant, buffer: float,
     constants: FpsConstants,
 ) -> bool:
@@ -66,7 +65,7 @@ def _gap_passes_reentry_guard(
     return bool(near_top and descending)
 
 
-def _gap_state_rest_mask(
+def gap_state_rest_mask(
     speed: np.ndarray, track: np.ndarray, thresholds: RallySegmentationThresholds, constants: FpsConstants, demotion_bound: int,
     reentry_guard_variant: ReentryGuardVariant | None, reentry_guard_buffer: float | None,
 ) -> np.ndarray:
@@ -75,10 +74,10 @@ def _gap_state_rest_mask(
     high_shot_oob = np.zeros(len(track), dtype=bool)
     dead = np.zeros(len(track), dtype=bool)
     for gap_start, gap_end in true_runs(track[:, 2] != 1):
-        holds_open = _gap_is_high_shot_oob(track, gap_start, constants)
+        holds_open = gap_is_high_shot_outside_frame(track, gap_start, constants)
         if holds_open and reentry_guard_variant is not None:
             assert reentry_guard_buffer is not None
-            holds_open = _gap_passes_reentry_guard(
+            holds_open = gap_passes_reentry_guard(
                 track, gap_start, gap_end, reentry_guard_variant, reentry_guard_buffer, constants,
             )
         if holds_open:
@@ -90,7 +89,7 @@ def _gap_state_rest_mask(
     return dead | (slow & ~high_shot_oob)
 
 
-def _rest_mask(
+def build_rest_mask(
     speed: np.ndarray, track: np.ndarray, thresholds: RallySegmentationThresholds | None = None, *,
     constants: FpsConstants | None = None, gap_state_demotion_bound: int | None = None,
     reentry_guard_variant: ReentryGuardVariant | None = None, reentry_guard_buffer: float | None = None,
@@ -105,7 +104,7 @@ def _rest_mask(
     """
     if gap_state_demotion_bound is not None:
         assert thresholds is not None and constants is not None
-        return _gap_state_rest_mask(
+        return gap_state_rest_mask(
             speed, track, thresholds, constants, gap_state_demotion_bound,
             reentry_guard_variant, reentry_guard_buffer,
         )
@@ -119,13 +118,13 @@ def _rest_mask(
     return slow | mostly_untracked
 
 
-def _rally_regions(
+def rally_regions(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
     """Shared region scaffold for the span-opening rules.
 
     Reads start_speed / end_rest_frames / start_min_frames from `thresholds` (or the
-    module globals when None), exactly as `_find_rally_spans` does, so every opening
+    module globals when None), exactly as `burst_rally_spans` does, so every opening
     rule sees the same fast runs and active regions.
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
@@ -150,7 +149,7 @@ def _rally_regions(
     return fast_runs, rest_runs, regions
 
 
-def _find_rally_spans(
+def burst_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None = None,
 ) -> list[tuple[int, int]]:
     """Segment the video into rally spans between extended rest.
@@ -168,7 +167,7 @@ def _find_rally_spans(
         module globals through the low-level opt-out path.
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    fast_runs, _rest_runs, regions = rally_regions(speed, at_rest, thresholds)
 
     spans: list[tuple[int, int]] = []
     for region_start, region_end in regions:
@@ -185,7 +184,7 @@ def _find_rally_spans(
     return spans
 
 
-def _find_rally_spans_span_open(
+def active_region_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None, span_open: SpanOpen,
 ) -> list[tuple[int, int]]:
     """Span finder under a SpanOpen rule (no serve gating).
@@ -200,7 +199,7 @@ def _find_rally_spans_span_open(
     :param span_open: REGION_START or BACK_FILL.
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    fast_runs, _rest_runs, regions = rally_regions(speed, at_rest, thresholds)
     spans: list[tuple[int, int]] = []
     for region_start, region_end in regions:
         if span_open is SpanOpen.REGION_START:
@@ -213,10 +212,10 @@ def _find_rally_spans_span_open(
     return spans
 
 
-def _find_rally_spans_quiet_start(
+def quiet_start_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds, window: int,
 ) -> list[tuple[int, int]]:
-    fast_runs, _rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    fast_runs, _rest_runs, regions = rally_regions(speed, at_rest, thresholds)
     spans: list[tuple[int, int]] = []
     for region_start, region_end in regions:
         bursts = [start for start, _end in fast_runs if region_start <= start < region_end]
@@ -231,7 +230,7 @@ def _find_rally_spans_quiet_start(
     return spans
 
 
-def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
+def last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
     """Where a split span closes under close='last_rest'.
 
     The START of the last at_rest run (any length) that ends at or before the next qualifying
@@ -249,7 +248,7 @@ def _last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_bur
     return rest_starts[-1] if rest_starts else next_burst  # ascending, so [-1] is the last run
 
 
-def _serve_start_find_rally_spans(
+def serve_qualified_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: RallySegmentationThresholds | None,
     options: ServeStartOptions, span_open: SpanOpen | None,
 ) -> list[tuple[int, int]]:
@@ -273,12 +272,12 @@ def _serve_start_find_rally_spans(
     :param span_open: None (burst-open) or BACK_FILL (open qualifying regions at region_start).
     :return: list of `(start_frame, end_frame)` half-open rally spans.
     """
-    gate = _resolve_serve_gate(options)
+    gate = resolve_serve_gate(options)
 
     mode = options.mode
     close = options.close
 
-    fast_runs, rest_runs, regions = _rally_regions(speed, at_rest, thresholds)
+    fast_runs, rest_runs, regions = rally_regions(speed, at_rest, thresholds)
 
     spans: list[tuple[int, int]] = []
     no_qualify_regions: list[tuple[int, int]] = []
@@ -320,7 +319,7 @@ def _serve_start_find_rally_spans(
                 if idx + 1 < len(qualifying):
                     next_burst = qualifying[idx + 1]
                     close_frame = (next_burst if close is ServeStartClose.BURST
-                                   else _last_rest_close(rest_runs, open_frame, next_burst))
+                                   else last_rest_close(rest_runs, open_frame, next_burst))
                 else:
                     close_frame = region_end
                 spans.append((int(open_frame), int(close_frame)))
@@ -352,18 +351,18 @@ def find_rally_spans(
         raise ValueError('reentry guard requires gap_state_demotion_bound')
     speed = compute_speed(track)
     if gap_state_demotion_bound is not None:
-        at_rest = _rest_mask(
+        at_rest = build_rest_mask(
             speed, track, thresholds, constants=constants, gap_state_demotion_bound=gap_state_demotion_bound,
             reentry_guard_variant=reentry_guard_variant, reentry_guard_buffer=reentry_guard_buffer,
         )
     else:
         # The low-level opt-out retains the original module-global call path.
-        at_rest = _rest_mask(speed, track) if thresholds is None else _rest_mask(speed, track, thresholds)
+        at_rest = build_rest_mask(speed, track) if thresholds is None else build_rest_mask(speed, track, thresholds)
     if serve_start is not None:
-        return _serve_start_find_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
+        return serve_qualified_rally_spans(speed, at_rest, thresholds, serve_start, span_open)
     if quiet_start_window is not None:
         assert thresholds is not None
-        return _find_rally_spans_quiet_start(speed, at_rest, thresholds, quiet_start_window)
+        return quiet_start_rally_spans(speed, at_rest, thresholds, quiet_start_window)
     if span_open is not None:
-        return _find_rally_spans_span_open(speed, at_rest, thresholds, span_open)
-    return _find_rally_spans(speed, at_rest) if thresholds is None else _find_rally_spans(speed, at_rest, thresholds)
+        return active_region_rally_spans(speed, at_rest, thresholds, span_open)
+    return burst_rally_spans(speed, at_rest) if thresholds is None else burst_rally_spans(speed, at_rest, thresholds)

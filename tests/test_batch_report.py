@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pytest
 
-from annotator.batch_report import (
+from annotator.evaluation.batch_report import (
     VideoOutcome,
     derive_batch_report_path,
     format_batch_report,
@@ -83,8 +83,8 @@ def _run_cli(tmp_path, monkeypatch, *, extra_args, run_video):
     spans_path = tmp_path / 'custom' / 'rally_spans.csv'
     contacts_path = tmp_path / 'custom' / 'contact_frames.csv'
 
-    from annotator import rally_segmentation
     import annotator.run_video as run_video_module
+    from annotator import rally_segmentation
 
     monkeypatch.setattr(run_video_module, 'run_video', run_video)
     monkeypatch.setattr(sys, 'argv', [
@@ -172,8 +172,8 @@ def test_all_excluded_publishes_before_raising_and_writes_no_output_csv(
     shuttle_dir.mkdir()
     np.save(shuttle_dir / 'vid.npy', np.zeros((4, 3)))
 
-    from annotator import rally_segmentation
     import annotator.run_video as run_video_module
+    from annotator import rally_segmentation
 
     def segment_must_not_run(*args, **kwargs):
         raise AssertionError('excluded videos must not reach segment_video')
@@ -206,7 +206,8 @@ def test_all_excluded_report_failure_keeps_existing_value_error(
     shuttle_dir.mkdir()
     np.save(shuttle_dir / 'vid.npy', np.zeros((4, 3)))
 
-    from annotator import batch_report, rally_segmentation
+    from annotator import rally_segmentation
+    from annotator.evaluation import batch_report
 
     def publish_failure(*args, **kwargs):
         raise OSError('report destination unavailable')

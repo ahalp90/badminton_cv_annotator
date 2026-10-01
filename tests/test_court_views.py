@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-from annotator import court_views
+from annotator.courts import views as court_views
 
 
 def _court_image() -> np.ndarray:

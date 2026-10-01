@@ -35,25 +35,25 @@ from typing import Any, NamedTuple, Sequence
 
 import numpy as np
 
-from annotator.broadcast_timeline_labels import VideoMetadata
-from annotator.calibration import serve_prepend_measurement as candidate_measurement
-from annotator.calibration.fixtures import (
-    FIXTURES,
-    SSET_01,
-    SSET_15,
-    SSET_21,
-    Fixture,
-    fixtures_root,
-)
-from annotator.calibration.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.calibration.scoring import (
-    RallyBoundary,
-    classify_all,
-    greedy_match,
-    load_gt_rallies,
-)
+from annotator.review.broadcast_labels import VideoMetadata
+from experiments.annotator.heuristic_tuning import serve_prepend_measurement as candidate_measurement
+from annotator.evaluation.fixtures import FIXTURES
+from annotator.evaluation.fixtures import SSET_01
+from annotator.evaluation.fixtures import SSET_15
+from annotator.evaluation.fixtures import SSET_21
+from annotator.evaluation.fixtures import Fixture
+from annotator.evaluation.fixtures import fixtures_root
+from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.evaluation.gt_scoring import canonical_tolerance
+from annotator.evaluation.scoring import RallyBoundary
+from annotator.evaluation.scoring import classify_all
+from annotator.evaluation.scoring import greedy_match
+from annotator.evaluation.scoring import load_gt_rallies
 from annotator.fps_constants import scale_for_fps
-from annotator.inpaint_guard import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
+from annotator.masks.inpaint import DEGRADED
+from annotator.masks.inpaint import FABRICATED
+from annotator.masks.inpaint import NO_FLAG
+from annotator.masks.inpaint import SUSPECT_FLAT
 from annotator.run_video import RunCapture, run_video
 
 

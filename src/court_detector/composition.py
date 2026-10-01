@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import cv2
 import numpy as np
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from shared.court import HOMOGRAPHY_RESOLUTION
 from shared.court_model import CORNER_COURT_M
 

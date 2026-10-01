@@ -25,7 +25,6 @@ from annotator.validation_overlay.core.hud import HudStyle, draw_mark_label
 from annotator.validation_overlay.core.timeline import read_segments
 from annotator.video_metadata import probe_video_metadata
 
-
 BOX_COLOUR = (240, 16, 255)
 
 

@@ -179,7 +179,7 @@ Then launch the complete video without scene bootstrapping:
 ```bash
 OUT="$WORK/${VIDEO_ID}_broadcast_timeline_labels.csv"
 
-PYTHONPATH=src uv run python -m annotator.manual_broadcast_timeline_annotator \
+PYTHONPATH=src uv run python -m annotator.review.broadcast_editor \
   --video "$VIDEO" \
   --video-id "$VIDEO_ID" \
   --out-csv "$OUT"
@@ -188,7 +188,7 @@ PYTHONPATH=src uv run python -m annotator.manual_broadcast_timeline_annotator \
 If a matching PySceneDetect scene CSV exists, launch with:
 
 ```bash
-PYTHONPATH=src uv run python -m annotator.manual_broadcast_timeline_annotator \
+PYTHONPATH=src uv run python -m annotator.review.broadcast_editor \
   --video "$VIDEO" \
   --video-id "$VIDEO_ID" \
   --out-csv "$OUT" \
@@ -245,7 +245,7 @@ The CSV is saved after every label. Run the same launch command to resume.
 ## 6. Validate and hand over
 
 ```bash
-PYTHONPATH=src uv run python -m annotator.manual_broadcast_timeline_annotator \
+PYTHONPATH=src uv run python -m annotator.review.broadcast_editor \
   --video "$VIDEO" \
   --video-id "$VIDEO_ID" \
   --out-csv "$OUT" \

@@ -829,7 +829,7 @@ def process_video(
         if not np.array_equal(selected_scores["frame"], predicted_frames):
             raise ValueError(f"{fixture.name}: kept score rows differ from predictions")
         contacts = []
-        from annotator.point_winner import attribute_half
+        from annotator.outcomes.point_winner import attribute_half
 
         for row in selected_scores:
             frame = int(row["frame"])

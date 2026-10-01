@@ -503,7 +503,7 @@ def load_timing_labels(
     table_reader: TableReader,
 ) -> TimingLabels:
     """Read contact timing columns without reading player-side labels."""
-    from annotator.calibration.scoring import load_gt_rallies
+    from annotator.evaluation.scoring import load_gt_rallies
 
     rows, identities = _label_rows(shots_master_path, split, TIMING_COLUMNS, table_reader)
     raw = {

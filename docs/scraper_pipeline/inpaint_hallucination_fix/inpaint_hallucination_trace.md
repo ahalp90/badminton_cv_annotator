@@ -14,7 +14,7 @@ video pixels or rerun InpaintNet. It reads the saved per-frame track and looks
 for exact position sequences that recur far more often than ordinary footage
 could explain.
 
-The guard's public entry point is `annotator.inpaint_guard.grade_track`. The
+The guard's public entry point is `annotator.masks.inpaint.grade_track`. The
 surrounding event-mask seam is
 `annotator.run_video._build_shuttle_hallucination_mask`.
 
@@ -59,9 +59,9 @@ policy currently rejects all three non-zero grades.
 The chart follows the current control flow in
 `pattern_episodes`, `adaptive_threshold`, `_candidate_attractors`,
 `_validate_presence`, `_cover`, and `build_mask`
-(`src/annotator/inpaint_guard.py:42-323`).
+(`src/annotator/masks/inpaint.py:42-323`).
 
-`(§ Detector internals, src/annotator/inpaint_guard.py:42-323)`
+`(§ Detector internals, src/annotator/masks/inpaint.py:42-323)`
 
 ```mermaid
 flowchart TB
@@ -117,13 +117,13 @@ The detector reads only columns 0 and 1 as exact x and y coordinates. It does
 not use the visibility column. This makes the method useful after InpaintNet
 has overwritten a missed frame's visibility flag, but it also means the method
 cannot know fill provenance from the track alone
-(`src/annotator/inpaint_guard.py:42-59`).
+(`src/annotator/masks/inpaint.py:42-59`).
 
 ### 2. Find exact recurring windows
 
 `pattern_episodes` slides a window over every possible start index from
 0 through `n_frames - window`
-(`src/annotator/inpaint_guard.py:42-72`).
+(`src/annotator/masks/inpaint.py:42-72`).
 
 For each start:
 
@@ -142,7 +142,7 @@ The starts for each pattern are then merged into separated episodes. The
 episode gap is `2 * window`, which is 32 frames at the default window. A
 start whose distance from the previous start is greater than 32 begins a new
 episode. Starts at a distance of 32 remain in the same episode
-(`src/annotator/inpaint_guard.py:62-72`).
+(`src/annotator/masks/inpaint.py:62-72`).
 
 This prevents one long recurrence zone, with many overlapping window starts,
 from being counted as hundreds of independent events. The detector counts
@@ -151,7 +151,7 @@ separated recurrence episodes instead.
 ### 3. Derive a threshold from the track
 
 `adaptive_threshold` does not hardcode one recurrence count
-(`src/annotator/inpaint_guard.py:75-89`).
+(`src/annotator/masks/inpaint.py:75-89`).
 
 It:
 
@@ -175,7 +175,7 @@ checkpoint or choosing a universal count.
 ### 4. Apply the evidence gates
 
 `_candidate_attractors` applies three gates before accepting any attractor
-(`src/annotator/inpaint_guard.py:148-188`).
+(`src/annotator/masks/inpaint.py:148-188`).
 
 1. At least two distinct candidate episode counts must exist. If all candidate
    patterns have the same count, there is no count gap from which to derive a
@@ -188,7 +188,7 @@ checkpoint or choosing a universal count.
 If a gate fails, the function logs a warning and returns empty attractor sets.
 `build_mask` then returns an all-zero code array with diagnostic fields such
 as `unavailable_reason`, `threshold`, and `margin`
-(`src/annotator/inpaint_guard.py:127-145, 258-290`).
+(`src/annotator/masks/inpaint.py:127-145, 258-290`).
 
 The synthetic tests cover all three weak-evidence paths:
 `tests/test_inpaint_guard.py:52-84`.
@@ -198,7 +198,7 @@ The synthetic tests cover all three weak-evidence paths:
 For every pattern at or above the derived threshold, the guard reconstructs its
 `window x 2` coordinate array and checks whether either x or y has a non-zero
 peak-to-peak range
-(`src/annotator/inpaint_guard.py:188-193`).
+(`src/annotator/masks/inpaint.py:188-193`).
 
 - If x or y changes within the window, the pattern is a **varying attractor**.
 - If both x and y stay constant, the pattern is a **flat attractor**.
@@ -217,7 +217,7 @@ blending can flatten it into a constant
 ### 6. Validate presence in both halves
 
 `_validate_presence` divides the video at `n_frames // 2`
-(`src/annotator/inpaint_guard.py:210-247`).
+(`src/annotator/masks/inpaint.py:210-247`).
 
 For every accepted varying or flat attractor, it checks whether at least one
 window start overlaps the first half and at least one overlaps the second half.
@@ -282,11 +282,11 @@ turning them into proportions.
 `grade_track(track)`, counts the resulting grades, logs the threshold,
 margin, presence result and counts, and stores the code array in the keyword
 arguments for `run_video`
-(`src/annotator/calibration/gt_scoring.py:401-419, 433-448`).
+(`src/annotator/evaluation/gt_scoring.py:401-419, 433-448`).
 
 `run_fixture` then copies those keyword arguments, adds a rejection
 diagnostic list, and calls `run_video(*inputs.positional, **keyword)`
-(`src/annotator/calibration/gt_scoring.py:705-721`).
+(`src/annotator/evaluation/gt_scoring.py:705-721`).
 
 This is the current calibration path. The regular production scraper and
 stroke-classifier callers do not construct `inpaint_codes` at the current
@@ -301,7 +301,7 @@ four code counts, and converts the configured rejected grades into a boolean
 `non_evidence` mask. A missing track returns `None`. The CLI then passes that
 mask into `combine_mask`; `--no-replay-mask` bypasses detector computation and
 writes an all-False mask
-(`src/annotator/replay_mask.py:293-299, 302-346`).
+(`src/annotator/masks/replay.py:293-299, 302-346`).
 
 This CLI path creates a boolean replay input rather than `inpaint_codes`, so
 it does not preserve per-frame source codes for later event diagnostics.
@@ -338,7 +338,7 @@ If the caller does not provide `raw_exclusion_mask`, `run_video` calls
 (`src/annotator/run_video.py:390-417`).
 
 `build_dead_mask` behaves differently by mode
-(`src/annotator/dead_mask.py:45-84`):
+(`src/annotator/masks/dead.py:45-84`):
 
 - `REPLAY` passes the event mask to `combine_mask` as `non_evidence`.
 - `UNION` does the same for its replay component, then unions replay and
@@ -348,10 +348,10 @@ If the caller does not provide `raw_exclusion_mask`, `run_video` calls
 
 `combine_mask` does not directly union `non_evidence` into the replay
 mask. It passes it to `velocity_drop_signal`
-(`src/annotator/replay_mask.py:224-243`). That signal removes speed steps
+(`src/annotator/masks/replay.py:224-243`). That signal removes speed steps
 whose endpoints touch an event-mask frame before calculating the slow-motion
 baseline and rolling median
-(`src/annotator/replay_mask.py:162-205`).
+(`src/annotator/masks/replay.py:162-205`).
 
 The resulting raw mask is length-checked and duration-filtered. Only then does
 `run_video` use the definitive exclusion mask to remove contacts
@@ -360,7 +360,7 @@ exclusion mask are therefore separate masks with different roles.
 
 The calibration inputs currently provide a pre-existing
 `raw_exclusion_mask`
-(`src/annotator/calibration/gt_scoring.py:433-448`). In that path,
+(`src/annotator/evaluation/gt_scoring.py:433-448`). In that path,
 `run_video` does not rebuild the dead mask, but the event mask still reaches
 the downstream event rules described next.
 
@@ -392,7 +392,7 @@ The mask does not enter every downstream calculation. In particular,
 `attribute_half` receives the already filtered contact frames, while
 `build_hit_height_rows` later reads `filtered_by_rally` and does not accept
 an event mask (`src/annotator/run_video.py:462-483, 639-650`;
-`src/annotator/point_winner.py:895-910`). This is an important boundary:
+`src/annotator/outcomes/point_winner.py:895-910`). This is an important boundary:
 the guard directly protects final-contact and landing decisions, while
 contact and hit-height effects depend on the separate definitive exclusion
 mask.
@@ -466,7 +466,7 @@ A real shuttle can rest on one pixel, and a weight-mode blend can flatten a
 repeated fill cycle into one constant position. The same constant pattern
 therefore lacks the proof available from a moving sequence. The current
 implementation preserves that distinction as codes 1 and 2
-(`src/annotator/inpaint_guard.py:188-194, 310-317`).
+(`src/annotator/masks/inpaint.py:188-194, 310-317`).
 
 ### What the heuristic cannot see
 

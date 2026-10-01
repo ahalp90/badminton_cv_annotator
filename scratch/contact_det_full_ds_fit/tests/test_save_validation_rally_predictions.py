@@ -205,7 +205,7 @@ def test_default_replay_calls_the_shipped_player_side_rule(
 ) -> None:
     import pandas as pd
 
-    from annotator import point_winner
+    from annotator.outcomes import point_winner
 
     verified, inputs, _runs = _verified(tmp_path)
     calls: list[int] = []

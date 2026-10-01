@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-import math
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from annotator.inpaint_guard import code_counts, grade_track
+from annotator.masks.inpaint import code_counts, grade_track
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.vision import (
     load_json_gz,
@@ -19,7 +19,6 @@ from dataset_builder.vision import (
     save_json_gz,
     save_npy_xz,
 )
-
 
 INPAINT_SIDECAR_SCHEMA = "inpaint_fill_mask/1"
 SHUTTLE_GUARD_SCHEMA = "shuttle-guard/0.1"

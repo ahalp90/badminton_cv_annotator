@@ -2,7 +2,7 @@
 
 import pytest
 
-from annotator.point_winner import Half
+from annotator.outcomes.point_winner import Half
 from scratch.contact_det.scripts.score_contact_rallies import FixedEvent, FixedSpan
 from scratch.contact_det_followup.scripts.audit_opposite_side_duplicates import (
     count_opposite_side_pairs,

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from annotator.broadcast_timeline_labels import (
+from annotator.review.broadcast_labels import (
     LABEL_CSV_HEADER,
     LabelInterval,
     SceneTruth,
@@ -17,7 +17,6 @@ from annotator.broadcast_timeline_labels import (
     validate_partition,
     write_label_csv,
 )
-
 
 METADATA = VideoMetadata("sset_01", 25.0, 100)
 
@@ -123,7 +122,7 @@ def test_failed_temporary_validation_preserves_existing_destination(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import annotator.broadcast_timeline_labels as labels_module
+    import annotator.review.broadcast_labels as labels_module
 
     path = tmp_path / "labels.csv"
     write_label_csv(path, _partition(), METADATA)

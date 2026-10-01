@@ -9,7 +9,6 @@ from __future__ import annotations
 
 # This standalone script adds the project source folder before importing it.
 # ruff: noqa: E402
-
 import argparse
 import gzip
 import hashlib
@@ -34,17 +33,17 @@ FIXTURE_SOURCE = "serve_prepend_lookback_189c5af_20260808/fixtures"
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from annotator.calibration.fixtures import FIXTURES, FilePin, Fixture, verify_file
 from annotator.config import BaseAnnotatorConfig
+from annotator.evaluation.fixtures import FIXTURES, FilePin, Fixture, verify_file
+from annotator.masks.replay import _read_homography_rows
 from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.rally.serve import (
     ServeStartMode,
     ServeStartOptions,
-    _resolve_serve_gate,
     build_serve_setup_inputs,
+    resolve_serve_gate,
 )
-from annotator.rally.spans import _rally_regions, _rest_mask, find_rally_spans
-from annotator.replay_mask import _read_homography_rows
+from annotator.rally.spans import build_rest_mask, find_rally_spans, rally_regions
 from annotator.resolve import resolve
 from annotator.types import compute_speed
 from shared.court import load_all_court_info
@@ -260,10 +259,10 @@ def freeze_fixture(
         lookback_frames=resolved.constants.serve_start_lookback_frames,
         stillness_window_frames=resolved.constants.serve_stillness_window_frames,
     )
-    gate = _resolve_serve_gate(options)
+    gate = resolve_serve_gate(options)
 
     speed = compute_speed(track)
-    at_rest = _rest_mask(
+    at_rest = build_rest_mask(
         speed,
         track,
         resolved.thresholds,
@@ -272,7 +271,7 @@ def freeze_fixture(
         reentry_guard_variant=resolved.reentry_guard_variant,
         reentry_guard_buffer=resolved.reentry_guard_buffer,
     )
-    fast_runs, _rest_runs, regions = _rally_regions(
+    fast_runs, _rest_runs, regions = rally_regions(
         speed,
         at_rest,
         resolved.thresholds,
@@ -306,7 +305,7 @@ def freeze_fixture(
             {
                 "path": str(pin.path),
                 "md5": pin.md5,
-                "pin_source": "src/annotator/calibration/fixtures.py",
+                "pin_source": "src/annotator/evaluation/fixtures.py",
             }
             for pin in pins
         ]

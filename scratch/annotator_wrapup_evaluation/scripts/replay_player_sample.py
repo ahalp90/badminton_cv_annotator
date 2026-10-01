@@ -20,8 +20,9 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from annotator.court_evidence import _as_ref_corners, detected_court_info
-from annotator.rally.evidence import _track_sticky_players, sticky_anchor, tracker_segments
+from annotator.courts.evidence import _as_ref_corners
+from annotator.courts.evidence import detected_court_info
+from annotator.rally.evidence import track_sticky_players, sticky_anchor, tracker_segments
 from dataset_builder.vision import load_court_vision, load_npy_xz, load_pose_arrays
 from preparing_data.heuristics.base import ClipContext
 
@@ -184,7 +185,7 @@ def run(prepared_root: Path, saved_root: Path, output: Path) -> None:
 
     sticky_anchor.analyse_frame = observe
     try:
-        replay = _track_sticky_players(
+        replay = track_sticky_players(
             frame_count, segments, pose.bboxes, pose.scores, pose.kps, pose.ndet,
             FIXTURE, inputs.gate_court_info, inputs.gate_resolution_table, RESOLUTION,
         )

@@ -144,7 +144,7 @@ TrackNet's fixed dimensions are declared in
 640x640 detector input and 192x256 per-person pose input in
 [rtmlib_pose.py](../../src/shared/rtmlib_pose.py). Scene detection
 explicitly calls for a frame-count-preserving 288p downsample in
-[composition_mask.py](../../src/annotator/composition_mask.py).
+[composition_mask.py](../../src/annotator/masks/composition.py).
 
 ## Stride and repeated resizing are the strongest known shuttle costs
 

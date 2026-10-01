@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from pathlib import Path
-import subprocess
-import sys
 
 import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.court_evidence as court_evidence_module
+import annotator.courts.evidence as court_evidence_module
 import annotator.run_video as run_video_module
 from annotator.config import BaseAnnotatorConfig
-from annotator.court_evidence import (
+from annotator.courts.evidence import (
     DETECTOR_RESULT_SCHEMA,
     CourtEvidenceResult,
     CourtInputs,
@@ -25,7 +25,7 @@ from annotator.court_evidence import (
     SceneStatus,
     build_court_detector_evidence,
 )
-from annotator.point_winner import (
+from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
     Landing,
@@ -34,10 +34,14 @@ from annotator.point_winner import (
     VerdictSource,
 )
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
+from annotator.sequence import ContactEvent
 from annotator.types import ContactCandidate, DeadMaskMode
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
-from dataset_builder.shuttle_quality import ShuttleQualitySummary, summarize_shuttle_quality
+from dataset_builder.shuttle_quality import (
+    ShuttleQualitySummary,
+    summarize_shuttle_quality,
+)
 from scraper.commentary_pairing import pair_video
 
 
@@ -179,6 +183,7 @@ def _direct_annotation(
     pose: vision.PoseArrays,
     court: vision.CourtVision,
     guard_codes: np.ndarray,
+    models,
 ) -> tuple[AnnotatorResult, RunCapture]:
     inputs = court.evidence.inputs
     assert inputs is not None
@@ -190,6 +195,7 @@ def _direct_annotation(
         pose.kps,
         pose.ndet,
         fps=float(metadata.fps),
+        models=models,
         landing_options=run_video_module.point_winner.SHIPPED_LANDING_FILTER_OPTIONS,
         net_band=inputs.net_band,
         resolution=inputs.resolution,
@@ -824,6 +830,7 @@ def test_court_loader_rejects_missing_scene_provenance(tmp_path: Path) -> None:
 
 def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
     tmp_path: Path,
+    annotator_models,
 ) -> None:
     metadata = _metadata(tmp_path, frame_count=60)
     video_id = "match-alpha"
@@ -838,6 +845,7 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         pose,
         court,
         guard_codes,
+        annotator_models,
     )
 
     output = vision.run_full_annotation_stage(
@@ -849,6 +857,7 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         pose=pose,
         court=court,
         output_dir=tmp_path / "annotation",
+        models=annotator_models,
     )
 
     assert output.run.result == direct_result
@@ -1021,6 +1030,8 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
         },
         hit_height_by_frame={12: 2},
         hit_height_failures=[(0, 0, 12, "unmeasured")],
+        contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.TOP)),
+        rally_confidence=(.75,),
     )
     raw_mask = np.zeros(50, dtype=bool)
     raw_mask[10:15] = True
@@ -1060,6 +1071,11 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     assert primitives["verdict_rows"]["0"]["verdict_source"] == "next_server"
     assert primitives["landings"]["0"]["norm"] == [0.4, 0.8]
     assert primitives["hit_height_failures"] == [[0, 0, 12, "unmeasured"]]
+    from dataset_builder._runtime_support import _annotation_result
+
+    assert _annotation_result(primitives) == result
+    assert primitives['contact_events'][0] == {'frame': 2, 'probability': .4, 'side': None}
+    assert primitives['rally_confidence'] == [.75]
     np.testing.assert_array_equal(vision.load_npy_xz(artifacts.raw_replay_mask), raw_mask)
     assert vision.load_json_gz(artifacts.shuttle_quality) == run.shuttle_quality.to_payload()
     np.testing.assert_array_equal(

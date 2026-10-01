@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
 import csv
-from dataclasses import dataclass, replace
 import gzip
-from io import StringIO
 import os
-from pathlib import Path
 import tempfile
-
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, replace
+from io import StringIO
+from pathlib import Path
 
 SELECTED_VIDEOS_FILENAME = "selected_videos.csv.gz"
 SELECTION_COLUMNS = (

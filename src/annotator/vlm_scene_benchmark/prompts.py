@@ -6,7 +6,6 @@ from collections.abc import Sequence
 
 from .contracts import ShardSpec
 
-
 PROMPT_VERSION = "issue38-whole-shard-v5-observed-frame-codes"
 
 

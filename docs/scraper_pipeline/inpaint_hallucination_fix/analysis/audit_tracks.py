@@ -35,9 +35,10 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from annotator.calibration.scoring import load_gt_rallies  # noqa: E402
+from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
 from annotator.config import BaseAnnotatorConfig  # noqa: E402
-from annotator.inpaint_guard import code_counts, grade_track  # noqa: E402
+from annotator.masks.inpaint import code_counts
+from annotator.masks.inpaint import grade_track  # noqa: E402
 from annotator.rally_segmentation import detect_contact_flags  # noqa: E402
 from annotator.resolve import resolve  # noqa: E402
 from annotator.run_video import run_video  # noqa: E402

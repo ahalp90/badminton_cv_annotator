@@ -2,7 +2,7 @@
 
 Every calibration fixture's camera-space court bounds, and the net band's position,
 come from two tracked ShuttleSet CSVs, derived live at import time in
-`src/annotator/calibration/fixtures.py`. The one exception is the net band's width: a
+`src/annotator/evaluation/fixtures.py`. The one exception is the net band's width: a
 fixed policy of 0.5 m each side of centre (`_NET_BAND_HALF_WIDTH_M = 0.5`,
 `fixtures.py:133`), a one-metre total band, not a CSV value. `_load_calibration_geometry()`
 runs once when the module loads (`fixtures.py:269`) and the three fixtures (`SSET_01`,

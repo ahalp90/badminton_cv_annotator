@@ -335,7 +335,7 @@ def create_links(input_directory: Path, working_directory: Path) -> None:
 def guard_outputs(track: np.ndarray, repo_src: Path) -> tuple[np.ndarray, dict[str, object]]:
     if str(repo_src) not in sys.path:
         sys.path.insert(0, str(repo_src))
-    guard_module = importlib.import_module("annotator.inpaint_guard")
+    guard_module = importlib.import_module("annotator.masks.inpaint")
     codes, info = guard_module.grade_track(track)
     counts = guard_module.code_counts(codes)
     diagnostics = {

@@ -12,10 +12,10 @@ export, which has primitives but no production run.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
-import math
 from pathlib import Path
 from typing import NamedTuple
 
@@ -24,7 +24,11 @@ import pandas as pd
 
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.video_metadata import VideoMetadata
-from dataset_builder.commentary_export import CommentaryTables, commentary_tables, empty_table
+from dataset_builder.commentary_export import (
+    CommentaryTables,
+    commentary_tables,
+    empty_table,
+)
 from dataset_builder.degradation import player_trend_rows
 from dataset_builder.features import (
     COURT_SIDES,
@@ -36,7 +40,11 @@ from dataset_builder.features import (
     recovery_at_opponent_contacts,
 )
 from dataset_builder.fixed_sources import load_fixed_source_manifest
-from dataset_builder.manifest import artifact_integrity, load_run_manifest, run_manifest_sha256
+from dataset_builder.manifest import (
+    artifact_integrity,
+    load_run_manifest,
+    run_manifest_sha256,
+)
 from dataset_builder.models import ArtifactIntegrity, RunManifest, StageOutcome
 from dataset_builder.players import (
     DEFAULT_PLAYERS,
@@ -71,7 +79,10 @@ from dataset_builder.schema_v1 import (
     validate_table,
     write_table,
 )
-from dataset_builder.source_annotations import SourceAnnotations, load_source_annotations
+from dataset_builder.source_annotations import (
+    SourceAnnotations,
+    load_source_annotations,
+)
 from dataset_builder.vision import (
     TRACK_FILENAME,
     load_court_vision,
@@ -81,7 +92,6 @@ from dataset_builder.vision import (
     save_json_gz,
     save_npy_xz,
 )
-
 
 STAGES_DIRECTORY = "stages"
 PRIMITIVE_STAGE_BASES = ("shuttle", "pose", "court", "annotation")

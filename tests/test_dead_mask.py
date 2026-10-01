@@ -4,10 +4,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import annotator.dead_mask as dead_mask_module
+import annotator.masks.dead as dead_mask_module
 from annotator.config import COMPOSITION_KEEP_VOTE
-from annotator.dead_mask import build_dead_mask
-from annotator.replay_mask import combine_mask
+from annotator.masks.dead import build_dead_mask
+from annotator.masks.replay import combine_mask
 from annotator.types import DeadMaskMode
 
 

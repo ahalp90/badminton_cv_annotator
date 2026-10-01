@@ -20,7 +20,7 @@ from trajectory_features import (
     summarise_unmatched_anchor_sequence,
 )
 
-from annotator.point_winner import Half, fit_alternation
+from annotator.outcomes.point_winner import Half, fit_alternation
 
 
 def _motion(distances: list[float], points: list[tuple[float, float]]) -> IncomingMotion:

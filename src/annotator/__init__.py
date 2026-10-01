@@ -1,1 +1,1 @@
-"""Annotator migration package."""
+"""Mixed heuristic and tree-model badminton annotation."""

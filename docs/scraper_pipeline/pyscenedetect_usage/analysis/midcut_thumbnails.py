@@ -15,8 +15,10 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.calibration.scoring import GtRally, load_gt_rallies
-from annotator.composition_mask import CompositionSegment, build_composition_mask
+from annotator.evaluation.scoring import GtRally
+from annotator.evaluation.scoring import load_gt_rallies
+from annotator.masks.composition import CompositionSegment
+from annotator.masks.composition import build_composition_mask
 from annotator.config import COMPOSITION_KEEP_VOTE
 
 

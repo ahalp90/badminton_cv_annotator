@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import importlib.util
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
-from annotator.broadcast_timeline_labels import (
+from annotator.evaluation.fixtures import SSET_01
+from annotator.evaluation.scoring import GtRally
+from annotator.review.broadcast_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,
     write_label_csv,
 )
-from annotator.calibration.fixtures import SSET_01
-from annotator.calibration.scoring import GtRally
-
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]

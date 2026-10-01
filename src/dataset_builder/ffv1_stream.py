@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 import io
-from pathlib import Path
 import signal
 import subprocess
 import tempfile
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from types import FrameType
 from typing import BinaryIO
 
@@ -21,7 +21,6 @@ from dataset_builder.tracknet_input import (
     tracknet_stream_decoder_command,
     tracknet_stream_producer_command,
 )
-
 
 TRACKNET_BGR_FRAME_BYTES = TRACKNET_INPUT_WIDTH * TRACKNET_INPUT_HEIGHT * 3
 _PROCESS_TIMEOUT_SECONDS = 5.0

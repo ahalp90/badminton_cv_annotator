@@ -51,7 +51,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from shared.court_model import CORNER_COURT_M
 
 from . import composition, net_choice

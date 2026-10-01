@@ -10,7 +10,7 @@ from experiments.score_multiscale_trials import (
     score_prediction_side,
 )
 
-from annotator.calibration.gt_scoring import ColumnAgg, RallyRow, VideoScoring
+from annotator.evaluation.gt_scoring import ColumnAgg, RallyRow, VideoScoring
 
 
 def _row(*, mapped_span: int, rally: int, complete: bool = True) -> RallyRow:

@@ -237,7 +237,7 @@ def test_prediction_program_has_no_label_reader_import() -> None:
         if isinstance(node, ast.ImportFrom) and node.module is not None
     }
 
-    assert "annotator.calibration.shuttleset22_features" not in imported
+    assert "annotator.evaluation.shuttleset22_features" not in imported
     assert "pandas" not in imported
 
 

@@ -18,7 +18,7 @@ from typing import Any, cast
 
 import numpy as np
 
-from annotator.point_winner import attribute_half
+from annotator.outcomes.point_winner import attribute_half
 from scratch.contact_det.scripts.freeze_contact_evidence import (
     FixtureSpec,
     _load_inputs,

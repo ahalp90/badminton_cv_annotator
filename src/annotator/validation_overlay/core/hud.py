@@ -9,7 +9,6 @@ import numpy as np
 
 from annotator.validation_overlay.core.timeline import SpanState
 
-
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)

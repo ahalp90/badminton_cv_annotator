@@ -12,7 +12,6 @@ from .contracts import BenchmarkRunRecord, RunOutcome, read_run_record
 from .runtime import is_strict_json_response, parse_prediction_response, sha256_file
 from .scoring import deployment_failures
 
-
 SUPPORTED_BACKENDS = ("internvideo3", "qwen3-vl")
 
 

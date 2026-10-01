@@ -2,14 +2,15 @@
 
 import argparse
 import csv
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from ..batch_report import VideoOutcome
-from ..config import BaseAnnotatorConfig, CONTACT_FRAMES_CSV, RALLY_SPANS_CSV
+from annotator.evaluation.batch_report import VideoOutcome
+
+from ..config import CONTACT_FRAMES_CSV, RALLY_SPANS_CSV, BaseAnnotatorConfig
 from ..doubles_flag import read_whole_video_flags
 from ..types import SpanOpen
 
@@ -188,7 +189,8 @@ def main() -> None:
     span_rows: list[tuple[str, int, int, int]] = []
     contact_rows: list[tuple[str, int, int, str, str, str]] = []
     input_track_paths = sorted(args.shuttle_dir.glob('*.npy'))
-    from ..batch_report import publish_batch_report
+    from annotator.evaluation.batch_report import publish_batch_report
+
     from ..run_video import run_video
 
     filter_result = _filter_track_paths(input_track_paths, args.doubles_csv)

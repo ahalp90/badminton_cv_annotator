@@ -14,10 +14,10 @@ from pathlib import Path
 sys.path.insert(0, '/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 from instrument_bisect import run_once  # noqa: E402
 
-from annotator.calibration.fixtures import PILOT  # noqa: E402
-from annotator.calibration.gt_scoring import (  # noqa: E402
-    build_run_video_inputs, canonical_tolerance, score_video,
-)
+from annotator.evaluation.fixtures import PILOT  # noqa: E402
+from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.evaluation.gt_scoring import canonical_tolerance
+from annotator.evaluation.gt_scoring import score_video
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 

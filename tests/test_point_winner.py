@@ -6,9 +6,9 @@ height, and the verdict assembly. No fixtures; each test builds its own small nu
 """
 import numpy as np
 import pytest
-from annotator.fps_constants import scale_for_fps
 
-from annotator.point_winner import (
+from annotator.fps_constants import scale_for_fps
+from annotator.outcomes.point_winner import (
     Half,
     HitHeightRow,
     Landing,
@@ -17,7 +17,7 @@ from annotator.point_winner import (
     LandingWindow,
     Verdict,
     VerdictSource,
-    _carried_terminal,
+    carried_terminal,
     attribute_half,
     build_hit_height_rows,
     build_landing_kinematics,
@@ -27,15 +27,19 @@ from annotator.point_winner import (
     hit_height,
     inout_verdict,
     is_net_ender,
-    landing_window,
     landing_margins,
+    landing_window,
     next_server_half,
     pick_landing_to_end,
     rally_verdict,
     window_end,
 )
 from annotator.rally_segmentation import (
-    ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult,
+    ANKLE_L,
+    ANKLE_R,
+    WRIST_L,
+    WRIST_R,
+    StickyResult,
 )
 
 COURT_WIDTH_M = 6.10
@@ -288,8 +292,8 @@ def test_ankle_rule_flips_a_carried_terminal_to_a_landing():
     with_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
                                       carry_thr=0.5)  # use_ankle_rule=True is the shipped default
 
-    assert _carried_terminal(0, 2, kin, no_ankle) is True
-    assert _carried_terminal(0, 2, kin, with_ankle) is False
+    assert carried_terminal(0, 2, kin, no_ankle) is True
+    assert carried_terminal(0, 2, kin, with_ankle) is False
 
 
 def test_ankle_rule_does_not_overturn_when_the_wrist_is_nearer():
@@ -299,7 +303,7 @@ def test_ankle_rule_does_not_overturn_when_the_wrist_is_nearer():
         speed=np.zeros(3),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3, carry_thr=0.5)
-    assert _carried_terminal(0, 2, kin, opts) is True
+    assert carried_terminal(0, 2, kin, opts) is True
 
 
 def test_carried_terminal_does_not_read_before_final_contact():
@@ -312,7 +316,7 @@ def test_carried_terminal_does_not_read_before_final_contact():
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=5, carry_thr=0.5)
 
-    assert _carried_terminal(2, 4, kin, opts) is False
+    assert carried_terminal(2, 4, kin, opts) is False
 
 
 # ---------------------------------------------------------------------------

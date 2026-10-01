@@ -9,7 +9,6 @@ from typing import Any
 
 from . import BackendSpec, GenerationEvidence, require_complete_frame_grid
 
-
 SPEC = BackendSpec(
     key="internvideo3",
     model_id="yanziang/InternVideo3-8B-Instruct",

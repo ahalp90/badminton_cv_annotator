@@ -9,7 +9,7 @@ rally structure and the player-signal positions, then validates the
 completed table against the frozen schema.
 
 Reproduces the rally-usability rules from the benchmark-only reader
-``annotator.calibration.shuttleset22_features.load_annotation_rallies``: a
+``annotator.evaluation.shuttleset22_features.load_annotation_rallies``: a
 rally is unusable if any of its rows has an invalid frame, or if its contact
 frames are not strictly increasing in (ball_round, frame_num) order. See
 issue #18.
@@ -26,8 +26,8 @@ Source contacts, for the measurements behind this.
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import NamedTuple
 
 import pandas as pd
@@ -36,7 +36,6 @@ from classifier_shared.player_mapping import find_set3_switch_rally
 from classifier_shared.taxonomy import ZH_TO_EN
 from dataset_builder.players import SWITCH_SET, MatchPlayers, SidePhase, a_is_top
 from dataset_builder.schema_v1 import SOURCE_CONTACTS
-
 
 _SET_FILENAME = re.compile(r"^set(\d+)$")
 _REQUIRED_COLUMNS = (

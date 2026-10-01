@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-
 SHUTTLE_QUALITY_SCHEMA = "shuttle-quality/0.1"
 
 

@@ -4,20 +4,20 @@ A three-fixture (`sset_01`, `sset_15`, `sset_21`) capture of the current annotat
 calibration chain, kept for comparison during ongoing annotation changes. `manifest.json`
 records the exact provenance: capture date, source commit, the command that produced
 these files, every file's SHA-256/size/line count, and the fixture input digests
-declared in `src/annotator/calibration/fixtures.py`.
+declared in `src/annotator/evaluation/fixtures.py`.
 
 ## What can be compared
 
 - **Per-rally rows** (`per_rally/*.csv`): one row per ground-truth rally — boundary
   classification, ball-round count, stroke-timing matches, player, server, hit
   height, landing side, and point winner (the `RallyRow` fields written by
-  `annotator.calibration.gt_scoring.write_rallies_csv`). This is the primary layer
+  `annotator.evaluation.gt_scoring.write_rallies_csv`). This is the primary layer
   to diff against a new capture: it is where a behavioural change first shows up as
   a changed field on a specific rally.
 - **Aggregate metrics** (embedded in `aggregate_stdout.txt`): coverage fraction,
   contact F1, raw and filtered contact counts, and the other summary numbers
   currently pinned in `REFERENCE_SCORES`
-  (`src/annotator/calibration/gt_scoring.py`). `flatten_metrics` produces these
+  (`src/annotator/evaluation/gt_scoring.py`). `flatten_metrics` produces these
   values from the full scoring result; the per-rally CSV alone does not reproduce
   every aggregate.
 - **Diagnostics** (`diagnostics/geometric_verdicts/*.csv`,
@@ -58,7 +58,7 @@ the existing production-chain command, not an implementation of that design.
 
 ```
 ANNOTATOR_FIXTURES_ROOT=<external-fixture-root> PYTHONPATH=src \
-  python -m annotator.calibration.gt_scoring --capture --out <output-dir>
+  python -m annotator.evaluation.gt_scoring --capture --out <output-dir>
 ```
 
 See `manifest.json` for the exact command, the source commit this capture was taken

@@ -12,7 +12,6 @@ import numpy as np
 
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
 
-
 # Kept as import-compatible names for existing overlay consumers. The probing
 # implementation and canonical field contract live outside this namespace.
 VideoInfo = VideoMetadata

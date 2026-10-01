@@ -7,7 +7,8 @@ from typing import Iterable, Mapping, NamedTuple
 
 import numpy as np
 
-from ..scene_courts import SceneCourt, court_at_frame
+from annotator.courts.scenes import SceneCourt, court_at_frame
+
 from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
@@ -114,7 +115,7 @@ def tracker_segments(
 
 
 @dataclass
-class _StickyEvidence:
+class StickyEvidence:
     """Mutable frame-aligned arrays filled by the two sticky analysis phases."""
 
     picks: np.ndarray
@@ -126,7 +127,7 @@ class _StickyEvidence:
     analysed: np.ndarray
 
 
-def _track_sticky_players(
+def track_sticky_players(
     n_frames: int,
     segments: list[tuple[int, int]],
     pose_bboxes: np.ndarray,
@@ -138,7 +139,7 @@ def _track_sticky_players(
     gate_resolution_table: object,
     resolution: tuple[float, float],
     scene_courts: tuple[SceneCourt, ...] | None = None,
-) -> _StickyEvidence:
+) -> StickyEvidence:
     """Run the sequential sticky picker and retain its frame-aligned evidence."""
     params = sticky_anchor.StickyAnchorParams()
     raw = RawClip(
@@ -152,7 +153,7 @@ def _track_sticky_players(
     ctx = ClipContext(gate_video_id, gate_court_info, gate_resolution_table)
     court_info = ctx.all_court_info[ctx.vid]
     halfcourt_centre = sticky_anchor.compute_halfcourt_centres(court_info)
-    evidence = _StickyEvidence(
+    evidence = StickyEvidence(
         picks=np.full((n_frames, 2), -1, dtype=int),
         standing_count=np.zeros(n_frames, dtype=int),
         ankle_pos=np.full((n_frames, 2, 2), np.nan),
@@ -204,13 +205,13 @@ def _track_sticky_players(
     return evidence
 
 
-def _measure_sticky_distances(
+def measure_sticky_distances(
     track: np.ndarray,
     segments: list[tuple[int, int]],
     pose_kps: np.ndarray,
     resolution: tuple[float, float],
     half_window: int,
-    evidence: _StickyEvidence,
+    evidence: StickyEvidence,
 ) -> None:
     """Fill body-unit and raw-pixel wrist distances for accepted sticky picks."""
     width, height = resolution
@@ -243,7 +244,7 @@ def _measure_sticky_distances(
                     evidence.wrist_dist_px[frame, half] = numerator
 
 
-def _collapse_sticky_distances(evidence: _StickyEvidence) -> np.ndarray:
+def collapse_sticky_distances(evidence: StickyEvidence) -> np.ndarray:
     """Collapse finite per-slot distances to the nearest accepted wrist."""
     gaps = np.full(len(evidence.analysed), np.inf)
     for frame in np.flatnonzero(evidence.analysed):
@@ -263,7 +264,7 @@ def build_sticky_result(
     *, scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> StickyResult:
     """Run sticky player tracking and measure its contact and serve evidence."""
-    evidence = _track_sticky_players(
+    evidence = track_sticky_players(
         len(track),
         segments,
         pose_bboxes,
@@ -276,9 +277,9 @@ def build_sticky_result(
         resolution,
         scene_courts,
     )
-    _measure_sticky_distances(track, segments, pose_kps, resolution, half_window, evidence)
+    measure_sticky_distances(track, segments, pose_kps, resolution, half_window, evidence)
     return StickyResult(
-        _collapse_sticky_distances(evidence),
+        collapse_sticky_distances(evidence),
         evidence.picks,
         evidence.standing_count,
         evidence.ankle_pos,

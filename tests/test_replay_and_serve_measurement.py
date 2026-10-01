@@ -10,9 +10,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.calibration.scoring import GtRally
-from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval
-
+from annotator.evaluation.scoring import GtRally
+from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]

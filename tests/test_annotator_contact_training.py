@@ -1,16 +1,16 @@
 """Retuning selection preserves the fitted contact model's sampling policy."""
 
-import importlib
+import gzip
+import json
 from dataclasses import asdict, replace
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from threadpoolctl import threadpool_limits
 
-from annotator.contact_features import REGION_FIELDS
-from annotator.contact_model import CONTACT_FEATURE_NAMES, score_contact_features
+from annotator.contacts.features import REGION_FIELDS
+from annotator.contacts.model import CONTACT_FEATURE_NAMES, score_contact_features
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
@@ -34,34 +34,21 @@ def training_video(identity: str, fps: float, contacts: tuple[int, ...] = (100, 
     return ContactTrainingVideo(identity, rows, np.array(contacts, dtype=np.int32), fps)
 
 
-def test_sampling_matches_original_for_multiple_fps_and_video_order(monkeypatch: pytest.MonkeyPatch) -> None:
-    repo = Path(__file__).resolve().parents[1]
-    monkeypatch.syspath_prepend(str(repo))
-    baseline = importlib.import_module('scratch.contact_det_full_ds_fit.scripts.score_contact_baseline')
+REFERENCE_DIR = Path(__file__).parent / 'fixtures' / 'annotator_reference'
+
+
+def test_sampling_matches_reference_for_multiple_fps_and_video_order() -> None:
     videos = [training_video('first', 25.0), training_video('second', 30.0), training_video('third', 60.0)]
-    chunks = []
-    ranges = {}
-    row_start = 0
-    for video in videos:
-        rows = video.features[video.features['region_wrist'].astype(bool)]
-        chunks.append(rows)
-        ranges[video.identity] = (row_start, row_start + len(rows))
-        row_start += len(rows)
-    candidates = baseline.CandidateRows(np.concatenate(chunks), ranges)
-    config = SimpleNamespace(
-        random_seed=20260824, positive_radius_at_30_fps=1,
-        ignored_radius_at_30_fps=4, hard_negative_radius_at_30_fps=15,
-    )
-    labels = baseline.ContactLabels({video.identity: video.contact_frames for video in videos}, {}, {})
-    split = SimpleNamespace(
-        training_videos=[SimpleNamespace(fixture=video.identity, fps=video.fps) for video in videos],
-    )
-    expected = baseline.choose_training_rows(candidates, split, labels, config, SimpleNamespace(negative_limit=24))
+    candidates = np.concatenate([video.features[video.features['region_wrist'].astype(bool)] for video in videos])
+    with np.load(REFERENCE_DIR / 'contact_sampling.npz') as reference:
+        expected_rows = candidates[reference['selected_indices']]
+        expected_labels = reference['labels']
+    expected_counts = json.loads(gzip.decompress((REFERENCE_DIR / 'contact_sampling_counts.json.gz').read_bytes()))
     actual = select_contact_training_rows(videos)
-    np.testing.assert_array_equal(actual.labels, expected.labels[expected.selected])
-    for name in candidates.rows.dtype.names:
-        np.testing.assert_array_equal(actual.rows[name], candidates.rows[name][expected.selected], err_msg=name)
-    assert {name: asdict(counts) for name, counts in actual.video_counts.items()} == expected.video_counts
+    np.testing.assert_array_equal(actual.labels, expected_labels)
+    for name in candidates.dtype.names:
+        np.testing.assert_array_equal(actual.rows[name], expected_rows[name], err_msg=name)
+    assert {name: asdict(counts) for name, counts in actual.video_counts.items()} == expected_counts
 
 
 def test_small_fit_scores_only_supplied_training_video() -> None:

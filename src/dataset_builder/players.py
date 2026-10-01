@@ -20,7 +20,6 @@ import pandas as pd
 
 from dataset_builder.features import COURT_SIDES
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PLAYERS = REPO_ROOT / "configs" / "players.csv"
 MATCH_TABLE_FILENAME = "match.csv"

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval, write_label_csv
+from annotator.review.broadcast_labels import (
+    SceneTruth,
+    VideoMetadata,
+    make_interval,
+    write_label_csv,
+)
 from annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
@@ -26,7 +31,6 @@ from annotator.vlm_scene_benchmark.contracts import (
 )
 from annotator.vlm_scene_benchmark.score_cli import main as score_main
 from annotator.vlm_scene_benchmark.scoring import boundary_metrics, score_run_record
-
 
 SHA256 = "a" * 64
 

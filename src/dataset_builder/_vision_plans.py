@@ -11,7 +11,12 @@ import numpy as np
 
 from bst_x.pipeline.shuttle_extractor import extract_all_shuttles
 from dataset_builder._runtime_support import RuntimeState
-from dataset_builder.cli import BuilderConfig, SemanticValidator, StageExecution, StagePlan
+from dataset_builder.cli import (
+    BuilderConfig,
+    SemanticValidator,
+    StageExecution,
+    StagePlan,
+)
 from dataset_builder.models import InterpreterIdentity, RunManifest, StageOutcome
 from dataset_builder.pose_sharding import (
     POSE_SHARD_DECODE_MODE,

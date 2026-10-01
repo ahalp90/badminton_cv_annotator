@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
 import hashlib
-from importlib.metadata import PackageNotFoundError, version
 import json
-from pathlib import Path
 import re
 import subprocess
 import threading
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from typing import Any
 
 from .contracts import PredictionSegment, ShardSpec, validate_prediction_partition
-
 
 NVIDIA_SMI_TIMEOUT_SECONDS = 5.0
 GPU_MONITOR_STOP_TIMEOUT_SECONDS = 6.0

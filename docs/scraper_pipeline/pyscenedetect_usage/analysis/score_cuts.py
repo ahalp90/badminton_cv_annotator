@@ -9,7 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.calibration.scoring import _scale_base30_frames, load_gt_rallies
+from annotator.evaluation.scoring import _scale_base30_frames
+from annotator.evaluation.scoring import load_gt_rallies
 
 
 EXPECTED_RALLIES = {1: 113, 15: 104, 21: 75}

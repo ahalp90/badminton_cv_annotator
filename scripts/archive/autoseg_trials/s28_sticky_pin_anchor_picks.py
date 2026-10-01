@@ -74,9 +74,9 @@ if HERE.parents[1] != harness.WORKTREE_ROOT:
         "digests from this run are trustworthy only if the two trees match in those files."
     )
 
-point_winner = importlib.import_module("annotator.point_winner")
+point_winner = importlib.import_module("annotator.outcomes.point_winner")
 rally_segmentation = importlib.import_module("annotator.rally_segmentation")
-replay_mask = importlib.import_module("annotator.replay_mask")
+replay_mask = importlib.import_module("annotator.masks.replay")
 fps_constants = importlib.import_module("annotator.fps_constants")
 LANDING_OPTS = point_winner.LandingFilterOptions(
     settle_win=7, settle_thr=0.004, settle_min=5, carry_win=7, carry_thr=0.75

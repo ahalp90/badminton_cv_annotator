@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from fractions import Fraction
-import math
 from pathlib import Path
 
-from annotator.point_winner import (
+from annotator.outcomes.point_winner import (
+    OTHER_HALF,
     GeometricVerdictRow,
     Half,
     Landing,
-    OTHER_HALF,
     Verdict,
     VerdictRow,
     VerdictSource,
@@ -209,6 +209,7 @@ def assemble_rally_records(
                 "accepted": accepted_contacts[rally_id],
                 "stroke_count": annotation.n_strokes_list[rally_id],
                 "hit_height_failures": failures[rally_id],
+                "review_score": annotation.rally_confidence[rally_id] if annotation.rally_confidence else None,
             },
             "outcomes": outcome_payloads[rally_id],
             "commentary": deepcopy(commentary_payloads[rally_id]),
@@ -436,6 +437,7 @@ def _contact_payloads(
     _require_ascending_contact_frames(raw_by_rally, "raw contacts")
 
     accepted_by_rally: list[list[dict[str, object]]] = [[] for _ in spans]
+    sides_by_frame = {event.frame: event.side for event in annotation.contact_events}
     accepted_keys: set[tuple[int, int]] = set()
     for contact in annotation.filtered_contacts:
         _validate_contact(contact, spans, "accepted contact")
@@ -448,6 +450,7 @@ def _contact_payloads(
         accepted_by_rally[contact.rally_id].append({
             "stroke_idx": len(accepted_by_rally[contact.rally_id]),
             "contact_frame": contact.contact_frame,
+            "player_half": _enum_value(sides_by_frame[contact.contact_frame]) if sides_by_frame else None,
         })
     _require_ascending_contact_frames(accepted_by_rally, "accepted contacts")
     _validate_filtered_by_rally(annotation.filtered_by_rally, accepted_by_rally, rally_count)

@@ -32,23 +32,24 @@ from typing import Any, NamedTuple, Sequence
 
 import numpy as np
 
-from annotator.calibration.fixtures import (
-    SSET_01,
-    Fixture,
-    FixtureDigests,
-    fixtures_root,
-)
-from annotator.calibration.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.calibration.scoring import GtRally, classify_all, greedy_match, load_gt_rallies
+from annotator.evaluation.fixtures import SSET_01
+from annotator.evaluation.fixtures import Fixture
+from annotator.evaluation.fixtures import FixtureDigests
+from annotator.evaluation.fixtures import fixtures_root
+from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.evaluation.gt_scoring import canonical_tolerance
+from annotator.evaluation.scoring import GtRally
+from annotator.evaluation.scoring import classify_all
+from annotator.evaluation.scoring import greedy_match
+from annotator.evaluation.scoring import load_gt_rallies
 from annotator.config import BaseAnnotatorConfig, SLOWMO_SPEED_FRAC
-from annotator.inpaint_guard import CODE_NAMES, NO_FLAG
-from annotator.broadcast_timeline_labels import (
-    LabelInterval,
-    SceneTruth,
-    VideoMetadata,
-    read_label_csv,
-    validate_partition,
-)
+from annotator.masks.inpaint import CODE_NAMES
+from annotator.masks.inpaint import NO_FLAG
+from annotator.review.broadcast_labels import LabelInterval
+from annotator.review.broadcast_labels import SceneTruth
+from annotator.review.broadcast_labels import VideoMetadata
+from annotator.review.broadcast_labels import read_label_csv
+from annotator.review.broadcast_labels import validate_partition
 from annotator.rally_segmentation import (
     BODY_UNIT_WRIST_THRESHOLD,
     build_sticky_result,
@@ -58,12 +59,10 @@ from annotator.rally_segmentation import (
     rolling_nanmedian,
     tracker_segments,
 )
-from annotator.replay_mask import (
-    court_absence_signal,
-    filter_short_exclusion_runs,
-    perspective_shift_signal,
-    velocity_drop_signal,
-)
+from annotator.masks.replay import court_absence_signal
+from annotator.masks.replay import filter_short_exclusion_runs
+from annotator.masks.replay import perspective_shift_signal
+from annotator.masks.replay import velocity_drop_signal
 from annotator.resolve import resolve
 from annotator.run_video import RunCapture, run_video
 

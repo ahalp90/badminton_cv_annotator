@@ -44,7 +44,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from court_detector import reuse, stripe_fitting
 from court_detector.composition import (
     HALF_TURN_ROLL,

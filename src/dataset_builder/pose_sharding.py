@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 import os
-from pathlib import Path
 import tempfile
+from collections.abc import Sequence
+from pathlib import Path
 from uuid import uuid4
 
 from annotator.video_metadata import VideoMetadata
@@ -23,7 +23,6 @@ from dataset_builder.vision import (
     save_pose_arrays,
     validate_pose_arrays,
 )
-
 
 POSE_SHARD_DECODE_MODE = "seek"
 _POSE_SHARD_CHILD_COMMAND = "_extract-sharded-rtmlib-pose"

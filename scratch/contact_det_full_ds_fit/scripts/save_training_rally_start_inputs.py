@@ -1056,7 +1056,7 @@ def save_training_video(
 ) -> dict[str, Any]:
     """Build and save one checked video input file."""
     if side_attributor is None:
-        from annotator.point_winner import attribute_half
+        from annotator.outcomes.point_winner import attribute_half
 
         side_attributor = attribute_half
     feature_record = _video_record(checked.features, video.fixture)

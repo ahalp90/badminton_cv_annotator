@@ -13,12 +13,11 @@ import pandas as pd
 from scenedetect import open_video
 
 from annotator.artifact_io import artifacts_are_byte_equal, load_npy
-from annotator.calibration.scoring import _scale_base30_frames, load_gt_rallies
-from annotator.composition_mask import (
-    CompositionSegment,
-    build_composition_mask,
-    detect_cuts,
-)
+from annotator.evaluation.scoring import _scale_base30_frames
+from annotator.evaluation.scoring import load_gt_rallies
+from annotator.masks.composition import CompositionSegment
+from annotator.masks.composition import build_composition_mask
+from annotator.masks.composition import detect_cuts
 from annotator.config import COMPOSITION_KEEP_VOTE
 from annotator.fps_constants import probe_fps, scale_for_fps
 
