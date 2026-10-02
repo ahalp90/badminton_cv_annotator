@@ -54,7 +54,14 @@ ShuttleSet22 video 15 is excluded, as implemented in [PR #159](https://github.co
 
 The 47-video evaluation reported below includes the video later excluded from the 46-video ShuttleSet22 delivery. Those results are not a new evaluation of the filtered export.
 
-The wider manual label sweep remains deferred. Existing court errors can affect derived features, and commentary links have not received a semantic accuracy audit. The features are experimental measurements, not validated player skill grades.
+The full dataset includes 3,500 candidate commentary–rally links. A
+[manual review of 134 passages](docs/dataset_builder/commentary_manual_review_20261002.md)
+found 116 matching associations, 13 general-discussion passages and five
+unclear passages. The compressed evidence marks reviewed and unreviewed links
+separately and retains timing labels and notes. This selected sample does
+not establish whole-dataset pairing accuracy.
+
+The wider manual label sweep remains deferred. Existing court errors can affect derived features. The features are experimental measurements, not validated player skill grades.
 
 The [court-detector follow-up (#148)](https://github.com/ahalp90/badminton_cv_annotator/issues/148) remains separate from this delivery. Court integration, retraining and re-extraction are deferred. Full match videos are outside the packages. See the handover's rebuild notes for the additional inputs needed to reproduce the exports.
 

@@ -760,11 +760,13 @@ population, with or without `--replay-mask-root`.
 
 Coverage is fixed: the lag rule above always links a chunk to a specific set
 of rallies. Whether a linked chunk actually talks about that rally is a
-different question, and nobody has labelled a sample to check it. That is
-why issue #104's disposition for rally association is `unresolved`, not
-`keep`: the link ships because its coverage and construction are honestly
-described, but a reviewer should treat every row as a plausible candidate,
-not a verified label, until that sample exists.
+different question. A [manual review on 2 October 2026](dataset_builder/commentary_manual_review_20261002.md)
+labelled 134 selected passages: 116 matching, 13 general discussion and five
+unclear. Timing labels and original notes are supplied separately. This was
+not a random sample, so population accuracy remains unmeasured. The frozen
+disposition stays `unresolved`. Use the companion labels for reviewed rows;
+unreviewed rows remain candidates. A matching association does not establish
+that its timestamp or transcript is correct.
 
 ## What is absent and why
 
@@ -965,7 +967,7 @@ Auxiliary component: relevance-triaged commentary chunks with raw and cleaned te
 
 File `commentary_rally_links.csv.gz`. Key `(run_id, source_dataset, video_id, chunk_id, rally_origin, rally_id)`.
 
-One row per commentary chunk linked to one source_contacts rally under the issue #138 pairing rule. A chunk with more than one candidate rally gets one row per rally, all marked ambiguous. Coverage is measured; accuracy is not: nobody has labelled a sample to check that a linked chunk actually discusses its rally.
+One row per commentary chunk linked to one source_contacts rally under the issue #138 pairing rule. A chunk with more than one candidate rally gets one row per rally, all marked ambiguous. Coverage is measured. A selected manual sample now has companion labels, but population accuracy remains unmeasured; see [the review](dataset_builder/commentary_manual_review_20261002.md).
 
 | Column | Type | Nullable | Reliability | Description |
 | --- | --- | --- | --- | --- |
@@ -1037,7 +1039,7 @@ Every trial feature and where it ended up. Exported columns are named as `table.
 | Movement inefficiency | keep | `source_contacts.movement_inefficiency_top`, `source_contacts.movement_inefficiency_bottom`, `player_rallies.movement_inefficiency_median` | Cut because production intervals used predicted contacts that missed or added events. Human ShuttleSet contacts fix each interval's start and end exactly. |
 | Serve speed proxy | unresolved | none | Return, static, and viewport endpoints are undefined and shuttle error is large. |
 | Backward extrapolation | unresolved | none | No defined scene boundary, range, or provenance policy. |
-| Rally-to-commentary association | unresolved | none | Issue #138's lag rule fixes coverage on aligned times with zero ambiguity at 10 s, but accuracy is unmeasured: nobody has labelled a sample to check the pairs are right. |
+| Rally-to-commentary association | unresolved | `commentary_rally_links` | Temporal candidates are delivered. A selected 134-passage manual review supplies companion labels; whole-dataset accuracy remains unmeasured. The export flags replay starts and records multiple candidates. |
 | Commentary sentiment, concept, and player link | unresolved | none | Supported schemas emit no semantic fields and no labelled population exists. |
 | Out-of-position posture states | not_measured | none | The three states need pose-term definitions. |
 | Rest time, work density, effective playing time | not_measured | none | Work density and cutaway handling need definitions. |
