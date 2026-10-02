@@ -29,6 +29,7 @@ class ContactModelConfig:
     """Prediction settings maintainers may retune for a new dataset."""
 
     score_cutoff: float = 0.9
+    reject_masked_without_player: bool = False
 
 
 DEFAULT_CONTACT_MODEL_CONFIG = ContactModelConfig()
@@ -86,13 +87,17 @@ def score_contact_features(
     model: Any,
     fps: float,
     config: ContactModelConfig = DEFAULT_CONTACT_MODEL_CONFIG,
+    *,
+    shuttle_hallucination_mask: np.ndarray | None = None,
 ) -> ScoredContacts:
     """Score candidate-region rows for one video and select contact frames.
 
     :param rows: All rows returned by ``build_contact_features`` for one video.
     :param model: Fitted binary classifier with ``predict_proba``.
     :param fps: Source frame rate, used to scale nearby-contact suppression.
-    :param config: Retunable contact score cutoff.
+    :param config: Contact score cutoff and optional candidate rejection policy.
+    :param shuttle_hallucination_mask: Frame-aligned boolean mask already derived
+        from the fitted preprocessing's rejected shuttle grades.
     :return: Candidate rows, probabilities and accepted candidate indices.
     """
     model_names = getattr(model, "feature_names_in_", None)
@@ -105,6 +110,16 @@ def score_contact_features(
     for name in REGION_FIELDS:
         selected |= rows[name].astype(bool)
     candidates = rows[selected]
+    if config.reject_masked_without_player:
+        if shuttle_hallucination_mask is None:
+            raise ValueError('masked candidate rejection requires the shuttle hallucination mask')
+        has_player = np.zeros(len(candidates), dtype=bool)
+        # These features already sample the FPS-scaled offsets within each search
+        # interval. NaNs outside the interval do not count as a nominated player.
+        for side in ('top', 'bot'):
+            for offset in WINDOW_OFFSETS_BASE30:
+                has_player |= candidates[f'pose_valid_{side}_t{offset:+d}'] > 0.0
+        candidates = candidates[~shuttle_hallucination_mask[candidates['frame']] | has_player]
     if not len(candidates):
         return ScoredContacts(candidates, np.empty(0, dtype=np.float64), np.empty(0, dtype=np.int32))
     probabilities = np.asarray(model.predict_proba(contact_feature_matrix(candidates))[:, 1], dtype=np.float64)

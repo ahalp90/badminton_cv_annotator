@@ -38,6 +38,7 @@ class ContactEvidence:
     raw_contact_frames: Sequence[int]
     scene_courts: Sequence[SceneCourt]
     net_band: tuple[float, float]
+    shuttle_hallucination_mask: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,10 @@ def sequence_inputs(
 def predict_contacts(evidence: ContactEvidence, models: AnnotatorModels) -> HybridPrediction:
     """Build features once, score contacts and refine their rally sequences."""
     features = features_from_evidence(evidence)
-    contacts = score_contact_features(features.rows, models.contact, evidence.fps, models.contact_settings)
+    contacts = score_contact_features(
+        features.rows, models.contact, evidence.fps, models.contact_settings,
+        shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
+    )
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     refined = refine_contact_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,

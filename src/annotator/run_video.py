@@ -626,6 +626,7 @@ def run_video(
         heuristic_spans=segmentation.spans,
         raw_contact_frames=[contact.contact_frame for contact in segmentation.contacts],
         scene_courts=scene_courts, net_band=net_band,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
     )
     if capture is not None:
         capture.contact_evidence = evidence

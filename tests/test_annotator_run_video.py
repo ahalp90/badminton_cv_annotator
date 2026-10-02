@@ -1,4 +1,5 @@
 """Smoke coverage for the public annotator video composition."""
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -964,3 +965,37 @@ def test_run_video_threads_event_mask_to_dead_mask_builder(
 
     assert len(received) == 1
     np.testing.assert_array_equal(received[0], expected_mask)
+
+
+@pytest.mark.parametrize('rejected_grades', [frozenset({1, 2, 3}), frozenset({3})])
+def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, annotator_models, rejected_grades):
+    inputs = _synthetic_inputs()
+    frame_count = len(inputs['track'])
+    codes = np.zeros(frame_count, dtype=np.uint8)
+    codes[10:14] = [0, 1, 2, 3]
+    mask_calls = []
+    original = run_video_module.build_shuttle_hallucination_mask
+
+    def build_mask(*args):
+        result = original(*args)
+        mask_calls.append(result[0])
+        return result
+
+    def predict(evidence, models):
+        assert evidence.shuttle_hallucination_mask is mask_calls[0]
+        return SimpleNamespace(
+            refined=SimpleNamespace(sequences=(), events=()),
+            confidence=SimpleNamespace(scores=np.empty(0)),
+        )
+
+    models = replace(annotator_models, preprocessing=BaseAnnotatorConfig(rejected_grades=rejected_grades))
+    monkeypatch.setattr(run_video_module, 'build_shuttle_hallucination_mask', build_mask)
+    monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
+    capture = RunCapture()
+    run_video(
+        **inputs, **_default_scene_inputs(frame_count), spans=[(10, 20)], contacts={0: [14]},
+        models=models, inpaint_codes=codes, capture=capture,
+    )
+    assert len(mask_calls) == 1
+    assert capture.contact_evidence.shuttle_hallucination_mask is mask_calls[0]
+    np.testing.assert_array_equal(mask_calls[0], np.isin(codes, tuple(rejected_grades)))

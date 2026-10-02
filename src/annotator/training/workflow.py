@@ -255,7 +255,10 @@ def sequence_training_video(
     contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
 ) -> SequenceTrainingVideo:
     """Score the base tree and build one reusable downstream option pool."""
-    scored = score_contact_features(features.rows, contact_model, evidence.fps, settings)
+    scored = score_contact_features(
+        features.rows, contact_model, evidence.fps, settings,
+        shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
+    )
     scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
     initial = initial_sequences(evidence.heuristic_spans, events)
     pool = build_option_pool(initial, events, scores, features.rows, features.search_intervals,
