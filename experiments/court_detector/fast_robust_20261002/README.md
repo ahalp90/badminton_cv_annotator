@@ -9,7 +9,8 @@ for player positions or distances in court metres.
 
 This evaluation covers the completed Carmack `fast-robust` extracts at detector
 commit `17a50b57`. These are descriptive results on the project's release corpus,
-not a test on unseen venues. No detector settings or predictions were changed.
+not a test on unseen venues. The main results below use the original predictions;
+the later sharing-fix pilot is reported separately.
 
 ## What was measured
 
@@ -84,8 +85,8 @@ closely: ShuttleSet 26, 30 and 36, and ShuttleSet22 43 and 44.
   In each checked group, the accurate candidates fail a player-position check.
 - An oversized wrong candidate survives. It is compared with the pooled fit,
   which is also poor.
-- The winning candidate replaces the group's scene courts without requiring an
-  improvement over their original scores.
+- The surviving candidate replaces the group's scene courts. The accurate
+  candidates have already been removed from the comparison.
 
 For example, all 119 accurate candidates in ShuttleSet 30's dominant group are
 rejected at the same member scene. The survivor's mean score is 0.479; the
@@ -98,15 +99,38 @@ One player stands on court while the other prepares at the sideline. Replaying
 the player check on its 31 samples gives one player in the correct court in
 31/31 samples, but players in both halves in 0/31. The check requires both halves
 in at least half the samples, so it rejects the correct court. The oversized
-court passes in 31/31 by including people outside the real court. A valid
+court passes in 31/31 by including people outside the real court, including
+line judges mistaken for standing players. A valid
 between-points view therefore vetoes geometry supported by the rally scenes.
 The [scene clip](veto_scene.mp4) shows the full 4.5 seconds without overlays.
 
-The immediate next step is to prevent sharing from degrading the individual
-fits, then check candidate rejection on these failure groups. Their saved
-`scene_corners_native_px` make recovery possible without repeating the expensive
-scene searches. Keeping individual fits is a recovery option, not proof that
-every scene fit is correct.
+The fix in `84bbba1e` chooses one best shared court, then handles failed transfers
+per scene. Player absence must not disqualify a court for the group. A scene
+whose transfer fails geometry or camera checks keeps its own fit. The retained
+`scene_corners_native_px` allow sharing to be rerun without repeating the
+expensive scene searches. A pilot on ShuttleSet 30's 123-member main-view group
+reproduced every saved source score exactly. After sharing, all 123 courts were
+within 10 px at every corner, versus none within 20 px before the fix. This
+includes the 101 scenes overlapping labelled rallies and scene 0094.
+The pilot took 16.9 minutes; it does not establish the result for other videos.
+The [pilot measurements](view_checks/sharing_pilot_summary.json.gz) and
+[per-scene comparison](view_checks/sharing_pilot_comparison.csv.gz) retain the results.
+Keeping individual fits alone is not sufficient: scene 0094's original fit is
+already oversized, as its [overlay](view_checks/sset30_scene0094.png) shows.
+
+## View grouping follow-up
+
+Keep the hash threshold at 0.30 for now. In a diagnostic sample of 988 frames
+across all 86 videos, tightening it to 0.25 would exclude 84 of 340 existing
+member-to-reference matches. None of the sampled pairs with low whole-image
+similarity passed 0.30. Similarity is only a proxy for camera view, so this does
+not prove every group is correct. The [follow-up](view_checks/README.md) records
+the measurements, limitations and exact player-check replay for ShuttleSet 30.
+
+Fast-robust searches each scene's middle frame. Groups with fewer than three
+contributing scenes retain those individual fits; they do not receive a pooled
+fit from multiple frames within the scene. The multi-frame player check still
+runs.
 
 ## Exclusions and reference limits
 
@@ -145,4 +169,6 @@ wrong ones. Compression uses `pngquant --speed 3 --nofs 256`, then `oxipng -o 2`
 The [evaluation script](../../../scripts/evaluate_courts_fast_robust.py) provides
 `analyse`, `fetch-frames` and `render`. See [reproduce.md](reproduce.md) for the
 input locations and commands. Analysis, full-image rendering, targeted lint and
-whole-project type checking completed successfully; no detector code changed.
+whole-project type checking completed successfully for the evaluation script.
+The measurements and galleries describe the original extracts; they do not
+measure the subsequent sharing fix.
