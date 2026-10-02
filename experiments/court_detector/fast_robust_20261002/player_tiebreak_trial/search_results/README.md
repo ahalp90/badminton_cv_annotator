@@ -108,10 +108,16 @@ each method follows camera changes and abstains when a usable court cannot
 be fitted. The project needs reliable courts to measure player positions and
 distances in court metres.
 
-There is no demonstrated overall winner yet. The sharing fix addresses a
-known main-view failure, but the earlier images do not justify preferring it
-across all views. Broader search's extra detections do not justify preferring
-that method either. No full-corpus repair has been launched. The
+In the first scene-still sample, the user judged the sharing fix and score-first
+selection equivalent and good. Broader search produced one malformed court at
+frame 144569 in ShuttleSet22 43. Less than a quarter of the court was visible;
+many lines aligned, but the court's extent and orientation were wrong. The user
+was undecided whether that prediction was preferable to an abstention.
+
+The user therefore prefers the simple sharing fix on the evidence reviewed so
+far. This is a practical preference from a small sample, not an established
+ranking across all views. A second sample is available in the review folders.
+No full-corpus repair has been launched. The
 [86-video baseline and rally-view statistics](../../rally_views/README.md)
 remain measurements of the original extracts.
 

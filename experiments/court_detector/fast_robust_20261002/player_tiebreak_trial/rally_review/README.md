@@ -32,10 +32,16 @@ weighted by rally overlap. The reference homography does not choose the court.
 - **Eight representative courts per method:** [sharing fix](representative_courts/sharing_fix/), [score-first selection](representative_courts/score_first/), [search without player rejection](representative_courts/search_without_player_rejection/).
 - **One still per scene in the padded clips:** [sharing fix](scene_stills/sharing_fix/), [score-first selection](scene_stills/score_first/), [search without player rejection](scene_stills/search_without_player_rejection/). Each folder has 12 PNGs.
 - **Shared-court check:** [six PNGs](shared_court_check/) compare two rally frames in ShuttleSet22 43. Both score-first methods receive their court from scene 483, whose source image the user judged wrong. Judge these receiving frames separately.
+- **Second scene sample:** [sharing fix](second_scene_stills/sharing_fix/), [score-first selection](second_scene_stills/score_first/), [search without player rejection](second_scene_stills/search_without_player_rejection/). Seven matching frames per method, from ShuttleSet 30 set 1 rally 18, ShuttleSet 21 set 2 rally 11 and ShuttleSet22 51 set 1 rally 12. Each rally contains one cut; the same lead and tail apply.
 - **Original full corpus:** [86 representative courts](../../courts/). These remain the original extracts, before the fixes. Only the eight trial videos have all three methods available.
 
 The [trial report](../search_results/README.md) gives the statistics. These
 selected rallies show camera transitions; they do not estimate error frequency.
+The user judged the sharing fix and score-first selection equivalent and good
+in the first scene-still set. The broader-search court at frame 144569 was
+malformed in a very difficult partial view; whether to prefer it to abstention
+remains undecided. The second sample uses the next three videos by the same
+cut-count rule, excluding the first set's videos.
 
 ## Reproduce
 
