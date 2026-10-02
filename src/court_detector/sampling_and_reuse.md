@@ -238,33 +238,42 @@ uses to choose courts:
 - `middle`: the anchor's own court before composition
 
 A missing score term leaves no combined score; it is never treated as zero. A
-group mean exists only when every member has that court's score.
+diagnostic group mean exists only when every member has that court's score.
+Candidate ranking below also records a mean over the members that could score it.
 
-### 5. Whole-scene fallback
+### 5. Choose one shared court
 
 Two donors can call the same painted stripe by different marking names. The one
-fit can then land between them on blank floor. So each donor's finished court is
-also a candidate for the whole group, with no refit.
+fit can then land between them on blank floor. Each donor's finished court is
+therefore also a candidate for the whole group, with no further refit.
 
-- The candidate is carried into every member and checked and scored there
-- It is out if it fails any member's check or lacks any member's score
-- Among the remaining candidates, the highest mean wins. An exact tie keeps the
-  earlier scene
-- The winner replaces the pool only if its mean beats the pool's mean, or the
-  pool has no mean. **An exact tie keeps the pool**
+A scene candidate already passed its source scene's checks. The pooled fit must
+pass geometry and camera checks in the reference frame where it was fitted.
+A candidate without a combined score at its source is excluded.
 
-The pool's mean counts every member, including members whose pooled court fails
-its check.
+Each candidate is carried into the other members and scored. Rank it by its
+mean combined score across members with a measurement. A failed transfer check
+does not exclude the candidate for the group. Its score still counts when it
+can be measured. Missing scores are omitted, and `measured_members` records how
+many remain. Different counts mean candidates were compared on different sets
+of frames; this can favour a candidate whose difficult transfers were unmeasurable.
 
-### 6. Apply
+The best scene court replaces the pool when its mean is higher, or when the pool
+failed its source check. An exact tie keeps the earlier scene candidate; a tie
+between that candidate and the pool keeps the pool in video-robust mode.
 
-- **A scene candidate wins:** every member gets that court in its own pixels and
-  corner order. `chosen_key` becomes `video_pool_scene`. The winning scene's row
-  is unchanged
-- **The pool wins:** each member whose pooled court passed its own checks gets
-  it, with `chosen_key` `video_pool`. A member that failed keeps its own court
-- **The fit or scoring raised an error:** `reason` is `pooling_failed` and no row
-  changes
+### 6. Apply the winner per scene
+
+A member gets the winner only if its transferred geometry and camera pass the
+checks and it has a combined score. Player presence is not required during
+sharing: a matching view can show a break between points.
+
+- A passing member takes the selected scene court (`video_pool_scene`) or pooled
+  court (`video_pool`), in its own pixels and corner order.
+- A failed transfer leaves only that member's original court in place and
+  records its rejection. Other members still receive the same winner.
+- The winning source scene already holds its court and needs no replacement.
+- A handled fit or scoring error sets `pooling_failed` and leaves the rows alone.
 
 Rows change only after every court in the group is measured.
 
@@ -288,8 +297,8 @@ three independent scene fits. Smaller groups keep their individual courts.
 The pooled fit and complete scene courts are compared on the same member images.
 The pool must score strictly higher than the best valid complete court to win;
 a tie keeps the complete court. An invalid pool can also fall back to that
-complete court. If no shared court passes the relevant checks, individual
-scene courts remain. Final rows print after pooling.
+complete court. A failed transfer preserves that member's individual court. If no candidate
+is eligible at its source, all individual courts remain. Final rows print after pooling.
 
 This saves endpoint work but gives each scene fewer observations. A line hidden
 in its middle frame may be visible in another scene; a unique view gets no such
@@ -317,12 +326,14 @@ Video-robust and fast-robust modes add:
   (`pooled`, `scene` or `group_scene`), `pooled_corners_native_px`,
   `pooled_rejection` and `scores` (`pooled`, `scene`, `middle`, and
   `group_scene` when a scene wins). A winning scene also adds
-  `group_scene_view_id` and `group_scene_corners_native_px`
+  `group_scene_view_id`, `group_scene_corners_native_px` and
+  `group_scene_rejection`. Nonfinite transferred corners are stored as `null`
 - **At the top of the result:** `view_groups`, one summary per group. It lists
   `reference_view_id`, `member_view_ids`, `donor_view_ids`, `pooled_view_ids`,
   `reason`, `chosen_court` and `chosen_view_id`. As processing proceeds, it adds
   `markings` (each marking's donor), `fit`, `mean_combined_scores` and
-  `scene_candidates` (each candidate's mean and first rejection). A group that
+  `scene_candidates` and `pooled_candidate`. Each candidate records its mean,
+  `measured_members`, source `rejection` and `transfer_rejections`. A group that
   stops early lacks the later fields
 
 If a scene cannot join a group because of a handled error, its row instead has

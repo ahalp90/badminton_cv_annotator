@@ -22,22 +22,27 @@ fresh search of the scene's middle frame, with no endpoint frames or composite.
    every marking; the pool does not require a mixture of scenes.
 4. Scores. In every member's middle frame, the pooled court, the scene's court and
    the middle frame's court before composition get the net choice's combined score.
-   A missing score term stays missing, and a mean over members exists only when
-   every member has that court's score.
-5. Scene fallback. Two donors can name the same painted stripe as different
-   markings, so the one fit can land between them on blank floor. Each donor's
-   finished composite is therefore also a whole-group candidate: it is carried into
-   every member and checked and scored there. A candidate that fails a member's
-   check or lacks a member's score is out. The best remaining candidate replaces the
-   pool only when its mean over the same members beats the pool's mean, or when the
-   pool has no mean. An exact tie keeps the pool in video-robust mode and the scene
-   court in fast-robust mode. Fast-robust mode also compares the candidates when the
-   pooled fit fails.
-6. Output. A winning scene court replaces every member's court. Otherwise a valid
-   pooled court replaces each member's court that passes that member's own checks
-   (composition.check_in_frame, with its feet). A member that fails keeps its scene
-   court, as does every member of a group that has neither a valid fit nor a winning
-   scene court.
+   A missing score term stays missing. The summary's mean_combined_scores has a mean
+   only when every member has that court's score; step 6 ranks by its own mean.
+5. Candidates. Two donors can name the same painted stripe as different markings,
+   so the one fit can land between them on blank floor. Each donor's finished court
+   is therefore also a candidate for the whole group, beside the pooled court. Only
+   its source, the member whose frame it was fitted in, can rule a candidate out.
+   A donor's court passed its scene's own detection there. The pooled court's source
+   is the reference: fit_in_reference checks the solver, rank, depth, convexity and
+   hard validity, and the reference member's check adds the camera and, when on,
+   the upright camera. A candidate without a combined score at its source is out.
+6. Choice. Each candidate is carried into every other member and checked and
+   scored there. Players can leave the court between points in an aligned view, so
+   this check leaves their feet out. Candidates rank by their mean combined score
+   over the members that could score them, including members whose check they
+   fail. measured_members counts those members. The best scene candidate replaces
+   the pool when its mean beats the pool's, or when the pool is out. An exact tie
+   keeps the pool in video-robust mode and the scene court in fast-robust mode.
+   Fast-robust mode also compares the scene candidates when the pooled fit fails.
+7. Output. The chosen court replaces the court of every member that accepts it. A
+   member whose check it fails, or that cannot score it, keeps its own court and
+   records the rejection. When every candidate is out, all members keep theirs.
 """
 
 from __future__ import annotations
@@ -78,6 +83,9 @@ COMPARED_COURTS = ("pooled", "scene", "middle")
 # Independent donor scenes a group needs before it pools
 MIN_DONOR_SCENES = {CourtMode.VIDEO_ROBUST: 2, CourtMode.FAST_ROBUST: 3}
 NO_POOLED_FIT = "no_valid_pooled_fit"  # a member's pooled_rejection when the group's fit failed
+MISSING_SCORE = "missing_score"  # a member's rejection of a court that passes its checks without a combined score
+# The parts of a group candidate that the group's summary keeps
+CANDIDATE_SUMMARY = ("view_id", "mean_combined_score", "measured_members", "rejection", "transfer_rejections")
 
 
 @dataclass(frozen=True)
@@ -187,11 +195,51 @@ def carry_to_member(reference_working: np.ndarray, member: Member) -> np.ndarray
     return np.roll(carried, composition.half_turn_roll(carried, member.scene_corners), axis=0)
 
 
+def group_candidate(view_id: str | None, members: list[Member], source: Member, corners: list[np.ndarray | None],
+                    scores: list[dict[str, Any]], rejections: list[str | None]) -> dict[str, Any]:
+    """One court's standing as the whole group's court, from its corners, score and check in each member.
+
+    A member with no combined score for a court that passes its checks rejects it as
+    MISSING_SCORE. A rejection in the source, the member whose frame the court was
+    fitted in, rules the candidate out. A rejection in any other member only keeps
+    that member on its own court. The mean covers every member with a combined score,
+    including members that reject the court.
+
+    :param view_id: The source scene, or None for the pooled court.
+    :param corners: One (4, 2) per member in its native px, or None without a court.
+    :param rejections: Each member's first failed check, or None.
+    :return: The CANDIDATE_SUMMARY fields, then corners, scores and rejections, one per member.
+    """
+    combined = [score.get("combined_score") for score in scores]
+    rejections = [MISSING_SCORE if rejection is None and value is None else rejection
+                  for rejection, value in zip(rejections, combined, strict=True)]
+    measured = [value for value in combined if value is not None]
+    source_rejection, transfer_rejections = None, []
+    for member, rejection in zip(members, rejections, strict=True):
+        if rejection is None:
+            continue
+        failure = {"view_id": member.row["view_id"], "reason": rejection}
+        if member is source:
+            source_rejection = failure
+        else:
+            transfer_rejections.append(failure)
+    # A source that scores the court is always measured, so only a ruled-out candidate lacks a mean.
+    mean = float(np.mean(measured)) if measured else None
+    return {"view_id": view_id, "mean_combined_score": mean, "measured_members": len(measured),
+            "rejection": source_rejection, "transfer_rejections": transfer_rejections, "corners": corners,
+            "scores": scores, "rejections": rejections}
+
+
 def replace_court(row: dict[str, Any], corners: np.ndarray, chosen_key: str, reused_from: str | None) -> None:
     """Replace a row's court and keep the scene's court beside it."""
     row.update(scene_corners_native_px=row["corners_native_px"], scene_chosen_key=row["chosen_key"],
                scene_reused_from=row["reused_from"], corners_native_px=np.asarray(corners).tolist(),
                chosen_key=chosen_key, reused_from=reused_from)
+
+
+def recorded_corners(corners: np.ndarray | None) -> list[list[float]] | None:
+    """Keep failed projections out of the JSON while retaining their rejection reason."""
+    return corners.tolist() if corners is not None and np.isfinite(corners).all() else None
 
 
 class VideoPool:
@@ -280,7 +328,7 @@ class VideoPool:
         return summaries
 
     def pool_group(self, group: ViewGroup, summary: dict[str, Any]) -> None:
-        """Fit the group's pooled court, compare it with each donor's scene court, and apply the winner.
+        """Fit the group's pooled court, choose between it and each donor's scene court, and share the choice.
 
         Rows change only after every court is measured, so a failure changes none.
         """
@@ -305,72 +353,77 @@ class VideoPool:
             scores = [outcome["scores"][court].get("combined_score") for outcome in outcomes]
             means[court] = None if None in scores else float(np.mean(scores))
         summary["mean_combined_scores"] = means
-        winner, summary["scene_candidates"] = self.best_scene_candidate(group, outcomes)
-        if winner is not None and means["pooled"] is not None:
+        # The pooled court's source is the reference, the group's first member. Without
+        # a fit, every member's rejection is NO_POOLED_FIT, the reference's among them.
+        pooled = group_candidate(None, group.members, group.members[0],
+                                 [outcome["pooled_corners"] for outcome in outcomes],
+                                 [outcome["scores"]["pooled"] for outcome in outcomes],
+                                 [outcome["pooled_rejection"] for outcome in outcomes])
+        summary["pooled_candidate"] = None
+        if pooled_reference is not None:
+            summary["pooled_candidate"] = {key: pooled[key] for key in CANDIDATE_SUMMARY}
+            if pooled["rejection"] is not None:
+                summary["reason"] = f"reference_{pooled['rejection']['reason']}"
+        best_scene, summary["scene_candidates"] = self.best_scene_candidate(group, outcomes)
+        pool_wins = pooled["rejection"] is None
+        if pool_wins and best_scene is not None:
             # On an exact tie, video-robust keeps the pool and fast-robust keeps the scene court.
-            pool_beats_scene = means["pooled"] > winner["mean_combined_score"]
-            tie = means["pooled"] == winner["mean_combined_score"]
-            if pool_beats_scene or (tie and not fast):
-                winner = None
-        if winner is None and pooled_reference is None:
+            pool_beats_scene = pooled["mean_combined_score"] > best_scene["mean_combined_score"]
+            tie = pooled["mean_combined_score"] == best_scene["mean_combined_score"]
+            pool_wins = pool_beats_scene or (tie and not fast)
+        chosen = pooled if pool_wins else best_scene
+        if chosen is None:
             return
-        summary.update(chosen_court="pooled" if winner is None else "group_scene",
-                       chosen_view_id=None if winner is None else winner["view_id"])
+        summary.update(chosen_court="pooled" if pool_wins else "group_scene", chosen_view_id=chosen["view_id"])
         for index, (member, outcome) in enumerate(zip(group.members, outcomes, strict=True)):
-            pooled_corners = None if outcome["pooled_corners"] is None else outcome["pooled_corners"].tolist()
+            pooled_corners = recorded_corners(outcome["pooled_corners"])
             record = {"reference_view_id": summary["reference_view_id"], "alignment": member.alignment,
-                      "pooled_rejection": outcome["pooled_rejection"], "pooled_corners_native_px": pooled_corners,
+                      "pooled_rejection": pooled["rejections"][index], "pooled_corners_native_px": pooled_corners,
                       "scores": outcome["scores"]}
             member.row["view_pool"] = record
-            if winner is not None:
-                corners = winner["corners"][index]
-                record.update(court="group_scene", group_scene_view_id=winner["view_id"],
-                              group_scene_corners_native_px=corners.tolist())
-                record["scores"]["group_scene"] = winner["scores"][index]
-                # The winning scene already holds its own court.
-                if member.row["view_id"] != winner["view_id"]:
-                    replace_court(member.row, corners, GROUP_SCENE_KEY, None)
+            rejection = chosen["rejections"][index]
+            if not pool_wins:
+                record.update(group_scene_view_id=chosen["view_id"], group_scene_rejection=rejection,
+                              group_scene_corners_native_px=recorded_corners(chosen["corners"][index]))
+                record["scores"]["group_scene"] = chosen["scores"][index]
+            # Only this member keeps its own court when it rejects the chosen one.
+            record["court"] = summary["chosen_court"] if rejection is None else "scene"
+            # The chosen scene already holds its own court.
+            if rejection is not None or member.row["view_id"] == chosen["view_id"]:
                 continue
-            pooled = outcome["pooled_rejection"] is None
-            record["court"] = "pooled" if pooled else "scene"
-            if pooled:
-                replace_court(member.row, outcome["pooled_corners"], POOLED_KEY, None)
+            replace_court(member.row, chosen["corners"][index], POOLED_KEY if pool_wins else GROUP_SCENE_KEY, None)
+            if pool_wins:
                 summary["pooled_view_ids"].append(member.row["view_id"])
 
     def best_scene_candidate(self, group: ViewGroup,
                              outcomes: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-        """The donor scene court with the highest mean combined score over every member.
+        """The donor scene court with the highest mean combined score over the members that could score it.
 
         Only the best candidate so far keeps its corners and scores. An exact tie keeps the earlier scene.
 
         :param outcomes: member_outcome's, one per member, for the scene courts' own scores.
-        :return: The winner, or None when every candidate is out, and each candidate's
-            mean score and first rejection.
+        :return: The best candidate, or None when every candidate is out at its source,
+            and each candidate's CANDIDATE_SUMMARY fields.
         """
         best, rows = None, []
         for source in group.members:
             if source.row["view_id"] not in group.donor_view_ids:
                 continue
             candidate = self.scene_candidate(group.members, outcomes, source)
-            rows.append({key: candidate[key] for key in ("view_id", "mean_combined_score", "rejection")})
+            rows.append({key: candidate[key] for key in CANDIDATE_SUMMARY})
             if candidate["rejection"] is None and (
                     best is None or candidate["mean_combined_score"] > best["mean_combined_score"]):
                 best = candidate
         return best, rows
 
     def scene_candidate(self, members: list[Member], outcomes: list[dict[str, Any]], source: Member) -> dict[str, Any]:
-        """One donor scene's finished court, carried into every member and checked and scored there.
+        """One donor scene's finished court, carried into every other member and checked and scored there.
 
-        It stops at the first member whose check it fails or whose score it lacks, since it
-        then cannot hold the whole group.
-
-        :return: The source's view_id, the mean combined score and the first rejection.
-            A candidate with no rejection also has its corners and scores, one per member.
+        :return: group_candidate's record of the court.
         """
         source_working = source.scene_corners / composition.native_per_working(source.context)
         in_reference = composition.carry(source_working, source.to_reference)
-        candidate: dict[str, Any] = {"view_id": source.row["view_id"], "mean_combined_score": None, "rejection": None}
-        corners, scores = [], []
+        corners, scores, rejections = [], [], []
         for member, outcome in zip(members, outcomes, strict=True):
             if member is source:
                 # The scene's own detection checked this court in this frame before accepting it.
@@ -378,16 +431,10 @@ class VideoPool:
             else:
                 court = carry_to_member(in_reference, member)
                 score, rejection = self.checked_score(member, court)
-            if rejection is None and score.get("combined_score") is None:
-                rejection = "missing_score"
-            if rejection is not None:
-                candidate["rejection"] = {"view_id": member.row["view_id"], "reason": rejection}
-                return candidate
             corners.append(court)
             scores.append(score)
-        candidate.update(mean_combined_score=float(np.mean([score["combined_score"] for score in scores])),
-                         corners=corners, scores=scores)
-        return candidate
+            rejections.append(rejection)
+        return group_candidate(source.row["view_id"], members, source, corners, scores, rejections)
 
     def member_outcome(self, group: ViewGroup, member: Member, pooled_reference: np.ndarray | None) -> dict[str, Any]:
         """The pooled court in this member's middle frame and corner order, its checks, and all three scores.
@@ -418,8 +465,10 @@ class VideoPool:
 
     def checked_score(self, member: Member, corners_native: np.ndarray) -> tuple[dict[str, Any], str | None]:
         """A court's score and first failed check in a member's middle frame. An unmeasurable court has no score."""
+        # An aligned view can show a break between points. Absent players do not
+        # invalidate the court geometry shared with that view.
         measurement, rejection = composition.check_in_frame(
-            self.live, member.context, corners_native, require_people=self.switches.require_people,
+            self.live, member.context, corners_native, require_people=False,
             max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if self.switches.upright_camera else None,
         )
         if measurement is None:

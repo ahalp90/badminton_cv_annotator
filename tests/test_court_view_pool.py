@@ -105,7 +105,7 @@ def test_turned_donors_from_another_scene_reference_land_on_the_group_reference(
         np.testing.assert_allclose(carried, reference_court, atol=4.0)
 
 
-def test_one_pooled_court_reaches_each_member_in_its_own_order_and_feet(detector, scenes) -> None:
+def test_one_pooled_court_reaches_each_member_even_when_players_leave(detector, scenes) -> None:
     pool = VideoPool(detector.live, detector.switches)
     rows = {name: row(name, scene, "first" if name == "feet_off_court" else None) for name, scene in scenes.items()}
     for name, scene in scenes.items():
@@ -118,18 +118,16 @@ def test_one_pooled_court_reaches_each_member_in_its_own_order_and_feet(detector
     np.testing.assert_allclose(summary["fit"]["corners_reference_native_px"], true_corners(np.zeros(2)), atol=2.0)
     assert {marking["donor_view_id"] for marking in summary["markings"]} <= {"first", "turned"}
     # Every member whose own checks pass takes the pooled court, in its own pixels and corner order.
-    assert summary["pooled_view_ids"] == ["first", "turned"]
+    assert summary["pooled_view_ids"] == ["first", "turned", "feet_off_court"]
     turned = rows["turned"]
     np.testing.assert_allclose(turned["corners_native_px"], true_corners(NUDGE_PX), atol=2.0)
     assert (turned["chosen_key"], turned["view_pool"]["court"]) == (view_pool.POOLED_KEY, "pooled")
     assert turned["scene_corners_native_px"] == np.asarray(scenes["turned"].corners_native_px).tolist()
     means = summary["mean_combined_scores"]
     assert all(means[court] is not None for court in view_pool.COMPARED_COURTS), means
-    # The pooled court is scored in every member, but a member whose players' feet
-    # are off it keeps its scene court.
     off_court = rows["feet_off_court"]
-    assert off_court["view_pool"]["pooled_rejection"] == "players_not_on_court"
-    assert off_court["view_pool"]["court"] == "scene" and "scene_corners_native_px" not in off_court
+    assert off_court["view_pool"]["pooled_rejection"] is None
+    assert off_court["view_pool"]["court"] == "pooled"
     assert off_court["view_pool"]["scores"]["pooled"]["combined_score"] is not None
     # The runner saves rows and summaries as strict JSON.
     json.dumps([summary, rows], allow_nan=False)
@@ -321,20 +319,19 @@ def test_a_scene_court_that_beats_a_misfit_pool_replaces_it_in_every_member(dete
     json.dumps([summary, rows], allow_nan=False)
 
 
-def test_a_scene_court_must_pass_every_member_including_reused_ones(detector, scenes, misfit_pool) -> None:
+def test_off_court_players_do_not_disqualify_shared_scene_candidates(detector, scenes, misfit_pool) -> None:
     pool = VideoPool(detector.live, detector.switches)
     rows = {name: row(name, scene, "first" if name == "feet_off_court" else None) for name, scene in scenes.items()}
     for name, scene in scenes.items():
         pool.add(rows[name], scene)
     (summary,) = pool.apply()
-    # The reused scene offers no candidate, and its players' feet rule out both others.
-    assert summary["scene_candidates"] == [
-        {"view_id": view_id, "mean_combined_score": None,
-         "rejection": {"view_id": "feet_off_court", "reason": "players_not_on_court"}}
-        for view_id in ("first", "turned")
-    ]
-    assert (summary["chosen_court"], summary["pooled_view_ids"]) == ("pooled", ["first", "turned"])
-    assert rows["feet_off_court"]["view_pool"]["court"] == "scene"
+    candidates = summary["scene_candidates"]
+    assert [candidate["view_id"] for candidate in candidates] == ["first", "turned"]
+    assert all(candidate["rejection"] is None for candidate in candidates)
+    assert all(candidate["mean_combined_score"] is not None for candidate in candidates)
+    assert all((candidate["measured_members"], candidate["transfer_rejections"]) == (3, []) for candidate in candidates)
+    assert summary["chosen_court"] == "group_scene"
+    assert rows["feet_off_court"]["view_pool"]["court"] == "group_scene"
 
 
 # Choosing between the pooled court and the scene courts, with stand-ins for the fit,
@@ -353,16 +350,17 @@ def score(value: float | None) -> dict:
     return {} if value is None else {"combined_score": value}
 
 
-def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None]], own: dict[str, float],
+def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None]], own: dict[str, float | None],
                    carried: dict[tuple[str, str], tuple[float | None, str | None]], fit_valid: bool = True,
                    court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> tuple[VideoPool, dict]:
     """Donor scenes a and b in one camera view, and a third scene.
 
     In video-robust mode the third is scene r, reusing a's court. Fast-robust mode reuses
-    nothing, so the third is donor c with its own court.
+    nothing, so the third is donor c with its own court. Scene a is the group's reference,
+    where the pooled court is fitted.
 
     :param pooled: each member's pooled combined score (None when missing) and rejection
-    :param own: each donor's combined score for its own scene court
+    :param own: each donor's combined score for its own scene court (None when missing)
     :param carried: (member, source scene) to that scene court's combined score and rejection
     """
     monkeypatch.setattr(view_pool, "pooled_constraints", lambda donors: (SimpleNamespace(points=[0] * 9), []))
@@ -453,38 +451,105 @@ def test_the_pool_holds_unless_one_scene_court_beats_it_on_the_same_members(monk
     assert "group_scene" not in rows["a"]["view_pool"]["scores"]
 
 
-def test_a_scene_court_with_a_failed_check_or_missing_score_cannot_win(monkeypatch) -> None:
-    carried = carried_scores(.99, .99, .99, .99)
-    carried[("r", "a")] = (.99, "players_not_on_court")
-    carried[("r", "b")] = (None, None)
-    pool, rows = stand_in_group(monkeypatch, POOLED_EVERYWHERE, {"a": .99, "b": .99}, carried)
+@pytest.mark.parametrize(("b_in_r", "reason", "measured_members"), [
+    ((.90, "camera_implausible"), "camera_implausible", 3),
+    ((None, "non_finite_or_non_convex_corners"), "non_finite_or_non_convex_corners", 2),
+    ((None, None), view_pool.MISSING_SCORE, 2),
+])
+def test_a_failed_transfer_keeps_only_that_member_on_its_own_court(
+        monkeypatch, b_in_r: tuple[float | None, str | None], reason: str, measured_members: int) -> None:
+    # b's court beats the pool and a's court, but r cannot take it.
+    carried = carried_scores(.60, .60, .90, .90)
+    carried[("r", "b")] = b_in_r
+    pool, rows = stand_in_group(monkeypatch, POOLED_EVERYWHERE, {"a": .60, "b": .95}, carried)
+    if reason == "non_finite_or_non_convex_corners":
+        original_carry = view_pool.carry_to_member
+        original_check = VideoPool.checked_score
+
+        def broken_transfer(corners: np.ndarray, member: Member) -> np.ndarray:
+            if member.row["view_id"] == "r" and np.array_equal(corners, SCENE_B):
+                return np.full((4, 2), np.nan)
+            return original_carry(corners, member)
+
+        def check_transfer(self: VideoPool, member: Member, corners: np.ndarray) -> tuple[dict, str | None]:
+            if not np.isfinite(corners).all():
+                return {}, reason
+            return original_check(self, member, corners)
+
+        monkeypatch.setattr(view_pool, "carry_to_member", broken_transfer)
+        monkeypatch.setattr(VideoPool, "checked_score", check_transfer)
     (summary,) = pool.apply()
-    assert [candidate["rejection"] for candidate in summary["scene_candidates"]] == [
-        {"view_id": "r", "reason": "players_not_on_court"}, {"view_id": "r", "reason": "missing_score"}]
-    assert (summary["chosen_court"], summary["pooled_view_ids"]) == ("pooled", ["a", "b", "r"])
-    assert all(member_row["corners_native_px"] == POOLED.tolist() for member_row in rows.values())
+    # A score beside a failed check still counts; a missing score leaves the member out of the mean.
+    mean = (.95 + .90 + .90) / 3 if measured_members == 3 else (.95 + .90) / 2
+    assert summary["scene_candidates"][1] == {
+        "view_id": "b", "mean_combined_score": pytest.approx(mean), "measured_members": measured_members,
+        "rejection": None, "transfer_rejections": [{"view_id": "r", "reason": reason}]}
+    assert (summary["chosen_court"], summary["chosen_view_id"]) == ("group_scene", "b")
+    a, r = rows["a"], rows["r"]
+    assert (a["corners_native_px"], a["chosen_key"]) == (SCENE_B.tolist(), view_pool.GROUP_SCENE_KEY)
+    assert (a["view_pool"]["court"], a["view_pool"]["group_scene_rejection"]) == ("group_scene", None)
+    # r's row keeps its reused court, with no replaced court beside it.
+    assert (r["corners_native_px"], r["chosen_key"], r["reused_from"]) == (SCENE.tolist(), "reuse", "a")
+    assert "scene_corners_native_px" not in r
+    assert (r["view_pool"]["court"], r["view_pool"]["group_scene_rejection"]) == ("scene", reason)
+    assert r["view_pool"]["group_scene_view_id"] == "b"
+    if reason == "non_finite_or_non_convex_corners":
+        assert r["view_pool"]["group_scene_corners_native_px"] is None
+    json.dumps([summary, rows], allow_nan=False)
 
 
-def test_a_fully_scored_scene_court_replaces_a_pool_with_a_missing_score(monkeypatch) -> None:
+def test_a_scene_court_without_its_own_score_is_out_at_its_source(monkeypatch) -> None:
+    # a's court scores best wherever it is carried, but has no score in its own frame.
+    pool, rows = stand_in_group(monkeypatch, POOLED_EVERYWHERE, {"a": None, "b": .95},
+                                carried_scores(.99, .99, .90, .90))
+    (summary,) = pool.apply()
+    a, b = summary["scene_candidates"]
+    assert a["rejection"] == {"view_id": "a", "reason": view_pool.MISSING_SCORE}
+    assert (b["rejection"], b["transfer_rejections"]) == (None, [])
+    assert (summary["chosen_court"], summary["chosen_view_id"]) == ("group_scene", "b")
+    assert all(member_row["corners_native_px"] == SCENE_B.tolist() for member_row in rows.values())
+
+
+def test_a_pool_one_member_cannot_score_is_ranked_on_the_members_that_can(monkeypatch) -> None:
     pooled = {**POOLED_EVERYWHERE, "r": (None, None)}
     pool, rows = stand_in_group(monkeypatch, pooled, {"a": .50, "b": .50}, carried_scores(.50, .50, .50, .40))
     (summary,) = pool.apply()
-    # Missing terms stay missing, not zero.
+    # Missing terms stay missing, not zero: r neither rules the pool out nor lowers its mean.
     assert summary["mean_combined_scores"]["pooled"] is None
-    assert rows["r"]["view_pool"]["scores"]["pooled"] == {}
-    assert (summary["chosen_court"], summary["chosen_view_id"]) == ("group_scene", "a")
-    assert rows["b"]["corners_native_px"] == SCENE.tolist()
+    assert summary["pooled_candidate"] == {
+        "view_id": None, "mean_combined_score": pytest.approx(.80), "measured_members": 2, "rejection": None,
+        "transfer_rejections": [{"view_id": "r", "reason": view_pool.MISSING_SCORE}]}
+    assert (summary["chosen_court"], summary["pooled_view_ids"]) == ("pooled", ["a", "b"])
+    reused = rows["r"]
+    assert reused["view_pool"]["scores"]["pooled"] == {}
+    assert (reused["corners_native_px"], reused["view_pool"]["court"]) == (SCENE.tolist(), "scene")
+    assert reused["view_pool"]["pooled_rejection"] == view_pool.MISSING_SCORE
 
 
-def test_failed_member_checks_or_an_invalid_fit_keep_scene_courts(monkeypatch) -> None:
-    pooled = {**POOLED_EVERYWHERE, "r": (.99, "players_not_on_court")}
+@pytest.mark.parametrize("failed_score", [.99, None])
+def test_a_member_that_rejects_the_pool_keeps_its_scene_court(monkeypatch, failed_score) -> None:
+    pooled = {**POOLED_EVERYWHERE, "r": (failed_score, "camera_implausible")}
     pool, rows = stand_in_group(monkeypatch, pooled, {"a": .50, "b": .50}, carried_scores(.50, .50, .50, .50))
     (summary,) = pool.apply()
-    assert summary["pooled_view_ids"] == ["a", "b"]
+    assert (summary["chosen_court"], summary["reason"], summary["pooled_view_ids"]) == ("pooled", None, ["a", "b"])
     reused = rows["r"]
     assert (reused["corners_native_px"], reused["chosen_key"], reused["reused_from"]) == (SCENE.tolist(), "reuse", "a")
-    assert (reused["view_pool"]["court"], reused["view_pool"]["pooled_rejection"]) == ("scene", "players_not_on_court")
+    assert (reused["view_pool"]["court"], reused["view_pool"]["pooled_rejection"]) == ("scene", "camera_implausible")
 
+
+def test_a_pool_that_fails_the_reference_check_is_out_for_the_whole_group(monkeypatch) -> None:
+    # The pool is fitted in a's frame, so a's check is a check of the fit itself. Its
+    # mean would otherwise beat both scene courts.
+    pooled = {**POOLED_EVERYWHERE, "a": (.99, "camera_implausible")}
+    pool, rows = stand_in_group(monkeypatch, pooled, {"a": .50, "b": .50}, carried_scores(.50, .50, .40, .40))
+    (summary,) = pool.apply()
+    assert summary["reason"] == "reference_camera_implausible"
+    assert summary["pooled_candidate"]["rejection"] == {"view_id": "a", "reason": "camera_implausible"}
+    assert (summary["chosen_court"], summary["chosen_view_id"], summary["pooled_view_ids"]) == ("group_scene", "a", [])
+    assert all(member_row["corners_native_px"] == SCENE.tolist() for member_row in rows.values())
+
+
+def test_an_invalid_fit_keeps_scene_courts_in_video_robust(monkeypatch) -> None:
     pool, rows = stand_in_group(monkeypatch, POOLED_EVERYWHERE, {"a": .99, "b": .99},
                                 carried_scores(.99, .99, .99, .99), fit_valid=False)
     (summary,) = pool.apply()
@@ -508,7 +573,7 @@ def test_fast_robust_pool_must_beat_the_best_complete_court_on_the_same_members(
         monkeypatch, pooled_score: float, chosen_court: str) -> None:
     pooled = {view_id: (pooled_score, None) for view_id in "abc"}
     # The pool fails c's own checks, so c keeps its scene court when the pool wins.
-    pooled["c"] = (pooled_score, "players_not_on_court")
+    pooled["c"] = (pooled_score, "camera_implausible")
     # a's court scores .80 in every member; b's and c's score less.
     carried = carried_everywhere({"a": .80, "b": .60, "c": .60})
     pool, rows = stand_in_group(monkeypatch, pooled, {"a": .80, "b": .70, "c": .70}, carried,
@@ -530,30 +595,30 @@ def test_fast_robust_pool_must_beat_the_best_complete_court_on_the_same_members(
     assert (rows["c"]["corners_native_px"], rows["c"]["view_pool"]["court"]) == (SCENE_C.tolist(), "scene")
 
 
-@pytest.mark.parametrize("candidates_pass", [True, False])
-def test_fast_robust_can_share_a_complete_court_when_the_pooled_fit_fails(monkeypatch, candidates_pass: bool) -> None:
+@pytest.mark.parametrize("transfers_pass", [True, False])
+def test_fast_robust_can_share_a_complete_court_when_the_pooled_fit_fails(monkeypatch, transfers_pass: bool) -> None:
     carried = carried_everywhere({"a": .70, "b": .60, "c": .60})
-    if not candidates_pass:
-        carried = {pair: (.99, "camera_implausible") for pair in carried}
+    if not transfers_pass:
+        carried = {pair: (value, "camera_implausible") for pair, (value, _) in carried.items()}
     pooled = {view_id: (.99, None) for view_id in "abc"}
     pool, rows = stand_in_group(monkeypatch, pooled, {"a": .90, "b": .90, "c": .90}, carried, fit_valid=False,
                                 court_mode=CourtMode.FAST_ROBUST)
     (summary,) = pool.apply()
     assert summary["reason"] == "fit_no_fit_corners"
     assert summary["fit"]["corners_reference_native_px"] is None
-    assert summary["mean_combined_scores"]["pooled"] is None
+    assert summary["mean_combined_scores"]["pooled"] is None and summary["pooled_candidate"] is None
     json.dumps([summary, rows], allow_nan=False)
-    if not candidates_pass:
-        # No court holds the whole group, so every scene keeps its own.
-        assert all(candidate["rejection"] is not None for candidate in summary["scene_candidates"])
-        assert (summary["chosen_court"], summary["pooled_view_ids"]) == (None, [])
+    # a's court scores best in the same three frames, whether or not the others accept it.
+    assert (summary["chosen_court"], summary["chosen_view_id"], summary["pooled_view_ids"]) == ("group_scene", "a", [])
+    record = rows["b"]["view_pool"]
+    assert (record["pooled_rejection"], record["pooled_corners_native_px"]) == (view_pool.NO_POOLED_FIT, None)
+    assert record["scores"]["pooled"] == {}
+    if not transfers_pass:
+        # Every transfer fails, so each scene keeps its own court and records why.
         assert [rows[view_id]["corners_native_px"] for view_id in "abc"] == [
             SCENE.tolist(), SCENE_B.tolist(), SCENE_C.tolist()]
-        assert all("view_pool" not in member_row for member_row in rows.values())
+        assert (record["court"], record["group_scene_rejection"]) == ("scene", "camera_implausible")
+        assert rows["b"]["chosen_key"] == "composite"
         return
-    assert (summary["chosen_court"], summary["chosen_view_id"], summary["pooled_view_ids"]) == ("group_scene", "a", [])
     assert all(member_row["corners_native_px"] == SCENE.tolist() for member_row in rows.values())
-    record = rows["b"]["view_pool"]
-    assert (record["court"], record["pooled_rejection"], record["pooled_corners_native_px"]) == (
-        "group_scene", view_pool.NO_POOLED_FIT, None)
-    assert record["scores"]["pooled"] == {}
+    assert (record["court"], record["group_scene_rejection"]) == ("group_scene", None)
