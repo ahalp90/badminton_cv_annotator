@@ -1,0 +1,51 @@
+{
+  "repository": "ahalp90/badminton_cv_annotator",
+  "branch_rechecked": "fix/court-det",
+  "resolved_head": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+  "head_commit_utc": "2026-09-17T02:47:11Z",
+  "user_fresh_packet": {
+    "path": "inputs/real_interval_probe.csv",
+    "sha256": "41fd27c0387d5dc9864bde9cd0031a04b8669c37698fca7e5173aaaa15644e61",
+    "bytes": 12089,
+    "user_reported_command": "w2_probe.py --witnesses webui_seed/L2_scoring/witnesses.json",
+    "local_producing_commit": null,
+    "local_dirty_state": null,
+    "local_execution_manifest": "not supplied"
+  },
+  "earlier_review_provenance": "inputs/prior_source_index.json is historical, not this fresh upload manifest",
+  "upstream_probe_sha256": "81e454e5e7876bbae4f7347c0feead3895ae764230edf4b64e73cfe932439d48",
+  "pinned_followup_inputs": [
+    {
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/L2_scoring/witnesses.json",
+      "git_blob": "739af3d1dacc7f3fedb551eab01a2b4bad94fd06",
+      "access_here": "metadata only; not decoded in this review"
+    },
+    {
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/frames/amateur/am2/frame_00028019.png",
+      "git_blob": "a6c1ace2fad3a6f350b7b91fad991840955fd866",
+      "access_here": "Git tree metadata only; pixels not viewed"
+    },
+    {
+      "path": "scratch/court_det_fix/next_steps_20260916/webui_seed/frames/amateur/am2/frame_00000150.png",
+      "git_blob": "08ab1d43d219320bc18d2bfb25fbde5f5f3cf456",
+      "access_here": "Git tree metadata only; pixels not viewed"
+    }
+  ],
+  "additional_source_read_this_review": {
+    "path": "scratch/court_det_fix/next_steps_20260916/L2_scoring/STATE.md",
+    "git_blob": "b6c26165700f01756e8169b6b6909d4d895b9449",
+    "claim_used": "L2 records its approved-environment execution on Carmack; current host policy still belongs to the local executor"
+  },
+  "executed_here": [
+    "real CSV arithmetic and consistency checks",
+    "10 tests: 4 real CSV, 6 constructed image tests",
+    "script syntax/help checks"
+  ],
+  "not_executed_here": [
+    "original-frame pixel replay",
+    "repository detector or matcher",
+    "remote execution",
+    "real-pixel inspection"
+  ],
+  "one_proposed_followup": "two-candidate four-interval paired pixel export; no ranking/score/candidate modification"
+}

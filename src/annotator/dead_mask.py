@@ -59,12 +59,14 @@ def build_dead_mask(
     """Build a boolean dead-time mask using the selected producer policy.
 
     All modes consume ``n_frames``. ``REPLAY`` also consumes ``fps`` and the
-    optional ``court_present``, ``homography_rows``, ``track``, ``rally_spans``,
+    optional ``court_present``, ``track``, ``rally_spans``,
     and ``shuttle_hallucination_mask`` signals. A missing replay signal
     contributes an all-False component. ``COMPOSITION`` requires ``cut_frames``
     and the frame-aligned boolean ``keep_vote``; ``vote`` overrides its default
     threshold. It ignores the replay inputs and ``fps``. ``UNION`` consumes both
     input groups and combines the resulting masks elementwise.
+    ``homography_rows`` remains accepted for existing callers; a camera change
+    alone does not establish replay.
 
     :return: ``(n_frames,)`` boolean mask, True for excluded dead-time frames.
     """

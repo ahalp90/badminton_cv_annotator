@@ -8,6 +8,7 @@ best-effort: it only PATCHes when the block changes (so it can't retrigger the
 `edited` run) and any failure is a ::warning::, never a merge gate. Needs
 GITHUB_EVENT_PATH, GITHUB_REPOSITORY, and a write-scoped GITHUB_TOKEN (read-only
 on fork PRs -> it warns and no-ops).
+Add <!-- main-files-skip --> to a PR description to keep it free of this block.
 """
 
 from __future__ import annotations
@@ -147,6 +148,11 @@ def main() -> int:
         warn("event payload has no pull_request object")
         return 0
 
+    body = pr.get("body") or ""
+    if "<!-- main-files-skip -->" in body:
+        print("File list disabled for this PR.")
+        return 0
+
     block = build_block(
         pr.get("base", {}).get("sha", ""), pr.get("head", {}).get("sha", "")
     )
@@ -154,7 +160,6 @@ def main() -> int:
         print("No changed files; nothing to do.")
         return 0
 
-    body = pr.get("body") or ""
     new_body = splice(body, block)
     if new_body == body:
         print("Main-files block already current; no edit needed.")

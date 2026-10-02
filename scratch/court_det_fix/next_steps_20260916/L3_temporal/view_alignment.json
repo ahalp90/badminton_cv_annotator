@@ -1,0 +1,1425 @@
+{
+  "schema": "cached-temporal-static-registration/1",
+  "anchor_case_id": "gxBQ_window_00_frame_0",
+  "coordinate_space": "native image pixels; identity is target-to-anchor pixel identity",
+  "selection_independent": true,
+  "reference_blind": true,
+  "moving_content_policy": "RANSAC-consistent feature matches only; references and courts are unused",
+  "settings": {
+    "sift_features": 4000,
+    "ratio_test": 0.75,
+    "ransac_reprojection_threshold_px": 3.0,
+    "holdout_every": 5,
+    "identity_grid": [
+      4,
+      3
+    ]
+  },
+  "pairs": {
+    "gxBQ_window_00_frame_0": {
+      "status": "anchor",
+      "homography_target_to_anchor": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "identity_displacement_px": 0.0
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "identity_displacement_px": 0.0
+          }
+        ],
+        "summary_px": {
+          "median": 0.0,
+          "mean": 0.0,
+          "maximum": 0.0
+        }
+      }
+    },
+    "gxBQ_window_00_frame_5": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 3018,
+      "fit_matches": 2414,
+      "heldout_matches": 604,
+      "inlier_count": 2368,
+      "inlier_ratio": 0.9809444904722452,
+      "inlier_target_bbox_px": {
+        "min": [
+          4.6085524559021,
+          3.190350294113159
+        ],
+        "max": [
+          1914.546142578125,
+          1076.118408203125
+        ]
+      },
+      "inlier_target_grid_counts": [
+        151,
+        238,
+        129,
+        47,
+        270,
+        537,
+        466,
+        348,
+        19,
+        48,
+        37,
+        78
+      ],
+      "inlier_target_grid_coverage_fraction": 1.0,
+      "heldout_residuals": {
+        "count": 604,
+        "median_px": 0.10208863019943237,
+        "p90_px": 0.4178340435028076,
+        "maximum_px": 132.8474884033203
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9992346583380818,
+          -0.0006128122581253952,
+          0.3611347580602143
+        ],
+        [
+          -8.851805158449097e-05,
+          0.9990491801164301,
+          0.2247466962244754
+        ],
+        [
+          -2.662274206605532e-07,
+          -7.970374652711231e-07,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              96.21122741699219,
+              54.11866760253906
+            ],
+            "identity_displacement_px": 0.3109499514102936
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              671.613037109375,
+              54.075992584228516
+            ],
+            "identity_displacement_px": 0.13130879402160645
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1247.191162109375,
+              54.03330612182617
+            ],
+            "identity_displacement_px": 0.1793362945318222
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1822.946044921875,
+              53.990604400634766
+            ],
+            "identity_displacement_px": 0.11164885759353638
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              95.95079803466797,
+              539.4490356445312
+            ],
+            "identity_displacement_px": 0.0509706512093544
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              671.5753784179688,
+              539.4807739257812
+            ],
+            "identity_displacement_px": 0.07708220928907394
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1247.37646484375,
+              539.5125122070312
+            ],
+            "identity_displacement_px": 0.02929566614329815
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1823.3543701171875,
+              539.5442504882812
+            ],
+            "identity_displacement_px": 0.30752161145210266
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              95.69015502929688,
+              1025.1553955078125
+            ],
+            "identity_displacement_px": 0.28038498759269714
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              671.5376586914062,
+              1025.26171875
+            ],
+            "identity_displacement_px": 0.23964601755142212
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1247.5618896484375,
+              1025.367919921875
+            ],
+            "identity_displacement_px": 0.38203349709510803
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1823.762939453125,
+              1025.474365234375
+            ],
+            "identity_displacement_px": 0.8296128511428833
+          }
+        ],
+        "summary_px": {
+          "median": 0.20949116349220276,
+          "mean": 0.24414928257465363,
+          "maximum": 0.8296128511428833
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_5.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    },
+    "gxBQ_window_00_frame_689": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 1374,
+      "fit_matches": 1099,
+      "heldout_matches": 275,
+      "inlier_count": 1008,
+      "inlier_ratio": 0.9171974522292994,
+      "inlier_target_bbox_px": {
+        "min": [
+          5.676871299743652,
+          3.0024585723876953
+        ],
+        "max": [
+          1914.7088623046875,
+          1073.7335205078125
+        ]
+      },
+      "inlier_target_grid_counts": [
+        79,
+        124,
+        73,
+        28,
+        139,
+        168,
+        223,
+        145,
+        14,
+        9,
+        0,
+        6
+      ],
+      "inlier_target_grid_coverage_fraction": 0.9166666666666666,
+      "heldout_residuals": {
+        "count": 275,
+        "median_px": 0.2853832542896271,
+        "p90_px": 1.224800705909729,
+        "maximum_px": 743.6361083984375
+      },
+      "homography_target_to_anchor": [
+        [
+          1.000337979550418,
+          0.0005086666622252319,
+          -0.07442854219062726
+        ],
+        [
+          9.08534334505331e-05,
+          1.000278493106344,
+          0.039185976000448604
+        ],
+        [
+          1.2268218317573653e-07,
+          6.627587325832344e-07,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              95.93087768554688,
+              54.01036071777344
+            ],
+            "identity_displacement_px": 0.06331564486026764
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              671.7506713867188,
+              54.05884552001953
+            ],
+            "identity_displacement_px": 0.1482463926076889
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1247.489013671875,
+              54.107322692871094
+            ],
+            "identity_displacement_px": 0.2099566012620926
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1823.146240234375,
+              54.155792236328125
+            ],
+            "identity_displacement_px": 0.22716276347637177
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              96.14691162109375,
+              539.4989013671875
+            ],
+            "identity_displacement_px": 0.19691774249076843
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              671.781494140625,
+              539.5130615234375
+            ],
+            "identity_displacement_px": 0.13211695849895477
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1247.334716796875,
+              539.5272827148438
+            ],
+            "identity_displacement_px": 0.03125983476638794
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1822.8067626953125,
+              539.54150390625
+            ],
+            "identity_displacement_px": 0.24680095911026
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              96.36280822753906,
+              1024.67529296875
+            ],
+            "identity_displacement_px": 0.5575438141822815
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              671.812255859375,
+              1024.6551513671875
+            ],
+            "identity_displacement_px": 0.4269227683544159
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1247.180419921875,
+              1024.6351318359375
+            ],
+            "identity_displacement_px": 0.4482245445251465
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1822.4674072265625,
+              1024.6151123046875
+            ],
+            "identity_displacement_px": 0.7270770072937012
+          }
+        ],
+        "summary_px": {
+          "median": 0.21855968236923218,
+          "mean": 0.2846287488937378,
+          "maximum": 0.7270770072937012
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_689.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    },
+    "gxBQ_window_01_frame_5111": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 1217,
+      "fit_matches": 973,
+      "heldout_matches": 244,
+      "inlier_count": 875,
+      "inlier_ratio": 0.8992805755395683,
+      "inlier_target_bbox_px": {
+        "min": [
+          3.3472094535827637,
+          2.740341901779175
+        ],
+        "max": [
+          1915.111083984375,
+          1075.363037109375
+        ]
+      },
+      "inlier_target_grid_counts": [
+        74,
+        111,
+        78,
+        29,
+        162,
+        120,
+        151,
+        126,
+        9,
+        8,
+        6,
+        1
+      ],
+      "inlier_target_grid_coverage_fraction": 1.0,
+      "heldout_residuals": {
+        "count": 244,
+        "median_px": 0.3616875410079956,
+        "p90_px": 2.795743942260742,
+        "maximum_px": 824.2073974609375
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9992733589306696,
+          0.0001704339889530543,
+          0.7837816604996831
+        ],
+        [
+          -3.447646076274885e-05,
+          0.9992706541862861,
+          0.6116749072733988
+        ],
+        [
+          -3.3060738844700116e-08,
+          3.36737198239091e-07,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              96.67180633544922,
+              54.51820373535156
+            ],
+            "identity_displacement_px": 0.9186203479766846
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              671.9576416015625,
+              54.4993896484375
+            ],
+            "identity_displacement_px": 0.6296479105949402
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1247.265380859375,
+              54.4805793762207
+            ],
+            "identity_displacement_px": 0.5372801423072815
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1822.5950927734375,
+              54.461769104003906
+            ],
+            "identity_displacement_px": 0.6847568154335022
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              96.73873901367188,
+              539.6185913085938
+            ],
+            "identity_displacement_px": 0.7976076602935791
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              671.9305419921875,
+              539.6090087890625
+            ],
+            "identity_displacement_px": 0.30095353722572327
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1247.1441650390625,
+              539.5994262695312
+            ],
+            "identity_displacement_px": 0.22856850922107697
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1822.3798828125,
+              539.58984375
+            ],
+            "identity_displacement_px": 0.676161527633667
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              96.80565643310547,
+              1024.5604248046875
+            ],
+            "identity_displacement_px": 0.985842227935791
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              671.9034423828125,
+              1024.56005859375
+            ],
+            "identity_displacement_px": 0.551643967628479
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1247.0230712890625,
+              1024.5596923828125
+            ],
+            "identity_displacement_px": 0.5893350839614868
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1822.1646728515625,
+              1024.559326171875
+            ],
+            "identity_displacement_px": 1.0122743844985962
+          }
+        ],
+        "summary_px": {
+          "median": 0.652904748916626,
+          "mean": 0.6593909859657288,
+          "maximum": 1.0122743844985962
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_5111.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    },
+    "gxBQ_window_02_frame_5766": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 1181,
+      "fit_matches": 944,
+      "heldout_matches": 237,
+      "inlier_count": 850,
+      "inlier_ratio": 0.9004237288135594,
+      "inlier_target_bbox_px": {
+        "min": [
+          3.7960879802703857,
+          9.881146430969238
+        ],
+        "max": [
+          1915.04248046875,
+          1030.0277099609375
+        ]
+      },
+      "inlier_target_grid_counts": [
+        67,
+        127,
+        63,
+        27,
+        165,
+        145,
+        107,
+        115,
+        14,
+        5,
+        5,
+        10
+      ],
+      "inlier_target_grid_coverage_fraction": 1.0,
+      "heldout_residuals": {
+        "count": 237,
+        "median_px": 0.4113589823246002,
+        "p90_px": 2.2374765872955322,
+        "maximum_px": 701.4993896484375
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9990521266755623,
+          0.0009577549435622062,
+          0.674990805438275
+        ],
+        [
+          -7.730182420041402e-05,
+          0.9997652500956852,
+          0.489627864901075
+        ],
+        [
+          -2.442758262442024e-07,
+          8.738989282829756e-07,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              96.58341979980469,
+              54.41825485229492
+            ],
+            "identity_displacement_px": 0.7877095937728882
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              671.818603515625,
+              54.38140106201172
+            ],
+            "identity_displacement_px": 0.46316859126091003
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1247.215576171875,
+              54.344539642333984
+            ],
+            "identity_displacement_px": 0.4168022572994232
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1822.7745361328125,
+              54.30766296386719
+            ],
+            "identity_displacement_px": 0.4514748156070709
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              97.00728607177734,
+              539.61376953125
+            ],
+            "identity_displacement_px": 1.0633926391601562
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              671.99853515625,
+              539.6452026367188
+            ],
+            "identity_displacement_px": 0.3775493800640106
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1247.1513671875,
+              539.6765747070312
+            ],
+            "identity_displacement_px": 0.26575160026550293
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1822.466064453125,
+              539.7079467773438
+            ],
+            "identity_displacement_px": 0.6199029088020325
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              97.43079376220703,
+              1024.39794921875
+            ],
+            "identity_displacement_px": 1.6180213689804077
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              672.1782836914062,
+              1024.4974365234375
+            ],
+            "identity_displacement_px": 0.7644855976104736
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1247.0872802734375,
+              1024.5970458984375
+            ],
+            "identity_displacement_px": 0.5236606597900391
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1822.157958984375,
+              1024.696533203125
+            ],
+            "identity_displacement_px": 0.9595819711685181
+          }
+        ],
+        "summary_px": {
+          "median": 0.5717817544937134,
+          "mean": 0.6926252245903015,
+          "maximum": 1.6180213689804077
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_5766.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    },
+    "gxBQ_window_03_frame_77876": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 825,
+      "fit_matches": 660,
+      "heldout_matches": 165,
+      "inlier_count": 583,
+      "inlier_ratio": 0.8833333333333333,
+      "inlier_target_bbox_px": {
+        "min": [
+          10.342353820800781,
+          2.566796064376831
+        ],
+        "max": [
+          1908.271484375,
+          1032.4609375
+        ]
+      },
+      "inlier_target_grid_counts": [
+        64,
+        105,
+        60,
+        8,
+        136,
+        82,
+        85,
+        33,
+        4,
+        4,
+        2,
+        0
+      ],
+      "inlier_target_grid_coverage_fraction": 0.9166666666666666,
+      "heldout_residuals": {
+        "count": 165,
+        "median_px": 0.3485110402107239,
+        "p90_px": 64.14532470703125,
+        "maximum_px": 1605.3316650390625
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9911657224886959,
+          -0.0014876719015975042,
+          8.71088909507907
+        ],
+        [
+          -0.0002203490937200733,
+          0.9911357298392995,
+          5.70966188519019
+        ],
+        [
+          -7.850613489162825e-07,
+          -1.0670049176834631e-06,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              103.74676513671875,
+              59.168155670166016
+            ],
+            "identity_displacement_px": 9.381830215454102
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              674.7417602539062,
+              59.06798553466797
+            ],
+            "identity_displacement_px": 5.9793477058410645
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1246.2532958984375,
+              58.96772003173828
+            ],
+            "identity_displacement_px": 5.136167526245117
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1818.2823486328125,
+              58.867366790771484
+            ],
+            "identity_displacement_px": 6.849193572998047
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              103.0777359008789,
+              540.7582397460938
+            ],
+            "identity_displacement_px": 7.237943649291992
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              674.3685302734375,
+              540.8759155273438
+            ],
+            "identity_displacement_px": 3.046870231628418
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1246.176513671875,
+              540.9937133789062
+            ],
+            "identity_displacement_px": 1.899524211883545
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1818.50244140625,
+              541.1116333007812
+            ],
+            "identity_displacement_px": 4.824738025665283
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              102.40802001953125,
+              1022.8480224609375
+            ],
+            "identity_displacement_px": 6.823121070861816
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              673.9949951171875,
+              1023.1840209960938
+            ],
+            "identity_displacement_px": 2.9968228340148926
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1246.099609375,
+              1023.520263671875
+            ],
+            "identity_displacement_px": 1.9757678508758545
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1818.7227783203125,
+              1023.8568725585938
+            ],
+            "identity_displacement_px": 4.488757133483887
+          }
+        ],
+        "summary_px": {
+          "median": 4.980452537536621,
+          "mean": 5.053340435028076,
+          "maximum": 9.381830215454102
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_77876.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    },
+    "gxBQ_window_04_frame_86088": {
+      "status": "ok",
+      "method": "SIFT descriptors, BF ratio test, RANSAC homography",
+      "anchor_keypoints": 4000,
+      "target_keypoints": 4000,
+      "ratio_matches": 857,
+      "fit_matches": 685,
+      "heldout_matches": 172,
+      "inlier_count": 599,
+      "inlier_ratio": 0.8744525547445255,
+      "inlier_target_bbox_px": {
+        "min": [
+          13.111241340637207,
+          5.368948936462402
+        ],
+        "max": [
+          1907.0965576171875,
+          1076.54638671875
+        ]
+      },
+      "inlier_target_grid_counts": [
+        71,
+        102,
+        60,
+        15,
+        115,
+        93,
+        78,
+        52,
+        7,
+        4,
+        1,
+        1
+      ],
+      "inlier_target_grid_coverage_fraction": 1.0,
+      "heldout_residuals": {
+        "count": 172,
+        "median_px": 0.3876818120479584,
+        "p90_px": 2.632082223892212,
+        "maximum_px": 787.6793212890625
+      },
+      "homography_target_to_anchor": [
+        [
+          0.9904712263752828,
+          -0.0023529761035489707,
+          9.340218241858276
+        ],
+        [
+          -0.00035964121709769817,
+          0.9900450323929922,
+          6.2253298297533215
+        ],
+        [
+          -9.40640447782901e-07,
+          -1.72003414104839e-06,
+          1.0
+        ]
+      ],
+      "identity_grid": {
+        "columns": 4,
+        "rows": 3,
+        "points": [
+          {
+            "target_xy": [
+              95.94999694824219,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              104.26807403564453,
+              59.61466598510742
+            ],
+            "identity_displacement_px": 10.063738822937012
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              674.9523315429688,
+              59.43977737426758
+            ],
+            "identity_displacement_px": 6.4064717292785645
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1246.25537109375,
+              59.26469802856445
+            ],
+            "identity_displacement_px": 5.426248073577881
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              53.95000076293945
+            ],
+            "mapped_to_anchor_xy": [
+              1818.178466796875,
+              59.08942794799805
+            ],
+            "identity_displacement_px": 7.081385612487793
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              103.21159362792969,
+              540.870849609375
+            ],
+            "identity_displacement_px": 7.389859199523926
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              674.3726806640625,
+              540.9568481445312
+            ],
+            "identity_displacement_px": 3.0879220962524414
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1246.153564453125,
+              541.0429077148438
+            ],
+            "identity_displacement_px": 1.9524251222610474
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              539.5
+            ],
+            "mapped_to_anchor_xy": [
+              1818.555419921875,
+              541.1290893554688
+            ],
+            "identity_displacement_px": 4.780755519866943
+          },
+          {
+            "target_xy": [
+              95.94999694824219,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              102.1533432006836,
+              1022.9324340820312
+            ],
+            "identity_displacement_px": 6.554830074310303
+          },
+          {
+            "target_xy": [
+              671.6500244140625,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              673.7919921875,
+              1023.2801513671875
+            ],
+            "identity_displacement_px": 2.778590202331543
+          },
+          {
+            "target_xy": [
+              1247.3499755859375,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1246.051513671875,
+              1023.6282348632812
+            ],
+            "identity_displacement_px": 1.925502061843872
+          },
+          {
+            "target_xy": [
+              1823.050048828125,
+              1025.050048828125
+            ],
+            "mapped_to_anchor_xy": [
+              1818.93310546875,
+              1023.9767456054688
+            ],
+            "identity_displacement_px": 4.254550933837891
+          }
+        ],
+        "summary_px": {
+          "median": 5.103501796722412,
+          "mean": 5.141856670379639,
+          "maximum": 10.063738822937012
+        }
+      },
+      "overlay_path": "scratch/court_det_fix/next_steps_20260916/L3_temporal/alignment_0_to_86088.png",
+      "overlay_dimensions": {
+        "width": 960,
+        "height": 540
+      }
+    }
+  }
+}

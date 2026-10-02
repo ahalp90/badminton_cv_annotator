@@ -1,0 +1,5 @@
+Standing arm, full search (budget 16), summed over 28 views. run wall 13002 s.
+8890 populations; 7194 G0_generation; 6596 G0 pair; 2569 G0 pair/match_axis; 2463 G0 pair/finite_scores
+3945 w5_record; 1591 attempt_refit; 1085 make_parent_record/measure_candidate; 862 line_templates
+805+653+292 stripe_measure (parent, refit, pool_evidence); 340 attempt_refit/distance_maps
+1523 G1_generation; 1285 G1 pair; 585 G1 finite_scores; 310 G1 match_axis

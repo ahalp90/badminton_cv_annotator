@@ -29,7 +29,7 @@ from itertools import islice
 import numpy as np
 from _common import find_clip
 
-from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+from shared.rtmlib_pose import RtmlibPoseExtractor
 
 STEM = os.environ.get("RTMLIB_GATE_STEM", "11_1_10_2")
 MAX_FRAMES = int(os.environ.get("RTMLIB_GATE_MAXFR", "20"))

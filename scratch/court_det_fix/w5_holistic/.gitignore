@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+.ruff_cache/
+.pyrefly_cache/
+.pytest_cache/
+*.pid
+*.lock
+
+# Private remote aliases stay local to the executor.
+paths.local.sh
+
+# The compact packet and gallery are review artefacts; bulky evidence stays on the host.
+!runs/
+runs/**/arrays/
+runs/**/case_records/
+runs/**/cache/
+runs/**/logs/
+runs/**/receipts/
+runs/**/*.npz
+runs/**/*.npy.xz
+runs/**/preflight.json.gz
+
+# Gallery: only the crops are tracked. Full frames and reference overlays stay on disk.
+runs/**/gallery/*__full.png
+runs/**/gallery/*__reference.png
+# The refit attempt table is tens of MB; track it compressed.
+runs/**/fit_attempts.csv

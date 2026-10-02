@@ -81,7 +81,7 @@ from _common import (
     matched_kp_l2,
 )
 
-from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+from shared.rtmlib_pose import RtmlibPoseExtractor
 
 MEDIAN_MAX = 5.0     # all joints; coordinate system / COCO order / units
 CONF_P90_MAX = 12.0  # both-confident joints agree tightly

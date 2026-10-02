@@ -1,0 +1,2 @@
+gxBQ_window_00_frame_0.jsonl: calls 12, scored 237,822, unique 237,822, duplicates 0 (0.0000%); worst call 0.0000%; match_axis 6.5 s
+shuttleset_21_scene_0044.jsonl: calls 12, scored 83,402, unique 83,402, duplicates 0 (0.0000%); worst call 0.0000%; match_axis 1.4 s

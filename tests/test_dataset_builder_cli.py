@@ -90,12 +90,14 @@ match = ["professional singles full match"]
 [environment]
 tracknet_python = "BADMINTON_TRACKNET_PYTHON"
 pose_python = "BADMINTON_POSE_PYTHON"
+court_python = "BADMINTON_COURT_PYTHON"
 
 [models]
 tracknet_dir = "src/shared/tracknetv3"
 tracknet = "weights/tracknet.pt"
 inpaint = ""
-court = "weights/court.safetensors"
+deeplsd_source = "weights/DeepLSD"
+deeplsd_weights = "weights/DeepLSD/weights/deeplsd_md.tar"
 
 [vision]
 tracknet_workers = 1
@@ -107,7 +109,8 @@ pose_device = "cuda"
 pose_n_max = 16
 pose_shards = {pose_shards}
 court_device = "cuda"
-court_resize_mode = "pad"
+court_template_device = "cpu"
+court_reuse_courts = false
 
 [commentary]
 enabled = {str(commentary_enabled).lower()}
@@ -319,6 +322,27 @@ def test_configuration_is_strict_and_resolves_repo_relative_models(tmp_path: Pat
     )
     config_path.write_text(malformed, encoding="utf-8")
     with pytest.raises(ValueError, match="run fields differ"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+
+
+def test_optional_court_mode_defaults_to_video_robust_and_is_validated(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path / "trial.toml")
+    assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == "video-robust"
+    original = config_path.read_text(encoding="utf-8")
+    for mode in ("scene-robust", "fast-robust"):
+        config_path.write_text(original.replace(
+            "court_reuse_courts = false", f'court_reuse_courts = false\ncourt_mode = "{mode}"',
+        ), encoding="utf-8")
+        assert cli.load_builder_config(config_path, repo_root=tmp_path).court_mode == mode
+    config_path.write_text(original.replace(
+        "court_reuse_courts = false", 'court_reuse_courts = false\ncourt_mode = "per-video"',
+    ), encoding="utf-8")
+    with pytest.raises(ValueError, match="vision.court_mode must be one of"):
+        cli.load_builder_config(config_path, repo_root=tmp_path)
+    config_path.write_text(original.replace(
+        "court_reuse_courts = false", 'court_reuse_courts = true\ncourt_mode = "fast-robust"',
+    ), encoding="utf-8")
+    with pytest.raises(ValueError, match="fast-robust requires vision.court_reuse_courts = false"):
         cli.load_builder_config(config_path, repo_root=tmp_path)
 
 
@@ -598,9 +622,11 @@ class _ConcreteRuntimeFixture:
         self.tracknet_dir.mkdir()
         (self.tracknet_dir / "batch_predict.py").write_bytes(b"fixture")
         self.tracknet_model = tmp_path / "tracknet.pt"
-        self.court_model = tmp_path / "court.safetensors"
+        self.deeplsd_source = tmp_path / "DeepLSD"
+        self.deeplsd_weights = self.deeplsd_source / "weights" / "deeplsd_md.tar"
         self.tracknet_model.write_bytes(b"fixture tracknet")
-        self.court_model.write_bytes(b"fixture court model")
+        self.deeplsd_weights.parent.mkdir(parents=True)
+        self.deeplsd_weights.write_bytes(b"fixture DeepLSD weights")
         self._install(monkeypatch)
 
     @property
@@ -628,7 +654,8 @@ class _ConcreteRuntimeFixture:
             config,
             tracknet_dir=self.tracknet_dir,
             tracknet_model=self.tracknet_model,
-            court_model=self.court_model,
+            deeplsd_source=self.deeplsd_source,
+            deeplsd_weights=self.deeplsd_weights,
         )
         runtime = self.runtime_module.DefaultPipelineRuntime(
             effective,
@@ -641,8 +668,8 @@ class _ConcreteRuntimeFixture:
             runtime.current_interpreter = identity
             runtime.tracknet_interpreter = identity
             runtime.pose_interpreter = identity
+            runtime.court_interpreter = identity
             runtime.ffmpeg_interpreter = identity
-            runtime.detector = object()
             runtime._prepare_fixed_sources()
 
         runtime.preflight = preflight  # type: ignore[method-assign]
@@ -721,6 +748,7 @@ annotation_directory = "set/match-one"
             monkeypatch.delenv(self.commentary_api_key_environment, raising=False)
         if self.fixed_sources:
             monkeypatch.setenv("SHUTTLESET_SOURCE_ROOT", str(self.fixed_source_root))
+        monkeypatch.setenv("BADMINTON_COURT_PYTHON", "/fixture/court/python")
         monkeypatch.setattr(self.runtime_module.search_index, "build_candidates", self.search)
         monkeypatch.setattr(
             self.runtime_module.transcript_acquisition,
@@ -909,9 +937,10 @@ annotation_directory = "set/match-one"
         self,
         *,
         output_dir: Path,
-        **_kwargs: object,
+        **kwargs: object,
     ) -> vision.CourtVision:
         self.boundary_calls.append("court")
+        self.court_kwargs = kwargs
         output_dir.mkdir(parents=True, exist_ok=True)
         artifacts = vision.CourtArtifacts(
             output_dir / vision.COURT_EVIDENCE_FILENAME,
@@ -1478,10 +1507,43 @@ def test_video_artifact_index_rejects_changed_model_identity(
         runtime_factory=fixture.factory,
     )
     assert result.stopped_after is None
-    fixture.court_model.write_bytes(b"changed court model")
+    fixture.deeplsd_weights.write_bytes(b"changed DeepLSD weights")
 
-    with pytest.raises(ValueError, match="indexed model 'courtkeynet' integrity differs"):
+    with pytest.raises(ValueError, match="indexed model 'deeplsd' integrity differs"):
         fixture.load_artifact_index(validate_models=True)
+
+
+def test_court_stage_launches_the_configured_detector_program(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _ConcreteRuntimeFixture(tmp_path, monkeypatch)
+    result = cli.run_dataset_builder(
+        fixture.config_path,
+        fixture.run_dir,
+        runtime_factory=fixture.factory,
+    )
+    assert result.stopped_after is None
+    settings = fixture.court_kwargs["settings"]
+    assert settings == vision.CourtDetectorSettings(
+        python=Path("/fixture/court/python"),
+        deeplsd_source=fixture.deeplsd_source,
+        deeplsd_weights=fixture.deeplsd_weights,
+        device="cuda",
+        template_device="cpu",
+        reuse_courts=False,
+    )
+    assert fixture.court_kwargs["pose_dir"] == fixture.run_dir / "stages" / "pose" / fixture.video_id
+    court = next(stage for stage in result.manifest.stages if stage.name == f"court:{fixture.video_id}")
+    assert court.command[1:] == ("-m", "court_detector.run_video", "--pyscenedetect")
+    assert dict(court.configuration) == {
+        "device": "cuda",
+        "template_device": "cpu",
+        "reuse_courts": False,
+        "court_mode": "video-robust",
+        "deeplsd_source": str(fixture.deeplsd_source),
+    }
+    assert [artifact.name for artifact in court.fingerprint.model_weights] == ["deeplsd"]
 
 
 def test_partial_vision_failure_persists_nonreplayable_video_index(

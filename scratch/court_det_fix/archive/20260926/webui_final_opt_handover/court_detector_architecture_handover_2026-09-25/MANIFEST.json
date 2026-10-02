@@ -1,0 +1,144 @@
+{
+  "pack": "court_detector_architecture_handover_2026-09-25",
+  "repository": "ahalp90/badminton_cv_annotator",
+  "branch": "exp/court-det-opt",
+  "reviewed_head": "a53b8a0e318a59c4d262f01d24d5653fe3be1296",
+  "prepared_date": "2026-09-25",
+  "files": [
+    {
+      "path": "ACCEPTANCE_AND_BENCHMARK_RUNBOOK.md",
+      "bytes": 5555,
+      "sha256": "02ec89932730a6c89cf33ed5e47ae19c18db4a06173d731771e57255679e44c7"
+    },
+    {
+      "path": "ASSUMPTIONS_AND_LIMITS.md",
+      "bytes": 2069,
+      "sha256": "e5e25d89299972cb57f1811127e9305db44fa166ec85fe29a4fbf85717d47a95"
+    },
+    {
+      "path": "COURT_DETECTOR_ARCHITECTURE_EVALUATION.md",
+      "bytes": 20271,
+      "sha256": "0aa4790ca3aef281037a059f107aaddf84f74bd08bf115251201b3b5bec9c436"
+    },
+    {
+      "path": "EVIDENCE_INDEX.md",
+      "bytes": 3612,
+      "sha256": "b2625fbc073dbd7fb5e9910b0a334a33d6f0ffcdf047a26f9031dd94e045b6d9"
+    },
+    {
+      "path": "IMPLEMENTATION_BLUEPRINT.md",
+      "bytes": 7922,
+      "sha256": "3d6f53731864cc7fdbaa6b34754ee2680c2448f5d8ad73acaa2c91002408e22b"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2909,
+      "sha256": "deeb1965a172564b16572551da3e2b2a95a333cf94f5b638b30eebe0978f2c19"
+    },
+    {
+      "path": "benchmarks/README.md",
+      "bytes": 1122,
+      "sha256": "0f9c886044a7bb25276ee8176e6f6acd33522a8f1c65411e1cb6420f68465c82"
+    },
+    {
+      "path": "benchmarks/bench_cartesian_topk.py",
+      "bytes": 3714,
+      "sha256": "1ab83c49fd982473d484a8923da958ba778d78b2371423a0f20f95ede6592769"
+    },
+    {
+      "path": "benchmarks/bench_response_map_reuse.py",
+      "bytes": 6196,
+      "sha256": "1085c7abb5a77dad4c19991b98d80e5606d452c07c88791137d0c55ef3dbd38d"
+    },
+    {
+      "path": "benchmarks/build_models.py",
+      "bytes": 11585,
+      "sha256": "bdc59a596e5be54fcf00ec28076965d16457d692a0df70e47cf23f6ad1f73343"
+    },
+    {
+      "path": "data/cascade_scenario_model.csv",
+      "bytes": 1411,
+      "sha256": "30b58fac525629e34295209517dc6be88683a4e785bc9de33669fbfaed3e11b1"
+    },
+    {
+      "path": "data/combined_target_sizing_model.csv",
+      "bytes": 938,
+      "sha256": "26699a50953c68f648604413021a7d198de89c4ddf21f9f5fa3eaab632654212"
+    },
+    {
+      "path": "data/committed_prefilter_tradeoff.csv",
+      "bytes": 1460,
+      "sha256": "0dfa510e6609c21829eda916f8c20cb32385b67b4a4214e5fb6073ec5fac7c85"
+    },
+    {
+      "path": "data/committed_shortlist_bound_rows.csv",
+      "bytes": 1072,
+      "sha256": "09d2e77a48abefae943461de1b40f4ecbf1768453edfd5b943d6699dd5840b6d"
+    },
+    {
+      "path": "data/current_detailed_stage_times.csv",
+      "bytes": 2064,
+      "sha256": "f82683b67bd18024557d9a5900baa25c5e40e71ab4c619af630a78be898827d2"
+    },
+    {
+      "path": "data/current_top_level_stage_times.csv",
+      "bytes": 599,
+      "sha256": "83d1fb11b154eb3e715a73091d952aba12105c9219078da08fdfa5c1282d9e25"
+    },
+    {
+      "path": "data/parallel_latency_model.csv",
+      "bytes": 1610,
+      "sha256": "a52aad0a0b2450b5431b30e8252df2fc4e76b904be2d23c464c6eb869d8ae868"
+    },
+    {
+      "path": "data/synthetic_benchmark_environment.json",
+      "bytes": 201,
+      "sha256": "0f241ca957b09d989eb2ddf70845756a4ef69c3f4001ad03767b926998406f1f"
+    },
+    {
+      "path": "data/synthetic_cartesian_results.csv",
+      "bytes": 513,
+      "sha256": "4b8d21e128d9ce1517b4c7128a352937699431ed5aab5f81bc813a215d3160b3"
+    },
+    {
+      "path": "data/synthetic_response_map_results.csv",
+      "bytes": 724,
+      "sha256": "d2ee9be9bc52e5e4b1442db9db66355443ce64fd278878dafbd6da0d69fa730d"
+    },
+    {
+      "path": "figures/cascade_runtime_projection.png",
+      "bytes": 59725,
+      "sha256": "1ff099cf3f73e59a0fa89ee9cb385e02e447e96509802ee2c6d3ff444f2de835"
+    },
+    {
+      "path": "figures/cascade_shortlist_replay.png",
+      "bytes": 54246,
+      "sha256": "ec181f4d780fccce196ebad3609383f17b8c7daa1c8b511ab81c405e4df7d1b2"
+    },
+    {
+      "path": "figures/current_top_level_runtime.png",
+      "bytes": 48415,
+      "sha256": "aacdae44a048bae90d72e4f5fc29b9c6735921de142ef4297ebfc86a1fd3067f"
+    },
+    {
+      "path": "figures/modeled_slowest_latency.png",
+      "bytes": 92667,
+      "sha256": "b3f58ca7c643c1faf55f328520d7b0bdfe500d34436368a8da6543472b5c9bf6"
+    },
+    {
+      "path": "patch_sketches/exact_feature_reuse.md",
+      "bytes": 988,
+      "sha256": "83e49b0f8dead19507bd64ce31c559decbd457b50906c0975ab55192d693ad8f"
+    },
+    {
+      "path": "patch_sketches/parallel_scheduler.md",
+      "bytes": 1127,
+      "sha256": "cb412d8fd0d808e4a84b51660a48668442eb2617b1cca3e734188c36f91572dc"
+    },
+    {
+      "path": "patch_sketches/proposal_cascade.py",
+      "bytes": 2172,
+      "sha256": "101454a13f7841db65ae61964f3e481677c6831d85e165940f38ebd2084fd3f0"
+    }
+  ]
+}

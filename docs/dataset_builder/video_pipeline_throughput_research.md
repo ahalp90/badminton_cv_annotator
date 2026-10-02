@@ -142,7 +142,7 @@ start time, and rotation metadata.
 TrackNet's fixed dimensions are declared in
 [general.py](../../src/shared/tracknetv3/utils/general.py). RTMLib uses a
 640x640 detector input and 192x256 per-person pose input in
-[rtmlib_pose.py](../../src/bst_x/preparing_data/rtmlib_pose.py). Scene detection
+[rtmlib_pose.py](../../src/shared/rtmlib_pose.py). Scene detection
 explicitly calls for a frame-count-preserving 288p downsample in
 [composition_mask.py](../../src/annotator/composition_mask.py).
 

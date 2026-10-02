@@ -1,0 +1,42 @@
+view	same chosen key	corner gap px	old outcome	new outcome	new chosen from
+am1_window_00_frame_54	True	0.0	court	court	line_template#7
+am2_window_00_frame_150	True	0.0	court	court	G1#105
+am2_window_01_frame_28019	True	0.0	court	court	G1#34
+am3_window_00_frame_0	True	0.0	court	court	G1#30
+am3_window_02_frame_17174	True	0.0	court	court	G1#14
+gxBQ_window_00_frame_0	False	13.3	court	court	G0#7
+gxBQ_window_00_frame_5	True	0.0	court	court	line_template#98
+gxBQ_window_00_frame_689	False	14.1	court	court	G0#29 G1#131
+gxBQ_window_03_frame_77876	False	8.1	court	court	G0#6
+letterboxed_short_frame_78	True	0.0	court	court	G0#4
+shuttleset_03_scene_0016	True	0.0	court	court	G0#5 G1#16
+shuttleset_03_scene_0017	True	0.0	court	court	G1#3
+shuttleset_03_scene_0019	True	0.0	court	court	G1#25
+shuttleset_03_scene_0023	True	0.0	court	court	G1#41
+shuttleset_03_scene_0032	True	0.0	court	court	G1#7
+shuttleset_03_scene_0034	True	0.0	court	court	G1#5
+shuttleset_21_scene_0034	True	0.0	court	court	G0#10 G1#11
+shuttleset_21_scene_0039	True	0.0	court	court	G1#24
+shuttleset_21_scene_0044	True	0.0	court	court	G0#1
+sset_21_gloiZ_gTJaE_frame_00000001	True	0.0	court	court	G0#75 G1#138
+sset_21_gloiZ_gTJaE_frame_00000300	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00009558	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00014336	False	-	rank_deficient	court	line_template#122
+sset_21_gloiZ_gTJaE_frame_00023893	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00038228	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00062120	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00090790	True	-	no_gated_court	no_gated_court	-
+sset_21_gloiZ_gTJaE_frame_00100347	False	973.1	court	court	G0#168
+
+seconds summed over views, self-checks off
+step                           25 Sept   upright   saved
+detect                            6434      3703     42%
+feet                                 2         2    -12%
+context                             20        22    -15%
+directions_and_paint_filter          8        10    -16%
+G0_search                         3346       951     72%
+G1_search                          785       284     64%
+line_templates                     409       439     -7%
+w5                                1837      1968     -7%
+net_choice                          17        17     -2%
+stripe_refit                         6         7     -7%

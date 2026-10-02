@@ -1,0 +1,62 @@
+Per view: the chosen court, then the eligible court with the lowest median floor error
+
+am1_window_00_frame_54  (126 eligible, 19 with a search score)
+  chosen  line_template:rectangle_98207:template_12/child err 0.08/0.31  paint 0.5156  frag 0.654  bonus 0.04  search   none
+  best    line_template:rectangle_98207:template_12/child err 0.08/0.31  paint 0.5156  frag 0.654  bonus 0.04  search   none   search rank None
+am2_window_00_frame_150  (295 eligible, 73 with a search score)
+  chosen  G1:30:137/child                              err 0.06/0.32  paint 0.4439  frag 0.503  bonus 0.02  search 0.721
+  best    G0:30:32/child                               err 0.04/0.35  paint 0.4433  frag 0.502  bonus 0.02  search 0.808   search rank 3
+am2_window_01_frame_28019  (241 eligible, 21 with a search score)
+  chosen  G1:15:0/child                                err 0.07/0.69  paint 0.3344  frag 0.370  bonus 0.04  search 0.757
+  best    G1:15:0/child                                err 0.07/0.69  paint 0.3344  frag 0.370  bonus 0.04  search 0.757   search rank 7
+am3_window_00_frame_0  (518 eligible, 273 with a search score)
+  chosen  G1:43:171/child                              err 0.10/0.26  paint 0.5308  frag 0.576  bonus 0.02  search 0.945
+  best    G1:43:254/child                              err 0.04/0.19  paint 0.4843  frag 0.570  bonus 0.02  search 0.937   search rank 39
+am3_window_02_frame_17174  (503 eligible, 273 with a search score)
+  chosen  G1:30:220/child                              err 0.17/0.59  paint 0.5808  frag 0.644  bonus 0.04  search 0.933
+  best    G1:43:700/child                              err 0.05/0.19  paint 0.4810  frag 0.639  bonus 0.04  search 0.875   search rank 83
+gxBQ_window_00_frame_0  (179 eligible, 179 with a search score)
+  chosen  G0:22:5053/child                             err 0.07/0.34  paint 0.4243  frag 0.566  bonus 0.04  search 0.884
+  best    G0:22:5060/child                             err 0.06/0.34  paint 0.4344  frag 0.551  bonus 0.02  search 0.927   search rank 15
+gxBQ_window_00_frame_5  (29 eligible, 24 with a search score)
+  chosen  line_template:rectangle_85795:template_72/child err 0.07/0.23  paint 0.4286  frag 0.609  bonus 0.02  search   none
+  best    line_template:rectangle_85795:template_72/child err 0.07/0.23  paint 0.4286  frag 0.609  bonus 0.02  search   none   search rank None
+gxBQ_window_00_frame_689  (211 eligible, 207 with a search score)
+  chosen  line_template:rectangle_59439:template_10/child err 0.31/0.58  paint 0.3596  frag 0.472  bonus 0.02  search   none
+  best    G0:123:1017/child                            err 0.16/0.43  paint 0.3383  frag 0.479  bonus 0.02  search 0.838   search rank 100
+gxBQ_window_03_frame_77876  (78 eligible, 76 with a search score)
+  chosen  G0:17:2/child                                err 0.22/1.40  paint 0.3779  frag 0.467  bonus 0.00  search 0.949
+  best    line_template:rectangle_73390:template_72    err 0.11/0.61  paint 0.3453  frag 0.457  bonus 0.00  search   none   search rank None
+letterboxed_short_frame_78  (696 eligible, 511 with a search score)
+  chosen  G0:0:21/child                                err 0.06/0.18  paint 0.7354  frag 0.725  bonus 0.04  search 0.965
+  best    G0:0:41/child                                err 0.04/0.19  paint 0.7002  frag 0.719  bonus 0.04  search 0.941   search rank 18
+
+Chosen court's floor error (median/largest) by search weight; templates' search score = 0
+view	w=0.0	w=0.05	w=0.1	w=0.2	w=0.3
+am1_window_00_frame_54	0.08/0.31	0.08/0.31	0.08/0.31	0.08/0.31	0.08/0.31
+am2_window_00_frame_150	0.06/0.32	0.04/0.35*	0.04/0.35*	0.04/0.35*	0.04/0.35*
+am2_window_01_frame_28019	0.07/0.69	0.07/0.69	0.07/0.69	0.07/0.69	0.07/0.69
+am3_window_00_frame_0	0.10/0.26	0.10/0.26	0.10/0.26	0.10/0.26	0.10/0.26
+am3_window_02_frame_17174	0.17/0.59	0.17/0.59	0.17/0.59	0.17/0.59	0.17/0.59
+gxBQ_window_00_frame_0	0.07/0.34	0.07/0.34	0.11/0.97*	0.11/0.97*	0.11/0.97*
+gxBQ_window_00_frame_5	0.07/0.23	0.07/0.23	0.31/1.69*	0.31/1.69*	0.31/1.69*
+gxBQ_window_00_frame_689	0.31/0.58	0.28/1.73*	0.28/1.73*	0.28/1.73*	0.28/1.73*
+gxBQ_window_03_frame_77876	0.22/1.40	0.22/1.40	0.22/1.40	0.24/1.22*	0.24/1.22*
+letterboxed_short_frame_78	0.06/0.18	0.06/0.18	0.06/0.23*	0.06/0.23*	0.06/0.23*
+total	1.21/4.91	1.16/6.09	1.45/8.22	1.47/8.04	1.47/8.04
+
+Chosen court's floor error (median/largest) by search weight; templates' search score = view's lowest shortlisted
+view	w=0.0	w=0.05	w=0.1	w=0.2	w=0.3
+am1_window_00_frame_54	0.08/0.31	0.08/0.31	0.08/0.31	0.08/0.31	0.08/0.31
+am2_window_00_frame_150	0.06/0.32	0.04/0.35*	0.04/0.35*	0.04/0.35*	0.04/0.35*
+am2_window_01_frame_28019	0.07/0.69	0.07/0.69	0.07/0.69	0.07/0.69	0.07/0.69
+am3_window_00_frame_0	0.10/0.26	0.10/0.26	0.10/0.26	0.10/0.26	0.10/0.26
+am3_window_02_frame_17174	0.17/0.59	0.17/0.59	0.17/0.59	0.17/0.59	0.17/0.59
+gxBQ_window_00_frame_0	0.07/0.34	0.07/0.34	0.11/0.97*	0.11/0.97*	0.11/0.97*
+gxBQ_window_00_frame_5	0.07/0.23	0.07/0.23	0.07/0.23	0.31/1.69*	0.31/1.69*
+gxBQ_window_00_frame_689	0.31/0.58	0.28/1.73*	0.28/1.73*	0.28/1.73*	0.28/1.73*
+gxBQ_window_03_frame_77876	0.22/1.40	0.22/1.40	0.22/1.40	0.24/1.22*	0.24/1.22*
+letterboxed_short_frame_78	0.06/0.18	0.06/0.18	0.06/0.23*	0.06/0.23*	0.06/0.23*
+total	1.21/4.91	1.16/6.09	1.20/6.77	1.47/8.04	1.47/8.04
+
+* the pick differs from today's choice

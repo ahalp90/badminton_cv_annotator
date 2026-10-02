@@ -1,0 +1,111 @@
+rebuild check over 10595 shortlist courts in 28 views: largest corner gap 0.0e+00 of the corner's distance from the image origin, largest average gap 0.0e+00, missing courts 0
+
+horizon distance from the image centre, in image widths. With lenses up to 90 degrees wide, a camera
+within 20 degrees of straight down needs at least 1.37, and within 10 degrees at least 2.84
+view	chosen	shortlists' largest	with the filter: built, >= 1.37, >= 2.84, no horizon	without the filter: built, >= 1.37, >= 2.84, no horizon
+am1_window_00_frame_54	-	0.16	124088, 0, 0, 0	1192298, 517550, 376840, 0
+am2_window_00_frame_150	0.10	0.18	243816, 0, 0, 0	1133798, 0, 0, 0
+am2_window_01_frame_28019	0.10	0.18	391691, 0, 0, 0	847491, 0, 0, 0
+am3_window_00_frame_0	0.10	0.10	628368, 0, 0, 0	3309324, 0, 0, 0
+am3_window_02_frame_17174	0.09	0.10	465888, 0, 0, 0	2595596, 0, 0, 0
+gxBQ_window_00_frame_0	0.03	0.03	40560, 0, 0, 0	6079651, 0, 0, 0
+gxBQ_window_00_frame_5	-	0.03	46266, 0, 0, 0	4229490, 0, 0, 0
+gxBQ_window_00_frame_689	-	0.03	29334, 0, 0, 0	6320753, 0, 0, 0
+gxBQ_window_03_frame_77876	0.03	0.22	81190, 0, 0, 0	4794586, 1470904, 0, 0
+letterboxed_short_frame_78	0.32	0.32	194796, 100150, 100150, 0	215666, 115878, 115878, 0
+shuttleset_03_scene_0016	0.48	3.12	1293321, 773088, 773088, 0	3665355, 1757490, 1265378, 0
+shuttleset_03_scene_0017	0.48	1.45	954798, 323278, 239728, 0	4159041, 2248880, 766938, 0
+shuttleset_03_scene_0019	0.47	54.78	1841258, 1160068, 1160068, 0	3324278, 1306644, 1306644, 0
+shuttleset_03_scene_0023	0.47	0.47	743122, 86748, 86748, 0	3395094, 1350142, 902118, 0
+shuttleset_03_scene_0032	0.47	0.47	719422, 210884, 210884, 0	3387337, 1342346, 489672, 0
+shuttleset_03_scene_0034	0.47	15.98	1008713, 626792, 626792, 0	3266051, 1433530, 626792, 0
+shuttleset_21_scene_0034	0.56	0.56	1022666, 0, 0, 0	3148736, 1214988, 1209682, 0
+shuttleset_21_scene_0039	0.55	0.83	927846, 0, 0, 0	2678726, 765402, 636656, 0
+shuttleset_21_scene_0044	0.56	0.56	737194, 0, 0, 0	2109528, 503386, 431576, 0
+sset_21_gloiZ_gTJaE_frame_00000001	0.09	0.16	935545, 98916, 98916, 0	2184821, 486270, 98916, 0
+sset_21_gloiZ_gTJaE_frame_00000300	-	-	0, 0, 0, 0	0, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00009558	-	-	0, 0, 0, 0	0, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00014336	-	6.46	7482, 7482, 7482, 0	14970, 10760, 7944, 0
+sset_21_gloiZ_gTJaE_frame_00023893	-	-	0, 0, 0, 0	0, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00038228	-	0.56	190, 0, 0, 0	324, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00062120	-	-	0, 0, 0, 0	0, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00090790	-	-	0, 0, 0, 0	0, 0, 0, 0
+sset_21_gloiZ_gTJaE_frame_00100347	0.10	0.17	1030, 0, 0, 0	470218, 462040, 303904, 0
+all			12438584, 3387406, 3303856, 0	62523132, 14986210, 8538938, 0
+
+players' implied width, metres (median over the people a court puts on or within 1 m of it)
+view	chosen	shortlists: min, median, max	built	no one near	outside 0.2-3.0 m: built, shortlisted
+am1_window_00_frame_54	-	0.01, 0.11, 0.50	124088	0	108904, 368
+am2_window_00_frame_150	0.64	0.08, 0.59, 2.80	243816	486	36832, 115
+am2_window_01_frame_28019	1.04	0.03, 0.59, 25.56	391691	12	134463, 202
+am3_window_00_frame_0	0.61	0.13, 0.86, 10.27	628368	0	187746, 175
+am3_window_02_frame_17174	1.06	0.09, 0.97, 8.19	465888	4868	197574, 182
+gxBQ_window_00_frame_0	0.63	0.29, 0.62, 1.42	40560	36	2754, 0
+gxBQ_window_00_frame_5	-	0.07, 0.56, 1.87	46266	14	7644, 53
+gxBQ_window_00_frame_689	-	0.21, 0.56, 1.86	29334	0	4286, 0
+gxBQ_window_03_frame_77876	0.59	0.08, 0.55, 6.82	81190	0	33024, 52
+letterboxed_short_frame_78	0.64	0.59, 0.64, 1.34	194796	0	16980, 0
+shuttleset_03_scene_0016	0.62	0.30, 0.62, 1.41	1293321	156026	107628, 0
+shuttleset_03_scene_0017	1.40	0.04, 0.65, 4.00	954798	53644	75984, 58
+shuttleset_03_scene_0019	0.63	0.02, 0.65, 2.47	1841258	94778	91260, 26
+shuttleset_03_scene_0023	0.76	0.32, 0.76, 2.34	743122	79444	77238, 0
+shuttleset_03_scene_0032	0.79	0.25, 0.80, 2.51	719422	64594	53804, 0
+shuttleset_03_scene_0034	0.63	0.02, 0.65, 2.53	1008713	183654	88273, 8
+shuttleset_21_scene_0034	0.69	0.28, 0.70, 1.66	1022666	4626	44688, 0
+shuttleset_21_scene_0039	0.67	0.28, 0.67, 7.96	927846	6660	75214, 4
+shuttleset_21_scene_0044	0.64	0.20, 0.62, 1.21	737194	1156	109434, 0
+sset_21_gloiZ_gTJaE_frame_00000001	0.87	0.23, 0.88, 3.32	935545	51223	232974, 16
+sset_21_gloiZ_gTJaE_frame_00000300	-	-	0	0	0, 0
+sset_21_gloiZ_gTJaE_frame_00009558	-	-	0	0	0, 0
+sset_21_gloiZ_gTJaE_frame_00014336	-	0.54, 4.44, 17.68	7482	0	4842, 142
+sset_21_gloiZ_gTJaE_frame_00023893	-	-	0	0	0, 0
+sset_21_gloiZ_gTJaE_frame_00038228	-	0.60, 2.81, 10.32	190	0	50, 25
+sset_21_gloiZ_gTJaE_frame_00062120	-	-	0	0	0, 0
+sset_21_gloiZ_gTJaE_frame_00090790	-	-	0	0	0, 0
+sset_21_gloiZ_gTJaE_frame_00100347	-	-	1030	1030	0, 0
+
+built courts certainly outside each width range (with the filter, of 12438584; without it, of 62523132)
+fixed, 0.20-3.00 m: 1691596 (13.6%); without the filter 9180572 (14.7%)
+widest range keeping every shortlisted court, 0.01-25.56 m: 780 (0.0%); without the filter 2084 (0.0%)
+widest range keeping chosen and top five, 0.58-3.44 m: 5257254 (42.3%); without the filter 29897820 (47.8%)
+
+deepest rank in its pair, by line-guess average (by build order), of the courts in each role
+view	chosen	top five	shortlist
+am1_window_00_frame_54	-	-	58081 (54986)
+am2_window_00_frame_150	277 (138)	277 (251)	15733 (16784)
+am2_window_01_frame_28019	1 (1)	259 (2953)	19241 (18700)
+am3_window_00_frame_0	33 (172)	688 (1040)	46255 (52700)
+am3_window_02_frame_17174	10 (221)	10286 (6241)	31061 (31342)
+gxBQ_window_00_frame_0	3956 (5054)	5708 (5064)	8075 (8073)
+gxBQ_window_00_frame_5	-	4223 (2654)	4520 (4005)
+gxBQ_window_00_frame_689	-	113 (591)	11279 (11921)
+gxBQ_window_03_frame_77876	18 (3)	31 (43)	16527 (13710)
+letterboxed_short_frame_78	113 (22)	619 (1157)	57618 (69139)
+shuttleset_03_scene_0016	1166 (1333)	1324 (1333)	65941 (65341)
+shuttleset_03_scene_0017	10403 (3857)	10403 (3857)	82114 (81571)
+shuttleset_03_scene_0019	14066 (11600)	14066 (11600)	86635 (84115)
+shuttleset_03_scene_0023	20722 (14895)	20722 (14895)	60199 (59715)
+shuttleset_03_scene_0032	11322 (3628)	65415 (61541)	71279 (72400)
+shuttleset_03_scene_0034	2702 (2006)	2702 (2006)	64847 (65692)
+shuttleset_21_scene_0034	1900 (5969)	1900 (5969)	113937 (101126)
+shuttleset_21_scene_0039	2632 (1481)	12042 (6015)	94430 (97925)
+shuttleset_21_scene_0044	4413 (2040)	73656 (71082)	112368 (109036)
+sset_21_gloiZ_gTJaE_frame_00000001	5 (3)	1925 (3628)	77827 (75713)
+sset_21_gloiZ_gTJaE_frame_00000300	-	-	-
+sset_21_gloiZ_gTJaE_frame_00009558	-	-	-
+sset_21_gloiZ_gTJaE_frame_00014336	-	2758 (3058)	4291 (4108)
+sset_21_gloiZ_gTJaE_frame_00023893	-	-	-
+sset_21_gloiZ_gTJaE_frame_00038228	-	-	91 (91)
+sset_21_gloiZ_gTJaE_frame_00062120	-	-	-
+sset_21_gloiZ_gTJaE_frame_00090790	-	-	-
+sset_21_gloiZ_gTJaE_frame_00100347	320 (410)	320 (410)	425 (423)
+
+views whose courts in each role all fall within the top K by average (by build order), out of views with such courts
+K	chosen	top five	shortlist
+256	6 (7) of 18	2 (2) of 21	1 (1) of 23
+512	8 (8) of 18	5 (3) of 21	2 (2) of 23
+1024	8 (8) of 18	7 (4) of 21	2 (2) of 23
+2048	10 (12) of 18	10 (8) of 21	2 (2) of 23
+4096	13 (14) of 18	12 (13) of 21	2 (3) of 23
+8192	14 (16) of 18	14 (17) of 21	5 (5) of 23
+deepest	20722 (14895)	73656 (71082)	113937 (109036)

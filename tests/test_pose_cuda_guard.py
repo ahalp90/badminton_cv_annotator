@@ -6,7 +6,7 @@ roughly 10x slower. The adapter's __init__ checks each tool's engaged providers
 after ``device='cuda'`` and raises rather than ship a silent slowdown into a
 whole-video pass.
 
-Needs the real ``preparing_data.rtmlib_pose``, which imports rtmlib +
+Needs the real ``shared.rtmlib_pose``, which imports rtmlib +
 onnxruntime at module load; CI has neither, so importorskip skips the whole
 module there. Where it does import, we monkeypatch the module-level
 ``RTMDetScored`` / ``RTMPose`` with fakes exposing only ``.session.get_providers()``
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-rtmlib_pose = pytest.importorskip("preparing_data.rtmlib_pose")
+rtmlib_pose = pytest.importorskip("shared.rtmlib_pose")
 
 
 class _FakeSession:

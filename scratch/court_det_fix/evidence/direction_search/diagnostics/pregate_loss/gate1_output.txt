@@ -1,0 +1,19 @@
+gxBQ_window_00_frame_0 arm M: new run pregate_20260915_115949 vs saved direction_agreement_20260915_144900
+  PASS pair count 240 vs 240
+  PASS every pair status 240 of 240 equal
+  PASS every shortlist candidate_id list in order 134 of 134 matched pairs equal
+  PASS every shortlist corners_px 134 of 134 matched pairs exactly equal; largest absolute gap 0.000e+00 px
+  PASS final entries candidate IDs 256 vs 256 entries
+  PASS line_winner_id 106:1732 vs 106:1732
+  PASS paint_winner_id 211:19062 vs 211:19062
+  PASS pooled_candidates 29696 vs 29696
+am3_window_00_frame_0 arm R: new run pregate_20260915_115949 vs saved direction_agreement_20260915_144900
+  PASS pair count 240 vs 240
+  PASS every pair status 240 of 240 equal
+  PASS every shortlist candidate_id list in order 100 of 100 matched pairs equal
+  PASS every shortlist corners_px 100 of 100 matched pairs exactly equal; largest absolute gap 0.000e+00 px
+  PASS final entries candidate IDs 256 vs 256 entries
+  PASS line_winner_id 32:2640 vs 32:2640
+  PASS paint_winner_id 43:13964 vs 43:13964
+  PASS pooled_candidates 22593 vs 22593
+GATE 1 PASS

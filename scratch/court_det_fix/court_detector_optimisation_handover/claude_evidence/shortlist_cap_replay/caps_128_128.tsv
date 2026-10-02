@@ -1,0 +1,30 @@
+view	chosen	chosen_parent_ranks	same	parents_before	parents_after	best_cut_place	best_cut_gap	best_cut_ranks	best_cut_px	without_winner_parent_px	notes
+am1_window_00_frame_54	line_template:rectangle_98207:template_12/child	line_template#7	True	768	512	84	0.3003	G1#253	2452.1	30.9	
+am2_window_00_frame_150	G1:30:137/child	G1#107	True	767	512	9	0.0155	G1#211	16.1	17.4	
+am2_window_01_frame_28019	G1:15:0/child	G1#34	True	764	508	3	0.0067	G1#152	43.4	12.4	
+am3_window_00_frame_0	G1:43:171/child	G1#30	True	768	512	2	0.0087	G1#241	7.6	22.7	
+am3_window_02_frame_17174	G1:30:220/child	G1#14	True	761	505	2	0.0115	G1#140	17.7	12.1	
+gxBQ_window_00_frame_0	G0:22:5046/child	G0#96	True	768	512	3	0.0116	G1#198	21.0	21.3	
+gxBQ_window_00_frame_5	line_template:rectangle_85795:template_72/child	line_template#98	True	768	512	7	0.1909	G0#165	1114.1	28.8	
+gxBQ_window_00_frame_689	line_template:rectangle_59439:template_10/child	line_template#206	True	768	512	2	0.0058	G1#129	20.2	20.5	
+gxBQ_window_03_frame_77876	line_template:rectangle_73390:template_72/child	line_template#242	True	768	512	5	0.0142	G1#221	19.0	11.5	
+letterboxed_short_frame_78	G0:0:21/child	G0#4	True	520	392	44	0.0482	G0#220	9.1	34.0	
+shuttleset_03_scene_0016	G0:1:4532	G0#5 G1#16	True	736	482	62	0.1177	G1#132	5.1	2.3	
+shuttleset_03_scene_0017	G1:1:3856	G1#3	True	762	510	108	0.4213	G1#177	336.0	5.1	
+shuttleset_03_scene_0019	G1:1:11599/child	G1#25	True	768	512	190	0.3605	G1#142	716.0	1.0	
+shuttleset_03_scene_0023	G1:1:14894/child	G1#41	True	702	460	150	0.3694	G1#176	584.3	1.3	
+shuttleset_03_scene_0032	G1:1:3627/child	G1#7	True	728	476	34	0.0786	G1#182	9.0	2.0	
+shuttleset_03_scene_0034	G1:1:2005	G1#5	True	761	509	50	0.3002	G1#256	138.3	3.4	
+shuttleset_21_scene_0034	G0:1:63649/child	G0#10 G1#11	True	701	460	31	0.0918	G1#144	6.9	3.6	
+shuttleset_21_scene_0039	G1:1:1480/child	G1#24	True	750	507	25	0.0587	G1#145	3.3	3.0	
+shuttleset_21_scene_0044	G0:1:2039/child	G0#1	True	768	512	178	0.3724	G1#135	437.0	3.1	
+sset_21_gloiZ_gTJaE_frame_00000001	G0:180:580/child	G0#76 G1#138	True	731	495	11	0.0489	G1#204	11.9	13.7	
+sset_21_gloiZ_gTJaE_frame_00000300	-	-	True	256	256	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00009558	-	-	True	256	256	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00014336	G1:16:8	G1#80	True	685	512	4	0.0200	G1#135	2358.7	534.7	
+sset_21_gloiZ_gTJaE_frame_00023893	-	-	True	256	256	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00038228	-	-	True	418	384	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00062120	-	-	True	256	256	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00090790	-	-	True	256	256	-	-	-	-	-	
+sset_21_gloiZ_gTJaE_frame_00100347	G0:47:12538/child	G0#38	True	531	403	2	0.0060	G0#233	286.5	528.2	
+# caps {'G0': 128, 'G1': 128}: parents 17741 -> 12491 (70.4% kept)

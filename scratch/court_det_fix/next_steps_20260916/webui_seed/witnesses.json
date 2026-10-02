@@ -1,0 +1,562 @@
+{
+  "schema": "c2-two-decisive-traces/1",
+  "git_commit_at_check": "d92979bcffee197e0748118ad452093b27a453d4",
+  "matcher_settings": {
+    "angle_deg": 1.5,
+    "minimum_matches": 3,
+    "keep_axes": 512,
+    "batch": 256
+  },
+  "producer_versions": {
+    "projective_seed.py": {
+      "path": "scratch/court_det_fix/frozen_helpers_20260914/axis_matching/projective_seed.py",
+      "md5": "4cdb8e863318d5a8982a56f68005a1dc"
+    },
+    "axis_replay.py": {
+      "path": "scratch/court_det_fix/line_identity/axis_replay.py",
+      "md5": "298fea2247a08bce69b6f6a3ee9bcdd7"
+    },
+    "filter_replay.py": {
+      "path": "scratch/court_det_fix/line_identity/filter_replay.py",
+      "md5": "8bd356d4b66f43a4b7bb18312ff815ca"
+    },
+    "run_automatic.py": {
+      "path": "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/pregate_loss/remote_src/run_automatic.py",
+      "md5": "bd4bf47184445ae4849b17a151967826"
+    },
+    "run_given.py": {
+      "path": "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/pregate_loss/remote_src/run_given.py",
+      "md5": "5c98d2f7ff2a5abd6acb398d88012cd5"
+    }
+  },
+  "check_a": {
+    "case_id": "gxBQ_window_00_frame_0",
+    "control": {
+      "case_id": "gxBQ_window_00_frame_0",
+      "source": "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e3/gxBQ_window_00_frame_0.json.gz",
+      "source_record": "automatic_axes_20260914/gx0_control/bank_diagnosis.json.gz",
+      "source_record_md5": "73c2dac4c9be80198f37ac058a3750cf",
+      "control_source": "visually_approved_GX0_supplied_direction_line_winner_89",
+      "visually_approved": true,
+      "working_size": [
+        960,
+        540
+      ],
+      "native_size": [
+        1920,
+        1080
+      ],
+      "corners_working_px": [
+        [
+          70.69372861108405,
+          283.57787950035794
+        ],
+        [
+          306.3781251404358,
+          271.3518963191221
+        ],
+        [
+          782.8601501441515,
+          328.04844017786434
+        ],
+        [
+          486.30823431447186,
+          580.5813112824602
+        ]
+      ],
+      "corners_native_px": [
+        [
+          141.3874572221681,
+          567.1557590007159
+        ],
+        [
+          612.7562502808717,
+          542.7037926382442
+        ],
+        [
+          1565.720300288303,
+          656.0968803557287
+        ],
+        [
+          972.6164686289437,
+          1161.1626225649204
+        ]
+      ]
+    },
+    "rows": [
+      {
+        "arm": "B",
+        "stage": "baseline_generation",
+        "pair_id": 143,
+        "working_size": [
+          960,
+          540
+        ],
+        "native_size": [
+          1920,
+          1080
+        ],
+        "record_path": "scratch/court_det_fix/frozen_views/baseline_generation/gxBQ_window_00_frame_0.json.gz",
+        "record_md5": "654f7003d7f48c7e0351d2f418bdbdea",
+        "input_path": "scratch/court_det_fix/frozen_views/packs/gx_extension_inputs.json.gz",
+        "input_md5": "45bea3597cece373f2653da17c38e8d7",
+        "axis_replay_gate": [
+          {
+            "axis": "horizontal",
+            "retained_order_match": true,
+            "retained_id_set_match": true,
+            "parameters_match_by_id": true,
+            "enumerated_and_distinct_counts_match": true
+          },
+          {
+            "axis": "vertical",
+            "retained_order_match": true,
+            "retained_id_set_match": true,
+            "parameters_match_by_id": true,
+            "enumerated_and_distinct_counts_match": true
+          }
+        ],
+        "proxy": {
+          "population": "512 kept horizontal x 512 kept vertical products for this pair",
+          "pair_id": 143,
+          "candidate_id": null,
+          "axis_ids": [
+            2135,
+            6223
+          ],
+          "axis_identity_source": "replayed distinct assignments, retained in score order",
+          "control_error_px": 34.326758323949285,
+          "corners_working_px": [
+            [
+              72.4487502920217,
+              281.9126986699941
+            ],
+            [
+              320.57113583306773,
+              270.2924466100478
+            ],
+            [
+              784.0199661193129,
+              326.2729838421638
+            ],
+            [
+              460.79979377470045,
+              603.551853249505
+            ]
+          ],
+          "horizontal_score": 0.6847621297018865,
+          "vertical_score": 0.5965355643188478,
+          "saved_pair_shortlist_entry": false
+        },
+        "full_pool": {
+          "population": "all matched per-pair shortlists before the global cap",
+          "matched_pairs": 140,
+          "pairs_with_shortlist": 133,
+          "candidate_count": 30001,
+          "pair_id": 22,
+          "candidate_id": "22:4588",
+          "axis_ids": [
+            2072,
+            3064
+          ],
+          "rotated_180": false,
+          "axis_score": 0.5849987201574507,
+          "shortlist_score": 0.47924091489138926,
+          "control_error_px": 7.662057046439755,
+          "corners_working_px": [
+            [
+              76.90663691428529,
+              280.7410916760455
+            ],
+            [
+              310.4048674770492,
+              269.01828123194036
+            ],
+            [
+              787.8922066706722,
+              326.62025670453295
+            ],
+            [
+              478.9836065190659,
+              582.8300766863349
+            ]
+          ],
+          "corners_native_px": [
+            [
+              153.81327382857057,
+              561.482183352091
+            ],
+            [
+              620.8097349540984,
+              538.0365624638807
+            ],
+            [
+              1575.7844133413444,
+              653.2405134090659
+            ],
+            [
+              957.9672130381318,
+              1165.6601533726698
+            ]
+          ]
+        }
+      },
+      {
+        "arm": "paint_observations",
+        "stage": "results",
+        "pair_id": 143,
+        "working_size": [
+          960,
+          540
+        ],
+        "native_size": [
+          1920,
+          1080
+        ],
+        "record_path": "scratch/court_det_fix/line_identity/runs/line_identity_20260915_222437/matcher/paint_observations/results/gxBQ_window_00_frame_0.json.gz",
+        "record_md5": "e74c43372e13d76acda8acca95b3697b",
+        "input_path": "scratch/court_det_fix/line_identity/inputs/paint_observations/cases/gxBQ_window_00_frame_0.json.gz",
+        "input_md5": "7ddc8b1aff8a91c0f82b917f8e909d0b",
+        "axis_replay_gate": [
+          {
+            "axis": "horizontal",
+            "retained_order_match": false,
+            "retained_id_set_match": true,
+            "parameters_match_by_id": true,
+            "enumerated_and_distinct_counts_match": true
+          },
+          {
+            "axis": "vertical",
+            "retained_order_match": true,
+            "retained_id_set_match": true,
+            "parameters_match_by_id": true,
+            "enumerated_and_distinct_counts_match": true
+          }
+        ],
+        "proxy": {
+          "population": "512 kept horizontal x 512 kept vertical products for this pair",
+          "pair_id": 143,
+          "candidate_id": "143:228",
+          "axis_ids": [
+            530,
+            1274
+          ],
+          "axis_identity_source": "replayed distinct assignments, retained in score order",
+          "control_error_px": 12.57745603469657,
+          "corners_working_px": [
+            [
+              82.21290608956934,
+              284.7278046452777
+            ],
+            [
+              318.12396786180034,
+              272.71153911586117
+            ],
+            [
+              773.510306179229,
+              331.77850683528237
+            ],
+            [
+              473.8354356986591,
+              578.962146376064
+            ]
+          ],
+          "horizontal_score": 0.31229999777458306,
+          "vertical_score": 0.4262593381882371,
+          "saved_pair_shortlist_entry": true,
+          "saved_candidate": {
+            "candidate_id": "143:228",
+            "axis_score": 0.369279667981408,
+            "shortlist_score": 0.2765986678529192,
+            "rotated_180": false
+          }
+        },
+        "full_pool": {
+          "population": "all matched per-pair shortlists before the global cap",
+          "matched_pairs": 140,
+          "pairs_with_shortlist": 84,
+          "candidate_count": 19763,
+          "pair_id": 22,
+          "candidate_id": "22:232",
+          "axis_ids": [
+            113,
+            1664
+          ],
+          "rotated_180": false,
+          "axis_score": 0.3222504777207204,
+          "shortlist_score": 0.26177036998753084,
+          "control_error_px": 9.035950374380407,
+          "corners_working_px": [
+            [
+              79.69945100809032,
+              282.83939234655963
+            ],
+            [
+              306.596768349427,
+              270.8231524782502
+            ],
+            [
+              781.6439259274487,
+              331.80260152637106
+            ],
+            [
+              478.98360651906546,
+              582.8300766863343
+            ]
+          ],
+          "corners_native_px": [
+            [
+              159.39890201618064,
+              565.6787846931193
+            ],
+            [
+              613.193536698854,
+              541.6463049565004
+            ],
+            [
+              1563.2878518548973,
+              663.6052030527421
+            ],
+            [
+              957.9672130381309,
+              1165.6601533726687
+            ]
+          ]
+        }
+      }
+    ],
+    "direction_of_change": {
+      "one_pair_proxy": "improves",
+      "one_pair_proxy_delta_px": -21.749302289252714,
+      "full_pre_global_pool": "worsens",
+      "full_pre_global_pool_delta_px": 1.3738933279406522
+    },
+    "population_note": "The proxy is pair 143's 512-by-512 kept-axis product. The full-pool row scans every matched pair's saved per-pair shortlist before the global cap."
+  },
+  "check_b": {
+    "trace": [
+      {
+        "label": "closest eligible enumerated",
+        "axis": "horizontal",
+        "axis_id": 29686,
+        "enumeration_id": 29686,
+        "parameters": [
+          0.2906439518217148,
+          0.17954469715399546
+        ],
+        "anchors": [
+          197,
+          19,
+          1,
+          4
+        ],
+        "assignment_tuple": [
+          7,
+          197,
+          32,
+          3,
+          19
+        ],
+        "assignment_key": "7,197,32,3,19",
+        "score": 0.6579144844236781,
+        "support_count": 5,
+        "player_compatible": true,
+        "supported_and_players": true,
+        "control_error_px": 4.278292785177043,
+        "eligible_score_rank_0_based": 18256,
+        "distinct_score_rank_0_based": null,
+        "kept_score_rank_0_based": null,
+        "rank_definition": "descending score order; ranks are zero-based"
+      },
+      {
+        "label": "representative of closest eligible assignment",
+        "axis": "horizontal",
+        "axis_id": 29665,
+        "enumeration_id": 29665,
+        "parameters": [
+          0.29649577053989423,
+          0.17685286049480156
+        ],
+        "anchors": [
+          197,
+          3,
+          1,
+          3
+        ],
+        "assignment_tuple": [
+          7,
+          197,
+          32,
+          3,
+          19
+        ],
+        "assignment_key": "7,197,32,3,19",
+        "score": 0.7844496413380176,
+        "support_count": 5,
+        "player_compatible": true,
+        "supported_and_players": true,
+        "control_error_px": 8.54048938896365,
+        "eligible_score_rank_0_based": 6798,
+        "distinct_score_rank_0_based": 1936,
+        "kept_score_rank_0_based": null,
+        "rank_definition": "descending score order; ranks are zero-based"
+      },
+      {
+        "label": "closest distinct assignment",
+        "axis": "horizontal",
+        "axis_id": 30886,
+        "enumeration_id": 30886,
+        "parameters": [
+          0.28933039657502335,
+          0.1875573840335432
+        ],
+        "anchors": [
+          10,
+          19,
+          1,
+          4
+        ],
+        "assignment_tuple": [
+          6,
+          10,
+          32,
+          3,
+          19
+        ],
+        "assignment_key": "6,10,32,3,19",
+        "score": 0.5810709477473055,
+        "support_count": 5,
+        "player_compatible": true,
+        "supported_and_players": true,
+        "control_error_px": 6.240893270774599,
+        "eligible_score_rank_0_based": 27748,
+        "distinct_score_rank_0_based": 11518,
+        "kept_score_rank_0_based": null,
+        "rank_definition": "descending score order; ranks are zero-based"
+      },
+      {
+        "label": "closest kept assignment",
+        "axis": "horizontal",
+        "axis_id": 18981,
+        "enumeration_id": 18981,
+        "parameters": [
+          0.2547861696060678,
+          0.18146933228932985
+        ],
+        "anchors": [
+          7,
+          41,
+          0,
+          2
+        ],
+        "assignment_tuple": [
+          7,
+          132,
+          41,
+          254,
+          172
+        ],
+        "assignment_key": "7,132,41,254,172",
+        "score": 0.9270519806922565,
+        "support_count": 5,
+        "player_compatible": true,
+        "supported_and_players": true,
+        "control_error_px": 49.64724226225529,
+        "eligible_score_rank_0_based": 914,
+        "distinct_score_rank_0_based": 228,
+        "kept_score_rank_0_based": 228,
+        "rank_definition": "descending score order; ranks are zero-based"
+      }
+    ],
+    "identity_checks": {
+      "closest_eligible_assignment_equals_representative": true,
+      "representative_score_is_not_lower": true,
+      "representative_is_distinct": true,
+      "closest_eligible_is_distinct": false,
+      "representative_equals_closest_distinct": false
+    },
+    "first_512_replay_check": {
+      "record_entries": 512,
+      "ids_and_parameters_match_saved_record": true,
+      "diagnostics_match_saved_record": true,
+      "cap": 512
+    },
+    "source": {
+      "record_path": "scratch/court_det_fix/worklog/webui_evaluation_returns_15092026/CLAUDE_FOLLOWUPS/pregate_loss/records/new/R/results/am3_window_00_frame_0.json.gz",
+      "record_md5": "dabcb61c2c38dd1384dfe3d111bdd7a4",
+      "input_path": "scratch/court_det_fix/frozen_views/packs/marking_refit_inputs.json.gz",
+      "input_md5": "82c710ce0c8c082cdfd3aeecb4d5f144",
+      "producer": "frozen projective_seed.match_axis with R pair 43 basis and saved direction-fit homography"
+    },
+    "working_size": [
+      960,
+      540
+    ],
+    "native_size": [
+      1920,
+      1080
+    ],
+    "control": {
+      "case_id": "am3_window_00_frame_0",
+      "source": "scratch/court_det_fix/direction_agreement/runs/direction_agreement_20260915_144900/e3/am3_window_00_frame_0.json.gz",
+      "source_record": "axis_matching_20260914/given_finite/am3_window_00_frame_0.json.gz",
+      "source_record_md5": "034e49341f31ef581866439fe4ec6a56",
+      "control_source": "manual_reference_directions_only",
+      "visually_approved": false,
+      "working_size": [
+        960,
+        540
+      ],
+      "native_size": [
+        1920,
+        1080
+      ],
+      "corners_working_px": [
+        [
+          33.5,
+          236.25
+        ],
+        [
+          360.7499995408964,
+          235.000000713318
+        ],
+        [
+          1078.5853471821258,
+          381.06070142047867
+        ],
+        [
+          263.5023418282925,
+          573.5548045838001
+        ]
+      ],
+      "corners_native_px": [
+        [
+          67.0,
+          472.5
+        ],
+        [
+          721.4999990817928,
+          470.000001426636
+        ],
+        [
+          2157.1706943642516,
+          762.1214028409573
+        ],
+        [
+          527.004683656585,
+          1147.1096091676002
+        ]
+      ]
+    },
+    "direction_fit_px": 4.26856811534872,
+    "rank_definition": "eligible rows are sorted by descending score before duplicate removal; distinct ranks are the resulting survivor order; kept ranks are the first 512 distinct rows"
+  },
+  "ranking_panel": {
+    "path": "ranking_panel.json",
+    "counts": {
+      "automatic_winners": 17,
+      "observed_bank_controls": 2,
+      "comparators": 1
+    }
+  }
+}

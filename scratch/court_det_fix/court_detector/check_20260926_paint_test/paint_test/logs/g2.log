@@ -1,0 +1,250 @@
+decoded <run root>/paint_geometry_20260909/gx_extension/videos/gxBQ_HwdgN4.mp4 to frame 779 in 3s
+decoded <run root>/player_guided_20260908/videos/am3_h264.mp4 to frame 17219 in 94s
+decoded <run root>/player_guided_20260908/videos/am2_h264.mp4 to frame 28109 in 138s
+gxBQ_window_00_frame_689 pair 17 [1, 3] combined 262144 players 5772 retained 256 seconds 1.242281462997198
+gxBQ_window_00_frame_689 pair 20 [1, 6] combined 16384 players 0 retained 0 seconds 0.17718822602182627
+gxBQ_window_00_frame_689 pair 21 [1, 7] combined 262144 players 570 retained 249 seconds 0.9824962778948247
+gxBQ_window_00_frame_689 pair 23 [1, 9] combined 207872 players 0 retained 0 seconds 0.7590096890926361
+gxBQ_window_00_frame_689 pair 46 [3, 1] combined 262144 players 974 retained 256 seconds 1.0023610279895365
+gxBQ_window_00_frame_689 pair 52 [3, 8] combined 262144 players 3664 retained 256 seconds 1.060312556102872
+gxBQ_window_00_frame_689 pair 55 [3, 11] combined 45056 players 0 retained 0 seconds 0.25684963911771774
+gxBQ_window_00_frame_689 pair 91 [6, 1] combined 3072 players 28 retained 14 seconds 0.16555409226566553
+gxBQ_window_00_frame_689 pair 97 [6, 8] combined 3072 players 24 retained 12 seconds 0.11435645772144198
+gxBQ_window_00_frame_689 pair 100 [6, 11] combined 344 players 0 retained 0 seconds 0.010884605813771486
+gxBQ_window_00_frame_689 pair 106 [7, 1] combined 262144 players 84 retained 30 seconds 0.9176585478708148
+gxBQ_window_00_frame_689 pair 112 [7, 8] combined 262144 players 662 retained 256 seconds 0.9086257303133607
+gxBQ_window_00_frame_689 pair 115 [7, 11] combined 46080 players 186 retained 93 seconds 0.19735060818493366
+gxBQ_window_00_frame_689 pair 123 [8, 3] combined 262144 players 13418 retained 256 seconds 1.3478664313443005
+gxBQ_window_00_frame_689 pair 126 [8, 6] combined 12288 players 0 retained 0 seconds 0.11572506185621023
+gxBQ_window_00_frame_689 pair 127 [8, 7] combined 262144 players 1526 retained 256 seconds 0.9454441289417446
+gxBQ_window_00_frame_689 pair 128 [8, 9] combined 208896 players 0 retained 0 seconds 0.7605190640315413
+gxBQ_window_00_frame_689 pair 136 [9, 1] combined 262144 players 0 retained 0 seconds 0.8794779819436371
+gxBQ_window_00_frame_689 pair 143 [9, 8] combined 257024 players 0 retained 0 seconds 0.8237677630968392
+gxBQ_window_00_frame_689 pair 145 [9, 11] combined 15912 players 0 retained 0 seconds 0.06941533461213112
+gxBQ_window_00_frame_689 pair 168 [11, 3] combined 28672 players 0 retained 0 seconds 0.14138908311724663
+gxBQ_window_00_frame_689 pair 171 [11, 6] combined 1728 players 0 retained 0 seconds 0.015005042776465416
+gxBQ_window_00_frame_689 pair 172 [11, 7] combined 22528 players 0 retained 0 seconds 0.0887959711253643
+gxBQ_window_00_frame_689 pair 174 [11, 9] combined 12880 players 0 retained 0 seconds 0.05495786480605602
+gxBQ_window_00_frame_689 pair 17 [1, 3] combined 26796 players 806 retained 256 seconds 0.19004275277256966
+gxBQ_window_00_frame_689 pair 20 [1, 6] combined 0 players 0 retained 0 seconds 0.03485829383134842
+gxBQ_window_00_frame_689 pair 21 [1, 7] combined 3860 players 0 retained 0 seconds 0.04491933388635516
+gxBQ_window_00_frame_689 pair 23 [1, 9] combined 17272 players 0 retained 0 seconds 0.08544114232063293
+gxBQ_window_00_frame_689 pair 46 [3, 1] combined 25600 players 114 retained 56 seconds 0.14257555780932307
+gxBQ_window_00_frame_689 pair 52 [3, 8] combined 16384 players 636 retained 256 seconds 0.14480097917839885
+gxBQ_window_00_frame_689 pair 55 [3, 11] combined 0 players 0 retained 0 seconds 0.009705617092549801
+gxBQ_window_00_frame_689 pair 91 [6, 1] combined 0 players 0 retained 0 seconds 0.030307495966553688
+gxBQ_window_00_frame_689 pair 97 [6, 8] combined 0 players 0 retained 0 seconds 0.02582678012549877
+gxBQ_window_00_frame_689 pair 100 [6, 11] combined 0 players 0 retained 0 seconds 0.0028119180351495743
+gxBQ_window_00_frame_689 pair 106 [7, 1] combined 5120 players 0 retained 0 seconds 0.04184384783729911
+gxBQ_window_00_frame_689 pair 112 [7, 8] combined 2048 players 0 retained 0 seconds 0.029045998118817806
+gxBQ_window_00_frame_689 pair 115 [7, 11] combined 0 players 0 retained 0 seconds 0.0037657907232642174
+gxBQ_window_00_frame_689 pair 123 [8, 3] combined 16000 players 870 retained 256 seconds 0.158266375772655
+gxBQ_window_00_frame_689 pair 126 [8, 6] combined 0 players 0 retained 0 seconds 0.029757586773484945
+gxBQ_window_00_frame_689 pair 127 [8, 7] combined 2860 players 0 retained 0 seconds 0.0375608061440289
+gxBQ_window_00_frame_689 pair 128 [8, 9] combined 22500 players 0 retained 0 seconds 0.15945422928780317
+gxBQ_window_00_frame_689 pair 136 [9, 1] combined 31744 players 0 retained 0 seconds 0.11456464743241668
+gxBQ_window_00_frame_689 pair 143 [9, 8] combined 20592 players 0 retained 0 seconds 0.0805727238766849
+gxBQ_window_00_frame_689 pair 145 [9, 11] combined 120 players 0 retained 0 seconds 0.006642343942075968
+gxBQ_window_00_frame_689 pair 168 [11, 3] combined 0 players 0 retained 0 seconds 0.007713878061622381
+gxBQ_window_00_frame_689 pair 171 [11, 6] combined 0 players 0 retained 0 seconds 0.0029100188985466957
+gxBQ_window_00_frame_689 pair 172 [11, 7] combined 0 players 0 retained 0 seconds 0.0034025153145194054
+gxBQ_window_00_frame_689 pair 174 [11, 9] combined 280 players 0 retained 0 seconds 0.006064740940928459
+[gxBQ_window_00_frame_689] line-template: preparing rectangles
+[gxBQ_window_00_frame_689] measuring 761 parents (G0=256, G1=256, line_template=256; conflicting geometry groups=0)
+[gxBQ_window_00_frame_689] parents 250/761
+[gxBQ_window_00_frame_689] parents 500/761
+[gxBQ_window_00_frame_689] parents 750/761
+[gxBQ_window_00_frame_689] refitting 761 parents
+[gxBQ_window_00_frame_689] refits 250/761; valid children=246
+[gxBQ_window_00_frame_689] refits 500/761; valid children=493
+[gxBQ_window_00_frame_689] refits 750/761; valid children=703
+{"view_id": "gxBQ_window_00_frame_689", "chosen_key": "G0:123:615/child", "no_court_reason": null, "all_checks_equal": null, "error": null}
+am3_window_02_frame_17174 pair 1 [0, 2] combined 262144 players 34724 retained 256 seconds 2.9734163461253047
+am3_window_02_frame_17174 pair 10 [0, 11] combined 81920 players 9254 retained 256 seconds 1.67399923177436
+am3_window_02_frame_17174 pair 11 [0, 12] combined 86016 players 4166 retained 256 seconds 1.4365741107612848
+am3_window_02_frame_17174 pair 30 [2, 0] combined 262144 players 8704 retained 256 seconds 2.130742723122239
+am3_window_02_frame_17174 pair 32 [2, 3] combined 262144 players 54820 retained 256 seconds 2.7285318123176694
+am3_window_02_frame_17174 pair 33 [2, 4] combined 262144 players 964 retained 256 seconds 1.0195209817029536
+am3_window_02_frame_17174 pair 34 [2, 5] combined 133120 players 0 retained 0 seconds 0.4938012482598424
+am3_window_02_frame_17174 pair 36 [2, 7] combined 26624 players 0 retained 0 seconds 0.18811873300001025
+am3_window_02_frame_17174 pair 39 [2, 10] combined 5120 players 0 retained 0 seconds 0.13299096887931228
+am3_window_02_frame_17174 pair 43 [2, 14] combined 262144 players 20636 retained 256 seconds 2.430921196937561
+am3_window_02_frame_17174 pair 44 [2, 15] combined 262144 players 26416 retained 256 seconds 2.3237537718378007
+am3_window_02_frame_17174 pair 47 [3, 2] combined 262144 players 57092 retained 256 seconds 2.873243401758373
+am3_window_02_frame_17174 pair 50 [3, 6] combined 24576 players 2710 retained 256 seconds 0.3335727108642459
+am3_window_02_frame_17174 pair 55 [3, 11] combined 52224 players 6044 retained 256 seconds 0.5095895943231881
+am3_window_02_frame_17174 pair 56 [3, 12] combined 103424 players 6018 retained 256 seconds 0.7333945790305734
+am3_window_02_frame_17174 pair 62 [4, 2] combined 262144 players 540 retained 231 seconds 0.97807652130723
+am3_window_02_frame_17174 pair 70 [4, 11] combined 39936 players 44 retained 22 seconds 0.22924153367057443
+am3_window_02_frame_17174 pair 71 [4, 12] combined 62464 players 1706 retained 256 seconds 0.3748114141635597
+am3_window_02_frame_17174 pair 77 [5, 2] combined 105472 players 82 retained 41 seconds 0.4228725372813642
+am3_window_02_frame_17174 pair 85 [5, 11] combined 71604 players 78 retained 39 seconds 0.2543765897862613
+am3_window_02_frame_17174 pair 86 [5, 12] combined 43428 players 1246 retained 256 seconds 0.24486548407003284
+am3_window_02_frame_17174 pair 93 [6, 3] combined 18432 players 38 retained 19 seconds 0.16637553879991174
+am3_window_02_frame_17174 pair 107 [7, 2] combined 34816 players 20 retained 12 seconds 0.2231175098568201
+am3_window_02_frame_17174 pair 152 [10, 2] combined 10240 players 0 retained 0 seconds 0.11389510985463858
+am3_window_02_frame_17174 pair 165 [11, 0] combined 79872 players 9846 retained 256 seconds 1.5172601458616555
+am3_window_02_frame_17174 pair 168 [11, 3] combined 50176 players 8988 retained 256 seconds 0.6376265622675419
+am3_window_02_frame_17174 pair 169 [11, 4] combined 50176 players 0 retained 0 seconds 0.2110903998836875
+am3_window_02_frame_17174 pair 170 [11, 5] combined 55648 players 0 retained 0 seconds 0.17493444168940187
+am3_window_02_frame_17174 pair 178 [11, 14] combined 64512 players 8488 retained 256 seconds 1.283968479372561
+am3_window_02_frame_17174 pair 179 [11, 15] combined 63488 players 8388 retained 256 seconds 1.0522433905862272
+am3_window_02_frame_17174 pair 180 [12, 0] combined 29696 players 712 retained 256 seconds 1.0520575791597366
+am3_window_02_frame_17174 pair 183 [12, 3] combined 11264 players 1076 retained 256 seconds 0.2012125113978982
+am3_window_02_frame_17174 pair 184 [12, 4] combined 55296 players 1134 retained 256 seconds 0.314019369892776
+am3_window_02_frame_17174 pair 185 [12, 5] combined 35000 players 678 retained 256 seconds 0.20421723695471883
+am3_window_02_frame_17174 pair 193 [12, 14] combined 29696 players 774 retained 256 seconds 0.9760809130966663
+am3_window_02_frame_17174 pair 194 [12, 15] combined 29696 players 726 retained 256 seconds 0.736031633336097
+am3_window_02_frame_17174 pair 212 [14, 2] combined 262144 players 25420 retained 256 seconds 2.6396343731321394
+am3_window_02_frame_17174 pair 221 [14, 11] combined 72704 players 7400 retained 256 seconds 1.5506797600537539
+am3_window_02_frame_17174 pair 222 [14, 12] combined 78848 players 3806 retained 256 seconds 1.268643484916538
+am3_window_02_frame_17174 pair 227 [15, 2] combined 262144 players 21850 retained 256 seconds 2.290287720039487
+am3_window_02_frame_17174 pair 236 [15, 11] combined 73728 players 9602 retained 256 seconds 1.4848169800825417
+am3_window_02_frame_17174 pair 237 [15, 12] combined 89088 players 3672 retained 256 seconds 1.1778048011474311
+am3_window_02_frame_17174 pair 1 [0, 2] combined 124928 players 9706 retained 256 seconds 0.7424148470163345
+am3_window_02_frame_17174 pair 10 [0, 11] combined 7392 players 126 retained 63 seconds 0.0804557059891522
+am3_window_02_frame_17174 pair 11 [0, 12] combined 400 players 0 retained 0 seconds 0.023171566892415285
+am3_window_02_frame_17174 pair 30 [2, 0] combined 179452 players 21218 retained 256 seconds 1.2726077549159527
+am3_window_02_frame_17174 pair 32 [2, 3] combined 0 players 0 retained 0 seconds 0.038233499974012375
+am3_window_02_frame_17174 pair 33 [2, 4] combined 76800 players 40 retained 20 seconds 0.2786066220141947
+am3_window_02_frame_17174 pair 34 [2, 5] combined 3040 players 0 retained 0 seconds 0.04035565908998251
+am3_window_02_frame_17174 pair 36 [2, 7] combined 0 players 0 retained 0 seconds 0.03248483268544078
+am3_window_02_frame_17174 pair 39 [2, 10] combined 0 players 0 retained 0 seconds 0.030056248884648085
+am3_window_02_frame_17174 pair 43 [2, 14] combined 205824 players 25274 retained 256 seconds 1.6161776958033442
+am3_window_02_frame_17174 pair 44 [2, 15] combined 146248 players 16588 retained 256 seconds 1.0019086371175945
+am3_window_02_frame_17174 pair 47 [3, 2] combined 0 players 0 retained 0 seconds 0.02710431022569537
+am3_window_02_frame_17174 pair 50 [3, 6] combined 0 players 0 retained 0 seconds 0.003476253245025873
+am3_window_02_frame_17174 pair 55 [3, 11] combined 0 players 0 retained 0 seconds 0.003598906099796295
+am3_window_02_frame_17174 pair 56 [3, 12] combined 0 players 0 retained 0 seconds 0.004311554133892059
+am3_window_02_frame_17174 pair 62 [4, 2] combined 43008 players 0 retained 0 seconds 0.1487167733721435
+am3_window_02_frame_17174 pair 70 [4, 11] combined 696 players 0 retained 0 seconds 0.011260966770350933
+am3_window_02_frame_17174 pair 71 [4, 12] combined 1656 players 52 retained 26 seconds 0.0417013973928988
+am3_window_02_frame_17174 pair 77 [5, 2] combined 4096 players 20 retained 10 seconds 0.06735587073490024
+am3_window_02_frame_17174 pair 85 [5, 11] combined 460 players 0 retained 0 seconds 0.007158034015446901
+am3_window_02_frame_17174 pair 86 [5, 12] combined 0 players 0 retained 0 seconds 0.006053911056369543
+am3_window_02_frame_17174 pair 93 [6, 3] combined 0 players 0 retained 0 seconds 0.0034625567495822906
+am3_window_02_frame_17174 pair 107 [7, 2] combined 0 players 0 retained 0 seconds 0.02786019304767251
+am3_window_02_frame_17174 pair 152 [10, 2] combined 0 players 0 retained 0 seconds 0.025752495042979717
+am3_window_02_frame_17174 pair 165 [11, 0] combined 6812 players 212 retained 106 seconds 0.07502339594066143
+am3_window_02_frame_17174 pair 168 [11, 3] combined 0 players 0 retained 0 seconds 0.0038845068775117397
+am3_window_02_frame_17174 pair 169 [11, 4] combined 1120 players 0 retained 0 seconds 0.010862456168979406
+am3_window_02_frame_17174 pair 170 [11, 5] combined 180 players 0 retained 0 seconds 0.005048219580203295
+am3_window_02_frame_17174 pair 178 [11, 14] combined 11440 players 394 retained 188 seconds 0.10515046492218971
+am3_window_02_frame_17174 pair 179 [11, 15] combined 9120 players 270 retained 135 seconds 0.08953177323564887
+am3_window_02_frame_17174 pair 180 [12, 0] combined 2512 players 32 retained 16 seconds 0.053132819943130016
+am3_window_02_frame_17174 pair 183 [12, 3] combined 0 players 0 retained 0 seconds 0.005506620742380619
+am3_window_02_frame_17174 pair 184 [12, 4] combined 1988 players 50 retained 25 seconds 0.0419709119014442
+am3_window_02_frame_17174 pair 185 [12, 5] combined 264 players 16 retained 8 seconds 0.03217511996626854
+am3_window_02_frame_17174 pair 193 [12, 14] combined 0 players 0 retained 0 seconds 0.024821240920573473
+am3_window_02_frame_17174 pair 194 [12, 15] combined 0 players 0 retained 0 seconds 0.023221706971526146
+am3_window_02_frame_17174 pair 212 [14, 2] combined 262144 players 28386 retained 256 seconds 1.7168899737298489
+am3_window_02_frame_17174 pair 221 [14, 11] combined 8888 players 114 retained 57 seconds 0.09178329491987824
+am3_window_02_frame_17174 pair 222 [14, 12] combined 1552 players 0 retained 0 seconds 0.03530573006719351
+am3_window_02_frame_17174 pair 227 [15, 2] combined 125952 players 15452 retained 256 seconds 1.0470505962148309
+am3_window_02_frame_17174 pair 236 [15, 11] combined 7304 players 76 retained 38 seconds 0.0826985090970993
+am3_window_02_frame_17174 pair 237 [15, 12] combined 2960 players 0 retained 0 seconds 0.03627665201202035
+[am3_window_02_frame_17174] line-template: preparing rectangles
+[am3_window_02_frame_17174] measuring 761 parents (G0=256, G1=256, line_template=256; conflicting geometry groups=0)
+[am3_window_02_frame_17174] parents 250/761
+[am3_window_02_frame_17174] parents 500/761
+[am3_window_02_frame_17174] parents 750/761
+[am3_window_02_frame_17174] refitting 761 parents
+[am3_window_02_frame_17174] refits 250/761; valid children=250
+[am3_window_02_frame_17174] refits 500/761; valid children=500
+[am3_window_02_frame_17174] refits 750/761; valid children=704
+{"view_id": "am3_window_02_frame_17174", "chosen_key": "G0:43:15360", "no_court_reason": null, "all_checks_equal": null, "error": null}
+am2_window_01_frame_28019 pair 0 [0, 1] combined 262144 players 11454 retained 256 seconds 1.8132805293425918
+am2_window_01_frame_28019 pair 10 [0, 11] combined 262144 players 1462 retained 256 seconds 1.3902103560976684
+am2_window_01_frame_28019 pair 13 [0, 14] combined 6144 players 0 retained 0 seconds 0.5478681982494891
+am2_window_01_frame_28019 pair 15 [1, 0] combined 262144 players 6876 retained 256 seconds 1.599117775913328
+am2_window_01_frame_28019 pair 16 [1, 2] combined 262144 players 7188 retained 256 seconds 1.4618426337838173
+am2_window_01_frame_28019 pair 18 [1, 4] combined 262144 players 454 retained 223 seconds 1.1065671276301146
+am2_window_01_frame_28019 pair 21 [1, 7] combined 262144 players 852 retained 256 seconds 1.0946591682732105
+am2_window_01_frame_28019 pair 22 [1, 8] combined 204800 players 56356 retained 256 seconds 2.7777550141327083
+am2_window_01_frame_28019 pair 24 [1, 10] combined 49152 players 0 retained 0 seconds 0.43613906810060143
+am2_window_01_frame_28019 pair 27 [1, 13] combined 6144 players 0 retained 0 seconds 0.2249230151064694
+am2_window_01_frame_28019 pair 31 [2, 1] combined 262144 players 11916 retained 256 seconds 1.7553900550119579
+am2_window_01_frame_28019 pair 40 [2, 11] combined 262144 players 6099 retained 256 seconds 1.3425368829630315
+am2_window_01_frame_28019 pair 43 [2, 14] combined 4096 players 0 retained 0 seconds 0.3915813220664859
+am2_window_01_frame_28019 pair 48 [3, 4] combined 138240 players 8748 retained 256 seconds 0.9066755417734385
+am2_window_01_frame_28019 pair 52 [3, 8] combined 89088 players 6862 retained 256 seconds 0.5878946338780224
+am2_window_01_frame_28019 pair 61 [4, 1] combined 262144 players 168 retained 80 seconds 1.054251859895885
+am2_window_01_frame_28019 pair 63 [4, 3] combined 160768 players 8468 retained 256 seconds 1.034743171185255
+am2_window_01_frame_28019 pair 68 [4, 9] combined 262144 players 27564 retained 256 seconds 2.1046399818733335
+am2_window_01_frame_28019 pair 70 [4, 11] combined 262144 players 8630 retained 256 seconds 1.2271684100851417
+am2_window_01_frame_28019 pair 71 [4, 12] combined 251904 players 4102 retained 256 seconds 1.1584844128228724
+am2_window_01_frame_28019 pair 73 [4, 14] combined 5120 players 0 retained 0 seconds 0.13886301312595606
+am2_window_01_frame_28019 pair 106 [7, 1] combined 262144 players 494 retained 247 seconds 1.0415158499963582
+am2_window_01_frame_28019 pair 115 [7, 11] combined 224256 players 0 retained 0 seconds 0.4371053008362651
+am2_window_01_frame_28019 pair 121 [8, 1] combined 200704 players 54438 retained 256 seconds 1.8984274668619037
+am2_window_01_frame_28019 pair 123 [8, 3] combined 96624 players 18166 retained 256 seconds 0.5680023501627147
+am2_window_01_frame_28019 pair 130 [8, 11] combined 130032 players 23718 retained 256 seconds 0.9531995910219848
+am2_window_01_frame_28019 pair 133 [8, 14] combined 2048 players 0 retained 0 seconds 0.05847430182620883
+am2_window_01_frame_28019 pair 139 [9, 4] combined 262144 players 26526 retained 256 seconds 1.2348933601751924
+am2_window_01_frame_28019 pair 151 [10, 1] combined 59392 players 0 retained 0 seconds 0.21261074487119913
+am2_window_01_frame_28019 pair 160 [10, 11] combined 54668 players 0 retained 0 seconds 0.1308452831581235
+am2_window_01_frame_28019 pair 165 [11, 0] combined 186368 players 426 retained 177 seconds 0.6737175220623612
+am2_window_01_frame_28019 pair 167 [11, 2] combined 225280 players 1756 retained 256 seconds 0.642568435985595
+am2_window_01_frame_28019 pair 169 [11, 4] combined 195584 players 6710 retained 256 seconds 0.6174585004337132
+am2_window_01_frame_28019 pair 172 [11, 7] combined 262144 players 0 retained 0 seconds 0.5207110899500549
+am2_window_01_frame_28019 pair 173 [11, 8] combined 108072 players 23850 retained 256 seconds 0.9464120292104781
+am2_window_01_frame_28019 pair 175 [11, 10] combined 23564 players 0 retained 0 seconds 0.08230610098689795
+am2_window_01_frame_28019 pair 184 [12, 4] combined 262144 players 2662 retained 256 seconds 0.6291577876545489
+am2_window_01_frame_28019 pair 196 [13, 1] combined 12288 players 0 retained 0 seconds 0.11903925519436598
+am2_window_01_frame_28019 pair 210 [14, 0] combined 6144 players 46 retained 23 seconds 0.25255268393084407
+am2_window_01_frame_28019 pair 212 [14, 2] combined 7168 players 6 retained 3 seconds 0.18311177473515272
+am2_window_01_frame_28019 pair 214 [14, 4] combined 3072 players 0 retained 0 seconds 0.06111965188756585
+am2_window_01_frame_28019 pair 218 [14, 8] combined 1712 players 68 retained 34 seconds 0.052290748339146376
+am2_window_01_frame_28019 pair 0 [0, 1] combined 262144 players 19376 retained 256 seconds 0.90084890415892
+am2_window_01_frame_28019 pair 10 [0, 11] combined 70336 players 172 retained 86 seconds 0.18903905805200338
+am2_window_01_frame_28019 pair 13 [0, 14] combined 0 players 0 retained 0 seconds 0.04946053773164749
+am2_window_01_frame_28019 pair 15 [1, 0] combined 150528 players 9890 retained 256 seconds 0.5261205052956939
+am2_window_01_frame_28019 pair 16 [1, 2] combined 262144 players 12740 retained 256 seconds 0.7780973259359598
+am2_window_01_frame_28019 pair 18 [1, 4] combined 25600 players 0 retained 0 seconds 0.09504577424377203
+am2_window_01_frame_28019 pair 21 [1, 7] combined 0 players 0 retained 0 seconds 0.044852727092802525
+am2_window_01_frame_28019 pair 22 [1, 8] combined 9000 players 1718 retained 256 seconds 0.11724676704034209
+am2_window_01_frame_28019 pair 24 [1, 10] combined 8320 players 0 retained 0 seconds 0.056952573359012604
+am2_window_01_frame_28019 pair 27 [1, 13] combined 0 players 0 retained 0 seconds 0.040217789355665445
+am2_window_01_frame_28019 pair 31 [2, 1] combined 262144 players 15794 retained 256 seconds 0.9224123130552471
+am2_window_01_frame_28019 pair 40 [2, 11] combined 125952 players 2174 retained 256 seconds 0.33336161030456424
+am2_window_01_frame_28019 pair 43 [2, 14] combined 0 players 0 retained 0 seconds 0.05444624600932002
+am2_window_01_frame_28019 pair 48 [3, 4] combined 3240 players 130 retained 65 seconds 0.03560459008440375
+am2_window_01_frame_28019 pair 52 [3, 8] combined 224 players 6 retained 3 seconds 0.019428162835538387
+am2_window_01_frame_28019 pair 61 [4, 1] combined 40960 players 0 retained 0 seconds 0.10465209698304534
+am2_window_01_frame_28019 pair 63 [4, 3] combined 352 players 8 retained 4 seconds 0.02743054600432515
+am2_window_01_frame_28019 pair 68 [4, 9] combined 5152 players 406 retained 212 seconds 0.06171830603852868
+am2_window_01_frame_28019 pair 70 [4, 11] combined 5136 players 96 retained 48 seconds 0.04290998028591275
+am2_window_01_frame_28019 pair 71 [4, 12] combined 1120 players 0 retained 0 seconds 0.014761871192604303
+am2_window_01_frame_28019 pair 73 [4, 14] combined 0 players 0 retained 0 seconds 0.010343631729483604
+am2_window_01_frame_28019 pair 106 [7, 1] combined 0 players 0 retained 0 seconds 0.03120567463338375
+am2_window_01_frame_28019 pair 115 [7, 11] combined 0 players 0 retained 0 seconds 0.011064014863222837
+am2_window_01_frame_28019 pair 121 [8, 1] combined 5264 players 732 retained 256 seconds 0.0796388890594244
+am2_window_01_frame_28019 pair 123 [8, 3] combined 240 players 16 retained 8 seconds 0.020468116737902164
+am2_window_01_frame_28019 pair 130 [8, 11] combined 720 players 122 retained 61 seconds 0.02832915587350726
+am2_window_01_frame_28019 pair 133 [8, 14] combined 0 players 0 retained 0 seconds 0.005596743896603584
+am2_window_01_frame_28019 pair 139 [9, 4] combined 33012 players 1800 retained 256 seconds 0.13398320879787207
+am2_window_01_frame_28019 pair 151 [10, 1] combined 11088 players 0 retained 0 seconds 0.052005026023834944
+am2_window_01_frame_28019 pair 160 [10, 11] combined 2296 players 0 retained 0 seconds 0.01850815024226904
+am2_window_01_frame_28019 pair 165 [11, 0] combined 54752 players 0 retained 0 seconds 0.13744780700653791
+am2_window_01_frame_28019 pair 167 [11, 2] combined 67584 players 0 retained 0 seconds 0.1615794599056244
+am2_window_01_frame_28019 pair 169 [11, 4] combined 15732 players 254 retained 129 seconds 0.0669487789273262
+am2_window_01_frame_28019 pair 172 [11, 7] combined 348 players 0 retained 0 seconds 0.015803166199475527
+am2_window_01_frame_28019 pair 173 [11, 8] combined 480 players 192 retained 96 seconds 0.032647236716002226
+am2_window_01_frame_28019 pair 175 [11, 10] combined 1280 players 0 retained 0 seconds 0.01754861231893301
+am2_window_01_frame_28019 pair 184 [12, 4] combined 600 players 0 retained 0 seconds 0.010291263926774263
+am2_window_01_frame_28019 pair 196 [13, 1] combined 1956 players 0 retained 0 seconds 0.03012541076168418
+am2_window_01_frame_28019 pair 210 [14, 0] combined 0 players 0 retained 0 seconds 0.027434383984655142
+am2_window_01_frame_28019 pair 212 [14, 2] combined 0 players 0 retained 0 seconds 0.03290651738643646
+am2_window_01_frame_28019 pair 214 [14, 4] combined 0 players 0 retained 0 seconds 0.006850956007838249
+am2_window_01_frame_28019 pair 218 [14, 8] combined 0 players 0 retained 0 seconds 0.003664969000965357
+[am2_window_01_frame_28019] line-template: preparing rectangles
+[am2_window_01_frame_28019] measuring 765 parents (G0=256, G1=256, line_template=256; conflicting geometry groups=0)
+[am2_window_01_frame_28019] parents 250/765
+[am2_window_01_frame_28019] parents 500/765
+[am2_window_01_frame_28019] parents 750/765
+[am2_window_01_frame_28019] refitting 765 parents
+[am2_window_01_frame_28019] refits 250/765; valid children=164
+[am2_window_01_frame_28019] refits 500/765; valid children=355
+[am2_window_01_frame_28019] refits 750/765; valid children=461
+{"view_id": "am2_window_01_frame_28019", "chosen_key": "G1:15:6/child", "no_court_reason": null, "all_checks_equal": null, "error": null}
+{"views": ["gxBQ_window_00_frame_689", "am3_window_02_frame_17174", "am2_window_01_frame_28019"], "startup_seconds": 0.029349271208047867, "wall_seconds": 755.9813070190139, "peak_rss_mb": 1379.12890625, "failed": []}

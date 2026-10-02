@@ -1,0 +1,13 @@
+test_changed_B_directions_are_rejected (test_screen.ScreenTests.test_changed_B_directions_are_rejected) ... ok
+test_exact_ties_use_support_then_original_index (test_screen.ScreenTests.test_exact_ties_use_support_then_original_index) ... ok
+test_failures_and_finite_unconverged_fits_stay_separate (test_screen.ScreenTests.test_failures_and_finite_unconverged_fits_stay_separate) ... ok
+test_full_main_path (test_screen.ScreenTests.test_full_main_path) ... ok
+test_invalid_line_normal_and_insufficient_support_rejected (test_screen.ScreenTests.test_invalid_line_normal_and_insufficient_support_rejected) ... ok
+test_missing_inputs_and_wrong_revision_fail_explicitly (test_screen.ScreenTests.test_missing_inputs_and_wrong_revision_fail_explicitly) ... ok
+test_nonfinite_residual_rejected (test_screen.ScreenTests.test_nonfinite_residual_rejected) ... ok
+test_two_line_support_uses_full_nullspace (test_screen.ScreenTests.test_two_line_support_uses_full_nullspace) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 1.008s
+
+OK

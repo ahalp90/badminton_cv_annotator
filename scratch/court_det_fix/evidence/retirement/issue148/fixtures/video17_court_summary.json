@@ -1,0 +1,32 @@
+{
+  "video": 17,
+  "source": "existing prepared court receipt and scene records, inspected 2026-09-07",
+  "scene_records": 657,
+  "raw_sources": {
+    "model": 107,
+    "fallback": 173,
+    "none": 377
+  },
+  "valid_scenes": 38,
+  "consensus_replaced_scenes": 11,
+  "sampled_failure_scene": {
+    "scene_index": 0,
+    "start_frame": 0,
+    "end_frame": 73167,
+    "frames_checked": [
+      46045,
+      47276
+    ],
+    "raw_source": "model",
+    "raw_corner_source": [
+      "model",
+      "model",
+      "model",
+      "model"
+    ],
+    "scene_valid": true,
+    "consensus_distance_px": 163.93916176866,
+    "consensus_flag": true
+  },
+  "interpretation": "Fallback was used elsewhere in the video; these two frames use a model outline later replaced by consensus. No changed pipeline was run."
+}

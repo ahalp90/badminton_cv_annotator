@@ -1,0 +1,410 @@
+[
+  {
+    "case_id": "gxBQ_window_00_frame_0",
+    "population": "automatic_all_camera",
+    "candidate_id": "22:4579",
+    "stripe_score": 0.31212149517795423,
+    "profile_score": 0.7727272727272727,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.375,
+        0.7222222222222222
+      ],
+      "line_counts": [
+        1,
+        3
+      ],
+      "camera_error": 0.003901353941539398
+    }
+  },
+  {
+    "case_id": "gxBQ_window_00_frame_0",
+    "population": "automatic_all_camera",
+    "candidate_id": "22:4588",
+    "stripe_score": 0.2914252044933242,
+    "profile_score": 0.8636363636363636,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.3680555555555556,
+        0.6805555555555555
+      ],
+      "line_counts": [
+        1,
+        3
+      ],
+      "camera_error": 0.042619934533540835
+    }
+  },
+  {
+    "case_id": "gxBQ_window_00_frame_5",
+    "population": "automatic_all_camera",
+    "candidate_id": "181:29836",
+    "stripe_score": 0.2778472429254331,
+    "profile_score": 0.18181818181818182,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.6180555555555556,
+        0.2638888888888889
+      ],
+      "line_counts": [
+        1,
+        0
+      ],
+      "camera_error": 0.09709613806988351
+    }
+  },
+  {
+    "case_id": "gxBQ_window_00_frame_5",
+    "population": "automatic_all_camera",
+    "candidate_id": "10:1274",
+    "stripe_score": 0.12982785342470937,
+    "profile_score": 0.8181818181818182,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.40277777777777785,
+        0.2569444444444445
+      ],
+      "line_counts": [
+        0,
+        0
+      ],
+      "camera_error": 0.07426060134079916
+    }
+  },
+  {
+    "case_id": "am2_window_00_frame_150",
+    "population": "automatic_all_camera",
+    "candidate_id": "30:30",
+    "stripe_score": 0.3413218341786506,
+    "profile_score": 0.8181818181818182,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.4930555555555556,
+        0.7777777777777778
+      ],
+      "line_counts": [
+        3,
+        5
+      ],
+      "camera_error": 0.09667573935204993
+    }
+  },
+  {
+    "case_id": "am2_window_00_frame_150",
+    "population": "automatic_all_camera",
+    "candidate_id": "30:33",
+    "stripe_score": 0.3263949156475061,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.6354166666666666,
+      "family_support": [
+        0.5972222222222222,
+        0.673611111111111
+      ],
+      "line_counts": [
+        3,
+        4
+      ],
+      "camera_error": 0.02700984400795151
+    }
+  },
+  {
+    "case_id": "am2_window_01_frame_28019",
+    "population": "automatic_all_camera",
+    "candidate_id": "16:1800",
+    "stripe_score": 0.3310477426870898,
+    "profile_score": 0.6363636363636364,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.2916666666666667,
+        0.7291666666666666
+      ],
+      "line_counts": [
+        0,
+        4
+      ],
+      "camera_error": 0.017809817116120244
+    }
+  },
+  {
+    "case_id": "am2_window_01_frame_28019",
+    "population": "automatic_all_camera",
+    "candidate_id": "184:4123",
+    "stripe_score": 0.1352180041301151,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.2152777777777778,
+        0.6458333333333334
+      ],
+      "line_counts": [
+        0,
+        2
+      ],
+      "camera_error": 0.024430492354010857
+    }
+  },
+  {
+    "case_id": "am3_window_00_frame_0",
+    "population": "automatic_all_camera",
+    "candidate_id": "43:22603",
+    "stripe_score": 0.345268501618597,
+    "profile_score": 0.7272727272727273,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        0.9354838709677419
+      ],
+      "floor_score": 0.6979166666666667,
+      "family_support": [
+        0.7083333333333334,
+        0.6875
+      ],
+      "line_counts": [
+        3,
+        3
+      ],
+      "camera_error": 0.023277747421558276
+    }
+  },
+  {
+    "case_id": "am3_window_00_frame_0",
+    "population": "automatic_all_camera",
+    "candidate_id": "43:22627",
+    "stripe_score": 0.33800176563531176,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        0.9354838709677419
+      ],
+      "floor_score": 0.6770833333333333,
+      "family_support": [
+        0.7013888888888888,
+        0.6527777777777778
+      ],
+      "line_counts": [
+        3,
+        3
+      ],
+      "camera_error": 0.045117401055519236
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0017",
+    "population": "automatic_all_camera",
+    "candidate_id": "1:80",
+    "stripe_score": 0.552393297162141,
+    "profile_score": 0.9090909090909091,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9826388888888888,
+      "family_support": [
+        0.9652777777777777,
+        1.0
+      ],
+      "line_counts": [
+        5,
+        5
+      ],
+      "camera_error": 0.0040496501954733945
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0017",
+    "population": "automatic_all_camera",
+    "candidate_id": "1:132",
+    "stripe_score": 0.5149812207353173,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9444444444444444,
+      "family_support": [
+        0.9513888888888888,
+        0.9375
+      ],
+      "line_counts": [
+        5,
+        6
+      ],
+      "camera_error": 0.0032956242883309607
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0019",
+    "population": "automatic_all_camera",
+    "candidate_id": "1:60",
+    "stripe_score": 0.5669555172283526,
+    "profile_score": 0.9090909090909091,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9861111111111112,
+      "family_support": [
+        0.9722222222222222,
+        1.0
+      ],
+      "line_counts": [
+        5,
+        6
+      ],
+      "camera_error": 0.006188120414345437
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0019",
+    "population": "automatic_all_camera",
+    "candidate_id": "165:6702",
+    "stripe_score": 0.22380749509666992,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": -1.0,
+      "family_support": [
+        0.20833333333333331,
+        0.125
+      ],
+      "line_counts": [
+        0,
+        0
+      ],
+      "camera_error": 0.06941643378323906
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0016",
+    "population": "automatic_all_camera",
+    "candidate_id": "1:60",
+    "stripe_score": 0.569730227534323,
+    "profile_score": 0.9090909090909091,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9826388888888888,
+      "family_support": [
+        0.9652777777777777,
+        1.0
+      ],
+      "line_counts": [
+        5,
+        5
+      ],
+      "camera_error": 0.04270174343537859
+    }
+  },
+  {
+    "case_id": "shuttleset_03_scene_0016",
+    "population": "automatic_all_camera",
+    "candidate_id": "1:90",
+    "stripe_score": 0.5512800265357405,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9756944444444444,
+      "family_support": [
+        0.9513888888888888,
+        1.0
+      ],
+      "line_counts": [
+        5,
+        6
+      ],
+      "camera_error": 0.04250715746513855
+    }
+  },
+  {
+    "case_id": "shuttleset_21_scene_0020",
+    "population": "automatic_all_camera",
+    "candidate_id": "0:2",
+    "stripe_score": 0.5972603575263695,
+    "profile_score": 1.0,
+    "gates": {
+      "geometry_valid": true,
+      "player_fractions": [
+        1.0,
+        1.0
+      ],
+      "floor_score": 0.9861111111111112,
+      "family_support": [
+        0.9722222222222222,
+        1.0
+      ],
+      "line_counts": [
+        5,
+        6
+      ],
+      "camera_error": 0.03169286313547618
+    }
+  }
+]

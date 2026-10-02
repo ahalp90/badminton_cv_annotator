@@ -61,7 +61,7 @@ from preparing_data.extract_failures import (
 from preparing_data.heuristics.base import RAW_SUFFIXES
 
 if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads without rtmlib
-    from preparing_data.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
+    from shared.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
 
 
 class PaddedRawFrame(NamedTuple):
@@ -301,7 +301,7 @@ def main() -> int:
 
     # Lazy import: keeps extract_raw_frame and the file's helpers importable
     # without onnxruntime (e.g. the CPU raw-schema gate), mirroring the 2D path.
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
     if args.inspect_result:
         if not resolved:

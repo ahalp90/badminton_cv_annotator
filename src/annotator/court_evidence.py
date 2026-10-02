@@ -1,21 +1,23 @@
 """Court evidence and parent-specific geometry for the annotator chain.
 
 Here, a parent is one alternative court-evidence producer profile for a run,
-not process lineage. The adapter keeps the static ShuttleSet homography and
-detected CourtKeyNet consensus parents on the same operational interface. The
-two parents share only their raw scene intervals; scene geometry and person
-votes are built from the active parent.
+not process lineage. The static parent reads the ShuttleSet homography table.
+The detected parent reads one ``court_detector.run_video`` result. Both give
+the same operational interface. The two parents share only their raw scene
+intervals; scene geometry and person votes are built from the active parent.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+
 import cv2
 import numpy as np
 import pandas as pd
 
-from courtkeynet.court_corners import ConsensusRepair, CourtQuad, FallbackDiagnostics, pick_scene_corners
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
 
 from .composition_mask import detect_cuts
@@ -23,31 +25,49 @@ from .config import COMPOSITION_CONTENT_THRESHOLD
 from .fps_constants import scale_for_fps
 from .point_winner import (
     COURT_LENGTH_M,
-    SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER,
+    SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER,
     corner_error_band_from_corners,
     project_pixels_to_court,
 )
 
-
+DETECTED_PARENT = 'court_detector'
+# court_detector.run_video.VIDEO_RESULT_SCHEMA. Importing run_video would set
+# single-thread limits for this whole process.
+DETECTOR_RESULT_SCHEMA = 'court-detector-video/1'
 SCENE_ROW_COLUMNS = (
     'video_id', 'start_frame', 'end_frame',
     'upleft_x', 'upleft_y', 'upright_x', 'upright_y',
     'downleft_x', 'downleft_y', 'downright_x', 'downright_y',
 )
-POSE_SCENE_COLUMNS_BY_COURTKEYNET_CORNER = (
+# Scene-row column prefix and its index in the TL, TR, BR, BL corner order.
+SCENE_COLUMNS_BY_CORNER = (
     ('upleft', 0),
     ('upright', 1),
     ('downleft', 3),
     ('downright', 2),
 )
+# Pixel size of the fixed measurement's downsampled videos. Static scene records
+# store their corners in these pixels.
 DETECTOR_RESOLUTION = (512.0, 288.0)
-COURT_SCENE_SAMPLE_LIMIT = 10
 PERSON_COURT_MARGIN = 0.10
 SCENE_VALID_MIN_FRACTION = 0.5
 UNIT_COURT_CORNERS = np.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
     dtype=np.float32,
 )
+
+
+class SceneStatus(StrEnum):
+    """One scene's court outcome, in ``court_detector.run_video``'s words.
+
+    Only ``court`` scenes carry corners. Every static-parent scene is ``court``,
+    because the homography table supplies one.
+    """
+
+    COURT = 'court'
+    NO_COURT = 'no_court'  # the detector found none; no_court_reason says why
+    SCENE_TOO_SHORT_FOR_FEET = 'scene_too_short_for_feet'  # unanalysed: shorter than the foot window
+    DETECTION_FAILED = 'detection_failed'  # the search or fit raised; error records it
 
 
 @dataclass(frozen=True)
@@ -83,20 +103,29 @@ class CourtInputs:
 
 
 @dataclass(frozen=True)
-class SceneEvidence:
-    """Raw detector evidence for one half-open scene interval."""
+class DetectorScene:
+    """One validated scene row from a ``court-detector-video/1`` result."""
 
     start_frame: int
-    end_frame: int
-    sampled_frame_indices: tuple[int, ...]
-    quad: CourtQuad | None
+    end_frame: int  # exclusive
+    analysed_frame: int
+    status: SceneStatus
+    corners_native_px: np.ndarray | None  # (4, 2) TL, TR, BR, BL source-video pixels; court scenes only
+    no_court_reason: str | None
+    reused_from: str | None  # earlier view whose court was reused, or None for a full search
+    error: str | None
 
 
 @dataclass(frozen=True)
 class CourtSceneRecord:
     """Typed evidence for one raw scene, ready for the court-scenes writer.
 
+    A scene outside ``court_present`` keeps its reason here: a status other than
+    ``court``, or a ``court`` whose person vote failed (``scene_valid`` False).
+
     :param parent: court-evidence producer profile used for this scene.
+    :param analysed_frame: the frame the detector analysed; None for the static parent.
+    :param corners_native_px: (4, 2) TL, TR, BR, BL corners in video pixels, or None.
     """
 
     video_id: int | str
@@ -105,28 +134,19 @@ class CourtSceneRecord:
     scene_index: int
     start_frame: int
     end_frame: int
-    sampled_frame_indices: tuple[int, ...]
-    raw_corners_px: np.ndarray | None
-    raw_source: str | None
-    raw_peaks: np.ndarray | None
-    raw_corner_source: tuple[str, str, str, str] | None
-    fallback_diagnostics: FallbackDiagnostics | None
+    status: SceneStatus
+    analysed_frame: int | None
+    corners_native_px: np.ndarray | None
+    no_court_reason: str | None
+    reused_from: str | None
+    error: str | None
     exactly_two_count: int
     exactly_two_fraction: float
     scene_valid: bool
-    consensus_distance_px: float | None
-    consensus_flag: bool | None
-    active_corners_native_px: np.ndarray | None
 
     def __post_init__(self) -> None:
-        if self.raw_corners_px is not None:
-            object.__setattr__(self, 'raw_corners_px', np.asarray(self.raw_corners_px).copy())
-        if self.raw_peaks is not None:
-            object.__setattr__(self, 'raw_peaks', np.asarray(self.raw_peaks).copy())
-        if self.active_corners_native_px is not None:
-            object.__setattr__(
-                self, 'active_corners_native_px', np.asarray(self.active_corners_native_px).copy(),
-            )
+        if self.corners_native_px is not None:
+            object.__setattr__(self, 'corners_native_px', np.asarray(self.corners_native_px).copy())
 
 
 @dataclass(frozen=True)
@@ -137,7 +157,6 @@ class CourtEvidenceResult:
     scene_records: tuple[CourtSceneRecord, ...]
     keep_vote: np.ndarray
     court_present: np.ndarray
-    consensus: ConsensusRepair | None
 
     def __post_init__(self) -> None:
         for field_name in ('keep_vote', 'court_present'):
@@ -145,13 +164,12 @@ class CourtEvidenceResult:
             object.__setattr__(self, field_name, np.ascontiguousarray(values).copy())
 
 
-class CourtConsensusError(ValueError):
-    """Detected consensus failed after raw evidence and votes were derived."""
+class NoAcceptedCourtError(ValueError):
+    """No scene passed the person vote; ``result`` keeps its records and votes."""
 
-    def __init__(self, result: CourtEvidenceResult, original_error: ValueError) -> None:
-        super().__init__(str(original_error))
+    def __init__(self, result: CourtEvidenceResult, message: str) -> None:
+        super().__init__(message)
         self.result = result
-        self.original_error = original_error
 
 
 def _copy_court_info(court_info: dict[str, object]) -> dict[str, object]:
@@ -201,53 +219,52 @@ def build_raw_cut_intervals(video_path: Path, n_frames: int, fps: float) -> list
     return intervals
 
 
-def scene_sample_indices(start_frame: int, end_frame: int) -> list[int]:
-    """Return deterministic centred-bin samples for one non-empty scene."""
-    scene_length = end_frame - start_frame
-    if scene_length <= 0:
-        raise ValueError('scene interval must be non-empty')
-    sample_count = min(COURT_SCENE_SAMPLE_LIMIT, scene_length)
-    return [
-        start_frame + ((2 * sample_index + 1) * scene_length // (2 * sample_count))
-        for sample_index in range(sample_count)
-    ]
+def read_detector_scenes(
+    result: Mapping[str, object], *, frame_count: int, native_size: tuple[float, float],
+) -> tuple[DetectorScene, ...]:
+    """Check one detector video result against its source video and type its scene rows.
 
+    The schema is checked first, so an old or foreign file names its schema. The
+    rows must tile ``[0, frame_count)`` in order, and only ``court`` rows carry
+    corners.
 
-def detect_scene_evidence(
-    video_path: Path,
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    detector: object,
-) -> list[SceneEvidence]:
-    """Sample each raw scene and preserve CourtKeyNet provenance."""
-    intervals = _normalise_intervals(raw_cuts)
-    samples_by_scene = [scene_sample_indices(start, end) for start, end in intervals]
-    corner_floor = float(getattr(detector, 'corner_min_peak_conf'))
-    evidence: list[SceneEvidence] = []
-    capture = cv2.VideoCapture(str(video_path))
-    frame_index = 0
-    try:
-        if not capture.isOpened():
-            raise ValueError(f'could not open video {video_path}')
-        for (start_frame, end_frame), sample_indices in zip(intervals, samples_by_scene):
-            sampled_frames: list[np.ndarray] = []
-            for sample_index in sample_indices:
-                while frame_index <= sample_index:
-                    ok, frame = capture.read()
-                    if not ok:
-                        raise ValueError(f'video ended before sampled frame {sample_index}')
-                    if frame_index == sample_index:
-                        sampled_frames.append(frame)
-                    frame_index += 1
-            detections = detector.detect_batch(sampled_frames)
-            quad = pick_scene_corners(
-                sampled_frames,
-                detections,
-                corner_min_peak_conf=corner_floor,
-            )
-            evidence.append(SceneEvidence(start_frame, end_frame, tuple(sample_indices), quad))
-    finally:
-        capture.release()
-    return evidence
+    :param native_size: the source video's (width, height) in pixels.
+    """
+    if result.get('schema') != DETECTOR_RESULT_SCHEMA:
+        raise ValueError(f"unsupported court detector schema {result.get('schema')!r}")
+    if result.get('frame_count') != frame_count:
+        raise ValueError(f"court detector frame count {result.get('frame_count')!r} differs from {frame_count}")
+    if result.get('native_size') != list(native_size):
+        raise ValueError(f"court detector native size {result.get('native_size')!r} differs from {list(native_size)}")
+    rows = result.get('scenes')
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('court detector result has no scene rows')
+    scenes = []
+    next_frame = 0
+    for index, row in enumerate(rows):
+        start_frame, end_frame = row['start_frame'], row['end_frame']
+        if start_frame != next_frame or not start_frame < end_frame <= frame_count:
+            raise ValueError(f'court detector scene {index} [{start_frame}, {end_frame}) must start at frame '
+                             f'{next_frame} and end after it, by frame {frame_count}')
+        next_frame = end_frame
+        status = SceneStatus(row['status'])
+        corners = row['corners_native_px']
+        if (corners is not None) != (status is SceneStatus.COURT):
+            raise ValueError(f'court detector scene {index} has status {status.value!r}; only court scenes '
+                             'carry corners')
+        if corners is not None:
+            corners = np.asarray(corners, dtype=float)
+            if corners.shape != (4, 2) or not np.isfinite(corners).all():
+                raise ValueError(f'court detector scene {index} corners must be four finite points')
+        if status is SceneStatus.DETECTION_FAILED and not row.get('error'):
+            raise ValueError(f'court detector scene {index} failed without an error')
+        scenes.append(DetectorScene(
+            start_frame, end_frame, row['frame_index'], status, corners,
+            row.get('no_court_reason'), row.get('reused_from'), row.get('error'),
+        ))
+    if next_frame != frame_count:
+        raise ValueError(f'court detector scenes end at frame {next_frame}, expected {frame_count}')
+    return tuple(scenes)
 
 
 def _as_ref_corners(corners: np.ndarray, source_resolution: tuple[float, float]) -> np.ndarray:
@@ -264,9 +281,9 @@ def _as_native_corners(corners_refpx: np.ndarray) -> np.ndarray:
 
 
 def _static_corners_refpx(homography_row: pd.Series) -> np.ndarray:
-    """Return static row corners in the CourtKeyNet TL/TR/BR/BL order."""
+    """Return static row corners in TL/TR/BR/BL order."""
     source_order = get_corner_camera(homography_row).T
-    return source_order[list(SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER)].copy()
+    return source_order[list(SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER)].copy()
 
 
 def detected_court_info(corners_refpx: np.ndarray) -> dict[str, object]:
@@ -355,7 +372,7 @@ def _scene_row(
         'start_frame': interval[0],
         'end_frame': interval[1],
     }
-    for prefix, corner_index in POSE_SCENE_COLUMNS_BY_COURTKEYNET_CORNER:
+    for prefix, corner_index in SCENE_COLUMNS_BY_CORNER:
         row[f'{prefix}_x'] = float(pose_corners[corner_index, 0])
         row[f'{prefix}_y'] = float(pose_corners[corner_index, 1])
     return row
@@ -448,87 +465,9 @@ def build_static_court_inputs(
     )
 
 
-def _validate_scene_evidence(
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    scene_evidence: Sequence[SceneEvidence],
-) -> list[SceneEvidence]:
-    """Check that typed detector evidence still matches the raw scene order."""
-    intervals = _normalise_intervals(raw_cuts)
-    if len(scene_evidence) != len(intervals):
-        raise ValueError('scene evidence count must match raw cuts')
-    for interval, scene in zip(intervals, scene_evidence):
-        if not isinstance(scene, SceneEvidence):
-            raise TypeError('scene evidence must contain SceneEvidence records')
-        if (scene.start_frame, scene.end_frame) != interval:
-            raise ValueError('scene evidence intervals must match raw cuts in scene order')
-    return list(scene_evidence)
-
-
 def _scene_fraction(keep_vote: np.ndarray, interval: tuple[int, int]) -> float:
     start_frame, end_frame = interval
     return float(keep_vote[start_frame:end_frame].mean())
-
-
-def _scene_record(
-    video_id: int | str,
-    case_id: str,
-    parent: str,
-    scene_index: int,
-    scene: SceneEvidence,
-    keep_vote: np.ndarray,
-    scene_valid: bool,
-    *,
-    active_corners_native_px: np.ndarray | None,
-    consensus_distance_px: float | None,
-    consensus_flag: bool | None,
-    static_corners_px: np.ndarray | None = None,
-) -> CourtSceneRecord:
-    """Build one immutable writer record without reprojecting later."""
-    fraction = _scene_fraction(keep_vote, (scene.start_frame, scene.end_frame))
-    count = int(keep_vote[scene.start_frame:scene.end_frame].sum())
-    if static_corners_px is not None:
-        return CourtSceneRecord(
-            video_id=video_id,
-            case_id=case_id,
-            parent=parent,
-            scene_index=scene_index,
-            start_frame=scene.start_frame,
-            end_frame=scene.end_frame,
-            sampled_frame_indices=(),
-            raw_corners_px=static_corners_px,
-            raw_source=None,
-            raw_peaks=None,
-            raw_corner_source=None,
-            fallback_diagnostics=None,
-            exactly_two_count=count,
-            exactly_two_fraction=fraction,
-            scene_valid=scene_valid,
-            consensus_distance_px=None,
-            consensus_flag=None,
-            active_corners_native_px=static_corners_px,
-        )
-
-    quad = scene.quad
-    return CourtSceneRecord(
-        video_id=video_id,
-        case_id=case_id,
-        parent=parent,
-        scene_index=scene_index,
-        start_frame=scene.start_frame,
-        end_frame=scene.end_frame,
-        sampled_frame_indices=scene.sampled_frame_indices,
-        raw_corners_px=None if quad is None else quad.corners_px,
-        raw_source=None if quad is None else quad.source,
-        raw_peaks=None if quad is None else quad.peak,
-        raw_corner_source=None if quad is None else quad.corner_source,
-        fallback_diagnostics=None if quad is None else quad.diagnostics,
-        exactly_two_count=count,
-        exactly_two_fraction=fraction,
-        scene_valid=scene_valid,
-        consensus_distance_px=consensus_distance_px,
-        consensus_flag=consensus_flag,
-        active_corners_native_px=active_corners_native_px,
-    )
 
 
 def build_static_court_evidence(
@@ -561,142 +500,108 @@ def build_static_court_evidence(
         for interval in intervals
     ]
     court_present = build_court_present(keep_vote, intervals, scene_valid)
-    static_corners_refpx = inputs.active_corners_refpx
-    static_corners_px = _as_native_corners(static_corners_refpx)
-    records = tuple(
-        _scene_record(
-            video_id,
-            case_id, parent,
-            scene_index,
-            SceneEvidence(start, end, (), None),
-            keep_vote,
-            valid,
-            active_corners_native_px=static_corners_px,
-            consensus_distance_px=None,
-            consensus_flag=None,
-            static_corners_px=static_corners_px,
-        )
-        for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid))
-    )
-    return CourtEvidenceResult(inputs, records, keep_vote, court_present, None)
+    static_corners_px = _as_native_corners(inputs.active_corners_refpx)
+    records = []
+    for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid)):
+        records.append(CourtSceneRecord(
+            video_id=video_id,
+            case_id=case_id,
+            parent=parent,
+            scene_index=scene_index,
+            start_frame=start,
+            end_frame=end,
+            status=SceneStatus.COURT,
+            analysed_frame=None,
+            corners_native_px=static_corners_px,
+            no_court_reason=None,
+            reused_from=None,
+            error=None,
+            exactly_two_count=int(keep_vote[start:end].sum()),
+            exactly_two_fraction=_scene_fraction(keep_vote, (start, end)),
+            scene_valid=valid,
+        ))
+    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)
 
 
-def build_detected_court_evidence(
+def build_court_detector_evidence(
     case_id: str,
-    parent: str,
     video_id: int | str,
     resolution: tuple[float, float],
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    scene_evidence: Sequence[SceneEvidence],
+    native_size: tuple[float, float],
+    scenes: Sequence[DetectorScene],
     bboxes: np.ndarray,
     scores: np.ndarray,
     ndet: np.ndarray,
     *,
-    detector_resolution: tuple[float, float] = DETECTOR_RESOLUTION,
     gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
-    """Build detected geometry, votes, consensus and records in one pass."""
-    from courtkeynet.court_corners import consensus_repair
+    """Vote on each scene's own detected court and assemble the detected parent.
 
-    evidence = _validate_scene_evidence(raw_cuts, scene_evidence)
-    intervals = [(scene.start_frame, scene.end_frame) for scene in evidence]
-    native_corners = [
-        None if scene.quad is None else np.asarray(scene.quad.corners_px, dtype=float)
-        for scene in evidence
+    A ``court`` scene is accepted when at least half its frames hold exactly two
+    people inside its court's margin. Accepted scenes keep their own corners in
+    the scene rows. Every other scene gets ``court_present`` False and keeps its
+    status as the reason.
+
+    :param resolution: pose pixel size, which ``bboxes`` use.
+    :param native_size: source-video pixel size, which the detector corners use.
+    :raises NoAcceptedCourtError: when no scene is accepted.
+    """
+    intervals = [(scene.start_frame, scene.end_frame) for scene in scenes]
+    corners_refpx = [
+        None if scene.corners_native_px is None else _as_ref_corners(scene.corners_native_px, native_size)
+        for scene in scenes
     ]
-    provisional_infos = [
-        None if corners is None else detected_court_info(_as_ref_corners(corners, detector_resolution))
-        for corners in native_corners
-    ]
-    keep_vote = build_keep_vote(
-        bboxes, scores, ndet, resolution, intervals, provisional_infos,
-    )
+    scene_infos = [None if corners is None else detected_court_info(corners) for corners in corners_refpx]
+    keep_vote = build_keep_vote(bboxes, scores, ndet, resolution, intervals, scene_infos)
     scene_valid = [
-        corners is not None
-        and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
-        for corners, interval in zip(native_corners, intervals)
+        corners is not None and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
+        for corners, interval in zip(corners_refpx, intervals)
     ]
     court_present = build_court_present(keep_vote, intervals, scene_valid)
-    raw_records = tuple(
-        _scene_record(
-            video_id,
-            case_id,
-            parent,
-            scene_index,
-            scene,
-            keep_vote,
-            scene_valid[scene_index],
-            active_corners_native_px=None,
-            consensus_distance_px=None,
-            consensus_flag=None,
-        )
-        for scene_index, scene in enumerate(evidence)
-    )
-    raw_result = CourtEvidenceResult(None, raw_records, keep_vote, court_present, None)
-    accepted_scene_indices = [
-        index for index, valid in enumerate(scene_valid) if valid
-    ]
-    if not accepted_scene_indices:
-        original_error = ValueError(
-            'detected court consensus requires at least one accepted scene quad',
-        )
-        raise CourtConsensusError(raw_result, original_error) from original_error
+    records = []
+    for scene_index, (scene, valid) in enumerate(zip(scenes, scene_valid)):
+        interval = (scene.start_frame, scene.end_frame)
+        records.append(CourtSceneRecord(
+            video_id=video_id,
+            case_id=case_id,
+            parent=DETECTED_PARENT,
+            scene_index=scene_index,
+            start_frame=scene.start_frame,
+            end_frame=scene.end_frame,
+            status=scene.status,
+            analysed_frame=scene.analysed_frame,
+            corners_native_px=scene.corners_native_px,
+            no_court_reason=scene.no_court_reason,
+            reused_from=scene.reused_from,
+            error=scene.error,
+            exactly_two_count=int(keep_vote[scene.start_frame:scene.end_frame].sum()),
+            exactly_two_fraction=_scene_fraction(keep_vote, interval),
+            scene_valid=valid,
+        ))
+    accepted_indices = [index for index, valid in enumerate(scene_valid) if valid]
+    if not accepted_indices:
+        statuses = dict(Counter(scene.status.value for scene in scenes))
+        result = CourtEvidenceResult(None, tuple(records), keep_vote, court_present)
+        raise NoAcceptedCourtError(result, f'no scene has an accepted court; scene statuses: {statuses}')
 
-    accepted_quads = np.stack([native_corners[index] for index in accepted_scene_indices])
-    try:
-        consensus = consensus_repair(accepted_quads)
-    except ValueError as original_error:
-        raise CourtConsensusError(raw_result, original_error) from original_error
-    consensus_corners = _as_ref_corners(consensus.consensus_quad, detector_resolution)
-    repaired_corners = np.asarray(consensus.repaired_quads, dtype=float)
-    repaired_corners_refpx = _as_ref_corners(repaired_corners, detector_resolution)
-    active_info = detected_court_info(consensus_corners)
-    active_rows = [
-        _scene_row(video_id, intervals[index], repaired_corners_refpx[accepted_position], resolution)
-        for accepted_position, index in enumerate(accepted_scene_indices)
-    ]
-    homography_rows = pd.DataFrame(active_rows, columns=SCENE_ROW_COLUMNS)
+    # Static callers retain a representative court. Scene-aware callers use the rows.
+    representative = max(accepted_indices, key=lambda index: intervals[index][1] - intervals[index][0])
+    representative_corners = corners_refpx[representative]
+    active_info = detected_court_info(representative_corners)
     inputs = CourtInputs(
         court_info=active_info,
         gate_court_info={str(video_id): active_info},
         net_band=build_net_band(active_info, resolution),
         resolution=tuple(map(float, resolution)),
         gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),
-        homography_rows=homography_rows,
-        landing_error_band_m=corner_error_band_from_corners(
-            consensus_corners, active_info, ref_err_px,
+        homography_rows=build_scene_rows(
+            video_id, [intervals[index] for index in accepted_indices],
+            [corners_refpx[index] for index in accepted_indices], resolution,
         ),
-        active_corners_refpx=consensus_corners,
+        landing_error_band_m=corner_error_band_from_corners(
+            representative_corners, active_info, ref_err_px,
+        ),
+        active_corners_refpx=representative_corners,
     )
-    accepted_positions = {
-        scene_index: accepted_position
-        for accepted_position, scene_index in enumerate(accepted_scene_indices)
-    }
-    records = []
-    for scene_index, scene in enumerate(evidence):
-        accepted_position = accepted_positions.get(scene_index)
-        records.append(
-            _scene_record(
-                video_id,
-                case_id,
-                parent,
-                scene_index,
-                scene,
-                keep_vote,
-                scene_valid[scene_index],
-                active_corners_native_px=(
-                    repaired_corners[accepted_position]
-                    if accepted_position is not None else None
-                ),
-                consensus_distance_px=(
-                    float(consensus.distances_px[accepted_position])
-                    if accepted_position is not None else None
-                ),
-                consensus_flag=(
-                    bool(consensus.flagged[accepted_position])
-                    if accepted_position is not None else None
-                ),
-            )
-        )
-    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present, consensus)
+    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)

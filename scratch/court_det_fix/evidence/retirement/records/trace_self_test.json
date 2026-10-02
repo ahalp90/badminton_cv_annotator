@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "checks": [
+    "single original call",
+    "unchanged return object",
+    "immutable value snapshot",
+    "exception recording",
+    "helper restoration",
+    "missing-helper reporting",
+    "strict JSON"
+  ],
+  "scope": "Instrumentation plumbing only; no local checkout, footage or model was used."
+}

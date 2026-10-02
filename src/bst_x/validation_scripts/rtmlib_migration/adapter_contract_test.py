@@ -1,6 +1,6 @@
 """G2: rtmlib adapter contract test (CPU, reference-free).
 
-Exercises the SHIPPED ``preparing_data.rtmlib_pose.RtmlibPoseExtractor`` (not the
+Exercises the SHIPPED ``shared.rtmlib_pose.RtmlibPoseExtractor`` (not the
 scratchpad prototype) and asserts the per-frame *contract* both consumers depend
 on: shape, dtype, COCO-17 count, box/score validity, the empty-frame guard,
 and a reference-free order-sanity check. Keypoint *values* vs the committed
@@ -37,7 +37,7 @@ import numpy as np
 from _common import ANKLES, HEAD, KNEES, find_clip
 
 from pipeline.config import COCO_N_JOINTS
-from preparing_data.rtmlib_pose import (
+from shared.rtmlib_pose import (
     DET_SCORE_THR,
     FrameDetections,
     RtmlibPoseExtractor,

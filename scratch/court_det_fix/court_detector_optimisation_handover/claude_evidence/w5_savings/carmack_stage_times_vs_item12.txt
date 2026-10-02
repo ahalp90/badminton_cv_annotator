@@ -1,0 +1,31 @@
+views: 28   columns: old s, new s, change
+run wall (summed over views)          8931      8250    -8%   saved   7.6% of old run
+phases:
+  populations                         5487      5319    -3%   saved   1.9% of old run
+  w5_record                           3281      2754   -16%   saved   5.9% of old run
+  stripe_polarity_refit                 57        48   -15%   saved   0.1% of old run
+  net_choice                            45        47    +7%   saved  -0.0% of old run
+  prepare_view                          28        27    -1%   saved   0.0% of old run
+stage self time, largest 20 in the old run:
+  finite_scores                       2077      2054    -1%   saved   0.3% of old run
+  match_axis                          1466      1384    -6%   saved   0.9% of old run
+  stripe_measure                      1139      1156    +2%   saved  -0.2% of old run
+  template_camera_check                564        92   -84%   saved   5.3% of old run
+  physical_marking_evidence            414       392    -5%   saved   0.3% of old run
+  geometry                             410       403    -2%   saved   0.1% of old run
+  refit_refine                         351       325    -7%   saved   0.3% of old run
+  write_json_gz                        314       334    +7%   saved  -0.2% of old run
+  combine                              292       286    -2%   saved   0.1% of old run
+  canonicalise                         234       230    -2%   saved   0.0% of old run
+  geometry_and_support                 220       216    -2%   saved   0.0% of old run
+  pair                                 179       175    -2%   saved   0.0% of old run
+  stripe_score_model                   173       172    -0%   saved   0.0% of old run
+  vp_select                            129       127    -2%   saved   0.0% of old run
+  write_population                     119       120    +0%   saved  -0.0% of old run
+  prepare_observations                 100        21   -79%   saved   0.9% of old run
+  player_fractions                      97        94    -3%   saved   0.0% of old run
+  read_json_gz                          94        95    +1%   saved  -0.0% of old run
+  retain                                87        86    -1%   saved   0.0% of old run
+  distance_maps                         85        83    -2%   saved   0.0% of old run
+per-view wall ratio new/old: min 0.60, median 0.91, max 1.14
+slowest view gxBQ_window_00_frame_689: 772 s -> 666 s

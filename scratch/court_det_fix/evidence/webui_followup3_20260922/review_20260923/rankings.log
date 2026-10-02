@@ -1,0 +1,28 @@
+svd_rms                 k= 4 retained=0/9 worst_delta=317.394849 px
+svd_rms                 k= 6 retained=2/9 worst_delta=263.693881 px
+svd_rms                 k= 8 retained=2/9 worst_delta=263.693881 px
+svd_rms                 k=10 retained=3/9 worst_delta=263.693881 px
+svd_rms                 k=12 retained=9/9 worst_delta=0.000000 px
+svd_rms                 k=14 retained=9/9 worst_delta=0.000000 px
+svd_rms                 k=16 retained=9/9 worst_delta=0.000000 px
+support_only            k= 4 retained=5/9 worst_delta=369.939263 px
+support_only            k= 6 retained=6/9 worst_delta=360.562733 px
+support_only            k= 8 retained=7/9 worst_delta=243.899725 px
+support_only            k=10 retained=8/9 worst_delta=12.732955 px
+support_only            k=12 retained=8/9 worst_delta=12.732955 px
+support_only            k=14 retained=9/9 worst_delta=0.000000 px
+support_only            k=16 retained=9/9 worst_delta=0.000000 px
+svd_gap_desc            k= 4 retained=1/9 worst_delta=285.955719 px
+svd_gap_desc            k= 6 retained=1/9 worst_delta=263.693881 px
+svd_gap_desc            k= 8 retained=2/9 worst_delta=263.693881 px
+svd_gap_desc            k=10 retained=2/9 worst_delta=263.693881 px
+svd_gap_desc            k=12 retained=2/9 worst_delta=263.693881 px
+svd_gap_desc            k=14 retained=5/9 worst_delta=263.693881 px
+svd_gap_desc            k=16 retained=9/9 worst_delta=0.000000 px
+sigma3_over_sigma2      k= 4 retained=0/9 worst_delta=317.394849 px
+sigma3_over_sigma2      k= 6 retained=2/9 worst_delta=263.693881 px
+sigma3_over_sigma2      k= 8 retained=2/9 worst_delta=263.693881 px
+sigma3_over_sigma2      k=10 retained=2/9 worst_delta=263.693881 px
+sigma3_over_sigma2      k=12 retained=4/9 worst_delta=140.018862 px
+sigma3_over_sigma2      k=14 retained=6/9 worst_delta=140.018862 px
+sigma3_over_sigma2      k=16 retained=9/9 worst_delta=0.000000 px

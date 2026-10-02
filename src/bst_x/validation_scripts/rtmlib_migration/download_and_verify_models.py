@@ -32,7 +32,7 @@ from pathlib import Path
 
 from rtmlib.tools.file import download_checkpoint
 
-from preparing_data.rtmlib_pose import DET_URL, POSE_URL
+from shared.rtmlib_pose import DET_URL, POSE_URL
 
 # SHA256 of the extracted .onnx: pose computed 2026-07-02, detector 2026-07-04
 # (RTMDet-M restoration; hash identical across two independent downloads).

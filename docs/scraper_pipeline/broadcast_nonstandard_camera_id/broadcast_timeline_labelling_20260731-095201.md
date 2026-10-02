@@ -308,9 +308,9 @@ general VLM accuracy score from one video.
 ### Existing annotation script
 
 The existing entry point is
-[`src/courtkeynet/validation_scripts/annotate.sh`](../../../src/courtkeynet/validation_scripts/annotate.sh).
+[`scripts/court_annotation/annotate.sh`](../../../scripts/court_annotation/annotate.sh).
 It launches
-[`annotate_court_corners_offframe.py`](../../../src/courtkeynet/validation_scripts/annotate_court_corners_offframe.py),
+[`annotate_court_corners_offframe.py`](../../../scripts/court_annotation/annotate_court_corners_offframe.py),
 which is a court-corner GUI. The tool's current code provides useful mechanics:
 
 - OpenCV video seeking, a frame trackbar, comma/dot single-frame steps, and

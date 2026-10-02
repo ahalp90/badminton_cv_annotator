@@ -1,0 +1,27 @@
+{
+ "view_id": "gxBQ_window_00_frame_689",
+ "error": null,
+ "choose_seconds": 0.770278898999095,
+ "chosen_key": "G0:123:615/child",
+ "no_court_reason": null,
+ "corners_native_px": [
+  [
+   150.5755015551081,
+   573.5458458573235
+  ],
+  [
+   623.6661356954648,
+   547.6337618899086
+  ],
+  [
+   1567.5037650221268,
+   655.4625852585831
+  ],
+  [
+   971.4161190313424,
+   1161.3701172155693
+  ]
+ ],
+ "stripe_refit_difference": ".original_replay.maximum_absolute_difference_native_px: 2.1240111891529523e-09 != 0.0",
+ "net_choice_difference": null
+}

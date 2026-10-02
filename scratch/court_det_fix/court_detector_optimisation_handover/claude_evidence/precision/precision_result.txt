@@ -1,0 +1,8 @@
+Laptop (i7-6700HQ), numpy 2.5.3, 80 real camera-check batches (37,895 courts) saved from a local D17 run of shuttleset_21_scene_0044.
+float64 is the x/y/w rewrite from follow-up 13; the old stacked form took 2.8 s on the same batches. Timings vary by about 2x with laptop load.
+homography entries: max |value| 4.81e+05, min nonzero |value| 8.99e-06; courts 37895
+float32: max difference 8.40e-07, median 5.27e-08; finite-pattern mismatches 0; gate flips 0 (passes 3319), beyond the recheck margin 0
+float16: max difference 7.35e-02, median 4.58e-04; finite-pattern mismatches 4; gate flips 2 (passes 3319), beyond the recheck margin 0
+float64 best of 3: 0.647 s
+float32 best of 3: 0.174 s
+float16 best of 3: 3.717 s

@@ -1,0 +1,51 @@
+
+am2_window_01_frame_28019: per line, contrast in grey levels / strength / fragment support; the view's strongest line reads 96.8
+line	blend pick (0.69 m)	line-paint pick (1.05 m)	closest court (0.46 m)
+left doubles	 -17.5 / 0.00 / 0.81	  44.1 / 0.46 / 0.60	   5.8 / 0.06 / 0.74
+left singles	  -1.9 / 0.00 / 0.47	   0.3 / 0.00 / 0.00	   5.3 / 0.06 / 0.36
+centre	  23.3 / 0.24 / 0.16	  -1.3 / 0.00 / 0.02	  30.4 / 0.31 / 0.14
+right singles	  94.0 / 0.97 / 0.97	  93.5 / 0.97 / 0.91	  -1.8 / 0.00 / 0.00
+right doubles	  72.3 / 0.75 / 0.97	  71.1 / 0.73 / 0.96	  -4.5 / 0.00 / 0.02
+baseline y0	   0.6 / 0.01 / 0.22	   0.0 / 0.00 / 0.26	 -10.1 / 0.00 / 0.13
+long service y0	  -2.0 / 0.00 / 0.00	  -1.6 / 0.00 / 0.00	 -11.9 / 0.00 / 0.51
+short service y0	  -2.1 / 0.00 / 0.34	  -1.2 / 0.00 / 0.31	   2.6 / 0.03 / 0.56
+short service y13	  25.4 / 0.26 / 0.09	   9.6 / 0.10 / 0.10	  48.4 / 0.50 / 0.05
+long service y13	  69.3 / 0.72 / 0.13	  59.5 / 0.61 / 0.13	  61.3 / 0.63 / 0.03
+baseline y13	  93.0 / 0.96 / 1.00	  94.4 / 0.97 / 0.95	  86.9 / 0.90 / 0.96
+blend pick: W5 paint 0.334, line paint 0.249, geometry 0.370
+line-paint pick: W5 paint 0.288, line paint 0.265, geometry 0.363
+closest court: W5 paint 0.211, line paint 0.024, geometry 0.304
+
+am3_window_00_frame_0: per line, contrast in grey levels / strength / fragment support; the view's strongest line reads 78.3
+line	blend pick (0.26 m)	line-paint pick (0.87 m)	closest court (0.18 m)
+left doubles	  44.4 / 0.57 / 0.98	  47.8 / 0.61 / 0.99	  47.1 / 0.60 / 0.97
+left singles	  36.4 / 0.47 / 0.95	  36.2 / 0.46 / 0.94	  35.3 / 0.45 / 0.92
+centre	  46.5 / 0.59 / 0.45	  36.8 / 0.47 / 0.46	  40.7 / 0.52 / 0.44
+right singles	  23.1 / 0.29 / 0.60	  33.9 / 0.43 / 0.60	  20.0 / 0.26 / 0.60
+right doubles	  18.4 / 0.24 / 0.26	  28.5 / 0.36 / 0.32	  14.7 / 0.19 / 0.29
+baseline y0	   4.4 / 0.06 / 0.00	   3.6 / 0.05 / 0.13	   5.4 / 0.07 / 0.07
+long service y0	   5.7 / 0.07 / 0.28	   1.8 / 0.02 / 0.12	   6.4 / 0.08 / 0.22
+short service y0	  13.7 / 0.17 / 0.44	  -0.2 / 0.00 / 0.10	  16.2 / 0.21 / 0.35
+short service y13	  20.0 / 0.26 / 0.25	   4.5 / 0.06 / 0.15	  22.2 / 0.28 / 0.27
+long service y13	  49.8 / 0.64 / 0.95	  52.4 / 0.67 / 0.95	  54.3 / 0.69 / 0.95
+baseline y13	  58.9 / 0.75 / 0.99	  60.1 / 0.77 / 0.94	  59.3 / 0.76 / 0.99
+blend pick: W5 paint 0.531, line paint 0.268, geometry 0.576
+line-paint pick: W5 paint 0.445, line paint 0.298, geometry 0.493
+closest court: W5 paint 0.490, line paint 0.252, geometry 0.564
+
+gxBQ_window_00_frame_689: per line, contrast in grey levels / strength / fragment support; the view's strongest line reads 50.0
+line	blend pick (0.58 m)	line-paint pick (1.23 m)	closest court (0.43 m)
+left doubles	  44.1 / 0.88 / 0.88	  43.1 / 0.86 / 0.90	  42.7 / 0.85 / 0.90
+left singles	  29.2 / 0.58 / 0.82	  23.5 / 0.47 / 0.80	  26.4 / 0.53 / 0.83
+centre	   2.3 / 0.05 / 0.18	   1.0 / 0.02 / 0.19	   1.4 / 0.03 / 0.20
+right singles	   2.9 / 0.06 / 0.45	  -0.8 / 0.00 / 0.30	   0.4 / 0.01 / 0.39
+right doubles	   3.8 / 0.08 / 0.00	  -0.7 / 0.00 / 0.46	   2.3 / 0.05 / 0.32
+baseline y0	  -0.9 / 0.00 / 0.25	  -0.7 / 0.00 / 0.34	  -1.5 / 0.00 / 0.15
+long service y0	  -0.9 / 0.00 / 0.29	  -0.2 / 0.00 / 0.01	  -1.6 / 0.00 / 0.31
+short service y0	  -2.6 / 0.00 / 0.65	  -0.9 / 0.00 / 0.45	   4.9 / 0.10 / 0.63
+short service y13	   5.5 / 0.11 / 0.13	  20.9 / 0.42 / 0.13	  19.7 / 0.39 / 0.13
+long service y13	  23.8 / 0.48 / 0.72	  24.3 / 0.49 / 0.78	  25.3 / 0.51 / 0.65
+baseline y13	  18.4 / 0.37 / 0.80	  36.0 / 0.72 / 0.88	  31.3 / 0.63 / 0.86
+blend pick: W5 paint 0.360, line paint 0.131, geometry 0.472
+line-paint pick: W5 paint 0.307, line paint 0.205, geometry 0.466
+closest court: W5 paint 0.338, line paint 0.189, geometry 0.479

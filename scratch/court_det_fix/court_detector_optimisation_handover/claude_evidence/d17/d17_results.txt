@@ -1,0 +1,123 @@
+# D17 run d17_run_20260924, branch exp/court-det-opt @ f72ed1c6. All 56 jobs and compare_d17 exited 0.
+
+## compare_d17.py
+budget 16: 28 views, wall 21430 s, G0+G1 generation 16861 s, smoke views 0
+budget 12: 28 views, wall 11067 s, G0+G1 generation 7153 s, smoke views 0
+
+case | wall 16 / 12 s | picked 16 / 12 | bounded same | corrected diff px | ref median 16 / 12 / accepted | vs accepted 16 / 12 px
+am1_window_00_frame_54 | 945 / 437 | True / True | True | 0.0 | 1.23 / 1.23 / 1.23 | 2.2010479378139326e-10 / 2.2010479378139326e-10
+am2_window_00_frame_150 | 717 / 274 | True / True | True | 0.0 | 1.76 / 1.76 / 1.76 | 5.2404917503430815e-11 / 5.2404917503430815e-11
+am2_window_01_frame_28019 | 611 / 362 | True / True | True | 0.0 | 2.35 / 2.35 / 2.36 | 0.7905681092652325 / 0.7905681092652325
+am3_window_00_frame_0 | 792 / 406 | True / True | True | 0.0 | 2.17 / 2.17 / 2.17 | 0.0 / 0.0
+am3_window_02_frame_17174 | 849 / 273 | True / True | True | 0.0 | 1.72 / 1.72 / 1.72 | 1.3038320344531988e-10 / 1.3038320344531988e-10
+gxBQ_window_00_frame_0 | 2425 / 1247 | True / True | False | 6.669763410419714 | 3.61 / 2.23 / 3.53 | 0.6820477786762152 / 5.9911477870719585
+gxBQ_window_00_frame_5 | 2057 / 1210 | True / True | True | 0.0 | 2.20 / 2.20 / 2.20 | 1.2781223454384117e-10 / 1.2781223454384117e-10
+gxBQ_window_00_frame_689 | 3550 / 1446 | True / True | True | 0.0 | 2.76 / 2.76 / 2.76 | 5.830993612174924e-10 / 5.830993612174924e-10
+gxBQ_window_03_frame_77876 | 2407 / 1343 | True / True | True | 0.0 | 1.86 / 1.86 / 3.22 | 3.4501892015816407 / 3.4501892015816407
+letterboxed_short_frame_78 | 230 / 93 | True / True | False | 38.643633771066334 | 1.58 / 3.61 / 1.58 | 2.937277392241726e-10 / 38.64363377107706
+shuttleset_03_scene_0016 | 845 / 304 | True / True | True | 0.0 | 1.96 / 1.96 / 1.96 | 4.6738703978288906e-11 / 4.6738703978288906e-11
+shuttleset_03_scene_0017 | 754 / 427 | True / True | True | 0.0 | 2.66 / 2.66 / 2.66 | 4.083878231821206e-11 / 4.083878231821206e-11
+shuttleset_03_scene_0019 | 739 / 410 | True / True | True | 0.0 | 1.77 / 1.77 / 1.77 | 3.126058586535881e-11 / 3.126058586535881e-11
+shuttleset_03_scene_0023 | 548 / 352 | True / True | True | 0.0 | 2.12 / 2.12 / 2.12 | 2.4654075964334755e-11 / 2.4654075964334755e-11
+shuttleset_03_scene_0032 | 683 / 277 | True / True | False | 1.3166570550571453 | 1.68 / 2.31 / 1.68 | 1.1819638676183406e-11 / 1.3166570550605106
+shuttleset_03_scene_0034 | 684 / 442 | True / True | True | 0.0 | 2.53 / 2.53 / 2.53 | 4.4669018303420235e-11 / 4.4669018303420235e-11
+shuttleset_21_scene_0034 | 600 / 386 | True / True | True | 0.0 | 2.47 / 2.47 / 2.47 | 0.0 / 0.0
+shuttleset_21_scene_0039 | 404 / 220 | True / True | False | 1.864083529902434 | - / - / - | 5.5498655072848066e-11 / 1.8640835299362395
+shuttleset_21_scene_0044 | 491 / 247 | True / True | False | 4.653545222549872 | 2.21 / 3.62 / 2.21 | 1.5043996071027122e-10 / 4.653545222495575
+sset_21_gloiZ_gTJaE_frame_00000001 | 316 / 257 | True / True | True | 0.0 | - / - / - | 7.024162889060367e-10 / 7.024162889060367e-10
+sset_21_gloiZ_gTJaE_frame_00000300 (non-court) | 134 / 98 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00009558 (non-court) | 97 / 107 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00014336 (non-court) | 79 / 95 | True / True | False | 531.5304679367241 | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00023893 (non-court) | 106 / 82 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00038228 (non-court) | 65 / 39 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00062120 (non-court) | 83 / 88 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00090790 (non-court) | 59 / 54 | False / False | True | - | - / - / - | - / -
+sset_21_gloiZ_gTJaE_frame_00100347 (non-court) | 160 / 91 | False / False | True | - | - / - / - | - / -
+
+## d17_report.py
+## Wall seconds per view (startup included), budget 16 / budget 12
+GX         budget 16: views 4, total   10440, median   2416, max   3550
+GX         budget 12: views 4, total    5246, median   1295, max   1446
+amateur    budget 16: views 6, total    4144, median    754, max    945
+amateur    budget 12: views 6, total    1846, median    318, max    437
+broadcast  budget 16: views 10, total    6064, median    641, max    845
+broadcast  budget 12: views 10, total    3321, median    328, max    442
+non-court  budget 16: views 8, total     783, median     90, max    160
+non-court  budget 12: views 8, total     655, median     90, max    107
+
+## Stage buckets, seconds summed over court views (non-court shown separately)
+bucket | role | GX 16 | GX 12 | amateur 16 | amateur 12 | broadcast 16 | broadcast 12 | non-court 16 | non-court 12
+startup (start Python, import numpy/OpenCV, load detector code) | needed once per process |    19.6 |    10.2 |    13.4 |    13.4 |    15.1 |    12.3 |     8.1 |     7.4
+prepare_view (load the frozen line fragments and frame for the view) | needed |     5.7 |     5.7 |     4.5 |     4.6 |    10.3 |    10.9 |     5.3 |     5.9
+direction_estimate (estimate vanishing directions, shared by G0 and G1) | needed |     5.4 |     5.4 |     4.0 |     4.4 |    10.0 |    10.4 |     6.4 |     7.1
+G0_search (G0: try direction pairs and keep the best 256 courts) | needed |  7151.6 |  3611.7 |  2801.9 |   749.7 |  2840.0 |  1147.0 |   220.3 |    61.4
+G0_pool_evidence (G0: legacy evidence on the kept 256 courts) | likely avoidable |    82.0 |    77.5 |    61.5 |    61.6 |   172.7 |   158.5 |     7.9 |     6.2
+G1_search (G1: same search on paint-filtered fragments) | needed |  2186.3 |   782.9 |   265.7 |   127.5 |   889.3 |   232.4 |    21.0 |     4.5
+G1_pool_evidence (G1: legacy evidence on the kept 256 courts) | likely avoidable |    26.7 |    21.6 |    26.2 |    25.4 |   106.5 |    83.4 |     1.4 |     2.0
+paint_filter_and_other (paint mask for G1 and other population glue) | needed |     1.7 |     1.3 |     1.6 |     1.3 |     3.3 |     2.2 |     1.1 |     1.1
+population_io (write and re-read G0/G1 population files) | research |    37.2 |    20.9 |    29.8 |    16.5 |    72.4 |    37.6 |     3.2 |     1.6
+line_templates (seeded line templates: candidate courts built from line-crossing rectangles) | needed |   132.5 |   109.3 |   140.1 |   144.6 |   393.2 |   382.6 |   236.4 |   260.0
+w5_measure (W5: measure paint and stripe evidence for every merged candidate) | needed |   296.6 |   220.7 |   261.1 |   257.2 |   523.2 |   429.9 |    87.1 |    94.3
+w5_refit (W5: refit every valid candidate to its stripes and re-measure the result) | needed |   390.7 |   285.8 |   415.3 |   334.1 |   765.1 |   606.8 |   145.5 |   161.9
+w5_rank_and_merge (W5: merge duplicates, gate and rank) | needed |     2.8 |     2.2 |     2.9 |     2.9 |     6.4 |     5.9 |     0.6 |     0.5
+w5_research (W5: determinism re-check, control entry, candidate review, sensitivity rankings) | research |     1.6 |     1.4 |     5.4 |     4.6 |    11.0 |     7.2 |     1.0 |     1.0
+w5_io (W5: re-prepare view, write full record and arrays) | research |    82.7 |    72.9 |    86.9 |    78.3 |   182.8 |   150.1 |    34.8 |    36.6
+net_choice (bounded net choice: post evidence for full-court candidates, then choose) | needed |     0.4 |     0.7 |     3.6 |     2.1 |    17.4 |     9.7 |     0.0 |     0.0
+net_choice_io (re-read the W5 record for the net choice) | research |     5.1 |     4.7 |     5.7 |     5.2 |    13.6 |     9.8 |     2.3 |     2.4
+refit_replay (polarity refit: reload record and view, check the saved fit replays) | research |     9.0 |     8.4 |    10.2 |     9.4 |    24.6 |    18.7 |     0.5 |     0.5
+refit_correct (polarity refit: infer stripe polarity, refit, validate) | needed |     2.4 |     2.1 |     3.8 |     3.3 |     6.7 |     5.5 |     0.2 |     0.3
+
+## Role totals per view (median over court views), budget 16 / 12
+budget 16: needed once per process median 2 s (total 48), needed median 670 s (total 19545), likely avoidable median 26 s (total 476), research median 30 s (total 578)
+budget 12: needed once per process median 2 s (total 36), needed median 331 s (total 9503), likely avoidable median 21 s (total 428), research median 22 s (total 446)
+
+## Per view: wall 16 / 12, G0+G1 search 16 / 12, matched pairs G0 16 / 12, peak RSS MB
+gxBQ_window_00_frame_0 | 2425 / 1247 | 2132 / 1057 | 140 / 80 | 6044 / 5155
+gxBQ_window_00_frame_5 | 2057 / 1210 | 1869 / 943 | 124 / 68 | 5187 / 4639
+gxBQ_window_00_frame_689 | 3550 / 1446 | 3208 / 1229 | 110 / 72 | 7059 / 6493
+gxBQ_window_03_frame_77876 | 2407 / 1343 | 2129 / 1166 | 118 / 74 | 5259 / 4771
+am1_window_00_frame_54 | 945 / 437 | 687 / 201 | 80 / 22 | 5436 / 4002
+am2_window_00_frame_150 | 717 / 274 | 547 / 143 | 128 / 52 | 6016 / 1814
+am2_window_01_frame_28019 | 611 / 362 | 471 / 171 | 104 / 38 | 6605 / 4727
+am3_window_00_frame_0 | 792 / 406 | 676 / 228 | 100 / 32 | 5605 / 2179
+am3_window_02_frame_17174 | 849 / 273 | 617 / 129 | 94 / 28 | 4666 / 1993
+letterboxed_short_frame_78 | 230 / 93 | 69 / 7 | 92 / 26 | 1749 / 374
+shuttleset_03_scene_0016 | 845 / 304 | 565 / 133 | 130 / 62 | 1677 / 947
+shuttleset_03_scene_0017 | 754 / 427 | 485 / 226 | 128 / 62 | 1781 / 983
+shuttleset_03_scene_0019 | 739 / 410 | 466 / 231 | 102 / 56 | 1512 / 1030
+shuttleset_03_scene_0023 | 548 / 352 | 314 / 155 | 118 / 62 | 1606 / 1010
+shuttleset_03_scene_0032 | 683 / 277 | 484 / 61 | 114 / 52 | 1507 / 816
+shuttleset_03_scene_0034 | 684 / 442 | 403 / 191 | 122 / 58 | 1885 / 991
+shuttleset_21_scene_0034 | 600 / 386 | 369 / 195 | 104 / 58 | 1500 / 972
+shuttleset_21_scene_0039 | 404 / 220 | 210 / 27 | 112 / 50 | 1248 / 543
+shuttleset_21_scene_0044 | 491 / 247 | 262 / 77 | 94 / 46 | 1119 / 717
+sset_21_gloiZ_gTJaE_frame_00000001 | 316 / 257 | 171 / 83 | 104 / 44 | 979 / 581
+sset_21_gloiZ_gTJaE_frame_00000300 | 134 / 98 | 71 / 8 | 118 / 46 | 272 / 271
+sset_21_gloiZ_gTJaE_frame_00009558 | 97 / 107 | 37 / 14 | 94 / 42 | 282 / 282
+sset_21_gloiZ_gTJaE_frame_00014336 | 79 / 95 | 6 / 4 | 80 / 34 | 368 / 342
+sset_21_gloiZ_gTJaE_frame_00023893 | 106 / 82 | 26 / 2 | 86 / 24 | 302 / 286
+sset_21_gloiZ_gTJaE_frame_00038228 | 65 / 39 | 2 / 0 | 72 / 24 | 231 / 205
+sset_21_gloiZ_gTJaE_frame_00062120 | 83 / 88 | 25 / 2 | 54 / 4 | 278 / 271
+sset_21_gloiZ_gTJaE_frame_00090790 | 59 / 54 | 5 / 1 | 76 / 12 | 258 / 251
+sset_21_gloiZ_gTJaE_frame_00100347 | 160 / 91 | 70 / 35 | 116 / 64 | 281 / 282
+
+## court_plane_error.py
+case | reference | px median/max: b16, b12, accepted | floor cm median/max: b16, b12, accepted
+am1_window_00_frame_54 | 21 landmarks | 1.2/6.7, 1.2/6.7, 1.2/6.7 | 11/37, 11/37, 11/37
+am2_window_00_frame_150 | 20 landmarks | 1.8/3.2, 1.8/3.2, 1.8/3.2 | 2/11, 2/11, 2/11
+am2_window_01_frame_28019 | 18 landmarks | 2.3/3.8, 2.3/3.8, 2.4/4.7 | 9/38, 9/38, 10/40
+am3_window_00_frame_0 | 24 landmarks | 2.2/8.1, 2.2/8.1, 2.2/8.1 | 7/24, 7/24, 7/24
+am3_window_02_frame_17174 | 22 landmarks | 1.7/4.6, 1.7/4.6, 1.7/4.6 | 15/36, 15/36, 15/36
+gxBQ_window_00_frame_0 | 24 landmarks | 3.6/7.8, 2.2/4.5, 3.5/7.3 | 13/110, 5/12, 13/102
+gxBQ_window_00_frame_5 | 24 landmarks | 2.2/5.5, 2.2/5.5, 2.2/5.5 | 5/12, 5/12, 5/12
+gxBQ_window_00_frame_689 | 24 landmarks | 2.8/8.5, 2.8/8.5, 2.8/8.5 | 24/42, 24/42, 24/42
+gxBQ_window_03_frame_77876 | 22 landmarks | 1.9/5.0, 1.9/5.0, 3.2/5.5 | 9/32, 9/32, 20/84
+letterboxed_short_frame_78 | 19 landmarks | 1.6/2.9, 3.6/8.5, 1.6/2.9 | 5/12, 10/25, 5/12
+shuttleset_03_scene_0016 | 4 corners | 2.0/3.2, 2.0/3.2, 2.0/3.2 | 4/7, 4/7, 4/7
+shuttleset_03_scene_0017 | 4 corners | 2.7/2.8, 2.7/2.8, 2.7/2.8 | 10/18, 10/18, 10/18
+shuttleset_03_scene_0019 | 4 corners | 1.8/3.0, 1.8/3.0, 1.8/3.0 | 5/14, 5/14, 5/14
+shuttleset_03_scene_0023 | 4 corners | 2.1/3.0, 2.1/3.0, 2.1/3.0 | 5/10, 5/10, 5/10
+shuttleset_03_scene_0032 | 4 corners | 1.7/2.7, 2.3/2.9, 1.7/2.7 | 5/11, 6/10, 5/11
+shuttleset_03_scene_0034 | 4 corners | 2.5/4.4, 2.5/4.4, 2.5/4.4 | 8/31, 8/31, 8/31
+shuttleset_21_scene_0034 | 4 corners | 2.5/3.5, 2.5/3.5, 2.5/3.5 | 6/9, 6/9, 6/9
+shuttleset_21_scene_0044 | 4 corners | 2.2/4.0, 3.6/4.7, 2.2/4.0 | 6/10, 21/36, 6/10

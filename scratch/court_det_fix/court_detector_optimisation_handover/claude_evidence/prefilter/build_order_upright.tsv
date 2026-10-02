@@ -1,0 +1,26 @@
+view	chosen court	deepest of the top five	deepest in an overall shortlist
+am1_window_00_frame_54	line template	line template	54986
+am2_window_00_frame_150	138	251	16784
+am2_window_01_frame_28019	1	2953	18700
+am3_window_00_frame_0	172	1040	52700
+am3_window_02_frame_17174	221	6241	31342
+gxBQ_window_00_frame_0	5054	5064	8073
+gxBQ_window_00_frame_5	line template	2654	4005
+gxBQ_window_00_frame_689	line template	591	11921
+gxBQ_window_03_frame_77876	3	43	13710
+letterboxed_short_frame_78	22	1157	69139
+shuttleset_03_scene_0016	1333	1333	65341
+shuttleset_03_scene_0017	3857	3857	81571
+shuttleset_03_scene_0019	11600	11600	84115
+shuttleset_03_scene_0023	14895	14895	59715
+shuttleset_03_scene_0032	3628	61541	72400
+shuttleset_03_scene_0034	2006	2006	65692
+shuttleset_21_scene_0034	5969	5969	101126
+shuttleset_21_scene_0039	1481	6015	97925
+shuttleset_21_scene_0044	2040	71082	109036
+sset_21_gloiZ_gTJaE_frame_00000001	3	3628	75713
+sset_21_gloiZ_gTJaE_frame_00014336	line template	3058	4108
+sset_21_gloiZ_gTJaE_frame_00100347	410	410	423
+# chosen: deepest 14895; views fully within K 256: 7/18, K 512: 8/18, K 1024: 8/18, K 2048: 12/18, K 4096: 14/18, K 8192: 16/18
+# top five: deepest 71082; views fully within K 256: 2/21, K 512: 3/21, K 1024: 4/21, K 2048: 8/21, K 4096: 13/21, K 8192: 17/21
+# overall shortlist: deepest 109036; views fully within K 256: 0/22, K 512: 1/22, K 1024: 1/22, K 2048: 1/22, K 4096: 2/22, K 8192: 4/22

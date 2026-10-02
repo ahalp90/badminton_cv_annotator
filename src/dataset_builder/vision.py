@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum
 import gzip
 import json
@@ -43,15 +43,20 @@ if TYPE_CHECKING:
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.1"
-COURT_EVIDENCE_SCHEMA = "court-evidence/0.1"
+COURT_EVIDENCE_SCHEMA = "court-evidence/0.2"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
 SHUTTLE_QUALITY_FILENAME = "shuttle_quality.json.gz"
 TRACK_FILENAME = "shuttle_track.npy.xz"
 COURT_EVIDENCE_FILENAME = "court_evidence.json.gz"
+COURT_FAILURE_FILENAME = "court_failure.json.gz"
 COURT_KEEP_VOTE_FILENAME = "court_keep_vote.npy.xz"
 COURT_PRESENT_FILENAME = "court_present.npy.xz"
+COURT_DETECTOR_RESULT_FILENAME = "court_detector_result.json.gz"
+# court_detector.view_pool.CourtMode's values; the default comes first. The detector
+# runs in its own interpreter, so this module does not import it.
+COURT_MODES = ("video-robust", "scene-robust", "fast-robust")
 POSE_FILENAMES = {
     "kps": "pose_kps.npy.xz", "bboxes": "pose_bboxes.npy.xz", "scores": "pose_scores.npy.xz",
     "kp_scores": "pose_kp_scores.npy.xz", "ndet": "pose_ndet.npy.xz",
@@ -97,8 +102,30 @@ class PoseExtraction:
 
 
 @dataclass(frozen=True)
+class CourtDetectorSettings:
+    """How to launch ``court_detector.run_video`` as its own program.
+
+    The detector runs in its own interpreter. Its DeepLSD and CuPy setup lives in
+    that venv, and importing it sets single-thread limits for the whole process.
+    """
+
+    python: Path  # the configured court interpreter, kept unresolved so its venv applies
+    deeplsd_source: Path  # DeepLSD checkout
+    deeplsd_weights: Path
+    device: str  # DeepLSD device
+    template_device: str  # line-template scoring device
+    reuse_courts: bool  # try earlier fully searched courts before a full search
+    court_mode: str = COURT_MODES[0]  # run_video --court-mode
+
+    def configuration(self) -> dict[str, object]:
+        """The settings that can change detected courts, for fingerprints and receipts."""
+        return {"device": self.device, "template_device": self.template_device, "reuse_courts": self.reuse_courts,
+                "court_mode": self.court_mode}
+
+
+@dataclass(frozen=True)
 class CourtVision:
-    """Raw scene intervals and their detected CourtKeyNet evidence."""
+    """Raw scene intervals and their detected court evidence."""
 
     raw_cuts: tuple[tuple[int, int], ...]
     evidence: CourtEvidenceResult
@@ -373,60 +400,140 @@ def load_pose_arrays(output_dir: Path, frame_count: int) -> PoseArrays:
     return arrays
 
 
+def court_detector_command(
+    settings: CourtDetectorSettings,
+    *,
+    video_path: Path,
+    pose_dir: Path,
+    output_path: Path,
+    scenes_path: Path | None = None,
+) -> list[str]:
+    """Build the auditable child command for one video's court detection.
+
+    :param pose_dir: saved native-pixel ``pose_{bboxes,kps,ndet}.npy.xz`` arrays.
+    :param scenes_path: saved half-open scene ranges; None runs PySceneDetect.
+    """
+    command = [
+        os.fspath(settings.python), "-m", "court_detector.run_video",
+        "--video", os.fspath(video_path),
+        "--people", os.fspath(pose_dir),
+        "--deeplsd-source", os.fspath(settings.deeplsd_source),
+        "--deeplsd-weights", os.fspath(settings.deeplsd_weights),
+        "--device", settings.device,
+        "--template-device", settings.template_device,
+        "--court-mode", settings.court_mode,
+        "--output", os.fspath(output_path),
+    ]
+    if scenes_path is None:
+        command.append("--pyscenedetect")
+    else:
+        command.extend(["--scenes", os.fspath(scenes_path)])
+    if settings.reuse_courts:
+        command.append("--reuse-courts")
+    return command
+
+
+def run_court_detector(
+    settings: CourtDetectorSettings,
+    *,
+    video_path: Path,
+    pose_dir: Path,
+    work_dir: Path,
+    scenes_path: Path | None = None,
+) -> dict[str, object]:
+    """Run the court detector program on one video and load its result.
+
+    :param work_dir: existing directory that receives the raw detector result.
+    :param scenes_path: saved half-open scene ranges; None runs PySceneDetect.
+    """
+    executable = resolve_pose_executable(settings.python)
+    output_path = Path(work_dir) / COURT_DETECTOR_RESULT_FILENAME
+    command = court_detector_command(
+        replace(settings, python=executable),
+        video_path=video_path,
+        pose_dir=pose_dir,
+        output_path=output_path,
+        scenes_path=scenes_path,
+    )
+    # The detector package sits under src/, as the pose child's code does.
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=Path(__file__).resolve().parents[2],
+        env=pose_subprocess_environment(),
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise RuntimeError(f"court detector exited with status {completed.returncode}: {detail}")
+    return load_json_gz(output_path)
+
+
 def build_detected_court_stage(
     *,
     video_id: str,
     metadata: VideoMetadata,
     pose: PoseArrays,
-    detector: object,
+    pose_dir: Path,
+    settings: CourtDetectorSettings,
     output_dir: Path,
     case_id: str | None = None,
-    parent: str = "detected_ckn_opencv_consensus",
     ref_err_px: float = 3.5,
 ) -> CourtVision:
-    """Build raw-cut and detected CourtKeyNet evidence with existing producers."""
+    """Detect one court per scene from the saved poses, then persist the court evidence.
+
+    :param pose_dir: where ``pose`` is saved; the detector reads those native-pixel arrays.
+    """
     from annotator.court_evidence import (
-        build_detected_court_evidence,
-        build_raw_cut_intervals,
-        detect_scene_evidence,
+        NoAcceptedCourtError,
+        build_court_detector_evidence,
+        read_detector_scenes,
     )
 
     validate_pose_arrays(pose, metadata.frame_count)
-    cuts = build_raw_cut_intervals(
-        metadata.source_path,
-        metadata.frame_count,
-        float(metadata.fps),
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    failure_path = root / COURT_FAILURE_FILENAME
+    failure_path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".court-detector-", dir=root) as work_dir:
+        detector_result = run_court_detector(
+            settings,
+            video_path=metadata.source_path,
+            pose_dir=pose_dir,
+            work_dir=Path(work_dir),
+        )
+    scenes = read_detector_scenes(
+        detector_result,
+        frame_count=metadata.frame_count,
+        native_size=(metadata.width, metadata.height),
     )
-    scene_evidence = detect_scene_evidence(metadata.source_path, cuts, detector)
     resolution = (float(metadata.width), float(metadata.height))
-    result = build_detected_court_evidence(
-        case_id or video_id,
-        parent,
-        video_id,
-        resolution,
-        cuts,
-        scene_evidence,
-        pose.bboxes,
-        pose.scores,
-        pose.ndet,
-        detector_resolution=resolution,
-        ref_err_px=ref_err_px,
-    )
-    court = CourtVision(tuple(cuts), result)
-    _validate_court_vision(
-        cuts,
-        result,
-        metadata.frame_count,
-        resolution,
-    )
+    try:
+        result = build_court_detector_evidence(
+            case_id or video_id,
+            video_id,
+            resolution,
+            resolution,
+            scenes,
+            pose.bboxes,
+            pose.scores,
+            pose.ndet,
+            ref_err_px=ref_err_px,
+        )
+    except NoAcceptedCourtError as error:
+        save_json_gz(failure_path, {"video_id": video_id, "error": str(error),
+                                   "scene_records": error.result.scene_records})
+        raise
+    raw_cuts = tuple((scene.start_frame, scene.end_frame) for scene in scenes)
     artifacts = persist_court_vision(
-        output_dir,
+        root,
         video_id=video_id,
-        court=court,
+        court=CourtVision(raw_cuts, result),
         frame_count=metadata.frame_count,
         resolution=resolution,
     )
-    return CourtVision(court.raw_cuts, court.evidence, artifacts)
+    return CourtVision(raw_cuts, result, artifacts)
 
 
 def persist_court_vision(
@@ -448,7 +555,6 @@ def persist_court_vision(
         "raw_cuts": [list(interval) for interval in court.raw_cuts],
         "inputs": _court_inputs_payload(inputs),
         "scene_records": court.evidence.scene_records,
-        "consensus": court.evidence.consensus,
     }
     evidence_path = save_json_gz(root / COURT_EVIDENCE_FILENAME, payload)
     keep_vote_path = save_npy_xz(root / COURT_KEEP_VOTE_FILENAME, court.evidence.keep_vote)
@@ -469,20 +575,22 @@ def load_court_vision(
 
     root = Path(output_dir)
     payload = load_json_gz(root / COURT_EVIDENCE_FILENAME)
-    expected = {"schema", "video_id", "raw_cuts", "inputs", "scene_records", "consensus"}
+    # Check the version first, so an older file names its schema, not a field mismatch.
+    if payload.get("schema") != COURT_EVIDENCE_SCHEMA:
+        raise ValueError(
+            f"unsupported court evidence schema {payload.get('schema')!r}; expected {COURT_EVIDENCE_SCHEMA!r}"
+        )
+    expected = {"schema", "video_id", "raw_cuts", "inputs", "scene_records"}
     if set(payload) != expected:
-        raise ValueError("court evidence payload fields differ from court-evidence/0.1")
-    if payload["schema"] != COURT_EVIDENCE_SCHEMA:
-        raise ValueError(f"unsupported court evidence schema: {payload['schema']!r}")
+        raise ValueError(f"court evidence payload fields differ from {COURT_EVIDENCE_SCHEMA}")
     if payload["video_id"] != video_id:
         raise ValueError(
             f"court evidence video_id {payload['video_id']!r} does not match {video_id!r}"
         )
     raw_cuts = _raw_cuts_from_payload(payload["raw_cuts"])
     inputs = _court_inputs_from_payload(payload["inputs"])
-    scene_records, consensus = load_court_provenance(
+    scene_records = load_court_provenance(
         payload["scene_records"],
-        payload["consensus"],
         raw_cuts=raw_cuts,
         video_id=video_id,
     )
@@ -495,7 +603,6 @@ def load_court_vision(
         scene_records=scene_records,
         keep_vote=keep_vote,
         court_present=court_present,
-        consensus=consensus,
     )
     artifacts = CourtArtifacts(
         root / COURT_EVIDENCE_FILENAME,
@@ -876,7 +983,8 @@ def _extract_pose_child(
     n_max: int,
 ) -> int:
     from preparing_data.raw_extract import extract_one_clip
-    from preparing_data.rtmlib_pose import RtmlibPoseExtractor
+
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
     if not video_path.is_file():
         raise FileNotFoundError(f"pose source video is not a regular file: {video_path}")

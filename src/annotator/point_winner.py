@@ -90,7 +90,9 @@ SINGLES_INSET_M = 0.46
 SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
 SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
 NET_COURT_Y = 0.5
-SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER = (0, 1, 3, 2)
+# ShuttleSet camera corners (TL, TR, BL, BR) reordered to TL, TR, BR, BL, the order
+# court_detector returns.
+SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
 
 # Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
@@ -641,7 +643,7 @@ def corner_error_band_from_corners(
 ) -> float:
     """Return the median metre displacement from sixteen corner perturbations.
 
-    ``corners_refpx`` uses the CourtKeyNet TL, TR, BR, BL order at
+    ``corners_refpx`` uses the TL, TR, BR, BL order at
     :data:`HOMOGRAPHY_RESOLUTION`. The supplied ``court_info`` owns the active
     parent homography and court boundaries, so this helper is independent of
     ShuttleSet's homography table.
@@ -680,7 +682,7 @@ def corner_error_band_m(
     :param err_px: assumed corner-marking error, in the recorded homography's own pixel space.
     """
     source_order = get_corner_camera(homo_df.loc[vid]).T
-    corners = source_order[list(SHUTTLESET_TO_COURTKEYNET_CORNER_ORDER)]
+    corners = source_order[list(SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER)]
     return corner_error_band_from_corners(corners, court_info, err_px)
 
 

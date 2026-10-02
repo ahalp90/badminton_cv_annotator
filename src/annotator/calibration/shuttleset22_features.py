@@ -1,4 +1,9 @@
-"""Evaluate issue #22 feature prototypes on completed ShuttleSet22 artifacts."""
+"""Evaluate issue #22 feature prototypes on completed ShuttleSet22 artifacts.
+
+This evaluator is pinned to the issue #120 CourtKeyNet artefacts, whose
+``court-evidence/0.1`` files the current loader rejects by schema. Rerunning it
+needs court evidence rebuilt by the current court stage and new identity pins.
+"""
 
 from __future__ import annotations
 

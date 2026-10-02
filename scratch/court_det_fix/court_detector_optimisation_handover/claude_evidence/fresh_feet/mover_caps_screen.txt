@@ -1,0 +1,7 @@
+Screen: zone_net player test replayed on each view's accepted baseline court (screen_accepted_courts.py).
+Variants: standing = seated removed; smN = seated removed, then top N tracks by summed motion (build_mover_caps.py).
+Failures (all views, including the wrong court the baseline accepts on non-court control 14336):
+{"frozen": 0, "standing": 1, "sm6": 7, "sm8": 4, "sm10": 4, "sm12": 3, "sm15": 2, "sm20": 1}
+sm8/sm10 fail: am2_window_01_frame_28019, am3_window_02_frame_17174, sset_21_gloiZ_gTJaE_frame_00000001, 00014336
+sm12 fail: am2 28019, frame_00000001, 00014336. sm15 fail: am2 28019, 00014336. sm20 fail: 00014336 only.
+Standing people per sample (median): am2 28019 34, am3 17174 10, frame_00000001 13.

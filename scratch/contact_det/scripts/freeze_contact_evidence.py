@@ -250,6 +250,7 @@ def _load_inputs(
     """Restore arrays, court inputs, sticky evidence, and saved annotation."""
     from annotator.fps_constants import scale_for_fps
     from annotator.rally.evidence import build_sticky_result, tracker_segments
+    from annotator.scene_courts import build_scene_courts
     from dataset_builder.vision import load_court_vision, load_npy_xz, load_pose_arrays
 
     paths = _stage_paths(data_root, fixture)
@@ -282,6 +283,7 @@ def _load_inputs(
         court_inputs.gate_resolution_table,
         RESOLUTION,
         scale_for_fps(fixture.fps).body_unit_half_window,
+        scene_courts=build_scene_courts(homography_rows, court_inputs.resolution),
     )
     annotation = read_annotation(paths["annotation"], fixture)
     return track, pose, court, segments, sticky, annotation

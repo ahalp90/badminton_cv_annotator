@@ -1,9 +1,13 @@
 # Amateur-video court corner ground truth
 
+Additional annotations from 8 September 2026 are in [2026-09-08/](2026-09-08/README.md):
+nine frames across three further gameplay clips, with supporting landmarks and
+an overlay for every frame. The original Curtis Martin dataset below is unchanged.
+
 Hand-annotated court corners for four amateur badminton videos, for scoring
 court detection on footage that has no recorded homography. Annotated by
-Curtis Martin on 12 Jul 2026 with
-`src/courtkeynet/validation_scripts/annotate_court_corners_offframe.py`.
+Curtis Martin on 12 Jul 2026 using the manual tool, now at
+`scripts/court_annotation/annotate_court_corners_offframe.py`.
 
 Source videos are not in the repo; download by ID:
 
@@ -31,4 +35,4 @@ frame; on the static-camera videos, independent per-frame fits agree within
 
 `renders/` holds one visual audit per video: every painted line projected
 through the frame's fit, drawn over the actual frame. Regenerate any frame
-with `src/courtkeynet/validation_scripts/render_ground_truth.py`.
+with `scripts/court_annotation/render_ground_truth.py`.

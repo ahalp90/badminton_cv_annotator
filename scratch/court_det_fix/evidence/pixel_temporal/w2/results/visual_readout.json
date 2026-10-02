@@ -1,0 +1,71 @@
+{
+  "schema": "w2-paired-pixel-visual-readout/1",
+  "source_revision": "bb6787adeca9a19b5f1d3c3324d54cfcb2ea6e68",
+  "method": "Direct inspection of returned context PNGs, native crops, overlays, shared-coordinate strips, and exact saved sample coordinates; no semantic model.",
+  "candidate_rulings_changed": false,
+  "records": [
+    {
+      "case_id": "am2_window_01_frame_28019",
+      "candidate_id": "184:4123",
+      "population": "ORIGINAL automatic_all_camera",
+      "existing_ruling": "false; unchanged",
+      "intervals": [
+        10,
+        11
+      ],
+      "readout": "Dominant coherent positive support follows one raised pale net band, visually consistent with the lower binding of the neighbouring net. Not two floor markings.",
+      "certainty_boundary": "The band versus floor distinction is clear; exact net-component terminology is an interpretation. Isolated early passes and the other ten intervals are not physically labelled here.",
+      "representatives": [
+        {
+          "interval": 10,
+          "station_zero_based": 14,
+          "offset_working_px": -4
+        },
+        {
+          "interval": 11,
+          "station_zero_based": 13,
+          "offset_working_px": -4
+        }
+      ]
+    },
+    {
+      "case_id": "am2_window_00_frame_150",
+      "candidate_id": "30:33",
+      "population": "ORIGINAL automatic_all_camera",
+      "existing_ruling": "approved; unchanged",
+      "intervals": [
+        6,
+        7
+      ],
+      "readout": "Mixed/confounded local support. Passing centres include the white sock/ankle of a crossing player and a bright slanted sideline near the post. Clean separate baseline/long-service ownership is not established along the whole span.",
+      "certainty_boundary": "The candidate remains approved. Not all passing samples are nonpaint; far-boundary paint-versus-edge attribution and complete per-pixel ownership remain unresolved.",
+      "representatives": [
+        {
+          "interval": 6,
+          "station_zero_based": 3,
+          "offset_working_px": 4,
+          "visual_neighbourhood": "white sock/ankle"
+        },
+        {
+          "interval": 7,
+          "station_zero_based": 4,
+          "offset_working_px": 2,
+          "visual_neighbourhood": "same white sock/ankle"
+        },
+        {
+          "interval": 6,
+          "station_zero_based": 20,
+          "offset_working_px": 4,
+          "visual_neighbourhood": "bright slanted sideline near post"
+        },
+        {
+          "interval": 7,
+          "station_zero_based": 20,
+          "offset_working_px": 4,
+          "visual_neighbourhood": "same sideline neighbourhood"
+        }
+      ]
+    }
+  ],
+  "decision": "Close this diagnostic. No further remote experiment recommended; no standalone connected-run or per-pair sharing veto adopted."
+}

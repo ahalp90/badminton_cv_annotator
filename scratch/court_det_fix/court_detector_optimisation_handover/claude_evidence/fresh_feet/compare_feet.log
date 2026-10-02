@@ -1,0 +1,34 @@
+0
+case | wall baseline / everyone / standing s | everyone: same pick, corrected diff px | standing: same pick, corrected diff px | courts scored baseline / everyone / standing
+am1_window_00_frame_54 | 428 / 490 / 488 | everyone: True, 0.00 | standing: True, 0.00 | 1196276 / 1202152 / 1192298
+am2_window_00_frame_150 | 390 / 282 / 328 | everyone: True, 0.00 | standing: True, 0.00 | 1122197 / 1124229 / 1133798
+am2_window_01_frame_28019 | 327 / 268 / 318 | everyone: True, 0.00 | standing: True, 0.00 | 891870 / 894168 / 847491
+am3_window_00_frame_0 | 642 / 523 / 553 | everyone: False, 0.00 | standing: False, 0.00 | 2732326 / 2754778 / 3309324
+am3_window_02_frame_17174 | 574 / 386 / 434 | everyone: True, 0.00 | standing: False, 0.00 | 2291954 / 2291854 / 2595596
+gxBQ_window_00_frame_0 | 1518 / 1394 / 1344 | everyone: True, 0.00 | standing: False, 0.00 | 5825228 / 5822834 / 6079651
+gxBQ_window_00_frame_5 | 1200 / 1401 / 889 | everyone: True, 0.00 | standing: True, 0.00 | 3514512 / 3487516 / 4229490
+gxBQ_window_00_frame_689 | 1553 / 1416 / 1238 | everyone: True, 0.00 | standing: True, 0.00 | 5817735 / 5817702 / 6320753
+gxBQ_window_03_frame_77876 | 1311 / 1191 / 1258 | everyone: True, 0.00 | standing: True, 0.00 | 4860882 / 4862768 / 4794586
+letterboxed_short_frame_78 | 244 / 146 / 158 | everyone: True, 0.00 | standing: False, 0.00 | 340480 / 340772 / 215666
+shuttleset_03_scene_0016 | 750 / 781 / 610 | everyone: False, 0.00 | standing: False, 0.00 | 4687608 / 3667789 / 3665355
+shuttleset_03_scene_0017 | 788 / 612 / 670 | everyone: False, 6.88 | standing: False, 3.02 | 4786270 / 4341638 / 4159041
+shuttleset_03_scene_0019 | 700 / 654 / 647 | everyone: False, 0.00 | standing: False, 0.00 | 3538840 / 3341594 / 3324278
+shuttleset_03_scene_0023 | 478 / 586 / 523 | everyone: False, 0.00 | standing: False, 0.00 | 3380189 / 3689541 / 3395094
+shuttleset_03_scene_0032 | 596 / 567 / 614 | everyone: False, 1.22 | standing: False, 0.49 | 3762126 / 3514670 / 3387337
+shuttleset_03_scene_0034 | 810 / 884 / 637 | everyone: False, 3.86 | standing: False, 3.86 | 4697980 / 3763402 / 3266051
+shuttleset_21_scene_0034 | 438 / 345 / 550 | everyone: False, 0.00 | standing: False, 0.00 | 3228570 / 3161606 / 3148736
+shuttleset_21_scene_0039 | 414 / 361 / 477 | everyone: False, 0.00 | standing: False, 0.00 | 2248718 / 2605772 / 2678726
+shuttleset_21_scene_0044 | 373 / 279 / 304 | everyone: False, 0.00 | standing: False, 0.00 | 2165328 / 2199570 / 2109528
+sset_21_gloiZ_gTJaE_frame_00000001 | 406 / 280 / 255 | everyone: False, 0.00 | standing: False, 0.00 | 1823466 / 2237681 / 2184821
+sset_21_gloiZ_gTJaE_frame_00000300 (non-court) | 121 / 95 / 80 | everyone: True, picked False vs False | standing: True, picked False vs False | 0 / 0 / 0
+sset_21_gloiZ_gTJaE_frame_00009558 (non-court) | 99 / 93 / 93 | everyone: True, picked False vs False | standing: True, picked False vs False | 0 / 0 / 0
+sset_21_gloiZ_gTJaE_frame_00014336 (non-court) | 131 / 154 / 108 | everyone: True, 0.00 | standing: False, picked True vs True | 13208 / 98326 / 14970
+sset_21_gloiZ_gTJaE_frame_00023893 (non-court) | 114 / 61 / 54 | everyone: True, picked False vs False | standing: True, picked False vs False | 0 / 0 / 0
+sset_21_gloiZ_gTJaE_frame_00038228 (non-court) | 74 / 63 / 32 | everyone: False, picked True vs False | standing: True, picked False vs False | 2408 / 2748 / 324
+sset_21_gloiZ_gTJaE_frame_00062120 (non-court) | 99 / 68 / 89 | everyone: True, picked False vs False | standing: True, picked False vs False | 0 / 0 / 0
+sset_21_gloiZ_gTJaE_frame_00090790 (non-court) | 64 / 42 / 59 | everyone: True, picked False vs False | standing: True, picked False vs False | 0 / 0 / 0
+sset_21_gloiZ_gTJaE_frame_00100347 (non-court) | 103 / 273 / 197 | everyone: False, picked True vs False | standing: False, picked True vs False | 0 / 2103342 / 470218
+
+baseline: {"views": 28, "wall_s": 14746.813715715427, "axes_scored": null, "courts_scored": 62928171, "changed": []}
+everyone: {"views": 28, "wall_s": 13695.74009204004, "axes_scored": 77734178, "courts_scored": 63326452, "changed": ["am3_window_00_frame_0", "shuttleset_03_scene_0016", "shuttleset_03_scene_0017", "shuttleset_03_scene_0019", "shuttleset_03_scene_0023", "shuttleset_03_scene_0032", "shuttleset_03_scene_0034", "shuttleset_21_scene_0034", "shuttleset_21_scene_0039", "shuttleset_21_scene_0044", "sset_21_gloiZ_gTJaE_frame_00000001", "sset_21_gloiZ_gTJaE_frame_00038228", "sset_21_gloiZ_gTJaE_frame_00100347"]}
+standing: {"views": 28, "wall_s": 13008.483691536356, "axes_scored": 64512263, "courts_scored": 62523132, "changed": ["am3_window_00_frame_0", "am3_window_02_frame_17174", "gxBQ_window_00_frame_0", "letterboxed_short_frame_78", "shuttleset_03_scene_0016", "shuttleset_03_scene_0017", "shuttleset_03_scene_0019", "shuttleset_03_scene_0023", "shuttleset_03_scene_0032", "shuttleset_03_scene_0034", "shuttleset_21_scene_0034", "shuttleset_21_scene_0039", "shuttleset_21_scene_0044", "sset_21_gloiZ_gTJaE_frame_00000001", "sset_21_gloiZ_gTJaE_frame_00014336", "sset_21_gloiZ_gTJaE_frame_00100347"]}

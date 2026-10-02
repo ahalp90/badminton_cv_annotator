@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from pathlib import Path
 import subprocess
+import sys
 
 import numpy as np
 import pandas as pd
@@ -14,7 +15,16 @@ import pytest
 import annotator.court_evidence as court_evidence_module
 import annotator.run_video as run_video_module
 from annotator.config import BaseAnnotatorConfig
-from annotator.court_evidence import CourtEvidenceResult, CourtInputs, CourtSceneRecord
+from annotator.court_evidence import (
+    DETECTOR_RESULT_SCHEMA,
+    CourtEvidenceResult,
+    CourtInputs,
+    CourtSceneRecord,
+    DetectorScene,
+    NoAcceptedCourtError,
+    SceneStatus,
+    build_court_detector_evidence,
+)
 from annotator.point_winner import (
     GeometricVerdictRow,
     Half,
@@ -26,7 +36,6 @@ from annotator.point_winner import (
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.types import ContactCandidate, DeadMaskMode
 from annotator.video_metadata import VideoMetadata
-from courtkeynet.court_corners import ConsensusRepair, FallbackDiagnostics
 from dataset_builder import vision
 from dataset_builder.shuttle_quality import ShuttleQualitySummary, summarize_shuttle_quality
 from scraper.commentary_pairing import pair_video
@@ -128,25 +137,21 @@ def _court_vision(video_id: str, frame_count: int) -> vision.CourtVision:
         scene_index=0,
         start_frame=0,
         end_frame=frame_count,
-        sampled_frame_indices=(),
-        raw_corners_px=native_corners,
-        raw_source=None,
-        raw_peaks=None,
-        raw_corner_source=None,
-        fallback_diagnostics=None,
+        status=SceneStatus.COURT,
+        analysed_frame=None,
+        corners_native_px=native_corners,
+        no_court_reason=None,
+        reused_from=None,
+        error=None,
         exactly_two_count=0,
         exactly_two_fraction=0.0,
         scene_valid=False,
-        consensus_distance_px=None,
-        consensus_flag=None,
-        active_corners_native_px=native_corners,
     )
     evidence = CourtEvidenceResult(
         inputs=inputs,
         scene_records=(record,),
         keep_vote=np.zeros(frame_count, dtype=bool),
         court_present=np.ones(frame_count, dtype=bool),
-        consensus=None,
     )
     return vision.CourtVision(((0, frame_count),), evidence)
 
@@ -484,133 +489,314 @@ def test_pose_contract_failures_raise_original_error(
         assert not path.exists()
 
 
-def test_detected_court_stage_uses_canonical_native_resolution_and_existing_builders(
+FULL_FRAME_PX = [[0.0, 0.0], [100.0, 0.0], [100.0, 50.0], [0.0, 50.0]]  # TL, TR, BR, BL at 100x50
+
+
+def _two_player_pose(frame_count: int) -> vision.PoseArrays:
+    """Two people standing inside a full-frame 100x50 court in every frame."""
+    pose = _pose_arrays(frame_count)
+    pose.bboxes[:, 0] = (20.0, 20.0, 30.0, 30.0)
+    pose.bboxes[:, 1] = (60.0, 30.0, 70.0, 40.0)
+    pose.kps[:, :2] = 25.0
+    pose.kp_scores[:, :2] = 0.9
+    pose.scores[:, :2] = 0.9
+    pose.ndet[:] = 2
+    return pose
+
+
+def _detector_row(start: int, end: int, status: str, **fields: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "view_id": f"0012_scene_{start}", "start_frame": start, "end_frame": end,
+        "frame_index": (start + end) // 2, "status": status,
+        "corners_native_px": FULL_FRAME_PX if status == "court" else None,
+    }
+    row.update(fields)
+    return row
+
+
+def _detector_result(frame_count: int, rows: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "schema": DETECTOR_RESULT_SCHEMA, "video_id": "0012", "frame_count": frame_count,
+        "native_size": [100, 50], "scenes": rows,
+    }
+
+
+def _settings(python: Path = Path(sys.executable)) -> vision.CourtDetectorSettings:
+    return vision.CourtDetectorSettings(
+        python=python,
+        deeplsd_source=Path("deeplsd"),
+        deeplsd_weights=Path("deeplsd/weights/deeplsd_md.tar"),
+        device="cuda",
+        template_device="cpu",
+        reuse_courts=False,
+    )
+
+
+def test_court_detector_command_launches_the_program_with_saved_poses() -> None:
+    command = vision.court_detector_command(
+        _settings(Path("/venv/bin/python")),
+        video_path=Path("video.mp4"), pose_dir=Path("pose"), output_path=Path("out.json.gz"),
+    )
+    assert command == [
+        "/venv/bin/python", "-m", "court_detector.run_video",
+        "--video", "video.mp4", "--people", "pose",
+        "--deeplsd-source", "deeplsd", "--deeplsd-weights", "deeplsd/weights/deeplsd_md.tar",
+        "--device", "cuda", "--template-device", "cpu", "--court-mode", "video-robust",
+        "--output", "out.json.gz", "--pyscenedetect",
+    ]
+    reused = vision.court_detector_command(
+        vision.CourtDetectorSettings(
+            Path("python"), Path("s"), Path("w"), "cpu", "cuda", reuse_courts=True,
+        ),
+        video_path=Path("v"), pose_dir=Path("p"), output_path=Path("o"), scenes_path=Path("scenes.json.gz"),
+    )
+    assert reused[-3:] == ["--scenes", "scenes.json.gz", "--reuse-courts"]
+    assert "--pyscenedetect" not in reused
+    assert reused[reused.index("--template-device") + 1] == "cuda"
+    per_scene = vision.court_detector_command(
+        replace(_settings(Path("python")), court_mode="scene-robust"),
+        video_path=Path("v"), pose_dir=Path("p"), output_path=Path("o"),
+    )
+    assert per_scene[per_scene.index("--court-mode") + 1] == "scene-robust"
+
+
+def test_run_court_detector_runs_a_separate_program_and_loads_its_result(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    metadata = _metadata(tmp_path, frame_count=4)
-    pose = _pose_arrays(metadata.frame_count)
-    expected = _court_vision("0012", metadata.frame_count).evidence
-    detector = object()
+    calls: list[tuple[list[str], dict[str, object]]] = []
+    result = _detector_result(4, [_detector_row(0, 4, "court")])
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append((command, kwargs))
+        vision.save_json_gz(Path(command[command.index("--output") + 1]), result)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(vision.subprocess, "run", fake_run)
+    loaded = vision.run_court_detector(
+        _settings(), video_path=tmp_path / "video.mp4", pose_dir=tmp_path / "pose", work_dir=tmp_path,
+    )
+    assert loaded == result
+    (command, kwargs), = calls
+    assert command[1:3] == ["-m", "court_detector.run_video"]
+    assert Path(command[0]).is_absolute()
+    assert command[command.index("--output") + 1] == str(tmp_path / vision.COURT_DETECTOR_RESULT_FILENAME)
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    source_root = Path(vision.__file__).resolve().parents[1]
+    assert str(source_root) in env["PYTHONPATH"].split(":")
+
+    def failing_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 2, "", "DeepLSD weights are missing")
+
+    monkeypatch.setattr(vision.subprocess, "run", failing_run)
+    with pytest.raises(RuntimeError, match="exited with status 2: DeepLSD weights are missing"):
+        vision.run_court_detector(
+            _settings(), video_path=tmp_path / "video.mp4", pose_dir=tmp_path / "pose", work_dir=tmp_path,
+        )
+
+
+def test_detected_court_stage_validates_the_detector_result_and_persists_scene_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=6)
+    pose = _two_player_pose(metadata.frame_count)
     seen: dict[str, object] = {}
+    rows = [
+        _detector_row(0, 3, "court", no_court_reason=None, reused_from=None),
+        _detector_row(3, 4, "scene_too_short_for_feet"),
+        _detector_row(4, 6, "no_court", no_court_reason="no_candidates", reused_from=None),
+    ]
 
-    def fake_cuts(video_path: Path, frame_count: int, fps: float) -> list[tuple[int, int]]:
-        seen["cuts"] = (video_path, frame_count, fps)
-        return [(0, 4)]
+    def fake_detector(settings: vision.CourtDetectorSettings, **kwargs: object) -> dict[str, object]:
+        seen.update(kwargs, settings=settings)
+        work_dir = kwargs["work_dir"]
+        assert isinstance(work_dir, Path) and work_dir.is_dir()
+        return _detector_result(metadata.frame_count, rows)
 
-    def fake_detect(
-        video_path: Path,
-        cuts: list[tuple[int, int]],
-        detector_arg: object,
-    ) -> list[object]:
-        seen["detect"] = (video_path, cuts, detector_arg)
-        return [object()]
-
-    def fake_build(*args: object, **kwargs: object) -> CourtEvidenceResult:
-        seen["build_args"] = args
-        seen["build_kwargs"] = kwargs
-        return expected
-
-    monkeypatch.setattr(court_evidence_module, "build_raw_cut_intervals", fake_cuts)
-    monkeypatch.setattr(court_evidence_module, "detect_scene_evidence", fake_detect)
-    monkeypatch.setattr(court_evidence_module, "build_detected_court_evidence", fake_build)
-
+    monkeypatch.setattr(vision, "run_court_detector", fake_detector)
     output_dir = tmp_path / "court"
     court = vision.build_detected_court_stage(
         video_id="0012",
         metadata=metadata,
         pose=pose,
-        detector=detector,
+        pose_dir=tmp_path / "pose",
+        settings=_settings(),
         output_dir=output_dir,
     )
 
+    assert seen["video_path"] == metadata.source_path
+    assert seen["pose_dir"] == tmp_path / "pose"
+    assert "scenes_path" not in seen  # the detector finds the scenes with PySceneDetect
+    assert Path(str(seen["work_dir"])).parent == output_dir
+    assert not Path(str(seen["work_dir"])).exists()
+    assert court.raw_cuts == ((0, 3), (3, 4), (4, 6))
     assert court.artifacts is not None
-    for path in court.artifacts.as_mapping().values():
-        assert path.is_file()
-    build_args = seen["build_args"]
-    assert isinstance(build_args, tuple)
-    assert build_args[2] == "0012"
-    build_kwargs = seen["build_kwargs"]
-    assert isinstance(build_kwargs, dict)
-    assert build_kwargs["detector_resolution"] == (100.0, 50.0)
-    assert seen["detect"] == (metadata.source_path, [(0, 4)], detector)
+    assert sorted(path.name for path in output_dir.iterdir()) == sorted(
+        path.name for path in court.artifacts.as_mapping().values()
+    )
     restored = vision.load_court_vision(
-        output_dir,
-        video_id="0012",
-        frame_count=metadata.frame_count,
-        resolution=(100.0, 50.0),
+        output_dir, video_id="0012", frame_count=metadata.frame_count, resolution=(100.0, 50.0),
     )
-    assert restored.evidence.inputs is not None
-    assert restored.evidence.inputs.homography_rows.loc[0, "video_id"] == "0012"
-    np.testing.assert_array_equal(restored.evidence.keep_vote, expected.keep_vote)
-    np.testing.assert_array_equal(restored.evidence.court_present, expected.court_present)
+    assert restored.evidence.court_present.tolist() == [True] * 3 + [False] * 3
+    records = restored.evidence.scene_records
+    assert [record.status for record in records] == [
+        SceneStatus.COURT, SceneStatus.SCENE_TOO_SHORT_FOR_FEET, SceneStatus.NO_COURT,
+    ]
+    assert records[2].no_court_reason == "no_candidates"
+    _assert_structured_equal(records, court.evidence.scene_records)
 
 
-def test_court_provenance_round_trip_restores_every_scene_and_consensus_value(
+@pytest.mark.parametrize(("result_fields", "message"), [
+    ({"schema": "court-detector-video/0", "frame_count": 99}, "unsupported court detector schema"),
+    ({"frame_count": 5}, "frame count 5 differs from 6"),
+    ({"native_size": [1920, 1080]}, "native size"),
+])
+def test_detected_court_stage_rejects_a_result_for_another_video_before_persisting(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    result_fields: dict[str, object],
+    message: str,
 ) -> None:
-    video_id = "0012"
-    frame_count = 4
-    base = _court_vision(video_id, frame_count).evidence
-    assert base.inputs is not None
-    raw_corners = np.array(
-        [[1.0, 2.0], [99.0, 1.0], [98.0, 49.0], [0.0, 48.0]],
-        dtype=np.float64,
-    )
-    diagnostics = FallbackDiagnostics(1.0, 2.0, 0.01, 0.02, 5, 8, 0.5)
-    record = CourtSceneRecord(
-        video_id=video_id,
-        case_id="case-0012",
-        parent="detected_ckn_opencv_consensus",
-        scene_index=0,
-        start_frame=0,
-        end_frame=frame_count,
-        sampled_frame_indices=(0, 2, 3),
-        raw_corners_px=raw_corners,
-        raw_source="fallback",
-        raw_peaks=np.array([0.8, 0.7, 0.6, 0.5], dtype=np.float64),
-        raw_corner_source=("model", "fallback", "fallback", "model"),
-        fallback_diagnostics=diagnostics,
-        exactly_two_count=frame_count,
-        exactly_two_fraction=1.0,
-        scene_valid=True,
-        consensus_distance_px=0.0,
-        consensus_flag=False,
-        active_corners_native_px=raw_corners,
-    )
-    consensus = ConsensusRepair(
-        consensus_quad=raw_corners,
-        distances_px=np.array([0.0]),
-        flagged=np.array([False]),
-        repaired_quads=raw_corners[None, :, :],
-    )
-    evidence = CourtEvidenceResult(
-        inputs=base.inputs,
-        scene_records=(record,),
-        keep_vote=np.ones(frame_count, dtype=bool),
-        court_present=np.ones(frame_count, dtype=bool),
-        consensus=consensus,
-    )
-    court = vision.CourtVision(((0, frame_count),), evidence)
+    metadata = _metadata(tmp_path, frame_count=6)
+    result = {**_detector_result(6, [_detector_row(0, 6, "court")]), **result_fields}
+    monkeypatch.setattr(vision, "run_court_detector", lambda *_args, **_kwargs: result)
+    with pytest.raises(ValueError, match=message):
+        vision.build_detected_court_stage(
+            video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+            settings=_settings(), output_dir=tmp_path / "court",
+        )
+    assert list((tmp_path / "court").iterdir()) == []
 
+
+def test_detected_court_stage_fails_when_no_scene_has_an_accepted_court(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=6)
+    rows = [
+        _detector_row(0, 1, "scene_too_short_for_feet"),
+        _detector_row(1, 3, "no_court", no_court_reason="refit_camera_implausible"),
+        _detector_row(3, 6, "detection_failed", error="CourtFitError()", traceback="..."),
+    ]
+    monkeypatch.setattr(vision, "run_court_detector", lambda *_args, **_kwargs: _detector_result(6, rows))
+    with pytest.raises(NoAcceptedCourtError, match="detection_failed"):
+        vision.build_detected_court_stage(
+            video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+            settings=_settings(), output_dir=tmp_path / "court",
+        )
+    failure_path = tmp_path / "court" / vision.COURT_FAILURE_FILENAME
+    failure = vision.load_json_gz(failure_path)
+    assert failure["video_id"] == "0012"
+    assert [row["status"] for row in failure["scene_records"]] == [
+        "scene_too_short_for_feet", "no_court", "detection_failed",
+    ]
+    assert failure["scene_records"][1]["no_court_reason"] == "refit_camera_implausible"
+    assert failure["scene_records"][2]["error"] == "CourtFitError()"
+    assert all(not row["scene_valid"] for row in failure["scene_records"])
+
+    rows[:] = [_detector_row(0, 6, "court")]
+    vision.build_detected_court_stage(
+        video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+        settings=_settings(), output_dir=tmp_path / "court",
+    )
+    assert not failure_path.exists()
+
+
+def _detected_evidence(frame_count: int) -> CourtEvidenceResult:
+    """Detected evidence with two courts, a reused view and every no-court status."""
+    shifted = np.array(FULL_FRAME_PX) + [5.0, 0.0]
+    scenes = [
+        DetectorScene(0, 4, 2, SceneStatus.COURT, np.array(FULL_FRAME_PX), None, None, None),
+        DetectorScene(4, 6, 5, SceneStatus.SCENE_TOO_SHORT_FOR_FEET, None, None, None, None),
+        DetectorScene(6, 10, 8, SceneStatus.COURT, shifted, None, "0012_scene_0", None),
+        DetectorScene(10, 12, 11, SceneStatus.NO_COURT, None, "no_candidates", None, None),
+        DetectorScene(12, frame_count, 13, SceneStatus.DETECTION_FAILED, None, None, None, "CourtFitError()"),
+    ]
+    pose = _two_player_pose(frame_count)
+    return build_court_detector_evidence(
+        "case-0012", "0012", (100.0, 50.0), (100.0, 50.0), scenes, pose.bboxes, pose.scores, pose.ndet,
+    )
+
+
+def test_court_evidence_round_trip_keeps_each_scene_geometry_status_and_reason(tmp_path: Path) -> None:
+    video_id = "0012"
+    frame_count = 14
+    evidence = _detected_evidence(frame_count)
+    raw_cuts = tuple((record.start_frame, record.end_frame) for record in evidence.scene_records)
     vision.persist_court_vision(
         tmp_path,
         video_id=video_id,
-        court=court,
+        court=vision.CourtVision(raw_cuts, evidence),
         frame_count=frame_count,
         resolution=(100.0, 50.0),
     )
     restored = vision.load_court_vision(
+        tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0),
+    )
+
+    assert isinstance(restored.evidence.scene_records[0].video_id, str)
+    _assert_structured_equal(restored.evidence.scene_records, evidence.scene_records)
+    assert restored.evidence.inputs is not None
+    rows = restored.evidence.inputs.homography_rows
+    assert rows[["start_frame", "end_frame"]].values.tolist() == [[0, 4], [6, 10]]
+    assert rows["upleft_x"].tolist() == pytest.approx([0.0, 5.0])
+    np.testing.assert_array_equal(restored.evidence.court_present, evidence.court_present)
+    assert restored.evidence.court_present.tolist() == (
+        [True] * 4 + [False] * 2 + [True] * 4 + [False] * 4
+    )
+
+
+def test_court_loader_names_a_stale_schema_before_its_fields(tmp_path: Path) -> None:
+    video_id = "0012"
+    frame_count = 4
+    artifacts = vision.persist_court_vision(
         tmp_path,
         video_id=video_id,
+        court=_court_vision(video_id, frame_count),
         frame_count=frame_count,
         resolution=(100.0, 50.0),
     )
+    payload = vision.load_json_gz(artifacts.evidence)
+    stale = {**payload, "schema": "court-evidence/0.1", "consensus": None}
+    vision.save_json_gz(artifacts.evidence, stale)
+    with pytest.raises(ValueError, match=r"unsupported court evidence schema 'court-evidence/0\.1'"):
+        vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
-    assert restored.evidence.scene_records[0].video_id == video_id
-    assert isinstance(restored.evidence.scene_records[0].video_id, str)
-    _assert_structured_equal(restored.evidence.scene_records, evidence.scene_records)
-    _assert_structured_equal(restored.evidence.consensus, evidence.consensus)
+    vision.save_json_gz(artifacts.evidence, {**payload, "consensus": None})
+    with pytest.raises(ValueError, match="payload fields differ from court-evidence/0.2"):
+        vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
+
+
+@pytest.mark.parametrize(("scene_index", "changes", "message"), [
+    (0, {"sampled_frame_indices": [2]}, "fields differ from CourtSceneRecord"),
+    (0, {"status": "fallback"}, "is not a court scene status"),
+    (0, {"corners_native_px": None}, "corners must be present exactly when its status is court"),
+    (1, {"corners_native_px": FULL_FRAME_PX}, "corners must be present exactly when its status is court"),
+    (1, {"scene_valid": True}, "without a court cannot be valid"),
+    (4, {"error": None}, "error must be present exactly when detection failed"),
+    (0, {"analysed_frame": 9}, "analysed frame lies outside its scene interval"),
+])
+def test_court_loader_rejects_inconsistent_scene_records(
+    tmp_path: Path, scene_index: int, changes: dict[str, object], message: str,
+) -> None:
+    video_id = "0012"
+    frame_count = 14
+    evidence = _detected_evidence(frame_count)
+    raw_cuts = tuple((record.start_frame, record.end_frame) for record in evidence.scene_records)
+    artifacts = vision.persist_court_vision(
+        tmp_path,
+        video_id=video_id,
+        court=vision.CourtVision(raw_cuts, evidence),
+        frame_count=frame_count,
+        resolution=(100.0, 50.0),
+    )
+    payload = vision.load_json_gz(artifacts.evidence)
+    payload["scene_records"][scene_index].update(changes)
+    vision.save_json_gz(artifacts.evidence, payload)
+    with pytest.raises(ValueError, match=message):
+        vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
 
 def test_court_loader_rejects_missing_scene_provenance(tmp_path: Path) -> None:
@@ -892,3 +1078,22 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     )
     assert raw_rows[0]["chunk_id"] == ""
     assert definitive_rows[0]["chunk_id"] == "c0"
+
+
+def test_court_failure_keeps_the_vote_for_a_detected_but_rejected_court(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metadata = _metadata(tmp_path, frame_count=6)
+    rows = [_detector_row(0, 6, "court", corners_native_px=[[0., 0.], [10., 0.], [10., 50.], [0., 50.]])]
+    monkeypatch.setattr(vision, "run_court_detector", lambda *_args, **_kwargs: _detector_result(6, rows))
+    with pytest.raises(NoAcceptedCourtError):
+        vision.build_detected_court_stage(
+            video_id="0012", metadata=metadata, pose=_two_player_pose(6), pose_dir=tmp_path,
+            settings=_settings(), output_dir=tmp_path / "court",
+        )
+    failure = vision.load_json_gz(tmp_path / "court" / vision.COURT_FAILURE_FILENAME)
+    record, = failure["scene_records"]
+    assert record["status"] == "court"
+    assert record["exactly_two_count"] == 0
+    assert record["exactly_two_fraction"] == 0
+    assert record["scene_valid"] is False

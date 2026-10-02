@@ -1,0 +1,26 @@
+{
+ "view_id": "am2_window_01_frame_28019",
+ "error": null,
+ "detect_seconds": 184.75031721778214,
+ "chosen_key": "line_template:rectangle_178977:template_139/child",
+ "no_court_reason": null,
+ "stage_seconds": null,
+ "corners_native_px": [
+  [
+   1060.035094074381,
+   416.6423259105198
+  ],
+  [
+   1498.7082806711126,
+   438.4814117369899
+  ],
+  [
+   973.6736410183489,
+   1115.743051733697
+  ],
+  [
+   -352.42782964812193,
+   615.4446551130035
+  ]
+ ]
+}
