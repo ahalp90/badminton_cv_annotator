@@ -6,6 +6,10 @@ full annotation on held-out videos and scores the old PR149 output and the new
 output with one scorer. The run checks the current annotator end to end before
 the new-court retune. It does not replace that retune.
 
+The completed [findings and small follow-up experiments](findings.md) give the
+regression conclusion. The [new-court preparation](../good_court_refit/README.md)
+is a separate comparison.
+
 ## What it runs
 
 | Stage | Work | Current functions used |
