@@ -1,5 +1,10 @@
 # Test player support as a tie-breaker
 
+The completed [selection comparison](selection_results/README.md) favours the
+sharing fix as the leading repair. Score-first selection changes none of the
+eight representative courts after sharing. The search without player rejection
+is still running. The comparison includes 20 PNGs with explicit source names.
+
 Run the same eight videos twice. Stage A changes final selection and refit
 acceptance. Stage B also removes player-based rejection during search. Both
 stages include the sharing fix. Each stage runs from its own committed checkout
