@@ -1,10 +1,13 @@
-# The sharing fix repairs the selected videos; score-first selection needs more evidence
+# Both choices recover the main view; the reviewed courts outside rallies are wrong
 
-**Use the sharing fix as the leading option for repairing the extracts.**
-Across eight selected videos, choosing individual courts by score adds no
-improvement to the representative courts after sharing. It repairs some
-individual fits, but also damages a good fit that sharing then rescues.
-The search without player rejection is still running.
+**Both choices recover the eight representative main-view courts, but the
+review images do not establish which choice is better overall.** Choosing
+individual courts by score repairs some fits and damages one good fit that
+sharing then rescues. On 3 October, the user judged all 16 court-bearing review
+images incorrect: eight from each choice. The four missing-court examples were
+reasonable abstentions. This supersedes the earlier recommendation to prefer
+the sharing fix across the extracts. The broader-search comparison is reported
+separately when complete.
 
 ## What was compared
 
@@ -71,8 +74,9 @@ view-specific judgement before they count as an accuracy gain.
 
 Two newly detected courts become sources for sharing in other view groups.
 One serves five scenes outside rallies. The other serves 14 scenes, including
-two with 171 rally frames. Their accuracy remains unresolved. No regression
-crosses the 10 px threshold in the fixed main-view groups.
+two with 171 rally frames. The user judged both source courts wrong; the
+receiving frames still need their own visual judgement. After sharing, no
+regression crosses the 10 px threshold in the fixed main-view groups.
 
 The [20 review PNGs](review_frames/) contain:
 
@@ -86,16 +90,20 @@ The [20 review PNGs](review_frames/) contain:
 The first 16 contain one addition and one removal per video. Two additions were
 selected because they supply shared courts; the other 14 were drawn with seed
 20261002. The four misses cover three failure reasons across three videos.
-This sample illustrates changes, not their frequency. The user reviewed it and
-accepted the sampled skips. The other images have no recorded per-image accuracy
-judgements. Full-resolution overlays use dashed red 1 px lines along the
+This sample illustrates changes, not their frequency. The user judged all
+16 predicted courts incorrect and all four abstentions reasonable. All 16
+court-bearing samples are outside labelled rallies. Score-first selection
+therefore introduces eight reviewed false courts and removes eight others;
+these selected examples do not estimate either method's overall false-court rate.
+Full-resolution overlays use dashed red 1 px lines along the
 boundaries of the painted court stripes.
 
 ## What to do next
 
-Finish the existing **search without player rejection** trial. It allows more
-candidates through the search, then applies score-first selection. Compare it
-with both completed choices before selecting a lasting policy.
+The **search without player rejection** trial is now complete. It allows more
+candidates through the search, then applies score-first selection. See the
+[completed comparison](../search_results/README.md) before selecting a lasting
+policy.
 
 The useful statistical check is the paired count of repaired and damaged courts,
 before and after sharing. It has exposed a failure hidden by the headline
@@ -103,10 +111,11 @@ results. Significance tests on these eight selected videos would not settle
 the unlabelled-view question. Shared courts also make scene errors dependent;
 726 scenes are not 726 independent tests of the selection rule.
 
-If broader search provides no material benefit, restore the retained individual
-fits and rerun sharing across the 86-video corpus. Preserve the original extracts
-and repeat the paired checks over the complete repaired outputs. This would
-address the known sharing damage without paying for another full search.
+Restoring the retained individual fits and rerunning sharing remains a candidate
+repair for the main-view sharing damage. The main-view equality and reviewed
+images do not establish that it is as good as or better than score-first
+selection overall. Assess the broader-search results before choosing a repair.
+Any repaired outputs need the full-corpus checks, with originals preserved.
 Reliable courts are needed before deriving player positions and distances in
 court metres. No corpus repair has been launched from this comparison.
 

@@ -12,6 +12,10 @@ commit `17a50b57`. These are descriptive results on the project's release corpus
 not a test on unseen venues. The main results below use the original predictions;
 the later sharing-fix pilot is reported separately.
 
+The [per-rally view analysis](rally_views/README.md) checks the court from the
+view group occupying most of each rally and describes prediction coverage
+elsewhere in the broadcast. The original tables reproduced exactly on 3 October.
+
 ## What was measured
 
 The corpus contains **40 ShuttleSet and 46 ShuttleSet22 videos**, with 6,833
@@ -118,11 +122,14 @@ The [pilot measurements](view_checks/sharing_pilot_summary.json.gz) and
 Keeping individual fits alone is not sufficient: scene 0094's original fit is
 already oversized, as its [overlay](view_checks/sset30_scene0094.png) shows.
 
-An [eight-video trial](player_tiebreak_trial/README.md) will compare score-first
+An [eight-video trial](player_tiebreak_trial/README.md) compares score-first
 selection with player support used only for exact ties. The first stage keeps
 the existing search; the second also removes player-based search rejection.
-Both include the sharing fix. These stages are experiments, with no results
-yet included in the accuracy table above.
+Both include the sharing fix. Trial results are separate from the accuracy
+table above. The [selection comparison](player_tiebreak_trial/selection_results/README.md)
+finds identical representative main-view courts, but the user judged all
+16 court-bearing review images wrong and all four abstentions reasonable.
+Those images do not establish that either choice is better overall.
 
 ## View grouping follow-up
 

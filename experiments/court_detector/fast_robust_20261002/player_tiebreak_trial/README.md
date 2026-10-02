@@ -1,9 +1,13 @@
 # Test player support as a tie-breaker
 
-The completed [selection comparison](selection_results/README.md) favours the
-sharing fix as the leading repair. Score-first selection changes none of the
-eight representative courts after sharing. The search without player rejection
-is still running. The comparison includes 20 PNGs with explicit source names.
+Both trial stages completed on Carmack and Bourbaki and were downloaded on
+3 October. The [selection comparison](selection_results/README.md) finds
+identical representative courts after sharing. The user judged all 16
+court-bearing review images incorrect and all four abstentions reasonable.
+That review does not support an overall preference for either method.
+
+See the [completed search comparison](search_results/README.md) for results and
+runtime, and the [rally clips and PNG folders](rally_review/README.md) for review.
 
 Run the same eight videos twice. Stage A changes final selection and refit
 acceptance. Stage B also removes player-based rejection during search. Both
