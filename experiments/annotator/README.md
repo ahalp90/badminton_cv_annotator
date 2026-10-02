@@ -34,3 +34,9 @@ python -m experiments.annotator.records experiments/annotator/runs/<YYYYMMDD-HHM
 An `rg` 15.1.0 executable already available on `PATH` also satisfies the ripgrep requirement.
 
 The cleaner saves non-array files to `local_scratch/annotator_experiment_backups/` before any rewrite or deletion. It scans temporary decompressed copies of gzip text artifacts. A cleaned Git copy can omit a file which the historical manifest records as produced. Staging, committing and promotion remain manual.
+
+The [old-court regression findings](old_court_regression/findings.md) explain
+why refitting changed the benchmark and what the follow-up controls found.
+The [good-court refit](good_court_refit/README.md) prepares the two serial builds
+and their [evaluation](good_court_refit/evaluation.md). Training has not started;
+the final detector-file paths still need to be selected.
