@@ -33,6 +33,13 @@ At this stage we've built a proof of concept dataset by extracting and deriving 
 
 See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
 
+The full dataset includes 3,500 candidate commentary–rally links. A
+[manual review of 134 passages](docs/dataset_builder/commentary_manual_review_20261002.md)
+found 116 matching associations, 13 general-discussion passages and five
+unclear passages. The compressed evidence marks reviewed and unreviewed links
+separately and retains timing labels and notes. This selected sample does
+not establish whole-dataset pairing accuracy.
+
 ## Auto-annotator
 
 Our most ambitious sub-project is the auto-annotator. It automates processing any badminton video into a scored sequence of rallies: detect the court, find live-play sections, identify shuttle contacts, work out which player hit them, and reconstruct each rally.
