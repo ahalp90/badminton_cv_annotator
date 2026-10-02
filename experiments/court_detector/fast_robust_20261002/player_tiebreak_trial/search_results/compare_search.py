@@ -10,6 +10,12 @@ run's view group with the most labelled rally frames. Other views have no court
 annotation, so those scenes are described by detections and by how far a court's
 corners move between arms. A corner move is a change, not an error.
 
+The statistical comparison treats the video as the unit. Each of the three methods
+gets one value per video, every video counts equally, and the paired differences
+are taken within each video. One matrix of whole-video resamples serves every
+method, contrast and job-time ratio. Its intervals describe reweighting these eight
+purpose-selected videos, not performance on other videos or venues.
+
 Run from the repo root:
 
     PYTHONPATH=.:src ~/.venvs/badminton-cicd/bin/python \
@@ -23,12 +29,14 @@ import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 
 from court_detector.view_pool import GROUP_SCENE_KEY, POOLED_KEY
 from scripts import evaluate_courts_fast_robust as evaluator
+from scripts import summarise_court_rally_views as rally_view_summary
 from shared.court import HOMOGRAPHY_RESOLUTION
 
 SEARCH_RESULTS = Path(__file__).resolve().parent
@@ -57,20 +65,44 @@ TRIAL_ARMS = {
     SEARCH_PLAYER_VETO: ("stage_b", "videos", "baseline"),
 }
 ARMS = (ORIGINAL, *TRIAL_ARMS)
+# The three methods compared statistically, and their paired contrasts as (before, after).
+METHODS = (SHARING_FIX, SCORE_FIRST, SEARCH_SCORE_FIRST)
+METHOD_PAIRS = ((SHARING_FIX, SCORE_FIRST), (SHARING_FIX, SEARCH_SCORE_FIRST), (SCORE_FIRST, SEARCH_SCORE_FIRST))
 # (before, after) arms whose scenes are compared one to one.
-ARM_PAIRS = (
-    (SHARING_FIX, SCORE_FIRST),
-    (SHARING_FIX, SEARCH_SCORE_FIRST),
-    (SCORE_FIRST, SEARCH_SCORE_FIRST),
-    (SHARING_FIX, SEARCH_PLAYER_VETO),
-)
-# The arms whose court presence defines a scene's path in court_paths.
-PATH_ARMS = (SHARING_FIX, SCORE_FIRST, SEARCH_SCORE_FIRST)
+ARM_PAIRS = (*METHOD_PAIRS, (SHARING_FIX, SEARCH_PLAYER_VETO))
 # The selection comparison's population, kept so the two comparisons describe the same scenes.
 FIXED_MAIN_SCENES = 726
 FIXED_MAIN_RALLY_SCENES = 610
 # Worst-corner tolerances at 720p. The same two bin how far a court moves between arms.
 TOLERANCES_PX = (10, 20)
+SMALL_PX, LARGE_PX = TOLERANCES_PX
+# The evaluator's replicate count with a new seed. Every method, contrast and job-time
+# ratio indexes the same draws.
+BOOTSTRAP_SEED = 20261003
+
+
+class MetricSpec(NamedTuple):
+    unit: str
+    count: str | None  # the pooled numerator column; None where a pooled total means nothing
+    denominator: str | None
+    interval: bool  # False keeps a metric descriptive: no bootstrap interval or paired contrast
+
+
+# Per-video metric -> how it is summarised. Percentages run 0-100, and a missing
+# court counts against them.
+METRICS = {
+    "representative_error_mean_px": MetricSpec("px", None, None, True),
+    "representative_iou": MetricSpec("IoU", None, None, False),
+    f"fixed_main_final_within_{SMALL_PX}px_pct": MetricSpec(
+        "%", f"fixed_main_final_within_{SMALL_PX}px", "fixed_main_scenes", True),
+    f"fixed_main_before_sharing_within_{LARGE_PX}px_pct": MetricSpec(
+        "%", f"fixed_main_before_sharing_within_{LARGE_PX}px", "fixed_main_scenes", True),
+    "rally_time_coverage_pct": MetricSpec("%", "detected_rally_frames", "rally_frames", True),
+    "rally_view_court_pct": MetricSpec("%", "rally_view_courts", "rallies", True),
+    f"rally_view_within_{SMALL_PX}px_pct": MetricSpec("%", f"rally_view_within_{SMALL_PX}px", "rallies", True),
+}
+DIFFERENCE_UNITS = {"px": "px", "%": "percentage points"}
+STAGE_JOBS = ("stage_a_jobs", "stage_b_jobs")
 LABEL_ROOTS = {"ShuttleSet": Path("data/shuttleset/set"), "ShuttleSet22": EVALUATION_ROOT / "shuttleset22/set"}
 SCENE_KEY = ["start_frame", "end_frame", "frame_index"]
 COURT_SOURCES = {POOLED_KEY: "pooled", GROUP_SCENE_KEY: "group_scene"}
@@ -83,6 +115,7 @@ class VideoComparison:
     group_rows: list[dict[str, object]]  # one per trial arm and view group
     audit: dict[str, object]
     outputs: dict[str, dict]  # the raw run result of each arm
+    rally_views: pd.DataFrame  # one row per method and labelled rally
 
 
 def require(condition: bool, message: str) -> None:
@@ -323,7 +356,7 @@ def court_paths(paired: pd.DataFrame) -> pd.DataFrame:
     paths["population"] = ""
     for population, mask in population_masks(paired).items():
         paths.loc[mask, "population"] = population
-    for arm in PATH_ARMS:
+    for arm in METHODS:
         paths[f"{arm}_court"] = paired[f"{arm}_court_detected"]
     same_px = TOLERANCES_PX[0]
     for before in (SHARING_FIX, SCORE_FIRST):
@@ -331,7 +364,7 @@ def court_paths(paired: pd.DataFrame) -> pd.DataFrame:
         paths[f"search_identical_to_{before}"] = shift == 0
         paths[f"search_within_{same_px}px_of_{before}"] = shift <= same_px
     paths["scenes"] = 1
-    keys = ["video_id", "population", *(f"{arm}_court" for arm in PATH_ARMS)]
+    keys = ["video_id", "population", *(f"{arm}_court" for arm in METHODS)]
     return paths.groupby(keys, as_index=False).sum()
 
 
@@ -400,11 +433,17 @@ def compare_video(entry: dict, stage_dirs: dict[str, Path], evaluation_root: Pat
         require(output["native_size"] == sharing_fix["native_size"], f"{video_id} {arm}: frame size differs")
 
     rallies, label_counts = evaluator.read_rallies(match_dir, sharing_fix["frame_count"])
-    tables, video_rows = {}, []
+    tables, video_rows, rally_views = {}, [], []
     for arm, output in outputs.items():
         tables[arm], scored_rallies = arm_tables(entry, output, official, rallies)
         video_rows.append(evaluator.video_row(entry, output, tables[arm], scored_rallies)
                           | {"arm": arm, "total_seconds": output["total_seconds"], **label_counts})
+        if arm in METHODS:
+            # Each rally's court from the view group with the most rally time, as the
+            # original-corpus rally-view summary chooses it.
+            views = rally_view_summary.rally_views(tables[arm], scored_rallies)
+            views.insert(0, "method", arm)
+            rally_views.append(views)
     paired = paired_scene_table(tables, outputs)
     fixed_main = paired["fixed_main"].to_numpy()
     sharing_fix_detected = paired[f"{SHARING_FIX}_court_detected"].to_numpy()
@@ -419,7 +458,140 @@ def compare_video(entry: dict, stage_dirs: dict[str, Path], evaluation_root: Pat
                   f"{arm}_main_group_added_rally_frames": int(paired.loc[added, "rally_frames"].sum())}
     audit |= {"scenes": len(paired), "fixed_main_scenes": int(fixed_main.sum()),
               "fixed_main_rally_scenes": int((fixed_main & (paired["rally_frames"] > 0)).sum())}
-    return VideoComparison(paired, video_rows, groups, audit, outputs)
+    return VideoComparison(paired, video_rows, groups, audit, outputs, pd.concat(rally_views, ignore_index=True))
+
+
+def video_metrics(videos: pd.DataFrame, paired: pd.DataFrame, rally_views: pd.DataFrame,
+                  video_order: list[str]) -> pd.DataFrame:
+    """One row per method and video: the values the summary and paired effects average.
+
+    Each method's rows follow video_order, which the bootstrap draws index. Counts keep
+    their denominators so pooled totals can sit beside the per-video percentages.
+    """
+    fixed_main = paired[paired["fixed_main"]]
+    rows = []
+    for method in METHODS:
+        method_videos = videos[videos["arm"] == method].set_index("video_id")
+        for video_id in video_order:
+            video = method_videos.loc[video_id]
+            main_scenes = fixed_main[fixed_main["video_id"] == video_id]
+            rallies = rally_views[(rally_views["method"] == method) & (rally_views["video_id"] == video_id)]
+            rows.append({
+                "method": method, "video_id": video_id, "dataset": video["dataset"],
+                "representative_error_mean_px": video["representative_error_mean_px"],
+                "representative_iou": video["representative_iou"],
+                "fixed_main_scenes": len(main_scenes),
+                f"fixed_main_final_within_{SMALL_PX}px": int((main_scenes[f"{method}_error_max_px"] <= SMALL_PX).sum()),
+                f"fixed_main_before_sharing_within_{LARGE_PX}px":
+                    int((main_scenes[f"{method}_own_error_max_px"] <= LARGE_PX).sum()),
+                "rally_frames": video["rally_frames"], "detected_rally_frames": video["detected_rally_frames"],
+                "rallies": len(rallies), "rally_view_courts": int(rallies["court_detected"].sum()),
+                f"rally_view_within_{SMALL_PX}px": int((rallies["error_mean_px"] <= SMALL_PX).sum()),
+            })
+    metrics = pd.DataFrame(rows)
+    for metric, spec in METRICS.items():
+        if spec.count is not None:
+            metrics[metric] = 100 * metrics[spec.count] / metrics[spec.denominator]
+    # A missing value would make bootstrap_mean silently average fewer videos.
+    require(not metrics[list(METRICS)].isna().any(axis=None), "a method lacks a value for some video")
+    return metrics
+
+
+def method_summary(metrics: pd.DataFrame, draws: np.ndarray) -> pd.DataFrame:
+    """Each method's per-video metrics, with every video weighted equally.
+
+    Only the all-video rows get bootstrap intervals. Each dataset has four selected
+    videos, so its rows stay descriptive. Pooled counts weight videos by their scenes,
+    rallies or rally frames instead.
+
+    :param metrics: From video_metrics, so each method's rows follow the order the draws index.
+    :param draws: (replicate, video) positions into the fixed video order.
+    """
+    rows = []
+    scopes = {"all": metrics, **dict(tuple(metrics.groupby("dataset")))}
+    for scope, scope_metrics in scopes.items():
+        for method in METHODS:
+            method_metrics = scope_metrics[scope_metrics["method"] == method]
+            for metric, spec in METRICS.items():
+                values = method_metrics[metric]
+                row = {"scope": scope, "method": method, "metric": metric, "unit": spec.unit,
+                       "videos": len(values), "mean": values.mean()}
+                if scope == "all" and spec.interval:
+                    row |= evaluator.bootstrap_mean(values, draws)
+                row |= evaluator.tail_spread(values, 10) | evaluator.tail_spread(values, 90)
+                if spec.count is not None:
+                    count, denominator = method_metrics[spec.count].sum(), method_metrics[spec.denominator].sum()
+                    row |= {"pooled_count": int(count), "pooled_denominator": int(denominator),
+                            "pooled_of": spec.denominator, "pooled_pct": 100 * count / denominator}
+                rows.append(row)
+    # Int64 keeps whole counts whole where descriptive-only rows leave them missing.
+    return pd.DataFrame(rows).astype({"pooled_count": "Int64", "pooled_denominator": "Int64"})
+
+
+def contrast_row(before: str, after: str, metric: str, unit: str, before_values: pd.Series, after_values: pd.Series,
+                 draws: np.ndarray) -> dict[str, object]:
+    """The mean within-video difference, its interval from the shared draws, and its spread over videos.
+
+    Higher, lower and equal compare exact values, so a 0.0001 px change counts as higher.
+    """
+    difference = after_values - before_values
+    interval = evaluator.bootstrap_mean(difference, draws)
+    return {"before": before, "after": after, "metric": metric, "statistic": "mean_paired_difference", "unit": unit,
+            "videos": len(difference), "estimate": interval["mean"], "ci95_low": interval["ci95_low"],
+            "ci95_high": interval["ci95_high"], "video_min": difference.min(), "video_max": difference.max(),
+            "videos_higher": int((difference > 0).sum()), "videos_lower": int((difference < 0).sum()),
+            "videos_equal": int((difference == 0).sum())}
+
+
+def paired_effects(metrics: pd.DataFrame, audit: pd.DataFrame, draws: np.ndarray) -> pd.DataFrame:
+    """Paired method differences, then stage B job time against stage A on the same videos.
+
+    A higher percentage is not automatically better: abstaining can be the right result.
+    Each stage job ran two arms and shared search work between them, so the job times
+    compare the two stages, not standalone methods.
+
+    :param metrics: From video_metrics.
+    :param audit: One row per video in the fixed video order, with both stages' job seconds.
+    :param draws: (replicate, video) positions into the fixed video order.
+    """
+    rows = []
+    for before, after in METHOD_PAIRS:
+        for metric, spec in METRICS.items():
+            if not spec.interval:
+                continue
+            by_video = metrics.pivot(index="video_id", columns="method", values=metric).loc[audit.index]
+            row = contrast_row(before, after, metric, DIFFERENCE_UNITS[spec.unit], by_video[before], by_video[after],
+                               draws)
+            if spec.count is not None:
+                counts = metrics.groupby("method")[[spec.count, spec.denominator]].sum()
+                row |= {"pooled_before": counts.loc[before, spec.count], "pooled_after": counts.loc[after, spec.count],
+                        "pooled_denominator": counts.loc[before, spec.denominator], "pooled_of": spec.denominator}
+            rows.append(row)
+
+    before_minutes, after_minutes = audit["stage_a_job_seconds"] / 60, audit["stage_b_job_seconds"] / 60
+    summed = {"pooled_before": before_minutes.sum(), "pooled_after": after_minutes.sum(),
+              "pooled_of": "summed job minutes"}
+    rows.append(contrast_row(*STAGE_JOBS, "job_minutes", "minutes", before_minutes, after_minutes, draws) | summed)
+    ratio = after_minutes / before_minutes
+    # A percentile interval survives exp(), so the log-ratio interval converts directly.
+    log_interval = evaluator.bootstrap_mean(np.log(ratio), draws)
+    rows.append({"before": STAGE_JOBS[0], "after": STAGE_JOBS[1], "metric": "job_time_ratio",
+                 "statistic": "geometric_mean_of_video_ratios", "unit": "ratio", "videos": len(ratio),
+                 "estimate": np.exp(log_interval["mean"]), "ci95_low": np.exp(log_interval["ci95_low"]),
+                 "ci95_high": np.exp(log_interval["ci95_high"]), "video_min": ratio.min(), "video_max": ratio.max()})
+    rows.append({"before": STAGE_JOBS[0], "after": STAGE_JOBS[1], "metric": "job_time_ratio",
+                 "statistic": "summed_after_over_summed_before", "unit": "ratio", "videos": len(ratio),
+                 "estimate": after_minutes.sum() / before_minutes.sum()} | summed)
+    return pd.DataFrame(rows).astype({"videos_higher": "Int64", "videos_lower": "Int64", "videos_equal": "Int64"})
+
+
+def print_statistics(metrics: pd.DataFrame, summary: pd.DataFrame, effects: pd.DataFrame) -> None:
+    print("\nPER-VIDEO METRICS (equal-weight inputs to the summary and paired effects)")
+    print(metrics[["method", "video_id", *METRICS]].round(4).to_string(index=False))
+    print("\nMETHOD SUMMARY (video is the unit; intervals reweight these eight videos only)")
+    print(summary.round(4).to_string(index=False))
+    print("\nPAIRED EFFECTS (after minus before within each video; same draws for every row)")
+    print(effects.round(4).to_string(index=False))
 
 
 def print_summary(videos: pd.DataFrame, transitions: pd.DataFrame, changes: pd.DataFrame, paths: pd.DataFrame,
@@ -440,7 +612,7 @@ def print_summary(videos: pd.DataFrame, transitions: pd.DataFrame, changes: pd.D
     print("\nALL SCENES, courts gained, lost and moved (sum over videos; no annotation used)")
     print(changes.drop(columns="video_id").groupby(["before", "after", "population"], sort=False).sum().T.to_string())
     print("\nCOURT PATHS, scenes by which arms hold a court (sum over videos)")
-    path_keys = ["population", *(f"{arm}_court" for arm in PATH_ARMS)]
+    path_keys = ["population", *(f"{arm}_court" for arm in METHODS)]
     print(paths.drop(columns="video_id").groupby(path_keys).sum().to_string())
 
     sharing = groups[groups["chosen_court"].notna()]
@@ -515,13 +687,24 @@ def main() -> None:
     outputs = {str(result.audit["video_id"]): result.outputs for result in results}
     reviewed = pd.DataFrame(reviewed_scene_rows(samples, paired, outputs))
 
+    # One fixed video order and one draw matrix serve every method and contrast.
+    video_order = [video_id for host in args.hosts for video_id in HOST_VIDEOS[host]]
+    draws = np.random.default_rng(BOOTSTRAP_SEED).integers(
+        0, len(video_order), size=(evaluator.BOOTSTRAP_REPLICATES, len(video_order)))
+    rally_views = pd.concat([result.rally_views for result in results], ignore_index=True)
+    metrics = video_metrics(videos, paired, rally_views, video_order)
+    summary = method_summary(metrics, draws)
+    effects = paired_effects(metrics, audit.loc[video_order], draws)
+
     args.output.mkdir(parents=True, exist_ok=True)
     tables = {"paired_scenes": paired, "per_video": videos, "main_view_transitions": transitions,
               "detection_changes": changes, "court_paths": paths, "view_groups": groups,
-              "audit": audit.reset_index(), "reviewed_scenes": reviewed}
+              "audit": audit.reset_index(), "reviewed_scenes": reviewed, "rally_views": rally_views,
+              "video_metrics": metrics, "method_summary": summary, "paired_effects": effects}
     for name, table in tables.items():
         table.to_csv(args.output / f"{name}.csv.gz", index=False)
     print_summary(videos, transitions, changes, paths, groups, audit, reviewed)
+    print_statistics(metrics, summary, effects)
 
 
 if __name__ == "__main__":

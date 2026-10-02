@@ -26,10 +26,12 @@ duration. Prefer a court whose sampled frame is inside the rally. A winning
 group without a court counts as missing.
 
 This chooses the court without consulting the homography. Corner error then
-averages the four corner distances at 1280 × 720. The 10 px threshold describes
-agreement; it is not a validated downstream tolerance. Detector view groups
-are a proxy for camera identity. Ungrouped scenes count as separate groups,
-so one camera view can be split across groups.
+averages the four corner distances at 1280 × 720. We set 10 px mean corner error
+as the upper sanity bound for a usable court in the default camera view.
+Detection groups collect scenes with identical or near-enough camera views.
+During manual review, some scenes showed the same court and camera view but
+changed arena surroundings. These scenes received separate court fits, so
+separate detection groups do not always mean different camera views.
 
 | Measure | ShuttleSet | ShuttleSet22 | Combined |
 | --- | ---: | ---: | ---: |
@@ -37,7 +39,7 @@ so one camera view can be split across groups.
 | Winning group has a court | 3,011 | 3,451 | 6,462 (94.6%) |
 | Court within 10 px mean corner error | 2,631 (82.7%) | 2,597 (71.1%) | 5,228 (76.5%) |
 | Winning group is also the video's main group | 2,828 | 3,055 | 5,883 |
-| More than one view group intersects the rally | 682 | 540 | 1,222 |
+| Rally contains >1 detection group | 682 | 540 | 1,222 |
 
 The winning group occupies more than half the rally in 6,829/6,833 cases.
 Only two representative scenes differ from the longest-scene selection, with
@@ -54,10 +56,10 @@ They do not quantify errors in the static homography labels.
 
 Of 16.78 hours inside usable rally intervals, 1.89 hours fall outside the
 video's main detector view group. Predictions cover 1.36 of those hours
-(72.1% of that time; the mean per-video rate is 43.9%). This group includes
-alternate views, missed courts and main-camera
-scenes that the detector failed to group. It is not a clean alternate-camera
-accuracy set.
+(72.1% of that time; the mean per-video rate is 43.9%). Time outside the main
+group includes alternate views, missed courts and separately grouped scenes
+from the same camera view. This total therefore does not measure alternate-view
+accuracy alone.
 
 Outside labelled rally intervals, predictions cover 28.57 of 81.59 hours
 (35.0%). That time includes unlabelled play and between-point footage as well
