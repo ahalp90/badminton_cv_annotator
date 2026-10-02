@@ -117,6 +117,8 @@ was undecided whether that prediction was preferable to an abstention.
 The user therefore prefers the simple sharing fix on the evidence reviewed so
 far. This is a practical preference from a small sample, not an established
 ranking across all views. A second sample is available in the review folders.
+The user judged all three methods equivalent across that second set's seven
+matching frames from three additional videos.
 No full-corpus repair has been launched. The
 [86-video baseline and rally-view statistics](../../rally_views/README.md)
 remain measurements of the original extracts.

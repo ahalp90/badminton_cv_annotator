@@ -37,11 +37,9 @@ weighted by rally overlap. The reference homography does not choose the court.
 
 The [trial report](../search_results/README.md) gives the statistics. These
 selected rallies show camera transitions; they do not estimate error frequency.
-The user judged the sharing fix and score-first selection equivalent and good
-in the first scene-still set. The broader-search court at frame 144569 was
-malformed in a very difficult partial view; whether to prefer it to abstention
-remains undecided. The second sample uses the next three videos by the same
-cut-count rule, excluding the first set's videos.
+The trial report records the user's judgements of both samples. The second
+sample uses the next three videos by the same cut-count rule, excluding the
+first set's videos.
 
 ## Reproduce
 
