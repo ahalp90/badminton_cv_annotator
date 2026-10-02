@@ -1,5 +1,15 @@
 # Court detector evaluation
 
+The [October 2026 full-corpus evaluation](../../experiments/court_detector/fast_robust_20261002/README.md)
+scores fast-robust extracts across 40 ShuttleSet and 46 ShuttleSet22 videos.
+The representative court is within 10 pixels of the supplied homography in
+74 of 86 videos. Twelve have large errors, mostly introduced when a shared
+court replaces accurate individual scene fits. That selection step needs a fix
+before using the complete extracts for court-coordinate measurements. The
+report includes per-video PNGs, eight hard samples and reproducible statistics.
+
+## Earlier development checks
+
 The detector runs end to end on real videos. Development checks support
 three-frame composition and the optional video-robust mode, with the limits
 below. There is no measured accuracy rate for the final detector on unseen
