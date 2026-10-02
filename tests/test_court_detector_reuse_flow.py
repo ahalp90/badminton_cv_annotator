@@ -74,16 +74,24 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
         assert saved[0]['reuse'] == [{'rejection': 'alignment_mismatch'}]
 
 
-def test_required_people_can_reject_before_candidate_search(monkeypatch) -> None:
+def test_required_people_with_nobody_standing_still_reach_the_search(monkeypatch) -> None:
     monkeypatch.setattr(detect.feet, 'window_feet',
                         lambda *args: FeetWindow([50], None, [50], [[None, None]]))
     detector = object.__new__(detect.CourtDetector)
     detector.switches = detect.Switches(timing=True)
     detector.live = SimpleNamespace(verifier=SimpleNamespace(view_context=lambda *args: SimpleNamespace()))
+    searched = []
+
+    def search_and_choose(prepared, laps, artefacts):
+        searched.append(prepared.source['all_feet_px'])
+        laps.lap('search')
+        return detect.CourtResult(prepared.view.view_id, None, 'no_gated_court', None, None)
+
+    detector.search_and_choose = search_and_choose
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
     view = ViewInputs('empty', frame, 50, (0, 100), np.empty((0, 4)), np.empty((0, 4)),
                       same_frame_provenance('empty', 50))
     result = detector.detect(view, object(), None)
+    assert searched == [[[None, None]]]
     assert result.no_court_reason == 'no_gated_court'
-    assert result.corners_native_px is None
-    assert list(result.stage_seconds) == ['feet', 'context']
+    assert list(result.stage_seconds) == ['feet', 'context', 'search']

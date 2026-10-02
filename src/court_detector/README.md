@@ -34,12 +34,15 @@ define a homography: a mapping between the flat court floor and the image.
    joints. The detector samples 31 frames at 10 per second around the analysed
    frame and takes the bottom centre of each standing person's box as their feet.
 3. **Search.** It matches pairs of line directions to court markings, and also
-   builds courts from crossing lines. Players' feet must land on the court, and
-   the implied camera must be plausible and upright.
+   builds courts from crossing lines. The implied camera must be plausible and
+   upright. Player absence does not reject search candidates. Where complete
+   court measurements exist, player support breaks exact line-score ties.
 4. **Score and choose.** Each candidate court gets a combined score: 90% paint
    support plus 10% line support, plus up to 0.04 for visible net posts. "Paint
    support" measures how well the projected markings land on bright painted
-   stripes. The best court that passed every check wins.
+   stripes. The best court that passed every check wins. The
+   [player tie-breaker trial](../../experiments/court_detector/fast_robust_20261002/player_tiebreak_trial/README.md)
+   separately tests score-first final selection without the player veto.
 5. **Refit.** The chosen court's lines are refitted to the centre or edge of
    their painted stripes. The refit must pass the same checks again.
 6. **Compose (video).** After a fresh search, the first and last frames of the

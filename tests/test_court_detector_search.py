@@ -34,7 +34,7 @@ def axis_matches(parameters: np.ndarray) -> line_matching.AxisMatches:
     every = np.arange(count)
     return line_matching.AxisMatches(parameters, np.zeros(count), np.full((count, 1), -1),
                                        np.zeros((count, 4), dtype=int), np.zeros(count, dtype=int),
-                                       np.ones(count, dtype=bool), every, every, {})
+                                       every, every, {})
 
 
 def axis_parameters(rng: np.random.Generator, count: int, extent: float) -> np.ndarray:
@@ -68,6 +68,40 @@ def test_joint_player_fractions_match_players_on_every_combined_court() -> None:
     assert usable.any() and not usable.all()
     np.testing.assert_array_equal(one, expected_one)
     np.testing.assert_array_equal(two, expected_two)
+    # The three tiers partition the courts: the final choice's player rule, then a player on
+    # the court in at least half the samples, then the rest.
+    tiers = line_matching.support_tiers(one, two)
+    np.testing.assert_array_equal(tiers == 0, usable)
+    np.testing.assert_array_equal(tiers == 1, ~usable & (expected_one >= .5))
+    # At the thresholds: (one player, both halves) fractions and their tier.
+    edge_one, edge_two = np.array([1., 1., .5, .49, 0.]), np.array([.5, .49, .5, .49, 0.])
+    assert line_matching.support_tiers(edge_one, edge_two).tolist() == [0, 1, 1, 2, 2]
+
+
+@pytest.mark.parametrize("feet_px", [np.empty((0, 0, 2)), np.full((3, 2, 2), np.nan), np.empty((3, 0, 2))])
+def test_courts_without_player_observations_get_zero_fractions_and_the_weakest_tier(feet_px: np.ndarray) -> None:
+    """No sampled frames, as without people inputs; frames where nobody stands; frames without player slots."""
+    rng = np.random.default_rng(7)
+    horizontal = axis_matches(axis_parameters(rng, 4, COURT_WIDTH_M))
+    vertical = axis_matches(axis_parameters(rng, 5, COURT_LENGTH_M))
+    one, two = line_matching.joint_player_fractions(np.eye(3), horizontal, vertical, feet_px)
+    np.testing.assert_array_equal(one, np.zeros(20))
+    np.testing.assert_array_equal(two, np.zeros(20))
+    assert line_matching.support_tiers(one, two).tolist() == [geometry.NO_PLAYER_SUPPORT] * 20
+
+
+def test_retention_orders_exactly_tied_scores_by_player_tier() -> None:
+    """Both candidate caps keep the higher score first, then the stronger tier, then the earlier court."""
+    base = np.array([[300., 150.], [660., 150.], [800., 450.], [160., 450.]])
+    # (x shift in working px, score, player tier). The last court lies within the 2 px
+    # retention distance of the first and ties its score with a stronger tier.
+    courts = [(0., .9, 2), (40., .9, 1), (80., .9, 0), (120., .9, 0), (160., .95, 2), (200., .8, 0), (1., .9, 1)]
+    candidates = [geometry.Candidate(base + [shift, 0.], score, (0., 0.), (0, 0), tier)
+                  for shift, score, tier in courts]
+    positions = {id(candidate): position for position, candidate in enumerate(candidates)}
+    for limit, expected in [(4, [4, 2, 3, 1]), (7, [4, 2, 3, 1, 6, 5])]:
+        retained = generation.select(candidate_pool, candidates, limit)
+        assert [positions[id(candidate)] for candidate in retained] == expected
 
 
 def test_axis_scores_match_the_einsum_form_exactly() -> None:

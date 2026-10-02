@@ -211,13 +211,12 @@ def test_cheap_first_stops_when_its_leading_endpoint_finds_no_court(monkeypatch)
 
 
 @pytest.mark.parametrize("method", sampling.METHODS)
-def test_too_few_players_stop_every_method_before_any_search(method) -> None:
+def test_one_player_does_not_skip_search(method) -> None:
     detector = FakeDetector({"middle": .9, "first": .9, "last": .9})
     method_detector = sampling.cheap_first_detector(detector) if method == "cheap_first" else detector
     run_record = sampling.METHOD_FUNCTIONS[method](method_detector, scene_inputs(People(count=1)))
-    assert [(attempt.route, attempt.result.no_court_reason) for attempt in run_record.attempts] == [
-        ("player_check", "no_gated_court")]
-    assert detector.calls == [] and run_record.frames_used == ["middle"]
+    assert searched_roles(detector)
+    assert run_record.attempts
 
 
 def test_cheap_first_searches_each_frame_once_and_finishes_from_the_saved_search(monkeypatch) -> None:
@@ -306,7 +305,7 @@ def test_shared_feet_detection_matches_ordinary_detect_on_real_minimal_inputs(co
     assert sampling.result_fields(shared.result) == sampling.result_fields(ordinary)
     assert ordinary.stage_seconds is not None
     assert list(shared.stage_seconds) == [name for name in ordinary.stage_seconds if name != "feet"]
-    assert shared.route == ("player_check" if count == 1 else "full_search")
+    assert shared.route == "full_search"
 
 
 @pytest.mark.parametrize("passes", [True, False])

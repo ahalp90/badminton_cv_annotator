@@ -256,12 +256,6 @@ class CourtDetector:
         prepared = self.prepare(view, feet_window.all_feet_px)
         laps.lap("context")
 
-        # Validate the view first. Diagnostic runs still need the actual candidate
-        # records for comparison, even when the required player counts cannot pass.
-        if (switches.require_people and switches.artefacts_dir is None
-                and not feet.can_satisfy_player_requirement(feet_window.all_feet_px)):
-            return self.finish(CourtResult(view.view_id, None, "no_gated_court", None, None), laps, artefacts)
-
         try:
             if known_courts:
                 from .reuse import try_reuse, view_image
@@ -395,10 +389,6 @@ class CourtDetector:
                artefacts: dict[str, Any] | None = None) -> dict[str, list[dict]]:
         """Search every line fragment (all_lines), then painted ones (painted_lines); entries as read back from JSON."""
         live = self.live
-        # Direction-pair proposals require player occupancy. The independent line
-        # templates below supply the fallback when there are no people inputs.
-        if not source["all_feet_px"]:
-            return {"all_lines": [], "painted_lines": []}
         direction = live.generation.direction_record(context, search.DIRECTION_SETTINGS, live.vp_pruning)
         dimensions = source["dimensions"]
         scale = np.asarray([dimensions["width"], dimensions["height"]], dtype=float) / np.asarray(context.size, dtype=float)

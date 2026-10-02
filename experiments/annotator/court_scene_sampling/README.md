@@ -221,8 +221,9 @@ A method row holds:
 Each frame row holds its role, frame, `route`, corners, paint score, stage
 seconds and reuse records. An accepted court adds its per-marking paint
 `evidence`, `in_middle_frame` and, when comparable, `vs_baseline`. Routes are
-`player_check`, `history_reuse`, `full_search`, `prepared_finish` and
-`seed_reuse`.
+`history_reuse`, `full_search`, `prepared_finish` and `seed_reuse`. Older
+records may contain `player_check`; the sampler now searches regardless of
+player count, matching the detector's search path.
 
 ## Tests
 

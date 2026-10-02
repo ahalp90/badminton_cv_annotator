@@ -315,18 +315,35 @@ def synthetic_court_source() -> dict:
             "all_feet_px": project(feet_m).tolist()}
 
 
-def test_real_search_in_two_workers_gives_the_serial_record() -> None:
-    source = synthetic_court_source()
+def real_search(source: dict, workers: int = 1) -> dict:
+    """The detector's own search of the first three eligible direction pairs, with small caps."""
     _, estimator = directions.estimate(np.asarray(source["segments_px"]), SIZE,
                                        directions.Settings(**search.DIRECTION_SETTINGS))
     saved = {"working_size": list(SIZE), "settings": search.DIRECTION_SETTINGS, "estimator": estimator}
-    results = []
-    for workers in (1, 2):
-        results.append(generation.generate(
-            source, saved, players, candidate_pool, 16, keep_axes=64, keep_per_pair=8, keep_global=8,
-            max_matched_pairs=3, max_horizon_tilt_deg=45., workers=workers,
-        ))
-    serial, parallel = results
+    return generation.generate(
+        source, saved, players, candidate_pool, 16, keep_axes=64, keep_per_pair=8, keep_global=8,
+        max_matched_pairs=3, max_horizon_tilt_deg=45., workers=workers,
+    )
+
+
+def test_real_search_in_two_workers_gives_the_serial_record() -> None:
+    source = synthetic_court_source()
+    serial, parallel = real_search(source), real_search(source, workers=2)
     assert [pair["status"] for pair in serial["pairs"]].count("matched") == 3
     assert serial["entries"]
     assert comparable(parallel) == comparable(serial)
+
+
+@pytest.mark.parametrize(("all_feet_px", "fractions"), [
+    ([], [None, None]), ([[None, None]] * 3, [0., 0.]), ([[]] * 3, [0., 0.]),
+])
+def test_real_search_without_player_observations_keeps_the_line_supported_courts(
+    all_feet_px: list[list], fractions: list[float | None],
+) -> None:
+    """No sampled frames, as without people inputs; frames where nobody stands; frames without player slots."""
+    with_players = real_search(synthetic_court_source())
+    without = real_search({**synthetic_court_source(), "all_feet_px": all_feet_px})
+    assert [entry["gates"]["player_fractions"] for entry in without["entries"]] == [fractions] * 8
+    # Players reject no court, so the same line-support scores survive the caps.
+    assert ([entry["shortlist_score"] for entry in without["entries"]]
+            == [entry["shortlist_score"] for entry in with_players["entries"]])

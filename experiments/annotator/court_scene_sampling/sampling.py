@@ -82,7 +82,7 @@ CUT_PASS_KEYS = {"video", "frame_count", "fps", "native_size", "scene_seconds", 
 class Route(StrEnum):
     """How one frame's evaluation ended."""
 
-    PLAYER_CHECK = "player_check"  # detect()'s early exit: the shared feet cannot pass the player checks
+    PLAYER_CHECK = "player_check"  # retained for records written before player-based search rejection was removed
     HISTORY_REUSE = "history_reuse"  # a court this arm established in an earlier scene passed the reuse checks
     FULL_SEARCH = "full_search"  # search, then scoring, in one go
     PREPARED_FINISH = "prepared_finish"  # scoring of a search cheap_first saved in its early phase
@@ -284,12 +284,6 @@ def prepare_scene(scene: ManifestScene, window: list[int], frames: FrameReader, 
     return SceneInputs(scene, feet_window, views, median, seconds)
 
 
-def players_can_pass(switches: Switches, feet_window: FeetWindow) -> bool:
-    """detect()'s early exit, which reads only the shared feet: False gives every frame no_gated_court."""
-    return not (switches.require_people and switches.artefacts_dir is None
-                and not feet.can_satisfy_player_requirement(feet_window.all_feet_px))
-
-
 @dataclass
 class FramePrep:
     """One frame's detector inputs, kept so later phases reuse them rather than rebuild them."""
@@ -385,10 +379,6 @@ def reused_result(view_id: str, court: reuse.ReusedCourt) -> CourtResult:
     return CourtResult(view_id, court.corners_native_px, None, "reuse", None, court.paint_score, court.source_view_id)
 
 
-def no_gated_court(view_id: str) -> CourtResult:
-    return CourtResult(view_id, None, "no_gated_court", None, None)
-
-
 def first_reused(detector: CourtDetector, known_courts: Sequence[KnownCourt], prep: FramePrep,
                  alignment_image: np.ndarray) -> tuple[CourtResult | None, list[dict]]:
     """detect()'s reuse loop: the first known court that passes, and each tried court's record in order.
@@ -420,8 +410,6 @@ def detect_fixed_feet(detector: CourtDetector, role: str, view: ViewInputs, feet
     laps = Laps()
     prep = frame_context(detector, role, view, feet_window)
     laps.lap("context")
-    if not players_can_pass(detector.switches, feet_window):
-        return FrameAttempt(prep, Route.PLAYER_CHECK, no_gated_court(view.view_id), laps.seconds, [])
     image = reuse.view_image(prep.native_frame) if alignment_image is None else alignment_image
     reused, records = first_reused(detector, known_courts, prep, image)
     if known_courts:
@@ -542,9 +530,6 @@ def cheap_first(detector: CourtDetector, inputs: SceneInputs, known_courts: Sequ
     laps = Laps()
     middle = frame_context(detector, "middle", inputs.views["middle"], inputs.feet)
     laps.lap("context")
-    if not players_can_pass(detector.switches, inputs.feet):
-        return ended_at_middle("cheap_first", FrameAttempt(middle, Route.PLAYER_CHECK,
-                                                           no_gated_court(middle.view.view_id), laps.seconds, []))
     reused, history_records = first_reused(detector, known_courts, middle, inputs.alignment_median)
     if known_courts:
         laps.lap("reuse")

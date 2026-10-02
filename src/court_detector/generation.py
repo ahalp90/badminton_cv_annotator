@@ -28,7 +28,8 @@ class SearchInputs(NamedTuple):
     """What every pair's search in one view shares. Sent to each worker with its pair."""
 
     observations: assignment.Observations
-    feet: np.ndarray  # (sampled frames, player slots, xy) working px; NaN where missing
+    # (sampled frames, player slots, xy) working px; NaN where missing. Without people inputs it has no frames.
+    feet: np.ndarray
     size: tuple[int, int]
     settings: object  # helpers.Settings
     upright_only: bool
@@ -131,7 +132,7 @@ def search_pair(helpers: ModuleType, inputs: SearchInputs, pair_id: int, pair_po
     role = proposed.record
     if proposed.cheap_ranks is not None:
         role = {**role, "retained_cheap_ranks": proposed.cheap_ranks[positions].tolist()}
-    raw_parent_count = proposed.record.get("geometry_players", len(proposed.candidates))
+    raw_parent_count = proposed.record.get("geometry_valid", len(proposed.candidates))
     return PairSearch(role, raw_parent_count, retained, details, perf_counter() - started,
                       pool_record)
 
@@ -231,8 +232,11 @@ def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
     native_size = (source["dimensions"]["width"], source["dimensions"]["height"])
     scale = np.asarray(native_size) / size
     point_scale = np.append(scale, 1.)
-    feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
-                       for frame in source["all_feet_px"]], dtype=float) / scale
+    feet_rows = [[[np.nan, np.nan] if foot is None else foot for foot in frame] for frame in source["all_feet_px"]]
+    # No rows, as without people inputs, or rows without player slots would otherwise lose
+    # the xy axis that the scale divides.
+    slots = max((len(row) for row in feet_rows), default=0)
+    feet = np.asarray(feet_rows, dtype=float).reshape(len(feet_rows), slots, 2) / scale
     observations = assignment.prepare_observations(segments, size)
     settings = helpers.Settings(keep_axes=keep_axes)
 
@@ -282,11 +286,9 @@ def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
         record.update({"status": "matched", "role": searched.role, "raw_parent_count": searched.raw_parent_count,
                        "per_pair_cap_reached": len(searched.retained) == keep_per_pair, "shortlist": shortlist,
                        "elapsed_s": searched.elapsed_s})
-        # Under a limit, raw_parent_count counts only the fully scored courts, not every
-        # court that passed the geometry and player tests.
-        players = searched.role.get("geometry_players", searched.raw_parent_count)
         print(source["id"], "pair", pair_id, list(pencil_ids), "combined", searched.role.get("combined", 0),
-              "players", players, "retained", len(searched.retained), "seconds", searched.elapsed_s, flush=True)
+              "usable", searched.raw_parent_count, "retained", len(searched.retained),
+              "seconds", searched.elapsed_s, flush=True)
     retained = select(helpers, pooled, keep_global)
     shortlist = []
     for candidate in retained:
