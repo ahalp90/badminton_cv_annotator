@@ -147,14 +147,32 @@ def select_contact_training_rows(
 def fit_contact_model(
     training_videos: Sequence[ContactTrainingVideo],
     config: ContactFitConfig = DEFAULT_CONTACT_FIT_CONFIG,
+    *,
+    fit_video_order: Sequence[str] | None = None,
 ) -> ContactModelFit:
     """Fit a balanced contact tree using only the named training videos.
 
     :param training_videos: Explicit training features and labels; omit held-out videos.
     :param config: Histogram gradient boosting settings and sampling seed.
+    :param fit_video_order: Optional permutation of video IDs for the selected fit
+        rows. Negative sampling still follows ``training_videos`` order.
     :return: Fitted model and its selected examples without repeating selection.
     """
     selection = select_contact_training_rows(training_videos, config)
+    if fit_video_order is not None:
+        if len(fit_video_order) != len(selection.video_counts) or set(fit_video_order) != selection.video_counts.keys():
+            raise ValueError('fit_video_order must contain each training video ID exactly once')
+        if tuple(fit_video_order) != tuple(selection.video_counts):
+            slices = {}
+            position = 0
+            for identity, counts in selection.video_counts.items():
+                slices[identity] = slice(position, position + counts.selected)
+                position += counts.selected
+            selection = ContactTrainingSelection(
+                np.concatenate([selection.rows[slices[identity]] for identity in fit_video_order]),
+                np.concatenate([selection.labels[slices[identity]] for identity in fit_video_order]),
+                {identity: selection.video_counts[identity] for identity in fit_video_order},
+            )
     model = HistGradientBoostingClassifier(
         learning_rate=config.learning_rate,
         max_iter=config.max_iter,
