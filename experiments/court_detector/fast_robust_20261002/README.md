@@ -118,6 +118,12 @@ The [pilot measurements](view_checks/sharing_pilot_summary.json.gz) and
 Keeping individual fits alone is not sufficient: scene 0094's original fit is
 already oversized, as its [overlay](view_checks/sset30_scene0094.png) shows.
 
+An [eight-video trial](player_tiebreak_trial/README.md) will compare score-first
+selection with player support used only for exact ties. The first stage keeps
+the existing search; the second also removes player-based search rejection.
+Both include the sharing fix. These stages are experiments, with no results
+yet included in the accuracy table above.
+
 ## View grouping follow-up
 
 Keep the hash threshold at 0.30 for now. In a diagnostic sample of 988 frames
