@@ -1,25 +1,79 @@
-# Retuning on new vision evidence
+# Refit guide
 
-Fit a fresh complete bundle from labelled videos, compare it on held-out groups,
-and use the chosen bundle for annotation. The contact tree, sequence trees and
-review-ranking tree are fitted together by the supported command. This guide
-does not require reconstructing the research experiments.
+A refit creates a new `models.joblib` and `metadata.json` from labelled videos, then measures that model directory on held-out validation or test videos. `models.joblib` is the Joblib-serialised fitted model bundle.
 
-The improved court extraction needs a new retune and follow-up analysis. Its
-performance has not yet been established. Use a completed extraction run.
-The separate dataset rebuild can use existing human contact and rally labels;
-it does not depend on this annotator retune.
+The fitted pieces are trained together because the later sequence models depend on the contact stream produced earlier in the chain.
 
-## Prepare a manifest and labels
+![Refit flow](figures/refit_flow.svg)
 
-Use an existing dataset-builder run containing metadata, pose, court and
-shuttle artefacts. For each video, the workflow reads its matching directory
-under `run_dir/stages/`. Current operational court inputs and shuttle guard
-codes must be available. Raw detector JSON files must first be converted into
-the builder's operational court artefacts. Missing artefacts or unusable court geometry stop the
-operation.
+The commands on this page are the stable, general way to fit and evaluate. The refit planned for the new court inputs uses its own temporary runner; [Planned new-court refit](#planned-new-court-refit) at the end of this page covers it.
 
-Create a JSON manifest such as `retune/manifest.json`:
+## When a new fit is needed
+
+A new fit is normally needed when a change alters the frames, features or sequence alternatives seen by a fitted tree.
+
+Common examples include:
+
+- a new or materially changed court detector;
+- a shuttle or pose change that materially changes the values seen by the models;
+- changes to contact feature values, units, windows or order;
+- changes to rough-rally or contact-search rules;
+- a different contact score cutoff, or turning the optional rule for guarded candidates on or off;
+- changes to serve or later-contact alternatives;
+- changes to sequence features;
+- changing between `video` and `scene` side geometry;
+- a scikit-learn version change.
+
+A change that only affects winner, landing or hit-height logic after final contacts have been selected does not by itself require a new contact/sequence fit. The [maintainer guide](maintaining.md) has a fuller table.
+
+## 1. Saved extraction run
+
+Training reads the same saved stages as annotation:
+
+```text
+<run-dir>/stages/
+  metadata/<video-id>/...
+  shuttle/<video-id>/...
+  pose/<video-id>/...
+  court/<video-id>/...
+```
+
+Training and later annotation need the same kind of shuttle, pose and court data. A model fitted on old court geometry is not directly comparable with one run against materially different court outputs.
+
+The court stage needs the current court inputs used by annotation, and the shuttle stage needs guard codes. Raw detector JSON files have to be converted into the dataset builder's saved court files first. A missing file or unusable court geometry stops the command.
+
+## 2. Contact labels
+
+Each labelled video has a CSV with exactly these columns:
+
+```csv
+rally_id,frame,side
+rally-1,100,Top
+rally-1,130,Bot
+rally-1,160,Top
+rally-2,300,
+rally-2,330,Top
+```
+
+Rules for the file:
+
+- one row per human-labelled contact;
+- frame numbers use the zero-based source-video timeline;
+- `side` is `Top`, `Bot` or blank;
+- a blank side means unknown, not a guess;
+- rows for one rally are contiguous;
+- frames within a rally are strictly increasing;
+- every rally/contact in the included video is labelled.
+
+The labels provide contact times and known court halves. Rally start and end frames are not labelled separately; the evaluation code matches the labelled contacts to predicted sections.
+
+Partial labelling can turn an unlabelled real contact into a negative training example, so the included videos need complete contact labels.
+
+## 3. Manifest
+
+The manifest points at the saved extraction run and assigns each labelled video to `train`, `validation` or `test`.
+
+Example `retune/manifest.json`:
 
 ```json
 {
@@ -34,116 +88,274 @@ Create a JSON manifest such as `retune/manifest.json`:
 }
 ```
 
-Paths resolve relative to the manifest. `id` must match a video directory name
-in the extraction run. IDs cannot repeat. Use `group` to keep related footage,
-such as clips from the same match, together. A group may contain several videos
-but may belong to only one split. At least three distinct training groups are
-required for the sequence fits.
+Paths are resolved relative to the manifest file. Each `id` matches a video directory name in the extraction run and can appear only once.
 
-Each label file is a plain CSV with exactly these columns:
+### Groups
 
-```csv
-rally_id,frame,side
-rally-1,100,Top
-rally-1,130,Bot
-rally-1,160,Top
-rally-2,300,
-rally-2,330,Top
-```
+`group` keeps related footage together. Videos from the same match, or footage with closely shared scene/player conditions, belong to the same group.
 
-Use one row per human-labelled contact. Frames are zero-based source-video
-frames, within the video timeline. Each rally occupies one contiguous block;
-frames within it must be strictly increasing. `side` is `Top`, `Bot` or empty.
-An empty side is unknown, not a guessed player assignment. The labels supply
-contact times and sides, not separately annotated rally start/end bounds.
-Label every rally and contact throughout each included video. Partial
-labelling makes training targets and evaluation results misleading.
+A group can contain several video IDs but cannot appear in more than one split.
 
-The three-group minimum is not enough by itself. Each required tree fit needs
-both target classes. Folds with only useful or only useless edits, or confidence
-labels with only correct or only wrong rallies, fail clearly. Choose enough
-labelled examples to represent those cases in each training fold.
+Sequence fitting needs at least three training groups. That is only the mechanical minimum: every fitted classifier also needs examples of both target classes in the folds that train it. A fold with only useful or only useless edits, or review labels with only correct or only wrong rallies, stops the fit with a clear error.
 
-## Fit and evaluate
+## 4. Fit commands
 
-Run these commands from the repository root in the supported Python environment:
+Video-level side geometry:
 
 ```bash
-PYTHONPATH=src python -m annotator.training fit \
+PYTHONPATH=src uv run python -m annotator.training fit \
   --manifest retune/manifest.json \
   --output models/annotator-video \
   --side-geometry video
+```
 
-PYTHONPATH=src python -m annotator.training evaluate \
+Scene-level side geometry:
+
+```bash
+PYTHONPATH=src uv run python -m annotator.training fit \
+  --manifest retune/manifest.json \
+  --output models/annotator-scene \
+  --side-geometry scene
+```
+
+`--side-geometry` defaults to `video`. The fitting command reads only `train` videos and labels.
+
+Using a separate output directory for each model variant keeps later validation results tied to the exact model that produced them.
+
+## 5. What happens during fitting
+
+### Contact tree
+
+For each training video, the training code runs the rule-based preprocessing and builds contact feature rows.
+
+Training labels are assigned around human contact frames, with distances scaled for the source FPS:
+
+- within 1 frame at 30 FPS — positive;
+- 2–4 frames away — ignored as ambiguous;
+- up to 15 frames away — nearby negative;
+- more distant candidate rows — sampled to fill the remaining negative budget.
+
+All nearby negatives are kept. Distant negative sampling uses a fixed seed and follows the order of the training videos, so manifest order is part of a reproducible comparison.
+
+The order of the selected rows matters too. The same examples and seed fitted in a different row order give a different tree. The `fit` command samples and fits in manifest order. From Python, `fit_contact_model(..., fit_video_order=[...])` reorders the selected rows by video for the fit while sampling stays in the supplied order. Leaving it out keeps the default behaviour.
+
+The contact fit keeps scikit-learn's automatic early stopping: a large fit sets aside part of its own training rows to decide when to stop. `ContactFitConfig.early_stopping` makes that choice explicit.
+
+The final contact tree is then fitted on all training videos.
+
+### Contact scores for sequence training
+
+Sequence training uses contact probabilities from a tree that did not train on the same match group.
+
+For each training group, an additional contact tree is fitted on the other groups. Its probabilities are used for videos in the held-out group. This produces out-of-group contact scores for sequence training.
+
+The contact score cutoff and the optional rule for guarded candidates are applied at this point, exactly as they are during annotation. Neither changes the rows the contact tree itself is trained on.
+
+### Sequence trees
+
+The same option builder used at runtime creates keep, serve-repair, deletion and later-contact-insertion alternatives.
+
+Human labels mark which alternatives are useful or correct. Grouped fitting then trains the sequence models from those rows.
+
+The final sequence models are fitted after the out-of-group training examples have been constructed.
+
+The contact folds are not nested a second time inside the sequence folds. This matches the original training procedure. The separate validation and test reports are the quality measurement; validation and test groups stay outside every fit.
+
+### Rally review tree
+
+The review tree is trained from completed out-of-group predictions. Each predicted section receives one of three labels:
+
+- `1` — correct;
+- `0` — known wrong;
+- `-1` — not judgeable because required human side labels are missing, or because no labelled rally overlaps the section.
+
+Rows labelled `-1` are left out of the confidence fit.
+
+### Saved model directory
+
+The resulting directory contains models and settings for the whole learned chain:
+
+- contact tree;
+- sequence model stack;
+- rally review tree;
+- contact-selection settings;
+- rough-rally, mask and other preprocessing settings;
+- side-geometry mode.
+
+Keeping these together ensures that the sequence models receive the same kind of contact stream and rule-based inputs used to create their training examples.
+
+## 6. Validation
+
+Example for the video-geometry model:
+
+```bash
+PYTHONPATH=src uv run python -m annotator.training evaluate \
   --manifest retune/manifest.json \
   --models models/annotator-video \
   --split validation \
   --output retune/validation-video.json.gz
 ```
 
-Fitting reads only `train` videos and their label files. Evaluation loads a saved
-bundle and reads only the requested `validation` or `test` split. It performs no
-fitting. The bundle stores its preprocessing and geometry choice; evaluation
-uses those stored settings.
+Example for the scene-geometry model:
 
-The contact fit keeps positives within one frame at 30 FPS of a human contact.
-It ignores ambiguous nearby rows through four frames, keeps nearby negatives
-through fifteen, and samples more distant negatives with a fixed seeded
-budget. These distances scale to the video's FPS. Manifest video order affects
-seeded sampling, so keep it stable when comparing fits. The contact fit retains
-automatic early stopping: large fits reserve an internal validation subset of
-their training rows. `ContactFitConfig.early_stopping` makes that choice explicit.
+```bash
+PYTHONPATH=src uv run python -m annotator.training evaluate \
+  --manifest retune/manifest.json \
+  --models models/annotator-scene \
+  --split validation \
+  --output retune/validation-scene.json.gz
+```
 
-Each training video is first scored by a contact tree fitted on the other
-training groups. Sequence training also withholds its entire group from the
-downstream models that produce its training scores. Confidence fitting uses the resulting
-held-group predictions and their matching held-group insertion model. The
-final bundle's trees are then fitted using all training groups.
+Evaluation loads the saved model directory and does not fit anything. It reads only the requested `validation` or `test` split and uses the settings stored in the model directory. The output path must end in `.json.gz`.
 
-The final contact tree uses all training videos for future inference. The
-contact folds are not nested again inside the downstream folds; this matches
-the original training procedure. Treat the separate validation/test reports as
-the quality assessment. Validation and test groups remain outside every fit.
+## 7. Reading the evaluation report
 
-For deliberate fitting changes, call `fit_from_manifest` with
-`TrainingSettings` from Python. The command keeps the settings small; it does
-not expose a research or ablation menu. Changing fixed preprocessing or feature
-policy requires a full refit, not just another score cut-off.
+The report contains per-video counts and totals.
 
-## Read the evaluation
+### Contact metrics
 
-The compressed JSON report contains per-video and total counts:
+Predicted and labelled contacts are matched one-to-one within ten frames at 30 FPS, scaled for each video's FPS.
 
-- Labelled, predicted and matched contacts, with contact precision and recall.
-  Matching allows ten frames at 30 FPS, scaled to each video's FPS.
-- Judged, correct and unjudgeable predicted rally sections. A correct section
-  contains all of one labelled rally's contacts, no extras, and the correct
-  known sides after the final side assignment.
+The report includes:
 
-A missing contact, extra contact, merged rally, partial rally or known side
-contradiction makes a section wrong. Otherwise, missing human side labels make
-it unjudgeable. A predicted section with no overlapping labelled rally is also
-unjudgeable. Unknown sections are excluded from confidence fitting.
+- labelled contacts;
+- predicted contacts;
+- matched contacts;
+- contact precision;
+- contact recall.
 
-Whole-rally counts measure correctness of **predicted sections**. They do not
-measure missed-rally recall: a labelled rally with no predicted section does not
-create a wrong-section row. Contact recall still counts its missed contacts.
-Read both sets of measures and inspect representative errors. The report does
-not validate winners, landings or hit heights.
+These numbers measure the contact stream directly.
 
-## The next court retune
+### Rally-section metrics
 
-Keep the labelled splits fixed. Fit one bundle with `--side-geometry video` and
-another with `--side-geometry scene`, using separate output directories.
-Evaluate both on validation and inspect differences in contact repairs and side
-assignments. This is the remaining practical geometry choice, not a request to
-rebuild the algorithm.
+A predicted rally section counts as correct when it matches one labelled rally and contains every labelled contact from that rally. It must contain no extra contacts and must agree with all known human side labels.
 
-Choose using validation, then evaluate the chosen bundle on test. Avoid using
-test results to keep adjusting the choice. Complete any small cleanup prompted
-by real failures and point `models.annotator` at the chosen directory for future automatic annotation runs.
+A missing contact, an extra contact, a merged rally, a partial rally or a contradicted known side makes a section wrong. Otherwise, missing human side labels make it unjudgeable. A predicted section that overlaps no labelled rally is also unjudgeable.
 
-The fit/runtime scikit-learn versions must match exactly. Keep the complete
-bundle with the resolved runtime used to fit it; after upgrading scikit-learn,
-fit a new bundle. Historical binaries and earlier court-failure analysis remain
-useful context, but they do not replace this fresh held-out evaluation.
+The report counts:
+
+- judged predicted sections;
+- correct predicted sections;
+- unjudgeable predicted sections.
+
+A completely missed labelled rally does not create a predicted-section row. These counts therefore measure correctness of predicted sections, not rally recall. Contact recall still captures missed contacts.
+
+Winner, landing and hit-height accuracy are outside this report and need separate evaluation when those rules change.
+
+## 8. Validation and test roles
+
+Model variants are compared on validation with the same data splits and labels. After a model choice is settled, test provides the final held-out measurement.
+
+Repeated model selection against test turns it into another validation set. The test report therefore works best as the final measurement of the chosen setup.
+
+## 9. Python fit settings
+
+The CLI exposes the manifest, output path and side-geometry choice. More detailed settings are in `TrainingSettings`, passed to `fit_from_manifest()` from Python. The command stays small on purpose; it is not a menu for research variants.
+
+Current defaults are below.
+
+### Contact tree
+
+| Setting | Default |
+| --- | ---: |
+| learning rate | `0.06` |
+| max iterations | `180` |
+| max leaf nodes | `31` |
+| min samples per leaf | `40` |
+| L2 regularisation | `1.0` |
+| seed | `20260824` |
+| early stopping | `"auto"` |
+
+### Sequence trees
+
+General sequence-tree defaults:
+
+| Setting | Default |
+| --- | ---: |
+| learning rate | `0.05` |
+| max iterations | `200` |
+| max leaf nodes | `15` |
+| min samples per leaf | `20` |
+| L2 regularisation | `1.0` |
+| seed | `20260905` |
+
+The serve tree uses 100 iterations, 7 leaves and seed `20260824`.
+
+### Rally review tree
+
+| Setting | Default |
+| --- | ---: |
+| learning rate | `0.05` |
+| max iterations | `100` |
+| max leaf nodes | `7` |
+| min samples per leaf | `20` |
+| L2 regularisation | `1.0` |
+| seed | `20260905` |
+
+A comparison is easier to interpret when one variable changes at a time. For example, a contact-tree hyperparameter comparison can keep preprocessing and the data split fixed.
+
+## 10. Contact selection settings
+
+`ContactModelConfig` holds two settings. Both are saved in the model directory and used again at annotation time.
+
+| Setting | Default | Effect |
+| --- | ---: | --- |
+| `score_cutoff` | `0.9` | Lowest contact score kept in the initial contact stream |
+| `reject_masked_without_player` | `False` | When true, drops candidate frames that have a rejected shuttle guard grade and no picked player at the five feature offsets |
+
+[Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) gives the exact condition for the second setting.
+
+Both settings affect which contacts reach sequence refinement. A different value therefore also changes the sequence-model inputs and the examples used to fit the review tree. The contact tree's own training rows do not change.
+
+A comparison sets the value through `TrainingSettings.contact_prediction` and fits the full model directory again. The later models then train on the same contact stream used during annotation. The `fit` command has no flag for either setting:
+
+```python
+from pathlib import Path
+
+from annotator.contacts.model import ContactModelConfig
+from annotator.training.workflow import TrainingSettings, fit_from_manifest, load_manifest
+
+settings = TrainingSettings(
+    contact_prediction=ContactModelConfig(reject_masked_without_player=True),
+)
+fit_from_manifest(
+    load_manifest(Path("retune/manifest.json")),
+    Path("models/annotator-rule"),
+    settings=settings,
+)
+```
+
+## 11. Checks before selecting a model directory
+
+A complete model comparison normally includes:
+
+- disjoint train, validation and test groups;
+- full labels for every included video;
+- model selection based on validation rather than test;
+- both contact precision and contact recall;
+- rally-section metrics interpreted as section correctness, not rally recall;
+- inspection of representative changed predictions as well as aggregate counts;
+- the same scikit-learn version for fitting and annotation;
+- both `models.joblib` and `metadata.json` kept together;
+- the selected model path recorded in the dataset-builder config (`models.annotator`).
+
+## Planned new-court refit
+
+**Status: prepared, not run.** The two fits and their evaluations have not started. The final court extracts have not been chosen yet, so their paths are not recorded here.
+
+This paired comparison has its own runner. It is separate from the `python -m annotator.training` commands above, although it calls the same fitting functions. The [runner README](../../experiments/annotator/good_court_refit/README.md) has the commands, the input config and the list of settings both builds hold fixed. The [evaluation template](../../experiments/annotator/good_court_refit/evaluation.md) lists what to measure afterwards.
+
+Two builds are prepared, in this order:
+
+1. **Baseline** — the current default settings on the new court inputs.
+2. **Baseline plus the rule** — the same settings with `ContactModelConfig(reject_masked_without_player=True)`.
+
+The rule does not change contact-tree training. The two builds therefore differ in their sequence and review trees and in the candidates used at annotation time.
+
+Both builds use `video` side geometry. A `video` versus `scene` comparison is not part of this refit.
+
+ShuttleSet22 video 15 is left out of this refit's inputs and of every split because its labels are misaligned. The old-court regression runner retains its historical 47-video test list, including video 15. Original-ShuttleSet `sset_15` is a different video and stays in.
+
+The rule was first tried on the old court inputs. The [old-court findings](../../experiments/annotator/old_court_regression/findings.md) report that trial and explain why the earlier refit changed the benchmark. Those results describe the old court inputs. Court geometry affects which players get picked, so they do not show how the rule behaves on the new ones.
+
+Once the builds have been run and evaluated, this section is where the chosen model directory, the evaluation it was chosen on and the remaining known failures get recorded.

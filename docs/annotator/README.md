@@ -1,161 +1,72 @@
 # Auto-annotator
 
-The auto-annotator turns shuttle, pose and court evidence into rally bounds,
-contact times and player-side assignments. It combines fixed heuristics with
-trained tree models. The dataset builder uses this same path before producing
-rally records.
+The auto-annotator turns saved shuttle, pose and court data into rally spans, contact frames, court-half assignments and several outcome estimates. The dataset builder runs the same code before it produces rally records.
 
-Start here to run it. [How it works](how_it_works.md) explains the model and
-outputs; [retuning](retuning.md) covers fitting a fresh bundle from labelled
-videos.
+The documents are split by task:
 
-## Before running
-
-Use Python 3.12 or newer and the dependencies resolved in `uv.lock`. The supported
-annotator needs a fresh model bundle fitted in that environment. Old experiment
-binaries are historical comparison material; copying them into the model
-location does not make them supported models.
-
-A bundle directory contains `models.joblib` and `metadata.json`. Together they
-hold the contact tree, sequence refinement trees, review-ranking tree and the
-preprocessing settings used during fitting. Loading checks the model schema,
-contact feature order and exact scikit-learn version. Refit after changing that
-version. Keep both bundle files together.
-
-The next court-based retune is still required. Code cleanup alone does not
-establish prediction quality on the new court evidence.
-
-## Run annotation on saved inputs
-
-Use this command when shuttle, pose and court extraction has already finished
-and you want to run annotation separately:
-
-```bash
-PYTHONPATH=src python -m annotator \
-  --run-dir data/dataset-run \
-  --video-id match-alpha \
-  --models models/annotator \
-  --output-dir data/annotations/match-alpha
-```
-
-Replace `match-alpha` with the video's directory name in the extraction run.
-The command reads that video's saved files from `stages/metadata`,
-`stages/shuttle`, `stages/pose` and `stages/court` beneath `--run-dir`.
-It expects the dataset builder's saved extraction formats, including the
-shuttle fill flags and operational court evidence.
-
-This runs the complete mixed annotator. It uses the same annotation function as
-the dataset builder and writes `annotator_result.json.gz`, both exclusion masks
-and the shuttle-quality summary. The output directory must be new or empty.
-The command does not update an existing dataset run's annotations or manifest.
-It needs neither the original video nor labels, and it does not run scraping,
-vision extraction or model fitting.
-
-The older `python -m annotator.rally_segmentation` command only performs
-preliminary heuristic segmentation. Use `python -m annotator` for full annotation.
-
-## Dataset builder
-
-Set the model directory in your existing dataset-builder TOML configuration:
-
-```toml
-[models]
-annotator = "models/annotator"
-```
-
-Add this key to the existing `[models]` table, alongside the vision models.
-Relative paths resolve from the repository root. The default is
-`models/annotator`.
-
-From the repository root, with the project environment active:
-
-```bash
-PYTHONPATH=src python -m dataset_builder run \
-  --config configs/dataset_builder/trial.toml \
-  --run-dir data/dataset-run
-```
-
-The builder loads and checks the bundle before running annotation. Its resume
-checks include both bundle files, so replacing a bundle invalidates affected
-annotation results. It writes final contacts, sides, rally bounds and review
-scores into the annotation artefacts used by later stages. The trial
-configuration also performs acquisition and vision extraction; it is not a
-command for fitting annotator trees.
-
-## Python callers
-
-Applications with prepared vision inputs call
-[`run_video`](../../src/annotator/run_video.py). Load the bundle explicitly so the
-model location is clear:
-
-```python
-from pathlib import Path
-
-from annotator.models import load_models
-from annotator.run_video import run_video
-
-models = load_models(Path("models/annotator"))
-result = run_video(
-    track, bboxes, scores, kps, ndet,
-    fps=fps, models=models,
-    **court_and_mask_inputs,
-)
-```
-
-Here the five arrays are frame-aligned shuttle and pose evidence. The keyword
-mapping supplies validated court geometry, replay/court masks and landing
-inputs; the `run_video` docstring gives their shapes and required fields. The
-builder's [`run_full_annotation_stage`](../../src/dataset_builder/vision.py)
-shows the complete call from its public artefact loaders. Normal full annotation
-loads `models/annotator` from the working directory if `models` is omitted.
-
-Use the bundle's preprocessing settings. Supplying a different `base` config
-fails rather than silently changing model inputs. `heuristic_only=True` exists
-for feature preparation and comparisons; supported final annotation uses the
-mixed model.
-
-## Reading the result
-
-- `spans` are half-open rally bounds: the start frame is included, the end frame
-  is excluded
-- `filtered_by_rally` holds final contact frames for each rally; `contact_events`
-  retains the full stream, including unassigned contacts, with scores and
-  individual `Top`/`Bot` side assignments
-- `rally_confidence` ranks rallies for review, in span order; it does not change
-  contacts or grant automatic approval
-- Server, winner, landing and hit-height fields are downstream estimates from
-  the final contacts and available geometry. Missing or unresolved values need
-  to remain visible to consumers
-
-Use `filtered_by_rally` for contact membership. Do not reconstruct it by
-filtering the full event stream against rally bounds.
-
-In model runs, `contacts` and `filtered_contacts` both contain the final chosen
-contacts. The builder's historical `raw_candidates` field also contains those
-contacts; it is not the tree's input shortlist. Older benchmark reports therefore
-give identical raw and final contact metrics for these runs. Use the final metrics.
-
-`Top` is the far court half and `Bot` is the near court half. These are camera
-positions, not stable player identities across a change of ends.
-
-## Source map
-
-Read [`run_video.py`](../../src/annotator/run_video.py) for the full call and
-[`hybrid.py`](../../src/annotator/hybrid.py) for the learned contact path.
-
-| Location | Responsibility |
+| Task | Document |
 | --- | --- |
-| [`contacts/`](../../src/annotator/contacts/) | Fixed contact features and base-tree scoring |
-| [`rally/`](../../src/annotator/rally/) | Heuristic rally spans and contact evidence |
-| [`masks/`](../../src/annotator/masks/) | Exclusion of replay, invalid and off-rally frames |
-| [`courts/`](../../src/annotator/courts/) | Scene geometry and court-view evidence |
-| [`sequence/`](../../src/annotator/sequence/) | Finite contact-sequence repairs, sides and review ranking |
-| [`outcomes/`](../../src/annotator/outcomes/) | Server/winner, landing and hit-height estimates |
-| [`training/`](../../src/annotator/training/) | Labelled fitting and held-out evaluation |
-| [`models.py`](../../src/annotator/models.py) | Complete bundle save/load contract |
+| Run one already-extracted video | [Quickstart](quickstart.md) |
+| Understand the full annotation chain | [Overview](how_it_works.md) |
+| Understand the fixed rules before any tree runs | [Fixed heuristics](heuristics.md) |
+| Understand what each fitted tree sees and passes onward | [Tree model stack](tree_stack.md) |
+| Check the exact files, array shapes and result fields | [Inputs and outputs](inputs_outputs.md) |
+| Fit and evaluate a new model set | [Refit guide](retuning.md) |
+| Work out whether a code change affects fitted models | [Maintainer guide](maintaining.md) |
+| Find the module responsible for a piece of the pipeline | [Code map](code_map.md) |
 
-Research experiments are separate from this reading path. For optional context,
-[PR 149](https://github.com/ahalp90/badminton_cv_annotator/pull/149) describes the
-retained mixed model and
-[PR 150](https://github.com/ahalp90/badminton_cv_annotator/pull/150) its court-failure
-analysis. Those results do not validate the new court inputs.
+## The short version
+
+The annotator has two main parts.
+
+1. **Rules narrow the search.** They reject unreliable frames, flag unreliable shuttle positions, form rough rally spans, track one player on each court half, and mark the parts of the timeline where a contact looks plausible. [Fixed heuristics](heuristics.md) explains those rules and the main thresholds.
+2. **Tree models choose contacts and repair sequences.** A contact model scores plausible hit frames. Sequence models can repair an early serve, remove a bad hit or add one likely missed later hit. A final tree gives each completed rally a review score. [Tree model stack](tree_stack.md) explains what each model sees and how the scores pass between them.
+
+After the contact sequence is settled, rule-based code adjusts rally bounds and assigns alternating `Top`/`Bot` court halves. It also estimates server, winner, landing and hit height when enough evidence is available.
+
+The standalone command for one video is:
+
+```bash
+PYTHONPATH=src uv run python -m annotator \
+  --run-dir data/dataset-run \
+  --video-id match-name \
+  --models models/annotator \
+  --output-dir data/annotations/match-name
+```
+
+This command expects metadata, shuttle, pose and court extraction to be finished already. Raw footage goes through the dataset builder first; the annotator is one stage inside that larger pipeline. The [quickstart](quickstart.md) covers the required files, the outputs and the common failures.
+
+`python -m annotator.rally_segmentation` is an older command that only runs the rule-based rally segmentation. Full annotation is `python -m annotator`.
+
+## Current status
+
+Annotation needs a model directory fitted in the current environment. Old experiment binaries are comparison material. Copying them into `models/annotator` does not make them supported models.
+
+A refit on the new court extraction is prepared but has not been run. No model has been fitted or evaluated on the new court inputs yet, so these documents make no claim about annotation quality on them. The [refit guide](retuning.md#planned-new-court-refit) describes what is prepared.
+
+For background, [PR 149](https://github.com/ahalp90/badminton_cv_annotator/pull/149) describes the retained mixed rule-and-tree model and [PR 150](https://github.com/ahalp90/badminton_cv_annotator/pull/150) its court-failure analysis. Both describe the old court inputs.
+
+## Run settings and model settings
+
+Each model directory contains the fitted trees plus the settings used with them. These include the contact score cutoff, an optional rule for unreliable shuttle frames, the rough-rally and masking settings, and the choice of video-level or scene-level court geometry for player sides.
+
+Two kinds of setting matter:
+
+- **Run selection** — which saved extraction run, video, model directory and output directory to use.
+- **Model settings** — settings that change contact features, candidate sequences or values seen by the trees. A change here usually means fitting and evaluating a new model directory.
+
+The [maintainer guide](maintaining.md) lists common changes and whether they affect fitted models.
+
+## Main source files
+
+These files cover most of the maintained annotation path:
+
+- [`cli.py`](../../src/annotator/cli.py) — standalone command for saved inputs
+- [`run_video.py`](../../src/annotator/run_video.py) — full one-video annotation chain
+- [`hybrid.py`](../../src/annotator/hybrid.py) — contact scoring, sequence refinement and rally review score
+- [`sequence/refine.py`](../../src/annotator/sequence/refine.py) — the three sequence chooser stages
+- [`models.py`](../../src/annotator/models.py) — model directory contents and load-time checks
+- [`training/workflow.py`](../../src/annotator/training/workflow.py) — fitting and held-out evaluation
+- [`dataset_builder/vision.py`](../../src/dataset_builder/vision.py) — saved-input loaders and persisted annotation output
+
+The [code map](code_map.md) covers the rest of the package. Research experiments live under [`experiments/annotator/`](../../experiments/annotator/README.md) and are separate from this reading path.

@@ -21,8 +21,8 @@ METADATA_FILENAME = 'metadata.json'
 class SideGeometry(StrEnum):
     """Which net position separates the far and near player's feet.
 
-    The existing trees used one net position for the whole video. The next
-    retune will compare this with the net position measured in each scene.
+    VIDEO uses one net position for the whole video; SCENE uses the position
+    measured in each scene. The fitted bundle preserves the selected mode.
     """
 
     VIDEO = 'video'
