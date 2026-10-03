@@ -26,7 +26,7 @@ from court_detector.detect import (
     freeze_arrays,
     load_live_modules,
 )
-from scratch.court_det_fix.court_detector import frozen_cases
+from experiments.court_detector.saved_views import frozen_cases
 
 REPO = Path(__file__).resolve().parents[1]
 COURT_ROOT = REPO / "scratch/court_det_fix"

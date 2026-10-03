@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     PACK_MD5_BY_NAME,
     SIDECAR_MD5,
     SIDECAR_SCHEMA,

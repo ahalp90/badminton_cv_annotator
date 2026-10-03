@@ -165,7 +165,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Research entry points set thread limits or import paths before loading their modules.
-"scratch/court_det_fix/court_detector/run_views.py" = ["E402"]
+"experiments/court_detector/saved_views/run_views.py" = ["E402"]
 "scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/**/*.py" = ["E402"]
 "experiments/annotator/court_geometry_repair/scripts/evaluate_court_comparison.py" = ["E402"]
 "experiments/annotator/court_scene_sampling/run.py" = ["E402"]

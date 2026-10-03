@@ -347,7 +347,7 @@ def test_endpoint_court_is_carried_into_the_middle_frame_or_marked_incomparable(
 
 
 def test_paint_evidence_reproduces_the_final_refit_paint_score() -> None:
-    from scratch.court_det_fix.court_detector import frozen_cases
+    from experiments.court_detector.saved_views import frozen_cases
 
     root = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
     case_id = "shuttleset_03_scene_0017"

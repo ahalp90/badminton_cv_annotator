@@ -54,7 +54,7 @@ from scratch.court_det_fix.court_detector.detect import (
     source_record,
 )
 from scratch.court_det_fix.court_detector.inputs import ViewInputs
-from scratch.court_det_fix.court_detector.run_views import (
+from experiments.court_detector.saved_views.run_views import (
     VIEWS,
     pack_sources,
     read_json_gz,

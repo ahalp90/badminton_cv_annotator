@@ -23,8 +23,8 @@ import cv2
 from court_detector.image_sources import CaseProvenance, ImageKind
 from court_detector.measurements import ViewContext, read_json_gz, view_context
 
-# scratch/court_det_fix: the frozen views and saved research runs are under here.
-ROOT = Path(__file__).resolve().parents[1]
+# The frozen views and saved research runs stay under scratch/court_det_fix.
+ROOT = Path(__file__).resolve().parents[3] / "scratch/court_det_fix"
 
 SIDECAR_FILENAME = "case_provenance.json.gz"
 SIDECAR_SCHEMA = "independent-court-case-provenance/1"

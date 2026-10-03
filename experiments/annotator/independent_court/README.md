@@ -7,8 +7,8 @@ the annotation pipeline does not use its outputs.
 The court geometry, fragment measurements, stripe fitting and image-source types
 now live in [the court detector package](../../../src/court_detector/README.md#code-map).
 These experiment runners import that maintained code. The line-only search
-lives in `line_only.py`. The frozen-view loaders stay with the saved views in
-`scratch/court_det_fix/court_detector/frozen_cases.py`. The
+lives in `line_only.py`. The frozen-view loaders live with the saved-view tools in
+`experiments/court_detector/saved_views/frozen_cases.py`. The
 [code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
 keeps the original implementations.
 

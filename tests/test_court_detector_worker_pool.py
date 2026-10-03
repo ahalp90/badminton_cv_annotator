@@ -20,7 +20,7 @@ from court_detector.inputs import (
     ViewInputs,
     same_frame_provenance,
 )
-from scratch.court_det_fix.court_detector import run_views
+from experiments.court_detector.saved_views import run_views
 
 
 def child_pids() -> set[int]:

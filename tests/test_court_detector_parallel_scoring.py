@@ -34,7 +34,7 @@ from court_detector.detect import (
     freeze_arrays,
     load_live_modules,
 )
-from scratch.court_det_fix.court_detector import frozen_cases
+from experiments.court_detector.saved_views import frozen_cases
 
 COURT_ROOT = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
 CASE_ID = "am3_window_00_frame_0"

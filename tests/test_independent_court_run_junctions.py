@@ -9,7 +9,7 @@ import pytest
 
 from court_detector.image_sources import CaseProvenance, ImageKind
 from experiments.annotator.independent_court import run_junctions
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     load_frozen_case_provenance,
 )
 

@@ -14,7 +14,7 @@ current names and leave the saved files as they are. A view that raises is logge
 the run carries on; the exit code is 1 when any view raised or failed a check.
 
 Usage, from the repository root with PYTHONPATH=.:src:
-  python -m scratch.court_det_fix.court_detector.run_views --people DIR --output DIR
+  python -m experiments.court_detector.saved_views.run_views --people DIR --output DIR
       [--baseline ARM_DIR --feet FEET_FILE] [--artefacts] [--timing] [--workers N] [--no-self-checks]
       [--template-device cuda] VIEW [VIEW ...]
 """

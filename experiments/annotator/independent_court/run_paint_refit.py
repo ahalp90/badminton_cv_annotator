@@ -32,7 +32,7 @@ from court_detector.line_observations import (
     prepare_observations,
 )
 from court_detector.paint_geometry import CENTRE_SEGMENTS_M
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     load_frozen_case_provenance,
 )
 
