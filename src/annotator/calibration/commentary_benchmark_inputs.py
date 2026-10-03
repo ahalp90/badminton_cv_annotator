@@ -9,11 +9,11 @@ result; it does not read these artifacts itself.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import hashlib
 import json
 import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,6 @@ from annotator.calibration.scoring import load_gt_rallies
 from annotator.calibration.shuttleset22_features import load_annotation_rallies
 from dataset_builder.vision import load_json_gz, load_npy_xz
 from scraper.commentary_retiming import MIN_MATCH_RATIO, SEARCH_PAD_S, AlignStatus
-
 
 RETIMED_RELATIVE_DIR = "commentary/retimed_chunks"
 RETIMED_ALIGN_STATUSES = tuple(status.value for status in AlignStatus)
@@ -686,7 +685,7 @@ def _video_rally_views(
         ]
         return rallies, human_rallies, replay_mask, None
 
-    annotation_dir = shuttleset22_root / "annotations" / "set" / str(row["title"])
+    annotation_dir = shuttleset22_root / "set" / str(row["title"])
     records, annotation_population = load_annotation_rallies(annotation_dir, frame_count)
     rallies = [
         (

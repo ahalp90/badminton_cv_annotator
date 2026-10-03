@@ -12,8 +12,8 @@ accuracy across the full source videos.
 | l-I_Di1Ad2Y | l-I_Di1Ad2Y_h264.mp4 | 120–123 | 36, 64, 71 |
 
 Section times describe the requested downloads. Frame numbers index the decoded
-local clips, not the full YouTube videos. Source clips remain local under
-`scratch/court_det_fix/worklog/checks/independent/examples_updated/`.
+local clips, not the full YouTube videos. Source clips are checked in under
+[`../additional_examples/`](../additional_examples/README.md).
 
 - [hand_corners.csv.gz](hand_corners.csv.gz): four corner rows per annotated frame.
 - [hand_corners_landmarks.csv.gz](hand_corners_landmarks.csv.gz): clicked line
@@ -21,7 +21,7 @@ local clips, not the full YouTube videos. Source clips remain local under
 - [renders/](renders/): one overlay for each of the nine annotated frames.
 
 Annotations were made with `annotate_court_corners_offframe.py`. The compressed
-CSVs preserve the original tool output exactly. Published court detection
+CSVs preserve the annotations; only the source-video paths have been updated. Published court detection
 evaluations have not yet been rescored against these annotations.
 
 The `video` column contains the local clip path shown above, rather than the

@@ -1,13 +1,16 @@
 # Court geometry repair: evidence and reproduction
 
-This bundle makes the [issue #148 results report](../../../scratch/court_det_fix/evidence/retirement/README.md)
-checkable from saved outputs. It includes both sides of the comparison, the
+This bundle records the issue #148 court-repair comparison from saved outputs. It includes both sides of the comparison, the
 geometry controls and the frozen contact model. No models were retrained or
 tuned for these results.
 
 Start with the saved-output checks below. They require no videos or GPU.
 The [pipeline reproduction recipe](REPRODUCE.md) lists the larger inputs needed
 to regenerate detections, annotations and model predictions.
+
+The CourtKeyNet package has since been retired. Scripts that import
+`courtkeynet` need the historical checkout used by this experiment; they do not
+run against today's detector.
 
 ## What is included
 
@@ -163,5 +166,5 @@ The controls are geometry experiments; they do not reproduce the complete
 person-voting and rally pipeline on videos 3 and 21. The two ShuttleSet22 runs
 are development checks on known failures.
 
-Grouping repeated matching views and evaluating partial courts remain next
-steps, as described in the [investigation trail](../../../scratch/court_det_fix/evidence/retirement/README.md).
+This is a historical annotator comparison. CourtKeyNet is retired; current
+court work uses the [court detector](../../../docs/court_detector/usage.md).

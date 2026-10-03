@@ -15,11 +15,11 @@ from court_detector.image_sources import CaseProvenance, ImageKind
 from court_detector.inputs import PersonSample, ViewInputs
 
 REPO = Path(__file__).resolve().parents[1]
-FRESH_FEET = REPO / "scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/fresh_feet"
+SAVED_VIEWS = REPO / "experiments/court_detector/saved_views"
 
 
 def evidence_script(name: str) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(f"fresh_feet_{name}", FRESH_FEET / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(f"saved_views_{name}", SAVED_VIEWS / f"{name}.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -70,7 +70,7 @@ def test_window_rejects_scenes_that_cannot_hold_it(fps: float, start_frame: int,
 
 def test_same_shot_run_matches_the_evidence_script() -> None:
     same_shot_samples = evidence_script("build_feet_variants").same_shot_samples
-    rows = [json.loads(line) for line in (FRESH_FEET / "shot_check.jsonl").read_text().splitlines()]
+    rows = [json.loads(line) for line in (SAVED_VIEWS / "data/shot_check.jsonl").read_text().splitlines()]
     for row in rows:
         for anchor_position in range(len(row["differences"])):
             expected = same_shot_samples(row["differences"], anchor_position)

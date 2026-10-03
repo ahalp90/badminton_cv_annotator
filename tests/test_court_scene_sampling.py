@@ -348,11 +348,11 @@ def test_endpoint_court_is_carried_into_the_middle_frame_or_marked_incomparable(
 
 
 def test_paint_evidence_reproduces_the_final_refit_paint_score() -> None:
-    from scratch.court_det_fix.court_detector import frozen_cases
+    from experiments.court_detector.saved_views import frozen_cases
 
-    root = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
+    root = frozen_cases.ROOT
     case_id = "shuttleset_03_scene_0017"
-    saved = root / f"court_detector/check_20260926_upright/upright/results/{case_id}.json"
+    saved = Path(__file__).resolve().parents[1] / f"tests/fixtures/court_detector/saved_courts/{case_id}.json"
     corners = np.asarray(json.loads(saved.read_text())["corners_native_px"])
     live = load_live_modules()
     context = frozen_cases.prepare_view(root, case_id)

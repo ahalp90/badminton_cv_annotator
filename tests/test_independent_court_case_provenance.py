@@ -11,19 +11,19 @@ from pathlib import Path
 
 import pytest
 
-import scratch.court_det_fix.court_detector.frozen_cases as provenance_module
+import experiments.court_detector.saved_views.frozen_cases as provenance_module
 from court_detector.image_sources import (
     BoxRelation,
     ImageKind,
     require_same_image_boxes,
 )
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     SIDECAR_MD5,
     load_frozen_case_provenance,
 )
 
 ROOT = Path(__file__).parents[1]
-FROZEN = ROOT / "scratch/court_det_fix/frozen_views"
+FROZEN = ROOT / "experiments/court_detector/saved_views/data"
 PACKS = FROZEN / "packs"
 SIDECAR = FROZEN / "case_provenance.json.gz"
 PACK_NAMES = (

@@ -15,7 +15,7 @@ from experiments.annotator.independent_court.run_junction_selection import (
     run_case,
     summarise,
 )
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     PACK_MD5_BY_NAME,
     SIDECAR_MD5,
     SIDECAR_SCHEMA,

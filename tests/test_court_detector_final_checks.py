@@ -1,10 +1,32 @@
-"""Final stripe corrections must still satisfy the candidate admission rules."""
+"""Final court checks and the exported corner convention."""
 from types import SimpleNamespace
 
+import cv2
 import numpy as np
 import pytest
 
+from annotator.court_evidence import detected_court_info
 from court_detector import detect
+from court_detector.geometry import normalise_output_corners
+
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_output_order_preserves_pixels_and_the_consumers_near_far_coordinates(dtype) -> None:
+    canonical = np.array([[12., 10.], [50., 10.], [70., 40.], [-5., 40.]], dtype=dtype)
+    for half_turn in (0, 2):
+        raw = np.roll(canonical, half_turn, axis=0)
+        before = raw.copy()
+        corners = normalise_output_corners(raw)
+        np.testing.assert_array_equal(corners, canonical)
+        np.testing.assert_array_equal(raw, before)
+        assert corners.dtype == raw.dtype
+        court = detected_court_info(corners)
+        baseline_centres = np.array([corners[:2].mean(axis=0), corners[2:].mean(axis=0)], dtype=np.float32)
+        normalised = cv2.perspectiveTransform(baseline_centres[None], court['H'])[0]
+        np.testing.assert_allclose(normalised, [[.5, 0.], [.5, 1.]], atol=1e-6)
+    # Equal baseline heights preserve the supplied order, including a quarter-turn.
+    sideways = np.array([[10., 10.], [10., 40.], [20., 40.], [20., 10.]], dtype=dtype)
+    np.testing.assert_array_equal(normalise_output_corners(sideways), sideways)
 
 
 @pytest.mark.parametrize(('require_people', 'camera', 'players', 'reason'), [

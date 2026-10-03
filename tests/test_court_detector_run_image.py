@@ -17,7 +17,8 @@ from court_detector.inputs import ViewInputs
 from court_detector.run_image import ImageTools, detect_image
 
 HEIGHT, WIDTH = 48, 64
-CORNERS = [[-5.0, 40.0], [70.0, 40.0], [50.0, 10.0], [12.0, 10.0]]
+CORNERS = [[12.0, 10.0], [50.0, 10.0], [70.0, 40.0], [-5.0, 40.0]]
+RAW_CORNERS = CORNERS[2:] + CORNERS[:2]
 
 
 def ramp_image() -> np.ndarray:
@@ -52,7 +53,7 @@ class Lines:
 
 
 class Detector:
-    def __init__(self, switches: Switches, corners: list[list[float]] | None = CORNERS) -> None:
+    def __init__(self, switches: Switches, corners: list[list[float]] | None = RAW_CORNERS) -> None:
         self.switches = switches
         self.corners = corners
         self.calls: list[tuple] = []
@@ -90,6 +91,7 @@ def test_lines_see_the_native_image_and_corners_stay_native() -> None:
     assert result['schema'] == 'court-detector-image/1'
     assert (result['image_id'], result['image'], result['native_size']) == ('hall', 'hall.jpg', (WIDTH, HEIGHT))
     assert result['status'] == 'court' and result['corners_native_px'] == CORNERS
+    assert detector.corners == RAW_CORNERS
     assert result['no_court_reason'] is None and result['with_people'] is False
     assert result['people_seconds'] is None and result['tools_seconds'] == 2.0
     assert 'chosen_key' not in result
@@ -194,6 +196,18 @@ def test_cli_with_people_loads_rtmlib_once_and_passes_options(cli: types.SimpleN
         assert json.load(stream)['with_people'] is True
 
 
+@pytest.mark.parametrize(('options', 'full'), [((), False), (('--fast',), False), (('--full',), True)])
+def test_cli_routes_no_player_search_breadth(cli: types.SimpleNamespace, options: tuple[str, ...], full: bool) -> None:
+    assert cli.run(*options) == 0
+    assert cli.detectors[0].switches.full_no_people_search is full
+
+
+def test_fast_and_full_are_mutually_exclusive(cli: types.SimpleNamespace) -> None:
+    with pytest.raises(SystemExit) as error:
+        cli.run('--fast', '--full')
+    assert error.value.code == 2 and cli.detectors == []
+
+
 @pytest.mark.parametrize('contents', [None, b'not an image'])
 def test_unreadable_image_fails_before_models_load(cli: types.SimpleNamespace, contents: bytes | None) -> None:
     if contents is None:
@@ -206,4 +220,3 @@ def test_unreadable_image_fails_before_models_load(cli: types.SimpleNamespace, c
 
     assert cli.lines == [] and cli.detectors == [] and cli.extractors == []
     assert not cli.output.exists()
-

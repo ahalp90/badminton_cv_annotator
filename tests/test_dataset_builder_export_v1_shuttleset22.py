@@ -12,8 +12,8 @@ from typing import NamedTuple
 import numpy as np
 import pytest
 
-from dataset_builder import vision
 from dataset_builder import export_v1_shuttleset22 as ss22_export
+from dataset_builder import vision
 from dataset_builder.cli import main
 from dataset_builder.export_v1_shuttleset22 import (
     INPAINTED_GUARD_CODES_FILENAME,
@@ -44,7 +44,6 @@ from tests.test_dataset_builder_export_v1 import (
     assert_rally_ids_match_player_rows,
 )
 from tests.test_dataset_builder_vision import _court_vision, _pose_arrays
-
 
 RUN_ID = "issue106-test"
 SOURCE_DATASET = "ShuttleSet22"
@@ -167,6 +166,7 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     manifest = export_shuttleset22_v1(
         ShuttleSet22ExportInputs(
             data_root=fixture.data_root,
+            annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
             output_dir=output_dir,
             run_id=RUN_ID,
             sources=fixture.sources,
@@ -290,6 +290,7 @@ def test_shuttleset22_export_with_inpainted_root_adds_corrected_sidecars(
     manifest = export_shuttleset22_v1(
         ShuttleSet22ExportInputs(
             data_root=fixture.data_root,
+            annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
             output_dir=output_dir,
             run_id=RUN_ID,
             sources=fixture.sources,
@@ -335,6 +336,7 @@ def test_shuttleset22_export_with_inpainted_root_feeds_inpainted_track_to_player
     export_shuttleset22_v1(
         ShuttleSet22ExportInputs(
             data_root=fixture.data_root,
+            annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
             output_dir=tmp_path / "export",
             run_id=RUN_ID,
             sources=fixture.sources,
@@ -358,6 +360,7 @@ def test_shuttleset22_export_with_inpainted_root_missing_directory_names_video(
         export_shuttleset22_v1(
             ShuttleSet22ExportInputs(
                 data_root=fixture.data_root,
+                annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
                 output_dir=tmp_path / "export",
                 run_id=RUN_ID,
                 sources=fixture.sources,
@@ -382,6 +385,7 @@ def test_shuttleset22_export_with_inpainted_root_missing_file_names_video(
         export_shuttleset22_v1(
             ShuttleSet22ExportInputs(
                 data_root=fixture.data_root,
+                annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
                 output_dir=tmp_path / "export",
                 run_id=RUN_ID,
                 sources=fixture.sources,
@@ -429,6 +433,7 @@ def test_shuttleset22_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) ->
     assert main([
         "export-v1-shuttleset22",
         "--data-root", str(fixture.data_root),
+        "--annotation-root", str(fixture.data_root / ANNOTATIONS_DIRECTORY),
         "--output-dir", str(tmp_path / "export"),
         "--run-id", "x",
         "--sources", str(fixture.sources),
@@ -444,6 +449,7 @@ def test_shuttleset22_cli_with_inpainted_root(tmp_path: Path) -> None:
     assert main([
         "export-v1-shuttleset22",
         "--data-root", str(fixture.data_root),
+        "--annotation-root", str(fixture.data_root / ANNOTATIONS_DIRECTORY),
         "--output-dir", str(output_dir),
         "--run-id", "x",
         "--sources", str(fixture.sources),
@@ -465,6 +471,7 @@ def test_shuttleset22_export_warns_when_an_excluded_match_is_named(
     export_shuttleset22_v1(
         ShuttleSet22ExportInputs(
             data_root=fixture.data_root,
+            annotation_root=fixture.data_root / ANNOTATIONS_DIRECTORY,
             output_dir=tmp_path / "export",
             run_id=RUN_ID,
             sources=fixture.sources,

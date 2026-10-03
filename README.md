@@ -33,6 +33,16 @@ At this stage we've built a proof of concept dataset by extracting and deriving 
 
 See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
 
+## Court-detection dataset
+
+The [ShuttleSet and ShuttleSet22 court detections](data/court_detections/sset_and_sset22/extractions_20261003/README.md)
+contain one prediction file per video: **86 videos and 44,810 scenes**. Start
+there to load the extracted court coordinates. These predictions are separate
+from the older performance-feature handover below.
+
+The [court research map](experiments/court_detector/README.md) points to the
+accuracy report, galleries and tools for improving the detector.
+
 ## Dataset handover
 
 The COSC595 dataset handover preserves the existing exports and supporting model outputs. It does not include a new extraction run.
@@ -88,11 +98,11 @@ The court detector finds the four outer court corners from line markings and
 player positions. It can combine evidence within a scene or across returning
 camera views. Each scene still receives one fixed court projection.
 
-Start with the [court detector guide](src/court_detector/README.md) for setup,
-commands, output formats and maintenance pointers. The
-[design notes](docs/court_detector/design.md) explain the main choices and
-limitations. The [evaluation record](docs/court_detector/evaluation.md) separates
-measured results from what remains unverified.
+The [detector overview](docs/court_detector/README.md) explains its role and
+main stages. The [usage guide](docs/court_detector/usage.md) covers input needs,
+setup, commands and every CLI option. [Design notes](docs/court_detector/design.md)
+explain the current choices; the [experiment reports](experiments/court_detector/README.md)
+record the development and evaluation.
 
 ## Earlier work: BST-X
 

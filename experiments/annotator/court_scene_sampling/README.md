@@ -221,8 +221,10 @@ A method row holds:
 Each frame row holds its role, frame, `route`, corners, paint score, stage
 seconds and reuse records. An accepted court adds its per-marking paint
 `evidence`, `in_middle_frame` and, when comparable, `vs_baseline`. Routes are
-`player_check`, `history_reuse`, `full_search`, `prepared_finish` and
-`seed_reuse`.
+`player_check`, `history_reuse`, `full_search`, `prepared_finish` and `seed_reuse`.
+Like the detector, required-player runs stop before reuse or search when the
+shared feet samples contain too few people to satisfy the occupancy rule.
+Diagnostic artefact runs still search.
 
 ## Tests
 

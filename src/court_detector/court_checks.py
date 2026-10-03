@@ -19,8 +19,9 @@ def gate_evidence(
     homography = cv2.getPerspectiveTransform(detector.CORNER_COURT_M, (corners / scale).astype(np.float32))
     fractions = [None, None]
     if source['all_feet_px']:
-        feet = np.asarray([[[np.nan, np.nan] if foot is None else foot for foot in frame]
-                           for frame in source['all_feet_px']], dtype=float) / scale
+        feet_rows = [[[np.nan, np.nan] if foot is None else foot for foot in frame] for frame in source['all_feet_px']]
+        # The reshape keeps the xy axis when no frame has a player slot.
+        feet = np.asarray(feet_rows, dtype=float).reshape(len(feet_rows), -1, 2) / scale
         one, two = zone.player_fractions(homography[None], feet)
         fractions = [float(one[0]), float(two[0])]
     projected, scores, means, counts = detector._score(

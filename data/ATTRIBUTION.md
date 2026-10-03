@@ -43,13 +43,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## ShuttleSet22 (MIT annotations; broadcaster video rights)
+## ShuttleSet22: data/shuttleset22/ (MIT annotations; broadcaster video rights)
 
 ShuttleSet22 annotations come from the CoachAI Projects repository by Wei-Yao
 Wang. Source:
 https://github.com/wywyWang/CoachAI-Projects/tree/main/CoachAI-Challenge-IJCAI2023/ShuttleSet22
 
 The repository is MIT licensed. The source match videos remain the copyright
-of their original broadcasters. The project therefore keeps raw videos and
+of their original broadcasters. The losslessly compressed annotation tables
+are checked in under `data/shuttleset22/set/`. The project keeps raw videos and
 derived extraction arrays outside Git. See the ShuttleSet22 handoff for their
 storage locations and extraction status.

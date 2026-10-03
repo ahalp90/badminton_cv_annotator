@@ -20,7 +20,7 @@ from court_detector import stripe_measurements as stripes
 from court_detector.geometry import CORNER_COURT_M
 from court_detector.image_sources import CaseProvenance, require_same_image_boxes
 from court_detector.line_observations import prepare_observations
-from scratch.court_det_fix.court_detector.frozen_cases import (
+from experiments.court_detector.saved_views.frozen_cases import (
     load_frozen_case_provenance,
 )
 

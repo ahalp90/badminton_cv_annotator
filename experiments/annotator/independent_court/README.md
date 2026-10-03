@@ -7,10 +7,10 @@ the annotation pipeline does not use its outputs.
 The court geometry, fragment measurements, stripe fitting and image-source types
 now live in [the court detector package](../../../src/court_detector/README.md#code-map).
 These experiment runners import that maintained code. The line-only search
-lives in `line_only.py`. The frozen-view loaders stay with the saved views in
-`scratch/court_det_fix/court_detector/frozen_cases.py`. The
-[code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
-keeps the original implementations.
+lives in `line_only.py`. The frozen-view loaders live with the saved-view tools in
+`experiments/court_detector/saved_views/frozen_cases.py`. The
+[earlier comparisons](../../court_detector/comparisons/earlier_approaches.md)
+explain the approaches set aside; original implementations remain in Git history.
 
 ## Temporal player-guided experiment
 
@@ -23,7 +23,7 @@ before retaining candidates. The line-only detector remains unchanged.
 assumptions. Its `project_net(corners_px, (width, height))` helper returns net
 segments, a camera-geometry residual and the selected focal length in image
 widths. These are diagnostics for comparing court hypotheses. The first
-[temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md) record
+[earlier temporal results](../../court_detector/comparisons/earlier_approaches.md) record
 where player and net evidence helped, and where the fits remain wrong.
 
 This is a baseline for experimentation. A window qualifies when two selected
@@ -87,7 +87,7 @@ pytest -q tests/test_independent_court_temporal.py \
   tests/test_independent_court_player_guided.py
 ```
 
-The [neural follow-up](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+The [neural follow-up](../../court_detector/comparisons/earlier_approaches.md)
 compares both DeepLSD weight sets and LINEA large. The models provide useful
 fragments, but court selection and false acceptance still prevent replacement.
 
@@ -255,7 +255,7 @@ reference labels. The original recorded bundles remain the frozen first pass.
 
 ## Recorded development evidence
 
-The [replacement assessment](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+The [replacement assessment](../../court_detector/comparisons/earlier_approaches.md)
 explains the populations, results and decision. The original, amateur and control
 bundles in `recorded/` contain exact case IDs, references, all retained candidates, decisions
 and fresh baseline outputs where measured. `inputs.cases` can be written as a

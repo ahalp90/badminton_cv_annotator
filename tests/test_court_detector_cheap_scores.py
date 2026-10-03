@@ -1,7 +1,7 @@
 """An optional cheap line-support score picks which courts each direction pair fully scores.
 
 Real courts come from the synthetic court in test_court_detector_parallel_search. Its
-first direction pair builds 140 usable courts. This module also doubles as the helpers
+first direction pair builds 140 usable courts with required players. This module also doubles as the helpers
 module that generation.generate calls, with a fake propose_role, so spawned workers can
 import it by name.
 """
@@ -50,7 +50,8 @@ FAKE_SETTINGS = {"keep_per_pair": 4, "keep_global": 4, "max_matched_pairs": 2}
 
 
 def propose_role(_points: np.ndarray, _observations: object, _feet: np.ndarray, _size: tuple[int, int],
-                 _settings: object, upright_only: bool, full_score_limit: int | None = None) -> proposals.RoleProposals:
+                 _settings: object, upright_only: bool, require_people: bool,
+                 full_score_limit: int | None = None) -> proposals.RoleProposals:
     """Four usable courts; under any limit, only those at usable positions 1 and 3.
 
     Each court's axis IDs and homography encode its usable position, so tests can check
@@ -61,7 +62,7 @@ def propose_role(_points: np.ndarray, _observations: object, _feet: np.ndarray, 
     for court, score in zip(FAKE_COURTS[kept], FAKE_SCORES[kept], strict=True):
         candidates.append(detector.Candidate(court, float(score), (0., 0.), (0, 0)))
     record = {"full_score_limit": full_score_limit, "upright_only": upright_only, "worker_pid": os.getpid(),
-              "geometry_players": len(FAKE_COURTS)}
+              "geometry_players" if require_people else "geometry_valid": len(FAKE_COURTS)}
     return proposals.RoleProposals(
         record, None, None, candidates, np.column_stack((kept, kept)), kept % 2 == 1, FAKE_SCORES[kept],
         np.eye(3) * (kept + 1.)[:, None, None], usable_positions=None if full_score_limit is None else kept,
@@ -123,7 +124,13 @@ def test_default_fully_scores_every_usable_court_in_order(
     _, observations, _, size, _ = real_pair
     assert "axes" not in exhaustive.record
     assert exhaustive.usable_positions is None and "fully_scored" not in exhaustive.record
-    assert exhaustive.record["geometry_players"] == len(exhaustive.candidates) == exhaustive.usable.sum() > LIMIT
+    assert exhaustive.record["geometry_players"] == len(exhaustive.candidates) == exhaustive.usable.sum() == 140
+    assert all(candidate.player_tier == geometry.PASSES_PLAYER_RULE for candidate in exhaustive.candidates)
+    np.testing.assert_array_equal(exhaustive.usable,
+                                  exhaustive.valid & (exhaustive.player_any == 1) & (exhaustive.player_both_halves >= .5))
+    for axis in exhaustive.axes:
+        assert axis.diagnostics['necessary_player_pruning']
+        assert axis.diagnostics['scored'] < len(axis.parameters)
     corners = np.asarray([candidate.corners_px for candidate in exhaustive.candidates], dtype=np.float32)
     np.testing.assert_array_equal(corners, exhaustive.combined_corners[exhaustive.usable])
     maps = proposals.pair_line_maps(observations, exhaustive.axes, size)
@@ -141,11 +148,22 @@ def test_a_limit_at_or_above_the_usable_count_changes_nothing(
 
 def test_best_positions_keeps_the_earliest_tied_scores_in_original_order() -> None:
     tied = np.array([.5, .9, .7, .9, .9, .95])
-    assert proposals.best_positions(tied, 1)[0].tolist() == [5]
-    assert proposals.best_positions(tied, 3)[0].tolist() == [1, 3, 5]
-    assert proposals.best_positions(tied, 4)[0].tolist() == [1, 3, 4, 5]
-    assert proposals.best_positions(np.zeros(5), 2)[0].tolist() == [0, 1]
-    assert proposals.best_positions(np.array([.9, .1, .95]), 2)[0].tolist() == [0, 2]
+    same_tier = np.zeros(6, dtype=int)
+    assert proposals.best_positions(tied, same_tier, 1)[0].tolist() == [5]
+    assert proposals.best_positions(tied, same_tier, 3)[0].tolist() == [1, 3, 5]
+    assert proposals.best_positions(tied, same_tier, 4)[0].tolist() == [1, 3, 4, 5]
+    assert proposals.best_positions(np.zeros(5), same_tier[:5], 2)[0].tolist() == [0, 1]
+    assert proposals.best_positions(np.array([.9, .1, .95]), same_tier[:3], 2)[0].tolist() == [0, 2]
+
+
+def test_best_positions_ranks_exactly_tied_scores_by_player_tier() -> None:
+    tied = np.array([.5, .9, .7, .9, .9, .95])
+    tiers = np.array([0, 2, 0, 1, 0, 2])
+    # The .95 court ranks first with the weakest tier. The three .9 courts then rank by tier.
+    positions, ranks = proposals.best_positions(tied, tiers, 3)
+    assert positions.tolist() == [3, 4, 5] and ranks.tolist() == [3, 2, 1]
+    # The weakest-tier .9 court still beats the strongest-tier .7 court.
+    assert proposals.best_positions(tied, tiers, 4)[0].tolist() == [1, 3, 4, 5]
 
 
 def test_a_limit_keeps_the_best_cheap_scores_with_their_usable_positions_and_details(
@@ -155,7 +173,8 @@ def test_a_limit_keeps_the_best_cheap_scores_with_their_usable_positions_and_det
     limited = proposals.propose_role(*real_pair, full_score_limit=LIMIT)
     maps = proposals.pair_line_maps(observations, exhaustive.axes, size)
     cheap = continuous_support(exhaustive.homographies, maps, size, 16)  # the agreed trial's samples per marking
-    ranking = sorted(range(len(cheap)), key=lambda position: (-cheap[position], position))
+    tiers = [candidate.player_tier for candidate in exhaustive.candidates]
+    ranking = sorted(range(len(cheap)), key=lambda position: (-cheap[position], tiers[position], position))
     kept_tie, dropped_tie = ranking[LIMIT - 1], ranking[LIMIT]
     assert cheap[kept_tie] == cheap[dropped_tie]
     positions = limited.usable_positions.tolist()

@@ -14,12 +14,13 @@ from typing import Any
 import numpy as np
 import pytest
 
-from court_detector import composition, detect, reuse, stripe_refit
+from court_detector import composition, detect, reuse, stripe_refit, view_pool
 from court_detector.detect import (
     MAX_HORIZON_TILT_DEG,
     CourtDetector,
     CourtFitError,
     CourtResult,
+    SceneCourts,
     Switches,
 )
 from court_detector.feet import FeetWindow
@@ -67,7 +68,7 @@ def searched(detector: CourtDetector, spec: dict, paint: float | None,
 
 
 def compose(detector: CourtDetector, frames: list[composition.SearchedFrame],
-            require_people: bool = True) -> tuple[composition.Composite | None, dict[str, Any]]:
+            require_people: bool = True) -> tuple[composition.SceneChoice | None, dict[str, Any]]:
     return composition.compose_scene(detector.live, frames, geometry_weight=detector.switches.geometry_weight,
                                      require_people=require_people, max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG)
 
@@ -122,13 +123,54 @@ def test_endpoint_reference_is_carried_into_the_middle_frame_in_its_own_corner_o
     assert composite.paint_score == described_paint(detector, frames[0], composite.corners_native_px)
 
 
+def test_an_endpoint_reaches_a_middle_image_without_a_detected_court(detector) -> None:
+    middle = searched(detector, frame_spec("middle", np.zeros(2), [LEFT_BOX], true_corners(np.zeros(2))),
+                      None, OFF_COURT_FEET_PX)
+    first = searched(detector, frame_spec("first", JITTER_PX, [RIGHT_BOX], true_corners(JITTER_PX)),
+                     .9, players_feet(JITTER_PX))
+    output = SimpleNamespace(native_frame=middle.native_frame, context=middle.context)
+    selected, record = composition.compose_scene(
+        detector.live, [first], output=output, geometry_weight=detector.switches.geometry_weight,
+        require_people=True, max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG,
+    )
+    assert selected is not None and selected.chosen_role == "first"
+    np.testing.assert_allclose(selected.corners_native_px, true_corners(np.zeros(2)), atol=.5)
+    assert record["alignments"]["output"]["usable"]
+    assert [frame.frame.role for frame in selected.used_frames] == ["first"]
+    assert selected.middle_to_reference is not None
+    scene = SceneCourts(middle.context, middle.native_frame, selected.corners_native_px, None,
+                        chosen_measurement=selected.measurement, used_frames=selected.used_frames,
+                        middle_to_reference=selected.middle_to_reference, individual_courts=selected.individual_courts)
+    pool = view_pool.VideoPool(detector.live, detector.switches)
+    pool.add({"view_id": "recovered", "reused_from": None}, scene)
+    group = pool.groups[0]
+    assert group.donor_view_ids == ["recovered"]
+    assert any(donor is not None for donor in group.donors)
+    assert pool.member_outcome(group, group.members[0], None)["scores"]["middle"] == {}
+
+
+def test_a_valid_refit_that_scores_worse_keeps_an_individual_and_all_donors(detector, monkeypatch) -> None:
+    frames = middle_and_first(detector, .9, .5, players_feet(np.zeros(2)))
+    worse = true_corners(np.zeros(2)) + [8., 0.]
+    monkeypatch.setattr(composition, "fit_in_reference", lambda *args: {
+        "status": "ok", "valid": True, "validity_reason": None, "corners_native_px": worse.tolist(),
+    })
+    selected, record = compose(detector, frames)
+    assert selected is not None and selected.chosen_role != composition.COMPOSITE_KEY
+    composite = next(row for row in record["candidates"] if row["role"] == composition.COMPOSITE_KEY)
+    assert composite["rejection"] is None
+    assert record["middle"]["combined_score"] > composite["combined_score"]
+    assert record["fallback_reason"] == "composite_not_better"
+    assert len(selected.used_frames) == len(selected.individual_courts) == 2
+
+
 @pytest.mark.parametrize("require_people", [True, False])
-def test_required_feet_off_the_composite_keep_the_middle_court(detector, require_people: bool) -> None:
+def test_transferred_courts_leave_output_player_checks_out(detector, require_people: bool) -> None:
     composite, record = compose(detector, middle_and_first(detector, .9, .5, OFF_COURT_FEET_PX), require_people)
-    if require_people:
-        assert composite is None and record["fallback_reason"] == "middle_players_not_on_court"
-    else:
-        assert composite is not None and record["fallback_reason"] is None
+    assert composite is not None
+    middle = next(row for row in record["candidates"] if row["role"] == "middle")
+    assert middle["rejection"] == ("players_not_on_court" if require_people else None)
+    assert record["middle"]["rejection"] is None
 
 
 def unrelated(role: str, shift_px: np.ndarray) -> dict:
@@ -138,11 +180,11 @@ def unrelated(role: str, shift_px: np.ndarray) -> dict:
 
 
 @pytest.mark.parametrize("case", ["one_frame", "missing_paint", "unaligned_endpoint", "unaligned_middle", "failed_fit"])
-def test_insufficient_or_unaligned_frames_and_failed_fits_keep_the_middle_court(detector, monkeypatch,
+def test_a_failed_refit_or_unscored_frame_preserves_passing_individuals(detector, monkeypatch,
                                                                                  case: str) -> None:
     feet = players_feet(np.zeros(2))
     frames = middle_and_first(detector, .9, .5, feet)
-    expected = {"one_frame": "too_few_accepted_frames", "missing_paint": "score_evidence_missing",
+    expected = {"one_frame": "too_few_accepted_frames", "missing_paint": None,
                 "unaligned_endpoint": "too_few_aligned_frames", "unaligned_middle": "middle_not_aligned",
                 "failed_fit": "fit_no_fit_corners"}[case]
     if case == "one_frame":
@@ -161,8 +203,16 @@ def test_insufficient_or_unaligned_frames_and_failed_fits_keep_the_middle_court(
         monkeypatch.setattr(composition.stripe_fitting, "refine",
                             lambda *args, **kwargs: {"status": "solver_failed", "corners_px": None})
     composite, record = compose(detector, frames)
-    assert composite is None
-    assert record["fallback_reason"] == expected
+    if case == "unaligned_middle":
+        assert composite is None
+    else:
+        assert composite is not None and composite.used_frames and composite.individual_courts
+        if case != "missing_paint":
+            assert composite.chosen_role != composition.COMPOSITE_KEY
+    if case == "missing_paint":
+        assert "combined_score" not in record["scores"][1]
+    else:
+        assert record["fallback_reason"] == expected
 
 
 # The detector flow, with stand-ins for the context, search and scoring.
@@ -187,10 +237,10 @@ def stub_detector(monkeypatch: pytest.MonkeyPatch, switches: Switches,
         return SimpleNamespace(view_id=view_id, families=[object()])
 
     def search(context, source, frame, laps, artefacts):
-        calls["searched"].append(context.view_id)
         return {}
 
     def score(view, context, populations, templates, frame, laps, artefacts):
+        calls["searched"].append(context.view_id)
         outcome = outcomes[view.view_id]
         if isinstance(outcome, Exception):
             raise outcome
@@ -219,12 +269,14 @@ def court(view_id: str, corners: np.ndarray = MIDDLE_CORNERS, paint: float = .8)
     ("searched", Switches(timing=True, require_people=False, upright_camera=False)),
     ("reused", Switches(timing=True)),
     ("no_court", Switches(timing=True)),
+    ("middle_error", Switches(timing=True)),
     ("single_view", Switches(timing=True)),
 ])
-def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(monkeypatch, route: str,
+def test_scheduled_endpoints_search_independently_with_the_middle_feet(monkeypatch, route: str,
                                                                               switches: Switches) -> None:
     middle = court("middle") if route != "no_court" else CourtResult("middle", None, "no_gated_court", None, None)
-    outcomes = {"middle": middle, "first": court("first", paint=.9), "last": court("last", paint=.7)}
+    outcomes = {"middle": ValueError("middle fit failed") if route == "middle_error" else middle,
+                "first": court("first", paint=.9), "last": court("last", paint=.7)}
     detector, calls = stub_detector(monkeypatch, switches, outcomes)
     reused = reuse.ReusedCourt("earlier", MIDDLE_CORNERS, .6, .9, .01)
     monkeypatch.setattr(reuse, "try_reuse", lambda *args, **kwargs: reuse.ReuseAttempt(
@@ -233,7 +285,7 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
 
     def compose_scene(live, frames, **settings):
         composed.append((frames, settings))
-        return composition.Composite(COMPOSITE_CORNERS, .6), {"fallback_reason": None, "reference": "first",
+        return composition.SceneChoice(COMPOSITE_CORNERS, .6, measurement={"paint_score": .6}), {"fallback_reason": None, "reference": "first",
                                                               "used_frames": ["first", "middle"],
                                                               "middle": {"measurement": {"paint_score": .6}}}
 
@@ -247,23 +299,24 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
     result = detector.detect(view("middle", 50), object(), None, known_courts=[object()],
                              endpoint_views=None if route == "single_view" else endpoint_views)
 
-    if route != "searched":
+    if route in {"reused", "single_view"}:
         assert requested == [] and composed == [] and result.composition is None
         assert calls["searched"] == ([] if route == "reused" else ["middle"])
         assert result.reused_from == ("earlier" if route == "reused" else None)
         # The video pool gets each court's middle frame, and nothing to donate without a composite.
-        if route == "no_court":
-            assert result.scene is None
-        else:
-            assert result.scene is not None and result.scene.used_frames == ()
-            np.testing.assert_array_equal(result.scene.middle_corners_native_px, MIDDLE_CORNERS)
+        assert result.scene is not None and result.scene.used_frames == ()
+        np.testing.assert_array_equal(result.scene.middle_corners_native_px, MIDDLE_CORNERS)
         return
     assert requested == [True]
     # Each frame gets its own context, all with the middle frame's feet.
     assert calls["prepared"] == [("middle", FEET_ROWS), ("first", FEET_ROWS), ("last", FEET_ROWS)]
     assert calls["searched"] == ["middle", "first", "last"]
     frames, settings = composed[0]
-    assert [(frame.role, frame.paint_score) for frame in frames] == [("middle", .8), ("first", .9), ("last", .7)]
+    expected_frames = [("first", .9), ("last", .7)]
+    if route == "searched":
+        expected_frames.insert(0, ("middle", .8))
+    assert [(frame.role, frame.paint_score) for frame in frames] == expected_frames
+    assert settings.pop("output").view.view_id == "middle"
     assert settings == {"geometry_weight": switches.geometry_weight, "require_people": switches.require_people,
                         "max_horizon_tilt_deg": MAX_HORIZON_TILT_DEG if switches.upright_camera else None}
     assert (result.view_id, result.chosen_key, result.paint_score, result.reused_from) == ("middle", "composite", .6,
@@ -271,11 +324,15 @@ def test_only_a_fresh_middle_court_searches_the_endpoints_with_the_middle_feet(m
     np.testing.assert_array_equal(result.corners_native_px, COMPOSITE_CORNERS)
     assert result.composition == {"court": "composite", "fallback_reason": None, "reference": "first",
                                   "used_frames": ["first", "middle"], "endpoints": {"first": "court", "last": "court"},
-                                  "errors": {}, "middle_chosen_key": "middle_key"}
+                                  "errors": {"middle": "ValueError('middle fit failed')"} if route == "middle_error" else {},
+                                  "middle_chosen_key": "middle_key" if route == "searched" else None}
     scene = result.scene
-    assert scene is not None and scene.composite_measurement == {"paint_score": .6}
+    assert scene is not None and scene.chosen_measurement == {"paint_score": .6}
     np.testing.assert_array_equal(scene.corners_native_px, COMPOSITE_CORNERS)
-    np.testing.assert_array_equal(scene.middle_corners_native_px, MIDDLE_CORNERS)
+    if route == "searched":
+        np.testing.assert_array_equal(scene.middle_corners_native_px, MIDDLE_CORNERS)
+    else:
+        assert scene.middle_corners_native_px is None
     assert result.stage_seconds is not None
     assert list(result.stage_seconds)[-4:] == ["endpoint_inputs", "first_frame_search", "last_frame_search",
                                                "composition"]

@@ -145,8 +145,6 @@ exclude = [
     "**/deprecated/",
     "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
     "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
-    "scratch/court_det_fix/archive/",  # Historical court experiment snapshots
-    "scratch/court_det_fix/evidence/",  # Saved experiment outputs and the source copies that produced them
 ]
 
 [tool.ruff.lint]
@@ -165,8 +163,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Research entry points set thread limits or import paths before loading their modules.
-"scratch/court_det_fix/court_detector/run_views.py" = ["E402"]
-"scratch/court_det_fix/court_detector_optimisation_handover/claude_evidence/**/*.py" = ["E402"]
+"experiments/court_detector/saved_views/run_views.py" = ["E402"]
 "experiments/annotator/court_geometry_repair/scripts/evaluate_court_comparison.py" = ["E402"]
 "experiments/annotator/court_scene_sampling/run.py" = ["E402"]
 "experiments/annotator/independent_court/evaluate.py" = ["E402"]

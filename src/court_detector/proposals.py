@@ -11,12 +11,14 @@ from . import geometry as detector
 from . import line_observations as assignment
 from .candidate_geometry import FULL_SAMPLES, continuous_support, geometry
 from .line_matching import (
+    MIN_BOTH_HALVES_FRACTION,
     AxisMatches,
     Settings,
     basis_for,
     combine,
     joint_player_fractions,
     match_axis,
+    support_tiers,
 )
 
 FAR_HORIZON_DIAGONALS = 10.
@@ -45,12 +47,15 @@ def finite_scores(
     return scores
 
 
-def best_positions(scores: np.ndarray, limit: int) -> tuple[np.ndarray, np.ndarray]:
+def best_positions(scores: np.ndarray, tiers: np.ndarray, limit: int) -> tuple[np.ndarray, np.ndarray]:
     """Positions of the limit best scores, in original order, and their one-based ranks.
 
-    A stable sort ranks tied scores by position, so the earlier of two tied courts is kept.
+    The higher score always ranks first. Exactly equal scores rank by player tier
+    (line_matching.support_tiers), and the stable sort ranks courts equal in both by
+    position, so the earlier one is kept.
     """
-    ranked = np.argsort(-scores, kind='stable')[:limit]
+    # lexsort reads its keys last to first: score, then tier.
+    ranked = np.lexsort((tiers, -scores))[:limit]
     original_order = np.argsort(ranked)
     return ranked[original_order], original_order + 1
 
@@ -78,7 +83,8 @@ class RoleProposals:
     axis_scores: np.ndarray = field(default_factory=lambda: np.empty(0))
     homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3), dtype=np.float32))
     # pregate copy: every combined court in transforms order (working px, float32), the geometry
-    # mask, the player mask and the two player fractions. Empty when the basis fails.
+    # mask, the courts that became candidates before any full-score limit, and the two player
+    # fractions. Required-player searches also apply the joint occupancy rule. Empty when the basis fails.
     combined_corners: np.ndarray = field(default_factory=lambda: np.empty((0, 4, 2), dtype=np.float32))
     valid: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
     usable: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
@@ -136,11 +142,16 @@ def below_horizon(points: np.ndarray, corners: np.ndarray, size: tuple[int, int]
 def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
-    player_pruning: bool = True, combined_ranking: str = 'finite', upright_only: bool = False,
-    full_score_limit: int | None = None,
+    combined_ranking: str = 'finite', upright_only: bool = False,
+    full_score_limit: int | None = None, *, require_people: bool = True,
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels.
 
+    Required-player searches prune axes and require full-court occupancy before scoring.
+    Without required players, geometry admits courts and player support only breaks exact
+    score ties. Every required-player candidate has the same passing support tier.
+
+    :param feet: (sampled frames, player slots, xy) working px; NaN where missing.
     :param upright_only: also count courts above the pair's horizon as invalid geometry.
     :param full_score_limit: when the pair has more usable courts than this, rank them all
         by a cheap score with CHEAP_SAMPLES samples per marking. Only the best this many are
@@ -155,7 +166,7 @@ def propose_role(
     record = {'basis_status': details}
     if basis is None:
         return RoleProposals(record, None, None, [])
-    axis_feet = feet if player_pruning else None
+    axis_feet = feet if require_people else None
     horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings, axis_feet)
     vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings, axis_feet)
     transforms, axis_pairs = combine(basis, horizontal, vertical)
@@ -165,12 +176,14 @@ def propose_role(
     if upright_only:
         valid = valid & below_horizon(points, corners, size)
     one, two = joint_player_fractions(basis, horizontal, vertical, feet)
-    usable = valid & (one == 1) & (two >= .5)
+    usable = valid & (one == 1) & (two >= MIN_BOTH_HALVES_FRACTION) if require_people else valid
     record.update({'basis_working': basis.tolist(),
-                   'combined': len(transforms), 'geometry_valid': int(valid.sum()),
-                   'geometry_players': int(usable.sum())})
+                   'combined': len(transforms), 'geometry_valid': int(valid.sum())})
+    if require_people:
+        record['geometry_players'] = int(usable.sum())
     usable_ids = np.flatnonzero(usable)
     usable_transforms = transforms[usable_ids]
+    tiers = support_tiers(one[usable_ids], two[usable_ids])  # one per usable court
     usable_positions = None
     cheap_ranks = None
     finite = None
@@ -178,16 +191,17 @@ def propose_role(
         maps = pair_line_maps(observations, (horizontal, vertical), size)
         if full_score_limit is not None and len(usable_ids) > full_score_limit:
             cheap = finite_scores(usable_transforms, maps, size, CHEAP_SAMPLES)
-            usable_positions, cheap_ranks = best_positions(cheap, full_score_limit)
+            usable_positions, cheap_ranks = best_positions(cheap, tiers, full_score_limit)
             usable_ids = usable_ids[usable_positions]
             usable_transforms = usable_transforms[usable_positions]
+            tiers = tiers[usable_positions]
             record['fully_scored'] = len(usable_ids)
         finite = finite_scores(usable_transforms, maps, size)
     axis_ids = axis_pairs[usable_ids]
     axis_scores = (horizontal.scores[axis_ids[:, 0]] + vertical.scores[axis_ids[:, 1]]) / 2
     shortlist_scores = axis_scores if finite is None else finite
-    candidates = [detector.Candidate(corners[index], float(score), (0., 0.), (0, 0))
-                  for index, score in zip(usable_ids, shortlist_scores, strict=True)]
+    candidates = [detector.Candidate(corners[index], float(score), (0., 0.), (0, 0), int(tier))
+                  for index, score, tier in zip(usable_ids, shortlist_scores, tiers, strict=True)]
     return RoleProposals(record, basis, (horizontal, vertical), candidates,
                          axis_ids, rotated[usable_ids], axis_scores, usable_transforms,
                          np.asarray(corners, dtype=np.float32).reshape(-1, 4, 2),

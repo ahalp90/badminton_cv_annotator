@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
 import os
-from pathlib import Path
 import subprocess
 import sys
 import time
 import tomllib
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
 from dataset_builder.fixed_sources import FIXED_SOURCE_DATASET
@@ -31,7 +31,6 @@ from dataset_builder.models import (
 )
 from dataset_builder.tracknet_input import TrackNetInputMode
 from scraper._llm_provider import LLMProvider, validate_api_key_environment
-
 
 PHASE_ORDER = (
     "search",
@@ -800,6 +799,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the frozen v1 dataset tables from completed ShuttleSet22 artifacts.",
     )
     ss22_parser.add_argument("--data-root", type=Path, required=True)
+    ss22_parser.add_argument(
+        "--annotation-root",
+        type=Path,
+        default=REPO_ROOT / "data" / "shuttleset22",
+        help="Checked-in ShuttleSet22 annotation root; defaults to data/shuttleset22.",
+    )
     ss22_parser.add_argument("--output-dir", type=Path, required=True)
     ss22_parser.add_argument(
         "--run-id",
@@ -877,6 +882,7 @@ def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
                 data_root=arguments.data_root,
                 output_dir=arguments.output_dir,
                 run_id=arguments.run_id,
+                annotation_root=arguments.annotation_root,
                 sources=DEFAULT_SOURCES if arguments.sources is None else arguments.sources,
                 commentary_root=arguments.commentary_root,
                 replay_mask_root=arguments.replay_mask_root,

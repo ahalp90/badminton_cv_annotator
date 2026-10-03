@@ -11,6 +11,12 @@ from . import geometry as detector
 from . import line_observations as assignment
 from .directions import angular_residuals, normalisation
 
+# A court passes the final choice's player rule with a player on it in every feet sample
+# and one in each half in at least this share of them.
+MIN_BOTH_HALVES_FRACTION = .5
+# Share of feet samples with a player on the court that earns the middle support tier.
+MIN_ONE_PLAYER_FRACTION = .5
+
 
 def corner_errors(corners: np.ndarray, reference: np.ndarray) -> np.ndarray:
     """Compare physical courts while allowing the canonical 180-degree relabelling."""
@@ -36,7 +42,6 @@ class AxisMatches:
     matches: np.ndarray  # Predicted coordinate -> original observed group ID, or -1.
     anchors: np.ndarray  # Two original group IDs and two template coordinate indexes.
     supported: np.ndarray
-    player_compatible: np.ndarray
     distinct: np.ndarray
     retained: np.ndarray
     diagnostics: dict
@@ -148,13 +153,13 @@ def band_masks(parameters: np.ndarray, rectified_feet: np.ndarray, extent: float
 
 
 def necessary_players(parameters: np.ndarray, rectified_feet: np.ndarray, axis: int, extent: float) -> np.ndarray:
-    """Apply necessary parts of the existing joint player rule before an axis cap."""
+    """Apply necessary parts of the joint player rule before an axis cap."""
     inside, far = band_masks(parameters, rectified_feet, extent)
     one = inside.any(axis=2).all(axis=1)
     if axis == 0:
         return one
     near = inside & ~far
-    return one & ((far.any(axis=2) & near.any(axis=2)).mean(axis=1) >= .5)
+    return one & ((far.any(axis=2) & near.any(axis=2)).mean(axis=1) >= MIN_BOTH_HALVES_FRACTION)
 
 
 def joint_player_fractions(
@@ -167,7 +172,14 @@ def joint_player_fractions(
     180-degree relabelling in canonicalise swaps the two halves, which the both-halves test
     ignores. The two versions round differently, so they could differ for a foot within
     rounding of a band edge or exactly on the halfway line.
+
+    :param feet_px: (sampled frames, player slots, xy) working px; NaN where missing. With
+        no sampled frames, both fractions are 0 for every court.
     """
+    if len(feet_px) == 0:
+        # A mean over no frames is NaN. No frames measured no support, so every court gets 0.
+        one, two = np.zeros((2, len(horizontal.retained) * len(vertical.retained)))
+        return one, two
     rectified = rectify_feet(basis, feet_px)
     inside_x, _ = band_masks(horizontal.parameters[horizontal.retained], rectified[..., 0],
                              float(detector.X_COORDS.max()))
@@ -182,10 +194,30 @@ def joint_player_fractions(
     return anyone.mean(axis=0).reshape(-1), (far & near).mean(axis=0).reshape(-1)
 
 
+def support_tiers(one: np.ndarray, two: np.ndarray) -> np.ndarray:
+    """Each court's player support tier from joint_player_fractions; lower is stronger.
+
+    The no-player full search admits courts on lines and geometry alone. A tier orders
+    courts only when their line-support scores are exactly equal. PASSES_PLAYER_RULE (0)
+    passes the final choice's player rule (measurements.historical_predicates). OFTEN_HAS_A_PLAYER (1) has
+    a player on the court in at least MIN_ONE_PLAYER_FRACTION of the feet samples.
+    NO_PLAYER_SUPPORT (2) is every other court.
+    """
+    passes_player_rule = (one == 1) & (two >= MIN_BOTH_HALVES_FRACTION)
+    often_has_a_player = one >= MIN_ONE_PLAYER_FRACTION
+    return np.where(passes_player_rule, detector.PASSES_PLAYER_RULE,
+                    np.where(often_has_a_player, detector.OFTEN_HAS_A_PLAYER, detector.NO_PLAYER_SUPPORT))
+
+
 def match_axis(
     basis: np.ndarray, axis: int, coordinates: np.ndarray, observations: assignment.Observations,
     size: tuple[int, int], settings: Settings, feet_px: np.ndarray | None = None,
 ) -> AxisMatches:
+    """Enumerate one axis's line-to-marking hypotheses and keep the best-scored distinct ones.
+
+    With required players, necessary occupancy checks run before scoring and the axis cap.
+    The combined courts must then pass the joint occupancy rule (joint_player_fractions).
+    """
     ids, values, endpoints, details = offsets(basis, axis, observations, size, settings)
     observed_pairs = np.asarray(list(combinations(range(len(ids)), 2)), dtype=int).reshape(-1, 2)
     template_pairs = np.asarray(list(combinations(range(len(coordinates)), 2)), dtype=int).reshape(-1, 2)
@@ -208,8 +240,7 @@ def match_axis(
             stop = start + settings.batch
             player_compatible[start:stop] = necessary_players(parameters[start:stop], rectified_feet, axis,
                                                               float(coordinates.max()))
-    # Only player-compatible hypotheses can be retained, so only they are scored. The others
-    # keep NaN scores, no matches and zero support.
+    # Incompatible axes cannot survive retention, so leave their scores and matches unmeasured.
     to_score = np.flatnonzero(player_compatible)
     for start in range(0, len(to_score), settings.batch):
         rows = to_score[start:start + settings.batch]
@@ -230,13 +261,12 @@ def match_axis(
         distinct.append(int(index))
     retained = np.asarray(distinct[:settings.keep_axes], dtype=int)
     details.update({'pair_anchors': len(observed_pairs), 'enumerated': len(scale),
-                    # Unmeasured under player pruning: player-incompatible hypotheses are never scored.
                     'zero_scale_excluded': int((~nonzero).sum()),
                     'pattern_supported': int(pattern.sum()) if feet_px is None else None,
                     'necessary_player_pruning': feet_px is not None, 'scored': len(to_score),
                     'pattern_and_players': len(eligible),
                     'distinct_assignments': len(distinct), 'axis_cap_excluded': max(0, len(distinct) - len(retained))})
-    return AxisMatches(parameters, scores, matches, anchors, supported, player_compatible,
+    return AxisMatches(parameters, scores, matches, anchors, supported,
                        np.asarray(distinct, dtype=int), retained, details)
 
 

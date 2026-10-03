@@ -6,17 +6,18 @@ annotator rallies: every rally row comes from human contacts, with
 ``rally_origin`` set to ``source_contacts``.
 
 The layout under ``data_root`` is the one the issue #104 comparison consumed:
-``extracted-simple/<NN video>/`` holds the primitives and a court receipt,
-``annotations/set/<video>/`` holds the set CSVs, and ``sources/`` holds the
-source videos, which may be absent because only their paths are recorded.
+``extracted-simple/<NN video>/`` holds the primitives and a court receipt, and
+``sources/`` holds the source videos, which may be absent because only their
+paths are recorded. Checked-in labels are read from ``annotation_root`` under
+``set/<video>/``.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
-import logging
 from pathlib import Path
 
 from annotator.video_metadata import VideoMetadata
@@ -31,10 +32,10 @@ from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import ArtifactIntegrity
 from dataset_builder.players import (
     DEFAULT_PLAYERS,
-    MATCH_TABLE_FILENAME,
     Player,
     load_match_players,
     load_players,
+    match_table_path,
 )
 from dataset_builder.schema_v1 import PRIMITIVE_ARTIFACT_NOTES
 from dataset_builder.vision import (
@@ -45,14 +46,20 @@ from dataset_builder.vision import (
     TRACK_FILENAME,
     load_json_gz,
 )
-from shuttleset22 import DEFAULT_SOURCES, Source, SourceKind, load_sources, select_sources
-
+from shuttleset22 import (
+    DEFAULT_SOURCES,
+    Source,
+    SourceKind,
+    load_sources,
+    select_sources,
+)
 
 log = logging.getLogger(__name__)
 
 SOURCE_DATASET = "ShuttleSet22"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ANNOTATION_ROOT = REPO_ROOT / "data" / "shuttleset22"
 EXTRACTED_DIRECTORY = "extracted-simple"
-ANNOTATIONS_DIRECTORY = "annotations"
 SET_DIRECTORY = "set"
 SOURCES_DIRECTORY = "sources"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
@@ -87,6 +94,7 @@ class ShuttleSet22ExportInputs:
     data_root: Path
     output_dir: Path
     run_id: str
+    annotation_root: Path = DEFAULT_ANNOTATION_ROOT
     sources: Path = DEFAULT_SOURCES
     commentary_root: Path | None = None
     replay_mask_root: Path | None = None
@@ -131,14 +139,21 @@ def export_shuttleset22_v1(inputs: ShuttleSet22ExportInputs) -> dict[str, object
                 source.match_id,
                 source.excluded_reason,
             )
-    annotation_root = data_root / ANNOTATIONS_DIRECTORY
+    annotation_root = Path(inputs.annotation_root).resolve(strict=True)
     players_path = Path(inputs.players)
     players = load_players(players_path)
     videos = []
     for source in sources:
         video_tables = build_video_tables(
             inputs.output_dir,
-            _video_inputs(data_root, source, inputs.run_id, players, inpainted_root),
+            _video_inputs(
+                data_root,
+                annotation_root,
+                source,
+                inputs.run_id,
+                players,
+                inpainted_root,
+            ),
         )
         if inpainted_root is not None:
             video_tables.artifacts.extend(_inpainted_artifact_rows(inpainted_root, source))
@@ -205,12 +220,12 @@ def _inpainted_artifact_rows(inpainted_root: Path, source: Source) -> list[dict[
 
 def _video_inputs(
     data_root: Path,
+    annotation_root: Path,
     source: Source,
     run_id: str,
     players: Mapping[str, Player],
     inpainted_root: Path | None = None,
 ) -> VideoInputs:
-    annotation_root = data_root / ANNOTATIONS_DIRECTORY
     output = data_root / EXTRACTED_DIRECTORY / f"{source.match_id:02d} {source.video}"
     receipt = load_json_gz(output / COURT_RECEIPT_FILENAME)
     metadata = metadata_from_receipt(receipt, data_root, source)
@@ -244,7 +259,7 @@ def _video_inputs(
         annotation_dir=annotation_root / SET_DIRECTORY / source.video,
         annotation_root=annotation_root,
         match_players=load_match_players(
-            annotation_root / SET_DIRECTORY / MATCH_TABLE_FILENAME, source.video, players
+            match_table_path(annotation_root / SET_DIRECTORY), source.video, players
         ),
         identity={
             "match_id": source.match_id,
