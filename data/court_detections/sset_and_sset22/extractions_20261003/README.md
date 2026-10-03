@@ -64,5 +64,5 @@ error for 85/86 video representatives and 6,171/6,833 rally representatives.
 Alternate camera views need separate assessment.
 
 - [Results and limitations](../../../../experiments/court_detector/report.md)
-- [Evaluation tables and final gallery](../../../../experiments/court_detector/released_dataset_evaluation/README.md)
-- [Reproduce the evaluation](../../../../experiments/court_detector/reproduce.md)
+- [Evaluation tables and final gallery](../../../../experiments/court_detector/comparisons/release.md)
+- [Reproduce the evaluation](../../../../experiments/court_detector/tools/README.md)

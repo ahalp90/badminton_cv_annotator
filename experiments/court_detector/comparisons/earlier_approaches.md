@@ -3,7 +3,7 @@
 These experiments explain why some tempting fixes were set aside. They used
 small development sets, often with settings adjusted after seeing the results.
 Their counts are not accuracy estimates for today's detector. The
-[current design](design.md) and [development story](../../experiments/court_detector/report.md)
+[current design](../../../docs/court_detector/design.md) and [development story](../report.md)
 are the starting points for current work.
 
 ## Finding lines is only part of finding the court
@@ -16,9 +16,9 @@ lines belonged to the playing court.
 Player positions and net evidence helped some of the three short-clip examples.
 They did not establish a reliable acceptance rule. In particular, choosing the
 players involved in the rally remains separate from finding people in the image.
-The [independent-court experiment](../../experiments/annotator/independent_court/README.md)
+The [independent-court experiment](../../annotator/independent_court/README.md)
 keeps its implementation and compact results. The
-[manual examples](../../data/amateur_court_corners/README.md) retain useful inputs.
+[manual examples](../../../data/amateur_court_corners/README.md) retain useful inputs.
 
 ## Better local fits can produce worse final courts
 
@@ -44,10 +44,10 @@ Deduplication and the candidate limit caused different losses here.
 
 ## What is still available
 
-The [independent-court results](../../experiments/annotator/independent_court/recorded/)
+The [independent-court results](../../annotator/independent_court/recorded)
 include the compact broadcast, amateur and non-court comparisons, neural line
 caches and saved replay bundles. The
-[saved-view inputs](../../experiments/court_detector/saved_views/README.md)
+[saved-view inputs](../saved_views/README.md)
 support current tests and detector comparisons.
 
 Old raw search dumps and recovery archives have been removed. Historical

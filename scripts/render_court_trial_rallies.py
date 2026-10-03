@@ -25,7 +25,7 @@ import pandas as pd
 
 from scripts import evaluate_courts_fast_robust as evaluator
 
-EXPERIMENT_DIR = Path("experiments/court_detector")
+EXPERIMENT_DIR = Path("experiments/court_detector/evidence")
 EVALUATION_DIR = EXPERIMENT_DIR / "baseline"
 TRIAL_RESULTS = EXPERIMENT_DIR / "inputs" / "player_tiebreak_results"
 LABEL_ROOTS = {

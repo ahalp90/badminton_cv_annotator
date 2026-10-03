@@ -20,6 +20,6 @@ The runner lists its arguments with:
 PYTHONPATH=.:src python -m experiments.court_detector.saved_views.run_views --help
 ```
 
-The detector [source README](../../../src/court_detector/README.md) describes
+The detector [usage guide](../../../docs/court_detector/usage.md) describes
 the production pipeline. The [independent-court experiment](../../annotator/independent_court/README.md)
 uses the same fixture loader.

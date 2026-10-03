@@ -1,16 +1,16 @@
-# Court detector evaluation
+# Court detector development evaluation
 
-The current [court-detection dataset](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md)
+The current [court-detection dataset](../../../data/court_detections/sset_and_sset22/extractions_20261003/README.md)
 contains 86 videos. After the sharing repair, 85 of 86 representative courts
 agree with the supplied default-camera reference within 10 px mean corner error.
-The [release evaluation](../../experiments/court_detector/released_dataset_evaluation/README.md)
+The [release evaluation](release.md)
 gives the current results and remaining errors. The
-[development story](../../experiments/court_detector/report.md) connects these
+[development story](../report.md) connects these
 results to the earlier experiments and design choices.
 
 The September checks below explain earlier design and performance decisions.
 Their output counts and timings describe those historical runs. The
-[evidence-file guide](data/README.md) explains the retained measurements.
+[evidence-file guide](../evidence/development/README.md) explains the retained measurements.
 
 ## Earlier development checks
 
@@ -23,12 +23,12 @@ sampled scenes, but false courts remain in two inspected standalone views.
 The results support offline use with those limits; they do not establish
 accuracy on new venues or improved contact and rally recovery.
 
-The [operator guide](../../src/court_detector/README.md) explains how to run it;
-[design.md](design.md) explains the choices behind it.
+The [operator guide](../../../docs/court_detector/usage.md) explains how to run it;
+[design.md](../../../docs/court_detector/design.md) explains the choices behind it.
 
 ## Four kinds of evidence
 
-Keep these apart when reading any number below.
+These four kinds of evidence answer different questions.
 
 | Kind | What it measures | What it does not measure |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ with worn or obscured paint can score lower.
 
 Representative image backgrounds come from the match videos named by project
 video ID and scene number in each caption. The underlying broadcast footage
-remains under its source rights; see [data attribution](../../data/ATTRIBUTION.md).
+remains under its source rights; see [data attribution](../../../data/ATTRIBUTION.md).
 
 ## Development views
 
@@ -158,19 +158,19 @@ For video 005, paint support fell from 0.507 to 0.461 while line support rose
 from 0.537 to 0.566. The paint weight outweighed the line gain. These observations
 motivated the earlier policy of accepting a valid composite without a score win.
 The current detector compares the composite and accepted individual courts on
-the same middle-frame evidence, as described in the [design](design.md). This
+the same middle-frame evidence, as described in the [design](../../../docs/court_detector/design.md). This
 earlier review records a limitation of using the score to judge visual quality.
 
 | Single-frame court, video 005 | Three-frame composite, video 005 |
 | --- | --- |
-| ![Single-frame fit](assets/video005_13361_single_frame.png) | ![Composite fit](assets/video005_13361_composite.png) |
+| ![Single-frame fit](../evidence/development/images/video005_13361_single_frame.png) | ![Composite fit](../evidence/development/images/video005_13361_composite.png) |
 
 Both outlines use the same last-sampled image of video 005, scene anchored at
 frame 13361. The left court comes from that single frame; the right combines
 three observations. Outlines are 1 px red dashes; open the full images to inspect
 them. The dashes distinguish the outline from the solid court markings.
 
-![False court on a close-up](assets/video040_0152_composite.png)
+![False court on a close-up](../evidence/development/images/video040_0152_composite.png)
 
 Scene 0152 of video 040 is a close-up. Every tested method, composite included,
 draws a false court across the advertising boards.
@@ -207,7 +207,7 @@ The pooled fit compromised between incompatible marking names.
 
 | Video 003 scene 16208: its own court | After pooling: scene 3076's court |
 | --- | --- |
-| ![Scene court](assets/video003_16208_scene_court.png) | ![Final court](assets/video003_16208_final_court.png) |
+| ![Scene court](../evidence/development/images/video003_16208_scene_court.png) | ![Final court](../evidence/development/images/video003_16208_final_court.png) |
 
 In the final court, the right boundary follows the outer yellow stripe. The
 scene's own court misses the visible doubles stripe.
@@ -273,14 +273,14 @@ Each pair below uses the identical middle frame and plain 1 px red dashes.
 
 | Scene and frame | Own scene court | Final shared court |
 | --- | --- | --- |
-| 0022, frame 8677 | [Scene outline](assets/full_run_video040_0022_scene.png) | [Final outline](assets/full_run_video040_0022_final.png) |
-| 0184, frame 47697 | [Scene outline](assets/full_run_video040_0184_scene.png) | [Final outline](assets/full_run_video040_0184_final.png) |
-| 0342, frame 91944 | [Scene outline](assets/full_run_video040_0342_scene.png) | [Final outline](assets/full_run_video040_0342_final.png) |
+| 0022, frame 8677 | [Scene outline](../evidence/development/images/full_run_video040_0022_scene.png) | [Final outline](../evidence/development/images/full_run_video040_0022_final.png) |
+| 0184, frame 47697 | [Scene outline](../evidence/development/images/full_run_video040_0184_scene.png) | [Final outline](../evidence/development/images/full_run_video040_0184_final.png) |
+| 0342, frame 91944 | [Scene outline](../evidence/development/images/full_run_video040_0342_scene.png) | [Final outline](../evidence/development/images/full_run_video040_0342_final.png) |
 
 Two deliberately selected standalone views expose remaining errors.
-[Scene 0152](assets/full_run_video040_0152_final.png), frame 41652, retains the
+[Scene 0152](../evidence/development/images/full_run_video040_0152_final.png), frame 41652, retains the
 known false court across the advertising boards. In
-[scene 0396](assets/full_run_video040_0396_final.png), frame 101355, the far
+[scene 0396](../evidence/development/images/full_run_video040_0396_final.png), frame 101355, the far
 boundary lies across the court interior in a low-angle shot. Both groups had
 too few donors, so pooling left those detections unchanged. Five selected
 scenes cannot estimate a false-positive rate or the accuracy of all 120 courts.
@@ -310,7 +310,7 @@ better accuracy. These outlines use the same middle image and 1 px red dashes.
 
 | Video-robust from cached three-frame scenes | Fast-robust from cached middle frames |
 | --- | --- |
-| [Outline](assets/cached_0022_video-robust.png) | [Outline](assets/cached_0022_fast-robust.png) |
+| [Outline](../evidence/development/images/cached_0022_video-robust.png) | [Outline](../evidence/development/images/cached_0022_fast-robust.png) |
 
 ## Fast-robust: live smoke
 
@@ -332,9 +332,9 @@ establish accuracy across other scenes and venues.
 
 | Scene 0022 | Scene 0342 |
 | --- | --- |
-| [1 px dashed outline](assets/live_fast_0022.png) | [1 px dashed outline](assets/live_fast_0342.png) |
+| [1 px dashed outline](../evidence/development/images/live_fast_0022.png) | [1 px dashed outline](../evidence/development/images/live_fast_0342.png) |
 
-The [retained result](data/fast_robust_live_video040.json.gz) contains the four
+The [retained result](../evidence/development/fast_robust_live_video040.json.gz) contains the four
 scene outputs, stage timings, pooled fit and complete-court candidate scores.
 
 ## Limits of this evaluation
@@ -352,7 +352,7 @@ scene outputs, stage timings, pooled fit and complete-court candidate scores.
 
 ## Reproducing the numbers
 
-The committed files in [data/](data/) support the pooling scores, corner
+The committed files in [data/](../evidence/development) support the pooling scores, corner
 scatter and scene-window counts. From the repository
 root, this example rechecks the video 040 score comparison:
 
@@ -360,7 +360,7 @@ root, this example rechecks the video 040 score comparison:
 import gzip
 import json
 
-with gzip.open("docs/court_detector/data/fast_robust_cached_video040.json.gz", "rt") as stream:
+with gzip.open("experiments/court_detector/evidence/development/fast_robust_cached_video040.json.gz", "rt") as stream:
     run = json.load(stream)["video-robust"]
 group = max(run["groups"], key=lambda item: len(item["member_view_ids"]))
 members = set(group["member_view_ids"])
@@ -376,19 +376,19 @@ print(wins, "of", len(rows))
 Rerunning the historical experiments needs external videos and saved model
 outputs. Some comparison scripts also remain in private working directories;
 the retained data supports auditing the reported results without those files.
-For a fresh detector run, use the committed operator guide. For numerical
-comparisons, use one environment for both versions. The recorded server
+The [usage guide](../../../docs/court_detector/usage.md) covers fresh detector
+runs. Numerical comparisons require the same environment for both versions. The recorded server
 environment was Python 3.12.13, NumPy 2.5.3, SciPy 1.17.1 and OpenCV 5.0.0.93.
 
 ## Retained evidence
 
-The [evidence-file guide](data/README.md) explains each retained file and the
+The [evidence-file guide](../evidence/development/README.md) explains each retained file and the
 maintenance question it can answer. The data includes measured outputs and
 controlled comparisons; obsolete copy-validation receipts and superseded broad-run
 summaries have been removed. The historical broad-run totals above remain a
 record of that earlier smoke test.
 
-The [design guide](design.md) records current choices and rejected approaches.
+The [design guide](../../../docs/court_detector/design.md) records current choices and rejected approaches.
 [Earlier comparisons](earlier_approaches.md) cover the line-search prototypes.
 
 ## Upright-camera filter trade-off

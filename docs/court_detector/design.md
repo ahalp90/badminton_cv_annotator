@@ -4,10 +4,10 @@ The detector combines straight-line evidence, the known badminton court layout
 and player positions to find the four outer court corners. It uses pretrained
 line and pose models, but does not need a court model trained for each venue.
 
-Start with the [operator guide](../../src/court_detector/README.md) for the
-algorithm, setup and commands. [Sampling and output modes](../../src/court_detector/sampling_and_reuse.md)
+The [overview](README.md) describes the main stages; the [usage guide](usage.md)
+covers setup and commands. [Sampling and output modes](sampling_and_reuse.md)
 explains how video frames contribute to a result. This page preserves the
-reasons behind the design; [evaluation](evaluation.md) holds the measurements
+reasons behind the design; [evaluation](../../experiments/court_detector/comparisons/development_evaluation.md) holds the measurements
 and their limits.
 
 ## What the geometry represents
@@ -70,7 +70,7 @@ court assembled from several observations, rather than an averaged image.
 The middle and endpoint searches run independently. The accepted individual courts
 and the composite compete on the same middle-frame evidence after their checks.
 The best score wins; equal scores keep an individual court ahead of the composite.
-The [earlier visual comparison](evaluation.md#composition-visual-review-and-consistency)
+The [earlier visual comparison](../../experiments/court_detector/comparisons/development_evaluation.md#composition-visual-review-and-consistency)
 records examples and its small sample size.
 
 Chronological reuse saves searches when an earlier court can be aligned,
@@ -97,7 +97,7 @@ and have a source score. It ranks by its mean score over the members that can sc
 In video-robust mode, equal scores retain the pool. Fast-robust mode favours a scene
 court on an equal score. Both modes can choose an eligible existing court when the
 pool fit fails. Each member keeps its own court if it rejects the chosen alternative.
-The [cached comparison](evaluation.md#cached-pooling-checks) records both a
+The [cached comparison](../../experiments/court_detector/comparisons/development_evaluation.md#cached-pooling-checks) records both a
 whole-scene winner and a pooled winner.
 
 Pooling is an offline operation: earlier scenes can use evidence from later
@@ -124,7 +124,7 @@ numerical behaviour stable:
 - Required-player checks skip a search when the available people cannot
   possibly satisfy its occupancy rule.
 
-[Recorded timings](evaluation.md#controlled-timing) cover the retained worker
+[Recorded timings](../../experiments/court_detector/comparisons/development_evaluation.md#controlled-timing) cover the retained worker
 and GPU implementation before three-frame composition. They do not establish
 the speed of the final video-robust mode. The target of roughly 30 seconds per
 five minutes of footage, with 90 seconds as an upper target, remains unmet.
@@ -151,7 +151,7 @@ five minutes of footage, with 90 seconds as an upper target, remains unmet.
 | Unconditional pooling | Pulled the good video 003 court onto blank floor. |
 | Reassign samples to each scene composite before pooling | Repaired video 003 but reduced the video 040 comparison score. The whole-scene alternative preserved the better cached results. |
 
-The [earlier approach comparisons](earlier_approaches.md) explain the main
+The [earlier approach comparisons](../../experiments/court_detector/comparisons/earlier_approaches.md) explain the main
 rejected alternatives. The defaults above describe the maintained detector.
 
 ## Limits a maintainer should expect
@@ -184,8 +184,8 @@ rejected alternatives. The defaults above describe the maintained detector.
 - **Pose extraction can omit people.** The full pose pre-run keeps ten people
   per frame. A crowded image can lose a player and change the court decision.
 
-For maintenance, preserve coordinate units, scene intervals, candidate order
-and the rule that inferred results do not become new donors. The operator
-guide links the relevant modules and tests. Compare numerical changes in the
-same environment, then inspect the chosen courts: a higher score alone is
-insufficient evidence of improvement.
+Maintenance depends on preserving coordinate units, scene intervals, candidate
+order and the rule that inferred results do not become new donors. The
+[source README](../../src/court_detector/README.md#code-map) links the modules
+and tests. Numerical comparisons need the same environment and inspection of
+the chosen courts; a higher score can accompany a worse fit.

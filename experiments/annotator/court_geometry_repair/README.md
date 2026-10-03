@@ -167,4 +167,4 @@ person-voting and rally pipeline on videos 3 and 21. The two ShuttleSet22 runs
 are development checks on known failures.
 
 This is a historical annotator comparison. CourtKeyNet is retired; current
-court work uses the [court detector](../../../src/court_detector/README.md).
+court work uses the [court detector](../../../docs/court_detector/usage.md).

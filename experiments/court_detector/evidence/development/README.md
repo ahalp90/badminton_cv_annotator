@@ -2,11 +2,11 @@
 
 These files contain the results of small checks used to build the detector:
 CPU versus GPU matching, combining frames, sharing courts between scenes, and
-cases where those ideas failed. The [evaluation notes](../evaluation.md) explain
+cases where those ideas failed. The [evaluation notes](../../comparisons/development_evaluation.md) explain
 the results.
 
 The usable video predictions are in
-[`data/court_detections/sset_and_sset22/extractions_20261003/`](../../../data/court_detections/sset_and_sset22/extractions_20261003/README.md).
+[`data/court_detections/sset_and_sset22/extractions_20261003/`](../../../../data/court_detections/sset_and_sset22/extractions_20261003/README.md).
 The files here are older experiment results, rather than inputs needed to run
 the detector.
 
@@ -33,6 +33,6 @@ frames can mean a consistently misplaced court. The evaluation notes distinguish
 those measurements from errors against labels.
 
 The files are gzip-compressed JSON or CSV. This
-[Python example](../evaluation.md#reproducing-the-numbers) reads a saved comparison.
+[Python example](../../comparisons/development_evaluation.md#reproducing-the-numbers) reads a saved comparison.
 Embedded source paths describe the original runs; the old raw run directories
 have been removed.

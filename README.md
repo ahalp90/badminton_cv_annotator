@@ -91,11 +91,11 @@ The court detector finds the four outer court corners from line markings and
 player positions. It can combine evidence within a scene or across returning
 camera views. Each scene still receives one fixed court projection.
 
-Start with the [court detector guide](src/court_detector/README.md) for setup,
-commands, output formats and maintenance pointers. The
-[design notes](docs/court_detector/design.md) explain the main choices and
-limitations. The [evaluation record](docs/court_detector/evaluation.md) separates
-measured results from what remains unverified.
+The [detector overview](docs/court_detector/README.md) explains its role and
+main stages. The [usage guide](docs/court_detector/usage.md) covers input needs,
+setup, commands and every CLI option. [Design notes](docs/court_detector/design.md)
+explain the current choices; the [experiment reports](experiments/court_detector/README.md)
+record the development and evaluation.
 
 ## Earlier work: BST-X
 

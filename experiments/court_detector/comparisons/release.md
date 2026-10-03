@@ -52,7 +52,7 @@ the measurements; reference disagreement alone cannot judge those other views.
 ## Where courts are still wrong or missing
 
 In [ShuttleSet22 video 43, scenes 89 and
-176](../search_policy_trial/rally_review/shared_court_check), the released court has
+176](../evidence/search/rally_review/shared_court_check), the released court has
 roughly the right orientation but sits one line inward in both directions. It affects
 171 labelled rally frames. Mistaking seated judges for players is a possible
 explanation, but has not been verified.
@@ -70,7 +70,7 @@ also recovered two other courtless scenes in that video.
 
 These examples point to better handling of transitions and partial courts as more useful
 follow-up work than widening the search by default. The [review
-images](../search_policy_trial/rally_review/README.md) show the cases.
+images](search.md#images-and-clips-from-the-search-trial) show the cases.
 
 ## Processing time
 
@@ -93,13 +93,15 @@ The scene comparison uses the same 6,748 original main-camera scenes before and 
 repair. Both versions are therefore judged on the same scenes.
 
 The tables below retain the detailed counts and per-video results. [Reproduction
-commands](../reproduce.md) rebuild them from saved predictions.
+commands](../tools/README.md) rebuild them from saved predictions.
 
 Later changes to the detector code, including scene composition and the
 `--fast`/`--full` image-only options, were not rerun across all 86 videos. The released
 dataset contains the sharing repair described here.
 
 ## Results files
+
+These files are in [evidence/release/](../evidence/release/).
 
 | File or directory | Use |
 | --- | --- |

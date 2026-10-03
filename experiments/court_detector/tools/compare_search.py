@@ -2,7 +2,7 @@
 
 Reads the paired trial outputs retrieved from both hosts, checks that every run
 finished and that the arms describe the same scenes, and writes compressed tables
-beside this script.
+to evidence/search/search_results/ by default.
 
 Errors use the supplied default-camera court annotation at 1280x720. They are
 counted only on the fixed main-view population: the scenes in the court-sharing-patched
@@ -19,7 +19,7 @@ purpose-selected videos, not performance on other videos or venues.
 Run from the repo root:
 
     PYTHONPATH=.:src ~/.venvs/badminton-cicd/bin/python \
-      experiments/court_detector/search_policy_trial/search_results/compare_search.py
+      experiments/court_detector/tools/compare_search.py
 """
 
 from __future__ import annotations
@@ -39,9 +39,10 @@ from scripts import evaluate_courts_fast_robust as evaluator
 from scripts import summarise_court_rally_views as rally_view_summary
 from shared.court import HOMOGRAPHY_RESOLUTION
 
-SEARCH_RESULTS = Path(__file__).resolve().parent
-EVALUATION_ROOT = SEARCH_RESULTS.parents[1] / "inputs"
-REVIEW_SAMPLES = SEARCH_RESULTS.parent / "selection_results" / "review_samples.csv.gz"
+EVIDENCE_ROOT = Path(__file__).resolve().parents[1] / "evidence"
+SEARCH_RESULTS = EVIDENCE_ROOT / "search" / "search_results"
+EVALUATION_ROOT = EVIDENCE_ROOT / "inputs"
+REVIEW_SAMPLES = EVIDENCE_ROOT / "search" / "selection_results" / "review_samples.csv.gz"
 
 HOST_VIDEOS = {
     "carmack": ("sset_11", "sset_21", "sset_30", "sset_36"),

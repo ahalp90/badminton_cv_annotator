@@ -3,9 +3,9 @@
 The video runner gives **at most one court per scene**. A court here means four
 corner points in the image, which together fix where the whole court floor sits.
 This page is the contract for how each scene is sampled and how scenes can share
-evidence. The [README](README.md) has the commands, setup and top-level output
-fields. The [design page](../../docs/court_detector/design.md) explains why, and
-the [evaluation page](../../docs/court_detector/evaluation.md) holds the evidence.
+evidence. The [usage guide](usage.md) has the commands, setup and top-level output
+fields. The [design page](design.md) explains why, and
+the [evaluation page](../../experiments/court_detector/comparisons/development_evaluation.md) holds the evidence.
 
 These options decide how scenes relate to each other:
 
@@ -29,10 +29,10 @@ player-required search unchanged. A still image remains one input frame.
 
 A scene runs from one camera cut to the next.
 
-| How you run it | Where the cuts come from |
+| Run configuration | Where the cuts come from |
 | --- | --- |
 | `--pyscenedetect` | PySceneDetect's ContentDetector, threshold 27, with the annotation pipeline's minimum scene length (about half a second) |
-| `--scenes FILE` | Your saved ranges |
+| `--scenes FILE` | Saved ranges |
 | Neither | The whole video is one scene |
 | Dataset builder | PySceneDetect |
 | End-to-end annotator | Its fixture's saved, shared scene ranges |
@@ -187,7 +187,7 @@ Video-robust mode lets scenes of one camera view share evidence and, when it
 passes the selection and validity checks below, one court. Grouping happens
 as scenes finish. Fitting and comparison run after the last scene, and final
 rows print only after that pass.
-[view_pool.py](view_pool.py) owns these steps.
+[view_pool.py](../../src/court_detector/view_pool.py) owns these steps.
 
 Scenes with `status` `court` join as members. That includes reused courts and
 courts found in a single frame. A `no_court` scene can join later as a receiver,
@@ -406,18 +406,18 @@ The annotation pipeline applies each scene's court across its whole frame range.
 It then applies its own player vote with the full pose arrays, separate from the
 detector's 31-frame window. It requires exactly two people inside the court's
 margin in at least half the scene's frames. See
-[court_evidence.py](../annotator/court_evidence.py).
+[court_evidence.py](../../src/annotator/court_evidence.py).
 
-The [design page](../../docs/court_detector/design.md) records why composition
-and pooling work this way. The [evaluation page](../../docs/court_detector/evaluation.md)
+The [design page](design.md) records why composition
+and pooling work this way. The [evaluation page](../../experiments/court_detector/comparisons/development_evaluation.md)
 links the measured runs and their remaining limitations.
 
 ## Where the behaviour lives
 
-- [scene_sources.py](scene_sources.py): PySceneDetect cuts, histograms and saved ranges
-- [feet.py](feet.py): player window, shot check and feet
-- [run_video.py](run_video.py): anchors, median images and the reuse store
-- [composition.py](composition.py): composing one court within a scene
-- [reuse.py](reuse.py): reuse alignment, refit and checks
-- [view_pool.py](view_pool.py): video-robust grouping, donors, pooling and fallback
-- [court_views.py](../annotator/court_views.py): perceptual hashes and image alignment, shared by all three
+- [scene_sources.py](../../src/court_detector/scene_sources.py): PySceneDetect cuts, histograms and saved ranges
+- [feet.py](../../src/court_detector/feet.py): player window, shot check and feet
+- [run_video.py](../../src/court_detector/run_video.py): anchors, median images and the reuse store
+- [composition.py](../../src/court_detector/composition.py): composing one court within a scene
+- [reuse.py](../../src/court_detector/reuse.py): reuse alignment, refit and checks
+- [view_pool.py](../../src/court_detector/view_pool.py): video-robust grouping, donors, pooling and fallback
+- [court_views.py](../../src/annotator/court_views.py): perceptual hashes and image alignment, shared by all three

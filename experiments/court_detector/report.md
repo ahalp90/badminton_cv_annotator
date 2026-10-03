@@ -64,13 +64,13 @@ Refitting exposed a different problem. A correction improved some already select
 courts without worsening the others. Applying the same rule throughout a larger
 candidate search produced worse selected fits. Refitting changes which candidates win,
 as well as their geometry. A comparison limited to the original winners had missed that
-effect. The [refit comparisons](../../docs/court_detector/earlier_approaches.md#better-local-fits-can-produce-worse-final-courts)
+effect. The [refit comparisons](comparisons/earlier_approaches.md#better-local-fits-can-produce-worse-final-courts)
 retain the counts and other attempted changes to candidate selection.
 
 These experiments shaped the present combination of paint support, geometry checks and
 player evidence. Detailed rejected approaches are in [earlier
-approaches](../../docs/court_detector/earlier_approaches.md); development measurements
-and comparisons are in [evaluation](../../docs/court_detector/evaluation.md).
+approaches](comparisons/earlier_approaches.md); development measurements
+and comparisons are in [evaluation](comparisons/development_evaluation.md).
 
 ## Using more than one frame
 
@@ -103,7 +103,7 @@ The modes use different combinations of these operations. `fast-robust` uses
 middle-frame search and cross-scene pooling. `video-robust` also uses three-frame
 composition. In the cached 11-view comparison, `fast-robust` scored higher. The inspected
 outline placed the far boundary a few pixels above the visible paint. The [sampling and reuse
-guide](../../src/court_detector/sampling_and_reuse.md) describes each mode’s inputs and
+guide](../../docs/court_detector/sampling_and_reuse.md) describes each mode’s inputs and
 outputs.
 
 ## What the released dataset establishes
@@ -129,8 +129,8 @@ image review found false courts among the changed detections. The trial preceded
 change allowing courtless scenes to receive a shared court. The evidence favours
 retaining the existing player-required search.
 
-The [release evaluation](released_dataset_evaluation/README.md) and [search-policy
-trial](search_policy_trial/README.md) retain the detailed counts, examples and
+The [release evaluation](comparisons/release.md) and [search-policy
+trial](comparisons/search.md) retain the detailed counts, examples and
 qualifications. Later detector changes, including scene composition and image-only
 `--fast`/`--full` options, were not rerun across all 86 videos.
 
@@ -155,7 +155,7 @@ venues, including views without a court, is needed before making broader accurac
 claims. The existing checks have not demonstrated improved downstream contact or rally
 recovery.
 
-The [source guide](../../src/court_detector/README.md) covers setup and operation. The
+The [usage guide](../../docs/court_detector/usage.md) covers setup and operation. The
 [design notes](../../docs/court_detector/design.md) explain maintained decisions;
-[reproduction commands](reproduce.md) and [saved fixtures](saved_views/README.md)
+[reproduction commands](tools/README.md) and [saved fixtures](saved_views/README.md)
 support checking the recorded results.

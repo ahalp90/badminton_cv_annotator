@@ -1,35 +1,36 @@
 # Court detector: development and experiments
 
-The court detector turns badminton footage into court geometry: four corners that let
-the project map image positions onto the court floor. It was built to work beyond the
-camera views and venues covered by an existing court model. The difficult part is
-deciding which visible lines belong to the playing court, then keeping that decision
-reliable through occlusion and camera cuts.
+**[The development story](report.md)** explains why the detector was needed, how it
+works, and what the experiments taught. It is the main account of the work.
 
-**[The development story](report.md)** explains why a replacement was needed, how the
-detector works, what the experiments changed, and where it still fails.
+The detector finds court geometry in badminton footage so image positions can be
+mapped onto the court floor. Its development centred on recognising the playing
+court among many plausible line arrangements, then combining evidence through
+occlusion and camera cuts.
 
-| Topic | Documentation |
+## Detailed comparisons
+
+These reports expand on particular questions in the story. Each includes links
+to its measurements and images.
+
+| Report | Question |
 | --- | --- |
-| Current design choices | [Design guide](../../docs/court_detector/design.md) |
-| Setup, operation and outputs | [Operator guide](../../src/court_detector/README.md) |
-| Existing 86-video extraction | [Released predictions and loading example](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md) |
-| Earlier approaches and development measurements | [Earlier approaches](../../docs/court_detector/earlier_approaches.md) and [development evaluation](../../docs/court_detector/evaluation.md) |
-| Released results | [Release evaluation](released_dataset_evaluation/README.md) and [court gallery](released_dataset_evaluation/gallery.md) |
+| [Earlier approaches](comparisons/earlier_approaches.md) | Why were the early line-search approaches set aside? |
+| [Development evaluation](comparisons/development_evaluation.md) | What supported the scoring, composition, pooling and performance choices? |
+| [Release evaluation](comparisons/release.md) · [gallery](comparisons/gallery.md) | How well do the released courts match the supplied labels, and what errors remain? |
+| [Player-check trial](comparisons/search.md) | Did relaxing player checks recover useful courts or introduce false detections? |
+| [Original extraction](comparisons/baseline.md) | How were rally courts measured, and why did sharing discard good courts? |
 
-## Supporting experiments and tools
+## Running or extending the work
 
-These folders answer specific questions raised in the story:
+The [detector overview](../../docs/court_detector/README.md) explains the maintained
+system. The [usage guide](../../docs/court_detector/usage.md) covers inputs, setup,
+CLI options and outputs. The [design guide](../../docs/court_detector/design.md) explains current
+choices. The [released dataset](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md)
+contains the existing 86-video extraction and a loading example.
 
-- [Search trial](search_policy_trial/README.md): would relaxing player checks
-  recover useful courts, and what false detections would it introduce?
-- [Original extraction](baseline/README.md): what did the same 86 videos look
-  like before the court-sharing repair?
-- [Fixed-frame checks](saved_views/README.md): how can a detector change be
-  compared on the same saved images and observations?
-- [Saved inputs](inputs/README.md) and [reproduction commands](reproduce.md):
-  how can the release and search-trial measurements be rebuilt?
+The remaining folders support reproduction and development:
 
-The earlier line-search prototype and its recorded comparisons live under [the
-independent-court experiment](../annotator/independent_court/README.md). The maintained
-implementation is in `src/court_detector/`.
+- [tools/](tools/README.md): commands and runners for rebuilding the comparisons
+- [evidence/](evidence/README.md): saved predictions, tables, images and clips
+- [saved_views/](saved_views/README.md): fixed inputs and helpers used by detector tests
