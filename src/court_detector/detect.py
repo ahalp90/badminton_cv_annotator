@@ -243,7 +243,8 @@ class CourtDetector:
         :param known_courts: Earlier courts to try before searching (reuse.try_reuse).
         :param endpoint_views: Builds the scene's first and last feet-window frames, in that
             order, each with its own lines and person boxes. Both are searched even when
-            this view's search rejects or fails. None searches this view alone.
+            this view's search rejects or fails. Insufficient shared player counts skip
+            all three searches. None searches this view alone.
         """
         live, switches = self.live, self.switches
         if switches.require_people and people is None:
@@ -258,6 +259,13 @@ class CourtDetector:
 
         prepared = self.prepare(view, feet_window.all_feet_px)
         laps.lap("context")
+
+        # Endpoints share these feet, so insufficient counts rule out every required-player
+        # search. Keep the prepared middle as a receiver; diagnostic runs still search.
+        if (switches.require_people and switches.artefacts_dir is None
+                and not feet.can_satisfy_player_requirement(feet_window.all_feet_px)):
+            result = CourtResult(view.view_id, None, "no_gated_court", None, None, prepared=prepared)
+            return self.finish(result, laps, artefacts)
 
         middle_error = None
         try:
@@ -417,6 +425,7 @@ class CourtDetector:
                 workers=self.switches.workers,
                 full_score_limit=self.switches.full_score_limit,
                 pool=self.pool,
+                require_people=self.switches.require_people,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:

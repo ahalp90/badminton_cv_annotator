@@ -11,6 +11,7 @@ from . import geometry as detector
 from . import line_observations as assignment
 from .candidate_geometry import FULL_SAMPLES, continuous_support, geometry
 from .line_matching import (
+    MIN_BOTH_HALVES_FRACTION,
     AxisMatches,
     Settings,
     basis_for,
@@ -83,7 +84,7 @@ class RoleProposals:
     homographies: np.ndarray = field(default_factory=lambda: np.empty((0, 3, 3), dtype=np.float32))
     # pregate copy: every combined court in transforms order (working px, float32), the geometry
     # mask, the courts that became candidates before any full-score limit, and the two player
-    # fractions. Geometry alone admits a court, so usable is valid. Empty when the basis fails.
+    # fractions. Required-player searches also apply the joint occupancy rule. Empty when the basis fails.
     combined_corners: np.ndarray = field(default_factory=lambda: np.empty((0, 4, 2), dtype=np.float32))
     valid: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
     usable: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
@@ -142,13 +143,13 @@ def propose_role(
     points: np.ndarray, observations: assignment.Observations, feet: np.ndarray,
     size: tuple[int, int], settings: Settings,
     combined_ranking: str = 'finite', upright_only: bool = False,
-    full_score_limit: int | None = None,
+    full_score_limit: int | None = None, *, require_people: bool = True,
 ) -> RoleProposals:
     """Generate one ordered direction role without reference geometry or labels.
 
-    Every court with valid geometry is usable and becomes a candidate. Player positions
-    reject no court. Each candidate carries its player tier, which orders courts only when
-    their scores are exactly equal.
+    Required-player searches prune axes and require full-court occupancy before scoring.
+    Without required players, geometry admits courts and player support only breaks exact
+    score ties. Every required-player candidate has the same passing support tier.
 
     :param feet: (sampled frames, player slots, xy) working px; NaN where missing.
     :param upright_only: also count courts above the pair's horizon as invalid geometry.
@@ -165,8 +166,9 @@ def propose_role(
     record = {'basis_status': details}
     if basis is None:
         return RoleProposals(record, None, None, [])
-    horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings)
-    vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings)
+    axis_feet = feet if require_people else None
+    horizontal = match_axis(basis, 0, detector.X_COORDS, observations, size, settings, axis_feet)
+    vertical = match_axis(basis, 1, detector.Y_COORDS, observations, size, settings, axis_feet)
     transforms, axis_pairs = combine(basis, horizontal, vertical)
     # The basis and axis matches need float64; scoring every combined court does not.
     transforms, rotated = canonicalise(transforms.astype(np.float32))
@@ -174,9 +176,11 @@ def propose_role(
     if upright_only:
         valid = valid & below_horizon(points, corners, size)
     one, two = joint_player_fractions(basis, horizontal, vertical, feet)
-    usable = valid  # lines and geometry alone admit a court
+    usable = valid & (one == 1) & (two >= MIN_BOTH_HALVES_FRACTION) if require_people else valid
     record.update({'basis_working': basis.tolist(),
                    'combined': len(transforms), 'geometry_valid': int(valid.sum())})
+    if require_people:
+        record['geometry_players'] = int(usable.sum())
     usable_ids = np.flatnonzero(usable)
     usable_transforms = transforms[usable_ids]
     tiers = support_tiers(one[usable_ids], two[usable_ids])  # one per usable court

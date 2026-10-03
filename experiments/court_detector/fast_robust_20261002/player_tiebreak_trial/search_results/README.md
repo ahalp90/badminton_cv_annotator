@@ -89,7 +89,7 @@ The trial timers measure paired jobs. Stage A runs court sharing and score-first
 
 Patched sharing gives the strongest supported improvement for the released corpus. The trial alternatives improve individual fits and court presence, but the final main-view result is unchanged and the added courts include clear failures. The evidence supports the user's preferred simple default, while leaving alternate views and transitions for further work.
 
-Separate detector changes make scheduled scene searches independent, retain the best supported individual or combined court, and expose `--fast` and `--full` no-player search options. Those changes did not generate this dataset. No new full-corpus search is part of this comparison.
+Separate detector changes restore the selected player-required search policy, make scheduled scene searches independent, retain the best supported individual or combined court, and expose `--fast` and `--full` no-player search options. Those changes did not generate this dataset. No new full-corpus search is part of this comparison.
 
 ## Evidence tables
 

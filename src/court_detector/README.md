@@ -31,9 +31,10 @@ define a homography: a mapping between the flat court floor and the image.
 3. **Search.** With required players, it matches pairs of line directions to
    court markings and builds courts from crossing lines. Without required players,
    it searches line templates by default; `--full` adds both direction-pair searches.
-   The implied camera must be plausible and upright. Player absence does not reject
-   search candidates. Where complete
-   court measurements exist, player support breaks exact line-score ties.
+   The implied camera must be plausible and upright. Required-player searches prune
+   impossible axis hypotheses before scoring, then require a player on the full court
+   in every feet sample and players in both halves in at least half the samples.
+   Without required players, player support only breaks exact line-score ties.
 4. **Score and choose.** Each candidate court gets a combined score: 90% paint
    support plus 10% line support, plus up to 0.04 for visible net posts. "Paint
    support" measures how well the projected markings land on bright painted
@@ -69,8 +70,8 @@ caches it for later runs. The detector also imports `src/shared` and
 | Need | Used for | Where it comes from |
 | --- | --- | --- |
 | DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage). The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; see [runtime/README.md](../../runtime/README.md). They are gitignored |
-| RTMLib and ONNX Runtime | Live pose (`--with-people`, or video without `--people`) and `--pose-prerun` | Pinned in [src/bst_x/preparing_data/requirements.txt](../bst_x/preparing_data/requirements.txt), not in `pyproject.toml` |
-| PySceneDetect (`scenedetect`) | `--pyscenedetect`, and the view grouping in `--court-mode video-robust` | Not pinned in `pyproject.toml`; install it in the court environment |
+| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | Pinned in [src/bst_x/preparing_data/requirements.txt](../bst_x/preparing_data/requirements.txt), not in `pyproject.toml` |
+| PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Not pinned in `pyproject.toml`; install it in the court environment |
 | CuPy | `--template-device cuda` only | Not a project dependency; install it on the GPU machine |
 
 DeepLSD loads from its checkout, not from an installed package. The loader puts
@@ -141,9 +142,10 @@ PYTHONPATH=.:src python -m court_detector.run_image \
 The image runner reads any file OpenCV can open, runs DeepLSD on it and never
 loads PySceneDetect. An unreadable image fails before any model loads. By
 default the court comes from lines and geometry alone. Add `--with-people` to run
-RTMLib once on the image. Those people then hide themselves from the paint
-measurements and support the search. One image has no three-second player
-window, so missing or off-court people never veto a court here.
+RTMLib once on the image. Their boxes mask occluded paint during measurement.
+With `--full`, player support also breaks exact direction-search score ties.
+One image has no three-second player window, so missing or off-court people
+never veto a court here.
 
 ### Search breadth without required players
 

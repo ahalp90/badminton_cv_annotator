@@ -51,6 +51,12 @@ current image, with player positions helping to identify the court in use.
 | Reject sideways and upside-down camera geometry early | These candidates are unsuitable for the intended footage and waste expensive scoring work. |
 | Keep all 16 direction groups and 256-court shortlists | Smaller searches saved work but removed useful alternatives or worsened complete-detector results. |
 
+Required-player searches prune impossible axis hypotheses before scoring or capping
+them. Combined courts need a player on the court in every sample and players in both
+halves in at least half the samples. Equal scores keep their original order.
+No-player detection uses line templates by default; `--full` adds direction-pair
+searches without the player gates, using player support only to break exact score ties.
+
 These choices came from development cases. They are useful defaults, with no
 claim that their thresholds are optimal on unfamiliar footage.
 
@@ -61,12 +67,11 @@ scene search therefore combines the strongest observations of each marking
 from its first, middle and last sampled frames. This **composite** is a fitted
 court assembled from several observations, rather than an averaged image.
 
-A composite can be visually better while scoring lower than a single-frame
-court. In the reviewed video 005 example, improved line support did not offset
-the loss of paint score. The detector therefore accepts a composite that
-passes its checks without requiring a score win. Score-only selection would
-lose that observed benefit. The [comparison images and consistency check](evaluation.md#composition-visual-review-and-consistency)
-show the evidence and its small sample size.
+The middle and endpoint searches run independently. The accepted individual courts
+and the composite compete on the same middle-frame evidence after their checks.
+The best score wins; equal scores keep an individual court ahead of the composite.
+The [earlier visual comparison](evaluation.md#composition-visual-review-and-consistency)
+records examples and its small sample size.
 
 Chronological reuse saves searches when an earlier court can be aligned,
 refitted and validated in a returning view. A reused court cannot become a
@@ -75,9 +80,9 @@ accumulating through the video.
 
 ## Why video pooling needs a whole-scene alternative
 
-Video-robust mode combines observations from independently completed scene
-composites. A group needs at least two such scenes. Reused courts can receive
-the result but cannot donate evidence.
+Video-robust mode combines observations from accepted individual frames, including
+scenes whose composite failed or lost. A group needs at least two independent donor
+scenes. Reused courts can receive the result but cannot donate evidence.
 The final fit minimises distances between court lines and the donated samples;
 it does not maximise the paint/geometry/net score.
 
@@ -86,18 +91,20 @@ In video 003, two scenes gave the same physical stripe different names. The
 pooled fit compromised between the incompatible constraints and put lines on
 blank floor. Aligning the images correctly did not resolve the naming conflict.
 
-The detector now compares the pool with each complete donor-scene court carried
-across the whole group. It scores every alternative on the same member frames.
-A scene alternative must pass every member's checks and have all score terms.
-It replaces the pool only when its mean score is higher; ties retain the pool.
-An eligible scene court also wins if the pooled mean cannot be calculated.
-If the pool wins, a member can still reject it and keep its own scene court.
+The detector compares the pool with the completed scene courts and retained individual
+courts carried across the group. Each alternative must pass its source frame's checks
+and have a source score. It ranks by its mean score over the members that can score it.
+In video-robust mode, equal scores retain the pool. Fast-robust mode favours a scene
+court on an equal score. Both modes can choose an eligible existing court when the
+pool fit fails. Each member keeps its own court if it rejects the chosen alternative.
 The [cached comparison](evaluation.md#cached-pooling-checks) records both a
 whole-scene winner and a pooled winner.
 
 Pooling is an offline operation: earlier scenes can use evidence from later
 ones. It runs after the chronological pass and never feeds pooled courts back
-into reuse. A no-court scene remains no-court.
+into reuse. A prepared scene without a court can receive a matching group's chosen
+court after alignment, geometry and camera checks. Receivers never donate or change
+the group's choice.
 
 ## Useful optimisations
 

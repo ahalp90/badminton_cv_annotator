@@ -36,6 +36,7 @@ class SearchInputs(NamedTuple):
     keep_per_pair: int
     capture_pool: bool
     full_score_limit: int | None  # propose_role's; None fully scores every court
+    require_people: bool = True
 
 
 class PairSearch(NamedTuple):
@@ -112,7 +113,7 @@ def search_pair(helpers: ModuleType, inputs: SearchInputs, pair_id: int, pair_po
     # Passed only when set, so helpers written before the limit, such as test fakes, still work.
     score_limit = {} if inputs.full_score_limit is None else {"full_score_limit": inputs.full_score_limit}
     proposed = helpers.propose_role(pair_points, inputs.observations, inputs.feet, inputs.size, inputs.settings,
-                                    upright_only=inputs.upright_only, **score_limit)
+                                    upright_only=inputs.upright_only, require_people=inputs.require_people, **score_limit)
     retained = select(helpers, proposed.candidates, inputs.keep_per_pair)
     # id() keys only hold inside this process, so positions go back to the parent instead.
     proposed_positions = {id(candidate): position for position, candidate in enumerate(proposed.candidates)}
@@ -132,7 +133,8 @@ def search_pair(helpers: ModuleType, inputs: SearchInputs, pair_id: int, pair_po
     role = proposed.record
     if proposed.cheap_ranks is not None:
         role = {**role, "retained_cheap_ranks": proposed.cheap_ranks[positions].tolist()}
-    raw_parent_count = proposed.record.get("geometry_valid", len(proposed.candidates))
+    raw_parent_count = proposed.record.get("geometry_players" if inputs.require_people else "geometry_valid",
+                                           len(proposed.candidates))
     return PairSearch(role, raw_parent_count, retained, details, perf_counter() - started,
                       pool_record)
 
@@ -188,7 +190,8 @@ def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
              keep_axes: int = 512, keep_per_pair: int = 256, keep_global: int = 256,
              max_matched_pairs: int | None = None,
              max_horizon_tilt_deg: float | None = None, workers: int = 1,
-             full_score_limit: int | None = None, pool: ProcessPoolExecutor | None = None) -> dict:
+             full_score_limit: int | None = None, pool: ProcessPoolExecutor | None = None,
+             require_people: bool = True) -> dict:
     """Generate courts from original directions, screening pairs before matcher work.
 
     The record keeps line_winner_id and paint_winner_id, both None. The archived research
@@ -207,6 +210,8 @@ def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
     :param pool: With workers above 1, search in these worker processes and leave them
         open. None starts workers for this call and closes them before the record is made,
         so only then does cpu_s include the workers' CPU time.
+    :param require_people: Prune axes and combined courts with the player occupancy rule.
+        False retains the wider search used by no-player --full detection.
     """
     started = perf_counter()
     cpu_started = cpu_seconds()
@@ -269,7 +274,7 @@ def generate(source: dict, saved: dict, zone: object, helpers: ModuleType,
         eligible.append((pair_id, pencil_ids, pair_points, record))
 
     inputs = SearchInputs(observations, feet, size, settings, max_horizon_tilt_deg is not None, keep_per_pair,
-                          pool_path is not None, full_score_limit)
+                          pool_path is not None, full_score_limit, require_people)
     searches = search_pairs(helpers, inputs, [(pair_id, pair_points) for pair_id, _, pair_points, _ in eligible],
                             workers, pool)
     # Global retention breaks score ties by pool order, so the pool grows in pair order.

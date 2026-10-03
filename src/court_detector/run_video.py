@@ -499,9 +499,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
     search_options = parser.add_mutually_exclusive_group()
     search_options.add_argument('--fast', action='store_true',
-                                help='no-player frames: search line templates alone (default)')
+                                help='with --no-require-people: search line templates alone (default)')
     search_options.add_argument('--full', action='store_true',
-                                help='no-player frames: also search all lines and painted lines')
+                                help='with --no-require-people: also search all lines and painted lines')
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
     parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.VIDEO_ROBUST,
                         help='scene-robust keeps each scene\'s court; video-robust may share one pooled court '

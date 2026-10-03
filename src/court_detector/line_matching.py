@@ -152,6 +152,16 @@ def band_masks(parameters: np.ndarray, rectified_feet: np.ndarray, extent: float
     return inside, inside & (position < .5)
 
 
+def necessary_players(parameters: np.ndarray, rectified_feet: np.ndarray, axis: int, extent: float) -> np.ndarray:
+    """Apply necessary parts of the joint player rule before an axis cap."""
+    inside, far = band_masks(parameters, rectified_feet, extent)
+    one = inside.any(axis=2).all(axis=1)
+    if axis == 0:
+        return one
+    near = inside & ~far
+    return one & ((far.any(axis=2) & near.any(axis=2)).mean(axis=1) >= MIN_BOTH_HALVES_FRACTION)
+
+
 def joint_player_fractions(
     basis: np.ndarray, horizontal: AxisMatches, vertical: AxisMatches, feet_px: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -187,9 +197,9 @@ def joint_player_fractions(
 def support_tiers(one: np.ndarray, two: np.ndarray) -> np.ndarray:
     """Each court's player support tier from joint_player_fractions; lower is stronger.
 
-    The search admits courts on lines and geometry alone. A tier orders courts only when
-    their line-support scores are exactly equal. PASSES_PLAYER_RULE (0) passes the final
-    choice's player rule (measurements.historical_predicates). OFTEN_HAS_A_PLAYER (1) has
+    The no-player full search admits courts on lines and geometry alone. A tier orders
+    courts only when their line-support scores are exactly equal. PASSES_PLAYER_RULE (0)
+    passes the final choice's player rule (measurements.historical_predicates). OFTEN_HAS_A_PLAYER (1) has
     a player on the court in at least MIN_ONE_PLAYER_FRACTION of the feet samples.
     NO_PLAYER_SUPPORT (2) is every other court.
     """
@@ -201,12 +211,12 @@ def support_tiers(one: np.ndarray, two: np.ndarray) -> np.ndarray:
 
 def match_axis(
     basis: np.ndarray, axis: int, coordinates: np.ndarray, observations: assignment.Observations,
-    size: tuple[int, int], settings: Settings,
+    size: tuple[int, int], settings: Settings, feet_px: np.ndarray | None = None,
 ) -> AxisMatches:
     """Enumerate one axis's line-to-marking hypotheses and keep the best-scored distinct ones.
 
-    Line support alone ranks them. Player positions need both axes, so they are measured on
-    the combined courts (joint_player_fractions).
+    With required players, necessary occupancy checks run before scoring and the axis cap.
+    The combined courts must then pass the joint occupancy rule (joint_player_fractions).
     """
     ids, values, endpoints, details = offsets(basis, axis, observations, size, settings)
     observed_pairs = np.asarray(list(combinations(range(len(ids)), 2)), dtype=int).reshape(-1, 2)
@@ -223,14 +233,23 @@ def match_axis(
     scores = np.full(len(parameters), np.nan)
     matches = np.full((len(parameters), len(coordinates)), -1, dtype=int)
     supported = np.zeros(len(parameters), dtype=int)
-    for start in range(0, len(parameters), settings.batch):
-        rows = slice(start, start + settings.batch)
+    player_compatible = np.ones(len(parameters), dtype=bool)
+    if feet_px is not None:
+        rectified_feet = rectify_feet(basis, feet_px)[..., axis]
+        for start in range(0, len(parameters), settings.batch):
+            stop = start + settings.batch
+            player_compatible[start:stop] = necessary_players(parameters[start:stop], rectified_feet, axis,
+                                                              float(coordinates.max()))
+    # Incompatible axes cannot survive retention, so leave their scores and matches unmeasured.
+    to_score = np.flatnonzero(player_compatible)
+    for start in range(0, len(to_score), settings.batch):
+        rows = to_score[start:start + settings.batch]
         batch_scores, group_indexes, counts = score_axes(parameters[rows], coordinates, endpoints, basis, axis)
         scores[rows] = batch_scores
         matches[rows] = np.where(group_indexes >= 0, ids[np.maximum(group_indexes, 0)], -1)
         supported[rows] = counts
     pattern = supported >= settings.minimum_matches
-    eligible = np.flatnonzero(pattern)
+    eligible = np.flatnonzero(pattern & player_compatible)
     ordered = eligible[np.argsort(-scores[eligible], kind='stable')]
     seen = set()
     distinct = []
@@ -242,7 +261,10 @@ def match_axis(
         distinct.append(int(index))
     retained = np.asarray(distinct[:settings.keep_axes], dtype=int)
     details.update({'pair_anchors': len(observed_pairs), 'enumerated': len(scale),
-                    'zero_scale_excluded': int((~nonzero).sum()), 'pattern_supported': len(eligible),
+                    'zero_scale_excluded': int((~nonzero).sum()),
+                    'pattern_supported': int(pattern.sum()) if feet_px is None else None,
+                    'necessary_player_pruning': feet_px is not None, 'scored': len(to_score),
+                    'pattern_and_players': len(eligible),
                     'distinct_assignments': len(distinct), 'axis_cap_excluded': max(0, len(distinct) - len(retained))})
     return AxisMatches(parameters, scores, matches, anchors, supported,
                        np.asarray(distinct, dtype=int), retained, details)

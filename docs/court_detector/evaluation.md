@@ -169,8 +169,11 @@ the false court in scene 0152 actually beat both available originals. A valid
 fit in this record does not establish that the production player checks passed.
 
 For video 005, paint support fell from 0.507 to 0.461 while line support rose
-from 0.537 to 0.566. The paint weight outweighed the line gain. This is why the
-detector accepts a composite that passes its checks without requiring a score win.
+from 0.537 to 0.566. The paint weight outweighed the line gain. These observations
+motivated the earlier policy of accepting a valid composite without a score win.
+The current detector compares the composite and accepted individual courts on
+the same middle-frame evidence, as described in the [design](design.md). This
+earlier review records a limitation of using the score to judge visual quality.
 
 | Single-frame court, video 005 | Three-frame composite, video 005 |
 | --- | --- |

@@ -97,6 +97,9 @@ Scene-robust and video-robust search the middle frame and both scheduled window
 endpoints independently. A rejected or failed middle search does not prevent
 endpoint searches. Composition needs a scene long enough for the window.
 Successful chronological reuse and fast-robust skip endpoint searches.
+Required-player mode also skips all three searches when the shared feet samples
+contain too few people to satisfy the occupancy rule. It keeps the prepared middle
+frame so the scene can receive a shared court. Diagnostic artefact runs still search.
 
 1. **Search each frame.** Endpoints use their own lines and person boxes with the
    middle frame's feet. Each fresh court must pass its source checks. A failed

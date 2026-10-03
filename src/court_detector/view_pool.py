@@ -38,7 +38,7 @@ fresh search of the scene's middle frame, with no endpoint frames or composite.
    fail. measured_members counts those members. The best scene candidate replaces
    the pool when its mean beats the pool's, or when the pool is out. An exact tie
    keeps the pool in video-robust mode and the scene court in fast-robust mode.
-   Fast-robust mode also compares the scene candidates when the pooled fit fails.
+   Both modes also compare the scene candidates when the pooled fit fails.
 7. Output. The chosen court replaces the court of every member that accepts it. A
    member whose check it fails, or that cannot score it, keeps its own court and
    records the rejection. When every candidate is out, all members keep theirs.

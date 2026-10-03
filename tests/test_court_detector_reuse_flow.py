@@ -14,11 +14,11 @@ from court_detector.inputs import (
 )
 
 
-@pytest.mark.parametrize(('require_people', 'full', 'broader_search'), [
+@pytest.mark.parametrize(('require_people', 'full', 'direction_search'), [
     (False, False, False), (False, True, True), (True, False, True), (True, True, True),
 ])
 def test_frame_search_breadth_keeps_templates_and_the_player_policy(monkeypatch, require_people, full,
-                                                                  broader_search) -> None:
+                                                                  direction_search) -> None:
     detector = object.__new__(detect.CourtDetector)
     detector.switches = detect.Switches(require_people=require_people, full_no_people_search=full)
     searched, scored = [], []
@@ -38,10 +38,10 @@ def test_frame_search_breadth_keeps_templates_and_the_player_policy(monkeypatch,
     detector.score_and_choose = choose
     prepared = SimpleNamespace(context=SimpleNamespace(families=[object()]), view=None, source={}, native_frame=None)
     detector.search_and_choose(prepared, detect.Laps(), {})
-    assert bool(searched) is broader_search
+    assert bool(searched) is direction_search
     populations, templates = scored[0]
     assert templates == [template]
-    assert populations == ({'all_lines': ['all'], 'painted_lines': ['painted']} if broader_search
+    assert populations == ({'all_lines': ['all'], 'painted_lines': ['painted']} if direction_search
                            else {'all_lines': [], 'painted_lines': []})
 
 
@@ -107,13 +107,13 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
         assert saved[0]['reuse'] == [{'rejection': 'alignment_mismatch'}]
 
 
-def test_required_people_with_nobody_standing_still_reach_the_search(monkeypatch) -> None:
+def test_insufficient_player_counts_skip_searches_and_keep_a_prepared_receiver(monkeypatch) -> None:
     monkeypatch.setattr(detect.feet, 'window_feet',
                         lambda *args: FeetWindow([50], None, [50], [[None, None]]))
     detector = object.__new__(detect.CourtDetector)
     detector.switches = detect.Switches(timing=True)
     detector.live = SimpleNamespace(verifier=SimpleNamespace(view_context=lambda *args: SimpleNamespace()))
-    searched = []
+    searched, endpoints = [], []
 
     def search_and_choose(prepared, laps, artefacts):
         searched.append(prepared.source['all_feet_px'])
@@ -124,7 +124,11 @@ def test_required_people_with_nobody_standing_still_reach_the_search(monkeypatch
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
     view = ViewInputs('empty', frame, 50, (0, 100), np.empty((0, 4)), np.empty((0, 4)),
                       same_frame_provenance('empty', 50))
-    result = detector.detect(view, object(), None)
-    assert searched == [[[None, None]]]
+    result = detector.detect(view, object(), None, endpoint_views=lambda: endpoints.append(True) or [])
+    assert searched == endpoints == []
     assert result.no_court_reason == 'no_gated_court'
-    assert list(result.stage_seconds) == ['feet', 'context', 'search']
+    assert result.corners_native_px is None
+    assert result.prepared is not None
+    assert result.prepared.view is view
+    assert result.prepared.source['all_feet_px'] == [[None, None]]
+    assert list(result.stage_seconds) == ['feet', 'context']

@@ -148,7 +148,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--deeplsd-weights', type=Path, required=True)
     parser.add_argument('--device', default='cuda', help='device for DeepLSD and, with --with-people, RTMLib')
     parser.add_argument('--with-people', action='store_true',
-                        help='run RTMLib once on the image; its people mask occlusions and support proposals')
+                        help='run RTMLib to mask people from paint measurements; '
+                             'with --full, also break exact search ties')
     parser.add_argument('--template-device', choices=TEMPLATE_DEVICES, default='cpu',
                         help='device for line-template scoring; cuda needs CuPy and a GPU (default: cpu)')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
