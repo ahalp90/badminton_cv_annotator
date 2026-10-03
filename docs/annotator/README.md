@@ -42,7 +42,7 @@ This command expects metadata, shuttle, pose and court extraction to be finished
 
 Annotation needs a model directory fitted in the current environment. Old experiment binaries are comparison material. Copying them into `models/annotator` does not make them supported models.
 
-A refit on the new court extraction is prepared but has not been run. No model has been fitted or evaluated on the new court inputs yet, so these documents make no claim about annotation quality on them. The [refit guide](retuning.md#planned-new-court-refit) describes what is prepared.
+A refit and validation queue using the released new court detections was launched on 3 October 2026. Results and model selection are pending, so these documents make no claim about annotation quality on those inputs. The [refit guide](retuning.md#planned-new-court-refit) describes the comparison.
 
 For background, [PR 149](https://github.com/ahalp90/badminton_cv_annotator/pull/149) describes the retained mixed rule-and-tree model and [PR 150](https://github.com/ahalp90/badminton_cv_annotator/pull/150) its court-failure analysis. Both describe the old court inputs.
 

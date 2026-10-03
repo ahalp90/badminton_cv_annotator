@@ -1,6 +1,6 @@
 # What did better courts change?
 
-**Status: prepared; no new-court fits or evaluations have run.** Replace this
+**Status: fit and V validation queue launched on 3 October 2026; results pending.** Replace this
 paragraph with the main result after evaluation: what improved, what still
 fails, and which bundle should be kept. Leave unknown results blank.
 
@@ -45,7 +45,11 @@ Keep the saved config with the run; there is no need to repeat every path here.
 - Preserve original-ShuttleSet `sset_15`; it is a different video
 
 Before viewing results, record how contact/side losses will affect the choice:
-**___**. Do not choose solely by fully correct rally count. Any genuinely
+retain base unless V gains useful complete rallies without reducing aggregate
+timing or correct-side matches. Inspect every lost complete rally and serve/side
+loss patterns before choosing veto. If measures conflict, retain base pending
+explicit judgement. This conservative analysis rule was recorded at launch.
+Do not choose solely by fully correct rally count. Any genuinely
 untouched extra videos should have their own table and role; do not describe
 the repeatedly inspected ShuttleSet22 set as new test evidence.
 

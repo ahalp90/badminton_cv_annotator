@@ -341,7 +341,7 @@ A complete model comparison normally includes:
 
 ## Planned new-court refit
 
-**Status: prepared, not run.** The two fits and their evaluations have not started. The final court extracts have not been chosen yet, so their paths are not recorded here.
+**Status: fit and V validation queue launched on 3 October 2026; results pending.** The run uses the released 86-video patched court dataset. Machine-specific input paths stay in the untracked run configuration. Select on V before running the familiar ShuttleSet22 comparison.
 
 This paired comparison has its own runner. It is separate from the `python -m annotator.training` commands above, although it calls the same fitting functions. The [runner README](../../experiments/annotator/good_court_refit/README.md) has the commands, the input config and the list of settings both builds hold fixed. The [evaluation template](../../experiments/annotator/good_court_refit/evaluation.md) lists what to measure afterwards.
 

@@ -37,6 +37,7 @@ The cleaner saves non-array files to `local_scratch/annotator_experiment_backups
 
 The [old-court regression findings](old_court_regression/findings.md) explain
 why refitting changed the benchmark and what the follow-up controls found.
-The [good-court refit](good_court_refit/README.md) prepares the two serial builds
-and their [evaluation](good_court_refit/evaluation.md). Training has not started;
-the final detector-file paths still need to be selected.
+The [good-court refit](good_court_refit/README.md) runs the two serial builds
+and their [evaluation](good_court_refit/evaluation.md). The fit and V validation
+queue was launched on 3 October 2026 using the released patched courts; results
+and model selection are pending.

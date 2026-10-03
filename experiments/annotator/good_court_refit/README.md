@@ -1,10 +1,18 @@
 # Refit the annotator with the new court detections
 
-This prepares two annotators from the same chosen court detections: the base
+This fits two annotators from the same chosen court detections: the base
 settings, then the optional rule that rejects masked candidates without a
-nominated player. The builds run in that order. **Neither build has been run.**
-The court extracts are still being corrected; their final paths belong in the
-input config when they are ready.
+nominated player. The builds run in that order. **A detached queue was launched
+on 3 October 2026; results are pending.** It checks inputs, fits both builds,
+then evaluates base, veto and the inference-only rule on V. The ShuttleSet22
+comparison waits until the validation choice is recorded.
+
+The run uses annotator revision `97b5e4de` and the 86-video
+`experiments/court_detector/fast_robust_20261002/court_sharing_patched` release
+from `chore/new-courts-eval` at `e0151791dd1c525311b497d460eff65b4c455021`.
+The released court files were copied into the run; detector code was not merged.
+Machine-specific configuration and job locations remain outside Git. The
+checked-in `inputs.json` remains a template with blank court paths.
 
 The runner reuses the [old-court runner](../old_court_regression/README.md)'s
 parallel stages and resume support. It converts saved custom-detector JSON
@@ -12,7 +20,7 @@ into operational court evidence, then calls the maintained annotator fitting
 functions. It does not run court detection or change the source extracts.
 The [evaluation template](evaluation.md) describes what to measure afterwards.
 
-## Finish the inputs tomorrow
+## Choose inputs for another run
 
 1. Copy `inputs.json` to an untracked working config. Fill the `null` court
    paths with the chosen per-video detector results. Use full paths on Carmack;
