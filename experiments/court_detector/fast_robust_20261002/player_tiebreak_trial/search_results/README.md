@@ -1,4 +1,4 @@
-# Three court methods tie on the main view; broader search adds unjudged courts
+# Court detection results for the three trial methods
 
 **On the eight trial videos, the court-sharing patch, score-first selection and
 broader search give the same final main-view result.** All three put all
@@ -8,8 +8,9 @@ courts differ by at most 0.04 px of mean error.
 Before sharing, both score-first methods bring about 2 percentage points more
 main-view fits within 20 px, but sharing already fixes those scenes. Broader
 search gives a court to 13 rallies where the court-sharing patch has none. Only two of
-those agree with the reference; the other 11 are 284–1,220 px away and have not
-been judged. Its paired jobs took 48.5% longer in total. The user prefers the
+those agree with the reference; the other 11 are 284–1,220 px away. Review found
+three clear court views, two fragments where abstention was preferred, and eight
+images containing no court. Its paired jobs took 48.5% longer in total. The user prefers the
 simple court-sharing patch on the evidence reviewed so far.
 
 ## Question and sample
@@ -147,8 +148,8 @@ In every method, every rally court outside 10 px, and every rally without a
 court, sits in a rally dominated by a group other than that run's main group.
 In rallies dominated by the main group, all three methods have a court within
 10 px. If a non-main group shows the default camera, a court that far off is
-wrong; if it shows another view, the reference cannot judge it. Nobody has
-judged these courts.
+wrong; if it shows another view, the reference cannot judge it. The review of
+the 13 added-court images is recorded below.
 
 **Agreement within 10 px barely moves.** The methods agree with the reference
 in 625, 626 and 627 of 668 rallies. The lower bounds sit at zero because only
@@ -222,6 +223,27 @@ The user's visual judgements so far:
   was undecided whether that court is better than an abstention.
 - **Second scene-still sample.** All three methods were equivalent across seven
   matching frames from three more videos.
+- **All 13 added rally courts.** Three images show clear courts missed by patched
+  sharing: ShuttleSet22 27 set 1 rally 1, ShuttleSet22 44 set 2 rally 33 and
+  ShuttleSet 36 set 2 rally 13. ShuttleSet22 44 set 2 rally 34 and set 3 rally 31
+  show unusually framed court fragments where the user prefers abstention.
+  The other eight images contain no court. These judgements concern the rally
+  frames, which differ from the frames used for detection.
+
+The actual detection frames explain the three misses:
+
+| Scene | User's review of the detection frame | Recorded failure |
+| --- | --- | --- |
+| ShuttleSet22 27, scene 27 | Only a tiny court sliver; the usable view starts around 31 s into the 56 s scene, after its midpoint | Selected fit was rank deficient |
+| ShuttleSet22 44, scene 349 | Transition overlay obscures most of the frame; the usable view starts a handful of frames later | Player-count check stopped the search |
+| ShuttleSet 36, scene 383 | Clear court; upper player is near the net, with an ambiguous foot position and lean | Refit passed the both-halves rule in 15/31 samples, below the required half |
+
+All three finish courtless in the patched-sharing trial. That implementation
+admits only scenes with an existing court to sharing. Under score-first selection,
+the ShuttleSet 36 scene joins 76 other main-view scenes and receives a shared
+court. The other two remain single-scene groups even under the permissive methods.
+Grouping uses the sampled image, not the complete scene. A further patch to admit
+eligible courtless receivers is in progress; the results above predate it.
 
 The [nine full rally clips](../rally_review/clips/) show three rallies under
 all three methods. They were picked by scene-cut count, not by error. The
@@ -256,7 +278,8 @@ The main-view measures cannot separate the methods: all three reach the same
 ceiling with the same representative courts. The differences lie outside the
 main view group, where the reference cannot always judge. There, the earlier
 image review found all 16 selected courts wrong. Broader search costs about
-half as much again in compute and adds unjudged courts. In the first
+half as much again in compute. Eight of its 13 added-court images contain no
+court, while three show clear courts that patched sharing missed. In the first
 scene-still sample, it also produced the malformed court described above.
 
 The user prefers the simple court-sharing patch on the evidence reviewed so far. That

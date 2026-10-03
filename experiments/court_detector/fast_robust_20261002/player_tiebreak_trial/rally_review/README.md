@@ -24,6 +24,15 @@ overlay positions.
 
 ## PNG folders
 
+The [full SS22 27 scene](../../../../../local_scratch/court_evaluation/easy_court_misses/clips/ss22_27_scene0027.mp4) lasts
+56.0 seconds; its detector sample is at 28.0 seconds. The
+[full SS22 44 scene](../../../../../local_scratch/court_evaluation/easy_court_misses/clips/ss22_44_scene0349.mp4) lasts
+20.3 seconds; its detector sample is at 10.13 seconds. Both clips are plain,
+silent 1080p video covering the complete detected scene, without overlays.
+These two clips are local review files and are not committed.
+The [actual detection-frame PNGs](easy_court_misses/) compare all three methods
+at the sampled frames for these two scenes and ShuttleSet 36 scene 383.
+
 Each representative folder contains one court per trial video, selected with
 the same method as the original gallery: choose the view group with the most
 rally time, then the actual court closest to the group's other courts,
