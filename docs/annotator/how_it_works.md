@@ -1,8 +1,9 @@
 # How the auto-annotator works
 
-The auto-annotator narrows a noisy video timeline into a small set of rallies
-and contact frames. The [quickstart](quickstart.md) covers running it and the
-selected model; this guide explains how the result is assembled.
+The auto-annotator finds rallies and racket hits in saved shuttle, pose and
+court data. A hit is called a **contact** in the code, and its time is recorded
+as a video frame. The [quickstart](quickstart.md) covers running the annotator;
+this guide explains how it selects contacts and builds the final annotation.
 
 Rules first remove unusable frames and mark places where a hit is plausible.
 A fitted classifier scores those possible hit frames. Later classifiers look
@@ -30,7 +31,7 @@ make one choice, in order; they do not repeatedly revise the rally until it sett
 One video contributes four kinds of saved data:
 
 - **Video metadata** — frame count, frame rate and image width and height.
-- **Shuttle track** — one `(x, y, visibility)` row per frame, plus inpaint information and shuttle-quality grades.
+- **Shuttle track** — one `(x, y, visibility)` row per frame, plus a record of positions filled in by the inpainting stage and shuttle-quality grades.
 - **Pose detections** — player boxes and keypoints for each frame.
 - **Court data** — the scenes with usable court detections, the image-to-court
   transforms (homographies), a per-frame record of court presence, and the
@@ -89,7 +90,11 @@ The two mechanisms are described in detail in [Fixed heuristics](heuristics.md).
 
 ### Rough rallies and contact search regions
 
-Shuttle motion gives the initial rally spans. The current path finds stretches separated by long rest, requires a sustained fast burst to confirm real play, and back-fills the start to the beginning of that active region. Special handling keeps some difficult tracking gaps from immediately ending a high shot.
+Shuttle motion gives the initial rally spans: the start and end frames of each
+possible rally. Long rests separate stretches of activity. A sustained fast
+burst confirms play within a stretch, and the rally starts at the beginning
+of that activity. Special handling keeps some difficult tracking gaps from
+immediately ending a high shot.
 
 One important heuristic inside those spans is **shuttle impulse**: the size of the change between the incoming and outgoing shuttle velocity. A racket hit often creates a sudden change in speed, direction, or both. The rule compares that change with a rolling local baseline, called the
 impulse floor. A candidate therefore has to stand out from nearby shuttle motion,
@@ -108,7 +113,9 @@ Within and around the rough spans, several signals mark frames as worth scoring:
 These rules choose **which frames are worth scoring as possible hits**. The
 fitted contact classifier then decides which frames to keep.
 
-The rules are still part of the fitted system. Their settings are saved in the model directory and were the inputs the trees trained on. They are not a separate set of knobs to adjust around an already-fitted tree.
+The rule settings are saved with the models because they determine which
+frames and measurements the trees learn from. Changing those settings usually
+requires refitting the models.
 
 ## Stage 2: score possible contact frames
 
@@ -130,9 +137,10 @@ Missing measurements remain `NaN`. Separate validity fields tell the model wheth
 
 Motion features keep their raw per-frame units. Changing those units, or the feature order, would change what the fitted tree sees.
 
-The contact model is a `HistGradientBoostingClassifier`. It combines the 85
-measurements into one score for how much a frame looks like a hit. During
-training, frames close to human-labelled hits are positive examples. Ambiguous
+The contact model is a `HistGradientBoostingClassifier`, which combines small
+decision trees. It uses the 85 measurements to score how much a frame looks
+like a hit. During training, frames close to human-labelled hits are positive
+examples. Ambiguous
 frames nearby are left out, and other frames are sampled as negative examples.
 
 The code reads the score through `predict_proba()` and initially keeps frames
@@ -155,7 +163,7 @@ When the optional rule for guarded candidates is on, the dropped rows are remove
 The first list of hits can still contain a wrong hit or miss a real one. The
 sequence models try a small, fixed set of repairs to that list.
 
-For each rough rally, it creates alternatives that can:
+For each rough rally, the sequence code creates alternatives that can:
 
 - keep the current contacts;
 - add or replace an earlier serve;
@@ -301,7 +309,7 @@ The exact saved files and all result fields are listed in [Inputs and outputs](i
 | **sticky player** | The pose detection held for the `Top` or `Bot` court half across nearby frames |
 | **scene court** | Court geometry associated with one accepted camera scene |
 | **exclusion mask** | Boolean frame mask for frames removed from normal rally/contact evidence |
-| **shuttle hallucination mask** | Boolean frame mask for shuttle positions whose guard grade the model settings reject |
+| **shuttle hallucination mask** | Boolean frame mask for shuttle positions flagged as unreliable by the model's guard settings |
 | **option pool** | The limited keep/repair/delete/insert alternatives compared by the sequence models |
 | **model directory** | `models.joblib` plus `metadata.json`, containing fitted models and their required settings; the code also calls it the model bundle |
 

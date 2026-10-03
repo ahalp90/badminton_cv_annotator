@@ -57,7 +57,8 @@ The shuttle directory must contain exactly one `*_inpaint_mask.json.gz` file.
 
 The annotation command uses the numeric metadata but does not reopen the source video.
 
-All other arrays use the same zero-based frame timeline and must have the recorded frame count.
+All other arrays use the same zero-based frame timeline and must have the
+recorded frame count. In the shapes below, `t` is the number of video frames.
 
 ## Shuttle files
 
@@ -91,11 +92,14 @@ The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagge
 
 ### `*_inpaint_mask.json.gz`
 
-This sidecar records which shuttle positions came from inpainting, along with the extraction information needed to rebuild the boolean fill mask used by annotation.
+This file records which shuttle positions were filled in by the inpainting
+stage. It also stores the extraction information needed to rebuild the boolean
+mask that identifies those positions during annotation.
 
 ## Pose files
 
-`load_pose_arrays()` reads five frame-aligned arrays:
+`load_pose_arrays()` reads five arrays, with one entry per video frame.
+`n_max` is the maximum number of detection slots stored per frame:
 
 | File | Shape | Meaning |
 | --- | --- | --- |
@@ -123,7 +127,9 @@ It contains:
 - court geometry used by the annotator;
 - per-scene records.
 
-This geometry includes scene homographies, net/court measurements and the information used to assign player poses to court halves and estimate landings.
+This geometry includes scene homographies (image-to-court transforms), net/court
+measurements and the information used to assign player poses to court halves
+and estimate landings.
 
 ### `court_keep_vote.npy.xz`
 
@@ -234,7 +240,7 @@ In the fitted-model path, `contacts` and `filtered_contacts` contain the same
 chosen rows. The dataset builder also saves those final contacts under the
 older name `raw_candidates`. Despite the name, that field contains the selected
 hits. This explains why older benchmark reports show identical raw and final
-contact metrics for these runs; use the final metrics.
+contact metrics for these runs. The final metrics describe the selected hits.
 
 ### `Top` and `Bot`
 
@@ -274,7 +280,7 @@ result = run_video(
 
 The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `run_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
 
-A few behaviours are worth knowing before calling it directly:
+The direct call uses the model directory and settings as follows:
 
 - When `models` is omitted, full annotation loads `models/annotator` relative to the working directory. Passing the loaded models makes the location explicit.
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.

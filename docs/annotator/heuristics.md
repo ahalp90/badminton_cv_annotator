@@ -13,16 +13,18 @@ new model fit.
 
 | Evidence quality | Rally and contact search | Model inputs and code |
 | --- | --- | --- |
-| [Exclusions and shuttle flags](#two-different-kinds-of-rejection) | [Frame-rate scaling](#frame-rate-scaling) | [Contact search regions](#contact-search-regions) |
+| [Exclusions and shuttle flags](#frame-exclusions-and-shuttle-flags) | [Frame-rate scaling](#frame-rate-scaling) | [Contact search regions](#contact-search-regions) |
 | [Frame exclusion mask](#frame-exclusion-mask) | [Sticky player evidence](#sticky-player-evidence) | [Contact-tree features](#what-reaches-the-contact-tree) |
 | [Shuttle guard grades](#shuttle-guard-grades) | [Rough rally spans](#rough-rally-spans) | [Rule locations](#where-the-main-rules-live) |
 | [Optional candidate rule](#optional-rule-for-guarded-candidates) | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
 
 ![Rule-based front end](figures/heuristics.svg)
 
-## Two different kinds of rejection
+## Frame exclusions and shuttle flags
 
-The annotator has two separate ways of withholding unreliable evidence. They solve different problems.
+Some footage, such as a replay, is unsuitable for finding live-play contacts.
+Other frames are usable but have an unreliable shuttle position. The frame
+exclusion mask handles the first case; shuttle guard grades handle the second.
 
 ### Frame exclusion mask
 
@@ -115,7 +117,9 @@ Relevant code: `fps_constants.py`, `resolve.py`.
 
 ## Sticky player evidence
 
-Pose extraction can return several people and can change detection slots from one frame to the next. The sticky player logic converts that into more stable badminton-specific evidence.
+Pose extraction can return several people and store the same person in a
+different array slot from one frame to the next. The sticky player logic tries
+to follow one person on each court half across nearby frames.
 
 Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). From those picks it records:
 
@@ -132,7 +136,9 @@ Relevant code: `rally/evidence.py`, `types.py::StickyResult`.
 
 Rally segmentation starts from shuttle speed and visibility.
 
-A frame reads as rest when the local shuttle speed is low. Long or difficult tracking gaps can also become rest, with guards that stop a high shot leaving the frame from immediately ending the rally.
+A frame counts as rest when the local shuttle speed is low. Long or difficult
+tracking gaps can also count as rest. Additional rules keep a high shot that
+leaves the image from immediately ending the rally.
 
 At the current defaults:
 
@@ -175,7 +181,8 @@ Relevant code: `rally/contacts.py`.
 
 The contact tree scores a broader set of frames than the raw impulse heuristic accepts.
 
-Search regions grow around seven kinds of seed:
+The search starts from frames marked by seven kinds of signal. These starting
+points are called **seeds**:
 
 | Seed | Why it can contain a hit |
 | --- | --- |
@@ -187,7 +194,9 @@ Search regions grow around seven kinds of seed:
 | court-scene start | a cut or new accepted view can disturb nearby evidence |
 | serve look-back | an earlier serve may sit before the first initially selected contact |
 
-Each seed expands into a small time region. The tree receives every row in those regions and can decide that the heuristic seed itself was wrong.
+Each seed adds a short interval of nearby frames to the search. The contact
+tree scores every frame in those intervals, including the seed frame itself,
+so a seed can open a search region without becoming a selected hit.
 
 Relevant code: `contacts/features.py`.
 

@@ -1,21 +1,23 @@
 # Code map
 
-This page maps the auto-annotator from its command-line entry point to the
-modules that produce an annotation. The [symptom table](#symptom--likely-starting-point)
-maps common problems to relevant modules. [Fixed heuristics](heuristics.md) and
-[Tree model stack](tree_stack.md) explain the algorithms.
+This guide shows where to find the code for each part of annotation, from
+loading a video's data to saving the result. The [symptom table](#symptom--likely-starting-point)
+connects common problems to the files involved. [Fixed heuristics](heuristics.md)
+and [Tree model stack](tree_stack.md) explain how the algorithms work.
 
-The annotation runtime is only part of `src/annotator`. Evaluation tools, manual review utilities and VLM experiments live in the same package but run separately.
+`src/annotator` also contains evaluation tools, manual review utilities and
+vision-language model (VLM) experiments. Those tools run separately from
+annotation and have their own sections below.
 
 **Contents**
 
 | Entry points and structure | Annotation stages | Fitting and tools |
 | --- | --- | --- |
 | [Symptom lookup](#symptom--likely-starting-point) | [Contact scoring](#contacts-contact-scoring) | [Training and held-out evaluation](#training-fitting-and-held-out-evaluation) |
-| [Production call map](#production-call-map) | [Court data](#courts-court-data-used-by-annotation) | [Fixed and historical scoring](#evaluation-fixed-and-historical-scoring-tools) |
-| [Orientation files](#main-orientation-files) | [Masks and shuttle flags](#masks-unusable-frames-and-shuttle-positions) | [Manual review](#review-manual-labelling-and-audit-tools) |
-| [Package shape](#package-shape) | [Rallies and contact evidence](#rally-rough-rallies-and-heuristic-contact-evidence) | [Visual checks](#validation_overlay-visual-checks) |
-| [Core orchestration](#core-orchestration-and-shared-data) | [Sequence repair](#sequence-contact-sequence-repair) | [Scene-classification research](#vlm_scene_benchmark-separate-scene-classification-research) |
+| [Main files](#main-files) | [Court data](#courts-court-data-used-by-annotation) | [Fixed and historical scoring](#evaluation-fixed-and-historical-scoring-tools) |
+| [Production call map](#production-call-map) | [Masks and shuttle flags](#masks-unusable-frames-and-shuttle-positions) | [Manual review](#review-manual-labelling-and-audit-tools) |
+| [Package layout](#package-layout) | [Rallies and contact evidence](#rally-rough-rallies-and-heuristic-contact-evidence) | [Visual checks](#validation_overlay-visual-checks) |
+| [Running annotation and shared data](#running-annotation-and-shared-data) | [Sequence repair](#sequence-contact-sequence-repair) | [Scene-classification research](#vlm_scene_benchmark-separate-scene-classification-research) |
 | [Files outside src/annotator](#files-outside-srcannotator) | [Outcome fields](#outcomes-fields-derived-after-contact-selection) |  |
 
 ## Symptom → likely starting point
@@ -36,6 +38,18 @@ The annotation runtime is only part of `src/annotator`. Evaluation tools, manual
 | Model directory will not load | `models.py` |
 | Fitting appears to leak match groups | `training/workflow.py`, `training/sequences.py` |
 | Saved standalone output differs from builder output | `annotator/cli.py`, `dataset_builder/vision.py` |
+
+## Main files
+
+These are the main files involved in running, changing or fitting the annotator:
+
+1. **`cli.py`** — reads command-line arguments and loads saved input files.
+2. **`src/dataset_builder/vision.py::run_full_annotation_stage`** — connects the saved vision data to annotation. The same module saves annotation results.
+3. **`run_video.py`** — runs the full annotation process for one video.
+4. **`hybrid.py`** — runs the fitted contact and sequence models, before the outcome rules.
+5. **`sequence/refine.py`** — builds possible sequence repairs and runs the three chooser stages.
+6. **`training/workflow.py`** — fits models and evaluates them on videos kept out of training.
+7. **`models.py`** — model directory contents and compatibility checks.
 
 ## Production call map
 
@@ -94,19 +108,7 @@ training/workflow.py
 models.py → models.joblib + metadata.json
 ```
 
-## Main orientation files
-
-Seven files give a compact view of the maintained architecture:
-
-1. **`cli.py`** — command-line inputs and saved-stage loading.
-2. **`dataset_builder/vision.py::run_full_annotation_stage`** — where saved vision outputs become annotator inputs and where annotation outputs are persisted.
-3. **`run_video.py`** — complete one-video flow.
-4. **`hybrid.py`** — learned contact and sequence stages without the later outcome code.
-5. **`sequence/refine.py`** — sequence alternatives and the three chooser stages.
-6. **`training/workflow.py`** — fitting and held-out evaluation.
-7. **`models.py`** — model directory contents and compatibility checks.
-
-## Package shape
+## Package layout
 
 ```text
 src/annotator/
@@ -124,16 +126,17 @@ src/annotator/
 └── vlm_scene_benchmark/  separate VLM scene research
 ```
 
-`__init__.py` files are omitted below unless they contain meaningful behaviour.
+The module paths below are relative to `src/annotator`. The tables include
+`__init__.py` files only where they contain behaviour beyond package setup.
 
-## Core orchestration and shared data
+## Running annotation and shared data
 
 | Module | Role |
 | --- | --- |
 | `__main__.py` | Entry point for `python -m annotator`; calls `cli.main()`. |
 | `cli.py` | Loads one video's saved metadata, shuttle, pose and court files; checks shuttle guards; loads the model directory; calls the dataset-builder annotation stage. |
 | `run_video.py` | Coordinates the full one-video run: rough rallies and masks, fitted contact/sequence models, then outcome fields. |
-| `hybrid.py` | Bridge from `ContactEvidence` to contact scoring, sequence refinement and rally review scores. |
+| `hybrid.py` | Uses `ContactEvidence` to score contacts, repair sequences and score rallies for review. |
 | `models.py` | `AnnotatorModels`, `SideGeometry`, model saving/loading and compatibility checks. |
 | `config.py` | Settings for rough rallies, masks and other rule-based steps that feed the fitted models. Also contains a few older shared output paths. |
 | `fps_constants.py` | 30 FPS reference constants and scaling rules. |
@@ -142,7 +145,7 @@ src/annotator/
 | `shuttle_track.py` | Validation for the `(t, 3)` normalised shuttle track. |
 | `video_metadata.py` | Constant-frame-rate metadata and serialisation helpers. |
 | `artifact_io.py` | Deterministic compressed JSON/NumPy/text I/O used by annotator experiments and support records. |
-| `doubles_flag.py` | Converts per-frame player over-count into a span/video doubles flag. This is adjacent to the contact pipeline. |
+| `doubles_flag.py` | Uses frames with extra detected players to flag possible doubles footage for a span or video. This is separate from contact selection. |
 | `rally_segmentation.py` | Wrapper that keeps older rally-segmentation imports working while most implementation now lives under `rally/`. |
 
 ## `contacts/`: contact scoring
@@ -213,7 +216,9 @@ contacts.py → candidates.py → edits.py → features.py → choices.py → re
 | `outcomes/point_winner.py` | Server, landing and winner rules plus contact-half attribution helpers. |
 | `outcomes/video.py` | Builds final contact records, verdicts, landings, hit heights and related diagnostics. |
 
-These modules run after the contact/sequence choice. Changes confined here usually do not require the contact or sequence models to be refitted.
+These modules estimate outcomes from the final contacts. Changes confined to
+these outcome rules usually do not require the contact or sequence models to
+be refitted.
 
 ## `training/`: fitting and held-out evaluation
 
@@ -223,13 +228,17 @@ These modules run after the contact/sequence choice. Changes confined here usual
 | `training/workflow.py` | Reads manifests/labels, loads saved extraction data, runs grouped fitting and writes validation/test reports. |
 | `training/contact.py` | Selects labelled contact rows and fits the contact classifier. |
 | `training/sequences.py` | Builds sequence targets and fits grouped sequence models. |
-| `training/confidence.py` | Fits the rally review tree from out-of-group completed predictions. |
+| `training/confidence.py` | Fits the rally review tree using predictions made while each video's match group was excluded from the sequence fit. |
 
-The training package calls the same feature and option builders used at runtime. This is what keeps fitted inputs consistent with annotation inputs.
+Training and annotation use the same code to build features and possible
+sequence repairs, so the models learn from the same kinds of inputs they
+receive when annotating a video.
 
 ## `evaluation/`: fixed and historical scoring tools
 
-These modules support specific benchmark jobs. They are not called by a normal annotation run.
+These modules reproduce particular benchmarks and earlier experiments. New
+model fits normally use the validation and test reports from
+`training/workflow.py`. A normal annotation run does not call these tools.
 
 | Module | Role |
 | --- | --- |
@@ -243,18 +252,17 @@ These modules support specific benchmark jobs. They are not called by a normal a
 | `evaluation/shuttleset_features.py` | Feature prototypes and re-exports used by older ShuttleSet work. |
 | `evaluation/shuttleset22_features.py` | Older ShuttleSet22 prototype evaluator; its pinned court files predate the current court schema. |
 
-New model fits normally use the evaluation report produced by `training/workflow.py`. The modules above remain relevant when reproducing the specific benchmark they implement.
-
 ## `review/`: manual labelling and audit tools
 
 | Module | Role |
 | --- | --- |
 | `review/broadcast_editor.py` | OpenCV editor for broadcast-scene labels. |
-| `review/broadcast_labels.py` | Data format and save/load helpers for broadcast-scene truth. |
+| `review/broadcast_labels.py` | Data format and save/load helpers for human-labelled broadcast scenes. |
 | `review/rally_start_editor.py` | UI for reviewing rally-start events. |
-| `review/rally_starts.py` | Rally-start truth records and review-session state. |
+| `review/rally_starts.py` | Human-labelled rally starts and review-session state. |
 
-These tools create or inspect truth data; they do not run during annotation.
+These tools create or inspect human labels used to check predictions. They run
+separately from annotation.
 
 ## `validation_overlay/`: visual checks
 
@@ -273,7 +281,8 @@ The separate `validation_overlay/README.md` and `DOCS.md` cover that tool in det
 
 ## `vlm_scene_benchmark/`: separate scene-classification research
 
-This directory contains the Issue-38 VLM scene benchmark. It is not called by the contact/rally annotator.
+This directory contains the scene-classification experiments from Issue 38.
+They test vision-language models separately from the contact/rally annotator.
 
 | Module | Role |
 | --- | --- |
@@ -301,4 +310,5 @@ This directory contains the Issue-38 VLM scene benchmark. It is not called by th
 | `scratch/contact_det*` and related scratch directories | Historical development material and rejected/older variants. |
 | `tests/test_annotator_*.py` | Current behaviour and edge cases in executable form. |
 
-Historical experiment code can still answer questions about an earlier design or measurement. For current annotation behaviour, the modules above are the direct implementation path.
+The experiment reports link earlier designs and measurements to their code.
+The annotation modules listed here implement the current behaviour.

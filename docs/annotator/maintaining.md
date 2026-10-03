@@ -1,8 +1,9 @@
 # Maintainer guide
 
-This guide maps code changes to affected modules, refitting requirements and
-relevant tests. The [fixed heuristics](heuristics.md)
-and [tree model stack](tree_stack.md) explain the behaviour behind those decisions.
+This guide explains what else needs checking when annotation code changes:
+which models need refitting, which inputs are affected and which tests cover
+the change. The [fixed heuristics](heuristics.md) and [tree model stack](tree_stack.md)
+explain how those parts of the annotator work.
 
 **Contents**
 
@@ -17,7 +18,7 @@ and [tree model stack](tree_stack.md) explain the behaviour behind those decisio
 
 ## Main data path
 
-Most changes to the annotation runtime pass through this sequence:
+During annotation, the saved input data passes through these parts of the code:
 
 ```text
 saved metadata / shuttle / pose / court
@@ -35,7 +36,8 @@ outcomes
 persisted annotation files
 ```
 
-Evaluation, review GUIs and VLM benchmark code sit beside this path and do not run during normal annotation.
+Evaluation tools, manual review interfaces and vision-language model (VLM)
+benchmarks run separately from this annotation process.
 
 ## Does a code change require a refit?
 
@@ -80,7 +82,10 @@ Relevant modules:
 
 The saved contact tree depends on the exact order in `CONTACT_FEATURE_NAMES`. `metadata.json` records that order, and loading fails if the current code disagrees.
 
-The score cutoff is different: it is stored in `ContactModelConfig` inside `models.joblib`. A different cutoff changes which initial contacts reach sequence refinement, so model comparisons are clearest when each cutoff has its own complete fitted model directory.
+The score cutoff is stored in `ContactModelConfig` inside `models.joblib`.
+Changing it changes the initial contacts that the sequence and review models
+learn from. A comparison between cutoffs therefore needs a complete fitted
+model directory for each value.
 
 `ContactModelConfig.reject_masked_without_player` is also stored in the bundle
 and defaults to off. When enabled, it removes unreliable shuttle candidates
@@ -131,14 +136,18 @@ Relevant modules:
 - `masks/replay.py` — replay/off-rally mask;
 - `masks/dead.py` — selects the configured mask method;
 - `masks/inpaint.py` — shuttle recurrence/guard grading;
-- `run_video.py::build_shuttle_hallucination_mask()` — converts guard codes to a boolean rejection mask;
+- `run_video.py::build_shuttle_hallucination_mask()` — makes a boolean mask of shuttle positions flagged as unreliable;
 - `dataset_builder/shuttle_evidence.py` — saved shuttle guard files and validation.
 
 The dataset-builder full annotation path currently requires `DeadMaskMode.REPLAY`.
 
 Changing which frames are excluded before feature construction changes the evidence seen by the fitted stages and generally requires a new fit.
 
-The shuttle guard mask is narrower than the frame exclusion mask. It feeds the slow-motion speed estimate and the outcome rules. It reaches contact candidates only through the optional rule above. [Fixed heuristics](heuristics.md#shuttle-guard-grades) has the detail.
+The shuttle guard mask marks unreliable shuttle positions. The frame exclusion
+mask removes whole frames from rally and contact evidence. The shuttle guard
+affects the slow-motion speed estimate and outcome rules, but only removes
+contact candidates when the optional no-player rule is enabled.
+[Fixed heuristics](heuristics.md#shuttle-guard-grades) explains each use.
 
 ## Outcome rules
 
@@ -160,7 +169,9 @@ Changes confined to outcome rules after the final contacts are fixed do not requ
 - the serialised object has the expected `AnnotatorModels` type;
 - side geometry agrees between `models.joblib` and `metadata.json`.
 
-These checks answer a narrow question: whether the model files are structurally compatible with the current runtime. They do not measure prediction quality on current vision inputs.
+Passing these checks means the annotation code can load the model files.
+Prediction quality on the current shuttle, pose and court data still needs
+evaluation.
 
 ## FPS scaling
 
@@ -181,7 +192,8 @@ The training path calls the same builders used during annotation:
 - `sequence/refine.py` builds the option pool;
 - `finish_sequences()` applies the same chooser and finalisation code used during annotation.
 
-This sharing matters because a separate training-only copy of these rules could silently drift away from runtime behaviour.
+Using the same functions keeps changes to features and repair rules consistent
+between training and annotation.
 
 ## Tests by subsystem
 
@@ -228,7 +240,8 @@ The wider `tests/test_annotator_*.py` set covers the older and more specialised 
 
 ## Debugging order for wrong contacts
 
-When a predicted contact looks wrong, the useful intermediate evidence is usually:
+For a missed or incorrect contact, these saved values and intermediate results
+show where it was excluded, selected or changed:
 
 1. `definitive_exclusion_mask` — whether the frame was removed before scoring;
 2. shuttle guard codes and `shuttle_quality.json.gz` — whether the shuttle position was graded unreliable and, when the model directory turns on the optional rule, whether the candidate was dropped for having no picked player;
@@ -237,7 +250,8 @@ When a predicted contact looks wrong, the useful intermediate evidence is usuall
 5. contact probability and cutoff — whether the tree selected it;
 6. sequence option scores — whether sequence refinement removed, added or replaced it.
 
-This sequence follows the same order as the data flow, so it separates “never considered” from “considered and rejected” without jumping straight to the final result.
+The early checks establish whether the frame reached the contact model at all.
+The later checks explain how contact scoring and sequence repair affected it.
 
 ## Files outside `src/annotator`
 

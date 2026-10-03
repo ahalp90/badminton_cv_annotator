@@ -21,7 +21,10 @@ list of hits produced by the contact model.
 
 ![Refit flow](figures/refit_flow.svg)
 
-The commands on this page are the stable, general way to fit and evaluate. The completed new-court comparison used its own runner; [Completed new-court refit](#completed-new-court-refit) at the end of this page records its result.
+The commands below fit and evaluate models from a manifest: a file listing the
+videos, labels and training splits. The [completed new-court comparison](#completed-new-court-refit)
+used a separate experiment script. Its results and selected model files are
+recorded at the end of this guide.
 
 ## When a new fit is needed
 
@@ -43,7 +46,7 @@ A change that only affects winner, landing or hit-height logic after final conta
 
 ## 1. Saved extraction run
 
-Training reads the same saved stages as annotation:
+Training reads the same saved metadata, shuttle, pose and court files as annotation:
 
 ```text
 <run-dir>/stages/
@@ -77,7 +80,7 @@ Rules for the file:
 
 - one row per human-labelled contact;
 - frame numbers use the zero-based source-video timeline;
-- `side` is `Top`, `Bot` or blank;
+- `side` is `Top` for the far court half, `Bot` for the near half, or blank;
 - `side` is blank when the player side is unknown;
 - rows for one rally are contiguous;
 - frames within a rally are strictly increasing;
@@ -140,7 +143,7 @@ PYTHONPATH=src uv run python -m annotator.training fit \
   --side-geometry video
 ```
 
-Or use each scene's net position for those side assignments (`scene` geometry):
+With `scene` geometry, each camera scene's net position defines those halves:
 
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
@@ -195,12 +198,13 @@ The final sequence models are fitted after the out-of-group training examples ha
 
 The grouped sequence fits reuse those contact scores. They do not repeat the
 contact-tree fitting inside each sequence-model training subset. This matches
-the original procedure. Judge overall quality on the separate validation and
-test groups, which stay outside every fit.
+the original procedure. The separate validation and test groups stay outside
+every fit and provide the overall quality measurements.
 
 ### Rally review tree
 
-The review tree learns from rally predictions made while each video's group
+The review tree assigns a score for ordering rallies during human review.
+It learns from rally predictions made while each video's group
 was held out of the sequence fit. Each predicted clip gets one of three labels:
 
 - `1` — correct;
@@ -228,8 +232,8 @@ All nearby negatives are kept. Distant negative sampling uses a fixed seed and f
 
 The order of the selected rows matters too. The same examples and seed fitted in a different row order give a different tree. The `fit` command samples and fits in manifest order. From Python, `fit_contact_model(..., fit_video_order=[...])` reorders the selected rows by video for the fit while sampling stays in the supplied order. Leaving it out keeps the default behaviour.
 
-For a new comparison, keep the input files, library version, settings and video
-order together with the results. The new-court experiment's runner explicitly
+A reproducible comparison records the input files, library version, settings
+and video order alongside the results. The new-court experiment's runner explicitly
 sets a fit order; the general command on this page follows the manifest.
 
 ## 6. Validation
@@ -358,7 +362,10 @@ A comparison is easier to interpret when one variable changes at a time. For exa
 
 Both settings affect which contacts reach sequence refinement. A different value therefore also changes the sequence-model inputs and the examples used to fit the review tree. The contact tree's own training rows do not change.
 
-A comparison sets the value through `TrainingSettings.contact_prediction` and fits the full model directory again. The later models then train on the same contact stream used during annotation. The `fit` command has no flag for either setting:
+Both settings are chosen through `TrainingSettings.contact_prediction` in
+Python, followed by a full model fit. This lets the later models learn from
+the contact stream that annotation will use. The `fit` command has no flag for
+either setting. This example enables the optional rule for guarded candidates:
 
 ```python
 from pathlib import Path
@@ -411,8 +418,8 @@ shows the gains, losses and remaining failures.
 ### Which model files to use
 
 The selected final directory is `base/bundle`. It loads with Python 3.12.13 and
-scikit-learn 1.9.1; keep `models.joblib` and `metadata.json` together and use the
-same scikit-learn version. The files are included in
+scikit-learn 1.9.1. Loading requires both `models.joblib` and `metadata.json`
+and the same scikit-learn version used for fitting. The files are included in
 [`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
 `models/annotator` in the example commands is an alternative installation location.
 

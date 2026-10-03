@@ -1,7 +1,8 @@
 # Run the auto-annotator
 
 The auto-annotator turns saved shuttle, pose and court data into rally spans,
-contact frames, player-side assignments and outcome estimates. The standalone
+contact frames (racket hits), player-side assignments and outcome estimates.
+Rally spans are the start and end frames of the predicted clips. The standalone
 command and dataset builder use the same annotation code. This guide covers
 running it; [How the annotator works](how_it_works.md) explains the pipeline.
 
@@ -14,8 +15,10 @@ The selected model is **base, recorded on 3 October 2026**, fitted with
 **scikit-learn 1.9.1**.
 Its checked `models.joblib` and `metadata.json` files are included in
 [`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
-The commands below expect both files in `models/annotator`; `--models` also
-accepts the repository directory directly. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
+The included model can be used directly with
+`--models data/annotator/sset_and_sset22_trained_20261003T041112Z`.
+The commands below use `models/annotator`, which requires a local copy of those
+two files. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
 explains why base was selected and which errors remain.
 
 **Contents**
@@ -28,7 +31,7 @@ explains why base was selected and which errors remain.
 
 ## 1. Environment
 
-From the repository root, the locked project environment is installed with:
+From the repository root, this installs the dependencies pinned in `uv.lock`:
 
 ```bash
 uv sync
@@ -45,11 +48,12 @@ models.joblib
 metadata.json
 ```
 
-The two files form one model bundle. The loader checks their schema, contact
-feature order and exact scikit-learn version before annotation starts.
+The two files form one model bundle. Before annotation starts, the loader
+checks the model format (its schema), the order of the contact measurements
+(its feature order) and the exact scikit-learn version used for fitting.
 
-The model needs training inputs consistent with the run's shuttle, pose and
-court data. A substantial detector change can require a new fit
+The model needs shuttle, pose and court data consistent with the data used
+during training. A substantial detector change can require a new fit
 and evaluation. The [refit guide](retuning.md) explains how to create that model.
 
 ## 2. Saved input layout
@@ -120,7 +124,7 @@ shuttle_quality.json.gz
 
 ### Main result fields
 
-- Rally spans use half-open bounds: `[start, end)`.
+- Rally spans use half-open bounds: `[start, end)` includes the start frame and excludes the end frame.
 - `filtered_by_rally` lists the final contact frames belonging to each rally.
 - `contact_events` contains the full final contact stream, including contacts that fall outside all rally spans.
 - `Top` and `Bot` refer to physical halves of the visible court: `Top` is the far half and `Bot` is the near half. They are not player names; the labels stay with the court halves when players change ends.
@@ -156,7 +160,7 @@ results must be regenerated with the new model.
 
 ## 6. Settings that can change the result
 
-The CLI selects the saved extraction, video, model and output directory.
+The command-line arguments select the saved extraction, video, model and output directory.
 Settings that affect predictions are stored with the model: changing them
 usually requires a new fit. The table below identifies those settings for
 readers preparing a different model; the [maintainer guide](maintaining.md)
@@ -180,10 +184,12 @@ Separate model and output directories make side-by-side comparisons easy to trac
 The `--models` directory is missing `models.joblib`, `metadata.json`, or both.
 
 **“models were fitted with scikit-learn X; this runtime has Y”**  
-The loader requires an exact scikit-learn match. The model directory needs to be fitted with the current runtime.
+The loader requires the same scikit-learn version used for fitting. Running
+annotation with a different version requires a model fitted with that version.
 
 **“persisted shuttle guard codes differ from the final track”**  
-The shuttle files do not belong to one consistent extraction state. The shuttle stage needs to be regenerated as a set.
+The saved shuttle track and guard codes disagree. The shuttle stage needs to
+be regenerated as a set.
 
 **Court evidence has no usable operational inputs**  
 The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.2` court inputs.

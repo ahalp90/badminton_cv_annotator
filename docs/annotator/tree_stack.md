@@ -3,7 +3,8 @@
 The annotator's eight fitted classifiers work in sequence. One scores possible
 hits, others judge repairs to the contact sequence, and the final classifier
 ranks completed rallies for review. Earlier scores help the later classifiers
-make those decisions. All eight use histogram gradient boosting.
+make those decisions. All eight use histogram gradient boosting, which combines
+small decision trees into a classifier.
 
 **Contents**
 
@@ -27,7 +28,7 @@ make those decisions. All eight use histogram gradient boosting.
 | Whole-sequence chooser | Is a keep/serve-repair/delete option a complete correct sequence? | before/after sequence summaries, edit type, serve scores, side agreement, deleted/candidate physical evidence |
 | Later-contact chooser | Is an option with or without one later insertion better? | whole-sequence inputs plus insertion context |
 | Scored-insertion chooser | Same sequence choice, now with the insertion tree's judgement available | later-contact inputs plus insertion-model score |
-| Rally-confidence tree | How much does the finished rally resemble correct held-group predictions? | chooser margins, discarded candidates, gap evidence, side agreement and sequence summaries |
+| Rally-confidence tree | How much does the finished rally resemble correctly assembled training examples? | chooser margins, discarded candidates, gap evidence, side agreement and sequence summaries |
 
 All eight models are `HistGradientBoostingClassifier` instances.
 
@@ -71,7 +72,8 @@ Two trees score each possible add-or-replace serve edit.
 
 ### Serve-summary tree
 
-The first tree sees compact facts such as:
+The serve-summary tree compares the earlier candidate with the first selected
+contact using:
 
 - the earlier candidate's contact score;
 - the current first contact's score;
@@ -79,8 +81,8 @@ The first tree sees compact facts such as:
 - how close the candidate is to the rough rally start;
 - rally duration;
 - whether the earlier candidate was already in the initial contact stream;
-- whether each candidate has a known `Top`/`Bot` guess;
-- whether the two raw side guesses agree;
+- whether each candidate has a known court-half guess: `Top` for the far half or `Bot` for the near half;
+- whether the two initial court-half guesses agree;
 - whether the edit adds the earlier contact or replaces the current first contact.
 
 ### Serve-physical tree
@@ -93,10 +95,11 @@ The two scores are then attached to the sequence options as extra evidence for t
 
 A rough rally can also have a plausible contact missing later in the sequence. Up to six later candidates are shortlisted from the contact tree's scored rows.
 
-The insertion tree looks at one candidate in the context of the current sequence. Its inputs include:
+The insertion tree scores one possible missed hit alongside the contacts
+already selected. Its inputs include:
 
 - the candidate's contact score;
-- time to the selected contact on the left and right;
+- time to the selected contact before and after it;
 - whether its raw side agrees with neighbouring contacts;
 - the current `Top`/`Bot` vote balance;
 - the candidate's 85 physical contact features.
@@ -105,7 +108,10 @@ Its training target asks whether adding that candidate creates a new match to a 
 
 ## 4. Whole-sequence chooser
 
-The first main chooser compares options that do not contain a later insertion.
+The first chooser compares possible repairs to the rally's contact sequence.
+Each version of the sequence is called an **option**; the full set is the
+**option pool**. This first chooser considers only options without a later
+insertion.
 
 Possible edits include keeping the sequence, repairing the serve, deleting one contact, or combining an allowed serve repair with one deletion.
 
@@ -130,7 +136,9 @@ The unchanged sequence remains the reference. An edit must score strictly higher
 
 The second chooser sees the same option pool, now including options with one later candidate inserted.
 
-It receives the whole-sequence evidence plus insertion context such as left/right timing gaps, raw side relationships and the candidate's physical features.
+It receives the whole-sequence features plus the time gaps around the proposed
+insertion, its initial court-half guess relative to neighbouring contacts, and
+its physical contact features.
 
 A new choice replaces the previous stage's choice only when its score is at least `0.05` higher. This avoids changing the sequence for a marginal improvement.
 
@@ -158,9 +166,11 @@ These operations are not extra trees.
 
 ## 8. Rally-confidence tree
 
-The confidence tree does not change the annotation. It produces the review-ordering score returned as `rally_confidence`.
+The confidence tree produces `rally_confidence`, a score for ordering rallies
+during human review. It leaves the annotation unchanged.
 
-Its evidence is deliberately broader than the selected sequence itself. It includes:
+It considers both the chosen sequence and nearby candidates that were left
+out, since an unused candidate may be a missed hit. Its inputs include:
 
 - the selected sequence score;
 - the margin over the next-best output;
@@ -178,11 +188,19 @@ Its evidence is deliberately broader than the selected sequence itself. It inclu
 
 During fitting, the target is whether the whole predicted rally section is correct. Unjudgeable sections are excluded from the fit.
 
-The returned value is useful for ranking review work. It is not an independent contact probability and is not assumed to remain calibrated after a dataset shift.
+The score ranks whole rallies for review. It does not give the probability
+that an individual contact is correct. Interpreting it as a probability of
+whole-rally correctness needs a calibration check, including when the type
+of footage changes.
 
 ## How training avoids self-scoring
 
-Several later trees consume scores produced by earlier trees. Their training procedure prevents a model from learning from upstream predictions fitted on the same video's group.
+The later trees learn from earlier models' predictions, including their
+mistakes. To make those predictions realistic, training leaves out related
+videos together when producing their scores. These sets of related videos
+are called **groups**; footage from the same match belongs to one group.
+Keeping a group out while generating its training scores is called
+**cross-fitting**.
 
 For training videos:
 
@@ -190,7 +208,8 @@ For training videos:
 2. serve and insertion scores used to train a chooser come from upstream models that exclude the chooser row's group;
 3. rally-confidence rows come from complete sequence predictions made by models that held that group out.
 
-The final saved models are fitted on all training groups after those cross-fitted training rows have been built.
+After those training rows have been built, the final saved models are fitted
+on all training groups.
 
 The [refit guide](retuning.md) describes the split and grouping mechanics in more detail.
 
