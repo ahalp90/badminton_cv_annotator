@@ -242,8 +242,15 @@ All three finish courtless in the patched-sharing trial. That implementation
 admits only scenes with an existing court to sharing. Under score-first selection,
 the ShuttleSet 36 scene joins 76 other main-view scenes and receives a shared
 court. The other two remain single-scene groups even under the permissive methods.
-Grouping uses the sampled image, not the complete scene. A further patch to admit
-eligible courtless receivers is in progress; the results above predate it.
+Grouping uses the sampled image, not the complete scene. The additional patch now
+allows matching courtless scenes to receive an established court after the view and
+geometry checks pass. Receivers cannot change the group's fit or court selection.
+The trial results above predate this change. The two transition scenes remain
+unresolved. Replaying the complete ShuttleSet 36 video recovered three courtless
+scenes, including scene 383. Its recovered court has 3.36 px mean corner error
+(4.47 px at the worst corner) against the supplied homography at 720p. The replay
+preserved the original donor groups, saved court scores and pooled fits. It took
+15½ minutes; this is sharing replay time, not a new end-to-end detection run.
 
 The [nine full rally clips](../rally_review/clips/) show three rallies under
 all three methods. They were picked by scene-cut count, not by error. The

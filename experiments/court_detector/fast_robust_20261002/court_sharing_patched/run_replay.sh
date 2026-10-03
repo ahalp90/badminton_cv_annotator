@@ -2,6 +2,7 @@
 set -euo pipefail
 
 readonly EXPECTED_VIDEOS=86
+readonly WORKERS=27
 readonly PYTHON=/home/ahalperi/.venvs/court_det/bin/python
 readonly ORIGINAL_ROOT=/scratch/ahalperi/court_det_fix/release_courts_fast_robust
 worker_exitfile=
@@ -102,7 +103,7 @@ run_one() {
     worker_exitfile=$(exit_path "$video_id")
     input_file=$ORIGINAL_ROOT/videos/$video_id.json.gz
     slot=${COURT_SLOT:-0}
-    if [[ ! $slot =~ ^[0-9]+$ ]] || ((slot > 20)); then
+    if [[ ! $slot =~ ^[0-9]+$ ]] || ((slot >= WORKERS)); then
         die "invalid CPU slot: $slot"
     fi
 
@@ -200,7 +201,7 @@ show_status() {
         logfile=$(log_path "$id")
         progress=
         if [[ -f "$logfile" ]]; then
-            progress=$(awk 'tolower($0) ~ /(prepared|pool|rebuilt court scene|sharing courts)/ { line = $0 } END { print line }' "$logfile")
+            progress=$(awk 'tolower($0) ~ /(prepared|pool|rebuilt court scene|rebuilt receiver|sharing courts)/ { line = $0 } END { print line }' "$logfile")
         fi
         if [[ -n $progress ]]; then
             printf '  %s: %s\n' "$id" "${progress:0:240}"
@@ -252,7 +253,7 @@ run_all() {
     trap 'printf "%s\\n" "$?" > "$run_root/run.exit"; rm -f -- "$ids_file"' EXIT
 
     set +e
-    xargs -r -P 21 --process-slot-var=COURT_SLOT -I{} \
+    xargs -r -P "$WORKERS" --process-slot-var=COURT_SLOT -I{} \
         bash "$script_path" "$run_root" run-one '{}' < "$ids_file"
     local queue_status=$?
     set -e
