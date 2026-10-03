@@ -11,7 +11,7 @@ runtime, and the [rally clips and PNG folders](rally_review/README.md) for revie
 
 Run the same eight videos twice. Stage A changes final selection and refit
 acceptance. Stage B also removes player-based rejection during search. Both
-stages include the sharing fix. Each stage runs from its own committed checkout
+stages include the court-sharing patch. Each stage runs from its own committed checkout
 and writes to its own directory. Original extracts remain untouched.
 
 The trial picks the highest combined court score. On an exact tie, it prefers

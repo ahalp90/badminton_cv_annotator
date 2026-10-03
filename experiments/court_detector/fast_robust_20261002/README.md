@@ -10,7 +10,7 @@ for player positions or distances in court metres.
 This evaluation covers the completed Carmack `fast-robust` extracts at detector
 commit `17a50b57`. These are descriptive results on the project's release corpus,
 not a test on unseen venues. The main results below use the original predictions;
-the later sharing-fix pilot is reported separately.
+the later court-sharing-patched pilot is reported separately.
 
 The [per-rally view analysis](rally_views/README.md) checks the court from the
 view group occupying most of each rally and describes prediction coverage
@@ -125,7 +125,7 @@ already oversized, as its [overlay](view_checks/sset30_scene0094.png) shows.
 An [eight-video trial](player_tiebreak_trial/README.md) compares score-first
 selection with player support used only for exact ties. The first stage keeps
 the existing search; the second also removes player-based search rejection.
-Both include the sharing fix. Trial results are separate from the accuracy
+Both include the court-sharing patch. Trial results are separate from the accuracy
 table above. The [selection comparison](player_tiebreak_trial/selection_results/README.md)
 finds identical representative main-view courts, but the user judged all
 16 court-bearing review images wrong and all four abstentions reasonable.
@@ -184,4 +184,4 @@ The [evaluation script](../../../scripts/evaluate_courts_fast_robust.py) provide
 input locations and commands. Analysis, full-image rendering, targeted lint and
 whole-project type checking completed successfully for the evaluation script.
 The measurements and galleries describe the original extracts; they do not
-measure the subsequent sharing fix.
+measure the subsequent court-sharing patch.

@@ -37,7 +37,7 @@ HOST_VIDEOS = {
 }
 # method -> (stage, output directory) inside each host's trial results
 METHODS = {
-    "sharing_fix": ("stage_a", "videos"),
+    "court_sharing_patched": ("stage_a", "videos"),
     "score_first": ("stage_a", "trial_videos"),
     "search_without_player_rejection": ("stage_b", "trial_videos"),
 }
@@ -96,7 +96,7 @@ def plan_clip(rally: pd.Series, video: pd.Series, outputs: dict[str, dict]) -> d
     clip_start = max(0, rally_start - round(LEAD_SECONDS * fps))
     clip_end = min(frame_count, rally_end + round(TAIL_SECONDS * fps))
     scenes = []
-    for scene_index, scene in enumerate(outputs["sharing_fix"]["scenes"]):
+    for scene_index, scene in enumerate(outputs["court_sharing_patched"]["scenes"]):
         overlap_start, overlap_end = max(scene["start_frame"], clip_start), min(scene["end_frame"], clip_end)
         if overlap_start >= overlap_end:
             continue
@@ -177,7 +177,7 @@ def plan(output_path: Path, reusable_frames: Path) -> None:
     outputs = {video_id: read_outputs(video_id) for video_id in trial_videos}
     for video_id, video_outputs in outputs.items():
         original = evaluator.read_json_gz(Path("local_scratch/court_evaluation/videos") / f"{video_id}.json.gz")
-        if scene_partition(video_outputs["sharing_fix"]) != scene_partition(original):
+        if scene_partition(video_outputs["court_sharing_patched"]) != scene_partition(original):
             raise ValueError(f"{video_id}: trial scenes differ from the original run's scenes")
 
     ranked = rank_rallies(per_scene, per_rally[per_rally["video_id"].isin(trial_videos)])

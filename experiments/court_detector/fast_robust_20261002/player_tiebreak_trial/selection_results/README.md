@@ -6,16 +6,16 @@ individual courts by score repairs some fits and damages one good fit that
 sharing then rescues. On 3 October, the user judged all 16 court-bearing review
 images incorrect: eight from each choice. The four missing-court examples were
 reasonable abstentions. This supersedes the earlier recommendation to prefer
-the sharing fix across the extracts. The broader-search comparison is reported
+the court-sharing patch across the extracts. The broader-search comparison is reported
 separately when complete.
 
 ## What was compared
 
-The **sharing fix** chooses the shared court first. A failed transfer affects
+The **court-sharing patch** chooses the shared court first. A failed transfer affects
 only the receiving scene, which keeps its own court. Individual court selection
 still uses the original player-position checks.
 
-**Score-first selection** uses the same search and sharing fix. It chooses the
+**Score-first selection** uses the same search and court-sharing patch. It chooses the
 highest-scoring candidate and uses player positions only to break exact ties.
 It also removes the player-position veto after refining the chosen court.
 
@@ -29,7 +29,7 @@ Errors below use the supplied default-camera court annotation at 1280 × 720.
 The representative error averages the four corner distances. The scene checks
 require **every corner** to meet the stated tolerance.
 
-For each video, select the sharing-fix run's view group containing the most
+For each video, select the court-sharing-patched run's view group containing the most
 labelled rally frames. Compare the same 726 scenes from those eight groups
 across both choices. Of these scenes, 610 overlap labelled rallies.
 The groups identify likely camera views; they are detector outputs, not
@@ -38,7 +38,7 @@ annotation.
 
 ## Results
 
-| Measure | Sharing fix | Sharing fix plus score-first selection |
+| Measure | Patched court sharing | Patched court sharing plus score-first selection |
 | --- | ---: | ---: |
 | Representative court within 6 px mean corner error | 8/8 videos | 8/8 videos |
 | Individual main-view court within 20 px at every corner, before sharing | 706/726 scenes | 721/726 scenes |
@@ -82,8 +82,8 @@ The [20 review PNGs](review_frames/) contain:
 
 - **01–08, `court_from_score_first_selection`:** newly detected courts, with
   the score-first result outlined
-- **09–16, `court_from_sharing_fix_dropped_by_score_first`:** courts the
-  sharing-fix run retained, with that result outlined
+- **09–16, `court_from_court_sharing_patched_dropped_by_score_first`:** courts the
+  court-sharing-patched run retained, with that result outlined
 - **17–20, `no_court_in_either_run_during_rally`:** missed courts, with no overlay;
   each sampled frame is inside a labelled rally
 
@@ -124,12 +124,12 @@ court metres. No corpus repair has been launched from this comparison.
 [Per-video results](per_video.csv.gz), [paired scenes](paired_scenes.csv.gz) and
 [review sample records](review_samples.csv.gz) retain the numerical evidence.
 The per-video table includes the earlier original extraction for context; it
-is a separate run, not a paired control for selection. Only the sharing-fix and
+is a separate run, not a paired control for selection. Only the court-sharing-patched and
 score-first outputs use the same search records.
 
 Raw inputs are under
 `local_scratch/court_evaluation/player_tiebreak_results/{carmack,bourbaki}/stage_a/`.
-`videos/` contains the sharing-fix results, `trial_videos/` contains score-first
+`videos/` contains the court-sharing-patched results, `trial_videos/` contains score-first
 results, and `choices/` contains the individual fits and candidate measurements.
 The analysis reuses `analyse_video`, `video_row` and `score_courts` from
 `scripts/evaluate_courts_fast_robust.py`. The saved reproduction script is

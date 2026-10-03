@@ -1,30 +1,30 @@
 # Three court methods tie on the main view; broader search adds unjudged courts
 
-**On the eight trial videos, the sharing fix, score-first selection and
+**On the eight trial videos, the court-sharing patch, score-first selection and
 broader search give the same final main-view result.** All three put all
 726 fixed main-view scenes within 10 px at every corner. Their representative
 courts differ by at most 0.04 px of mean error.
 
 Before sharing, both score-first methods bring about 2 percentage points more
 main-view fits within 20 px, but sharing already fixes those scenes. Broader
-search gives a court to 13 rallies where the sharing fix has none. Only two of
+search gives a court to 13 rallies where the court-sharing patch has none. Only two of
 those agree with the reference; the other 11 are 284–1,220 px away and have not
 been judged. Its paired jobs took 48.5% longer in total. The user prefers the
-simple sharing fix on the evidence reviewed so far.
+simple court-sharing patch on the evidence reviewed so far.
 
 ## Question and sample
 
 How much do score-first selection and broader search change court agreement
-and coverage, compared with the sharing fix and with each other, on the same
+and coverage, compared with the court-sharing patch and with each other, on the same
 videos?
 
 | Method | Search and selection |
 | --- | --- |
-| Sharing fix | Original search and player checks; failed sharing affects only the receiving scene |
+| Patched court sharing | Original search and player checks; failed sharing affects only the receiving scene |
 | Score-first selection | Original search; final choice uses court score, with player support only for exact ties |
 | Broader search | Search without player rejection, plus score-first selection; geometry, camera and search limits remain |
 
-All three include the sharing fix. The tables also keep the original extracts
+All three include the court-sharing patch. The tables also keep the original extracts
 and an auxiliary `search_player_veto` arm for context; neither is one of the
 three methods.
 
@@ -61,7 +61,7 @@ The measures:
   of its main view group: the court closest to the group's other courts. Error
   is its mean four-corner distance from the supplied default-camera homography
   at 1280 × 720. Polygon overlap (IoU) is descriptive only.
-- **Fixed main view.** The same 726 scenes for every method: the sharing-fix
+- **Fixed main view.** The same 726 scenes for every method: the court-sharing-patched
   run's view group with the most labelled rally frames in each video. Of these,
   610 overlap rallies. Each video contributes the percentage of its scenes
   whose **worst corner** is within 10 px after sharing, and within 20 px for the
@@ -79,7 +79,7 @@ The measures:
 
 ## Results by method
 
-| Per-video mean [95% reweighting interval] | Sharing fix | Score-first selection | Broader search |
+| Per-video mean [95% reweighting interval] | Patched court sharing | Score-first selection | Broader search |
 | --- | ---: | ---: | ---: |
 | Representative error, px | 2.84 [2.00, 3.87] | 2.84 [2.00, 3.87] | 2.84 [2.01, 3.88] |
 | Representative error median / p90, px | 2.60 / 4.15 | 2.60 / 4.15 | 2.60 / 4.15 |
@@ -104,7 +104,7 @@ Each cell gives the mean within-video difference, its 95% reweighting interval,
 then how many videos went higher, lower or stayed equal. Percentages differ in
 percentage points (pp).
 
-| Measure | Score-first − sharing fix | Broader − sharing fix | Broader − score-first |
+| Measure | Score-first − court-sharing patch | Broader − court-sharing patch | Broader − score-first |
 | --- | ---: | ---: | ---: |
 | Representative error, px | 0 [0, 0]; 0/0/8 | +0.005 [0.000, 0.016]; 2/0/6 | +0.005 [0.000, 0.016]; 2/0/6 |
 | Main view within 10 px after sharing, pp | 0 [0, 0]; 0/0/8 | 0 [0, 0]; 0/0/8 | 0 [0, 0]; 0/0/8 |
@@ -113,7 +113,7 @@ percentage points (pp).
 | Rally view has a court, pp | +0.47 [−0.14, 1.08]; 3/1/4 | +1.64 [0.89, 2.59]; 7/0/1 | +1.17 [0.25, 2.34]; 4/0/4 |
 | Rally view within 10 px, pp | +0.20 [0.00, 0.61]; 1/0/7 | +0.32 [0.00, 0.75]; 2/0/6 | +0.11 [0.00, 0.34]; 1/0/7 |
 
-**The representative courts are effectively identical.** The sharing fix and
+**The representative courts are effectively identical.** The court-sharing patch and
 score-first selection choose identical corners in all eight videos. Broader
 search raises the mean error by 0.0001 px in ShuttleSet22 44 and 0.04 px in
 ShuttleSet22 27. Those count as "higher" in the table, but they are far too
@@ -122,7 +122,7 @@ small to see.
 **Score-first repairs individual fits that sharing already fixes.** Before
 sharing, score-first selection repairs 16 main-view fits at 20 px and damages
 one. Broader search repairs 18 and damages the same one, compared with the
-sharing fix. Compared with score-first selection, it repairs two and damages
+court-sharing patch. Compared with score-first selection, it repairs two and damages
 none; at 10 px it repairs three and damages one. After sharing, all three
 methods have all 726 scenes within 10 px, so none of these changes moves the
 final count. The before-sharing gain is real for individual fits, but the
@@ -135,10 +135,12 @@ behind a successful shared fit. The [selection report](../selection_results/READ
 records the case.
 
 **Broader search adds rally courts but little agreement.** It gives a court
-to 13 rallies where the sharing fix has none, and drops one. Two of the 13
+to 13 rallies where the court-sharing patch has none, and drops one. Two of the 13
 agree with the reference within 10 px; the other 11 sit 284–1,220 px away.
-Against the sharing fix, score-first selection adds three and drops the same
-one: ShuttleSet22 44, set 3, rally 5, where the sharing fix's court is 468.5 px
+[Matched PNGs of all 13 cases](../rally_review/added_rally_courts/) show the
+same frame under each method.
+Against the court-sharing patch, score-first selection adds three and drops the same
+one: ShuttleSet22 44, set 3, rally 5, where the court-sharing patch's court is 468.5 px
 from the reference.
 
 In every method, every rally court outside 10 px, and every rally without a
@@ -153,11 +155,11 @@ in 625, 626 and 627 of 668 rallies. The lower bounds sit at zero because only
 one or two videos change, and many resamples leave those videos out.
 
 **Coverage rises, but coverage is not accuracy.** Broader search raises
-rally-time coverage above the sharing fix in every video. A frame counts as
+rally-time coverage above the court-sharing patch in every video. A frame counts as
 covered when its scene has any court, right or wrong.
 
 Each dataset has four videos, so these are descriptive means only. Under the
-sharing fix, ShuttleSet videos have higher representative error than
+court-sharing patch, ShuttleSet videos have higher representative error than
 ShuttleSet22 (3.59 px against 2.08 px) and lower rally-time coverage (95.5%
 against 98.9%). Broader search's extra rally courts come mostly from
 ShuttleSet (329 → 337 of 348 rallies) rather than ShuttleSet22 (309 → 313 of
@@ -165,7 +167,7 @@ ShuttleSet (329 → 337 of 348 rallies) rather than ShuttleSet22 (309 → 313 of
 
 ## Per-video results
 
-Each cell lists sharing fix / score-first selection / broader search.
+Each cell lists court-sharing patch / score-first selection / broader search.
 
 | Video (rallies) | Representative error, px | Main-view own fits within 20 px | Rally-time coverage, % | Rallies with a court | Rally courts within 10 px |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -183,7 +185,7 @@ courts there, and none agrees with the reference.
 
 ## Courts outside the main view need visual judgement
 
-Scenes with any court rise from 1,263 (sharing fix) to 1,317 (score-first
+Scenes with any court rise from 1,263 (court-sharing patch) to 1,317 (score-first
 selection) to 1,900 (broader search) of 4,615. Compared with score-first
 selection, broader search adds 669 scenes with courts and removes 86. Of the
 additions, 620 are outside labelled rallies and 49 overlap rallies outside the
@@ -204,9 +206,16 @@ The user's visual judgements so far:
 - **A rejected court reused in rallies.** In ShuttleSet22 43, both score-first
   methods share the court from scene 483 (review image 02, judged wrong) into
   scenes 89 and 176, covering 171 labelled rally frames. The
-  [PNGs of the receiving frames](../rally_review/shared_court_check/) are
-  available but have not been judged.
-- **First scene-still sample.** The sharing fix and score-first selection were
+  [receiving frames](../rally_review/shared_court_check/) have now been reviewed.
+  Both score-first methods fit the lines well but orient the court vertically
+  within the middle band of the horizontally visible court. The court-sharing patch
+  also gives a wrong court: its orientation and alignment are nearly right,
+  but it is inset by one vertical segment and one horizontal segment.
+  The user suspects face-on seated judges were mistaken for standing people,
+  including line judges whose towers make them appear unusually tall. That
+  explanation has not been verified. Improving those person detections is
+  outside the remaining project scope.
+- **First scene-still sample.** The court-sharing patch and score-first selection were
   equivalent and good. Broader search produced one malformed court at frame
   144569 in ShuttleSet22 43. Less than a quarter of the court was visible; many
   lines aligned, but the court's extent and orientation were wrong. The user
@@ -220,7 +229,7 @@ all three methods. They were picked by scene-cut count, not by error. The
 
 ## Runtime
 
-Stage A ran the sharing fix and score-first selection in one job per video,
+Stage A ran the court-sharing patch and score-first selection in one job per video,
 sharing the search work. Stage B did the same for broader search and the
 auxiliary player-veto arm. These timings compare paired stage jobs, not three
 separately timed methods.
@@ -236,7 +245,7 @@ video equally. It comes out higher because the ShuttleSet22 jobs, mostly the
 shorter ones, had larger ratios (1.53–1.65, against 1.42–1.46 for ShuttleSet).
 Videos ran concurrently, so the summed hours are not waiting time.
 
-The logs do not separate the sharing fix from score-first selection. In stage
+The logs do not separate the court-sharing patch from score-first selection. In stage
 A, the extra score-first choice and refit step took 1.4–5.1 min per video. That
 timer excludes sharing and reuses the baseline refit where possible, so it is
 not a standalone speed comparison.
@@ -250,7 +259,7 @@ image review found all 16 selected courts wrong. Broader search costs about
 half as much again in compute and adds unjudged courts. In the first
 scene-still sample, it also produced the malformed court described above.
 
-The user prefers the simple sharing fix on the evidence reviewed so far. That
+The user prefers the simple court-sharing patch on the evidence reviewed so far. That
 is a practical choice from small samples, not a ranking across all views. No
 full-corpus repair has been launched. The project needs reliable courts to
 measure player positions and distances in court metres.

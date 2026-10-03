@@ -1,11 +1,11 @@
-"""Compare the search without player rejection with the sharing fix and score-first selection.
+"""Compare the search without player rejection with the court-sharing patch and score-first selection.
 
 Reads the paired trial outputs retrieved from both hosts, checks that every run
 finished and that the arms describe the same scenes, and writes compressed tables
 beside this script.
 
 Errors use the supplied default-camera court annotation at 1280x720. They are
-counted only on the fixed main-view population: the scenes in the sharing-fix
+counted only on the fixed main-view population: the scenes in the court-sharing-patched
 run's view group with the most labelled rally frames. Other views have no court
 annotation, so those scenes are described by detections and by how far a court's
 corners move between arms. A corner move is a change, not an error.
@@ -52,24 +52,28 @@ STAGE_COMMITS = {
     "stage_b": "cd776fb24f24b770d577918c51afc6788f09e8d0",
 }
 ORIGINAL = "original"
-SHARING_FIX = "sharing_fix"
+COURT_SHARING_PATCHED = "court_sharing_patched"
 SCORE_FIRST = "score_first"
 SEARCH_SCORE_FIRST = "search_score_first"
 # Changed search with the original final player veto. Auxiliary: not a control for anything.
 SEARCH_PLAYER_VETO = "search_player_veto"
 # arm -> (stage, output directory, that arm's key in the stage's choice records)
 TRIAL_ARMS = {
-    SHARING_FIX: ("stage_a", "videos", "baseline"),
+    COURT_SHARING_PATCHED: ("stage_a", "videos", "baseline"),
     SCORE_FIRST: ("stage_a", "trial_videos", "trial"),
     SEARCH_SCORE_FIRST: ("stage_b", "trial_videos", "trial"),
     SEARCH_PLAYER_VETO: ("stage_b", "videos", "baseline"),
 }
 ARMS = (ORIGINAL, *TRIAL_ARMS)
 # The three methods compared statistically, and their paired contrasts as (before, after).
-METHODS = (SHARING_FIX, SCORE_FIRST, SEARCH_SCORE_FIRST)
-METHOD_PAIRS = ((SHARING_FIX, SCORE_FIRST), (SHARING_FIX, SEARCH_SCORE_FIRST), (SCORE_FIRST, SEARCH_SCORE_FIRST))
+METHODS = (COURT_SHARING_PATCHED, SCORE_FIRST, SEARCH_SCORE_FIRST)
+METHOD_PAIRS = (
+    (COURT_SHARING_PATCHED, SCORE_FIRST),
+    (COURT_SHARING_PATCHED, SEARCH_SCORE_FIRST),
+    (SCORE_FIRST, SEARCH_SCORE_FIRST),
+)
 # (before, after) arms whose scenes are compared one to one.
-ARM_PAIRS = (*METHOD_PAIRS, (SHARING_FIX, SEARCH_PLAYER_VETO))
+ARM_PAIRS = (*METHOD_PAIRS, (COURT_SHARING_PATCHED, SEARCH_PLAYER_VETO))
 # The selection comparison's population, kept so the two comparisons describe the same scenes.
 FIXED_MAIN_SCENES = 726
 FIXED_MAIN_RALLY_SCENES = 610
@@ -204,7 +208,7 @@ def arm_tables(entry: dict, output: dict, official: np.ndarray,
 
 
 def group_rows(video_id: str, arm: str, output: dict, scenes: pd.DataFrame, fixed_main: np.ndarray,
-               sharing_fix_detected: np.ndarray) -> list[dict[str, object]]:
+               court_sharing_patched_detected: np.ndarray) -> list[dict[str, object]]:
     """One row per view group, counting what a scene outside rallies or a newly admitted court supplies.
 
     A group's reference is its first member; every later member is aligned to it. Marking
@@ -213,7 +217,7 @@ def group_rows(video_id: str, arm: str, output: dict, scenes: pd.DataFrame, fixe
 
     :param scenes: The arm's scene table from arm_tables.
     :param fixed_main: One per scene; True inside the fixed main-view population.
-    :param sharing_fix_detected: One per scene; True where the sharing-fix run has a court.
+    :param court_sharing_patched_detected: One per scene; True where the court-sharing-patched run has a court.
     """
     scene_index_of = dict(zip(scenes["view_id"], scenes["scene_index"]))
     rally_frames = scenes["rally_frames"].to_numpy()
@@ -231,14 +235,15 @@ def group_rows(video_id: str, arm: str, output: dict, scenes: pd.DataFrame, fixe
             "members_in_rallies": int((rally_frames[members] > 0).sum()),
             "member_rally_frames": int(rally_frames[members].sum()),
             "members_in_fixed_main": int(fixed_main[members].sum()),
-            "members_new_since_sharing_fix": int((~sharing_fix_detected[members]).sum()),
+            "members_new_since_court_sharing_patched": int((~court_sharing_patched_detected[members]).sum()),
             "is_arm_main_group": bool(scenes.loc[reference, "is_dominant_group"]),
             "reason": group["reason"], "chosen_court": group["chosen_court"],
             "reference_rally_frames": int(rally_frames[reference]),
-            "reference_new_since_sharing_fix": bool(~sharing_fix_detected[reference]),
+            "reference_new_since_court_sharing_patched": bool(~court_sharing_patched_detected[reference]),
             "marking_donors": len(marking_donors),
             "marking_donors_outside_rallies": sum(rally_frames[donor] == 0 for donor in marking_donors),
-            "marking_donors_new_since_sharing_fix": sum(not sharing_fix_detected[donor] for donor in marking_donors),
+            "marking_donors_new_since_court_sharing_patched": sum(
+                not court_sharing_patched_detected[donor] for donor in marking_donors),
             "replaced_members": len(replaced_members),
             "replaced_members_in_rallies": int((rally_frames[replaced_members] > 0).sum()),
             "replaced_rally_frames": int(rally_frames[replaced_members].sum()),
@@ -246,18 +251,18 @@ def group_rows(video_id: str, arm: str, output: dict, scenes: pd.DataFrame, fixe
         if group["chosen_view_id"] is not None:
             chosen = scene_index_of[group["chosen_view_id"]]
             row |= {"chosen_scene": chosen, "chosen_rally_frames": int(rally_frames[chosen]),
-                    "chosen_new_since_sharing_fix": bool(~sharing_fix_detected[chosen])}
+                    "chosen_new_since_court_sharing_patched": bool(~court_sharing_patched_detected[chosen])}
         rows.append(row)
     return rows
 
 
 def paired_scene_table(tables: dict[str, pd.DataFrame], outputs: dict[str, dict]) -> pd.DataFrame:
     """Join the arms' scenes one to one. Their scene partitions are already checked equal."""
-    sharing_fix = tables[SHARING_FIX]
-    paired = sharing_fix[["video_id", "scene_index", "view_id", *SCENE_KEY, "rally_frames",
+    court_sharing_patched = tables[COURT_SHARING_PATCHED]
+    paired = court_sharing_patched[["video_id", "scene_index", "view_id", *SCENE_KEY, "rally_frames",
                           "frame_index_in_rally"]].copy()
-    paired["fixed_main"] = sharing_fix["is_dominant_group"]
-    scale = np.array(HOMOGRAPHY_RESOLUTION) / np.array(outputs[SHARING_FIX]["native_size"])
+    paired["fixed_main"] = court_sharing_patched["is_dominant_group"]
+    scale = np.array(HOMOGRAPHY_RESOLUTION) / np.array(outputs[COURT_SHARING_PATCHED]["native_size"])
     final_courts, own_courts = {}, {}
     for arm, scenes in tables.items():
         columns = {
@@ -359,7 +364,7 @@ def court_paths(paired: pd.DataFrame) -> pd.DataFrame:
     for arm in METHODS:
         paths[f"{arm}_court"] = paired[f"{arm}_court_detected"]
     same_px = TOLERANCES_PX[0]
-    for before in (SHARING_FIX, SCORE_FIRST):
+    for before in (COURT_SHARING_PATCHED, SCORE_FIRST):
         shift = paired[f"{SEARCH_SCORE_FIRST}_shift_from_{before}_px"]
         paths[f"search_identical_to_{before}"] = shift == 0
         paths[f"search_within_{same_px}px_of_{before}"] = shift <= same_px
@@ -425,14 +430,14 @@ def compare_video(entry: dict, stage_dirs: dict[str, Path], evaluation_root: Pat
         audit[f"{stage}_choice_records"] = len(choices)
         # The score-first choice and its refit; the rest of a paired job is shared by both of its arms.
         audit[f"{stage}_score_first_choice_seconds"] = sum(choice["trial_seconds"] for choice in choices.values())
-    sharing_fix = outputs[SHARING_FIX]
-    partition = [[scene[key] for key in ("view_id", *SCENE_KEY)] for scene in sharing_fix["scenes"]]
+    court_sharing_patched = outputs[COURT_SHARING_PATCHED]
+    partition = [[scene[key] for key in ("view_id", *SCENE_KEY)] for scene in court_sharing_patched["scenes"]]
     for arm, output in outputs.items():
         arm_partition = [[scene[key] for key in ("view_id", *SCENE_KEY)] for scene in output["scenes"]]
-        require(arm_partition == partition, f"{video_id} {arm}: scene partition differs from the sharing fix")
-        require(output["native_size"] == sharing_fix["native_size"], f"{video_id} {arm}: frame size differs")
+        require(arm_partition == partition, f"{video_id} {arm}: scene partition differs from the court-sharing patch")
+        require(output["native_size"] == court_sharing_patched["native_size"], f"{video_id} {arm}: frame size differs")
 
-    rallies, label_counts = evaluator.read_rallies(match_dir, sharing_fix["frame_count"])
+    rallies, label_counts = evaluator.read_rallies(match_dir, court_sharing_patched["frame_count"])
     tables, video_rows, rally_views = {}, [], []
     for arm, output in outputs.items():
         tables[arm], scored_rallies = arm_tables(entry, output, official, rallies)
@@ -446,10 +451,10 @@ def compare_video(entry: dict, stage_dirs: dict[str, Path], evaluation_root: Pat
             rally_views.append(views)
     paired = paired_scene_table(tables, outputs)
     fixed_main = paired["fixed_main"].to_numpy()
-    sharing_fix_detected = paired[f"{SHARING_FIX}_court_detected"].to_numpy()
+    court_sharing_patched_detected = paired[f"{COURT_SHARING_PATCHED}_court_detected"].to_numpy()
     groups = []
     for arm in TRIAL_ARMS:
-        groups += group_rows(video_id, arm, outputs[arm], tables[arm], fixed_main, sharing_fix_detected)
+        groups += group_rows(video_id, arm, outputs[arm], tables[arm], fixed_main, court_sharing_patched_detected)
         in_arm_main = paired[f"{arm}_main_group"].to_numpy()
         added = ~fixed_main & in_arm_main
         audit |= {f"{arm}_groups": len(outputs[arm]["view_groups"]),
@@ -617,10 +622,10 @@ def print_summary(videos: pd.DataFrame, transitions: pd.DataFrame, changes: pd.D
 
     sharing = groups[groups["chosen_court"].notna()]
     outside = sharing["chosen_rally_frames"] == 0
-    new = sharing["chosen_new_since_sharing_fix"].eq(True)  # missing for a pooled court
+    new = sharing["chosen_new_since_court_sharing_patched"].eq(True)  # missing for a pooled court
     # A new first member becomes the reference that the group's existing courts are aligned to.
-    has_existing_court = groups["members"] > groups["members_new_since_sharing_fix"]
-    new_reference = groups["reference_new_since_sharing_fix"] & has_existing_court
+    has_existing_court = groups["members"] > groups["members_new_since_court_sharing_patched"]
+    new_reference = groups["reference_new_since_court_sharing_patched"] & has_existing_court
     print("\nVIEW GROUPS")
     print(pd.DataFrame({
         "groups": groups.groupby("arm").size(),
@@ -629,20 +634,20 @@ def print_summary(videos: pd.DataFrame, transitions: pd.DataFrame, changes: pd.D
         "pooled_court_chosen": sharing[sharing["chosen_court"] == "pooled"].groupby("arm").size(),
         "chosen_scene_outside_rallies": sharing[outside].groupby("arm").size(),
         "rally_frames_replaced_by_those": sharing[outside].groupby("arm")["replaced_rally_frames"].sum(),
-        "chosen_scene_new_since_sharing_fix": sharing[new].groupby("arm").size(),
+        "chosen_scene_new_since_court_sharing_patched": sharing[new].groupby("arm").size(),
         "rally_frames_replaced_by_new": sharing[new].groupby("arm")["replaced_rally_frames"].sum(),
         "new_reference_for_existing_courts": groups[new_reference].groupby("arm").size(),
     }).reindex(list(TRIAL_ARMS)).fillna(0).astype(int).T.to_string())
     print("\nGROUPS SHARING A COURT")
     print(sharing[["video_id", "arm", "is_arm_main_group", "reference_scene", "members", "members_in_fixed_main",
-                   "members_new_since_sharing_fix", "member_rally_frames", "chosen_court", "chosen_scene",
-                   "chosen_rally_frames", "chosen_new_since_sharing_fix", "replaced_members",
+                   "members_new_since_court_sharing_patched", "member_rally_frames", "chosen_court", "chosen_scene",
+                   "chosen_rally_frames", "chosen_new_since_court_sharing_patched", "replaced_members",
                    "replaced_rally_frames"]].sort_values(["video_id", "reference_scene", "arm"]).to_string(index=False))
     print("\nAUDIT AND PAIRED JOB TIME")
     print(audit.T.to_string())
     print("\nREVIEWED SCENES")
     print(reviewed[["number", "video_id", "scene_index", "category", "shown_arm", "rally_frames",
-                    f"{SHARING_FIX}_court", f"{SCORE_FIRST}_court", f"{SEARCH_SCORE_FIRST}_court",
+                    f"{COURT_SHARING_PATCHED}_court", f"{SCORE_FIRST}_court", f"{SEARCH_SCORE_FIRST}_court",
                     f"{SEARCH_SCORE_FIRST}_court_source", "search_shift_from_shown_px", "search_outcome"]]
           .to_string(index=False))
 
