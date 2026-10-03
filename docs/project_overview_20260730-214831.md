@@ -494,7 +494,7 @@ contact and commentary evidence.
   is the pre-migration target contract.
 - The [annotator measurement history](scraper_pipeline/annotator_measurement_history.md)
   records historical calibration campaigns and their boundaries.
-- The [first/last-stroke buffered search](../experiments/annotator/first_last_stroke_buffered_search_20260730/)
+- The [first/last-stroke buffered search](../experiments/annotator/reports/boundary_search.md)
   carries the result and row-level evidence.
 - The [inpaint sidecar contract](tracknet/inpaint_sidecar.md) and
   [consumer status](tracknet/inpaint_sidecar_consumption.md) cover fabricated

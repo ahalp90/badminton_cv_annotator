@@ -63,7 +63,7 @@ schema consumers.
 
 ## Evidence
 
-- [Saved CSV](../first_last_stroke_buffered_search_20260730/first_last_stroke_buffered_search_20260730-173434.csv) contains one
+- [Saved CSV](../runs/20260730-041328/first_last_stroke_search.csv) contains one
   post-hoc classification row per assessed first/last-stroke buffer.
 - `scripts/analyse_first_last_stroke_buffered_search.py` regenerates a
   timestamped CSV from a completed measurement directory without rerunning

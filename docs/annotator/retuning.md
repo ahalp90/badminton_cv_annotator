@@ -425,7 +425,7 @@ Both base and veto used the released 86-video patched court dataset. They
 shared contact features and fitted contact trees, then fitted separate
 sequence and confidence models. To make the run reproducible, contact sampling
 kept the historical per-fit order and the selected training rows were fitted
-in ShuttleSet video-ID order. The [reproduction guide](../../experiments/annotator/reports/model_refit.md)
+in ShuttleSet video-ID order. The [reproduction guide](../../experiments/annotator/reports/model_selection.md#reproduction)
 records the code and court-release revisions and the commands.
 
 Both models were evaluated on validation and ShuttleSet22 before selection.

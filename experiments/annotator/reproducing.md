@@ -15,8 +15,8 @@ and some training caches require separate inputs.
 | Annotate one video with the selected model | [Quickstart](../../docs/annotator/quickstart.md) | Saved metadata, court, shuttle and pose stages |
 | Fit and evaluate a model on a new set of labelled videos | [General refit guide](../../docs/annotator/retuning.md) | Saved stages, complete contact labels and a grouped split manifest |
 | Verify the court-repair result without videos or a GPU | [Saved-output checks](reports/court_repair.md#check-the-saved-results) | Project scoring dependencies; evidence is included |
-| Repeat the selected model's base-versus-veto comparison | [New-court refit recipe](reports/model_refit.md) | Recorded development/test extracts, labels and court results |
-| Investigate historical refit differences | [Old-court runner](reports/refit_reproduction.md) | Historical extracts, scores and fitted models named in the recipe |
+| Repeat the selected model's base-versus-veto comparison | [New-court refit recipe](reports/model_selection.md#reproduction) | Recorded development/test extracts, labels and court results |
+| Investigate historical refit differences | [Old-court runner](reports/refit_regression.md#reproduction) | Historical extracts, scores and fitted models named in the recipe |
 | Test court fitting or sampling alternatives | [Court fitting](reports/court_fitting.md), [frame sampling](reports/court_sampling.md) | Images or videos and the dependencies for the chosen detector |
 
 The refit comparison calls its optional unreliable-shuttle/no-player rejection

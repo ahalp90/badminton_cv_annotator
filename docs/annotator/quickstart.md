@@ -194,6 +194,6 @@ command. `python -m annotator` runs the full fitted annotation chain.
 | Understand the fitted classifiers | [Tree model stack](tree_stack.md) |
 | Check saved inputs and output fields | [Inputs and outputs](inputs_outputs.md) |
 | Fit a new model | [Retuning guide](retuning.md) |
-| Reproduce the completed comparison | [Annotator reproduction guide](../../experiments/annotator/reports/model_refit.md) |
+| Reproduce the completed comparison | [Annotator reproduction guide](../../experiments/annotator/reports/model_selection.md#reproduction) |
 | Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
 | Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |

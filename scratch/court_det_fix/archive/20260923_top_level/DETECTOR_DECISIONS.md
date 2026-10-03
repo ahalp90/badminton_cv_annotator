@@ -95,7 +95,7 @@ failure handling. [pickup](../../pickup.md) owns the remaining order and stop ru
 | Conditional on a traced coverage failure | **Better retention before candidate caps.** Exact traces show useful assignments discarded before whole-court scoring sees them. | The tested diversity rule helped one pair and harmed another. Screen all pairs and regression controls before changing the 512-assignment cap; this is distinct from W5's 256-template retention limit. |
 | After the search rules settle | **Graph search / shared partial states.** Reuse equivalent partial assignments rather than revisiting the same work along many search paths. | This is a speed/implementation lead, not a new accuracy result. Define state equivalence from the final matcher constraints and verify equivalent outputs before adopting it. Its complexity makes it a later step. |
 
-The [older temporal replay account](../../../../experiments/annotator/independent_court/recorded/player_guided/projective_patterns/evaluation/temporal_assessment.md#an-earlier-shared-court-experiment-already-exists)
+The [older temporal replay account](../../../../experiments/annotator/reports/court_temporal.md#an-earlier-shared-court-experiment-already-exists)
 includes the Yellow/Letterboxed/Centre comparisons and links the saved code.
 That replay uses footpoints and raw fragments; the historical spatial-mask
 error does not invalidate it. Its net cue measures image support along

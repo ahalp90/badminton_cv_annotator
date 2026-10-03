@@ -1,8 +1,8 @@
 # Auto-annotator: experiments and handover
 
 The auto-annotator turns badminton footage into rallies with contact times and
-court-half assignments (near or far player). Its purpose is to reduce the manual labelling needed
-to build a dataset for studying player performance. A useful rally must be
+labels for which court half each hit came from. Its purpose is to reduce the
+manual labelling needed to build a dataset for studying player performance. A useful rally must be
 correct from beginning to end: one missed hit, extra hit, wrong player or bad
 clip boundary can make it unsuitable for that dataset.
 
@@ -61,14 +61,17 @@ to the experiments that motivate them.
 
 ## Where things live
 
-The four guides at this level are the student reading path. `reports/` holds
-detailed comparisons and specialist reproduction instructions. The remaining
-directories contain runnable experiments and their saved evidence:
+The four guides at this level provide the project overview, development history,
+evaluation and reproduction routes. The [report map](reports/README.md) groups
+specialist reading by research question. Results and their rerun instructions
+share a document.
+
+The other directories contain code and saved outputs:
 
 | Code or evidence | Purpose |
 |---|---|
 | `heuristic_tuning/` | Calibration fixtures and parameter sweeps for the early rules |
-| `first_last_stroke_buffered_search_20260730/`, `contact_attribution_comparison_20260814/` | Early boundary-search and player-distance experiments |
+| `contact_attribution_comparison_20260814/` | Player-distance experiment code and evidence |
 | `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
 | `old_court_regression/`, `good_court_refit/` | Refit runners, pinned inputs and comparison evidence |
 | `measurement.py`, `records.py`, `runs/` | End-to-end measurement, result packaging and saved runs |
