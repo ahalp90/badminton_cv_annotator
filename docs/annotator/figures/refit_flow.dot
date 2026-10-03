@@ -3,7 +3,7 @@ digraph refit {
   node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
   edge [fontname="Helvetica", fontsize=9];
 
-  data [label="Saved extraction + human contact labels"];
+  data [label="Saved extraction + manual contact labels"];
   manifest [label="Manifest\ntrain / validation / test kept separate by group"];
   heur [label="Build training inputs\nrough rallies + contact features"];
   finalcontact [label="Deployment contact tree\nfit on all training groups"];

@@ -2,7 +2,7 @@
 
 The auto-annotator combines court geometry, shuttle tracks and player poses to
 find rallies, identify hits and assign them to the near or far player. It also
-ranks rallies for human review. Complete rallies remain less reliable than
+ranks rallies for manual review. Complete rallies remain less reliable than
 individual hits, so the output needs checking before it becomes research data.
 
 The [experiments and handover guide](../../experiments/annotator/README.md) explains

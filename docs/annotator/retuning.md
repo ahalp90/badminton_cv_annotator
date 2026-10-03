@@ -78,7 +78,7 @@ rally-2,330,Top
 
 Rules for the file:
 
-- one row per human-labelled contact;
+- one row per manually labelled contact;
 - frame numbers use the zero-based source-video timeline;
 - `side` is `Top` for the far court half, `Bot` for the near half, or blank;
 - `side` is blank when the player side is unknown;
@@ -162,7 +162,7 @@ Using a separate output directory for each model variant keeps later validation 
 
 For each training video, the training code runs the rule-based preprocessing and builds contact feature rows.
 
-Training labels are assigned around human contact frames, with distances scaled for the source FPS:
+Training labels are assigned around manually labelled contact frames, with distances scaled for the source FPS:
 
 - within 1 frame at 30 FPS — positive;
 - 2–4 frames away — ignored as ambiguous;
@@ -192,7 +192,7 @@ The contact score cutoff and the optional rule for guarded candidates are applie
 The same code used during annotation creates possible repairs: keep the
 current hits, repair the serve, remove a hit or insert a later hit.
 
-Human labels mark which alternatives are useful or correct. Grouped fitting then trains the sequence models from those rows.
+Manual labels mark which alternatives are useful or correct. Grouped fitting then trains the sequence models from those rows.
 
 The final sequence models are fitted after the out-of-group training examples have been constructed.
 
@@ -203,13 +203,13 @@ every fit and provide the overall quality measurements.
 
 ### Rally review tree
 
-The review tree assigns a score for ordering rallies during human review.
+The review tree assigns a score for ordering rallies during manual review.
 It learns from rally predictions made while each video's group
 was held out of the sequence fit. Each predicted clip gets one of three labels:
 
 - `1` — correct;
 - `0` — known wrong;
-- `-1` — not judgeable because required human side labels are missing, or because no labelled rally overlaps the section.
+- `-1` — not judgeable because required manual side labels are missing, or because no labelled rally overlaps the section.
 
 Rows labelled `-1` are left out of the confidence fit.
 
@@ -282,9 +282,9 @@ trade-off between extra and missed contacts.
 
 ### Rally-section metrics
 
-A predicted rally section counts as correct when it matches one labelled rally and contains every labelled contact from that rally. It must contain no extra contacts and must agree with all known human side labels.
+A predicted rally section counts as correct when it matches one labelled rally and contains every labelled contact from that rally. It must contain no extra contacts and must agree with all known manual side labels.
 
-A missing contact, an extra contact, a merged rally, a partial rally or a contradicted known side makes a section wrong. Otherwise, missing human side labels make it unjudgeable. A predicted section that overlaps no labelled rally is also unjudgeable.
+A missing contact, an extra contact, a merged rally, a partial rally or a contradicted known side makes a section wrong. Otherwise, missing manual side labels make it unjudgeable. A predicted section that overlaps no labelled rally is also unjudgeable.
 
 The report counts:
 

@@ -139,7 +139,7 @@ Motion features keep their raw per-frame units. Changing those units, or the fea
 
 The contact model is a `HistGradientBoostingClassifier`, which combines small
 decision trees. It uses the 85 measurements to score how much a frame looks
-like a hit. During training, frames close to human-labelled hits are positive
+like a hit. During training, frames close to manually labelled hits are positive
 examples. Ambiguous
 frames nearby are left out, and other frames are sampled as negative examples.
 

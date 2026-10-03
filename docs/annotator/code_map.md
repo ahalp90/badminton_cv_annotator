@@ -257,11 +257,11 @@ model fits normally use the validation and test reports from
 | Module | Role |
 | --- | --- |
 | `review/broadcast_editor.py` | OpenCV editor for broadcast-scene labels. |
-| `review/broadcast_labels.py` | Data format and save/load helpers for human-labelled broadcast scenes. |
+| `review/broadcast_labels.py` | Data format and save/load helpers for manually labelled broadcast scenes. |
 | `review/rally_start_editor.py` | UI for reviewing rally-start events. |
-| `review/rally_starts.py` | Human-labelled rally starts and review-session state. |
+| `review/rally_starts.py` | Manually labelled rally starts and review-session state. |
 
-These tools create or inspect human labels used to check predictions. They run
+These tools create or inspect manual labels used to check predictions. They run
 separately from annotation.
 
 ## `validation_overlay/`: visual checks

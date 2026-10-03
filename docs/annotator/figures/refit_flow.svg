@@ -12,8 +12,8 @@
 <!-- data -->
 <g id="node1" class="node">
 <title>data</title>
-<path fill="none" stroke="black" d="M250.5,-592C250.5,-592 61.5,-592 61.5,-592 55.5,-592 49.5,-586 49.5,-580 49.5,-580 49.5,-568 49.5,-568 49.5,-562 55.5,-556 61.5,-556 61.5,-556 250.5,-556 250.5,-556 256.5,-556 262.5,-562 262.5,-568 262.5,-568 262.5,-580 262.5,-580 262.5,-586 256.5,-592 250.5,-592"/>
-<text text-anchor="middle" x="156" y="-571.2" font-family="Helvetica,sans-Serif" font-size="11.00">Saved extraction + human contact labels</text>
+<path fill="none" stroke="black" d="M251.5,-592C251.5,-592 60.5,-592 60.5,-592 54.5,-592 48.5,-586 48.5,-580 48.5,-580 48.5,-568 48.5,-568 48.5,-562 54.5,-556 60.5,-556 60.5,-556 251.5,-556 251.5,-556 257.5,-556 263.5,-562 263.5,-568 263.5,-568 263.5,-580 263.5,-580 263.5,-586 257.5,-592 251.5,-592"/>
+<text text-anchor="middle" x="156" y="-571.2" font-family="Helvetica,sans-Serif" font-size="11.00">Saved extraction + manual contact labels</text>
 </g>
 <!-- manifest -->
 <g id="node2" class="node">

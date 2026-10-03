@@ -36,7 +36,7 @@ All eight models are `HistGradientBoostingClassifier` instances.
 
 The contact tree sees one row for every frame inside the rule-based search regions. Each row has 85 values: 17 physical or validity signals sampled at five time offsets.
 
-Training labels are built from human contact frames:
+Training labels are built from manually labelled contact frames:
 
 - a searched row within 1 frame at 30 FPS of a labelled contact is positive;
 - rows 2–4 frames away are ignored as ambiguous;
@@ -104,7 +104,7 @@ already selected. Its inputs include:
 - the current `Top`/`Bot` vote balance;
 - the candidate's 85 physical contact features.
 
-Its training target asks whether adding that candidate creates a new match to a human-labelled contact without damaging the contacts already matched.
+Its training target asks whether adding that candidate creates a new match to a manually labelled contact without damaging the contacts already matched.
 
 ## 4. Whole-sequence chooser
 
@@ -128,7 +128,7 @@ The chooser can see:
 - how well raw sides fit an alternating `Top`/`Bot` pattern;
 - physical feature rows for the original first contact, serve candidate and deleted contact where applicable.
 
-Training labels call an option correct only when it reproduces the complete human-labelled contact sequence and the known court-half labels within the configured timing tolerance.
+Training labels call an option correct only when it reproduces the complete manually labelled contact sequence and the known court-half labels within the configured timing tolerance.
 
 The unchanged sequence remains the reference. An edit must score strictly higher before the chooser switches away from it.
 
@@ -167,7 +167,7 @@ These operations are not extra trees.
 ## 8. Rally-confidence tree
 
 The confidence tree produces `rally_confidence`, a score for ordering rallies
-during human review. It leaves the annotation unchanged.
+during manual review. It leaves the annotation unchanged.
 
 It considers both the chosen sequence and nearby candidates that were left
 out, since an unused candidate may be a missed hit. Its inputs include:
