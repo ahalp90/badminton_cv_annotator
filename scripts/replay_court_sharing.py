@@ -24,21 +24,22 @@ fails is logged, recorded on its row and counted; it keeps no court.
 
 from __future__ import annotations
 
-import os
-
-# One thread per process, as in the source run (run_video), set before NumPy loads.
-# Parallel videos then share the CPUs, and the numerical libraries add up in the source run's order.
-for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
-    os.environ[variable] = '1'
-
 import argparse
 import copy
 import itertools
 import logging
+import os
 from collections import Counter
 from pathlib import Path
 from time import perf_counter
 from typing import Any
+
+# Match the source run's thread limits before NumPy initialises its libraries.
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['BLIS_NUM_THREADS'] = '1'
 
 import numpy as np
 

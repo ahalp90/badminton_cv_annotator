@@ -18,8 +18,11 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 # Process workers inherit these settings. Set them before importing NumPy.
-for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
-    os.environ[variable] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['BLIS_NUM_THREADS'] = '1'
 
 import cv2
 import numpy as np
