@@ -203,6 +203,8 @@ def build_effects(metrics: pd.DataFrame, draws: np.ndarray) -> pd.DataFrame:
             continue
         difference = after.loc[before.index, metric] - before[metric]
         complete = difference.dropna()
+        # Reading saved CSVs can introduce rounding noise in otherwise equal errors.
+        equal = np.isclose(complete, 0.0, rtol=0, atol=1e-12)
         interval = evaluator.bootstrap_mean(difference, draws)
         row = {
             "before": METHODS[0], "after": METHODS[1], "metric": metric,
@@ -211,8 +213,9 @@ def build_effects(metrics: pd.DataFrame, draws: np.ndarray) -> pd.DataFrame:
             "videos": len(difference), "paired_videos_with_values": len(complete),
             "estimate": interval["mean"], "ci95_low": interval["ci95_low"], "ci95_high": interval["ci95_high"],
             "video_min": complete.min(), "video_max": complete.max(),
-            "videos_higher": int((complete > 0).sum()), "videos_lower": int((complete < 0).sum()),
-            "videos_equal": int((complete == 0).sum()),
+            "videos_higher": int(((complete > 0) & ~equal).sum()),
+            "videos_lower": int(((complete < 0) & ~equal).sum()),
+            "videos_equal": int(equal.sum()),
         }
         if metric in POOLED:
             count_column, denominator_column, pooled_of = POOLED[metric]

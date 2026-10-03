@@ -80,7 +80,8 @@ not prove a missed cut.
 The detector keeps standing people in those samples. It filters out seated
 people and restores brief crouches on tracks that mostly stand. Their feet are
 checked against every candidate court. These samples are player evidence; they
-are not 31 separate court detections.
+are not 31 separate court detections. Tracks can swap identities when players
+cross, which can affect the standing/crouching decision.
 
 **Short scenes.** With people required, a scene that cannot hold the window gets
 `scene_too_short_for_feet`. That means unanalysed, not "no court". With

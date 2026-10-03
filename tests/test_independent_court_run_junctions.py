@@ -101,7 +101,7 @@ def test_preflight_checks_every_selected_case_before_execution() -> None:
 
 def test_real_marking_pack_is_rejected_before_any_junction_work() -> None:
     root = Path(__file__).resolve().parents[1]
-    pack = root / "scratch/court_det_fix/frozen_views/packs/marking_refit_inputs.json.gz"
+    pack = root / "experiments/court_detector/saved_views/data/packs/marking_refit_inputs.json.gz"
     records = load_frozen_case_provenance(pack)
     inputs = {"cases": [junction_case(case_id) for case_id in records]}
     saved = {"records": [frozen_case(case_id) for case_id in records]}

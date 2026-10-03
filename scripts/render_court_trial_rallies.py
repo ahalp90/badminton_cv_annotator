@@ -25,8 +25,9 @@ import pandas as pd
 
 from scripts import evaluate_courts_fast_robust as evaluator
 
-EVALUATION_DIR = Path("experiments/court_detector/fast_robust_20261002")
-TRIAL_RESULTS = EVALUATION_DIR / "inputs" / "player_tiebreak_results"
+EXPERIMENT_DIR = Path("experiments/court_detector")
+EVALUATION_DIR = EXPERIMENT_DIR / "baseline"
+TRIAL_RESULTS = EXPERIMENT_DIR / "inputs" / "player_tiebreak_results"
 LABEL_ROOTS = {
     "ShuttleSet": Path("data/shuttleset/set"),
     "ShuttleSet22": Path("data/shuttleset22/set"),
@@ -176,7 +177,7 @@ def plan(output_path: Path, reusable_frames: Path | None) -> None:
     trial_videos = [video_id for video_ids in HOST_VIDEOS.values() for video_id in video_ids]
     outputs = {video_id: read_outputs(video_id) for video_id in trial_videos}
     for video_id, video_outputs in outputs.items():
-        original = evaluator.read_json_gz((EVALUATION_DIR / "inputs" / "videos") / f"{video_id}.json.gz")
+        original = evaluator.read_json_gz((EXPERIMENT_DIR / "inputs" / "videos") / f"{video_id}.json.gz")
         if scene_partition(video_outputs["court_sharing_patched"]) != scene_partition(original):
             raise ValueError(f"{video_id}: trial scenes differ from the original run's scenes")
 

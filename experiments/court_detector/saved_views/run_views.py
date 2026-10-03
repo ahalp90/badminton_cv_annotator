@@ -52,11 +52,10 @@ from court_detector.template_arrays import TEMPLATE_DEVICES
 
 from .frozen_cases import CASE_PACKS, ROOT, frame_path, load_frozen_case_provenance
 
-FRESH_FEET = ROOT / "court_detector_optimisation_handover/claude_evidence/fresh_feet"
-VIEWS = FRESH_FEET / "views.json"
-SHOT_CHECK = FRESH_FEET / "shot_check.jsonl"
-MANIFEST = ROOT / "wider_evaluation/runs/20260922/manifest.json.gz"
-CONTROL_PACK = ROOT / "wider_evaluation/runs/20260922/control_inputs.json.gz"
+VIEWS = ROOT / "views.json"
+SHOT_CHECK = ROOT / "shot_check.jsonl"
+MANIFEST = ROOT / "manifest.json.gz"
+CONTROL_PACK = ROOT / "controls/control_inputs.json.gz"
 LEGACY_ENTRY_FIELDS = ("stripe", "profile")
 # refit_selected.refit_selection adds these around the refit itself.
 REFIT_WRAPPER_FIELDS = {"case_id", "label", "source_record", "frame_md5"}
@@ -134,7 +133,7 @@ def pack_sources(case_packs: dict[str, str]) -> tuple[dict[str, dict], dict[str,
         frame_index = source["frame_index"]
         sources[source["id"]] = source
         provenances[source["id"]] = CaseProvenance(source["id"], ImageKind.SOURCE_FRAME, (frame_index,), frame_index)
-        frame_paths[source["id"]] = ROOT / source["image"]
+        frame_paths[source["id"]] = ROOT / "controls/frames" / Path(source["image"]).name
     return sources, provenances, frame_paths
 
 

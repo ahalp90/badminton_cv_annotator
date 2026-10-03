@@ -1,12 +1,14 @@
 # Court detector evaluation
 
-The [October 2026 full-corpus evaluation](../../experiments/court_detector/fast_robust_20261002/README.md)
-scores fast-robust extracts across 40 ShuttleSet and 46 ShuttleSet22 videos.
-The representative court is within 10 pixels of the supplied homography in
-74 of 86 videos. Twelve have large errors, mostly introduced when a shared
-court replaces accurate individual scene fits. That selection step needs a fix
-before using the complete extracts for court-coordinate measurements. The
-report includes per-video PNGs, eight hard samples and reproducible statistics.
+The current [court-detection dataset](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md)
+contains 86 videos. After the sharing repair, 85 of 86 representative courts
+agree with the supplied default-camera reference within 10 px mean corner error.
+The [full-corpus report](../../experiments/court_detector/report.md) gives the
+current results, remaining errors and rejected search-policy changes.
+
+The September checks below explain earlier design and performance decisions.
+Their output counts and timings describe those historical runs. The
+[evidence-file guide](data/README.md) explains the retained measurements.
 
 ## Earlier development checks
 
@@ -53,24 +55,6 @@ with worn or obscured paint can score lower.
 Representative image backgrounds come from the match videos named by project
 video ID and scene number in each caption. The underlying broadcast footage
 remains under its source rights; see [data attribution](../../data/ATTRIBUTION.md).
-
-## Two amateur frames: CourtKeyNet and the current detector
-
-These selected development frames have cropped boundaries, neighbouring courts,
-people and floor reflections. CourtKeyNet's raw predictions below failed its
-confidence check; the old stage returned no court. The new outlines recover the
-court layout in both frames, though small boundary offsets remain.
-
-| Frame | CourtKeyNet raw prediction (rejected) | Current geometric detector |
-| --- | --- | --- |
-| Amateur-2, frame 150 | ![Old court on the blue floor](assets/am2_frame_00000150_old.png) | ![New court on the blue floor](assets/am2_frame_00000150_new.png) |
-| Amateur-3, frame 0 | ![Old court across the wall](assets/am3_frame_00000000_old.png) | ![New court on the reflective floor](assets/am3_frame_00000000_new.png) |
-
-The new results were generated at `17a50b57` from the same saved source images,
-DeepLSD segments and person boxes, in single-image mode without temporal player
-checks. Both outputs were accepted. All outlines use 1 px red dashes.
-[The saved comparison](data/amateur_same_frame_comparison.json.gz) contains both
-sets of corners. These two examples do not establish an accuracy rate.
 
 ## Development views
 
@@ -367,22 +351,24 @@ scene outputs, stage timings, pooled fit and complete-court candidate scores.
 ## Reproducing the numbers
 
 The committed files in [data/](data/) support the pooling scores, corner
-scatter, scene-window counts and broad-run output totals. From the repository
+scatter and scene-window counts. From the repository
 root, this example rechecks the video 040 score comparison:
 
 ```python
 import gzip
 import json
 
-with gzip.open("docs/court_detector/data/pool_fallback_video040.json.gz", "rt") as stream:
-    run = json.load(stream)
-group = run["groups"][0]
+with gzip.open("docs/court_detector/data/fast_robust_cached_video040.json.gz", "rt") as stream:
+    run = json.load(stream)["video-robust"]
+group = max(run["groups"], key=lambda item: len(item["member_view_ids"]))
+members = set(group["member_view_ids"])
+rows = [row for row in run["rows"] if row["view_id"] in members]
 print(group["mean_combined_scores"])  # pooled, scene and middle means
 wins = 0
-for row in run["rows"]:
+for row in rows:
     scores = row["view_pool"]["scores"]
     wins += scores["pooled"]["combined_score"] > scores["scene"]["combined_score"]
-print(wins, "of", len(run["rows"]))
+print(wins, "of", len(rows))
 ```
 
 Rerunning the historical experiments needs external videos and saved model
@@ -394,30 +380,24 @@ environment was Python 3.12.13, NumPy 2.5.3, SciPy 1.17.1 and OpenCV 5.0.0.93.
 
 ## Retained evidence
 
-The [provenance manifest](data/provenance.json.gz) covers the earlier retained
-files. Those compressed files and five source outlines are unchanged. The
-completed run adds its original video JSON, a compact numerical summary and
-eight outlines rendered on five middle frames. Historical paths in the older
-manifest are not required inputs.
+The [evidence-file guide](data/README.md) explains each retained file and the
+maintenance question it can answer. The data includes measured outputs and
+controlled comparisons; obsolete copy-validation receipts and superseded broad-run
+summaries have been removed. The historical broad-run totals above remain a
+record of that earlier smoke test.
 
-| Files in [data/](data/) | Purpose |
-| --- | --- |
-| `full_video040_video_robust.json.gz`, `full_video040_summary.json.gz` | Complete final run rows and group comparisons; derived counts, timings and score means |
-| `fast_robust_cached_video040.json.gz` | Both modes on identical saved observations: 11 matching scenes and two standalone scenes |
-| `pool_fallback_video003.json.gz`, `pool_fallback_video040.json.gz` | Group membership, court alternatives, scores and final rows for the cached fallback checks |
-| `label_conflict_video003.json.gz` | Distances that exposed the singles/doubles naming conflict |
-| `pool_reference_frame_scores.json.gz` | Earlier unconditional-pool comparison on scene reference frames; distinct from the final middle-frame comparison |
-| `composite_scatter_video040.json.gz` | Registered corners, scene IDs and scatter calculations |
-| `composition_prefix_video040.csv.gz` | Outcomes for the 218-scene composition prefix, including missing comparisons |
-| `scene_checks_24_videos.json.gz` | Reuse-group agreement and player-window counts |
-| `broad_run_batch1_summary.json.gz` through `batch3` | Broad-run statuses, scene counts and timings |
-| `interval_cpu_*.json.gz`, `interval_cuda_*.json.gz` | Timing, source-interval validation and all 33 scene results for the paired backend check |
-| `net_reference_comparison.json.gz` | The labelled, retrospective net-weight comparison |
+The [design guide](design.md) records current choices and rejected approaches.
+[Earlier comparisons](earlier_approaches.md) cover the line-search prototypes.
 
-The earlier development choices are supported by the committed
-[decision record](../../scratch/court_det_fix/DETECTOR_DECISIONS.md),
-[CourtKeyNet retirement evidence](../../scratch/court_det_fix/evidence/retirement/README.md)
-and [paired net-weight report](../../scratch/court_det_fix/net_recovery/statistics/paired_reference_report.md).
-The [historical performance record](../../scratch/court_det_fix/court_detector/PERFORMANCE.md)
-explains the optimisation comparisons. These are supporting records; this
-handover preserves the conclusions needed to operate and maintain the detector.
+## Upright-camera filter trade-off
+
+On 28 development views, the 26 September check reduced detector time from
+6,434 s to 3,703 s (42%). Seventeen of 20 court views kept the same result.
+One improved and two slipped by about one painted line at the far end.
+Two of eight non-court controls still produced false courts.
+
+The filter did not remove the old winners. It removed impossible-camera
+candidates that occupied the overall shortlist, letting different candidates
+reach scoring. The changed winners expose a ranking weakness: a plausible
+far-end slip can score above the correct court. This is a historical small-set
+trade-off, not a speed or accuracy guarantee for the current detector.

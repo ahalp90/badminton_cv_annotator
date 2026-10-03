@@ -9,18 +9,18 @@ from scripts import evaluate_courts_fast_robust as evaluator
 from scripts.render_court_trial_rallies import rank_rallies
 
 
-def plan(input_root: Path, output_dir: Path) -> None:
+def plan(input_root: Path, dataset_root: Path, output_dir: Path) -> None:
     """Rebuild the frame requests and captions, including courtless rally scenes."""
     scenes = pd.read_csv(input_root / "per_scene.csv.gz")
     videos = pd.read_csv(input_root / "per_video.csv.gz")
     rallies = pd.read_csv(input_root / "per_rally.csv.gz")
     requests = evaluator.build_render_requests(scenes, videos)
     ranked = rank_rallies(scenes, rallies).drop_duplicates("video_id").head(3)
-    cohort = {entry["id"]: entry for entry in evaluator.read_json_gz(input_root / "cohort.json.gz")}
+    cohort = {entry["id"]: entry for entry in evaluator.read_json_gz(dataset_root / "cohort.json.gz")}
     captions = []
     for rally in ranked.to_dict("records"):
         video_id = rally["video_id"]
-        output = evaluator.read_json_gz(input_root / "videos" / f"{video_id}.json.gz")
+        output = evaluator.read_json_gz(dataset_root / "videos" / f"{video_id}.json.gz")
         folder = f"rally_samples/{video_id}_{rally['set']}_rally{rally['rally']:02d}"
         covered = 0
         for scene_index, scene in enumerate(output["scenes"]):
@@ -56,10 +56,11 @@ def plan(input_root: Path, output_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, required=True, help="evaluated dataset directory")
+    parser.add_argument("--input", type=Path, required=True, help="evaluation tables directory")
+    parser.add_argument("--dataset", type=Path, required=True, help="court predictions: cohort.json.gz and videos/")
     parser.add_argument("--output", type=Path, required=True, help="frame requests and rally captions")
     args = parser.parse_args()
-    plan(args.input, args.output)
+    plan(args.input, args.dataset, args.output)
 
 
 if __name__ == "__main__":

@@ -151,15 +151,18 @@ five minutes of footage, with 90 seconds as an upper target, remains unmet.
 | Unconditional pooling | Pulled the good video 003 court onto blank floor. |
 | Reassign samples to each scene composite before pooling | Repaired video 003 but reduced the video 040 comparison score. The whole-scene alternative preserved the better cached results. |
 
-The [historical decision record](../../scratch/court_det_fix/DETECTOR_DECISIONS.md)
-contains the earlier trial evidence. Its old acceptances do not override the
-current defaults above.
+The [earlier approach comparisons](earlier_approaches.md) explain the main
+rejected alternatives. The defaults above describe the maintained detector.
 
 ## Limits a maintainer should expect
 
 - **False courts remain possible.** Crowd shots, referee chairs and advertising
   boards have produced accepted courts. Geometry and player checks reduce this
   risk but do not establish correctness.
+- **Net tape can look like a court boundary.** A finite, camera-plausible fit
+  can still assign net tape to a floor marking. Geometry, greyscale contrast
+  and the tested net-mesh cue did not reliably distinguish them. Same-paint
+  colour helped one of two frozen cases; there is no calibrated colour gate.
 - **Far-end and partial-view errors.** Small image offsets can move a boundary
   far across the floor. Close-ups, heavy occlusion and lens distortion remain
   difficult even when a few strong lines are visible.

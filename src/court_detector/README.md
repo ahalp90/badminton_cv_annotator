@@ -39,7 +39,7 @@ define a homography: a mapping between the flat court floor and the image.
    support plus 10% line support, plus up to 0.04 for visible net posts. "Paint
    support" measures how well the projected markings land on bright painted
    stripes. The best court that passed every check wins. The
-   [player tie-breaker trial](../../experiments/court_detector/fast_robust_20261002/player_tiebreak_trial/README.md)
+   [player tie-breaker trial](../../experiments/court_detector/search_policy_trial/README.md)
    separately tests score-first final selection without the player veto.
 5. **Refit.** The chosen court's lines are refitted to the centre or edge of
    their painted stripes. The refit must pass the same checks again.

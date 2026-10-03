@@ -23,7 +23,7 @@ from experiments.court_detector.saved_views.frozen_cases import (
 )
 
 ROOT = Path(__file__).parents[1]
-FROZEN = ROOT / "scratch/court_det_fix/frozen_views"
+FROZEN = ROOT / "experiments/court_detector/saved_views/data"
 PACKS = FROZEN / "packs"
 SIDECAR = FROZEN / "case_provenance.json.gz"
 PACK_NAMES = (

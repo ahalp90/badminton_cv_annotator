@@ -23,8 +23,8 @@ import cv2
 from court_detector.image_sources import CaseProvenance, ImageKind
 from court_detector.measurements import ViewContext, read_json_gz, view_context
 
-# The frozen views and saved research runs stay under scratch/court_det_fix.
-ROOT = Path(__file__).resolve().parents[3] / "scratch/court_det_fix"
+# The frozen packs and their source frames live beside this research runner.
+ROOT = Path(__file__).resolve().parent / "data"
 
 SIDECAR_FILENAME = "case_provenance.json.gz"
 SIDECAR_SCHEMA = "independent-court-case-provenance/1"
@@ -38,9 +38,9 @@ PACK_MD5_BY_NAME: Mapping[str, str] = MappingProxyType(
 )
 
 CASE_PACKS = {
-    "gx": "frozen_views/packs/gx_extension_inputs.json.gz",
-    "amateur": "frozen_views/packs/marking_refit_inputs.json.gz",
-    "broadcast": "frozen_views/packs/broadcast_extension_inputs.json.gz",
+    "gx": "packs/gx_extension_inputs.json.gz",
+    "amateur": "packs/marking_refit_inputs.json.gz",
+    "broadcast": "packs/broadcast_extension_inputs.json.gz",
 }
 REGRESSION_CASE_ORDER = (
     ("gxBQ_window_00_frame_0", "gx", "GX0"),
@@ -305,9 +305,9 @@ def load_source(root: Path, case_id: str) -> dict:
 def frame_path(root: Path, source: dict, provenance: CaseProvenance) -> Path:
     case_id = source["id"]
     if case_id.startswith("gxBQ"):
-        return root / "frozen_views/frames/gx" / source["image"]
+        return root / "frames/gx" / source["image"]
     if case_id.startswith("shuttleset"):
-        return root / "frozen_views/frames/original" / source["image"]
+        return root / "frames/original" / source["image"]
     video = case_id.split("_", 1)[0]
     frame = int(case_id.rsplit("_", 1)[1])
     if provenance.image_kind.value != "source_frame" or provenance.image_frame_indices != (frame,):
@@ -315,7 +315,7 @@ def frame_path(root: Path, source: dict, provenance: CaseProvenance) -> Path:
             f"{case_id}: amateur frame path uses frame {frame}, but provenance identifies "
             f"{provenance.image_kind.value} frames {provenance.image_frame_indices}"
         )
-    return root / "frozen_views/frames/amateur" / video / f"frame_{frame:08d}.png"
+    return root / "frames/amateur" / video / f"frame_{frame:08d}.png"
 
 
 @lru_cache(maxsize=3)
