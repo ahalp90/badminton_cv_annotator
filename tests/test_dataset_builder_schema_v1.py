@@ -288,12 +288,16 @@ def test_disposition_registry_covers_issue_104_decisions():
     assert features_by_disposition.get(Disposition.CUT, set()) == _EXPECTED_CUT_FEATURES
 
     for entry in FEATURE_DISPOSITIONS:
-        if entry.disposition is Disposition.KEEP:
+        if entry.feature == "Rally-to-commentary association":
+            # Candidate links ship; their accuracy remains unresolved.
+            assert entry.disposition is Disposition.UNRESOLVED
+            assert entry.columns == ("commentary_rally_links",)
+        elif entry.disposition is Disposition.KEEP:
             assert len(entry.columns) >= 1, entry.feature
-            for ref in entry.columns:
-                assert _disposition_ref_resolves(ref), f"{entry.feature}: {ref!r}"
         else:
             assert entry.columns == (), entry.feature
+        for ref in entry.columns:
+            assert _disposition_ref_resolves(ref), f"{entry.feature}: {ref!r}"
 
     frozen_names = {column.name for table in TABLES for column in table.columns}
     assert frozen_names.isdisjoint(_FORBIDDEN_COLUMN_NAMES)
