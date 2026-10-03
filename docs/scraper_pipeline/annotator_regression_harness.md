@@ -1,13 +1,14 @@
-# Annotator regression measurement: current state
+# Annotator regression measurement: July 2026
 
-Status: current source of truth
+Status: historical measurement and recommendations
 
 Date: 2026-07-31
 
-This document describes what the project can measure now, what the current
-evidence shows, and the smallest justified next step. It covers the annotator
-calibration and serve-prepend measurement lanes. It does not authorise a
-production feature or a new test framework.
+This document records the calibration and serve-prepend measurements available
+on 31 July 2026. References below to “current” behaviour and proposed next steps
+describe that stage of development. The [annotator guides](../annotator/README.md)
+cover the maintained implementation; the [experiment reproduction guide](../../experiments/annotator/reproducing.md)
+covers the available measurement commands.
 
 ## TL;DR
 
@@ -18,9 +19,9 @@ track-quality evidence, and writes reload-checked output. The recorded run
 shows substantial clean evidence around many missed serves, but it does not yet
 measure a serve-prepend candidate or its false-positive cost.
 
-Do not build a standalone regression harness now. The current feature-specific
-measurement lane is the right place for the next candidate experiment. If a
-later annotator change needs causal stage isolation, the existing calibration
+The July recommendation was to extend the feature-specific measurement lane
+for the next candidate experiment. If a later annotator change needs causal
+stage isolation, the existing calibration
 path has enough seams for a small GT-span/contact wrapper. That future wrapper
 should reuse the current runner and scoring path. It should not become a new
 package, experiment framework, or parallel production runner.
@@ -360,7 +361,7 @@ Relevant execution seams:
 - `src/annotator/evaluation/scoring.py:34-77` for GT rally extents
 
 The recorded summary was generated at Git SHA
-`63f40938a62f6612ca9a63b61127d24442a80865`, which matches the current `HEAD`.
+`63f40938a62f6612ca9a63b61127d24442a80865`, the `HEAD` at the time of the July review.
 The summary is evidence from one recorded run. This document did not rerun the
 measurement script or the test suite.
 
@@ -369,5 +370,5 @@ confirmed the relevant definitions and usages. PyCharm's Python call-hierarchy
 query did not resolve the callable FQNs, so the usage claims rely on those
 searches and source reads.
 
-This document is an audit lead and current working decision. Future data or a
-concrete stage-isolation requirement can change the recommendation.
+These recommendations record the July review. The [development history](../../experiments/annotator/development.md)
+describes the later experiments and decisions.

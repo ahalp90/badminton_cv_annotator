@@ -1,10 +1,10 @@
 # Annotator measurement history
 
-Chronological record of the contact-detection and rally-segmentation
-measurement campaigns behind today's annotator. Every headline number below
+Chronological record of the early rule-based contact-detection and
+rally-segmentation measurements. The [evaluation guide](../../experiments/annotator/evaluation.md)
+covers the fitted annotator's measured performance. Every headline number below
 was measured before the 2026-07-28 smoothing and re-entry policy change
-(W2.9); treat them as historical context, not current chain behaviour. The
-current live reference is
+(W2.9). The calibration reference for that rule-based chain is
 `tests/data/annotator_calibration/reference/`, generated after W2.9 by
 `annotator.evaluation.gt_scoring --capture`. The W2.9 behavioural delta
 is preserved in
@@ -146,10 +146,10 @@ in `BaseAnnotatorConfig` (`eee3e29`). Contact F1 improved on all three
 fixtures; landing and getpoint moved mixed. The full pre/post surface is
 `docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
 
-`tests/data/annotator_calibration/reference/` is the live capture after
-that flip. Commit `85b8751` re-pinned its predecessor, and W3.1 refreshed
-the fixture names. The tracked reference replaces every current-behaviour
-claim above. The four
+`tests/data/annotator_calibration/reference/` holds the rule-based calibration
+reference after that flip. Commit `85b8751` re-pinned its predecessor, and W3.1
+refreshed the fixture names. That reference superseded the earlier measurements
+above for calibration checks. The four
 frozen S28 CSV pins under `scripts/archive/autoseg_trials/` (r7/pilot,
 r7/vid15, r9/pilot, r9/vid15) are the authoritative artefacts for the
 pre-W2.9 sticky-build measurements they represent; do not attempt to

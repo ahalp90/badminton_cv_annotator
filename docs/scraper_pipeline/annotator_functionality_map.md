@@ -1,5 +1,12 @@
 # Annotator functionality map
 
+Status: historical migration contracts
+
+This map records the earlier migration into `src/annotator`. Its target
+contracts, “today” references and migration-plan precedence describe that
+migration. The [annotator guides](../annotator/README.md) document the maintained
+implementation, including the fitted contact and sequence models added later.
+
 What the automatic annotator must do to one broadcast badminton video, written as
 contracts so the outcome tests can be written against this map rather than against the
 current code's shape. Contract text is the TARGET. Where a step already exists, its
