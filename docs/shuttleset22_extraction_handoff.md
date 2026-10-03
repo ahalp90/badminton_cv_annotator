@@ -24,23 +24,14 @@ The six NPY archives use LZMA preset 9. The TrackNet CSV uses gzip level 9.
 
 ## Data locations
 
-The active Bourbaki workspace is:
+The official annotations are checked in at `data/shuttleset22/set/`. The
+142 compressed CSV files occupy 1.6 MB and preserve the original 5.7 MB of CSV
+bytes.
 
-```text
-/scratch/cmarti56/issue106-shuttleset22-data/
-```
-
-Its data directories are:
-
-```text
-/scratch/cmarti56/issue106-shuttleset22-data/annotations/
-/scratch/cmarti56/issue106-shuttleset22-data/sources/
-/scratch/cmarti56/issue106-shuttleset22-data/extracted-simple/
-```
-
-`annotations/` holds the 5.7 MB ShuttleSet22 annotation corpus. `sources/`
-holds the 47 newly downloaded videos. `extracted-simple/` holds the 4.7 GB of
-published outputs in 47 match directories. These are host-local scratch paths.
+Source videos and extraction arrays are supplied separately. Under the external
+dataset root, `sources/` holds the 47 downloaded videos and `extracted-simple/`
+holds 4.7 GB of published outputs in 47 match directories. Machine-specific
+storage locations belong in the project's local remote-access notes.
 
 ## Reuse boundary
 

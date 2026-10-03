@@ -36,3 +36,9 @@ frame; on the static-camera videos, independent per-frame fits agree within
 `renders/` holds one visual audit per video: every painted line projected
 through the frame's fit, drawn over the actual frame. Regenerate any frame
 with `scripts/court_annotation/render_ground_truth.py`.
+
+## Additional views
+
+[Additional examples](additional_examples/README.md) preserve three short source
+clips with manual corners and clicked landmarks. The seven GX frames labelled
+in `2026-09-09/` use the full video from the same source collection.

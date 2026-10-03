@@ -10,7 +10,7 @@ remain research code; the annotation pipeline uses its own detector.
 
 ## Fitting courts from image lines
 
-`detector.py` extracts full-frame OpenCV fragments, groups them into two line
+`line_only.py` extracts full-frame OpenCV fragments, groups them into two line
 families and proposes perspective transforms from possible line identities.
 It scores the visible portions of the finite painted markings. The net is
 excluded from the floor template. Court dimensions and markings reuse the
@@ -186,7 +186,7 @@ finished fits met the report's 15-pixel error criterion. The largest improvement
 on the Yellow clip, reduced error from 221.19 to 21.22 pixels but still missed
 that criterion. Selecting the intended player pair and deciding automatically
 whether to accept a court remained unresolved.
-[Temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+[Temporal results and replay bundle](../../court_detector/comparisons/earlier_approaches.md)
 
 Three scripts divide that work: `export_people.py` samples detections,
 `temporal.py` follows native-image footpoints with a small greedy tracker, and
@@ -261,13 +261,13 @@ pytest -q tests/test_independent_court_temporal.py \
   tests/test_independent_court_player_guided.py
 ```
 
-The [neural follow-up](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+The [neural follow-up](../../court_detector/comparisons/earlier_approaches.md)
 compares both DeepLSD weight sets and LINEA large, including the effect of their
 line fragments on court selection and false acceptance.
 
 ## Recorded development evidence
 
-The [replacement assessment](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+The [replacement assessment](../../court_detector/comparisons/earlier_approaches.md)
 records the candidate errors, selection failures and representative overlays.
 The saved bundles contain the inputs and outputs for those comparisons:
 
@@ -295,6 +295,6 @@ The court geometry, fragment measurements, stripe fitting and image-source types
 now live in [the court detector package](../../../src/court_detector/README.md#code-map).
 These experiment runners import that maintained code. The line-only search
 lives in `line_only.py`. The frozen-view loaders stay with the saved views in
-`scratch/court_det_fix/court_detector/frozen_cases.py`. The
-[code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
-keeps the original implementations.
+`experiments/court_detector/saved_views/frozen_cases.py`. The
+[earlier comparisons](../../court_detector/comparisons/earlier_approaches.md)
+explain the approaches set aside; original implementations remain in Git history.

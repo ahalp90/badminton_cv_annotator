@@ -1,10 +1,15 @@
 # Court geometry repair: evidence and reproduction
 
-The saved evidence supports checking the [issue #148 results](../../../scratch/court_det_fix/evidence/retirement/README.md)
+The saved evidence supports checking the [issue #148 results](../../court_detector/comparisons/earlier_approaches.md)
 from saved before/after outputs. It includes court and contact results, separate
 court-geometry checks and the contact model used for the comparison. The fitted
 models stayed fixed, so these results measure changes in the inputs and processing
 around them rather than a retraining.
+
+This is a historical comparison using CourtKeyNet, the retired neural court
+detector. Saved-output checks still run here; scripts that import `courtkeynet`
+require the historical checkout. The current [court detector](../../../docs/court_detector/usage.md)
+uses line markings and player positions.
 
 [Reproduction commands and inputs](#reproduction)
 
@@ -42,7 +47,7 @@ The commands run from the repository root in its Python environment. The
 scripts use the project dependencies and existing scoring functions.
 The [CPU CI setup](../../../docs/ci.md) provides a suitable starting point for
 these saved-output checks. The frozen-model rerun needs the older versions
-listed separately in [REPRODUCE.md](#inputs-and-environment).
+listed separately in [Inputs and environment](#inputs-and-environment).
 They compare recomputed results with the supplied expected records and fail on
 a mismatch.
 
@@ -190,8 +195,9 @@ need to repeat player-based court acceptance and rally detection. The
 ShuttleSet22 videos 17 and 53 were chosen because their failures were already
 known, so their improvements describe those cases rather than unseen footage.
 
-Grouping repeated matching views and evaluating partial courts remain next
-steps, as described in the [investigation trail](../../../scratch/court_det_fix/evidence/retirement/README.md).
+Grouping repeated matching views and evaluating partial courts were follow-up
+questions at this checkpoint. Later work is covered in the
+[court-detector development report](../../court_detector/report.md).
 
 ## Reproduction
 

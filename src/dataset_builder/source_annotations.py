@@ -27,6 +27,7 @@ Source contacts, for the measurements behind this.
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from pathlib import Path
 from typing import NamedTuple
 
@@ -74,12 +75,21 @@ class SourceAnnotations(NamedTuple):
     population: dict[str, int]
 
 
+def logical_set_id(path: Path) -> str:
+    """Return the logical set ID from a plain or compressed CSV filename."""
+    filename = Path(path).name
+    for suffix in (".csv.gz", ".csv"):
+        if filename.endswith(suffix):
+            set_id = filename[: -len(suffix)]
+            if _SET_FILENAME.fullmatch(set_id) is not None:
+                return set_id
+            break
+    raise ValueError(f"not a ShuttleSet set filename: {path}")
+
+
 def set_number(path: Path) -> int:
-    """Parse the set number from a ShuttleSet filename, e.g. set1.csv -> 1."""
-    match = _SET_FILENAME.match(Path(path).stem)
-    if match is None:
-        raise ValueError(f"not a ShuttleSet set filename: {path}")
-    return int(match.group(1))
+    """Parse the set number from a ShuttleSet filename, e.g. set1.csv.gz -> 1."""
+    return int(logical_set_id(path).removeprefix("set"))
 
 
 def _read_set(path: Path, match: MatchPlayers) -> pd.DataFrame:
@@ -163,7 +173,7 @@ def _usable_rallies(
         ).sort_values(["ball_round", "frame_num"], kind="stable")
         contact_frames = frame_num.loc[order.index].to_list()
         strictly_increasing = all(
-            right > left for left, right in zip(contact_frames, contact_frames[1:])
+            right > left for left, right in pairwise(contact_frames)
         )
         if not contact_frames or not strictly_increasing:
             counts["excluded_non_monotonic_rallies"] += 1
@@ -195,7 +205,7 @@ def load_source_annotations(
     """Load one match's ShuttleSet set CSVs into the frozen source_contacts table."""
     if frame_count <= 0:
         raise ValueError(f"frame_count must be positive, got {frame_count}")
-    paths = sorted(Path(set_dir).glob("set*.csv"))
+    paths = sorted(Path(set_dir).glob("set*.csv*"))
     if not paths:
         raise ValueError(f"no ShuttleSet set tables under {set_dir}")
     raw = pd.concat([_read_set(path, match) for path in paths], ignore_index=True)

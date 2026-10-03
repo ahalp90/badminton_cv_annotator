@@ -1,29 +1,14 @@
-"""Compose one scene's court from the best-painted markings across its searched frames.
+"""Combine scene markings and compare the fit with accepted individual courts.
 
-Players hide different markings in different frames, so one frame's court can miss
-paint that another frame shows. After a fresh search finds the middle frame's court,
-the detector also searches the first and last frames of the middle frame's feet
-window. This module then fits one court from whichever accepted frame shows each
-marking best, and checks it in the middle frame.
+Each scheduled frame is searched independently. Accepted frames align to the
+highest-scoring source frame, and each marking contributes its strongest observed
+paint samples. Every carried individual and the combined refit is checked and
+scored in the same middle image. The best passing court wins; exact ties retain
+an individual. Source player checks remain required when enabled, while transfer
+checks use geometry, camera plausibility and optional camera uprightness.
 
-1. Reference. The accepted frame with the highest own-frame score, the net choice's
-   paint and line blend plus its net-post bonus, supplies coordinates and the fit's
-   starting court. Exact ties go middle, first, last.
-2. Alignment. Each other accepted frame is ECC-aligned to the reference inside its own
-   court, with both frames' person boxes left out. A warp is usable when its
-   correlation reaches the reuse check's level; camera movement is allowed.
-3. Orientation. A court turned 180 degrees against the reference gets its corners
-   rolled by two, so a marking name means the same painted line in every frame.
-4. Donors. Each marking comes from the used court with the most q_paint10 on it. Its
-   observed fragment samples outside person boxes are carried into reference pixels,
-   each weighted by stripe_fitting.prepare's weight times the donor's q_paint10.
-5. Fit. stripe_fitting.refine fits one court to the donated samples in the reference,
-   and stripe_refit.fit_geometry checks the fit.
-6. Middle frame. The court is carried into the middle frame and checked there: hard
-   validity, camera, players' feet when required and the upright camera when on. Its
-   paint support is measured there, on the final stripe refit's scale.
-
-A failed step returns no composite, and the middle frame's own court stands.
+Accepted aligned source frames remain video donors even when their refit fails
+or loses. The output middle image does not need its own accepted court.
 """
 
 from __future__ import annotations
@@ -48,7 +33,7 @@ from .measurements import observable_points
 from .paint_geometry import CENTRE_SEGMENTS_M
 
 if TYPE_CHECKING:
-    from .detect import LiveModules
+    from .detect import LiveModules, PreparedView
     from .measurements import ViewContext
 
 MIDDLE = "middle"
@@ -87,12 +72,18 @@ class UsedFrame:
     evidence: dict[str, Any]  # measure_candidate of that court in this frame
 
 
-class Composite(NamedTuple):
-    corners_native_px: np.ndarray  # (4, 2) in the middle frame's native px and its own court's corner order
+class SceneChoice(NamedTuple):
+    """The scene's selected court, with its accepted source frames and alternatives."""
+
+    corners_native_px: np.ndarray  # (4, 2) in the output middle frame's native px
     paint_score: float | None  # q_paint10_span_weighted measured in the middle frame
-    # The aligned frames the composite was fitted from, in own-frame score order. view_pool.py
+    # Accepted aligned source frames in own-frame score order. view_pool.py
     # takes their donated samples without measuring them again.
     used_frames: tuple[UsedFrame, ...] = ()
+    chosen_role: str = COMPOSITE_KEY
+    measurement: dict[str, Any] | None = None
+    middle_to_reference: np.ndarray | None = None  # output working px to the donors' reference
+    individual_courts: tuple[tuple[str, np.ndarray, dict[str, Any]], ...] = ()
 
 
 def native_per_working(context: ViewContext) -> np.ndarray:
@@ -383,32 +374,80 @@ def fallback(record: dict[str, Any], reason: str) -> tuple[None, dict[str, Any]]
     return None, record
 
 
-def compose_scene(live: LiveModules, frames: Sequence[SearchedFrame], *, geometry_weight: float,
-                  require_people: bool, max_horizon_tilt_deg: float | None) -> tuple[Composite | None, dict[str, Any]]:
-    """Compose one court from a scene's accepted frames and check it in the middle frame.
+def choose_in_middle(live: LiveModules, used: list[UsedFrame], middle: UsedFrame,
+                     fit_corners: np.ndarray | None, output_roll: int, record: dict[str, Any], *,
+                     geometry_weight: float, require_people: bool,
+                     max_horizon_tilt_deg: float | None) -> SceneChoice | None:
+    """Compare every accepted individual and the refit on the same output-frame evidence."""
+    candidates = []
+    for role in FRAME_ROLES:
+        frame = next((item for item in used if item.frame.role == role), None)
+        if frame is not None:
+            corners = corners_between(frame.corners_native, frame, middle)
+            candidates.append((role, np.roll(corners, output_roll, axis=0)))
+    if fit_corners is not None:
+        corners = corners_between(fit_corners, used[0], middle)
+        candidates.append((COMPOSITE_KEY, np.roll(corners, output_roll, axis=0)))
+    best, best_score = None, -np.inf
+    individuals = []
+    record["candidates"] = []
+    for role, corners in candidates:
+        # Each endpoint passed the source player checks. Its transfer must not reinstate
+        # the rejected middle frame's player requirement.
+        measurement, rejection = check_in_frame(
+            live, middle.frame.context, corners, require_people=require_people and role == MIDDLE,
+            max_horizon_tilt_deg=max_horizon_tilt_deg,
+        )
+        row = {"role": role, "corners_native_px": corners.tolist(), "rejection": rejection,
+               "measurement": measurement}
+        if measurement is not None:
+            paint, geometry = measurement["paint_score"], measurement["geometry_score"]
+            if paint is not None and geometry is not None:
+                state, posts = net_choice.net_posts(corners, middle.frame.context)
+                reward = net_choice.net_reward(state, posts, NET_OVERRUN_WORKING_PX)
+                row.update(score_parts(paint, geometry, reward, geometry_weight))
+        if rejection is None and "combined_score" not in row:
+            row["rejection"] = "score_evidence_missing"
+        record["candidates"].append(row)
+        if row["rejection"] is not None:
+            continue
+        assert measurement is not None
+        if role != COMPOSITE_KEY:
+            individuals.append((role, corners, measurement))
+        # Exact ties keep the first individual in middle, first, last order.
+        if row["combined_score"] > best_score:
+            best_score = row["combined_score"]
+            best = SceneChoice(corners, measurement["paint_score"], tuple(used), role, measurement,
+                             middle.to_reference, ())
+            record["middle"] = row
+    if best is None:
+        return None
+    record["chosen_role"] = best.chosen_role
+    return best._replace(individual_courts=tuple(individuals))
 
-    :param frames: The accepted frames, one per role, the middle frame among them.
-    :param geometry_weight: The net choice's share of the geometry score.
-    :param require_people: Require the middle frame's feet on the composite, as the final refit does.
-    :param max_horizon_tilt_deg: The upright-camera limit; None allows any camera roll.
-    :return: The composite, or None when the middle frame's own court should stand; and a
-        record of each step, whose fallback_reason says why no composite was returned.
+
+def compose_scene(live: LiveModules, frames: Sequence[SearchedFrame], *, geometry_weight: float,
+                  require_people: bool, max_horizon_tilt_deg: float | None,
+                  output: PreparedView | None = None) -> tuple[SceneChoice | None, dict[str, Any]]:
+    """Choose the best accepted individual or combined refit in the scene's middle image.
+
+    :param frames: Accepted source frames, which may omit the middle frame.
+    :param output: Middle inputs even when its search found no court. Existing callers
+        may omit this when frames already contains the middle frame.
+    :return: The selected court with all aligned source evidence, and the decision record.
     """
     record: dict[str, Any] = {"fallback_reason": None}
-    if len(frames) < 2:
-        return fallback(record, "too_few_accepted_frames")
+    if not frames:
+        return fallback(record, "no_accepted_frames")
     scores = [own_frame_score(live, frame, geometry_weight) for frame in frames]
     record["scores"] = scores
-    if any("combined_score" not in row for row in scores):
-        # Ranking only the scored frames would choose the reference from a smaller set.
-        return fallback(record, "score_evidence_missing")
-    order = sorted(range(len(frames)),
-                   key=lambda index: (-scores[index]["combined_score"], FRAME_ROLES.index(frames[index].role)))
+    order = sorted(range(len(frames)), key=lambda index: (
+        -scores[index].get("combined_score", -np.inf), FRAME_ROLES.index(frames[index].role),
+    ))
     ranked = [frames[index] for index in order]
     reference = ranked[0]
     record["reference"] = reference.role
     reference_working = reference.corners_native / reference.native_per_working
-
     used, alignments, rolls = [], {}, {}
     for frame in ranked:
         to_reference: np.ndarray | None = np.eye(3)
@@ -419,29 +458,42 @@ def compose_scene(live: LiveModules, frames: Sequence[SearchedFrame], *, geometr
         item, rolls[frame.role] = use_frame(live, frame, to_reference, reference_working)
         used.append(item)
     record.update(alignments=alignments, half_turn_rolls=rolls, used_frames=[item.frame.role for item in used])
-    if len(used) < 2:
-        return fallback(record, "too_few_aligned_frames")
     middle = next((item for item in used if item.frame.role == MIDDLE), None)
-    # Only an aligned middle frame gives a warp for middle-frame coordinates.
     if middle is None:
-        return fallback(record, "middle_not_aligned")
-
-    record["markings"], constraints = donated_samples(used)
-    fit = fit_in_reference(live, used[0], constraints)
-    record["fit"] = {"status": fit["status"], "sample_count": len(constraints.points), "valid": fit["valid"],
-                     "validity_reason": fit["validity_reason"],
-                     "corners_reference_native_px": fit.get("corners_native_px")}
-    if not fit["valid"]:
-        return fallback(record, f"fit_{fit['validity_reason']}")
-
-    carried = corners_between(np.asarray(fit["corners_native_px"]), used[0], middle)
-    # Back into the corner order of the middle frame's own court. Rolling by two undoes itself.
-    corners = np.roll(carried, rolls[MIDDLE], axis=0)
-    # The middle frame is checked even when it is the reference, so every composite passes the same checks.
-    measurement, reason = check_in_frame(live, middle.frame.context, corners, require_people=require_people,
-                                         max_horizon_tilt_deg=max_horizon_tilt_deg)
-    record["middle"] = {"corners_native_px": corners.tolist(), "rejection": reason, "measurement": measurement}
-    if reason is not None:
-        return fallback(record, f"middle_{reason}")
-    assert measurement is not None  # a measured court is the only one that can pass
-    return Composite(corners, measurement["paint_score"], tuple(used)), record
+        if output is None:
+            return fallback(record, "middle_not_aligned")
+        # The reference court supplies only an initial ECC mask in the output image;
+        # it does not pretend that the middle search accepted a court.
+        mask_corners = reference_working * native_per_working(output.context)
+        output_frame = SearchedFrame(MIDDLE, output.native_frame, output.context, mask_corners, None)
+        alignments["output"], output_to_reference = align(output_frame, reference)
+        if output_to_reference is None:
+            return fallback(record, "middle_not_aligned")
+        middle = UsedFrame(output_frame, output_to_reference, mask_corners, {})
+    output_roll = rolls.get(MIDDLE, 0)
+    fit_corners = None
+    if len(used) < 2:
+        record["fallback_reason"] = "too_few_aligned_frames" if len(frames) > 1 else "too_few_accepted_frames"
+    else:
+        record["markings"], constraints = donated_samples(used)
+        try:
+            fit = fit_in_reference(live, used[0], constraints)
+        except (ValueError, ArithmeticError) as error:
+            record["fallback_reason"] = "composition_failed"
+            record["error"] = repr(error)
+        else:
+            record["fit"] = {"status": fit["status"], "sample_count": len(constraints.points), "valid": fit["valid"],
+                             "validity_reason": fit["validity_reason"],
+                             "corners_reference_native_px": fit.get("corners_native_px")}
+            if fit["valid"]:
+                fit_corners = np.asarray(fit["corners_native_px"])
+            else:
+                record["fallback_reason"] = f"fit_{fit['validity_reason']}"
+    chosen = choose_in_middle(live, used, middle, fit_corners, output_roll, record,
+                             geometry_weight=geometry_weight, require_people=require_people,
+                             max_horizon_tilt_deg=max_horizon_tilt_deg)
+    if chosen is None:
+        record["fallback_reason"] = "no_passing_court_in_middle"
+    elif fit_corners is not None and chosen.chosen_role != COMPOSITE_KEY:
+        record["fallback_reason"] = "composite_not_better"
+    return chosen, record

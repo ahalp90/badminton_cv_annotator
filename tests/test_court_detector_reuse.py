@@ -26,14 +26,14 @@ from court_detector.detect import (
     freeze_arrays,
     load_live_modules,
 )
-from scratch.court_det_fix.court_detector import frozen_cases
+from experiments.court_detector.saved_views import frozen_cases
 
 REPO = Path(__file__).resolve().parents[1]
-COURT_ROOT = REPO / "scratch/court_det_fix"
-SAVED_COURTS = COURT_ROOT / "court_detector/check_20260926_upright/upright/results"
+COURT_ROOT = frozen_cases.ROOT
+SAVED_COURTS = REPO / "tests/fixtures/court_detector/saved_courts"
 EARLIER_SCENE = "shuttleset_03_scene_0016"
 LATER_SCENE = "shuttleset_03_scene_0017"
-OTHER_CAMERA_FRAME = COURT_ROOT / "frozen_views/frames/gx/images/gxBQ_window_00_frame_00000005.png"
+OTHER_CAMERA_FRAME = COURT_ROOT / "frames/gx/images/gxBQ_window_00_frame_00000005.png"
 UPRIGHT_LIMIT_DEG = 45.0  # detect.MAX_HORIZON_TILT_DEG
 # (4, 2) native px: a synthetic court inside a 1920x1080 frame, in CORNER_COURT_M order.
 SYNTHETIC_CORNERS = np.array([[640.0, 300.0], [1280.0, 300.0], [1560.0, 960.0], [360.0, 960.0]])

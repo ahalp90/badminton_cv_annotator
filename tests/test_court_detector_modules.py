@@ -19,7 +19,7 @@ from court_detector.detect import freeze_arrays, load_live_modules
 from court_detector.search import DIRECTION_SETTINGS
 
 REPO = Path(__file__).resolve().parents[1]
-COURT_ROOT = REPO / "scratch/court_det_fix"
+TEST_FIXTURES = REPO / "tests/fixtures/court_detector"
 LEAVES = ("search", "net_choice", "stripe_refit", "inputs", "feet")
 
 
@@ -30,7 +30,7 @@ def run_python(code: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_direction_settings_equal_the_frozen_direction_file() -> None:
-    path = COURT_ROOT / "frozen_views/baseline_directions/gxBQ_window_00_frame_0.json.gz"
+    path = TEST_FIXTURES / "baseline_directions/gxBQ_window_00_frame_0.json.gz"
     with gzip.open(path, "rt", encoding="utf-8") as stream:
         frozen = json.load(stream)["settings"]
     # JSON distinguishes an integer setting from its floating-point replacement.

@@ -802,6 +802,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Write the frozen v1 dataset tables from completed ShuttleSet22 artifacts.",
     )
     ss22_parser.add_argument("--data-root", type=Path, required=True)
+    ss22_parser.add_argument(
+        "--annotation-root",
+        type=Path,
+        default=REPO_ROOT / "data" / "shuttleset22",
+        help="Checked-in ShuttleSet22 annotation root; defaults to data/shuttleset22.",
+    )
     ss22_parser.add_argument("--output-dir", type=Path, required=True)
     ss22_parser.add_argument(
         "--run-id",
@@ -879,6 +885,7 @@ def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
                 data_root=arguments.data_root,
                 output_dir=arguments.output_dir,
                 run_id=arguments.run_id,
+                annotation_root=arguments.annotation_root,
                 sources=DEFAULT_SOURCES if arguments.sources is None else arguments.sources,
                 commentary_root=arguments.commentary_root,
                 replay_mask_root=arguments.replay_mask_root,

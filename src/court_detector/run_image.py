@@ -8,8 +8,6 @@ README.md owns the options and the output format.
 
 from __future__ import annotations
 
-# ruff: noqa: E402 -- Set worker thread limits before importing NumPy.
-
 import argparse
 import json
 import os
@@ -20,13 +18,17 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 # Process workers inherit these settings. Set them before importing NumPy.
-for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'BLIS_NUM_THREADS'):
-    os.environ[variable] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['BLIS_NUM_THREADS'] = '1'
 
 import cv2
 import numpy as np
 
 from .detect import CourtDetector, Switches
+from .geometry import normalise_output_corners
 from .inputs import ViewInputs, same_frame_provenance
 from .line_sources import DeepLSDLines, LineSource
 from .measurements import write_json_gz
@@ -132,7 +134,7 @@ def detect_image(image: np.ndarray, tools: ImageTools, *, image_id: str, source:
     view = ViewInputs(image_id, image, IMAGE_FRAME_INDEX, (IMAGE_FRAME_INDEX, IMAGE_FRAME_INDEX + 1), segments,
                       boxes, same_frame_provenance(image_id, IMAGE_FRAME_INDEX))
     result = tools.detector.detect(view, people, frame)
-    corners = result.corners_native_px
+    corners = None if result.corners_native_px is None else normalise_output_corners(result.corners_native_px)
     return {'schema': IMAGE_RESULT_SCHEMA, 'image_id': image_id, 'image': source, 'native_size': frame.size,
             'status': 'court' if corners is not None else 'no_court',
             'corners_native_px': None if corners is None else corners.tolist(),
@@ -149,10 +151,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument('--deeplsd-weights', type=Path, required=True)
     parser.add_argument('--device', default='cuda', help='device for DeepLSD and, with --with-people, RTMLib')
     parser.add_argument('--with-people', action='store_true',
-                        help='run RTMLib once on the image; its people mask occlusions and support proposals')
+                        help='run RTMLib to mask people from paint measurements; '
+                             'with --full, also break exact search ties')
     parser.add_argument('--template-device', choices=TEMPLATE_DEVICES, default='cpu',
                         help='device for line-template scoring; cuda needs CuPy and a GPU (default: cpu)')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
+    search_options = parser.add_mutually_exclusive_group()
+    search_options.add_argument('--fast', action='store_true', help='search line templates alone (default)')
+    search_options.add_argument('--full', action='store_true', help='also search all lines and painted lines')
     return parser.parse_args()
 
 
@@ -161,7 +167,7 @@ def main() -> int:
     # Check the image before spending time on model loading.
     image = read_image(args.image)
     switches = Switches(workers=args.workers, timing=True, require_people=False,
-                        template_device=args.template_device)
+                        template_device=args.template_device, full_no_people_search=args.full)
     tools = load_image_tools(switches, args.deeplsd_source, args.deeplsd_weights, device=args.device,
                              with_people=args.with_people)
     with tools.detector:

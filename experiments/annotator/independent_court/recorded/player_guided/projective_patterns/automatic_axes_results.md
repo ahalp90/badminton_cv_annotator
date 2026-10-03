@@ -1,6 +1,5 @@
-# Retired source
+# Automatic direction results
 
-Compatibility pointer for protected W5 records. Read the
-[consolidated evidence](../../../../../../scratch/court_det_fix/evidence/direction_search/README.md).
-The original file is preserved intact under its repository-relative path
-in the [sealed recovery archive](../../../../../../scratch/court_det_fix/INDEX.md#recovery-not-another-reading-path).
+The [earlier approach comparisons](../../../../../court_detector/comparisons/earlier_approaches.md)
+explain the direction-selection failures and candidate-limit findings.
+Detailed historical reports remain in Git history.

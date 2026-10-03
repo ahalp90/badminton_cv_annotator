@@ -34,9 +34,9 @@ from court_detector.detect import (
     freeze_arrays,
     load_live_modules,
 )
-from scratch.court_det_fix.court_detector import frozen_cases
+from experiments.court_detector.saved_views import frozen_cases
 
-COURT_ROOT = Path(__file__).resolve().parents[1] / "scratch/court_det_fix"
+TEST_FIXTURES = Path(__file__).resolve().parents[1] / "tests/fixtures/court_detector"
 CASE_ID = "am3_window_00_frame_0"
 SECOND_CASE_ID = "gxBQ_window_00_frame_0"
 SECOND_VIEW_ENTRIES = 4
@@ -71,9 +71,9 @@ class Run(NamedTuple):
 
 def baseline_view(case_id: str, entry_count: int) -> tuple[Any, list[dict]]:
     """A frozen view's context and its baseline generation record's first entries."""
-    context = frozen_cases.prepare_view(COURT_ROOT, case_id)
+    context = frozen_cases.prepare_view(frozen_cases.ROOT, case_id)
     freeze_arrays(context)
-    with gzip.open(COURT_ROOT / f"frozen_views/baseline_generation/{case_id}.json.gz", "rt") as stream:
+    with gzip.open(TEST_FIXTURES / f"baseline_generation/{case_id}.json.gz", "rt") as stream:
         entries = json.load(stream)["entries"][:entry_count]
     return context, entries
 

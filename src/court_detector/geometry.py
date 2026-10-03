@@ -25,6 +25,20 @@ RIDGE_CENTRE_SHIFTS = np.array([-4, -2, 0, 2, 4], dtype=np.float32)
 RIDGE_SIDE_DISTANCE = 6.0
 RIDGE_MIN_CONTRAST = 10.0
 RIDGE_MIN_FRACTION = 0.4
+# A search candidate's player support tier, strongest first (line_matching.support_tiers).
+PASSES_PLAYER_RULE, OFTEN_HAS_A_PLAYER, NO_PLAYER_SUPPORT = range(3)
+
+
+def normalise_output_corners(corners: np.ndarray) -> np.ndarray:
+    """Put the far baseline first in an accepted output quad, preserving every pixel.
+
+    Input corners follow the court boundary, with each baseline occupying two
+    consecutive corners. Only a half-turn is allowed; equal mean heights keep
+    their existing order. Private search and pooling evidence keeps its own order.
+    """
+    if corners[:2, 1].mean() > corners[2:, 1].mean():
+        return np.roll(corners, 2, axis=0)
+    return corners
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,9 @@ class Candidate:
     score: float
     family_support: tuple[float, float]
     supported_lines: tuple[int, int]
+    # Orders only courts whose scores are exactly equal. Courts built without a player
+    # measurement keep the weakest tier.
+    player_tier: int = NO_PLAYER_SUPPORT
 
 
 DEFAULT_SETTINGS = Settings()

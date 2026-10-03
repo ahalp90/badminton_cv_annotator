@@ -685,7 +685,7 @@ def _video_rally_views(
         ]
         return rallies, human_rallies, replay_mask, None
 
-    annotation_dir = shuttleset22_root / "annotations" / "set" / str(row["title"])
+    annotation_dir = shuttleset22_root / "set" / str(row["title"])
     records, annotation_population = load_annotation_rallies(annotation_dir, frame_count)
     rallies = [
         (

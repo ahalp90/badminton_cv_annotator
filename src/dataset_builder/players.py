@@ -124,6 +124,16 @@ def load_match_players(
     return MatchPlayers(player_a=winner, player_b=loser, first_a_is_top=bool(downcourt))
 
 
+def match_table_path(set_root: Path) -> Path:
+    """Find the plain or gzip-compressed match table beside a dataset's set folders."""
+    paths = sorted(Path(set_root).glob(f"{MATCH_TABLE_FILENAME}*"))
+    if len(paths) != 1:
+        raise FileNotFoundError(
+            f"expected one {MATCH_TABLE_FILENAME} or {MATCH_TABLE_FILENAME}.gz under {set_root}"
+        )
+    return paths[0]
+
+
 def a_is_top(first_a_is_top: bool, set_number: int, post_switch: bool) -> bool:
     """Return whether player A is on the top court during this side phase.
 

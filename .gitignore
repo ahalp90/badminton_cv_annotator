@@ -139,3 +139,10 @@ phase_a_stems.txt
 
 # Commentary-scraper output root (annotator/config.py default; BADMINTON_SCRAPE_DIR overrides)
 data/scrape_output/
+
+# Optional court research data: distributed separately from the compact comparison inputs.
+experiments/court_detector/evidence/inputs/candidate_pools/
+experiments/court_detector/evidence/search/rally_review/scene_clips/
+
+# Full source video; the three small labelled clips are checked in.
+data/amateur_court_corners/additional_examples/gxBQ_HwdgN4.mp4

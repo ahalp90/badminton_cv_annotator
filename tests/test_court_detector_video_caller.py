@@ -17,6 +17,7 @@ from court_detector import feet, run_video
 from court_detector.detect import (
     CourtDetector,
     CourtResult,
+    PreparedView,
     SceneCourts,
     Switches,
 )
@@ -215,6 +216,7 @@ class LiveTools:
 @pytest.mark.parametrize(('flag', 'people_source'), [
     pytest.param([], People, id='live-rtmlib'),
     pytest.param(['--no-require-people'], type(None), id='optional-without-people'),
+    pytest.param(['--no-require-people', '--full'], type(None), id='optional-full-search'),
     pytest.param(['--people', 'POSES'], PoseArrays, id='saved-poses'),
 ])
 def test_cli_uses_live_optional_or_saved_people(
@@ -233,6 +235,7 @@ def test_cli_uses_live_optional_or_saved_people(
     assert result['schema'] == run_video.VIDEO_RESULT_SCHEMA
     assert tools.extractor_loads == (['cuda'] if people_source is People else [])
     assert result['require_people'] is ('--no-require-people' not in flag)
+    assert tools.detectors[0].switches.full_no_people_search is ('--full' in flag)
     assert result['saved_people'] is (people_source is PoseArrays)
     assert (result['court_mode'], result['reuse_courts']) == (CourtMode.VIDEO_ROBUST, False)
     # Without scene options the whole video is one scene.
@@ -244,14 +247,17 @@ def test_cli_uses_live_optional_or_saved_people(
 
 
 class CourtDetectorStandIn(Detector):
-    """Finds a court in every scene and hands the video pool its scene state."""
+    """Finds a court in the first scene only and hands the video pool each scene's state."""
 
     live = None
 
     def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
         self.events.append('detect')
         self.endpoint_views.append(endpoint_views)
-        corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
+        if len(self.endpoint_views) > 1:
+            prepared = PreparedView(view, {}, view.frame, None)
+            return CourtResult(view.view_id, None, 'refit_players_not_on_court', 'searched', None, prepared=prepared)
+        corners = np.array([[50., 40.], [10., 40.], [10., 10.], [50., 10.]])
         scene = SceneCourts(None, view.frame, corners, corners)
         return CourtResult(view.view_id, corners, None, 'searched', None, .9, scene=scene)
 
@@ -269,15 +275,23 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
         def __init__(self, live: object, switches: Switches, court_mode: CourtMode) -> None:
             self.court_mode = court_mode
             self.rows: list[dict] = []
+            self.receivers: list[dict] = []
             pools.append(self)
 
         def add(self, row: dict, scene: SceneCourts) -> None:
             # Nothing prints before every scene has joined the pool.
             assert capsys.readouterr().out == ''
+            assert np.mean(np.asarray(row['corners_native_px'])[:2, 1]) == 40.
             self.rows.append(row)
 
+        def add_receiver(self, row: dict, prepared: PreparedView) -> None:
+            assert capsys.readouterr().out == ''
+            assert prepared.view.view_id == row['view_id']
+            self.receivers.append(row)
+
         def apply(self) -> list[dict]:
-            self.rows[0]['corners_native_px'] = 'pooled'
+            self.rows[0]['scene_corners_native_px'] = self.rows[0]['corners_native_px']
+            self.rows[0]['corners_native_px'] = [[60., 45.], [5., 45.], [15., 12.], [45., 12.]]
             return [{'reference_view_id': self.rows[0]['view_id']}]
 
     monkeypatch.setattr(run_video, 'VideoPool', Pool)
@@ -300,12 +314,16 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
     assert printed == result['scenes']
     if mode == CourtMode.SCENE_ROBUST:
         assert pools == [] and 'view_groups' not in result
+        assert printed[0]['corners_native_px'] == [[10., 10.], [50., 10.], [50., 40.], [10., 40.]]
         return
     view_ids = [row['view_id'] for row in result['scenes']]
     assert pools[0].court_mode == mode
-    assert [row['view_id'] for row in pools[0].rows] == view_ids
+    # The courtless scene waits in the pool as a receiver.
+    assert [row['view_id'] for row in pools[0].rows] == view_ids[:1]
+    assert [row['view_id'] for row in pools[0].receivers] == view_ids[1:]
     assert result['view_groups'] == [{'reference_view_id': view_ids[0]}]
-    assert printed[0]['corners_native_px'] == 'pooled'
+    assert printed[0]['corners_native_px'] == [[15., 12.], [45., 12.], [60., 45.], [5., 45.]]
+    assert printed[0]['scene_corners_native_px'] == [[50., 40.], [10., 40.], [10., 10.], [50., 10.]]
 
 
 def test_fast_robust_rejects_court_reuse_before_any_model_loads(

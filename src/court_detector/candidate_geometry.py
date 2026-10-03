@@ -145,10 +145,14 @@ def geometry(homographies: np.ndarray, size: tuple[int, int]) -> tuple[np.ndarra
 
 
 def retain(candidates: list[detector.Candidate], settings: detector.Settings) -> list[detector.Candidate]:
-    """Vectorise distances while preserving the existing greedy retention order."""
+    """Vectorise distances while preserving the existing greedy retention order.
+
+    The higher score always goes first. Exactly equal scores go by player tier, and the
+    stable sort leaves courts equal in both in the order given.
+    """
     retained = []
     corners = np.empty((settings.keep_candidates, 4, 2))
-    for candidate in sorted(candidates, key=lambda item: -item.score):
+    for candidate in sorted(candidates, key=lambda item: (-item.score, item.player_tier)):
         separation = np.linalg.norm(corners[:len(retained)] - candidate.corners_px, axis=2).max(axis=1)
         if np.any(separation <= settings.distinct_corner_distance):
             continue

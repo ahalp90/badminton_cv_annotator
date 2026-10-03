@@ -19,12 +19,12 @@ _BST_X = _SRC / "bst_x"
 if str(_BST_X) not in sys.path:
     sys.path.insert(0, str(_BST_X))
 
-from annotator.evaluation.fixtures import (
+from annotator.evaluation.fixtures import (  # noqa: E402
     FIXTURES,
     Fixture,
-    fixtures_root,  # noqa: E402
+    fixtures_root,
 )
-from annotator.evaluation.gt_scoring import flatten_metrics, render_table, run_fixture
+from annotator.evaluation.gt_scoring import flatten_metrics, render_table, run_fixture  # noqa: E402
 
 FixtureRunner = Callable[..., object]
 

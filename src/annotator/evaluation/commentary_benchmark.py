@@ -33,6 +33,7 @@ from annotator.evaluation.commentary_benchmark_inputs import (
 )
 from annotator.evaluation.shuttleset22_features import (
     ANNOTATION_TREE_SHA256,
+    DEFAULT_ANNOTATION_ROOT,
     _tree_digest,
 )
 from annotator.fps_constants import scale_for_fps
@@ -724,7 +725,7 @@ def _validate_corpus_inputs(
         issue103_rally_records,
         issue103_artifacts,
     )
-    annotation_digest = _tree_digest(shuttleset22_root / "annotations")
+    annotation_digest = _tree_digest(shuttleset22_root / "set")
     if annotation_digest != ANNOTATION_TREE_SHA256:
         raise ValueError(
             "ShuttleSet22 annotation tree SHA-256 differs: "
@@ -919,7 +920,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--issue103-rally-records", type=Path, required=True)
     parser.add_argument("--issue103-artifacts", type=Path, required=True)
     parser.add_argument("--shuttleset-ground-truth-root", type=Path, required=True)
-    parser.add_argument("--shuttleset22-root", type=Path, required=True)
+    parser.add_argument(
+        "--shuttleset22-root",
+        type=Path,
+        default=DEFAULT_ANNOTATION_ROOT,
+        help="Checked-in ShuttleSet22 annotation root; defaults to data/shuttleset22.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 

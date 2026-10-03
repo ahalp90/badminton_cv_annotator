@@ -1,148 +1,73 @@
-# Why plausible courts were difficult to rank
+# Court selection failure modes
 
-The independent fitting experiments often generated a useful court alongside
-convincing wrong ones. This September assessment examined two sources of error:
-small errors in the estimated line directions, and rankings that rewarded
-background markings or partial courts.
+The line-based court search often found a usable court and several plausible wrong ones. This report records the September work on why the wrong candidate could win.
 
-The observations and proposed comparison below are recorded at checkpoint
-`b90518c` on `fix/court-det`. The linked records contain the candidate geometry,
-line evidence and visual judgements available then. Subsequent direction-search
-results are in the [consolidated experiment record](../../../scratch/court_det_fix/evidence/direction_search/README.md).
+Two ideas were investigated at checkpoint `b90518c` on `fix/court-det`:
 
-## Direction accuracy and selection
+- small errors in the estimated line directions might distort an otherwise good fit;
+- the ranking score might favour background markings or partial courts over the court in use.
 
-**Question:** does agreement with observed lines measure the precision needed for an
-accurate projected court, and does the proposed selector preserve useful alternatives?
+This is historical work. Later results and the current detector are summarised in [earlier court-detector approaches](../../court_detector/comparisons/earlier_approaches.md) and the [court-detector experiment map](../../court_detector/README.md).
 
-[Direction records](../independent_court/recorded/player_guided/projective_patterns/evaluation/direction_records.json.gz) contain three difficult cases: GX frame0,
-GX frame5 and Amateur-2 frame28019. Each case includes the saved estimator settings,
-merged line coefficients, full bank IDs/counts/statuses, 16 selected points and support
-masks, and the complete previous fixed-support SVD diagnostic. That diagnostic retains
-every attempted pair fit, including convergence status and failures. Source-record MD5s
-identify the exports; fields were copied without recomputing geometry.
+## Direction experiment
 
-The estimator's `direction_lines` are working-pixel homogeneous lines. Row-vector lines
-transform to normalised coordinates with `lines @ normalised_to_working`. Normalised
-homogeneous points transform to working pixels with `points @ normalised_to_working.T`.
-The transform centres the image and scales both axes by its diagonal. Point scale/sign
-is arbitrary. Bank candidates are pairwise line intersections followed by explicit
-infinity points; the exact construction appears in [method excerpts](../independent_court/recorded/player_guided/projective_patterns/evaluation/method_excerpts.md).
-Candidate IDs refer to that construction before degenerate candidates are removed.
-Support arrays align with the surviving `candidate_ids`, not the raw ID as an index.
-Selected masks index the saved merged-line rows; they are not fragment memberships.
-Court coordinates are metres: x runs from left to right (0 to 6.10), y from far to
-near baseline (0 to 13.40). Corner slots are far-left, far-right, near-right, near-left.
-The excerpts include the exact court corners, twelve painted intervals and their
-marking mapping. Homogeneous projection uses `H @ [x,y,1]`, divided by its third coordinate.
+The saved [direction records](../independent_court/recorded/player_guided/projective_patterns/evaluation/direction_records.json.gz) cover three difficult cases: GX frame 0, GX frame 5 and Amateur-2 frame 28019. They preserve the merged lines, direction candidates, selected support masks and the fixed-support SVD diagnostics used at the time.
 
-**Actual fragment-to-merged-line membership and fragment midpoint coordinates are not
-included.** Exact replay was unavailable at this checkpoint. The old `compatible_raw_ids` field records
-post-fit compatibility, not merge assignments; it is deliberately excluded from the
-numeric export. The data support analysis of the original angle test, bank selection
-and fixed-support SVD. They cannot establish the real-frame effect of midpoint anchors.
+The proposed change was small. The existing test measured each line's direction at the point on the merged line closest to the image centre. The alternative measured it at the midpoint of the longest contributing fragment. Everything after that angle measurement stayed fixed.
 
-The SVD records use the exact control named by each case's `control_source`. GX0 uses
-approved generated candidate89. These controls are used in diagnostic fitting, not
-in automatic selection. `control_selected_svd` is label-guided and does not establish
-known correct membership or a performance ceiling. `control_fit` minimises coordinate
-residuals with a bounded local solver; its reported maximum corner error is neither
-the optimisation objective nor a certified optimum. See [the SVD result](../../../scratch/court_det_fix/evidence/direction_search/README.md).
-
-### Proposed comparison at this checkpoint
-
-The baseline angle is measured at the normalised line's closest point to the image
-centre. The proposed alternative uses the longest clipped fragment that actually
-contributed to the merged line. Equal lengths are resolved by canonical observation
-index. The fragment's working midpoint `m` projects onto merged line `(n,c)` as
-`a = m - n*(dot(n,m)+c)/dot(n,n)`. After transformation to normalised coordinates,
-the ray for candidate `v` is `v.xy - v.w*a`, compared with tangent `(line.b,-line.a)`.
-The original absolute cross/dot angle and 90-degree undefined-ray convention
-remain fixed. The proposed change concerns the anchor used to measure the angle.
-
-| Arm | Angle anchor | Representative |
+| Arm | Angle measured at | Candidate retained from each suppression bucket |
 | --- | --- | --- |
-| B | Original foot | Original greedy coverage leader |
-| M | Projected fragment midpoint | Original greedy coverage leader |
-| R | Original foot | Minimum residual within the leader's suppression bucket |
-| MR | Projected fragment midpoint | Minimum residual within that bucket |
+| B | Existing closest-point location | Existing greedy leader |
+| M | Contributing-fragment midpoint | Existing greedy leader |
+| R | Existing closest-point location | Lowest-residual candidate in the leader's bucket |
+| MR | Contributing-fragment midpoint | Lowest-residual candidate in the leader's bucket |
 
-Both anchors retain the original greedy allocation of at most 16 leaders.
-A bucket contains its leader and the currently eligible candidates it suppresses at
-support-mask IoU > 0.8. Buckets are disjoint. Only leaders update coverage and subsequent
-allocation. R/MR choose the candidate minimising `mean(min(angle,1.5)**2)` on the fixed
-leader mask, breaking ties by original candidate ID. The chosen candidate's own mask
-supplies its subsequent SVD fit. No cross-bucket backfill or support reselection occurs.
-The angle limit is 1.5 degrees and eligible candidates support at least two merged lines.
-These anchor and score choices are hypotheses, not validated objectives.
+The existing greedy search still allocated at most 16 leaders. Candidates with support-mask IoU above 0.8 belonged to the leader's bucket. R and MR chose the lowest `mean(min(angle, 1.5)**2)` within that fixed bucket, then used that candidate's support mask for the SVD fit. M and R were intended to continue through the normal matcher; MR and the SVD variants were diagnostic arms.
 
-The proposed design assigned ordered-pair control-fit diagnostics to all four
-arms and their fixed-support SVD variants on nine development views. M and R
-also entered the unchanged matcher: 18 case-arms followed by 36
-camera-first/all-camera rescoring case-arms. MR and SVD were diagnostic-only.
-Budgets, camera checks, player checks and rankings were fixed. Exact merge
-provenance and baseline replay were prerequisites; this checkpoint contained
-the design, with results still outstanding.
+The original fragment-to-merged-line membership and fragment midpoints were not saved. The committed records can replay the old angle test, bank selection and fixed-support SVD calculations, but they cannot reconstruct the midpoint-anchor arm exactly from the saved data alone. The exact geometry conventions and implementation excerpts remain in [method excerpts](../independent_court/recorded/player_guided/projective_patterns/evaluation/method_excerpts.md).
 
-## Ranking and visibility
+At checkpoint `b90518c`, this comparison had been specified but not completed. Its later outcome belongs to the subsequent detector work linked above.
 
-**Question:** what observable evidence could distinguish a correct partial court from
-a strong match to background structures, without discarding the existing good fits?
+## Ranking failures
 
-[Ranking records](../independent_court/recorded/player_guided/projective_patterns/evaluation/ranking_records.json.gz) export both automatic winners from each of
-the nine all-camera pools, plus both visually approved GX0 observed-bank control winners.
-Equal line/paint winners share one entry. Stable identity is `(case_id, population,
-candidate_id)`; IDs from different populations are not interchangeable. Each population
-preserves native dimensions, working size and source-record MD5. Corners are native pixels;
-homographies map court metres to working pixels. Entries retain the full saved stripe,
-paint-profile and gate evidence. These are selected examples, not the full candidate
-population or a new set of independently labelled negatives.
+The saved [ranking records](../independent_court/recorded/player_guided/projective_patterns/evaluation/ranking_records.json.gz) contain the automatic line and paint winners from nine all-camera pools, plus two visually approved GX0 controls. The [visual judgements](../independent_court/recorded/player_guided/projective_patterns/automatic_axes_visual_judgements.md) and [gallery](../independent_court/recorded/player_guided/projective_patterns/automatic_axes_visual_check.html) record the corresponding inspections.
 
-The [automatic results](../../../scratch/court_det_fix/evidence/direction_search/README.md),
-[exact visual judgements](../independent_court/recorded/player_guided/projective_patterns/automatic_axes_visual_judgements.md), and the corresponding
-[gallery](../independent_court/recorded/player_guided/projective_patterns/automatic_axes_visual_check.html) record the candidate outcomes. The separate
-[GX0 control](../independent_court/recorded/player_guided/projective_patterns/gx0_control_visual_check.html) has two essentially ideal winners,
-with [measurements](../independent_court/recorded/player_guided/projective_patterns/gx0_control_measurements.json.gz) preserving their approval.
-The galleries share the same [source images](../independent_court/recorded/player_guided/projective_patterns/images/).
+Two wrong paint winners show the problem clearly:
 
-Two decisive false paint winners are Amateur-2 frame28019 `184:4123` and ShuttleSet03
-scene19 `165:6702`, both in `automatic_all_camera`. The former passes profiles for all
-11 markings. The latter scores 1.0 from five available markings, with six unavailable.
-Both fail the original floor gate. However, approved GX0 candidate89 and both ideal
-GX0 bank-control winners also fail that gate. Counts of visible markings and the old
-floor rejection therefore each face a concrete contrary example.
+| Case | Candidate | Result |
+| --- | --- | --- |
+| Amateur-2 frame 28019 | `184:4123` | Wrong court even though all 11 marking profiles passed |
+| ShuttleSet03 scene 19 | `165:6702` | Wrong court with paint score 1.0 from the five visible markings; six markings were unavailable |
 
-The exact profile and winner-selection functions are in [method excerpts](../independent_court/recorded/player_guided/projective_patterns/evaluation/method_excerpts.md).
-Visibility here requires a projected interval to clip to a positive span of at least
-12 working pixels inside the image under `_visible_samples`. A shorter intersecting
-interval is unavailable too. This does not establish that paint is unoccluded or
-distinguishable. Twelve intervals
-map to eleven markings because the centre marking has two intervals. Missing profiles
-are excluded from the current score's mean. Line/paint winners both require a finite
-camera error <= 0.1 and an available profile. Their scores are descriptive, not calibrated
-probabilities. Floor outcomes are recorded but do not determine these diagnostic winners.
-The supplement does not include the full floor-scoring implementation or all rejected
-candidates. Claims about their mechanisms need additional evidence.
+Both candidates fail the old floor gate. That gate is not a solution, because approved GX0 candidate 89 and both near-ideal GX0 bank controls fail it as well. Counting visible markings has the same problem: good and bad candidates overlap.
 
-## Calibration per stable camera view
+The paint score also ignores markings that are unavailable. A projected marking is treated as visible when at least 12 working pixels remain inside the image; that test says nothing about whether the paint is unobscured or whether a background structure looks similar. Line and paint scores are therefore ranking evidence, not probabilities that a court is correct.
 
-[Temporal assessment evidence](court_temporal.md) adds 13 cached frames with
-line observations and existing image links. It also identifies an older three-frame
-shared-court experiment in the committed replay. Camera stability remains unverified;
-no new temporal experiment ran. This evidence supports a separate assessment of
-automatic calibration per view as a practical shortcut.
+The practical result was that candidate generation and candidate selection had become separate problems. The search could produce a good fit, while the available score still preferred a convincing wrong one. No simple floor-gate or visibility-count rule separated the saved good and bad examples.
 
-## Interpretation limits
+## Record conventions
 
-These are varied development samples from five videos, with no designated holdouts.
-The visual judgements supply the recorded acceptance decisions; no common pixel
-or paint-edge threshold was established.
-Maximum corner distance can miss internal marking errors and disagree with visual quality.
-The ordered-pair diagnostic uses fixed corner correspondence; the generated-court metric
-allows the existing 180-degree relabelling. Both have exact excerpts. Display errors use
-1280 × 720, while direction-fit diagnostics use 960 × 540.
+The details below matter when replaying the saved diagnostics; they are not needed to understand the result.
 
-Good results with control-selected directions establish matching capacity, not automatic
-recovery. The automatic six-view usable union requires a human choice between rankings.
-The cause of apparent paint-line bowing remained unresolved. kNN and a larger
-early fitting pool were suggestions outside the proposed comparison.
+- `direction_lines` are homogeneous lines in working-pixel coordinates.
+- Row-vector lines transform to normalised coordinates with `lines @ normalised_to_working`.
+- Normalised homogeneous points transform back with `points @ normalised_to_working.T`.
+- The normalisation centres the image and scales both axes by the image diagonal.
+- Direction-bank IDs are assigned before degenerate candidates are removed. Support arrays follow the surviving `candidate_ids`, so a raw candidate ID is not an array index.
+- Selected support masks index merged lines, not raw fragments.
+- Court coordinates are metres: x runs left-to-right from 0 to 6.10; y runs far-baseline-to-near-baseline from 0 to 13.40. Corner order is far-left, far-right, near-right, near-left.
+- Court projection uses `H @ [x, y, 1]`, followed by division by the third coordinate.
+
+The SVD diagnostics use the control named by each record's `control_source`; GX0 uses approved generated candidate 89. `control_selected_svd` uses that supplied control and therefore measures fitting capacity, not automatic recovery. `control_fit` minimises coordinate residuals with a bounded local solver; its reported maximum corner error is a reporting metric rather than the optimisation target.
+
+## Stable-camera reuse
+
+A separate [temporal assessment](court_temporal.md) looked at whether several frames from the same camera view could share one calibration. It used 13 cached frames and an older three-frame replay. That work did not verify camera stability between samples, so it remained a different question from the ranking failures above.
+
+## Scope
+
+These records come from development examples across five videos rather than a held-out evaluation. The visual judgements provide the saved good/bad labels for the inspected candidates. Display errors are measured at 1280 × 720; direction-fit diagnostics use 960 × 540.
+
+Maximum corner distance can also miss internal marking errors. A fit produced from manually supplied control directions shows that the geometry can be matched under those directions; it does not show that the automatic search will recover them.
+
+Later detector work added player evidence, multi-frame composition and court sharing rather than relying on a single ranking scalar. That development is documented under [`experiments/court_detector/`](../../court_detector/README.md).

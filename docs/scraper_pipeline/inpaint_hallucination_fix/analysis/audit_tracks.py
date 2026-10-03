@@ -37,7 +37,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
 from annotator.config import BaseAnnotatorConfig  # noqa: E402
-from annotator.masks.inpaint import code_counts
+from annotator.masks.inpaint import code_counts  # noqa: E402
 from annotator.masks.inpaint import grade_track  # noqa: E402
 from annotator.rally_segmentation import detect_contact_flags  # noqa: E402
 from annotator.resolve import resolve  # noqa: E402

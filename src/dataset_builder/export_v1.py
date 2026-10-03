@@ -48,11 +48,11 @@ from dataset_builder.manifest import (
 from dataset_builder.models import ArtifactIntegrity, RunManifest, StageOutcome
 from dataset_builder.players import (
     DEFAULT_PLAYERS,
-    MATCH_TABLE_FILENAME,
     MatchPlayers,
     Player,
     load_match_players,
     load_players,
+    match_table_path,
     phase_for_span,
 )
 from dataset_builder.records import RALLY_RECORDS_FILENAME, load_rally_records
@@ -82,6 +82,7 @@ from dataset_builder.schema_v1 import (
 from dataset_builder.source_annotations import (
     SourceAnnotations,
     load_source_annotations,
+    logical_set_id,
 )
 from dataset_builder.vision import (
     TRACK_FILENAME,
@@ -436,7 +437,7 @@ def _match_players(
     if annotation_dir is None:
         return None
     return load_match_players(
-        annotation_dir.parent / MATCH_TABLE_FILENAME, annotation_dir.name, players
+        match_table_path(annotation_dir.parent), annotation_dir.name, players
     )
 
 
@@ -446,9 +447,9 @@ def _annotation_files(inputs: VideoInputs) -> list[dict[str, object]]:
         return []
     return [
         artifact_integrity(
-            f"{inputs.video_id}.{path.stem}", path, relative_to=inputs.annotation_root
+            f"{inputs.video_id}.{logical_set_id(path)}", path, relative_to=inputs.annotation_root
         ).to_dict()
-        for path in sorted(Path(inputs.annotation_dir).glob("set*.csv"))
+        for path in sorted(Path(inputs.annotation_dir).glob("set*.csv*"))
     ]
 
 
@@ -843,7 +844,7 @@ def _table_entry(output_dir: Path, table: TableSpec, frame: pd.DataFrame) -> dic
     integrity = artifact_integrity(table.name, path, relative_to=output_dir)
     return {
         "filename": table.filename,
-        "rows": int(len(frame)),
+        "rows": len(frame),
         "md5": integrity.md5,
         "size_bytes": integrity.size_bytes,
     }

@@ -89,3 +89,10 @@ and player link remain unresolved and absent.
    to measure accuracy before treating any pair as verified. The lag window
    (10 s) and replay-time policy (flag, don't drop) are already settled and
    shipped.
+
+Update, 2 October 2026: Curtis completed a selected manual review of 134
+passages, covering 135 delivered candidate links. The
+[review and compressed labels](commentary_manual_review_20261002.md)
+record 116 matching passages, 13 general and five unclear. This documents
+sample quality, including timing and transcription problems, but does not
+establish population accuracy or promote all delivered links to verified.

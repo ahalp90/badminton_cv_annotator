@@ -20,7 +20,7 @@ from court_detector.inputs import (
     ViewInputs,
     same_frame_provenance,
 )
-from scratch.court_det_fix.court_detector import run_views
+from experiments.court_detector.saved_views import run_views
 
 
 def child_pids() -> set[int]:
@@ -55,11 +55,13 @@ def test_a_detector_refuses_to_open_a_second_pool() -> None:
         assert detector.pool is not None
 
 
-def test_search_and_scoring_use_the_open_pool(monkeypatch: pytest.MonkeyPatch) -> None:
-    pools_seen = []
+@pytest.mark.parametrize("require_people", [True, False])
+def test_search_and_scoring_use_the_open_pool(monkeypatch: pytest.MonkeyPatch, require_people: bool) -> None:
+    pools_seen, player_policies = [], []
 
-    def generate(*_args: object, pool: object, **_kwargs: object) -> dict:
+    def generate(*_args: object, pool: object, require_people: bool, **_kwargs: object) -> dict:
         pools_seen.append(("search", pool))
+        player_policies.append(require_people)
         return {"entries": [], "pairs": []}
 
     def score_populations(*_args: object, pool: object, **_kwargs: object) -> SimpleNamespace:
@@ -75,7 +77,8 @@ def test_search_and_scoring_use_the_open_pool(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(detect.search, "filtered_source", lambda source, _mask: source)
     monkeypatch.setattr(detect, "choose_court", lambda view_id, *_args: detect.CourtResult(
         view_id, None, "no_gated_court", None, None))
-    detector = detect.CourtDetector(detect.Switches(workers=2, self_checks=False))
+    detector = detect.CourtDetector(detect.Switches(workers=2, self_checks=False, require_people=require_people,
+                                                  full_no_people_search=True))
     context = SimpleNamespace(size=(20, 10))
     source = {"all_feet_px": [[[1., 2.]]], "dimensions": {"width": 20, "height": 10}}
     frame = np.zeros((10, 20, 3), dtype=np.uint8)
@@ -93,6 +96,7 @@ def test_search_and_scoring_use_the_open_pool(monkeypatch: pytest.MonkeyPatch) -
     assert open_pool is not None
     one_view = ["search", "search", "scoring"]
     assert pools_seen == [(stage, None) for stage in one_view] + [(stage, open_pool) for stage in one_view * 2]
+    assert player_policies == [require_people] * 6
 
 
 def test_view_batch_replaces_a_dead_pool_and_continues(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -62,6 +62,7 @@ class Switches:
     workers: int = 1  # search pairs and scoring; run_views limits numerical libraries to one thread
     full_score_limit: int | None = None  # optional 16-sample shortlist before the usual 64-sample score
     template_device: str = "cpu"  # "cuda" scores line templates with CuPy; other stages keep their devices
+    full_no_people_search: bool = False  # otherwise no-player calls use line templates alone
 
     def __post_init__(self) -> None:
         if self.workers < 1:
@@ -83,10 +84,12 @@ class SceneCourts:
     context: Any  # measurements.ViewContext of the middle frame, frozen
     native_frame: np.ndarray  # the middle frame, read-only
     corners_native_px: np.ndarray  # (4, 2) the scene's court: searched, reused or composite
-    middle_corners_native_px: np.ndarray  # (4, 2) the middle frame's own court, before composition
+    middle_corners_native_px: np.ndarray | None  # (4, 2), or None when only an endpoint found a court
     middle_score: dict[str, Any] | None = None  # composition.own_frame_score of that court, when it ran
-    composite_measurement: dict[str, Any] | None = None  # an accepted composite's check_in_frame measurement
-    used_frames: tuple[UsedFrame, ...] = ()  # an accepted composite's frames; empty for every other court
+    chosen_measurement: dict[str, Any] | None = None  # the selected court's output-frame measurement
+    used_frames: tuple[UsedFrame, ...] = ()  # accepted aligned frames, whether or not the refit won
+    middle_to_reference: np.ndarray | None = None  # working px; None infers it from an accepted middle frame
+    individual_courts: tuple[tuple[str, np.ndarray, dict[str, Any]], ...] = ()  # role, output corners, measurement
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,8 @@ class CourtResult:
     # With endpoint views: which court the scene kept and why; see CourtDetector.compose
     composition: dict[str, Any] | None = None
     scene: SceneCourts | None = None  # with a court; not part of the saved output
+    # Without a court: the view's inputs, so a view pool can share a court with it; not saved
+    prepared: PreparedView | None = None
 
 
 class LiveModules(NamedTuple):
@@ -237,10 +242,9 @@ class CourtDetector:
 
         :param known_courts: Earlier courts to try before searching (reuse.try_reuse).
         :param endpoint_views: Builds the scene's first and last feet-window frames, in that
-            order, each with its own lines and person boxes. It runs only after a fresh
-            search of this view finds a court. compose() then searches both frames with
-            this view's feet and may replace this view's court with a composite. None
-            searches this view alone.
+            order, each with its own lines and person boxes. Both are searched even when
+            this view's search rejects or fails. Insufficient shared player counts skip
+            all three searches. None searches this view alone.
         """
         live, switches = self.live, self.switches
         if switches.require_people and people is None:
@@ -256,12 +260,14 @@ class CourtDetector:
         prepared = self.prepare(view, feet_window.all_feet_px)
         laps.lap("context")
 
-        # Validate the view first. Diagnostic runs still need the actual candidate
-        # records for comparison, even when the required player counts cannot pass.
+        # Endpoints share these feet, so insufficient counts rule out every required-player
+        # search. Keep the prepared middle as a receiver; diagnostic runs still search.
         if (switches.require_people and switches.artefacts_dir is None
                 and not feet.can_satisfy_player_requirement(feet_window.all_feet_px)):
-            return self.finish(CourtResult(view.view_id, None, "no_gated_court", None, None), laps, artefacts)
+            result = CourtResult(view.view_id, None, "no_gated_court", None, None, prepared=prepared)
+            return self.finish(result, laps, artefacts)
 
+        middle_error = None
         try:
             if known_courts:
                 from .reuse import try_reuse, view_image
@@ -285,15 +291,23 @@ class CourtDetector:
                 laps.lap("reuse")
             result = self.search_and_choose(prepared, laps, artefacts)
         except (ValueError, ArithmeticError) as error:
-            raise CourtFitError(f"{view.view_id}: {error}") from error
-        if endpoint_views is not None and result.corners_native_px is not None:
+            if endpoint_views is None:
+                raise CourtFitError(f"{view.view_id}: {error}") from error
+            middle_error = error
+            artefacts["middle_error"] = repr(error)
+            result = CourtResult(view.view_id, None, "detection_failed", None, None)
+        if endpoint_views is not None:
             # Building the endpoint inputs stays outside the fit-error boundary, so bad
             # lines or people still stop the video.
             result = self.compose(prepared, result, endpoint_views(), feet_window.all_feet_px, laps, artefacts)
+            if result.corners_native_px is None and middle_error is not None:
+                raise CourtFitError(f"{view.view_id}: {middle_error}") from middle_error
         elif result.corners_native_px is not None:
             scene = SceneCourts(prepared.context, prepared.native_frame, result.corners_native_px,
                                 result.corners_native_px)
             result = dataclasses.replace(result, scene=scene)
+        else:
+            result = dataclasses.replace(result, prepared=prepared)
         return self.finish(result, laps, artefacts)
 
     def prepare(self, view: ViewInputs, all_feet_px: list[list]) -> PreparedView:
@@ -309,7 +323,9 @@ class CourtDetector:
         """Both line searches, the line templates, scoring, the net choice and the stripe refit."""
         live = self.live
         context, native_frame = prepared.context, prepared.native_frame
-        populations = self.search(context, prepared.source, native_frame, laps, artefacts)
+        populations = {"all_lines": [], "painted_lines": []}
+        if self.switches.require_people or self.switches.full_no_people_search:
+            populations = self.search(context, prepared.source, native_frame, laps, artefacts)
         artefacts["populations"] = populations
         seeds = search.seed_points(context.families[0])
         generated = live.line_template_source.generate(
@@ -326,28 +342,24 @@ class CourtDetector:
 
     def compose(self, middle: PreparedView, middle_result: CourtResult, endpoint_views: Sequence[ViewInputs],
                 all_feet_px: list[list], laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
-        """Search the endpoint frames with the middle frame's feet, then compose one court (composition.py).
-
-        A composite that passes the middle frame's checks replaces the middle frame's court.
-        Otherwise that court stands. An endpoint whose search fails or finds no court is left
-        out, and a failed composition keeps the middle frame's court; both are logged.
-        CourtResult.composition summarises the outcome; artefacts["composition"] holds each step.
-        """
+        """Search both endpoints and compare accepted courts and the refit in the output frame."""
         from . import composition
 
         laps.lap("endpoint_inputs")
         switches = self.switches
-        searched = [composition.SearchedFrame(composition.MIDDLE, middle.native_frame, middle.context,
-                                              middle_result.corners_native_px, middle_result.paint_score)]
+        searched = []
+        if middle_result.corners_native_px is not None:
+            searched.append(composition.SearchedFrame(composition.MIDDLE, middle.native_frame, middle.context,
+                                                      middle_result.corners_native_px, middle_result.paint_score))
         endpoints: dict[str, str] = {}
-        errors: dict[str, str] = {}
+        errors = {"middle": artefacts["middle_error"]} if "middle_error" in artefacts else {}
         for role, view in zip(composition.ENDPOINT_ROLES, endpoint_views, strict=True):
             prepared = self.prepare(view, all_feet_px)
             endpoint_laps, endpoint_artefacts = Laps(), {}
             try:
                 result = self.search_and_choose(prepared, endpoint_laps, endpoint_artefacts)
             except (ValueError, ArithmeticError) as error:
-                logger.exception("%s: %s frame search failed; keeping the middle frame's court", view.view_id, role)
+                logger.exception("%s: %s frame search failed", view.view_id, role)
                 endpoints[role], errors[role] = "detection_failed", repr(error)
             else:
                 self.finish(result, endpoint_laps, endpoint_artefacts)
@@ -358,30 +370,35 @@ class CourtDetector:
             laps.lap(f"{role}_frame_search")
 
         try:
-            composite, record = composition.compose_scene(
+            choice, record = composition.compose_scene(
                 self.live, searched, geometry_weight=switches.geometry_weight, require_people=switches.require_people,
                 max_horizon_tilt_deg=MAX_HORIZON_TILT_DEG if switches.upright_camera else None,
+                output=middle,
             )
         except (ValueError, ArithmeticError) as error:
             logger.exception("%s: composition failed; keeping the middle frame's court", middle.view.view_id)
-            composite, record = None, {"fallback_reason": "composition_failed"}
+            choice, record = None, {"fallback_reason": "composition_failed"}
             errors["composition"] = repr(error)
         laps.lap("composition")
         artefacts["composition"] = {**record, "endpoints": endpoints, "errors": errors}
-        summary = {"court": composition.MIDDLE if composite is None else composition.COMPOSITE_KEY,
+        kept_role = composition.MIDDLE if middle_result.corners_native_px is not None else None
+        summary = {"court": kept_role if choice is None else choice.chosen_role,
                    "fallback_reason": record["fallback_reason"], "reference": record.get("reference"),
                    "used_frames": record.get("used_frames", []), "endpoints": endpoints, "errors": errors,
                    "middle_chosen_key": middle_result.chosen_key}
         middle_score = next((row for row in record.get("scores", []) if row["role"] == composition.MIDDLE), None)
-        scene = SceneCourts(middle.context, middle.native_frame, middle_result.corners_native_px,
-                            middle_result.corners_native_px, middle_score)
-        if composite is None:
+        if choice is None:
+            if middle_result.corners_native_px is None:
+                return dataclasses.replace(middle_result, composition=summary, prepared=middle)
+            scene = SceneCourts(middle.context, middle.native_frame, middle_result.corners_native_px,
+                                middle_result.corners_native_px, middle_score)
             return dataclasses.replace(middle_result, composition=summary, scene=scene)
-        scene = dataclasses.replace(scene, corners_native_px=composite.corners_native_px,
-                                    composite_measurement=record["middle"]["measurement"],
-                                    used_frames=composite.used_frames)
-        return CourtResult(middle.view.view_id, composite.corners_native_px, None, composition.COMPOSITE_KEY, None,
-                           composite.paint_score, composition=summary, scene=scene)
+        scene = SceneCourts(middle.context, middle.native_frame, choice.corners_native_px,
+                            middle_result.corners_native_px, middle_score, choice.measurement,
+                            choice.used_frames, choice.middle_to_reference, choice.individual_courts)
+        chosen_key = middle_result.chosen_key if choice.chosen_role == composition.MIDDLE else choice.chosen_role
+        return CourtResult(middle.view.view_id, choice.corners_native_px, None, chosen_key, None,
+                           choice.paint_score, composition=summary, scene=scene)
 
     def finish(self, result: CourtResult, laps: Laps, artefacts: dict[str, Any]) -> CourtResult:
         """Save diagnostics and attach timings for searched and reused courts alike."""
@@ -395,10 +412,6 @@ class CourtDetector:
                artefacts: dict[str, Any] | None = None) -> dict[str, list[dict]]:
         """Search every line fragment (all_lines), then painted ones (painted_lines); entries as read back from JSON."""
         live = self.live
-        # Direction-pair proposals require player occupancy. The independent line
-        # templates below supply the fallback when there are no people inputs.
-        if not source["all_feet_px"]:
-            return {"all_lines": [], "painted_lines": []}
         direction = live.generation.direction_record(context, search.DIRECTION_SETTINGS, live.vp_pruning)
         dimensions = source["dimensions"]
         scale = np.asarray([dimensions["width"], dimensions["height"]], dtype=float) / np.asarray(context.size, dtype=float)
@@ -412,6 +425,7 @@ class CourtDetector:
                 workers=self.switches.workers,
                 full_score_limit=self.switches.full_score_limit,
                 pool=self.pool,
+                require_people=self.switches.require_people,
             )
             record.update({"stage": "results", "population": name})
             if self.switches.self_checks:
