@@ -51,23 +51,19 @@ The learned stages address these questions separately.
 
 ## Late August: learn which candidate frames are hits
 
-The contact-model pilot broadened the search before learning to score it. Its
-search region covered **98.3% of labelled hits within ±10 frames while examining
-31.9% of frames**, across three videos. A classifier could then reject weak
-candidates without the initial rules having already discarded too many real hits.
+In a three-video pilot, learned contact scoring and revised event selection
+raised timing F1 from the old rules' **72.6% to 88.8%**. F1 combines the share of
+predictions that match real hits with the share of labelled hits recovered.
+Yet only **27 of 291 scorable predicted sections** were completely correct.
+Most missed hits already had a candidate nearby, and player assignment
+remained a major obstacle.
 
-Histogram gradient boosting, a classifier built from small decision trees,
-improved timing F1 from the old rules' **72.6% to 87.4%**. Changing the rule that
-merges nearby detections raised it to **88.8%**. That improvement mostly removed
-extra events: 105 unmatched predictions disappeared at the cost of seven timing
-matches.
-
-The whole-rally result was much weaker: only **27 of 291 scorable predicted
-sections** were completely correct. Most missed hits already had a candidate
-nearby, and player assignment remained a major obstacle. More search alone
-could not solve either problem. The [pilot report](../../scratch/contact_det/README.md)
-records candidate coverage, scoring, event selection and error analysis
-separately.
+The pilot broadened the search before learning to score candidates. Its search
+region covered **98.3% of labelled hits within ±10 frames while examining 31.9%
+of frames**. Histogram gradient boosting, a classifier built from small decision
+trees, then scored those candidates. A revised rule for merging nearby
+detections reduced extra events. The [pilot report](../../scratch/contact_det/README.md)
+separates the effects of candidate coverage, scoring and event selection.
 
 A larger study then compared nine random-forest and gradient-boosting
 configurations on **40 original-ShuttleSet videos**, with model selection on
@@ -127,10 +123,10 @@ were already correct**. The earlier failed buffer search and this successful
 boundary correction addressed different errors: searching for more hits around
 a rough span versus enclosing an already selected contact sequence.
 
-The repair limits were tested rather than assumed. Two later insertions added
-too much ambiguity. A larger serve shortlist gained 19 correct rallies but lost
-15, leaving little net benefit. Broad deletion remained damaging. A direct-answer
-visual-language-model veto removed 11 wrong outputs but also discarded 39
+Allowing two later insertions added too much ambiguity. A larger serve shortlist
+gained 19 correct rallies but lost 15, leaving little net benefit. Broad deletion
+remained damaging. A direct-answer visual-language-model veto removed 11 wrong
+outputs but also discarded 39
 correct ones. The retained system uses a small number of constrained repairs.
 
 The [sequence experiment record](../../scratch/contact_det_closing_pass/experiment_lineage.md)
@@ -152,9 +148,8 @@ the trusted labels. Of those 740, **728 (98.4%) contained one whole rally**, whi
 only **616 (83.2%) had an exact annotation**. The other 44 retained clips were
 unjudgeable against those labels.
 
-That difference matters for dataset construction. The review score can prioritise
-promising material; it does not establish that the automatically generated labels
-are safe to accept. The current model has no newly selected automatic-acceptance
+The review score can prioritise clips for checking, but the contact labels still
+need human review. The current model has no newly selected automatic-acceptance
 cutoff. [Serve and confidence experiments](../../scratch/contact_det_closing_pass/serve_and_acceptance.md)
 
 ## September: improve the court evidence behind the models
@@ -177,9 +172,8 @@ recurring difficulty: a search could generate a good court while its selection
 rule preferred a plausible wrong one. Background markings, neighbouring courts
 and partly visible lines created competing explanations of the image.
 
-Those prototypes made candidate quality and candidate selection separate
-research questions. Their synthetic checks and visually promising examples
-were insufficient evidence for replacing the whole production path.
+Finding a good candidate therefore left a separate problem: choosing it over
+the wrong alternatives. Court selection and rejection remained unresolved.
 [Court-fitting experiments](reports/court_fitting.md)
 
 Frame-sampling work then compared three views around a scene midpoint,

@@ -23,12 +23,10 @@ does not establish performance on unfamiliar broadcasts or club footage.
 |---|---|
 | Understand the build and avoid repeating failed approaches | [Development: what we tried and learned](development.md) |
 | Understand the results and their limits | [Evaluation](evaluation.md) |
+| Find a detailed experiment report | [Reports by research question](reports/README.md) |
 | Check a result or run an experiment | [Reproducing the experiments](reproducing.md) |
 | Run the annotator on saved video extracts | [Quickstart](../../docs/annotator/quickstart.md) |
 | Understand or change the implementation | [How it works](../../docs/annotator/how_it_works.md), then the [code map](../../docs/annotator/code_map.md) |
-
-The development guide covers the main experiments and their consequences in one
-place. The detailed reports supply the measurements and reproduction details.
 
 ## Current system
 
@@ -40,9 +38,8 @@ in `src/annotator`; the code here runs experiments around that implementation.
 
 The selected model is the **new-court base**, recorded on 3 October 2026. Its
 files are in [the committed model directory](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
-The quickstart covers its environment and input requirements. The latest refit
-is one comparison within the larger build: it recovered more contacts than the
-historical model, but fewer complete rallies.
+The latest refit recovered more contacts than the historical model, but fewer
+complete rallies.
 
 Three substantial problems remain:
 
@@ -61,13 +58,6 @@ to the experiments that motivate them.
 
 ## Where things live
 
-The four guides at this level provide the project overview, development history,
-evaluation and reproduction routes. The [report map](reports/README.md) groups
-specialist reading by research question. Results and their rerun instructions
-share a document.
-
-The other directories contain code and saved outputs:
-
 | Code or evidence | Purpose |
 |---|---|
 | `heuristic_tuning/` | Calibration fixtures and parameter sweeps for the early rules |
@@ -77,10 +67,6 @@ The other directories contain code and saved outputs:
 | `measurement.py`, `records.py`, `runs/` | End-to-end measurement, result packaging and saved runs |
 
 Earlier contact-model and sequence-repair research remains in tracked
-`scratch/contact_det*` directories. The development guide links specific reports
-when their detail is useful. Their local run paths and historical status notes
-describe the experiment at the time.
-
-The development guide records each substantial experiment through its question,
-result and implication. Detailed reports hold the evidence and rerun instructions;
-large caches and temporary logs belong with the run outputs.
+`scratch/contact_det*` directories. Their local run paths and status notes
+describe the experiments at the time. Large caches and temporary logs remain
+with the run outputs.

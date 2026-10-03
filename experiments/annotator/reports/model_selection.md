@@ -1,36 +1,20 @@
 # New-court annotator: base selected
 
-**The selected configuration is base, with the optional nomination veto off.** Base keeps the existing
-contact-candidate policy. Veto adds a rule: reject a possible hit when the
-shuttle track is flagged as unreliable and no player has been selected nearby
-in time.
+**The selected configuration is base, with the optional nomination veto off.**
+The veto rejects a possible hit when the shuttle track is flagged as unreliable
+and no player has been selected nearby in time. It recovers three more complete
+validation rallies but four fewer on ShuttleSet22, and its review-ranking
+advantage fades as the queue grows. Base keeps the simpler candidate policy.
+
+The new-court base recovers **1,744 of 3,327 labelled rallies (52.4%)** on
+ShuttleSet22: ten more than a fresh fit on the old court inputs, but 19 fewer
+than the historical model. It finds more labelled contacts than either.
 
 [Reproduction commands and inputs](#reproduction)
 
-The evaluation covers eight held-out validation videos and 46 previously
-inspected ShuttleSet22 videos. A complete rally requires all labelled contacts
-within ±10 frames at 30 fps (scaled to source fps), correct player sides, valid
-bounds and no extra contacts. ShuttleSet22 has already been used to investigate failures and develop changes,
-so its results describe performance on familiar footage.
-
-Veto gets three more validation rallies completely right, but four fewer on
-ShuttleSet22. It also matches three fewer labelled hits on each dataset. Its
-highest-ranked review items are a little better, but that advantage fades as
-more items are reviewed. Base
-keeps the simpler candidate policy.
-
-Against the fresh annotator fitted with the old, faulty court inputs, the new
-base recovers **10 more complete rallies and 671 more labelled contacts** on
-ShuttleSet22. Complete-rally recovery rises from **1,734/3,327 (52.1%) to
-1,744/3,327 (52.4%)**; contact recall rises from **90.2% to 92.0%**. That small overall gain hides a lot of change: 223 rallies become fully
-correct and 213 stop being fully correct. Some failures improve substantially;
-other rallies get worse.
-
 ## What was tested and how it was scored
 
-The goal is complete rally annotations with correct contact times and player
-sides, plus a useful ordering for human review. This comparison tests a new
-court release and whether an additional candidate-rejection rule helps it.
+The comparison tests three configurations on the new court release:
 
 | Arm | Candidate policy | Fitted models |
 |---|---|---|
@@ -59,9 +43,8 @@ The sequence and confidence models use A–D in both bundles. ShuttleSet22 video
 `sset_15` belongs to the original ShuttleSet dataset and stays included.
 
 Both evaluation sets were inspected before the final model choice. Earlier
-ShuttleSet22 investigations had also helped motivate the veto, so that dataset
-checks behaviour on familiar footage rather than providing a fresh test on
-unseen videos.
+ShuttleSet22 investigations had also helped motivate the veto, so its results
+describe performance on familiar footage.
 
 A **complete rally** has every labelled contact matched one-to-one within
 ±10 frames at 30 fps, scaled to source fps, with correct known player sides,
@@ -154,12 +137,9 @@ and choosing a new sequence can change other contacts in the rally too.
 
 Both old models are compared on the same 46 ShuttleSet22 videos and cleaned
 labels as the new base. The **historical annotator** is the original saved
-system. The **fresh old-court refit** is the recent retraining on the old court
-inputs. Keeping those baselines separate matters: the new base is slightly
-ahead of the recent refit, but still behind the original system in complete rallies.
-The fresh baseline is the recent refit on scikit-learn 1.9.1. It uses per-scene
-player tracking but whole-video geometry for contact-side assignment, as does
-the new base.
+system. The **fresh old-court refit** was retrained on the old court inputs with
+scikit-learn 1.9.1. Like the new base, that refit uses per-scene player tracking
+and whole-video geometry for contact-side assignment.
 
 | System | Complete rallies / 3,327 | Matched contacts / 37,184 |
 |---|---:|---:|
@@ -188,22 +168,17 @@ Video 53 alone adds 23 complete rallies against the fresh old-court model;
 the other 45 videos together lose 13. Against the historical output, video 53
 improves from 195/937 to 880/937 matched contacts and 7/76 to 32/76 complete
 rallies. Video 17 improves from 17/73 historical complete rallies to 20/73.
-These counts show that the annotation output improved. Checking the court
-outlines and player picks themselves would require looking at the same video
-frames before and after the change; that visual check was not part of this pass.
+The comparison measured annotation output; court outlines and player selections
+were not visually checked against the video frames.
 
-The learned models appear to have handled poor court inputs surprisingly
-well: the new system recovers many more hits, but only a few more complete
-rallies overall. A rally still fails the strict check if even one hit, side or
-boundary is wrong, and the large gains and losses across videos largely cancel
-out. Together, those effects explain why the rally total moved much less than
-hit recovery.
+A single wrong hit, side or boundary still makes a rally incomplete. Improved
+hit recovery can therefore leave the rally total almost unchanged, especially
+when gains and losses across videos largely cancel out.
 
 The comparison combines new courts with a fixed contact-training row order
-and freshly fitted models. It therefore measures the whole refit, including
-how the later models assemble rallies and rank them for review. Repeated fits
-with several random seeds would be needed to establish whether the small
-overall gain persists across fits.
+and freshly fitted models. It measures the whole refit, including how the later
+models assemble rallies and rank them for review. Variation across random seeds
+was not measured.
 
 Earlier analysis found 2,374 of 3,633 missed contacts (65.3%) in scenes whose
 court detection was rejected. That figure describes **where the missed hits
@@ -242,24 +217,17 @@ section. A clip can have several of these errors at once. The counts describe th
 predicted clip with the most matching hits; they do not yet explain why the
 model chose it.
 
-The next bounded diagnosis should start with video 42 and the missing first
-contacts on V. The saved outputs show which hits are missing. To find the cause, a follow-up
-would need to trace a hit through court acceptance, player selection, the list
-of possible contact frames and the model's choice of rally repair. Those
-intermediate records were not collected here. This pass therefore leaves open
-how often each input problem causes a miss, which candidates the veto directly
-removed, and whether the court outlines look right. The existing results were
-enough to choose base; no fitting or inference rerun was needed.
+Video 42 and the missing first contacts on validation are useful starting points
+for diagnosis. The saved outputs identify missing hits, but lack the intermediate
+records needed to trace their loss through court acceptance, player selection,
+contact candidates and rally repair. The contribution of each stage remains
+unresolved, including which candidates the veto directly removed.
 
 ## Does confidence give a better review queue?
 
-The practical question is: if someone checks the highest-ranked clips first,
-how many complete, correct rallies will they get? The table compares the same
-number of clips from each model within each dataset. Each cell is
-**correct / wrong / unjudgeable**; unjudgeable means the labels cannot settle
-the clip's correctness. The correct clips here each recover a different rally.
-These counts illustrate the trade-off at several workloads; they do not select
-a review budget for deployment.
+The table counts complete, correct rallies among the highest-ranked clips at
+fixed queue sizes. Each cell is **correct / wrong / unjudgeable**. The correct
+clips here each recover a different rally.
 
 | Population and number reviewed | Base: correct / wrong / unjudgeable | Veto: correct / wrong / unjudgeable |
 |---|---:|---:|
@@ -285,7 +253,7 @@ No new threshold is selected. Human review time was not measured.
 40-development-video bundle is for final annotation; `bundle_v32` exists for the
 held-out V evaluation. The choice favours the simpler policy, essentially tied
 aggregate quality, and the absence of a consistent veto benefit across both
-datasets. The launch's conservative rule also favoured base when rally gains
+datasets. The experiment's selection rule also favoured base when rally gains
 came with timing or side losses. The veto remains an evaluated optional setting.
 
 The selected bundle loaded successfully with Python 3.12.13 and scikit-learn
@@ -384,7 +352,7 @@ bash experiments/annotator/good_court_refit/run.sh \
   --check
 ```
 
-The supplied template should fail until its court paths are filled in. Running
+The check requires court paths for every video in the supplied template. Running
 without an action also selects the check. Only the explicit `--run` action
 starts fitting:
 
@@ -432,8 +400,8 @@ invalidate a resumed run.
 
 The 2 October check showed that changing the order of training examples can
 change the tree even with the same examples and random seed. This runner fixes
-that order so the fit can be reproduced. The check did not establish which
-order would work better on unseen videos.
+that order so the fit can be reproduced. Performance on unseen videos was not
+compared across training orders.
 The generic training API keeps its default input order; this runner supplies
 `fit_video_order` explicitly.
 

@@ -1,14 +1,12 @@
 # Independent court fitting experiment
 
-This experiment tests whether image lines and the badminton court layout can
-locate courts without CourtKeyNet. The prototypes can find useful candidates,
-but choosing the correct court and rejecting wrong ones remain unresolved.
-They are retained for research; the annotation pipeline uses its own detector.
+Image lines and the badminton court layout can produce accurate court
+candidates, but the selection rules still rank some wrong courts first.
+These experiments tested line fitting and tracked player positions as
+alternatives to CourtKeyNet, the former neural corner detector. The prototypes
+remain research code; the annotation pipeline uses its own detector.
 
-Two approaches are documented here: fitting the painted court lines, and using
-tracked player positions to help choose between candidate courts. The
-[recorded evidence](#recorded-development-evidence) gives the saved comparisons
-and their results.
+[Recorded comparisons and saved outputs](#recorded-development-evidence)
 
 ## Fitting courts from image lines
 
@@ -20,17 +18,32 @@ existing project constants. The geometry search accepts image-line evidence;
 manual regions and reference corners never enter the detector.
 
 The search keeps multiple spatially distinct candidates. It permits off-screen
-corners and rejects close-scoring alternatives. The `accepted` flag means that
-the experimental support and score-gap rules passed. It is not a measured
-probability of correctness or permission to use that court in production.
+corners and rejects close-scoring alternatives. The `accepted` flag records a
+pass under the line-support and score-gap rules. Wrong courts can also pass
+these rules.
+
+### Painted stripes
+
+`--extractor ridge` retains Hough fragments that look like bright painted
+stripes, with darker pixels on both sides. It supports white and yellow paint
+and leaves candidate search and acceptance rules unchanged.
+
+On the development inputs, the filter preserves 15/18 accurate top broadcast
+proposals and increases accurate accepted fits from 1/18 to 10/18. It rejects
+all eight non-court controls, compared with seven for ordinary Hough. Amateur
+accuracy remains 0/11, with four wrong accepted fits: paint evidence improves
+the broadcast results but does not resolve selection on amateur footage.
+
+The exact settings and 58 outputs are in `recorded/ridge.json.gz`, including
+three subsequently downloaded static-camera gameplay samples with no numerical
+reference labels. The original recorded bundles remain the frozen first pass.
 
 ## Scope and limits
 
 - Upright views from behind a baseline. The initial line-family split favours
   a nearly horizontal baseline and can fail on oblique or rolled cameras.
 - Fixed working resolution, finite line coverage and a minimum visible span
-  limit the effect of small image structures. These are engineering settings,
-  not fitted confidence thresholds.
+  limit the effect of small image structures.
 - A fixed seed samples at most 4,096 image-line rectangles from up to 32 lines
   in each family. A missing competitor can make a score gap misleading.
 - The line scorer requires at least four distinct observed lines in each
@@ -38,7 +51,6 @@ probability of correctness or permission to use that court in production.
 - Separate supported courts in different image regions leave the target
   unresolved, even when their support scores differ.
 - Background lines and neighbouring courts remain plausible competing fits.
-  Synthetic tests alone do not establish rejection accuracy on real footage.
 
 The candidate-search idea draws on
 [tennis-court-detection](https://github.com/gchlebus/tennis-court-detection)
@@ -123,7 +135,7 @@ The original grouping and four-line minimum remain the defaults.
 `export_lines.py` runs frozen upstream models in a separate inference environment.
 It records the checkpoint SHA-256, the source checkout's Git commit, image hashes,
 model settings and native coordinates. Its `--help` needs no model dependencies.
-Install each upstream model's inference dependencies before running it. The
+Inference requires each upstream model's dependencies. The
 exporter shares its DeepLSD and source-path helpers with the court detector's
 `line_sources.py`, so runs need `src` on `PYTHONPATH`.
 
@@ -161,26 +173,20 @@ The portable exporter reproduced the original private inference outputs exactly
 on four images covering every input resolution. This check included all four
 model variants and their line coordinates, scores, image hashes and dimensions.
 
-### Painted stripes
-
-`--extractor ridge` retains Hough fragments that look like bright painted
-stripes, with darker pixels on both sides. It supports white and yellow paint.
-The optional filter leaves candidate search and acceptance rules unchanged.
-On the same development inputs it preserves 15/18 accurate top broadcast
-proposals and increases accurate accepted fits from 1/18 to 10/18. It rejects
-all eight non-court controls, compared with seven for ordinary Hough.
-Amateur accuracy remains 0/11, with four wrong accepted fits. The filter is
-therefore useful evidence for further experiments, not a production solution.
-The exact settings and 58 outputs are in `recorded/ridge.json.gz`, including
-three subsequently downloaded static-camera gameplay samples with no numerical
-reference labels. The original recorded bundles remain the frozen first pass.
-
 ## Temporal player-guided experiment
 
 This approach tests whether player positions over time help choose the correct
 court. Each input window is a specified range of video frames. The experiment
 samples person detections within that range, follows their foot positions,
 and checks which candidate courts agree with the resulting tracks.
+
+In the three-clip replay, refitting with multiple line fragments reduced the
+worst corner error in two clips and slightly increased it in the third. Two
+finished fits met the report's 15-pixel error criterion. The largest improvement,
+on the Yellow clip, reduced error from 221.19 to 21.22 pixels but still missed
+that criterion. Selecting the intended player pair and deciding automatically
+whether to accept a court remained unresolved.
+[Temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
 
 Three scripts divide that work: `export_people.py` samples detections,
 `temporal.py` follows native-image footpoints with a small greedy tracker, and
@@ -190,9 +196,7 @@ image-line fitting method described above can still be run on its own.
 `net_geometry.py` projects a net from a candidate court under stated camera
 assumptions. Its `project_net(corners_px, (width, height))` helper returns net
 segments, a camera-geometry residual and the selected focal length in image
-widths. These are diagnostics for comparing court hypotheses. The first
-[temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md) record
-where player and net evidence helped, and where the fits remain wrong.
+widths. These are diagnostics for comparing court hypotheses.
 
 A window has enough player observations for this experiment when two selected
 tracks are observed together in at least half its sampled frames and at least
@@ -200,7 +204,7 @@ one is observed in every sampled frame. Missing detections remain missing;
 tracking through a short gap does not turn it into an observation. Selecting
 the intended player pair is a separate step.
 
-Prepare a gzip JSON window manifest with this layout:
+A gzip JSON window manifest defines the frame ranges and anchor images:
 
 ```json
 {
@@ -216,12 +220,13 @@ Prepare a gzip JSON window manifest with this layout:
 }
 ```
 
-Frame intervals are start-inclusive and end-exclusive. Use decoded frame
-indices and verify the available frames: trimmed videos can have misleading
-container frame-count headers. Anchor images do not change the person sampling
-schedule or the fractions calculated from it.
+Frame intervals are start-inclusive and end-exclusive, using decoded frame
+indices. Trimmed videos can have misleading container frame-count headers;
+the available frames determine the valid range. Anchor images do not change the
+person sampling schedule or the fractions calculated from it.
 
-In the project's rtmlib inference environment, run from the repository root:
+The exporter runs from the repository root in the project's rtmlib inference
+environment:
 
 ```bash
 PYTHONPATH=src:src/bst_x python -m experiments.annotator.independent_court.export_people \
@@ -242,12 +247,11 @@ and `pair_presence(first, second, sample_count)`. Each sample contains
 The default strict score cut is `> 0.2`; source exports must retain those
 detections for this cut to have meaning.
 
-Pass selected tracks as a `(sampled_frames, 2, 2)` array of native XY footpoints
-to `player_guided.detect(image, feet_px, settings, segments_px=lines)`.
+`player_guided.detect(image, feet_px, settings, segments_px=lines)` takes selected
+tracks as a `(sampled_frames, 2, 2)` array of native XY footpoints.
 Missing feet use NaN in both coordinates. The guidance checks full court
 placements, since the search's seed rectangles can represent internal service
-boxes. The returned experimental acceptance flag still needs real-data
-evaluation; it is not a production acceptance rule.
+boxes.
 
 For the focused checks:
 
@@ -258,19 +262,18 @@ pytest -q tests/test_independent_court_temporal.py \
 ```
 
 The [neural follow-up](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
-compares both DeepLSD weight sets and LINEA large. The models provide useful
-fragments, but court selection and false acceptance still prevent replacement.
+compares both DeepLSD weight sets and LINEA large, including the effect of their
+line fragments on court selection and false acceptance.
 
 ## Recorded development evidence
 
 The [replacement assessment](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
-explains where the prototypes helped and why they were not ready to replace the
-existing detector. The saved bundles let those comparisons be inspected or
-replayed:
+records the candidate errors, selection failures and representative overlays.
+The saved bundles contain the inputs and outputs for those comparisons:
 
 | Record | Contents and use |
 |---|---|
-| Original, amateur and control bundles in `recorded/` | Exact case IDs, reference geometry, retained candidates, decisions and fresh baseline outputs where measured. Populate the relative image paths in `inputs.cases` to use it as an evaluation manifest. |
+| Original, amateur and control bundles in `recorded/` | Exact case IDs, reference geometry, retained candidates, decisions and fresh baseline outputs where measured. Each `inputs.cases` list becomes an evaluation manifest once its relative image paths are filled in. |
 | `recorded/neural.json.gz` | 348 further court evaluations, reference-support diagnostics and person-support replays. Each population's `inputs.cases` supplies its manifest. |
 | `recorded/neural_lines/` | Four frozen neural line caches for `--line-cache`, usable when the matching PNGs are available. |
 
@@ -278,8 +281,7 @@ The image type matters when replaying a result. Broadcast inputs are grayscale
 medians of three frames, with all three listed in `sampled_frame_indices`; the
 first frame number in a filename identifies that sample group. Amateur inputs
 are full native frames, while controls are resized raw frames. Full images,
-model weights and videos remain external to the bundles. The assessment includes
-three representative overlays.
+model weights and videos remain external to the bundles.
 
 The final spatial-ambiguity correction changed acceptance decisions and was
 replayed on unchanged saved candidates. A fresh search on the affected scene
