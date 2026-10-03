@@ -7,6 +7,17 @@ maps common problems to relevant modules. [Fixed heuristics](heuristics.md) and
 
 The annotation runtime is only part of `src/annotator`. Evaluation tools, manual review utilities and VLM experiments live in the same package but run separately.
 
+**Contents**
+
+| Entry points and structure | Annotation stages | Fitting and tools |
+| --- | --- | --- |
+| [Symptom lookup](#symptom--likely-starting-point) | [Contact scoring](#contacts-contact-scoring) | [Training and held-out evaluation](#training-fitting-and-held-out-evaluation) |
+| [Production call map](#production-call-map) | [Court data](#courts-court-data-used-by-annotation) | [Fixed and historical scoring](#evaluation-fixed-and-historical-scoring-tools) |
+| [Orientation files](#main-orientation-files) | [Masks and shuttle flags](#masks-unusable-frames-and-shuttle-positions) | [Manual review](#review-manual-labelling-and-audit-tools) |
+| [Package shape](#package-shape) | [Rallies and contact evidence](#rally-rough-rallies-and-heuristic-contact-evidence) | [Visual checks](#validation_overlay-visual-checks) |
+| [Core orchestration](#core-orchestration-and-shared-data) | [Sequence repair](#sequence-contact-sequence-repair) | [Scene-classification research](#vlm_scene_benchmark-separate-scene-classification-research) |
+| [Files outside src/annotator](#files-outside-srcannotator) | [Outcome fields](#outcomes-fields-derived-after-contact-selection) |  |
+
 ## Symptom → likely starting point
 
 | Symptom | Relevant code |

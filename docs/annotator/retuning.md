@@ -8,6 +8,17 @@ out of training.
 The models are trained as a set because the later models learn to repair the
 list of hits produced by the contact model.
 
+**Contents**
+
+| Preparation | Fitting and evaluation | Settings and selected model |
+| --- | --- | --- |
+| [When a new fit is needed](#when-a-new-fit-is-needed) | [4. Fit commands](#4-fit-commands) | [8. Python fit settings](#8-python-fit-settings) |
+| [1. Saved extraction run](#1-saved-extraction-run) | [5. Fitting process](#5-what-happens-during-fitting) | [9. Contact selection](#9-contact-selection-settings) |
+| [2. Contact labels](#2-contact-labels) | [6. Validation](#6-validation) | [10. Model-selection checks](#10-checks-before-selecting-a-model-directory) |
+| [3. Manifest](#3-manifest) | [7. Evaluation report](#7-reading-the-evaluation-report) | [Completed new-court refit](#completed-new-court-refit) |
+| [Validation and test roles](#validation-and-test-roles) |  | [Selected model files](#which-model-files-to-use) |
+| [Match groups](#groups) |  | [Comparison details](#what-was-compared) |
+
 ![Refit flow](figures/refit_flow.svg)
 
 The commands on this page are the stable, general way to fit and evaluate. The completed new-court comparison used its own runner; [Completed new-court refit](#completed-new-court-refit) at the end of this page records its result.

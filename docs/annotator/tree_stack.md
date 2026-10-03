@@ -5,6 +5,15 @@ hits, others judge repairs to the contact sequence, and the final classifier
 ranks completed rallies for review. Earlier scores help the later classifiers
 make those decisions. All eight use histogram gradient boosting.
 
+**Contents**
+
+| Contact and repair models | Sequence choices | Review and training |
+| --- | --- | --- |
+| [Stack summary](#the-stack-in-one-table) | [4. Whole-sequence chooser](#4-whole-sequence-chooser) | [8. Rally-confidence tree](#8-rally-confidence-tree) |
+| [1. Contact probability](#1-contact-probability) | [5. Later-contact chooser](#5-later-contact-chooser) | [Training without self-scoring](#how-training-avoids-self-scoring) |
+| [2. Serve models](#2-serve-models) | [6. Scored-insertion chooser](#6-scored-insertion-chooser) | [Saved model contents](#what-is-stored-in-modelsjoblib) |
+| [3. Insertion model](#3-insertion-model) | [7. Boundary and side rules](#7-boundary-and-side-rules-run-after-the-sequence-trees) |  |
+
 ![Tree model stack](figures/tree_stack.svg)
 
 ## The stack in one table

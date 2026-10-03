@@ -18,6 +18,14 @@ The commands below expect both files in `models/annotator`; `--models` also
 accepts the repository directory directly. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
 explains why base was selected and which errors remain.
 
+**Contents**
+
+| Preparation | Running annotation | Settings and help |
+| --- | --- | --- |
+| [Environment](#1-environment) | [One-video command](#3-one-video-command) | [Prediction settings](#6-settings-that-can-change-the-result) |
+| [Saved input layout](#2-saved-input-layout) | [Output files](#4-output-files) | [Common failures](#7-common-failures) |
+|  | [Dataset-builder run](#5-dataset-builder-run) | [Further detail](#8-further-detail) |
+
 ## 1. Environment
 
 From the repository root, the locked project environment is installed with:

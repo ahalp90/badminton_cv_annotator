@@ -9,6 +9,15 @@ These rules shape what the models learn from and what they see during
 annotation. A substantial change to the rules therefore usually requires a
 new model fit.
 
+**Contents**
+
+| Evidence quality | Rally and contact search | Model inputs and code |
+| --- | --- | --- |
+| [Exclusions and shuttle flags](#two-different-kinds-of-rejection) | [Frame-rate scaling](#frame-rate-scaling) | [Contact search regions](#contact-search-regions) |
+| [Frame exclusion mask](#frame-exclusion-mask) | [Sticky player evidence](#sticky-player-evidence) | [Contact-tree features](#what-reaches-the-contact-tree) |
+| [Shuttle guard grades](#shuttle-guard-grades) | [Rough rally spans](#rough-rally-spans) | [Rule locations](#where-the-main-rules-live) |
+| [Optional candidate rule](#optional-rule-for-guarded-candidates) | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
+
 ![Rule-based front end](figures/heuristics.svg)
 
 ## Two different kinds of rejection

@@ -14,6 +14,15 @@ the classifiers the contact tree and sequence trees.
 Each video goes through this chain once. The three sequence-repair stages each
 make one choice, in order; they do not repeatedly revise the rally until it settles.
 
+**Contents**
+
+| Inputs and contact selection | Rallies and outcomes | Reference |
+| --- | --- | --- |
+| [What goes in](#what-goes-in) | [4. Bounds and court halves](#stage-4-set-rally-bounds-and-court-halves) | [Model directory](#model-directory-contents) |
+| [1. Search area](#stage-1-build-the-search-area) | [5. Rally outcomes](#stage-5-estimate-rally-outcomes) | [Result fields](#result-fields-at-a-glance) |
+| [2. Contact scoring](#stage-2-score-possible-contact-frames) | [6. Review scores](#stage-6-score-rallies-for-review) | [Code terminology](#terms-used-in-the-code) |
+| [3. Sequence repairs](#stage-3-compare-possible-sequence-repairs) | [Rules versus fitted models](#rules-versus-fitted-models) | [Main call chain](#main-call-chain) |
+
 ![Auto-annotator data flow](figures/architecture.svg)
 
 ## What goes in

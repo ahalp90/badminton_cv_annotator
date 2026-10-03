@@ -4,6 +4,16 @@ The standalone annotator reads one video's saved court, pose and shuttle data
 in the dataset builder's formats and writes four annotation files. This page
 specifies those files, their array shapes and the fields in the saved result.
 
+**Contents**
+
+| Inputs | Model and outputs |
+| --- | --- |
+| [Directory layout](#input-directory-layout) | [Model directory](#model-directory) |
+| [Video metadata](#video-metadata) | [Output files](#output-files) |
+| [Shuttle files](#shuttle-files) | [AnnotatorResult fields](#annotatorresult-fields) |
+| [Pose files](#pose-files) | [Direct Python call](#direct-python-call) |
+| [Court files](#court-files) |  |
+
 ## Input directory layout
 
 For `--run-dir data/dataset-run --video-id match-name`, the files are:

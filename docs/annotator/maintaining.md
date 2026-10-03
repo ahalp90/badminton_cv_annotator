@@ -4,6 +4,17 @@ This guide maps code changes to affected modules, refitting requirements and
 relevant tests. The [fixed heuristics](heuristics.md)
 and [tree model stack](tree_stack.md) explain the behaviour behind those decisions.
 
+**Contents**
+
+| Planning a change | Annotation stages | Checks and supporting files |
+| --- | --- | --- |
+| [Main data path](#main-data-path) | [Rally opening and contact search](#rally-opening-and-rough-contact-search) | [Tests by subsystem](#tests-by-subsystem) |
+| [Refit requirements](#does-a-code-change-require-a-refit) | [Contact model](#contact-model) | [Debugging wrong contacts](#debugging-order-for-wrong-contacts) |
+| [Model compatibility](#model-loading-and-compatibility) | [Sequence refinement](#sequence-refinement) | [Files outside src/annotator](#files-outside-srcannotator) |
+| [FPS scaling](#fps-scaling) | [Court and player evidence](#court-and-player-evidence) |  |
+| [Shared training and annotation code](#training-and-annotation-share-code) | [Masks and shuttle guards](#exclusion-masks-and-shuttle-guards) |  |
+|  | [Outcome rules](#outcome-rules) |  |
+
 ## Main data path
 
 Most changes to the annotation runtime pass through this sequence:
