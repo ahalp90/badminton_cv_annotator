@@ -17,6 +17,7 @@ from court_detector import feet, run_video
 from court_detector.detect import (
     CourtDetector,
     CourtResult,
+    PreparedView,
     SceneCourts,
     Switches,
 )
@@ -244,13 +245,16 @@ def test_cli_uses_live_optional_or_saved_people(
 
 
 class CourtDetectorStandIn(Detector):
-    """Finds a court in every scene and hands the video pool its scene state."""
+    """Finds a court in the first scene only and hands the video pool each scene's state."""
 
     live = None
 
     def detect(self, view, people, frames, *, known_courts=(), endpoint_views=None) -> CourtResult:
         self.events.append('detect')
         self.endpoint_views.append(endpoint_views)
+        if len(self.endpoint_views) > 1:
+            prepared = PreparedView(view, {}, view.frame, None)
+            return CourtResult(view.view_id, None, 'refit_players_not_on_court', 'searched', None, prepared=prepared)
         corners = np.array([[10., 10.], [50., 10.], [50., 40.], [10., 40.]])
         scene = SceneCourts(None, view.frame, corners, corners)
         return CourtResult(view.view_id, corners, None, 'searched', None, .9, scene=scene)
@@ -269,12 +273,18 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
         def __init__(self, live: object, switches: Switches, court_mode: CourtMode) -> None:
             self.court_mode = court_mode
             self.rows: list[dict] = []
+            self.receivers: list[dict] = []
             pools.append(self)
 
         def add(self, row: dict, scene: SceneCourts) -> None:
             # Nothing prints before every scene has joined the pool.
             assert capsys.readouterr().out == ''
             self.rows.append(row)
+
+        def add_receiver(self, row: dict, prepared: PreparedView) -> None:
+            assert capsys.readouterr().out == ''
+            assert prepared.view.view_id == row['view_id']
+            self.receivers.append(row)
 
         def apply(self) -> list[dict]:
             self.rows[0]['corners_native_px'] = 'pooled'
@@ -303,7 +313,9 @@ def test_court_mode_reaches_the_video_and_pooled_rows_print_only_when_final(
         return
     view_ids = [row['view_id'] for row in result['scenes']]
     assert pools[0].court_mode == mode
-    assert [row['view_id'] for row in pools[0].rows] == view_ids
+    # The courtless scene waits in the pool as a receiver.
+    assert [row['view_id'] for row in pools[0].rows] == view_ids[:1]
+    assert [row['view_id'] for row in pools[0].receivers] == view_ids[1:]
     assert result['view_groups'] == [{'reference_view_id': view_ids[0]}]
     assert printed[0]['corners_native_px'] == 'pooled'
 

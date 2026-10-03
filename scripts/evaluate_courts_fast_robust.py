@@ -226,19 +226,22 @@ def analyse_video(
     predicted = corners * scale
     original_corners = corners.copy()
     for index, scene in enumerate(output["scenes"]):
-        if scene.get("scene_corners_native_px") is not None:
-            original_corners[index] = scene["scene_corners_native_px"]
+        # A scene that took a shared court keeps its own beside it. A courtless receiver's own is None.
+        if "scene_corners_native_px" in scene:
+            own = scene["scene_corners_native_px"]
+            original_corners[index] = np.nan if own is None else own
 
     in_rally = np.zeros(frame_count, dtype=bool)  # one per video frame; overlapping rallies count once
     for start, end in zip(rallies["start_frame"], rallies["end_frame"]):
         in_rally[start:end] = True
     rally_frames_before = np.concatenate([[0], np.cumsum(in_rally)])  # (frame_count + 1,)
 
-    # Scenes outside every detector view group stand as groups of their own.
+    # Scenes outside every detector view group stand as groups of their own. Outputs
+    # from before courtless receivers have no receiver_view_ids.
     group_of_view = {
         view_id: group_index
         for group_index, group in enumerate(output["view_groups"])
-        for view_id in group["member_view_ids"]
+        for view_id in [*group["member_view_ids"], *group.get("receiver_view_ids", [])]
     }
     view_group = scenes["view_id"].map(group_of_view)
     ungrouped = view_group.isna()

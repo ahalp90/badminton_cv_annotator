@@ -101,6 +101,8 @@ class CourtResult:
     # With endpoint views: which court the scene kept and why; see CourtDetector.compose
     composition: dict[str, Any] | None = None
     scene: SceneCourts | None = None  # with a court; not part of the saved output
+    # Without a court: the view's inputs, so a view pool can share a court with it; not saved
+    prepared: PreparedView | None = None
 
 
 class LiveModules(NamedTuple):
@@ -288,6 +290,8 @@ class CourtDetector:
             scene = SceneCourts(prepared.context, prepared.native_frame, result.corners_native_px,
                                 result.corners_native_px)
             result = dataclasses.replace(result, scene=scene)
+        else:
+            result = dataclasses.replace(result, prepared=prepared)
         return self.finish(result, laps, artefacts)
 
     def prepare(self, view: ViewInputs, all_feet_px: list[list]) -> PreparedView:

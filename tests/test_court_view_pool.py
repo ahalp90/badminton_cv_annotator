@@ -16,7 +16,7 @@ import pytest
 
 from court_detector import composition, view_pool
 from court_detector.detect import CourtDetector, SceneCourts, Switches
-from court_detector.view_pool import CourtMode, Member, VideoPool, ViewGroup
+from court_detector.view_pool import CourtMode, Member, Receiver, VideoPool, ViewGroup
 from tests.test_court_detector_composition import (
     OFF_COURT_FEET_PX,
     compose,
@@ -74,6 +74,24 @@ def middle_only_scene(detector: CourtDetector, spec: dict, all_feet_px: list[lis
 def row(view_id: str, scene: SceneCourts, reused_from: str | None = None) -> dict[str, Any]:
     return {"view_id": view_id, "corners_native_px": np.asarray(scene.corners_native_px).tolist(),
             "chosen_key": "reuse" if reused_from else "composite", "reused_from": reused_from}
+
+
+def courtless_row(view_id: str) -> dict[str, Any]:
+    """A scene whose net choice picked a court that then failed the refit's player check."""
+    return {"view_id": view_id, "status": "no_court", "corners_native_px": None, "chosen_key": "net_pick",
+            "no_court_reason": "refit_players_not_on_court", "reused_from": None}
+
+
+def courtless(detector: CourtDetector, spec: dict, all_feet_px: list[list]) -> SimpleNamespace:
+    """The prepared middle frame and context detect() hands on for a scene without a court."""
+    frame = searched(detector, spec, None, all_feet_px)
+    return SimpleNamespace(native_frame=frame.native_frame, context=frame.context)
+
+
+def without_receivers(summary: dict[str, Any]) -> str:
+    """A group summary's JSON without its receiver lists, to compare groups with and without receivers."""
+    kept = {key: value for key, value in summary.items() if key not in ("receiver_view_ids", "received_view_ids")}
+    return json.dumps(kept, sort_keys=True)
 
 
 @pytest.fixture(scope="module")
@@ -138,10 +156,67 @@ def test_a_single_donor_scene_does_not_pool(detector, scenes) -> None:
     rows = {name: row(name, scenes[name]) for name in ("first", "feet_off_court")}
     for name, member_row in rows.items():
         pool.add(member_row, scenes[name])
+    # A courtless scene of the same view joins the group but adds no donor.
+    receiver_row = courtless_row("receiver")
+    nudged = frame_spec("middle", NUDGE_PX, [LEFT_BOX], true_corners(NUDGE_PX))
+    pool.add_receiver(receiver_row, courtless(detector, nudged, players_feet(NUDGE_PX)))
     (summary,) = pool.apply()
     assert (summary["member_view_ids"], summary["donor_view_ids"]) == (["first", "feet_off_court"], ["first"])
     assert (summary["pooled_view_ids"], summary["reason"]) == ([], "too_few_donor_scenes")
+    assert (summary["receiver_view_ids"], summary["received_view_ids"]) == (["receiver"], [])
     assert all("view_pool" not in member_row for member_row in rows.values())
+    assert receiver_row == courtless_row("receiver")
+
+
+@pytest.mark.parametrize("case", ["before_donors", "after_donors", "unrelated_view"])
+def test_a_courtless_scene_takes_the_pooled_court_in_any_order_without_changing_it(
+        detector, scenes, monkeypatch, case: str) -> None:
+    def pooled(receiver: SimpleNamespace | None) -> tuple[dict, dict[str, dict], dict]:
+        pool = VideoPool(detector.live, detector.switches)
+        receiver_row = courtless_row("receiver")
+        if receiver is not None and case == "before_donors":
+            pool.add_receiver(receiver_row, receiver)
+        rows = {name: row(name, scenes[name]) for name in ("first", "turned")}
+        for name, member_row in rows.items():
+            pool.add(member_row, scenes[name])
+        if receiver is not None and case != "before_donors":
+            pool.add_receiver(receiver_row, receiver)
+        (summary,) = pool.apply()
+        return summary, rows, receiver_row
+
+    spec = frame_spec("middle", NUDGE_PX, [LEFT_BOX], true_corners(NUDGE_PX))
+    if case == "unrelated_view":
+        # Every hash matches, so the alignment alone keeps the unrelated image out.
+        monkeypatch.setattr(view_pool, "image_hash", lambda native_frame: np.zeros((16, 16), dtype=bool))
+        spec = unrelated("middle", NUDGE_PX)
+    # Both players stand off the court, as when the scene's own fit failed the refit's player check.
+    receiver = courtless(detector, spec, OFF_COURT_FEET_PX)
+    baseline, baseline_rows, _ = pooled(None)
+    summary, rows, receiver_row = pooled(receiver)
+    # The receiver changes neither the donors, the fit, the scores, the choice nor any member's court.
+    assert without_receivers(summary) == without_receivers(baseline)
+    assert rows == baseline_rows
+    assert summary["chosen_court"] == "pooled"
+    if case == "unrelated_view":
+        assert (summary["receiver_view_ids"], summary["received_view_ids"]) == ([], [])
+        assert receiver_row == courtless_row("receiver")
+        return
+    assert (summary["receiver_view_ids"], summary["received_view_ids"]) == (["receiver"], ["receiver"])
+    np.testing.assert_allclose(receiver_row["corners_native_px"], true_corners(NUDGE_PX), atol=2.0)
+    assert (receiver_row["status"], receiver_row["no_court_reason"], receiver_row["chosen_key"]) == (
+        "court", None, view_pool.POOLED_KEY)
+    assert (receiver_row["scene_status"], receiver_row["scene_no_court_reason"]) == (
+        "no_court", "refit_players_not_on_court")
+    assert (receiver_row["scene_corners_native_px"], receiver_row["scene_chosen_key"]) == (None, "net_pick")
+    record = receiver_row["view_pool"]
+    assert (record["receiver"], record["court"], record["rejection"]) == (True, "pooled", None)
+    assert record["alignment"]["usable"]
+    # The player check that a required-people search applies would still reject this court here.
+    received = np.asarray(receiver_row["corners_native_px"])
+    _, rejection = composition.check_in_frame(detector.live, receiver.context, received, require_people=True,
+                                              max_horizon_tilt_deg=None)
+    assert rejection == "players_not_on_court"
+    json.dumps([summary, receiver_row], allow_nan=False)
 
 
 def test_two_composites_can_pool_when_one_scene_wins_every_marking(detector, scenes) -> None:
@@ -352,7 +427,8 @@ def score(value: float | None) -> dict:
 
 def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None]], own: dict[str, float | None],
                    carried: dict[tuple[str, str], tuple[float | None, str | None]], fit_valid: bool = True,
-                   court_mode: CourtMode = CourtMode.VIDEO_ROBUST) -> tuple[VideoPool, dict]:
+                   court_mode: CourtMode = CourtMode.VIDEO_ROBUST,
+                   receivers: dict[str, tuple[float | None, str | None]] | None = None) -> tuple[VideoPool, dict]:
     """Donor scenes a and b in one camera view, and a third scene.
 
     In video-robust mode the third is scene r, reusing a's court. Fast-robust mode reuses
@@ -362,6 +438,7 @@ def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None
     :param pooled: each member's pooled combined score (None when missing) and rejection
     :param own: each donor's combined score for its own scene court (None when missing)
     :param carried: (member, source scene) to that scene court's combined score and rejection
+    :param receivers: each courtless receiver's combined score for the chosen court and its rejection
     """
     monkeypatch.setattr(view_pool, "pooled_constraints", lambda donors: (SimpleNamespace(points=[0] * 9), []))
     fit_corners = POOLED.tolist() if fit_valid else None
@@ -383,6 +460,9 @@ def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None
     checked = []
 
     def checked_score(self, member, corners_native) -> tuple[dict, str | None]:
+        if isinstance(member, Receiver):
+            value, rejection = receivers[member.row["view_id"]]
+            return score(value), rejection
         # r's court is a's, which comes first.
         source = next(view_id for view_id, corners, _ in scenes if np.allclose(corners_native, corners))
         checked.append((member.row["view_id"], source))
@@ -403,6 +483,9 @@ def stand_in_group(monkeypatch, pooled: dict[str, tuple[float | None, str | None
             donor_view_ids.append(view_id)
     group = ViewGroup(SimpleNamespace(corners_native=SCENE, native_per_working=np.ones(2)), np.zeros(1), members,
                       [None], donor_view_ids)
+    for view_id in receivers or {}:
+        rows[view_id] = courtless_row(view_id)
+        group.receivers.append(Receiver(rows[view_id], CONTEXT, np.eye(3), {}))
     pool = VideoPool(None, Switches(), court_mode)
     pool.groups.append(group)
     return pool, rows
@@ -622,3 +705,37 @@ def test_fast_robust_can_share_a_complete_court_when_the_pooled_fit_fails(monkey
         return
     assert all(member_row["corners_native_px"] == SCENE.tolist() for member_row in rows.values())
     assert (record["court"], record["group_scene_rejection"]) == ("group_scene", None)
+
+
+@pytest.mark.parametrize(("court_mode", "pooled", "own", "carried", "chosen_court", "chosen_corners"), [
+    (CourtMode.VIDEO_ROBUST, POOLED_EVERYWHERE, {"a": .95, "b": .95}, carried_scores(.90, .85, .60, .60),
+     "group_scene", SCENE),
+    (CourtMode.FAST_ROBUST, {view_id: (.81, None) for view_id in "abc"}, {"a": .80, "b": .70, "c": .70},
+     carried_everywhere({"a": .80, "b": .60, "c": .60}), "pooled", POOLED),
+])
+def test_courtless_receivers_take_only_the_chosen_court_and_change_nothing_else(
+        monkeypatch, court_mode: CourtMode, pooled: dict, own: dict, carried: dict, chosen_court: str,
+        chosen_corners: np.ndarray) -> None:
+    # Receivers that would score far above every candidate, if they were scored.
+    receivers = {"takes": (.99, None), "rejects": (.99, "camera_implausible"), "unscored": (None, None)}
+    baseline_pool, baseline_rows = stand_in_group(monkeypatch, pooled, own, carried, court_mode=court_mode)
+    (baseline,) = baseline_pool.apply()
+    pool, rows = stand_in_group(monkeypatch, pooled, own, carried, court_mode=court_mode, receivers=receivers)
+    (summary,) = pool.apply()
+    assert without_receivers(summary) == without_receivers(baseline)
+    assert all(rows[view_id] == member_row for view_id, member_row in baseline_rows.items())
+    assert summary["chosen_court"] == chosen_court
+    assert (summary["receiver_view_ids"], summary["received_view_ids"]) == (list(receivers), ["takes"])
+    takes = rows["takes"]
+    chosen_key = view_pool.POOLED_KEY if chosen_court == "pooled" else view_pool.GROUP_SCENE_KEY
+    assert (takes["corners_native_px"], takes["chosen_key"], takes["status"]) == (
+        chosen_corners.tolist(), chosen_key, "court")
+    assert (takes["scene_status"], takes["scene_corners_native_px"]) == ("no_court", None)
+    assert takes["view_pool"]["court"] == chosen_court
+    # A failed check or a missing score leaves the scene without a court.
+    for view_id, reason in (("rejects", "camera_implausible"), ("unscored", view_pool.MISSING_SCORE)):
+        left = rows[view_id]
+        assert {key: left[key] for key in courtless_row(view_id)} == courtless_row(view_id)
+        assert "scene_status" not in left
+        assert (left["view_pool"]["court"], left["view_pool"]["rejection"]) == (None, reason)
+    json.dumps([summary, rows], allow_nan=False)

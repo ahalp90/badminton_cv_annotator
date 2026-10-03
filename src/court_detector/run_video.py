@@ -33,7 +33,7 @@ for variable in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'OMP_NUM_THREADS', '
 import numpy as np
 
 from . import feet
-from .detect import CourtDetector, CourtFitError, SceneCourts, Switches
+from .detect import CourtDetector, CourtFitError, PreparedView, SceneCourts, Switches
 from .inputs import FrameReader, PeopleSource, ViewInputs, same_frame_provenance
 from .line_sources import DeepLSDLines, LineSource, SavedLines
 from .scene_sources import PySceneDetectSource, SavedScenes, SceneInfo, SceneSource
@@ -139,6 +139,7 @@ def scene_courts(
     detector: CourtDetector, frames: FrameReader, people: PeopleSource | None, lines: LineSource,
     scenes: Sequence[SceneInfo], *, video_id: str, reuse_courts: bool = False, compose_scenes: bool = True,
     on_court: Callable[[dict[str, Any], SceneCourts], None] | None = None,
+    on_courtless: Callable[[dict[str, Any], PreparedView], None] | None = None,
 ) -> Iterator[dict[str, Any]]:
     """Detect the middle frame of each scene without crossing a cut for foot samples.
 
@@ -156,7 +157,9 @@ def scene_courts(
     still runs.
 
     on_court receives each row with a court and its scene's finished courts before the
-    row is yielded. Video-robust and fast-robust modes pass VideoPool.add.
+    row is yielded. on_courtless receives each `no_court` row and its middle frame's
+    prepared inputs. Video-robust and fast-robust modes pass VideoPool.add and
+    VideoPool.add_receiver.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -243,6 +246,8 @@ def scene_courts(
                    seconds=perf_counter() - started)
         if on_court is not None and result.scene is not None:
             on_court(row, result.scene)
+        elif on_courtless is not None and result.prepared is not None:
+            on_courtless(row, result.prepared)
         yield row
 
 
@@ -357,7 +362,8 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         pool = None if court_mode == CourtMode.SCENE_ROBUST else VideoPool(tools.detector.live, switches, court_mode)
         for row in scene_courts(tools.detector, frames, people, tools.lines, scenes, video_id=video_id,
                                 reuse_courts=reuse_courts, compose_scenes=court_mode != CourtMode.FAST_ROBUST,
-                                on_court=None if pool is None else pool.add):
+                                on_court=None if pool is None else pool.add,
+                                on_courtless=None if pool is None else pool.add_receiver):
             rows.append(row)
             logger.info('%s: scene %d/%d %s', video_id, len(rows), len(scenes), row['status'])
             if pool is None:

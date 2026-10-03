@@ -69,6 +69,8 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
     assert searched == ([] if accepted else [context])
     assert result.reused_from == ('earlier' if accepted else None)
     assert result.paint_score == (.7 if accepted else None)
+    # A view left without a court hands on its prepared inputs, for a view pool to share a court with.
+    assert (result.prepared is None) is accepted
     assert 'reuse' in result.stage_seconds
     if not accepted:
         assert saved[0]['reuse'] == [{'rejection': 'alignment_mismatch'}]

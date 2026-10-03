@@ -328,9 +328,18 @@ Video-robust and fast-robust modes add:
   `group_scene` when a scene wins). A winning scene also adds
   `group_scene_view_id`, `group_scene_corners_native_px` and
   `group_scene_rejection`. Nonfinite transferred corners are stored as `null`
+- **On a `no_court` row that took its group's court:** `status` becomes `court`
+  and `no_court_reason` `null`. `scene_status` and `scene_no_court_reason` keep
+  its own outcome, and `scene_corners_native_px` is `null`
+- **On each receiver of a successfully scored group:** a `view_pool` record with
+  `reference_view_id`, `alignment`, `receiver` (`true`), `court` (the chosen
+  court, or `null` when it stays without one), `rejection`, `corners_native_px`
+  and `score`. A receiver is a `no_court` scene placed in the group. It never
+  donates or scores a candidate
 - **At the top of the result:** `view_groups`, one summary per group. It lists
   `reference_view_id`, `member_view_ids`, `donor_view_ids`, `pooled_view_ids`,
-  `reason`, `chosen_court` and `chosen_view_id`. As processing proceeds, it adds
+  `reason`, `chosen_court`, `chosen_view_id`, `receiver_view_ids` and
+  `received_view_ids` (the receivers that took the court). As processing proceeds, it adds
   `markings` (each marking's donor), `fit`, `mean_combined_scores` and
   `scene_candidates` and `pooled_candidate`. Each candidate records its mean,
   `measured_members`, source `rejection` and `transfer_rejections`. A group that

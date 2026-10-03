@@ -43,6 +43,12 @@ fresh search of the scene's middle frame, with no endpoint frames or composite.
 7. Output. The chosen court replaces the court of every member that accepts it. A
    member whose check it fails, or that cannot score it, keeps its own court and
    records the rejection. When every candidate is out, all members keep theirs.
+8. Receivers. A scene whose search found no court may still take its group's chosen
+   court. At apply(), when every group exists, it joins the first group it matches as
+   in step 1. With no court of its own, it aligns inside the reference's court at the
+   same pixels. It never donates, scores a candidate or counts as a donor scene, so it
+   cannot change the fit or the choice. The chosen court must pass a member's step 6
+   checks and have a combined score there. Otherwise the scene stays without a court.
 """
 
 from __future__ import annotations
@@ -64,7 +70,7 @@ from .detect import MAX_HORIZON_TILT_DEG, NET_OVERRUN_WORKING_PX
 from .line_observations import MARKINGS
 
 if TYPE_CHECKING:
-    from .detect import LiveModules, SceneCourts, Switches
+    from .detect import LiveModules, PreparedView, SceneCourts, Switches
     from .measurements import ViewContext
 
 logger = logging.getLogger(__name__)
@@ -103,6 +109,16 @@ class Member:
 
 
 @dataclass(frozen=True)
+class Receiver:
+    """A scene whose search found no court, placed in a view group. It keeps its middle frame's context."""
+
+    row: dict[str, Any]  # the scene's output row; apply() updates it
+    context: ViewContext
+    to_reference: np.ndarray  # (3, 3) this middle frame's working px to the reference's
+    alignment: dict[str, Any]  # composition.align's record
+
+
+@dataclass(frozen=True)
 class Donor:
     view_id: str  # the donor scene's middle view
     used: composition.UsedFrame  # to_reference and corners in the group reference's pixels and orientation
@@ -116,6 +132,7 @@ class ViewGroup:
     donors: list[Donor | None] = field(default_factory=lambda: [None] * len(MARKINGS))  # one per marking
     # Independent composites considered, including those that win no markings.
     donor_view_ids: list[str] = field(default_factory=list)
+    receivers: list[Receiver] = field(default_factory=list)  # placed by apply()
 
 
 def image_hash(native_frame: np.ndarray) -> np.ndarray:
@@ -188,10 +205,15 @@ def pooled_constraints(donors: list[Donor | None]) -> tuple[composition.stripe_f
     return composition.joined(parts), rows
 
 
+def carry_from_reference(reference_working: np.ndarray, frame: Member | Receiver) -> np.ndarray:
+    """A court in the group reference's working px, in a member's or receiver's native px, in the same corner order."""
+    carried = composition.carry(reference_working, np.linalg.inv(frame.to_reference))
+    return carried * composition.native_per_working(frame.context)
+
+
 def carry_to_member(reference_working: np.ndarray, member: Member) -> np.ndarray:
     """A court in the group reference's working px, in a member's native px and its scene court's corner order."""
-    carried = composition.carry(reference_working, np.linalg.inv(member.to_reference))
-    carried = carried * composition.native_per_working(member.context)
+    carried = carry_from_reference(reference_working, member)
     return np.roll(carried, composition.half_turn_roll(carried, member.scene_corners), axis=0)
 
 
@@ -237,6 +259,13 @@ def replace_court(row: dict[str, Any], corners: np.ndarray, chosen_key: str, reu
                chosen_key=chosen_key, reused_from=reused_from)
 
 
+def receive_court(row: dict[str, Any], corners: np.ndarray, chosen_key: str) -> None:
+    """Give a courtless row a shared court. Its own outcome stays beside it, as replace_court keeps a scene's court."""
+    row.update(scene_status=row["status"], scene_no_court_reason=row["no_court_reason"], status="court",
+               no_court_reason=None)
+    replace_court(row, corners, chosen_key, None)
+
+
 def recorded_corners(corners: np.ndarray | None) -> list[list[float]] | None:
     """Keep failed projections out of the JSON while retaining their rejection reason."""
     return corners.tolist() if corners is not None and np.isfinite(corners).all() else None
@@ -250,6 +279,8 @@ class VideoPool:
         self.switches = switches
         self.court_mode = court_mode
         self.groups: list[ViewGroup] = []
+        # Scenes without a court, waiting for apply() to place them
+        self.courtless: list[tuple[dict[str, Any], PreparedView]] = []
 
     def add(self, row: dict[str, Any], scene: SceneCourts) -> None:
         """Place one scene's court in a view group. Call it for each scene with a court, in video order.
@@ -262,14 +293,23 @@ class VideoPool:
             logger.exception("%s: could not join a view group; keeping the scene court", row["view_id"])
             row["view_pool"] = {"error": repr(error)}
 
+    def add_receiver(self, row: dict[str, Any], prepared: PreparedView) -> None:
+        """Keep a scene whose search found no court, so apply() can offer it its view group's chosen court.
+
+        Its middle frame and context stay until apply() places it, in any order relative to the courts.
+        """
+        self.courtless.append((row, prepared))
+
+    def shortlisted(self, hashed: np.ndarray) -> list[ViewGroup]:
+        """The groups whose reference hash is within court_views.MAX_HASH_DISTANCE of this one, in group order."""
+        return [group for group in self.groups if np.mean(hashed != group.image_hash) <= court_views.MAX_HASH_DISTANCE]
+
     def join(self, row: dict[str, Any], scene: SceneCourts) -> None:
         frame = composition.SearchedFrame(composition.MIDDLE, scene.native_frame, scene.context,
                                           np.asarray(scene.corners_native_px, dtype=float), None)
         hashed = image_hash(scene.native_frame)
         group, alignment, to_reference = None, None, np.eye(3)
-        for candidate in self.groups:
-            if np.mean(hashed != candidate.image_hash) > court_views.MAX_HASH_DISTANCE:
-                continue
+        for candidate in self.shortlisted(hashed):
             record, warp = composition.align(frame, candidate.reference)
             if warp is not None:
                 group, alignment, to_reference = candidate, record, warp
@@ -306,6 +346,7 @@ class VideoPool:
 
         :return: One summary per group. A group that fails logs it and keeps its scene courts.
         """
+        self.place_receivers()
         summaries = []
         for group in self.groups:
             summary: dict[str, Any] = {
@@ -313,6 +354,8 @@ class VideoPool:
                 "member_view_ids": [member.row["view_id"] for member in group.members],
                 "donor_view_ids": group.donor_view_ids, "pooled_view_ids": [], "reason": None,
                 "chosen_court": None, "chosen_view_id": None,
+                "receiver_view_ids": [receiver.row["view_id"] for receiver in group.receivers],
+                "received_view_ids": [],
             }
             if len(group.donor_view_ids) < MIN_DONOR_SCENES[self.court_mode]:
                 summary["reason"] = "too_few_donor_scenes"
@@ -322,10 +365,65 @@ class VideoPool:
                 except (ValueError, ArithmeticError) as error:
                     logger.exception("%s: pooled court failed; keeping the scene courts", summary["reference_view_id"])
                     summary.update(reason="pooling_failed", error=repr(error))
-            logger.info("view group %s: %d members, reason %s, court %s from %s", summary["reference_view_id"],
-                        len(group.members), summary["reason"], summary["chosen_court"], summary["chosen_view_id"])
+            logger.info("view group %s: %d members, %d of %d receivers took a court, reason %s, court %s from %s",
+                        summary["reference_view_id"], len(group.members), len(summary["received_view_ids"]),
+                        len(group.receivers), summary["reason"], summary["chosen_court"], summary["chosen_view_id"])
             summaries.append(summary)
         return summaries
+
+    def place_receivers(self) -> None:
+        """Place each courtless scene in the first view group it matches. Every group exists by now.
+
+        A failure logs it, records it on the row and leaves the scene in no group.
+        """
+        for row, prepared in self.courtless:
+            try:
+                self.place_receiver(row, prepared)
+            except (ValueError, ArithmeticError) as error:
+                logger.exception("%s: could not join a view group; keeping the scene without a court", row["view_id"])
+                row["view_pool"] = {"receiver": True, "error": repr(error)}
+        # Placed receivers keep only their contexts; the native frames can go.
+        self.courtless.clear()
+
+    def place_receiver(self, row: dict[str, Any], prepared: PreparedView) -> None:
+        """join()'s matching for a scene without a court, which aligns inside the reference's court instead."""
+        for group in self.shortlisted(image_hash(prepared.native_frame)):
+            # The reference court at the same native px masks this frame, as its own court masks a member's.
+            frame = composition.SearchedFrame(composition.MIDDLE, prepared.native_frame, prepared.context,
+                                              group.reference.corners_native, None)
+            record, warp = composition.align(frame, group.reference)
+            if warp is not None:
+                group.receivers.append(Receiver(row, prepared.context, warp, record))
+                return
+
+    def share_with_receiver(self, receiver: Receiver, chosen_reference: np.ndarray, chosen_key: str,
+                            summary: dict[str, Any]) -> None:
+        """Give a receiver the group's chosen court when the court passes a member's transfer checks there.
+
+        A rejection, a missing combined score or a failure leaves the scene without a court.
+        A failure logs it and records it, without touching the members' outcome.
+
+        :param chosen_reference: (4, 2) the chosen court in the reference's working px and corner order.
+        """
+        record: dict[str, Any] = {"reference_view_id": summary["reference_view_id"], "alignment": receiver.alignment,
+                                  "receiver": True, "court": None}
+        receiver.row["view_pool"] = record
+        try:
+            corners = carry_from_reference(chosen_reference, receiver)
+            score, rejection = self.checked_score(receiver, corners)
+        except (ValueError, ArithmeticError) as error:
+            logger.exception("%s: could not check the shared court; keeping the scene without a court",
+                             receiver.row["view_id"])
+            record["error"] = repr(error)
+            return
+        if rejection is None and score.get("combined_score") is None:
+            rejection = MISSING_SCORE
+        record.update(rejection=rejection, corners_native_px=recorded_corners(corners), score=score)
+        if rejection is not None:
+            return
+        record["court"] = summary["chosen_court"]
+        receive_court(receiver.row, corners, chosen_key)
+        summary["received_view_ids"].append(receiver.row["view_id"])
 
     def pool_group(self, group: ViewGroup, summary: dict[str, Any]) -> None:
         """Fit the group's pooled court, choose between it and each donor's scene court, and share the choice.
@@ -394,6 +492,12 @@ class VideoPool:
             replace_court(member.row, chosen["corners"][index], POOLED_KEY if pool_wins else GROUP_SCENE_KEY, None)
             if pool_wins:
                 summary["pooled_view_ids"].append(member.row["view_id"])
+        # Receivers come only after the choice and the members' rows, so they cannot change either.
+        # The reference is the first member, at the identity, so its corners are the chosen
+        # court in reference px and the reference's corner order.
+        chosen_reference = chosen["corners"][0] / group.reference.native_per_working
+        for receiver in group.receivers:
+            self.share_with_receiver(receiver, chosen_reference, POOLED_KEY if pool_wins else GROUP_SCENE_KEY, summary)
 
     def best_scene_candidate(self, group: ViewGroup,
                              outcomes: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
@@ -463,8 +567,12 @@ class VideoPool:
         return {"pooled_corners": pooled, "pooled_rejection": rejection,
                 "scores": {"pooled": pooled_score, "scene": scene_score, "middle": middle_score}}
 
-    def checked_score(self, member: Member, corners_native: np.ndarray) -> tuple[dict[str, Any], str | None]:
-        """A court's score and first failed check in a member's middle frame. An unmeasurable court has no score."""
+    def checked_score(self, member: Member | Receiver,
+                      corners_native: np.ndarray) -> tuple[dict[str, Any], str | None]:
+        """A court's score and first failed check in a member's or receiver's middle frame.
+
+        An unmeasurable court has no score.
+        """
         # An aligned view can show a break between points. Absent players do not
         # invalidate the court geometry shared with that view.
         measurement, rejection = composition.check_in_frame(
