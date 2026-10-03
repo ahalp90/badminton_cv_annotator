@@ -1,75 +1,71 @@
-# Reproduce the evaluation
+# Reproduce the court evaluation
 
-Run from the repository root with the NumPy, pandas and OpenCV environment.
-The report scores detector commit `17a50b57418ade93c70e89b48117ad535133cf34`.
-The production detector is unchanged by this evaluation.
+Run from the repository root in an environment with NumPy, pandas and OpenCV.
+The [published dataset](court_sharing_patched/README.md) contains the final
+per-scene courts. Source videos and ShuttleSet22 annotations are supplied
+separately; no remote access setup is required to read the predictions.
 
-## Inputs
+## Analyse the published courts
 
-On Carmack, `/scratch/ahalperi/court_det_fix/release_courts_fast_robust/` contains
-`cohort.json.gz` and the 86 `videos/*.json.gz` results. The cohort records exact
-source-video paths. Copy those inputs to `local_scratch/court_evaluation/` with
-`hpcrsync`. Original videos stay on Carmack.
-
-ShuttleSet annotations are tracked at `data/shuttleset/set/`. ShuttleSet22
-annotations are on Carmack at
-`/scratch/cmarti56/issue106-shuttleset22-data/annotations/set/`; copy that directory
-to `local_scratch/court_evaluation/shuttleset22/set/`.
-
-## Analyse
+Set `SSET22_LABELS` to the ShuttleSet22 annotation `set/` directory.
+The evaluator uses the release manifests to select the 86 eligible videos.
 
 ```bash
-PYTHONPATH=src ~/.venvs/badminton-cicd/bin/python \
-  scripts/evaluate_courts_fast_robust.py analyse \
-  --input-root local_scratch/court_evaluation \
+BASE=experiments/court_detector/fast_robust_20261002
+PATCHED="$BASE/court_sharing_patched"
+
+PYTHONPATH=.:src python scripts/evaluate_courts_fast_robust.py analyse \
+  --input-root "$PATCHED" \
   --shuttleset-root data/shuttleset/set \
-  --shuttleset22-root local_scratch/court_evaluation/shuttleset22/set \
-  --output experiments/court_detector/fast_robust_20261002
+  --shuttleset22-root "$SSET22_LABELS" --output "$PATCHED"
+PYTHONPATH=.:src python scripts/summarise_court_rally_views.py \
+  --input "$PATCHED" --output "$PATCHED/rally_views"
+PYTHONPATH=.:src python scripts/compare_court_sharing.py \
+  --original "$BASE" --patched "$PATCHED"
 ```
 
-The script checks that the cohort matches the eligible release manifests and
-that scene spans cover each video without gaps. It excludes invalid rally
-sequences and writes the metrics and 94 frame requests. The per-scene table
-contains reference errors even for non-rally scenes; use `rally_frames`,
-`majority_rallies` and `is_dominant_group` to select the report's populations.
-Non-rally error values are not accuracy labels.
+The paired comparison reads the committed original evaluation tables. It checks
+the cohort, scene and rally intervals, and unchanged before-sharing errors.
+It fixes the original main-view scene population for both methods.
 
-Reference corners use the inverse of `homography_matrix`. Template coordinates
+Reference corners come from the supplied inverse homography. Template coordinates
 are x=25..325 for ShuttleSet 1–20, x=27.4..327.6 for later ShuttleSet and all
-ShuttleSet22, and y=150..810 throughout. Those are the annotation template's
-units, not metres. Predictions and references are compared at 1280×720.
+ShuttleSet22, and y=150..810 throughout. Those are annotation template units.
+Predictions and references are compared at 1280 × 720.
 
-## Fetch frames on Carmack, then render locally
+## Render review frames
 
-Copy the evaluation script and `render_requests.json.gz` to
-`/scratch/ahalperi/court_det_fix/` on Carmack. The following command runs there;
-the existing checkout supplies the small geometry modules imported by the script.
-
-```bash
-PYTHONPATH=/scratch/ahalperi/court_det_fix/release-courts-checkout/src \
-  ~/.venvs/court_det/bin/python \
-  /scratch/ahalperi/court_det_fix/evaluate_courts_fast_robust.py fetch-frames \
-  --requests /scratch/ahalperi/court_det_fix/render_requests.json.gz \
-  --output /scratch/ahalperi/court_det_fix/evaluation_frames_20261002
-```
-
-Copy that frame directory locally to `local_scratch/court_evaluation/frames/`.
-Then run:
+The committed `render_requests.json.gz` uses source-video filenames. Resolve
+`source_video` against your video directory in a working copy of the requests.
+Then run the existing `fetch-frames` and `render` commands:
 
 ```bash
-PYTHONPATH=src ~/.venvs/badminton-cicd/bin/python \
-  scripts/evaluate_courts_fast_robust.py render \
-  --requests experiments/court_detector/fast_robust_20261002/render_requests.json.gz \
-  --frames local_scratch/court_evaluation/frames \
-  --output experiments/court_detector/fast_robust_20261002
-
-find experiments/court_detector/fast_robust_20261002 -name '*.png' -print0 \
-  | xargs -0 -P 4 -I '{}' pngquant --force --ext .png --speed 3 --nofs 256 -- '{}'
-oxipng -o 2 --strip safe -r experiments/court_detector/fast_robust_20261002
+PYTHONPATH=.:src python scripts/evaluate_courts_fast_robust.py fetch-frames \
+  --requests "$REQUESTS" --output "$FRAMES"
+PYTHONPATH=.:src python scripts/evaluate_courts_fast_robust.py render \
+  --requests "$REQUESTS" --frames "$FRAMES" --output "$GALLERY"
 ```
 
-Frames use OpenCV's zero-based frame index. The extractor checks the next-frame
-position after decoding. Overlays use the detector's 40 mm painted-stripe model,
-projected from its saved outer court corners. Strokes are 1 pixel wide with no
-antialiasing; the dash pattern is 7 pixels on, 5 off. PNG quantisation changes
-colours slightly but preserves image size and overlay positions.
+Frame indices are zero-based. The extractor verifies the decoded frame position.
+Outlines use the 40 mm painted-stripe model, drawn with 1 px strokes and a
+7-pixel dash followed by a 5-pixel gap. Run each PNG through pngquant, then
+oxipng, before publishing it.
+
+The final rally sample table records one midpoint per scene/rally overlap,
+including courtless scenes. Courtless frames are copied without an outline.
+These samples use the final saved court after video-wide sharing.
+
+## Export ordering and metadata
+
+The published files come from the completed saved-fit replay. Later detector
+logic changes were not rerun over the corpus. To prepare another copy of that
+replay, apply `court_detector.geometry.normalise_output_corners` to each scene's
+non-null `corners_native_px` before running the evaluation above. This only rolls
+a court's four corners by two when its first baseline has the greater mean image
+y. Leave `scene_corners_native_px` and group diagnostics unchanged.
+
+In the cohort, retain the basename of `video` and omit `people`. In video outputs,
+omit `replay.detector_source`. Evaluation and render metadata should likewise use
+source-video basenames. These changes remove machine-specific locations without
+changing court geometry or scene intervals. Source videos, pose arrays and raw
+replay outputs are separate inputs; the published predictions can be used directly.

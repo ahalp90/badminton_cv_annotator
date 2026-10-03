@@ -1,7 +1,7 @@
 # Test player support as a tie-breaker
 
-Both trial stages completed on Carmack and Bourbaki and were downloaded on
-3 October. The [selection comparison](selection_results/README.md) finds
+Both trial stages completed on 3 October. The
+[selection comparison](selection_results/README.md) finds
 identical representative courts after sharing. The user judged all 16
 court-bearing review images incorrect and all four abstentions reasonable.
 That review does not support an overall preference for either method.
@@ -27,11 +27,10 @@ ranking stays score-only where those measurements are not yet available.
 
 ## Videos and outputs
 
-Carmack: ShuttleSet 30 and 36 (poor final courts), 11 and 21 (low-error final courts).
-Bourbaki: ShuttleSet22 43 and 44 (poor), 27 and 51 (low-error). This includes some
-individual-scene errors inside otherwise good videos. Each host runs four
-videos concurrently, with three workers per video. The original runs took
-1.3–3 hours per video; the broader search may take longer.
+ShuttleSet 30 and 36 had poor final courts; 11 and 21 had low-error final courts.
+ShuttleSet22 43 and 44 had poor courts; 27 and 51 had low-error courts.
+The sample includes individual-scene errors inside otherwise good videos.
+Jobs ran with three workers per video. See the main report for measured timings.
 
 `trial_run_video.py` runs two choices from each scoring record. The checkout's
 normal choice is saved in `videos/`; score-first selection is in `trial_videos/`.
@@ -43,33 +42,15 @@ uses the changed search but the original final player veto, so it is an
 auxiliary result rather than the original control. The three main comparisons
 are A/videos, A/trial_videos and B/trial_videos.
 
-The selection change is isolated in the experiment entry point. Production
-selection defaults are unchanged until the trial is assessed. Stage B's search
-changes are isolated by the separate Git commit and checkout. If adopted,
-move the chosen selection rule into the detector and remove this temporary
-entry-point substitution.
+The selection change is isolated in the experiment entry point. The trial
+did not justify replacing the production selection default. Its scripts remain
+here to explain how the alternative results were produced.
 
-## Run and check progress
+## Interpretation
 
-Reuse `run_courts.py` and `launch_trial.sh` from the original release extraction.
-The runner records the checkout commit and refuses uncommitted tracked changes.
-For each host, prepare `stage_a/` and `stage_b/` with these scripts, the host's
-cohort as `cohort.json.gz`, and a detached `checkout/` at the appropriate commit.
-Run each stage's `launch_trial.sh check` before starting.
-
-```bash
-# On each host, after preparation:
-run_root=/scratch/ahalperi/court_det_fix/player_tiebreak_20261002
-setsid nohup "$run_root/run_stages.sh" "$run_root" run \
-  > "$run_root/chain.log" 2>&1 < /dev/null &
-"$run_root/run_stages.sh" "$run_root" status
-```
-
-The chain waits for all four stage-A lanes before starting stage B. Any failed
-lane stops the chain. `chain.exit` records completion or failure. The status
-command shows the active stage, per-video progress and output counts. Resume
-uses the same command and skips complete videos. Timings cover paired work;
-they do not estimate the standalone cost of either choice rule.
+Timings cover paired work; they do not estimate the standalone cost of either
+choice rule. The temporary deployment and monitoring scripts are kept in local
+investigation history rather than this evidence collection.
 
 Compare individual courts before sharing and final courts afterwards. Split
 by rally overlap and main/other view. The static dataset homography only labels

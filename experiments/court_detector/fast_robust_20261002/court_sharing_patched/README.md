@@ -36,8 +36,8 @@ separately. Machine-specific paths are omitted from the committed metadata.
 | `start_frame`, `end_frame` | Zero-based interval `[start_frame, end_frame)`; end is excluded |
 | `frame_index` | Sampled frame in which the court coordinates were established |
 | `status` | `court`, `no_court`, or `scene_too_short_for_feet` in this release |
-| `corners_native_px` | Final court after sharing: four `[x, y]` points in native video pixels, ordered TL, TR, BR, BL; `null` means no court |
-| `scene_corners_native_px` | Original individual court before sharing, where present; a recovered courtless scene has `null` here |
+| `corners_native_px` | Final court after sharing: four `[x, y]` points in native video pixels, clockwise, with the baseline having the smaller mean image y first; `null` means no court |
+| `scene_corners_native_px` | Original individual court before sharing, where present; `null` denotes a recovered courtless scene; an absent field means the final court is the scene’s own fit |
 | `view_pool` | Shared court's source, alignment and acceptance details, where applicable |
 
 Use the top-level scene's `corners_native_px` for downstream work. Courts are
@@ -45,14 +45,15 @@ estimates at a sampled frame, applied across that scene; they are not per-frame
 camera tracking. Coordinates may lie outside the image. Preserve missing courts
 as missing, rather than filling them with another scene's court automatically.
 
-Final corner lists use the image's upper baseline first. The export reordered
+Final corner lists use the image's upper baseline first. The usual TL, TR, BR, BL
+names are nominal for courts rotated near 90° in the image. The export reordered
 190 courts by 180° to enforce this convention; every coordinate and fitted
-geometry stayed unchanged. Original individual courts and group diagnostics
+geometry stayed unchanged. Separately saved individual courts and group diagnostics
 retain their internal ordering. Use the final scene field for court coordinates.
 
 There are 12,024 scenes with courts, 18,196 without a court and 14,590 too short
 for the player-sampling window. No scene rows were dropped. The replay recovered
-108 previously courtless scenes. Original individual courts remain unchanged.
+108 previously courtless scenes. The replay preserves the geometry of the original individual courts.
 
 ## Tables and version
 
