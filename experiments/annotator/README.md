@@ -1,8 +1,8 @@
 # Auto-annotator: experiments and handover
 
 The auto-annotator turns badminton footage into rallies with contact times and
-labels for which court half each hit came from. Its purpose is to reduce the
-manual labelling needed to build a dataset for studying player performance. A useful rally must be
+labels for which court half each hit came from. It reduces the manual labelling
+needed to build a dataset for studying player performance. A useful rally must be
 correct from beginning to end: one missed hit, extra hit, wrong player or bad
 clip boundary can make it unsuitable for that dataset.
 
