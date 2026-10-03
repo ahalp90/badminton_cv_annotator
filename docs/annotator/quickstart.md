@@ -12,13 +12,11 @@ There are two common cases:
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
 The selected model is **base, recorded on 3 October 2026**, fitted with
-**scikit-learn 1.9.1**.
+**scikit-learn 1.9.1**. Base leaves the optional rule for rejecting unreliable
+shuttle candidates without a nearby player switched off.
 Its checked `models.joblib` and `metadata.json` files are included in
 [`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
-The included model can be used directly with
-`--models data/annotator/sset_and_sset22_trained_20261003T041112Z`.
-The commands below use `models/annotator`, which requires a local copy of those
-two files. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
+The commands below use this committed model directly. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
 explains why base was selected and which errors remain.
 
 **Contents**
@@ -97,7 +95,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models models/annotator \
+  --models data/annotator/sset_and_sset22_trained_20261003T041112Z \
   --output-dir data/annotations/match-name
 ```
 
@@ -139,7 +137,7 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "models/annotator"
+annotator = "data/annotator/sset_and_sset22_trained_20261003T041112Z"
 ```
 
 The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is `models/annotator`.

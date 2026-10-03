@@ -55,8 +55,9 @@ differ even when the refactored code reproduces the historical outputs.
 
 **Original ShuttleSet** supplied 40 development videos. Groups A–D contain 32
 videos; group V contains eight validation videos. The contact model used for
-validation is fitted on A–D. The final contact model uses all 40 videos. Both
-model bundles use sequence and confidence models trained on A–D.
+validation is fitted on A–D. The final contact model uses all 40 videos. The
+validation and final bundles both use sequence and confidence models trained
+on A–D.
 
 **ShuttleSet22** supplied the cross-dataset evaluation. Earlier studies used 47
 videos and 3,422 cleaned labelled rallies. Later comparisons exclude video 15

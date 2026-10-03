@@ -173,8 +173,11 @@ rule preferred a plausible wrong one. Background markings, neighbouring courts
 and partly visible lines created competing explanations of the image.
 
 Finding a good candidate therefore left a separate problem: choosing it over
-the wrong alternatives. Court selection and rejection remained unresolved.
-[Court-fitting experiments](reports/court_fitting.md)
+the wrong alternatives. Court selection and rejection remained unresolved
+at that stage. The [court-fitting report](reports/court_fitting.md) covers the
+prototypes; [court selection](reports/court_selection.md) explains the ranking
+failures, and [sharing across frames](reports/court_temporal.md) covers the early
+multi-frame trials.
 
 Frame-sampling work then compared three views around a scene midpoint,
 independent fits, reuse of another frame's fit, and composites of visible

@@ -1,10 +1,14 @@
 # Manual commentary review — 2 October 2026
 
+The pipeline pairs commentary with the rally it most plausibly describes. Each
+candidate commentary–rally link is one proposed pairing.
+
 Curtis Martin reviewed 134 commentary passages from 85 ShuttleSet and ShuttleSet22 videos. They cover 135 candidate commentary–rally links from the 3,500 links in the frozen dataset-v1 export.
 
 The review found 116 passages that described the candidate rally, 13 that contained general discussion rather than commentary on that rally, and five that were unclear. One unclear passage had two candidate rallies, giving six unclear links.
 
-The sample was deliberately spread across different videos and pairing situations rather than drawn randomly, so these counts describe the reviewed set rather than the full 3,500 links.
+These counts describe the reviewed set. The sampling method and its limits are
+explained below.
 
 ## Results
 
@@ -20,6 +24,9 @@ Speech timing was reviewed separately: 128 passages were marked `matches`, four 
 
 `general` means that the passage did not describe the specific candidate rally. It can still contain useful match or player discussion. The unclear cases included poor source rally intervals and audio that was too difficult to judge.
 
+Passage IDs identify the dataset, video and commentary chunk: `sset_14_c19`,
+for example, is ShuttleSet video 14, chunk 19.
+
 Four passages were flagged for timing problems: `sset_14_c19`, `ss22_28_c42`, `ss22_29_c24` and `sset_19_c51`.
 
 The review also caught several text problems:
@@ -32,7 +39,8 @@ Transcript fidelity was not scored systematically, and the review did not alter 
 
 ## Sample construction
 
-Selection used a fixed seed and favoured coverage across videos, replay-masked cases, commentary inside a rally and commentary after a rally. Passages contained at least five words and review clips lasted no more than 105 seconds. Later batches excluded one-frame candidate intervals.
+Selection used a fixed seed and favoured coverage across videos, replay-masked cases, commentary inside a rally and commentary after a rally. Passages contained at least five words and review clips lasted no more than 105 seconds. The review proceeded in batches; later batches excluded candidate rallies
+whose annotated intervals lasted only one frame.
 
 This sampling was designed to expose different failure modes. It does not provide a population accuracy estimate or measure valid links that the pairing process missed.
 
@@ -57,6 +65,7 @@ The link tables join to the frozen export on:
 
 Identifiers remain strings. A passage can have more than one candidate row. `unclear` means the reviewer inspected the link but could not judge it; `unreviewed` means it was not part of this review.
 
-Source times are seconds in the recording. `source_url` identifies the public recording where available. Carmack paths record the local copies used during review and are retained only as provenance.
+Source times are seconds in the recording. `source_url` identifies the public recording where available. Paths on the review machine, `Carmack`, record the local copies used during
+review and are retained as provenance.
 
-The video clips used during review are not part of the supplement. The compressed labels and notes are sufficient to identify every reviewed passage and candidate link.
+The review files do not include the video clips. The compressed labels and notes are sufficient to identify every reviewed passage and candidate link.

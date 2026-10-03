@@ -6,6 +6,9 @@ These experiments tested line fitting and tracked player positions as
 alternatives to CourtKeyNet, the former neural corner detector. The prototypes
 remain research code; the annotation pipeline uses its own detector.
 
+Code and saved records named below are relative to
+[`independent_court/`](../independent_court/).
+
 [Recorded comparisons and saved outputs](#recorded-development-evidence)
 
 ## Fitting courts from image lines
@@ -181,12 +184,13 @@ samples person detections within that range, follows their foot positions,
 and checks which candidate courts agree with the resulting tracks.
 
 In the three-clip replay, refitting with multiple line fragments reduced the
-worst corner error in two clips and slightly increased it in the third. Two
+worst corner error relative to median floor scoring in two clips and slightly
+increased it in the third. Two
 finished fits met the report's 15-pixel error criterion. The largest improvement,
 on the Yellow clip, reduced error from 221.19 to 21.22 pixels but still missed
 that criterion. Selecting the intended player pair and deciding automatically
 whether to accept a court remained unresolved.
-[Temporal results and replay bundle](../../court_detector/comparisons/earlier_approaches.md)
+[Temporal results and replay bundle](court_temporal.md)
 
 Three scripts divide that work: `export_people.py` samples detections,
 `temporal.py` follows native-image footpoints with a small greedy tracker, and
@@ -261,14 +265,14 @@ pytest -q tests/test_independent_court_temporal.py \
   tests/test_independent_court_player_guided.py
 ```
 
-The [neural follow-up](../../court_detector/comparisons/earlier_approaches.md)
-compares both DeepLSD weight sets and LINEA large, including the effect of their
-line fragments on court selection and false acceptance.
+The [saved neural comparisons](../independent_court/recorded/neural.json.gz)
+cover both DeepLSD weight sets and LINEA large, including their court candidates
+and acceptance decisions.
 
 ## Recorded development evidence
 
-The [replacement assessment](../../court_detector/comparisons/earlier_approaches.md)
-records the candidate errors, selection failures and representative overlays.
+The [summary of earlier approaches](../../court_detector/comparisons/earlier_approaches.md)
+explains why better line extraction did not resolve court selection.
 The saved bundles contain the inputs and outputs for those comparisons:
 
 | Record | Contents and use |

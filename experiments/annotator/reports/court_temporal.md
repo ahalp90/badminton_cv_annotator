@@ -2,6 +2,9 @@
 
 Two early experiments tested whether several frames from the same camera view could share one court calibration. The first fitted one court across three short clips. The second collected 13 cached frames to inspect how stable the available line and court measurements looked over longer spans.
 
+The three-frame fit improved two clips relative to floor scoring alone.
+The longer-span cache left camera continuity unmeasured.
+
 The current detector uses separate multi-frame composition and court-sharing code. Its behaviour is documented in the [court-detector design](../../../docs/court_detector/design.md).
 
 ## Three-frame trial
@@ -14,7 +17,12 @@ The earlier player-guided trial used one court across three frames from each of 
 | Letterboxed | 10.06 | 17.38 | 14.75 |
 | Centre | 4.04 | 4.04 | 3.20 |
 
-Values are the worst corner error across the three references at 1280 × 720. The historical 15-pixel cutoff belongs to this experiment only.
+Yellow, Letterboxed and Centre are the three saved clip names. Floor scoring
+measures agreement with court markings; the second method adds projected-net
+evidence, and the third refits the court using line fragments from all three
+frames.
+
+Values are the worst corner error in pixels across the three references at 1280 × 720. The historical 15-pixel cutoff belongs to this experiment only.
 
 All three columns already use one court across the three frames. The table compares changes to scoring and geometry, not shared calibration against independent single-frame fitting. The Yellow clip improved sharply but still remained above the experiment's 15-pixel cutoff; Letterboxed remained slightly worse than floor scoring alone; Centre improved slightly.
 

@@ -4,7 +4,8 @@ This experiment asks whether looking at three nearby frames gives a better
 court estimate than fitting just the middle frame, and how much extra detector
 work that requires. It compares three strategies with the production detector
 using the first, middle and last frames of a three-second interval around the
-scene midpoint. Player positions are measured over that same interval.
+scene midpoint. Player positions are measured over that same interval. The
+`run_video` references below mean the production per-video court pass.
 
 The strategies trade independent searches against reusing a court fitted on
 another frame. The [arms table](#arms) explains those choices. All use the
@@ -182,7 +183,8 @@ other error stops the run and records `stopped_by`.
 
 Every result's corners are in the native pixels of **the frame they fit**. To
 compare an endpoint court with the middle frame, `in_middle_frame` carries it
-across with the ECC image alignment behind the reuse check. It records the
+across with OpenCV's enhanced correlation coefficient (ECC) image alignment
+used by the reuse check. It records the
 correlation and the largest corner movement; no motion limit applies.
 `comparable` is false when ECC fails or the correlation is below the reuse
 check's 0.8. `vs_baseline` compares only comparable courts, as the largest corner

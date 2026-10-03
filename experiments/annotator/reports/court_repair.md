@@ -1,7 +1,7 @@
 # Court geometry repair: evidence and reproduction
 
-The saved evidence supports checking the [issue #148 results](../../court_detector/comparisons/earlier_approaches.md)
-from saved before/after outputs. It includes court and contact results, separate
+This report records the issue #148 court-repair comparison from saved
+before/after outputs. It includes court and contact results, separate
 court-geometry checks and the contact model used for the comparison. The fitted
 models stayed fixed, so these results measure changes in the inputs and processing
 around them rather than a retraining.
@@ -72,8 +72,14 @@ python "$BUNDLE/scripts/check_followup.py"
 
 The contact checks cover both ±10-frame and ±5-frame matching at 30 fps.
 With a ±10-frame allowance, video 17 keeps its 17 fully correct rallies.
-Video 53 improves from 7 to 35. **All previously correct rallies remain correct.** The report explains
-the denominators and the precision loss on video 17.
+Video 53 improves from 7 to 35. **All previously correct rallies remain correct.**
+
+On video 17, the repair found more labelled contacts but also added false hits.
+At ±10 frames, matched contacts rose from 842 to 871 out of 976 labels, while
+predictions rose from 945 to 1,002. Contact precision—the fraction of predictions
+matching a label—fell from 89.1% to 86.9%. The
+[saved counts](../court_geometry_repair/evidence/video_17/expected.json.gz)
+retain both tolerances and the rally comparisons.
 
 Separate geometry checks use original-ShuttleSet videos 3 and 21. In video 3,
 seven scene outlines disagreed with the outlines accepted in other scenes.
@@ -100,16 +106,12 @@ footage would require its own evaluation.
 Both saved-stream evaluations matched the supplied expected records. The two
 geometry checks also passed. The failure checks also worked: the scripts rejected an incorrect expected
 contact count and a repaired court with missing line evidence.
-The new scripts passed syntax, CLI and scoped lint checks.
 
 The cleaned preparation and scoring scripts were also run on all 119,849 frames
 of video 53. That earlier rerun rebuilt the before/after annotations and features from
 saved detection outputs, then applied the unchanged fitted models. It matched
 the expected result at both timing tolerances. The neural detections were reused
 while checking that the packaged scripts could reproduce the result.
-
-The whole-project type check still reported the same 11 existing import errors.
-Production source was unchanged while packaging this bundle.
 
 ## Retained follow-up evidence
 
