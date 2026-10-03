@@ -1,9 +1,23 @@
 # Manual commentary review — 2 October 2026
 
-The pipeline pairs commentary with the rally it most plausibly describes. Each
-candidate commentary–rally link is one proposed pairing.
+The frozen dataset contains **6,833 manually annotated rallies from 86 videos**
+across ShuttleSet and ShuttleSet22, alongside **6,254 cleaned transcript chunks**.
+Every chunk retains its video identity and speech timestamps.
 
-Curtis Martin reviewed 134 commentary passages from 85 ShuttleSet and ShuttleSet22 videos. They cover 135 candidate commentary–rally links from the 3,500 links in the frozen dataset-v1 export.
+| Transcript chunks | Count |
+| --- | ---: |
+| Linked to at least one candidate rally | 3,498 |
+| Kept as timestamped video–text without a rally link | 2,756 |
+| **Total** | **6,254** |
+
+Two chunks each link to two candidate rallies, giving **3,500 commentary–rally
+links** in total. The 2,756 unlinked chunks remain in the dataset with their
+accompanying video times. This preserves commentary beyond the rally-linked
+examples; replays and other non-rally scene types are not separately counted.
+The [dataset handover](../../README.md#dataset-handover) describes the full delivery.
+
+Curtis Martin reviewed **134 commentary passages from 85 videos**, covering
+135 of those candidate rally links.
 
 The review found 116 passages that described the candidate rally, 13 that contained general discussion rather than commentary on that rally, and five that were unclear. One unclear passage had two candidate rallies, giving six unclear links.
 
