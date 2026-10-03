@@ -715,9 +715,9 @@ COMMENTARY_RALLY_LINKS = TableSpec(
     description=(
         "One row per commentary chunk linked to one source_contacts rally under the "
         "issue #138 pairing rule. A chunk with more than one candidate rally gets one "
-        "row per rally, all marked ambiguous. Coverage is measured; accuracy is not: "
-        "nobody has labelled a sample to check that a linked chunk actually discusses "
-        "its rally."
+        "row per rally, all marked ambiguous. Coverage is measured. A selected manual "
+        "sample now has companion labels, but population accuracy remains unmeasured; "
+        "see [the review](dataset_builder/commentary_manual_review_20261002.md)."
     ),
 )
 
@@ -947,10 +947,10 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "No defined scene boundary, range, or provenance policy.",
     ),
     FeatureDisposition(
-        "Rally-to-commentary association", Disposition.UNRESOLVED, (),
-        "Issue #138's lag rule fixes coverage on aligned times with zero ambiguity at "
-        "10 s, but accuracy is unmeasured: nobody has labelled a sample to check the "
-        "pairs are right.",
+        "Rally-to-commentary association", Disposition.UNRESOLVED, ("commentary_rally_links",),
+        "Temporal candidates are delivered. A selected 134-passage manual review "
+        "supplies companion labels; whole-dataset accuracy remains unmeasured. "
+        "The export flags replay starts and records multiple candidates.",
     ),
     FeatureDisposition(
         "Commentary sentiment, concept, and player link", Disposition.UNRESOLVED, (),
