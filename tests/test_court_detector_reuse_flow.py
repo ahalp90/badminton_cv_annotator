@@ -14,6 +14,37 @@ from court_detector.inputs import (
 )
 
 
+@pytest.mark.parametrize(('require_people', 'full', 'broader_search'), [
+    (False, False, False), (False, True, True), (True, False, True), (True, True, True),
+])
+def test_frame_search_breadth_keeps_templates_and_the_player_policy(monkeypatch, require_people, full,
+                                                                  broader_search) -> None:
+    detector = object.__new__(detect.CourtDetector)
+    detector.switches = detect.Switches(require_people=require_people, full_no_people_search=full)
+    searched, scored = [], []
+    template = {'origin_key': 'template'}
+    detector.live = SimpleNamespace(
+        runtime={}, court_model=None, verifier=None, prepared_measurements=lambda verifier: nullcontext(),
+        line_template_source=SimpleNamespace(generate=lambda *args, **kwargs:
+                                              SimpleNamespace(entries=[template], metadata={})),
+    )
+    monkeypatch.setattr(detect.search, 'seed_points', lambda family: [])
+    detector.search = lambda *args: searched.append(True) or {'all_lines': ['all'], 'painted_lines': ['painted']}
+
+    def choose(view, context, populations, templates, frame, laps, artefacts):
+        scored.append((populations, templates))
+        return detect.CourtResult('frame', None, 'no_gated_court', None, None)
+
+    detector.score_and_choose = choose
+    prepared = SimpleNamespace(context=SimpleNamespace(families=[object()]), view=None, source={}, native_frame=None)
+    detector.search_and_choose(prepared, detect.Laps(), {})
+    assert bool(searched) is broader_search
+    populations, templates = scored[0]
+    assert templates == [template]
+    assert populations == ({'all_lines': ['all'], 'painted_lines': ['painted']} if broader_search
+                           else {'all_lines': [], 'painted_lines': []})
+
+
 @pytest.mark.parametrize('accepted', [False, True])
 @pytest.mark.parametrize(('switches', 'observations'), [
     (detect.Switches(timing=True), [[4., 5.], [7., 8.]]),
@@ -66,7 +97,7 @@ def test_reuse_success_skips_search_and_rejection_keeps_prepared_context(monkeyp
                       same_frame_provenance('later', 50), alignment_image)
     result = detector.detect(view, object(), None, known_courts=[object()])
     assert len(prepared) == 1
-    assert searched == ([] if accepted else [context])
+    assert searched == ([context] if not accepted and switches.require_people else [])
     assert result.reused_from == ('earlier' if accepted else None)
     assert result.paint_score == (.7 if accepted else None)
     # A view left without a court hands on its prepared inputs, for a view pool to share a court with.

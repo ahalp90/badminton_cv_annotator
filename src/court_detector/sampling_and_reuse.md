@@ -11,7 +11,7 @@ These options decide how scenes relate to each other:
 
 | Behaviour | Option | When it acts | What a scene can end up with |
 | --- | --- | --- | --- |
-| Scene-robust | `--court-mode scene-robust` | Per scene | Its own searched or composed court |
+| Scene-robust | `--court-mode scene-robust` | Per scene | Its best accepted individual court or combined refit |
 | Chronological reuse | `--reuse-courts` | Per scene, in time order, before the search | An earlier scene's court, refitted and checked in this scene |
 | Video-robust (default) | `--court-mode video-robust` | Once, after every scene has finished | One court shared by scenes of the same camera view, or its own court |
 | Fast-robust | `--court-mode fast-robust` | Fits each middle frame, then pools after every scene has finished | A pooled court, the best complete middle-frame court, or its own middle-frame court |
@@ -19,6 +19,11 @@ These options decide how scenes relate to each other:
 Reuse and video-robust mode are independent and can run together. Both are
 described in full below.
 Fast-robust requires independent fresh fits and rejects `--reuse-courts`.
+
+Separately, `--fast` and `--full` choose search breadth within each frame when
+players are optional. Omitted flags or `--fast` use line templates; `--full` adds
+all-lines and painted-lines searches. They are mutually exclusive and leave
+player-required search unchanged. A still image remains one input frame.
 
 ## Scenes and frame ranges
 
@@ -56,9 +61,9 @@ For an even number of frames this is the later of the two middle frames.
 
 | Purpose | Frames used |
 | --- | --- |
-| Find lines, search and fit the court | The anchor |
+| Find lines, search and fit the court | The anchor; also the scheduled endpoints in scene-robust and video-robust modes |
 | Check players' positions | 31 frames at about 10 per second, three seconds around the anchor |
-| Compose a court (fresh search only) | The anchor plus the first and last frames of that player window |
+| Compare individual courts and a combined refit (fresh searches) | The anchor plus the first and last frames of that player window |
 | Compare views for `--reuse-courts` | A median image of the window's first frame, the anchor and the window's last frame |
 | Group views in video-robust mode | The anchor alone, with people left out of the alignment |
 
@@ -88,37 +93,38 @@ prerun extracts every frame for later pipeline stages; it does not add samples.
 
 ## Composing a court within a scene
 
-Players hide different markings in different frames. Composition fits one court
-from the frames that show each marking best.
+Scene-robust and video-robust search the middle frame and both scheduled window
+endpoints independently. A rejected or failed middle search does not prevent
+endpoint searches. Composition needs a scene long enough for the window.
+Successful chronological reuse and fast-robust skip endpoint searches.
 
-It runs only when the scene holds the player window and a **fresh search** of
-the anchor found a court. It is skipped for a reused court, a short scene and an
-anchor with no court.
+1. **Search each frame.** Endpoints use their own lines and person boxes with the
+   middle frame's feet. Each fresh court must pass its source checks. A failed
+   endpoint is logged and left out.
+2. **Pick a reference and align.** The highest-scoring accepted frame supplies the
+   reference. Exact ties go middle, first, last. Missing score terms do not veto
+   the scored frames. Image alignment needs correlation of at least 0.8, with
+   person boxes left out. The middle image can align using the reference court as
+   an initial mask even when its own search found no court.
+3. **Refit the clearest markings.** With at least two aligned accepted frames,
+   each marking contributes the stripe samples from its strongest paint donor.
+   One court is fitted to those samples.
+4. **Compare in the middle image.** Every carried individual and a valid refit
+   receive the same paint, line and net score there. Transfer checks require
+   valid geometry, a plausible camera and uprightness when enabled. They leave
+   out the middle frame's player requirement; the source courts already passed
+   their own player checks. The middle frame's own candidate retains its checks.
+5. **Keep the best passing court.** Exact ties prefer an individual in middle,
+   first, last order. A failed or worse refit preserves the best individual.
+   One accepted endpoint can supply the scene's court without a combined fit.
 
-1. **Search the endpoints.** The window's first and last frames are searched like
-   the anchor, with their own lines and person boxes but the anchor's feet. An
-   endpoint whose search fails or finds nothing is left out, and the failure is
-   logged.
-2. **Pick a reference.** The frame with the highest combined score becomes the
-   reference. Exact ties go middle, then first, then last.
-3. **Align.** Each other frame is aligned to the reference inside its own court,
-   with person boxes left out. The alignment must reach a correlation of 0.8.
-   Camera movement is allowed. At least two frames, including the anchor, must
-   align.
-4. **Choose donors.** Each court marking takes its stripe samples from the frame
-   with the strongest paint on that marking.
-5. **Fit and check.** One court is fitted to those samples, then carried into the
-   anchor. It must pass the anchor's geometry and camera checks, the player check
-   when people are required, and the upright-camera check.
+The row's `composition.court` is `middle`, `first`, `last`, `composite`, or `null`
+when no court survives. `fallback_reason` explains a missing or losing refit.
+Accepted aligned frames retain their stripe evidence and complete court candidates
+for video sharing, even when composition fails or an individual wins.
 
-A passing composite replaces the anchor's court, with `chosen_key` set to
-`composite`. Otherwise the anchor's own court stands. The row's `composition`
-record says which happened. Its `fallback_reason` is one of
-`too_few_accepted_frames`, `score_evidence_missing`, `too_few_aligned_frames`,
-`middle_not_aligned`, `composition_failed`, `fit_<reason>` or `middle_<reason>`.
-
-The endpoints are always the scheduled window ends, even when the shot check
-dropped one. The alignment and the anchor checks must reject a bad contribution.
+The endpoints remain the scheduled window ends, even when the shot check drops
+one. Alignment and transfer checks decide whether their courts can contribute.
 
 ## Chronological reuse (`--reuse-courts`)
 
@@ -155,7 +161,7 @@ For each new scene the runner:
    composition.
 
 **Which courts enter the store.** Only a court from a fresh search with positive
-paint support, whether the anchor's own court or a composite. A reused court
+paint support, whether an individual frame's court or a combined refit. A reused court
 never enters, so small refit shifts cannot pile up along a chain of reuses.
 Unanalysed short scenes, no-court rows and failed scenes never enter. A short
 scene analysed with `--no-require-people` can enter if its fresh search returns a
@@ -179,9 +185,12 @@ as scenes finish. Fitting and comparison run after the last scene, and final
 rows print only after that pass.
 [view_pool.py](view_pool.py) owns these steps.
 
-Only scenes with `status` `court` take part. That includes reused courts and
-anchor-only courts. No-court rows, unanalysed short scenes and failed scenes are
-left exactly as they are.
+Scenes with `status` `court` join as members. That includes reused courts and
+courts found in a single frame. A `no_court` scene can join later as a receiver,
+using the group's reference court to mask its alignment. Receivers receive the
+chosen court only after geometry, camera and score checks; they never donate or
+influence candidate ranking. Unanalysed short scenes and failed scenes stay as
+recorded.
 
 ### 1. Group scenes by camera view
 
@@ -203,17 +212,14 @@ error under `view_pool`.
 
 ### 2. Donors: who contributes evidence
 
-A scene donates only if its fresh search ended in an **accepted composite**. In
-code, this is a scene whose `SceneCourts.used_frames` is non-empty. It offers the
-frames that won its markings, with their line samples and stripe labels. These
-are carried into the reference's pixels and turned to match the reference's
-court if needed.
+Fresh accepted individual frames donate their line samples and stripe labels.
+They remain eligible when the combined refit fails or an individual scores better.
+A freshly searched anchor-only court can also donate, including a short scene
+analysed without required players. Reused courts can receive but never donate.
 
-These scenes never donate, but can still receive a shared court:
-
-- a reused court
-- an anchor-only court, where composition fell back
-- a scene that was not composed, such as a short scene
+Donor evidence moves into the reference's pixels and turns to match its court's
+orientation. Each scene counts once toward the minimum number of independent
+donors, however many accepted frames it contributes.
 
 For each marking, the group keeps the donor with the strongest paint across all
 donors. An exact tie keeps the earlier scene.
@@ -225,8 +231,8 @@ marking. Otherwise the group's `reason` is `too_few_donor_scenes` and every
 member keeps its court.
 
 The pooled court is one stripe fit to the kept samples, in the reference's
-pixels, starting from the reference's court. If the fit is invalid, `reason` is
-`fit_<reason>` and every member keeps its court.
+pixels, starting from the reference's court. An invalid fit records
+`fit_<reason>` and leaves the accepted existing courts eligible for selection.
 
 ### 4. Score in every member
 
@@ -235,7 +241,7 @@ uses to choose courts:
 
 - `pooled`: the pooled court, carried into this member and checked there
 - `scene`: the member's own finished court
-- `middle`: the anchor's own court before composition
+- `middle`: the anchor's own court before composition, absent after endpoint-only recovery
 
 A missing score term leaves no combined score; it is never treated as zero. A
 diagnostic group mean exists only when every member has that court's score.
@@ -244,8 +250,9 @@ Candidate ranking below also records a mean over the members that could score it
 ### 5. Choose one shared court
 
 Two donors can call the same painted stripe by different marking names. The one
-fit can then land between them on blank floor. Each donor's finished court is
-therefore also a candidate for the whole group, with no further refit.
+fit can then land between them on blank floor. Each donor scene's finished court
+and its retained accepted individuals are also candidates for the whole group,
+with no further refit.
 
 A scene candidate already passed its source scene's checks. The pooled fit must
 pass geometry and camera checks in the reference frame where it was fitted.
@@ -259,8 +266,9 @@ many remain. Different counts mean candidates were compared on different sets
 of frames; this can favour a candidate whose difficult transfers were unmeasurable.
 
 The best scene court replaces the pool when its mean is higher, or when the pool
-failed its source check. An exact tie keeps the earlier scene candidate; a tie
-between that candidate and the pool keeps the pool in video-robust mode.
+is invalid or failed its source check. An exact tie keeps the earlier scene
+candidate. A tie between that candidate and the pool keeps the pool in
+video-robust mode.
 
 ### 6. Apply the winner per scene
 
@@ -269,10 +277,12 @@ checks and it has a combined score. Player presence is not required during
 sharing: a matching view can show a break between points.
 
 - A passing member takes the selected scene court (`video_pool_scene`) or pooled
-  court (`video_pool`), in its own pixels and corner order.
+  court (`video_pool`), in its own pixels. The final runner output then applies
+  the exported far-baseline-first corner convention.
 - A failed transfer leaves only that member's original court in place and
   records its rejection. Other members still receive the same winner.
-- The winning source scene already holds its court and needs no replacement.
+- The source scene also changes when one of its retained individual courts wins
+  over its finished scene court.
 - A handled fit or scoring error sets `pooling_failed` and leaves the rows alone.
 
 Rows change only after every court in the group is measured.
@@ -306,13 +316,19 @@ help. Fast-robust therefore trades some scene-level evidence for less work.
 
 ## Output fields by mode
 
+Final exported `corners_native_px` puts the far baseline first. The runner rolls
+corners by two only when the first baseline's mean image y exceeds the second's.
+It preserves the geometry and never quarter-turns or refits the court. Internal
+`CourtResult`, `SceneCourts` and `scene_courts` rows retain their fitting order;
+original scene corners and diagnostic candidate arrays do too.
+
 Every analysed row carries these fields in all modes:
 
 | Field | Meaning |
 | --- | --- |
-| `chosen_key` | Where the court came from: a search key, `reuse`, `composite`, `video_pool` or `video_pool_scene` |
+| `chosen_key` | Where the court came from: a search key, `first`, `last`, `reuse`, `composite`, `video_pool` or `video_pool_scene` |
 | `reused_from` | The earlier `view_id` for a reused court, else `null` |
-| `composition` | `null` unless endpoints were searched. Otherwise `court` (`middle` or `composite`), `fallback_reason`, `reference`, `used_frames` (roles), each endpoint's outcome, any `errors` and `middle_chosen_key` |
+| `composition` | `null` unless endpoints were searched. Otherwise `court` (`middle`, `first`, `last`, `composite` or `null`), `fallback_reason`, `reference`, `used_frames` (roles), each endpoint's outcome, any `errors` and `middle_chosen_key` |
 | `stage_seconds` | Detector seconds per step for this scene. Composition adds `endpoint_inputs`, `first_frame_search`, `last_frame_search` and `composition` |
 | `seconds` | This scene's wall time up to its row |
 
@@ -341,7 +357,8 @@ Video-robust and fast-robust modes add:
   `reason`, `chosen_court`, `chosen_view_id`, `receiver_view_ids` and
   `received_view_ids` (the receivers that took the court). As processing proceeds, it adds
   `markings` (each marking's donor), `fit`, `mean_combined_scores` and
-  `scene_candidates` and `pooled_candidate`. Each candidate records its mean,
+  `scene_candidates` and `pooled_candidate`. `chosen_frame_role` identifies a
+  retained individual winner when present. Each candidate records its mean,
   `measured_members`, source `rejection` and `transfer_rejections`. A group that
   stops early lacks the later fields
 
@@ -389,7 +406,7 @@ margin in at least half the scene's frames. See
 
 The [design page](../../docs/court_detector/design.md) records why composition
 and pooling work this way. The [evaluation page](../../docs/court_detector/evaluation.md)
-holds the scene checks, the cached pooling checks and the pending full GPU run.
+links the measured runs and their remaining limitations.
 
 ## Where the behaviour lives
 

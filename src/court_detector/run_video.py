@@ -6,8 +6,6 @@ README.md owns the options and the output format.
 
 from __future__ import annotations
 
-# ruff: noqa: E402 -- Set worker thread limits before importing NumPy.
-
 import argparse
 import gzip
 import json
@@ -34,6 +32,7 @@ import numpy as np
 
 from . import feet
 from .detect import CourtDetector, CourtFitError, PreparedView, SceneCourts, Switches
+from .geometry import normalise_output_corners
 from .inputs import FrameReader, PeopleSource, ViewInputs, same_frame_provenance
 from .line_sources import DeepLSDLines, LineSource, SavedLines
 from .scene_sources import PySceneDetectSource, SavedScenes, SceneInfo, SceneSource
@@ -149,10 +148,10 @@ def scene_courts(
     and the next scene runs. Each row repeats its scene's `[start_frame, end_frame)`
     bounds.
 
-    When a fresh search finds the middle frame's court, the detector also searches
-    the first and last frames of the foot window and may report a composite court
-    in the middle frame's pixels. A scene too short for the window, or one that
-    reuses an earlier court, keeps the middle frame alone. compose_scenes=False
+    The detector searches the middle frame and both foot-window endpoints independently,
+    then compares the accepted courts and combined refit in the middle image.
+    A scene too short for the window, or one that reuses an earlier court,
+    keeps the middle frame alone. compose_scenes=False
     (fast-robust mode) skips the endpoint frames for every scene; the foot window
     still runs.
 
@@ -160,6 +159,9 @@ def scene_courts(
     row is yielded. on_courtless receives each `no_court` row and its middle frame's
     prepared inputs. Video-robust and fast-robust modes pass VideoPool.add and
     VideoPool.add_receiver.
+
+    These intermediate rows retain detector corner order for pooling. detect_video
+    normalises each final exported court to put the far baseline first.
     """
     if people is None and detector.switches.require_people:
         raise ValueError('A people source is required when require_people is enabled')
@@ -367,6 +369,8 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
             rows.append(row)
             logger.info('%s: scene %d/%d %s', video_id, len(rows), len(scenes), row['status'])
             if pool is None:
+                if row['corners_native_px'] is not None:
+                    row['corners_native_px'] = normalise_output_corners(np.asarray(row['corners_native_px'])).tolist()
                 print(json.dumps(row), flush=True)
         extra: dict[str, Any] = {}
         if pool is not None:
@@ -375,6 +379,8 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
             extra['view_groups'] = pool.apply()
             logger.info('%s: pooling finished with %d view groups', video_id, len(extra['view_groups']))
             for row in rows:
+                if row['corners_native_px'] is not None:
+                    row['corners_native_px'] = normalise_output_corners(np.asarray(row['corners_native_px'])).tolist()
                 print(json.dumps(row), flush=True)
         return {'schema': VIDEO_RESULT_SCHEMA, 'video_id': video_id, 'video': video.name, 'fps': frames.fps,
                 'frame_count': frames.frame_count, 'native_size': frames.size, 'tools_seconds': tools.load_seconds,
@@ -491,6 +497,11 @@ def parse_arguments() -> argparse.Namespace:
     scene_options.add_argument('--pyscenedetect', action='store_true', help='detect cuts and representative scene histograms')
     parser.add_argument('--workers', type=int, choices=range(1, 9), default=8)
     parser.add_argument('--full-score-limit', type=int, help='optional cheap-score trial limit; omit for exhaustive scoring')
+    search_options = parser.add_mutually_exclusive_group()
+    search_options.add_argument('--fast', action='store_true',
+                                help='no-player frames: search line templates alone (default)')
+    search_options.add_argument('--full', action='store_true',
+                                help='no-player frames: also search all lines and painted lines')
     parser.add_argument('--reuse-courts', action='store_true', help='trial checked reuse of earlier camera views')
     parser.add_argument('--court-mode', type=CourtMode, choices=list(CourtMode), default=CourtMode.VIDEO_ROBUST,
                         help='scene-robust keeps each scene\'s court; video-robust may share one pooled court '
@@ -530,7 +541,8 @@ def main() -> int:
         people_dirs = [args.people]
     os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:8])
     switches = Switches(workers=args.workers, timing=True, full_score_limit=args.full_score_limit,
-                        require_people=args.require_people, template_device=args.template_device)
+                        require_people=args.require_people, template_device=args.template_device,
+                        full_no_people_search=args.full)
     pose_prerun = (PosePrerun(args.pose_prerun, args.pose_python, args.device)
                    if args.pose_prerun is not None else None)
     live_pose = args.require_people and pose_prerun is None and any(people is None for people in people_dirs)

@@ -17,11 +17,6 @@ Three other pages hold the rest:
 - [Evaluation](../../docs/court_detector/evaluation.md): the evidence behind it,
   and its remaining limits
 
-**Status.** A full `--court-mode video-robust` GPU run completed with live player
-checks. Its main recurring view fitted well in three inspected scenes, but
-false courts remain in standalone views. Processing took about twice the
-video's duration. See the evaluation page for results and remaining limits.
-
 ## How it finds a court
 
 A "projection" below means the four court corners in the image. Together they
@@ -33,9 +28,11 @@ define a homography: a mapping between the flat court floor and the image.
 2. **Players' feet (video).** RTMLib runs models that find people and their body
    joints. The detector samples 31 frames at 10 per second around the analysed
    frame and takes the bottom centre of each standing person's box as their feet.
-3. **Search.** It matches pairs of line directions to court markings, and also
-   builds courts from crossing lines. The implied camera must be plausible and
-   upright. Player absence does not reject search candidates. Where complete
+3. **Search.** With required players, it matches pairs of line directions to
+   court markings and builds courts from crossing lines. Without required players,
+   it searches line templates by default; `--full` adds both direction-pair searches.
+   The implied camera must be plausible and upright. Player absence does not reject
+   search candidates. Where complete
    court measurements exist, player support breaks exact line-score ties.
 4. **Score and choose.** Each candidate court gets a combined score: 90% paint
    support plus 10% line support, plus up to 0.04 for visible net posts. "Paint
@@ -45,10 +42,10 @@ define a homography: a mapping between the flat court floor and the image.
    separately tests score-first final selection without the player veto.
 5. **Refit.** The chosen court's lines are refitted to the centre or edge of
    their painted stripes. The refit must pass the same checks again.
-6. **Compose (video).** After a fresh search, the first and last frames of the
-   player window are searched too. One court is fitted from whichever frame shows
-   each marking best. It replaces the middle frame's court when it passes that
-   frame's checks.
+6. **Compose (video).** The middle frame and both window endpoints are searched
+   independently. One court is fitted from the clearest markings across accepted
+   frames. The refit and accepted individual courts compete on the same middle-frame
+   evidence; the best passing court wins.
 
 A video gets **at most one court per scene**. The court is fixed for the whole
 scene; it does not follow a pan or zoom. [Sampling and scene reuse](sampling_and_reuse.md)
@@ -118,8 +115,13 @@ lines as well as result rows, so do not parse it as JSON Lines.
 `corners_native_px` is a `(4, 2)` array of floating-point `(x, y)` positions in
 the decoded image, whose size is `[width, height]`. Coordinates start at the
 top left; x increases rightward and y downward. Corners are ordered **top left,
-top right, bottom right, bottom left**, clockwise in the image. For the usual
-view from behind a baseline, the far baseline comes first.
+top right, bottom right, bottom left**, clockwise in the image. Final image and
+video outputs put the far baseline first. If the first baseline's mean image y is
+larger than the second's, the runner rolls the four corners by two. It preserves
+every coordinate and never applies a quarter-turn or another fit.
+
+This convention applies to exported `corners_native_px`. Private detector results,
+original scene courts and diagnostic candidate arrays keep their fitting order.
 
 The corners describe the outer doubles court, 6.10 × 13.40 metres, even for
 singles play. They can lie outside the image. Preserve their order when making
@@ -142,6 +144,19 @@ default the court comes from lines and geometry alone. Add `--with-people` to ru
 RTMLib once on the image. Those people then hide themselves from the paint
 measurements and support the search. One image has no three-second player
 window, so missing or off-court people never veto a court here.
+
+### Search breadth without required players
+
+| Option | Search within each image or sampled frame |
+| --- | --- |
+| Omitted, or `--fast` | Line templates alone |
+| `--full` | All-lines, painted-lines and line-template searches |
+
+`--fast` and `--full` are mutually exclusive. They apply to image mode and video
+mode with `--no-require-people`, including every frame of a three-frame scene
+search. They leave the player-required search policy unchanged. A still image
+remains a single-frame input. `--court-mode` separately controls video sampling
+and sharing; `--fast` does not select `--court-mode fast-robust`.
 
 The result holds:
 
@@ -318,8 +333,8 @@ checks), `rank_deficient` (the final fit lacked enough independent lines), and
 failed that check).
 
 Analysed rows also carry `chosen_key` (where the court came from; `reuse`,
-`composite`, `video_pool` and `video_pool_scene` mark courts that did not come
-straight from the middle frame's search),
+`first`, `last`, `composite`, `video_pool` and `video_pool_scene` mark courts
+that did not come straight from the middle frame's search),
 `reused_from`, `composition` and `stage_seconds`. [Sampling and scene reuse](sampling_and_reuse.md#output-fields-by-mode)
 defines those fields and the extra video-robust fields.
 
@@ -395,7 +410,11 @@ each step starts its own workers. For a line-only court, use
 `Switches(require_people=False)`, pass `people=None` and an empty `(0, 4)` box
 array. The result is a `CourtResult`: `corners_native_px` or `None`,
 `no_court_reason`, `chosen_key`, `paint_score`, `reused_from`, `composition`
-and, when timing is on, `stage_seconds`.
+and, when timing is on, `stage_seconds`. `CourtResult` keeps internal corner
+order. Before exporting that lower-level result, pass its accepted corners to
+`geometry.normalise_output_corners`; `detect_image` and `detect_video` already do
+this at their output boundaries. For broader no-player search in Python, set
+`Switches(require_people=False, full_no_people_search=True)`.
 
 To try earlier courts first, pass `known_courts=`, built with
 `reuse.make_known_court()` from fully searched results.
@@ -407,7 +426,8 @@ the calls, as `run_batch` does.
 
 | `Switches` field | Default | Behaviour |
 | --- | --- | --- |
-| `require_people` | On | Require players' feet on the court. `--no-require-people` turns it off |
+| `require_people` | On | Require players' feet for freshly searched courts. `--no-require-people` turns it off; transferred courts use geometry and camera checks |
+| `full_no_people_search` | Off | With `require_people=False`, add all-lines and painted-lines searches to templates. `--full` turns it on; omitted flags or `--fast` leave it off |
 | `workers` | 1 (runners: 8) | Worker processes. `--workers` |
 | `template_device` | `"cpu"` | Line-template scoring device. `--template-device` |
 | `full_score_limit` | `None` | Optional trial: fully score only this many cheaply ranked courts per pair. `run_video --full-score-limit`; `run_image` has no such option |
@@ -465,7 +485,7 @@ Start with [detect.py](detect.py) for the order of the steps, then
 | [inputs.py](inputs.py), [image_sources.py](image_sources.py) | Input types and image/box provenance |
 | [line_sources.py](line_sources.py), [scene_sources.py](scene_sources.py) | DeepLSD or saved lines; PySceneDetect or saved scenes |
 | [feet.py](feet.py) | Player sample window, shot check and feet |
-| [composition.py](composition.py) | Compose one court from a scene's middle and endpoint frames |
+| [composition.py](composition.py) | Align scene frames; compare individual courts and the combined refit |
 | [reuse.py](reuse.py) | Chronological reuse checks |
 | [view_pool.py](view_pool.py) | Video-robust grouping, pooling and fallback |
 | [generation.py](generation.py), [candidate_pool.py](candidate_pool.py), [proposals.py](proposals.py), [search.py](search.py) | Search line-direction pairs and keep candidate courts |
@@ -479,6 +499,8 @@ Start with [detect.py](detect.py) for the order of the steps, then
 The court's size and markings come from `shared.court_model`. The package imports
 nothing from `experiments` or `scratch`. Older notes call the two line searches
 G0 and G1 (now `all_lines` and `painted_lines`) and the scoring stage W5.
+Saved-view runners and their frozen-case helpers live under
+[experiments/court_detector/saved_views](../../experiments/court_detector/saved_views/).
 
 ### Checks after a change
 
