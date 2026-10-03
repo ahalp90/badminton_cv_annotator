@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -11,6 +12,31 @@ from sklearn.dummy import DummyClassifier
 from annotator.contacts.model import ContactModelConfig
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
 from annotator.sequence import SequenceModels
+
+
+def test_shipped_bundle_loads_and_predicts():
+    directory = (
+        Path(__file__).resolve().parents[1]
+        / 'data/annotator/sset_and_sset22_trained_20261003T041112Z'
+    )
+    models = load_models(directory)
+    estimators = (
+        models.contact,
+        models.sequences.whole_sequence,
+        models.sequences.later_contact,
+        models.sequences.scored_insertion,
+        models.sequences.insertion,
+        models.sequences.serve_summary,
+        models.sequences.serve_physical,
+        models.confidence,
+    )
+    for estimator in estimators:
+        probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
+        assert probabilities.shape == (1, 2)
+        assert np.isfinite(probabilities).all()
+        np.testing.assert_allclose(probabilities.sum(axis=1), 1)
+    rows = np.random.default_rng(0).normal(size=(8, models.contact.n_features_in_))
+    np.testing.assert_allclose(models.contact.predict_proba(rows)[0, 1], 0.031204, atol=1e-6)
 
 
 def test_bundle_roundtrip_keeps_predictions_and_geometry(tmp_path):

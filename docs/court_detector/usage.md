@@ -30,21 +30,26 @@ caches it for later runs. The detector also imports `src/shared` and
 | Need | Used for | Where it comes from |
 | --- | --- | --- |
 | DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage). The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; see [runtime/README.md](../../runtime/README.md). They are gitignored |
-| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | Pinned in [src/bst_x/preparing_data/requirements.txt](../../src/bst_x/preparing_data/requirements.txt), not in `pyproject.toml` |
-| PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Required in the court environment; not pinned in `pyproject.toml` |
+| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | `rtmlib==0.0.15` with `onnxruntime==1.27.0` for CPU, or `onnxruntime-gpu==1.27.0` for CUDA |
+| PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Included in the base project environment, pinned at 0.7.1 |
 | CuPy | `--template-device cuda` only | Required in the GPU environment; not a project dependency |
 
 DeepLSD loads from its checkout, not from an installed package. The loader puts
 the checkout first on `sys.path` and fails if the folder is missing. Its upstream installation instructions cover
 the line-detection dependencies needed in the same environment.
 
+The court environment uses the root project's NumPy, pandas and SciPy versions.
+It needs only the RTMLib and ONNX Runtime packages from the separate pose setup;
+installing the full pose requirements file would replace those versions with
+the older pose-environment pins.
+
 RTMLib downloads the configured RTMDet person and RTMPose pose models on first
 use. An offline run therefore needs those weights cached beforehand. Live CUDA
 pose extraction needs `onnxruntime-gpu` and compatible CUDA/cuDNN libraries. The
-linked pose requirements describe the GPU setup, including the `LD_LIBRARY_PATH`
+[pose setup notes](../../src/bst_x/preparing_data/requirements.txt) describe the GPU libraries, including the `LD_LIBRARY_PATH`
 required before Python starts. The adapter raises an error if ONNX Runtime silently
 falls back to CPU. The court environment is not fully specified by
-`uv sync --extra dev`: PySceneDetect, GPU template dependencies and the external
+`uv sync --extra dev`: live pose, GPU template dependencies and the external
 model setup above remain additional steps.
 
 **Devices.**

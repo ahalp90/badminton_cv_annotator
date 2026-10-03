@@ -36,7 +36,7 @@ dependencies = [
     "pandas>=3.0.6",
     "scipy>=1.18.1",
     # Hybrid annotator contact and sequence trees.
-    "scikit-learn>=1.9.1",
+    "scikit-learn==1.9.1",  # Must match the shipped annotator model.
     "joblib>=1.6.0",
     # Video / image I/O
     "opencv-python",

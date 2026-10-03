@@ -21,6 +21,9 @@ matplotlib==3.10.9
 scipy==1.18.1
 scikit-learn==1.9.1
 joblib==1.6.0                # Hybrid annotator model loading
+cloudpickle==3.1.2           # joblib serialisation
+narwhals==2.26.0             # scikit-learn dataframe inputs
+threadpoolctl==3.6.0         # Match the lockfile's numerical thread control
 opencv-python==5.0.0.93      # cv2; classifier video metadata and video tests
 scenedetect==0.7.1     # scene cuts and image hashes; uses the OpenCV package above
 ultralytics==8.4.50          # YOLO11 + ByteTrack; perception/players.py + scripts/preprocess_videos.py

@@ -148,7 +148,7 @@ requires-dist = [
     { name = "ripgrep", marker = "extra == 'annotator-experiments'", specifier = "==15.1.0" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scenedetect", specifier = "==0.7.1" },
-    { name = "scikit-learn", specifier = ">=1.9.1" },
+    { name = "scikit-learn", specifier = "==1.9.1" },
     { name = "scikit-learn", marker = "extra == 'bric-train'" },
     { name = "scikit-learn", marker = "extra == 'bst-x-runtime'" },
     { name = "scipy", specifier = ">=1.18.1" },

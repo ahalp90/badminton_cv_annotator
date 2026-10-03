@@ -240,7 +240,9 @@ Their absence does not prevent the saved-output checks. This bundle does not
 currently provide a separate downloadable archive of those prepared inputs.
 
 The frozen contact loader requires the recorded versions: Python 3.11.13,
-NumPy 2.2.6, scikit-learn 1.6.1 and joblib 1.5.3. OpenCV, PyTorch and CourtKeyNet
+NumPy 2.2.6, scikit-learn 1.6.1 and joblib 1.5.3. Scikit-learn 1.9 cannot open
+this older model because its saved loss-class module has moved. This reproduction
+therefore needs its historical environment. OpenCV, PyTorch and CourtKeyNet
 also require the project's inference dependencies. The original detector
 runs used CUDA and `resize_mode="pad"`; other detector options used the defaults
 at the measured revision. No tree-model fitting or tuning occurs in this recipe.

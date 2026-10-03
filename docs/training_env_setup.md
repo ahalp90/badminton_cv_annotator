@@ -4,14 +4,14 @@ End-to-end checklist for setting up a development / training environment
 for BRIC. Platform-agnostic — covers Apple Silicon (MPS), Linux + Nvidia
 CUDA (x86_64 or ARM64), and CPU-only fallback.
 
-Estimated time: ~10 minutes once the host is reachable and Python 3.11+
+Estimated time: ~10 minutes once the host is reachable and Python 3.12+
 is available.
 
 ---
 
 ## 1. Prerequisites
 
-- **Python 3.11 or newer** on PATH (`python3 --version`).
+- **Python 3.12 or newer** on PATH (`python3 --version`).
   `uv` will manage the project's actual Python version — system Python
   just needs to be recent enough to bootstrap.
 - **Git**.
@@ -59,7 +59,7 @@ uv sync --extra bric
 What this does:
 - Reads `pyproject.toml`.
 - Creates a `.venv/` if not present, using a Python interpreter that
-  satisfies `requires-python = ">=3.11"`.
+  satisfies `requires-python = ">=3.12"`.
 - Installs the **shared base** (always): torch, torchvision, numpy,
   pandas, scipy, opencv-python, Pillow, tqdm, parse, pycocotools,
   pyyaml, jaxtyping, beartype, frozendict, and pyrefly.
