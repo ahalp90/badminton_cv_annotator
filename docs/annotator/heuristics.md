@@ -1,8 +1,13 @@
 # Fixed heuristics before the trees
 
-The fitted models do not examine every video frame from scratch. A rule-based front end first decides which evidence is usable, where rallies probably sit, which players belong to each court half, and which parts of the timeline are worth scoring as possible contacts.
+Before the fitted models score possible hits, rules select usable evidence,
+find rough rally boundaries and track a player on each court half. They narrow
+the timeline to places where a contact looks plausible. The trees then make
+the contact choices from those candidates.
 
-These rules do not make the final contact decision. They shape the evidence that reaches the trees, so a substantial change here usually changes the model inputs as well.
+These rules shape what the models learn from and what they see during
+annotation. A substantial change to the rules therefore usually requires a
+new model fit.
 
 ![Rule-based front end](figures/heuristics.svg)
 
@@ -63,7 +68,7 @@ Relevant code: `masks/inpaint.py`, `run_video.py::build_shuttle_hallucination_ma
 `ContactModelConfig.reject_masked_without_player` is off by default. When it is on, a candidate frame is dropped before the contact tree scores it if both of these hold:
 
 - the frame's shuttle guard grade is one of the model's rejected grades (`1`, `2` and `3` by default);
-- the sticky player picker has no player on either court half at any of the five feature offsets (`-10`, `-5`, `0`, `+5` and `+10` frames at 30 FPS, scaled to the video).
+- the player tracker has selected no detected person on either court half at any of the five feature offsets (`-10`, `-5`, `0`, `+5` and `+10` frames at 30 FPS, scaled to the video).
 
 A picked player counts even when its wrists were not measured. An offset that falls outside the candidate's search interval counts as no player.
 

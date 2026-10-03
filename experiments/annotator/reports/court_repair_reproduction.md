@@ -1,15 +1,15 @@
 # Regenerate the court repair comparison
 
-The [saved-output checks](README.md#check-the-saved-results) are the quickest
+The [saved-output checks](court_repair.md#check-the-saved-results) are the quickest
 way to evaluate the published evidence. This recipe regenerates the heavier
 court-dependent pipeline with the same frozen models.
 
 ## Inputs and environment
 
-Use the repository revision containing this bundle. The source implementation
+The source implementation
 measured by the report is `2b486d5`; the baseline evidence is from `a111181`.
 The experiment scripts retain the comparison logic while accepting portable
-input locations. Run every command from the repository root.
+input locations. All commands run from the repository root.
 
 | Input | Required contents |
 | --- | --- |
@@ -44,9 +44,9 @@ at the measured revision. No tree-model fitting or tuning occurs in this recipe.
 
 ## Prepare the frozen contact model
 
-Set `SOURCES`, `PREPARED` and `INPAINTED` to your input directories, then choose
-a fresh output directory. `MODEL_REPO` points to this checkout because the other
-selection models are already versioned here.
+`SOURCES`, `PREPARED` and `INPAINTED` identify the input directories listed above.
+`OUT` is a fresh output directory. `MODEL_REPO` points to this checkout, which
+contains the other selection models.
 
 ```bash
 export PYTHONPATH="$PWD/src:$PWD"
@@ -120,11 +120,10 @@ mode uses the repaired scene-specific pipeline. Both regenerate annotations and
 features before applying the same models. This is a reconstruction of the
 baseline, not a checkout-wide execution of historical source.
 
-Compare the new evaluation with `evidence/video_17/expected.json.gz` and
-`evidence/video_53/expected.json.gz`. The original reconstructed baselines
-matched the saved contact and section records. Fresh neural inference may vary
-with the runtime or source decoding, so inspect any differences rather than
-silently accepting a changed score.
+The comparison targets are `evidence/video_17/expected.json.gz` and
+`evidence/video_53/expected.json.gz` within `court_geometry_repair/`. The original
+reconstructed baselines matched the saved contact and section records. Fresh
+neural inference can vary with the runtime or source decoding.
 
 ## Rerun the original ShuttleSet geometry controls
 
@@ -132,8 +131,8 @@ These controls use original ShuttleSet videos 3 and 21, distinct from the
 ShuttleSet22 video numbering above. Their exact filenames and frame metadata
 are recorded in each control's `comparison.json.gz`.
 
-Export the old fallback directly from Git, then run both implementations on
-the same freshly sampled frames and neural outputs:
+This command exports the old fallback from Git and runs both implementations
+on the same freshly sampled frames and neural outputs:
 
 ```bash
 git show a111181:src/courtkeynet/court_corners.py \

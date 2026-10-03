@@ -1,10 +1,18 @@
-# Auto-annotator overview
+# How the auto-annotator works
 
-The auto-annotator narrows a noisy video timeline into a small set of rallies and contact frames.
+The auto-annotator narrows a noisy video timeline into a small set of rallies
+and contact frames. The [quickstart](quickstart.md) covers running it and the
+selected model; this guide explains how the result is assembled.
 
-Rules first remove unusable frames and mark places where a hit is plausible. A contact tree scores those frames. Sequence trees then compare a small set of possible corrections, such as repairing an early serve or adding one missed later hit. Once the contact sequence is fixed, rule-based code assigns court halves, adjusts rally bounds and estimates outcomes.
+Rules first remove unusable frames and mark places where a hit is plausible.
+A fitted classifier scores those possible hit frames. Later classifiers look
+at the rally as a whole and compare a few repairs, such as finding an earlier
+serve or adding a missed hit. Once the hits are settled, rule-based code assigns
+player sides, adjusts the clip boundaries and estimates outcomes. The code calls
+the classifiers the contact tree and sequence trees.
 
-This is a fixed chain that runs once per video. The three sequence stages each run once, in order; nothing loops until it converges.
+Each video goes through this chain once. The three sequence-repair stages each
+make one choice, in order; they do not repeatedly revise the rally until it settles.
 
 ![Auto-annotator data flow](figures/architecture.svg)
 
@@ -12,10 +20,12 @@ This is a fixed chain that runs once per video. The three sequence stages each r
 
 One video contributes four kinds of saved data:
 
-- **Video metadata** — frame count, frame rate and coded size.
+- **Video metadata** — frame count, frame rate and image width and height.
 - **Shuttle track** — one `(x, y, visibility)` row per frame, plus inpaint information and shuttle-quality grades.
 - **Pose detections** — player boxes and keypoints for each frame.
-- **Court data** — accepted camera scenes, homographies, a court-present mask and the geometry needed to separate the near and far court halves.
+- **Court data** — the scenes with usable court detections, the image-to-court
+  transforms (homographies), a per-frame record of court presence, and the
+  net position used to separate the near and far court halves when assigning hits.
 
 Both the standalone command and the dataset builder load these files through the same dataset-builder functions. The annotation code therefore receives the same in-memory inputs in both cases.
 
@@ -25,26 +35,36 @@ The court detector supplies scene boundaries and court geometry. Its scene histo
 
 `run_video()` first converts frame-count settings from their 30 FPS reference values to the video's actual frame rate.
 
-It then builds court/player data, exclusion masks, rough rallies and the regions that the contact model will score.
+It then selects court and player data, marks frames to exclude, estimates rough
+rally boundaries and chooses where to look for hits.
 
 ### Court scenes and tracked players
 
-Court data is divided into accepted camera scenes. Within each scene, the sticky player picker tries to keep one usable pose detection on each physical court half: far (`Top`) and near (`Bot`).
+Within each scene with an accepted court, the player picker tries to follow
+one detected person on the far half (`Top`) and one on the near half (`Bot`).
+It favours keeping the same person across nearby frames, which is why the code
+calls it the sticky player picker.
 
-This produces frame-aligned information such as:
+For each video frame, that provides:
 
 - the pose detection assigned to each court half;
 - wrist-to-shuttle distance;
 - ankle position and movement;
 - whether enough player data is present on the frame.
 
-Keeping the assignment across frames reduces the player-slot jumping that would occur if every frame were matched independently.
+Keeping the same people across frames reduces switches between detections
+that would occur if each frame were matched independently.
 
 ### Frames and shuttle positions excluded from evidence
 
-Two separate safeguards handle evidence that can look physically convincing while being unsuitable for contact or landing decisions.
+The annotator can exclude a whole stretch of video or flag just the shuttle
+track. Those choices have different effects on which hits can survive.
 
-The **frame exclusion mask** removes whole stretches of video. In the dataset-builder path it marks sustained court absence and slow-motion-like shuttle movement, then filters out very short mask runs. Full annotation also excludes frames outside accepted court geometry. This keeps replay, slow motion and non-court footage from producing false rally or contact evidence.
+The **frame exclusion mask** marks stretches of video to leave out. The dataset
+builder marks prolonged court absence and shuttle movement that looks like
+slow motion, then removes very short flagged stretches. Full annotation also
+leaves out frames without accepted court geometry. This is intended to keep
+replays, slow motion and footage away from the court from producing false hits.
 
 The **shuttle guard** applies to the track rather than the whole frame. It looks for exact shuttle-coordinate patterns that recur many times, which can happen when tracking or inpainting falls into a fabricated loop. Grades `1`, `2` and `3` mean fabricated, suspicious-flat and degraded shuttle positions. The default settings treat all three as unreliable.
 
@@ -62,19 +82,22 @@ The two mechanisms are described in detail in [Fixed heuristics](heuristics.md).
 
 Shuttle motion gives the initial rally spans. The current path finds stretches separated by long rest, requires a sustained fast burst to confirm real play, and back-fills the start to the beginning of that active region. Special handling keeps some difficult tracking gaps from immediately ending a high shot.
 
-One important heuristic inside those spans is **shuttle impulse**: the size of the change between the incoming and outgoing shuttle velocity. A racket hit often creates a sudden change in speed, direction, or both. The raw rule compares each impulse with a rolling local impulse floor rather than with one fixed global value.
+One important heuristic inside those spans is **shuttle impulse**: the size of the change between the incoming and outgoing shuttle velocity. A racket hit often creates a sudden change in speed, direction, or both. The rule compares that change with a rolling local baseline, called the
+impulse floor. A candidate therefore has to stand out from nearby shuttle motion,
+rather than exceed one fixed value for the whole video.
 
 Within and around the rough spans, several signals mark frames as worth scoring:
 
-- a strong impulse candidate that passed the heuristic contact chain;
-- a weaker impulse at least 1.25 times the local floor;
-- a local wrist-distance minimum;
+- a strong change in shuttle velocity that passed the earlier contact rules;
+- a weaker change at least 1.25 times the local impulse floor;
+- a frame where the shuttle is closer to a wrist than in nearby frames;
 - a visibility change;
 - a rally start;
 - a court-scene start;
 - the serve look-back window.
 
-These rules only decide **where to evaluate contact probability**. The fitted contact tree decides which of those frames survive.
+These rules choose **which frames are worth scoring as possible hits**. The
+fitted contact classifier then decides which frames to keep.
 
 The rules are still part of the fitted system. Their settings are saved in the model directory and were the inputs the trees trained on. They are not a separate set of knobs to adjust around an already-fitted tree.
 
@@ -98,9 +121,14 @@ Missing measurements remain `NaN`. Separate validity fields tell the model wheth
 
 Motion features keep their raw per-frame units. Changing those units, or the feature order, would change what the fitted tree sees.
 
-The classifier is a `HistGradientBoostingClassifier`. It combines those 85 values into one model score for the positive contact class. Training positives are searched rows close to human-labelled contacts; nearby ambiguous rows are ignored and negative rows are sampled around them.
+The contact model is a `HistGradientBoostingClassifier`. It combines the 85
+measurements into one score for how much a frame looks like a hit. During
+training, frames close to human-labelled hits are positive examples. Ambiguous
+frames nearby are left out, and other frames are sampled as negative examples.
 
-The model output is read through `predict_proba()`. The current initial-selection cutoff is `0.9`. That value is a classifier score threshold, not a separate physical confidence formula and not a guarantee of 90% real-world certainty.
+The code reads the score through `predict_proba()` and initially keeps frames
+scoring at least `0.9`. That is the model's selection cutoff. Treating it as
+“90% of these hits are correct” would require a separate calibration check.
 
 Current initial selection rules are:
 
@@ -115,7 +143,8 @@ When the optional rule for guarded candidates is on, the dropped rows are remove
 
 ## Stage 3: compare possible sequence repairs
 
-A plausible contact stream can still contain one wrong or missing hit. The sequence stage handles a small, fixed set of corrections rather than searching arbitrary combinations.
+The first list of hits can still contain a wrong hit or miss a real one. The
+sequence models try a small, fixed set of repairs to that list.
 
 For each rough rally, it creates alternatives that can:
 
@@ -126,7 +155,13 @@ For each rough rally, it creates alternatives that can:
 
 The selected design allows at most one later inserted contact.
 
-The serve shortlist holds up to two earlier frames. Zero or one is also valid, because the first detected contact may already be the serve. This count is separate from the number of hits in the rally: a serve that is not returned forms a one-contact rally. Later candidates lie inside the rally and away from the existing contacts.
+The serve shortlist contains up to two earlier frames to try as a replacement
+or addition. It can be empty when no earlier candidate is available; the first
+selected hit may already be the serve. Later-hit candidates come from inside
+the rally, away from the contacts already selected.
+
+A rally itself can contain just one hit, such as a serve that is not returned.
+The shortlist limits how many alternative serve frames the models compare.
 
 Three chooser models examine the same set of alternatives:
 
@@ -134,7 +169,9 @@ Three chooser models examine the same set of alternatives:
 2. **Later contact** — can switch to an alternative containing one added later hit, but only with a score margin of at least `0.05` over the previous choice.
 3. **Scored insertion** — makes the same comparison while also considering a separate score for the proposed inserted contact. The same `0.05` margin applies.
 
-Each stage starts from the previous stage's choice. The option set itself does not grow between stages. Ties go to the simpler option.
+Each stage starts from the previous stage's choice and compares it with the
+same list of possible repairs. Later stages can choose a different repair, but
+cannot invent another one. Ties go to the simpler option.
 
 ## Stage 4: set rally bounds and court halves
 
@@ -170,9 +207,20 @@ Outcome fields can remain empty when the evidence is insufficient. Missing data 
 
 ## Stage 6: score rallies for review
 
-The confidence tree looks at the completed sequence and the nearby evidence for discarded or possibly missing contacts. It returns one score per rally.
+After the contact sequence is finalised, a separate confidence tree scores each rally using the chosen sequence and nearby evidence of discarded or possibly missing contacts. It returns one score per rally.
 
-A higher score means the rally looks more like the correctly assembled training examples. The score is used for review ordering. It does not edit the rally, it does not measure contact precision, and it is not automatically a calibrated probability on a new dataset.
+A higher score means the rally looks more like the correctly assembled training
+examples. It ranks promising clips first for review. The score leaves the
+rally unchanged, and it needs its own calibration check before being read as a
+probability that the whole rally is correct. It also answers a different question
+from contact precision, which counts how many predicted hits match labels.
+
+The [completed new-court evaluation](../../experiments/annotator/reports/model_selection.md#does-confidence-give-a-better-review-queue)
+compares equally sized review queues by counting correct, wrong and unjudgeable
+clips among each model's highest-ranked outputs. This gives a practical way to
+compare the ranking: how much correct annotation appears in the first set of
+clips a person would review? The selected base model currently uses this score
+for ordering review; an automatic-acceptance cutoff has yet to be chosen.
 
 ## Rules versus fitted models
 
@@ -199,7 +247,8 @@ models/annotator/
 └── metadata.json
 ```
 
-`models.joblib` is written with `joblib.dump()` and stores one serialised `AnnotatorModels` object. It contains:
+`models.joblib` saves the complete fitted model as one `AnnotatorModels` Python
+object, using `joblib.dump()`. It contains:
 
 - the contact classifier;
 - the six models in `SequenceModels`;
@@ -223,7 +272,7 @@ The main settings live in small Python config objects:
 
 The most commonly useful fields are:
 
-- `spans` — final half-open rally bounds;
+- `spans` — final rally bounds, including the start frame and excluding the end frame;
 - `filtered_by_rally` — final contact frames grouped by rally;
 - `contact_events` — the full final contact stream, with score and court half;
 - `rally_confidence` — one review-ordering score per rally;
@@ -267,3 +316,10 @@ dataset_builder.vision.persist_annotation_run
 ```
 
 The [code map](code_map.md) gives the file-by-file view.
+
+For historical context, [PR 149](https://github.com/ahalp90/badminton_cv_annotator/pull/149)
+describes the retained rule-and-tree model and
+[PR 150](https://github.com/ahalp90/badminton_cv_annotator/pull/150) its court-failure
+analysis. Both concern the old court inputs. The
+[development history](../../experiments/annotator/development.md)
+records the later experiments and their outcomes.

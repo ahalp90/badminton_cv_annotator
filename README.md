@@ -60,23 +60,31 @@ The [court-detector follow-up (#148)](https://github.com/ahalp90/badminton_cv_an
 
 ## Auto-annotator
 
-Start with the [auto-annotator guide](docs/annotator/README.md) for the supported
-annotation path, model bundles and retuning instructions.
+The auto-annotator is the part of the project that tries to turn badminton
+footage into complete, correctly labelled rallies. It finds live play, detects
+racket contacts, assigns them to the near or far player, repairs the contact
+sequence and ranks rallies for human review.
 
-Our most ambitious sub-project is the auto-annotator. It automates processing any badminton video into a scored sequence of rallies: detect the court, find live-play sections, identify shuttle contacts, work out which player hit them, and reconstruct each rally.
+Over several months, the work progressed from hand-written shuttle and pose
+rules to learned contact detection, rally-wide side assignment, bounded sequence
+repairs and a separate review model. Court detection and player tracking also
+needed substantial work: bad geometry can spoil the evidence supplied to every
+later stage. The [development narrative](experiments/annotator/development.md)
+explains the experiments, including approaches that were tried and rejected.
 
-The annotator combines pretrained CV components with court geometry, shuttle motion, wrist position and other hand-engineered evidence, then uses lightweight learned models where they help. A deep model would probably make short work of it within its own dataset distribution. But we're trying to build a system that will transfer cleanly to unfamiliar contexts, so that it might work equally well on professional broadcast footage, amateur YouTube videos, and even matches down at the local club. All without needing annotated exemplars from each of those contexts.
+Individual contacts are now much more reliable than complete rallies. The
+selected model finds 34,200 of 37,184 labelled contacts and recovers **1,744 of
+3,327 complete rallies (52.4%)** on the 46-video ShuttleSet22 comparison, using
+a ±10-frame timing allowance at 30 fps. This is a frequently examined development
+benchmark; transfer to unfamiliar broadcasts and club footage remains unproven.
+The [evaluation guide](experiments/annotator/evaluation.md) explains the scoring,
+historical baselines and limits. The output still needs human review before it
+can supply trustworthy research labels.
 
-On a test of **47 previously unseen ShuttleSet22 videos** (fully held-out dataset), the current contact detector reaches **82.5% F1** within ±5 frames. Player-side attribution is around **92% accurate** on matched contacts.
-
-Whole rallies are much harder. The baseline produced 483 completely correct rally sections; a simple rally-wide alternating-player rule raised that to **901 / 3,982 (22.6%)**, repairing 418 rallies without breaking any that were already right.
-
-![Held-out complete-rally results](scratch/contact_det_followup/figures/01_complete_rallies.png)
-
-So it kind of, sort of works. Individual contacts are reasonably strong; trustworthy complete rallies are still the bottleneck. 
-Performance largely falls down where broadcast footage interweaves cutaways with standard court view footage within a single rally. So any single cutaway can ruin a whole rally. In theory, a static stream from the local club should fare much better.
-
-See the [contact-detector follow-up](scratch/contact_det_followup/report.md).
+The [student handover](experiments/annotator/README.md) covers the project
+and remaining research questions. The [quickstart](docs/annotator/quickstart.md)
+covers running the selected model; [how it works](docs/annotator/how_it_works.md)
+explains the implementation.
 
 ## Court detector
 

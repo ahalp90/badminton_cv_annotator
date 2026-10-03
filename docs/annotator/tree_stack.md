@@ -1,6 +1,9 @@
 # How the trees work together
 
-The fitted annotator contains eight histogram-gradient-boosting classifiers. They do not all vote on the same question. Each one answers a narrower question, and some model outputs become inputs to later models.
+The annotator's eight fitted classifiers work in sequence. One scores possible
+hits, others judge repairs to the contact sequence, and the final classifier
+ranks completed rallies for review. Earlier scores help the later classifiers
+make those decisions. All eight use histogram gradient boosting.
 
 ![Tree model stack](figures/tree_stack.svg)
 
@@ -31,11 +34,11 @@ Training labels are built from human contact frames:
 - more distant negatives are sampled, with a nominal budget of 24 negatives per positive;
 - the classifier uses balanced class weights.
 
-The model's `predict_proba(...)[..., 1]` value is the **contact score**. The initial contact stream keeps rows at or above `0.9`, then removes nearby duplicates by keeping the strongest score.
-
-The `0.9` therefore reflects the model's learned combination of shuttle, wrist, player-motion and missing-data evidence. It is not a direct physical measurement and it has no separate hand-written formula.
-
-It is also not treated as a calibrated statement that a frame has exactly a 90% real-world chance of being a contact. The threshold is a selection cutoff on the classifier output.
+The classifier combines shuttle, wrist, player-motion and missing-data evidence
+into a **contact score**, returned by `predict_proba(...)[..., 1]`. The initial
+contact stream keeps rows scoring at least `0.9`, then keeps only the strongest
+score among nearby duplicates. That value controls selection; interpreting it
+as a 90% chance of a real hit would require a separate calibration check.
 
 ### The cutoff does not discard the rest of the candidate pool
 
@@ -184,7 +187,8 @@ The [refit guide](retuning.md) describes the split and grouping mechanics in mor
 
 ## What is stored in `models.joblib`
 
-`models.py` saves one `AnnotatorModels` object with `joblib.dump()`. The file is therefore a Joblib-serialised Python model bundle and is named `models.joblib`.
+`models.py` uses `joblib.dump()` to save the fitted classifiers and their
+settings together as one `AnnotatorModels` object in `models.joblib`.
 
 It contains:
 

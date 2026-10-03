@@ -1,95 +1,16 @@
 # Independent court fitting experiment
 
 This experiment tests whether image lines and the badminton court layout can
-locate courts without CourtKeyNet. It is an additive research prototype;
-the annotation pipeline does not use its outputs.
+locate courts without CourtKeyNet. The prototypes can find useful candidates,
+but choosing the correct court and rejecting wrong ones remain unresolved.
+They are retained for research; the annotation pipeline uses its own detector.
 
-The court geometry, fragment measurements, stripe fitting and image-source types
-now live in [the court detector package](../../../src/court_detector/README.md#code-map).
-These experiment runners import that maintained code. The line-only search
-lives in `line_only.py`. The frozen-view loaders stay with the saved views in
-`scratch/court_det_fix/court_detector/frozen_cases.py`. The
-[code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
-keeps the original implementations.
+Two approaches are documented here: fitting the painted court lines, and using
+tracked player positions to help choose between candidate courts. The
+[recorded evidence](#recorded-development-evidence) gives the saved comparisons
+and their results.
 
-## Temporal player-guided experiment
-
-`export_people.py` samples person detections from specified video windows.
-`temporal.py` follows native-image footpoints with a small greedy tracker.
-`player_guided.py` tests complete court hypotheses against these observations
-before retaining candidates. The line-only detector remains unchanged.
-
-`net_geometry.py` projects a net from a candidate court under stated camera
-assumptions. Its `project_net(corners_px, (width, height))` helper returns net
-segments, a camera-geometry residual and the selected focal length in image
-widths. These are diagnostics for comparing court hypotheses. The first
-[temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md) record
-where player and net evidence helped, and where the fits remain wrong.
-
-This is a baseline for experimentation. A window qualifies when two selected
-tracks are observed together in at least half its sampled frames and at least
-one is observed in every sampled frame. Missing detections remain missing;
-tracking through a short gap does not turn it into an observation. Selecting
-the intended player pair is a separate step.
-
-Prepare a gzip JSON window manifest with this layout:
-
-```json
-{
-  "windows": [
-    {
-      "id": "example",
-      "video": "example.mp4",
-      "start_frame": 0,
-      "end_frame": 900,
-      "anchor_frames": [150, 450, 750]
-    }
-  ]
-}
-```
-
-Frame intervals are start-inclusive and end-exclusive. Use decoded frame
-indices and verify the available frames: trimmed videos can have misleading
-container frame-count headers. Anchor images do not change the person sampling
-schedule or the fractions calculated from it.
-
-In the project's rtmlib inference environment, run from the repository root:
-
-```bash
-PYTHONPATH=src:src/bst_x python -m experiments.annotator.independent_court.export_people \
-  --manifest inputs/windows.json.gz --video-root videos \
-  --output results/people --device cuda --sample-fps 10 --score-min 0.2
-```
-
-The exporter writes per-window compressed observations, native anchor images,
-a median image from at most 15 sampled frames, and manifests for the observations
-and line exporter. A CUDA request fails if the ONNX session falls back to CPU.
-Output records contain video/model basenames and relative image paths.
-
-The track API is `track_people(samples)`, `summarise_track(track, sample_count)`
-and `pair_presence(first, second, sample_count)`. Each sample contains
-`timestamp_seconds`, native `bboxes` in XYXY order and matching `scores`.
-The default strict score cut is `> 0.2`; source exports must retain those
-detections for this cut to have meaning.
-
-Pass selected tracks as a `(sampled_frames, 2, 2)` array of native XY footpoints
-to `player_guided.detect(image, feet_px, settings, segments_px=lines)`.
-Missing feet use NaN in both coordinates. The guidance checks full court
-placements, since the search's seed rectangles can represent internal service
-boxes. The returned experimental acceptance flag still needs real-data
-evaluation; it is not a production acceptance rule.
-
-For the focused checks:
-
-```bash
-pytest -q tests/test_independent_court_temporal.py \
-  tests/test_independent_court_people_export.py \
-  tests/test_independent_court_player_guided.py
-```
-
-The [neural follow-up](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
-compares both DeepLSD weight sets and LINEA large. The models provide useful
-fragments, but court selection and false acceptance still prevent replacement.
+## Fitting courts from image lines
 
 `detector.py` extracts full-frame OpenCV fragments, groups them into two line
 families and proposes perspective transforms from possible line identities.
@@ -124,7 +45,7 @@ The candidate-search idea draws on
 and MonoTrack's badminton adaptation. This implementation uses custom Python
 code and the repository's existing OpenCV extraction and badminton template.
 
-Run the synthetic checks from the repository root:
+The synthetic checks run from the repository root:
 
 ```bash
 pytest -q tests/test_independent_court.py
@@ -138,12 +59,19 @@ ShuttleSet22 supplies no tuning or feature selection for this experiment.
 
 ## Run a comparison
 
-Use a gzip JSON manifest with a `cases` list. Each case needs a unique `id`,
+The input is a gzip JSON manifest with a `cases` list. Each case needs a unique `id`,
 an `image` path relative to the manifest, and `reference_status`:
 `matching_view`, `view_unverified`, `unlabelled` or `non_court`.
 Optional `corners_px` are four native-image points in TL/TR/BR/BL order.
 Optional `landmarks` contain `court_m: [x, y]` and `image_px: [x, y]`.
 Court coordinates use width along x and length along y.
+
+The evaluator uses the repository's NumPy/OpenCV environment. The second command
+below records the historical CourtKeyNet baseline invocation. That baseline is
+retired: its `src/courtkeynet` dependency has been removed, so running it requires
+restoring the old code, weights and PyTorch environment. It measured raw model
+validity and model-plus-line proposals before production acceptance, repair or
+sharing.
 
 ```bash
 python -m experiments.annotator.independent_court.evaluate \
@@ -151,12 +79,6 @@ python -m experiments.annotator.independent_court.evaluate \
 python -m experiments.annotator.independent_court.baseline \
   --manifest inputs/manifest.json.gz --output results/baseline.json.gz --device cpu
 ```
-
-The evaluator needs the repository's NumPy/OpenCV environment. The baseline
-is retired: it imports `src/courtkeynet`, which has been removed, so it no
-longer runs. It needed the CourtKeyNet weights and PyTorch. It records raw model
-validity and availability of the existing model-plus-line proposal separately.
-It does not run the production scene acceptance, repair or sharing stages.
 
 The evaluator writes `results.json.gz` and court overlays. Outlined magenta shows
 the detector's fit; dashed orange lines and orange dots show the manual reference.
@@ -233,7 +155,7 @@ The numerical LSD source was unchanged. See the
 LINEA uses upstream commit `475c5ceea64114a48495c15888094e12f1a2d267`, the large
 checkpoint and the authors' RGB 640x640 preprocessing. It retains scores strictly
 greater than 0.2. The model postprocessor restores native image coordinates.
-See the [LINEA source and checkpoints](https://github.com/SebastianJanampa/LINEA).
+[LINEA source and checkpoints](https://github.com/SebastianJanampa/LINEA) supply the line detector.
 
 The portable exporter reproduced the original private inference outputs exactly
 on four images covering every input resolution. This check included all four
@@ -253,27 +175,124 @@ The exact settings and 58 outputs are in `recorded/ridge.json.gz`, including
 three subsequently downloaded static-camera gameplay samples with no numerical
 reference labels. The original recorded bundles remain the frozen first pass.
 
+## Temporal player-guided experiment
+
+This approach tests whether player positions over time help choose the correct
+court. Each input window is a specified range of video frames. The experiment
+samples person detections within that range, follows their foot positions,
+and checks which candidate courts agree with the resulting tracks.
+
+Three scripts divide that work: `export_people.py` samples detections,
+`temporal.py` follows native-image footpoints with a small greedy tracker, and
+`player_guided.py` tests complete court hypotheses against those tracks. The
+image-line fitting method described above can still be run on its own.
+
+`net_geometry.py` projects a net from a candidate court under stated camera
+assumptions. Its `project_net(corners_px, (width, height))` helper returns net
+segments, a camera-geometry residual and the selected focal length in image
+widths. These are diagnostics for comparing court hypotheses. The first
+[temporal results and replay bundle](../../../scratch/court_det_fix/evidence/independent_proposals/README.md) record
+where player and net evidence helped, and where the fits remain wrong.
+
+A window has enough player observations for this experiment when two selected
+tracks are observed together in at least half its sampled frames and at least
+one is observed in every sampled frame. Missing detections remain missing;
+tracking through a short gap does not turn it into an observation. Selecting
+the intended player pair is a separate step.
+
+Prepare a gzip JSON window manifest with this layout:
+
+```json
+{
+  "windows": [
+    {
+      "id": "example",
+      "video": "example.mp4",
+      "start_frame": 0,
+      "end_frame": 900,
+      "anchor_frames": [150, 450, 750]
+    }
+  ]
+}
+```
+
+Frame intervals are start-inclusive and end-exclusive. Use decoded frame
+indices and verify the available frames: trimmed videos can have misleading
+container frame-count headers. Anchor images do not change the person sampling
+schedule or the fractions calculated from it.
+
+In the project's rtmlib inference environment, run from the repository root:
+
+```bash
+PYTHONPATH=src:src/bst_x python -m experiments.annotator.independent_court.export_people \
+  --manifest inputs/windows.json.gz --video-root videos \
+  --output results/people --device cuda --sample-fps 10 --score-min 0.2
+```
+
+The exporter writes per-window compressed observations, native anchor images,
+a median image from at most 15 sampled frames, and manifests for the observations
+and line exporter. A CUDA request fails if the ONNX session falls back to CPU.
+Output records contain video/model basenames and relative image paths.
+
+### Supplying tracks to the court search
+
+The track API is `track_people(samples)`, `summarise_track(track, sample_count)`
+and `pair_presence(first, second, sample_count)`. Each sample contains
+`timestamp_seconds`, native `bboxes` in XYXY order and matching `scores`.
+The default strict score cut is `> 0.2`; source exports must retain those
+detections for this cut to have meaning.
+
+Pass selected tracks as a `(sampled_frames, 2, 2)` array of native XY footpoints
+to `player_guided.detect(image, feet_px, settings, segments_px=lines)`.
+Missing feet use NaN in both coordinates. The guidance checks full court
+placements, since the search's seed rectangles can represent internal service
+boxes. The returned experimental acceptance flag still needs real-data
+evaluation; it is not a production acceptance rule.
+
+For the focused checks:
+
+```bash
+pytest -q tests/test_independent_court_temporal.py \
+  tests/test_independent_court_people_export.py \
+  tests/test_independent_court_player_guided.py
+```
+
+The [neural follow-up](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
+compares both DeepLSD weight sets and LINEA large. The models provide useful
+fragments, but court selection and false acceptance still prevent replacement.
+
 ## Recorded development evidence
 
 The [replacement assessment](../../../scratch/court_det_fix/evidence/independent_proposals/README.md)
-explains the populations, results and decision. The original, amateur and control
-bundles in `recorded/` contain exact case IDs, references, all retained candidates, decisions
-and fresh baseline outputs where measured. `inputs.cases` can be written as a
-manifest for the commands above once its relative image paths are populated.
+explains where the prototypes helped and why they were not ready to replace the
+existing detector. The saved bundles let those comparisons be inspected or
+replayed:
 
-Original broadcast inputs are cached grayscale medians of three samples;
-`sampled_frame_indices` records all three. The first frame number in the image
-filename does not identify a raw input frame. Amateur inputs are full native
-frames; controls are resized raw frames. Full input images remain external to
-these bundles. The report includes three representative overlays.
+| Record | Contents and use |
+|---|---|
+| Original, amateur and control bundles in `recorded/` | Exact case IDs, reference geometry, retained candidates, decisions and fresh baseline outputs where measured. Populate the relative image paths in `inputs.cases` to use it as an evaluation manifest. |
+| `recorded/neural.json.gz` | 348 further court evaluations, reference-support diagnostics and person-support replays. Each population's `inputs.cases` supplies its manifest. |
+| `recorded/neural_lines/` | Four frozen neural line caches for `--line-cache`, usable when the matching PNGs are available. |
 
-The final spatial-ambiguity correction was replayed over unchanged saved
-candidates. A fresh search on the affected scene reproduced every candidate,
-score and final decision exactly. Saved timing covers the original search,
-excluding that acceptance-only replay, and concurrent CPU jobs affected it.
+The image type matters when replaying a result. Broadcast inputs are grayscale
+medians of three frames, with all three listed in `sampled_frame_indices`; the
+first frame number in a filename identifies that sample group. Amateur inputs
+are full native frames, while controls are resized raw frames. Full images,
+model weights and videos remain external to the bundles. The assessment includes
+three representative overlays.
 
-`recorded/neural.json.gz` contains 348 further court evaluations, reference-support
-diagnostics and person-support replays. `recorded/neural_lines/` preserves the four
-frozen model caches, which can be supplied directly to `--line-cache` once matching
-input PNGs are available. Each population's `inputs.cases` forms its evaluation
-manifest. Model weights and full input videos are external to these bundles.
+The final spatial-ambiguity correction changed acceptance decisions and was
+replayed on unchanged saved candidates. A fresh search on the affected scene
+reproduced every candidate, score and final decision. Saved timings cover the
+original search, excluding that acceptance-only replay; concurrent CPU jobs
+also affected those timings.
+
+## Code locations
+
+The court geometry, fragment measurements, stripe fitting and image-source types
+now live in [the court detector package](../../../src/court_detector/README.md#code-map).
+These experiment runners import that maintained code. The line-only search
+lives in `line_only.py`. The frozen-view loaders stay with the saved views in
+`scratch/court_det_fix/court_detector/frozen_cases.py`. The
+[code archive](../../../scratch/court_det_fix/archive/20260927_code/README.md)
+keeps the original implementations.

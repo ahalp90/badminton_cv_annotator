@@ -105,7 +105,7 @@ visible alignment. Full replay records remain in the bundles below.
 ## Retained evidence and runnable routes
 
 The reusable implementation and focused tests are in the
-[independent-court package](../../../../experiments/annotator/independent_court/README.md).
+[independent-court package](../../../../experiments/annotator/reports/court_fitting.md).
 The compact statistical evidence is retained once in these bundles:
 
 - [`original.json.gz`](../../../../experiments/annotator/independent_court/recorded/original.json.gz),

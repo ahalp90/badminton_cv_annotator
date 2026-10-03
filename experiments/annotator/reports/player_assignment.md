@@ -1,26 +1,18 @@
 # Contact attribution distance comparison
 
-## Bottom line
+The current method chooses the likely hitter using wrist-to-shuttle distance
+scaled by each player's bounding-box height. This issue #33 experiment tested
+two alternatives: raw image distance and distance after projecting positions
+onto the court. Both reduced contact-side accuracy on the three test videos,
+so the result supports keeping body-height scaling.
 
-Keep the current per-player bounding-box-height normalisation. On the three
-pinned ShuttleSet videos, raw image distance and court-projected distance both
-reduced exact-contact accuracy. They also made the existing Top-side skew
-larger.
+The existing method already assigns too many contacts to the far (`Top`) player.
+Both alternatives made that imbalance worse, which points to a problem beyond
+the choice of distance scale.
 
-This result does not justify a production change. It addresses only the
-distance-normalisation question within issue #33.
+![Exact-contact accuracy and predicted side share, by method](../contact_attribution_comparison_20260814/figures/attribution_by_side.png)
 
-## In plain terms
-
-This test checked whether measuring wrist-to-shuttle distance in raw pixels,
-or through a court-projected view, picks the hitting player better than the
-current method, which scales that distance to each player's body height.
-Neither alternative helped. Both cut overall accuracy and made the Top-side
-skew worse.
-
-![Exact-contact accuracy and predicted side share, by method](figures/attribution_by_side.png)
-
-The figure shows the sharper problem. Every method gets Top-side contacts
+Every method gets Top-side contacts
 almost right, about 99 percent, but gets Bottom-side contacts right only
 46 to 62 percent of the time. Every method also predicts Bottom for under a
 third of contacts, even though the true split is close to 50/50. Changing
@@ -80,13 +72,16 @@ labels. That mixed result does not outweigh the exact-contact regression.
 
 ## Evidence and reproduction
 
+The scripts, figures and records are in
+[`contact_attribution_comparison_20260814/`](../contact_attribution_comparison_20260814/).
+
 - `contact_rows.csv.gz` contains one row per labelled contact and the three
   predictions and distance pairs.
 - `summary.json.gz` contains aggregate results, input digests, and provenance.
 - `compare_attribution.py` regenerates both artifacts and stops if the current
   method does not reproduce the published baseline.
 
-Run from the repository root with the public
+The command runs from the repository root with the public
 `shuttleset-annotator-heuristic-reference-v1` release extracted locally and
 pose arrays matching the fixture MD5 pins:
 

@@ -1,12 +1,16 @@
 # Refit guide
 
-A refit creates a new `models.joblib` and `metadata.json` from labelled videos, then measures that model directory on held-out validation or test videos. `models.joblib` is the Joblib-serialised fitted model bundle.
+Refitting trains a new set of models from labelled videos and saves them as
+`models.joblib`, alongside the compatibility information in `metadata.json`.
+Evaluation then checks those saved models on validation or test videos kept
+out of training.
 
-The fitted pieces are trained together because the later sequence models depend on the contact stream produced earlier in the chain.
+The models are trained as a set because the later models learn to repair the
+list of hits produced by the contact model.
 
 ![Refit flow](figures/refit_flow.svg)
 
-The commands on this page are the stable, general way to fit and evaluate. The refit planned for the new court inputs uses its own temporary runner; [Planned new-court refit](#planned-new-court-refit) at the end of this page covers it.
+The commands on this page are the stable, general way to fit and evaluate. The completed new-court comparison used its own runner; [Completed new-court refit](#completed-new-court-refit) at the end of this page records its result.
 
 ## When a new fit is needed
 
@@ -40,7 +44,10 @@ Training reads the same saved stages as annotation:
 
 Training and later annotation need the same kind of shuttle, pose and court data. A model fitted on old court geometry is not directly comparable with one run against materially different court outputs.
 
-The court stage needs the current court inputs used by annotation, and the shuttle stage needs guard codes. Raw detector JSON files have to be converted into the dataset builder's saved court files first. A missing file or unusable court geometry stops the command.
+Training needs the same court files that annotation will use, plus the shuttle
+guard codes that flag unreliable tracking. Raw court-detector JSON needs
+conversion into the dataset builder's saved court format first. A missing file or unusable
+court geometry stops the command.
 
 ## 2. Contact labels
 
@@ -60,7 +67,7 @@ Rules for the file:
 - one row per human-labelled contact;
 - frame numbers use the zero-based source-video timeline;
 - `side` is `Top`, `Bot` or blank;
-- a blank side means unknown, not a guess;
+- `side` is blank when the player side is unknown;
 - rows for one rally are contiguous;
 - frames within a rally are strictly increasing;
 - every rally/contact in the included video is labelled.
@@ -96,11 +103,16 @@ Paths are resolved relative to the manifest file. Each `id` matches a video dire
 
 A group can contain several video IDs but cannot appear in more than one split.
 
-Sequence fitting needs at least three training groups. That is only the mechanical minimum: every fitted classifier also needs examples of both target classes in the folds that train it. A fold with only useful or only useless edits, or review labels with only correct or only wrong rallies, stops the fit with a clear error.
+Sequence fitting needs at least three training groups. Each classifier also
+needs examples of both outcomes it is learning to distinguish. For example, a
+repair model needs both useful and useless edits; the review model needs both
+correct and wrong rallies. This must hold for each training subset formed when
+a group is held out. If one outcome is missing, fitting stops with an error.
 
 ## 4. Fit commands
 
-Video-level side geometry:
+With `video` geometry, one net position defines the near and far halves for
+the whole video:
 
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
@@ -109,7 +121,7 @@ PYTHONPATH=src uv run python -m annotator.training fit \
   --side-geometry video
 ```
 
-Scene-level side geometry:
+Or use each scene's net position for those side assignments (`scene` geometry):
 
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
@@ -135,9 +147,9 @@ Training labels are assigned around human contact frames, with distances scaled 
 - up to 15 frames away — nearby negative;
 - more distant candidate rows — sampled to fill the remaining negative budget.
 
-All nearby negatives are kept. Distant negative sampling uses a fixed seed and follows the order of the training videos, so manifest order is part of a reproducible comparison.
-
-The order of the selected rows matters too. The same examples and seed fitted in a different row order give a different tree. The `fit` command samples and fits in manifest order. From Python, `fit_contact_model(..., fit_video_order=[...])` reorders the selected rows by video for the fit while sampling stays in the supplied order. Leaving it out keeps the default behaviour.
+All nearby negatives are kept; the remaining negative examples are sampled
+with a fixed seed. Reproduction also depends on stable manifest order, because
+it affects both sampling and training.
 
 The contact fit keeps scikit-learn's automatic early stopping: a large fit sets aside part of its own training rows to decide when to stop. `ContactFitConfig.early_stopping` makes that choice explicit.
 
@@ -145,25 +157,32 @@ The final contact tree is then fitted on all training videos.
 
 ### Contact scores for sequence training
 
-Sequence training uses contact probabilities from a tree that did not train on the same match group.
-
-For each training group, an additional contact tree is fitted on the other groups. Its probabilities are used for videos in the held-out group. This produces out-of-group contact scores for sequence training.
+The sequence models need realistic contact-model mistakes to learn from.
+For each training group, a contact tree is trained on the other groups and
+then scores the excluded group's videos. Those scores are the sequence models'
+training input. This is what the code calls out-of-group prediction: the
+contact tree has not trained on the match group it is scoring.
 
 The contact score cutoff and the optional rule for guarded candidates are applied at this point, exactly as they are during annotation. Neither changes the rows the contact tree itself is trained on.
 
 ### Sequence trees
 
-The same option builder used at runtime creates keep, serve-repair, deletion and later-contact-insertion alternatives.
+The same code used during annotation creates possible repairs: keep the
+current hits, repair the serve, remove a hit or insert a later hit.
 
 Human labels mark which alternatives are useful or correct. Grouped fitting then trains the sequence models from those rows.
 
 The final sequence models are fitted after the out-of-group training examples have been constructed.
 
-The contact folds are not nested a second time inside the sequence folds. This matches the original training procedure. The separate validation and test reports are the quality measurement; validation and test groups stay outside every fit.
+The grouped sequence fits reuse those contact scores. They do not repeat the
+contact-tree fitting inside each sequence-model training subset. This matches
+the original procedure. Judge overall quality on the separate validation and
+test groups, which stay outside every fit.
 
 ### Rally review tree
 
-The review tree is trained from completed out-of-group predictions. Each predicted section receives one of three labels:
+The review tree learns from rally predictions made while each video's group
+was held out of the sequence fit. Each predicted clip gets one of three labels:
 
 - `1` — correct;
 - `0` — known wrong;
@@ -183,6 +202,16 @@ The resulting directory contains models and settings for the whole learned chain
 - side-geometry mode.
 
 Keeping these together ensures that the sequence models receive the same kind of contact stream and rule-based inputs used to create their training examples.
+
+### Reproducing the same fit
+
+All nearby negatives are kept. Distant negative sampling uses a fixed seed and follows the order of the training videos, so manifest order is part of a reproducible comparison.
+
+The order of the selected rows matters too. The same examples and seed fitted in a different row order give a different tree. The `fit` command samples and fits in manifest order. From Python, `fit_contact_model(..., fit_video_order=[...])` reorders the selected rows by video for the fit while sampling stays in the supplied order. Leaving it out keeps the default behaviour.
+
+For a new comparison, keep the input files, library version, settings and video
+order together with the results. The new-court experiment's runner explicitly
+sets a fit order; the general command on this page follows the manifest.
 
 ## 6. Validation
 
@@ -224,7 +253,9 @@ The report includes:
 - contact precision;
 - contact recall.
 
-These numbers measure the contact stream directly.
+Precision measures the fraction of predicted hits that match a label. Recall
+measures the fraction of labelled hits found. Together they describe the
+trade-off between extra and missed contacts.
 
 ### Rally-section metrics
 
@@ -238,19 +269,28 @@ The report counts:
 - correct predicted sections;
 - unjudgeable predicted sections.
 
-A completely missed labelled rally does not create a predicted-section row. These counts therefore measure correctness of predicted sections, not rally recall. Contact recall still captures missed contacts.
+These rows count the clips the model produced. If it misses a rally entirely,
+there is no predicted clip to score, so clip correctness alone hides that miss.
+Rally recovery counts distinct fully correct labelled rallies divided by all
+labelled rallies, including missed ones. Contact recall separately
+counts how many labelled hits were found.
 
-Winner, landing and hit-height accuracy are outside this report and need separate evaluation when those rules change.
+The hit labels used here provide no correctness measure for winners, landings
+or hit heights. Changes to those rules need their own evaluation.
 
 ## 8. Validation and test roles
 
-Model variants are compared on validation with the same data splits and labels. After a model choice is settled, test provides the final held-out measurement.
-
-Repeated model selection against test turns it into another validation set. The test report therefore works best as the final measurement of the chosen setup.
+Validation compares model variants with fixed video splits and labels. A
+separate test set measures the chosen model on footage that did not guide its
+selection. Repeated development decisions based on test errors remove that
+independence. The completed ShuttleSet22 comparison below has informed such
+decisions and is now a familiar benchmark.
 
 ## 9. Python fit settings
 
-The CLI exposes the manifest, output path and side-geometry choice. More detailed settings are in `TrainingSettings`, passed to `fit_from_manifest()` from Python. The command stays small on purpose; it is not a menu for research variants.
+The CLI takes the manifest, output path and choice of net geometry for player
+sides. `TrainingSettings`, passed to `fit_from_manifest()` from Python,
+provides the more detailed options.
 
 Current defaults are below.
 
@@ -339,23 +379,62 @@ A complete model comparison normally includes:
 - both `models.joblib` and `metadata.json` kept together;
 - the selected model path recorded in the dataset-builder config (`models.annotator`).
 
-## Planned new-court refit
+## Completed new-court refit
 
-**Status: fit and V validation queue launched on 3 October 2026; results pending.** The run uses the released 86-video patched court dataset. Machine-specific input paths stay in the untracked run configuration. Select on V before running the familiar ShuttleSet22 comparison.
+The 3 October 2026 comparison selected **base**, with contact cutoff **0.9**,
+`reject_masked_without_player=False` and `video` contact-side geometry. That
+geometry setting uses one net position for the whole video when assigning hits
+to court halves; player tracking still selects people separately within each
+scene.
 
-This paired comparison has its own runner. It is separate from the `python -m annotator.training` commands above, although it calls the same fitting functions. The [runner README](../../experiments/annotator/good_court_refit/README.md) has the commands, the input config and the list of settings both builds hold fixed. The [evaluation template](../../experiments/annotator/good_court_refit/evaluation.md) lists what to measure afterwards.
+Base produced 273 fully correct rallies out of 668 on validation and 1,744 out
+of 3,327 on ShuttleSet22. The alternative veto rule discards unreliable shuttle
+candidates when no player is selected nearby. After retraining the later models
+for that rule, it gained three complete rallies on validation but lost four on
+ShuttleSet22, with three fewer labelled-hit timing matches on each dataset.
+Its earliest review clips were better, but the advantage faded with larger
+queues. Those results supported keeping the simpler base model. The
+[evaluation report](../../experiments/annotator/reports/model_selection.md)
+shows the gains, losses and remaining failures.
 
-Two builds are prepared, in this order:
+### Which model files to use
 
-1. **Baseline** — the current default settings on the new court inputs.
-2. **Baseline plus the rule** — the same settings with `ContactModelConfig(reject_masked_without_player=True)`.
+The selected final directory is `base/bundle`. It loads with Python 3.12.13 and
+scikit-learn 1.9.1; keep `models.joblib` and `metadata.json` together and use the
+same scikit-learn version. The files are included in
+[`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
+`models/annotator` in the example commands is an alternative installation location.
 
-The rule does not change contact-tree training. The two builds therefore differ in their sequence and review trees and in the candidates used at annotation time.
+The run also saved a validation bundle so that the eight validation videos,
+called group V, could be evaluated with a contact tree that had not trained on
+them:
 
-Both builds use `video` side geometry. A `video` versus `scene` comparison is not part of this refit.
+| Directory | Contact-tree training videos | Use |
+|---|---|---|
+| `base/bundle` | All 40 development videos | ShuttleSet22 and later annotation |
+| `base/bundle_v32` | The other 32 videos, in groups A–D | Validation on group V |
 
-ShuttleSet22 video 15 is left out of this refit's inputs and of every split because its labels are misaligned. The old-court regression runner retains its historical 47-video test list, including video 15. Original-ShuttleSet `sset_15` is a different video and stays in.
+Both bundles' sequence and review models were trained on the 32 A–D videos.
+The comparison selected a model for annotation and review ordering; it did not
+choose a new automatic-acceptance threshold. Winner, landing and hit-height
+accuracy need separate labels and were not established by this evaluation.
 
-The rule was first tried on the old court inputs. The [old-court findings](../../experiments/annotator/old_court_regression/findings.md) report that trial and explain why the earlier refit changed the benchmark. Those results describe the old court inputs. Court geometry affects which players get picked, so they do not show how the rule behaves on the new ones.
+### What was compared
 
-Once the builds have been run and evaluated, this section is where the chosen model directory, the evaluation it was chosen on and the remaining known failures get recorded.
+Both base and veto used the released 86-video patched court dataset. They
+shared contact features and fitted contact trees, then fitted separate
+sequence and confidence models. To make the run reproducible, contact sampling
+kept the historical per-fit order and the selected training rows were fitted
+in ShuttleSet video-ID order. The [reproduction guide](../../experiments/annotator/reports/model_refit.md)
+records the code and court-release revisions and the commands.
+
+Both models were evaluated on validation and ShuttleSet22 before selection.
+The 46-video ShuttleSet22 set excluded video 15 because its labels were
+misaligned. The development video named `sset_15` belongs to the original
+ShuttleSet dataset and stayed included. ShuttleSet22 had already helped guide
+earlier changes, so its results describe performance on familiar footage.
+
+Compared with the [recent old-court refit](../../experiments/annotator/reports/refit_regression.md),
+base recovered ten more complete rallies and 671 more labelled contacts on
+ShuttleSet22. Courts, fitted models and contact-fit row order all changed in
+that comparison, so the result measures their combined effect.

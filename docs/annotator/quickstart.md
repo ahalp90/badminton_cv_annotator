@@ -1,11 +1,22 @@
-# Quickstart
+# Run the auto-annotator
 
-This page covers a single annotation run from already-saved vision outputs.
+The auto-annotator turns saved shuttle, pose and court data into rally spans,
+contact frames, player-side assignments and outcome estimates. The standalone
+command and dataset builder use the same annotation code. This guide covers
+running it; [How the annotator works](how_it_works.md) explains the pipeline.
 
 There are two common cases:
 
 - **Metadata, shuttle, pose and court outputs already exist** — `python -m annotator` runs annotation for one video.
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
+
+The selected model is **base, recorded on 3 October 2026**, fitted with
+**scikit-learn 1.9.1**.
+Its checked `models.joblib` and `metadata.json` files are included in
+[`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
+The commands below expect both files in `models/annotator`; `--models` also
+accepts the repository directory directly. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
+explains why base was selected and which errors remain.
 
 ## 1. Environment
 
@@ -26,13 +37,12 @@ models.joblib
 metadata.json
 ```
 
-`models.joblib` is the fitted Python model bundle written with Joblib. It contains the contact tree, six sequence-stage trees, the rally-review tree, and the settings stored with them. `metadata.json` records the schema and compatibility checks needed before that bundle can be loaded.
+The two files form one model bundle. The loader checks their schema, contact
+feature order and exact scikit-learn version before annotation starts.
 
-`models/annotator` is the usual location. Loading checks the model schema, contact feature order and exact scikit-learn version. The code and its error messages call this pair of files the model bundle.
-
-The model directory has to be fitted in the current environment. Old experiment binaries are comparison material; copying them into `models/annotator` does not make them supported models. The [refit guide](retuning.md) covers fitting a new model directory.
-
-A model directory can be technically loadable but still be unsuitable for newer vision inputs. For example, a substantial court-detector change can alter the geometry and player evidence seen by the annotator. In that case, a new fit and held-out evaluation are needed before the new results can be compared fairly with the old baseline.
+The model needs training inputs consistent with the run's shuttle, pose and
+court data. A substantial detector change can require a new fit
+and evaluation. The [refit guide](retuning.md) explains how to create that model.
 
 ## 2. Saved input layout
 
@@ -132,13 +142,17 @@ PYTHONPATH=src uv run python -m dataset_builder run \
 
 The builder runs the vision stages and then calls the same `run_full_annotation_stage()` used by the standalone command. The trial config also performs acquisition and vision extraction; it does not fit annotator trees.
 
-The builder loads and checks the model directory before annotation starts. Its resume checks cover both model files, so replacing a model directory invalidates the annotation results that depended on it.
+The builder checks the model files before annotation starts. When resuming a
+run, it checks both files again. Replacing either means the old annotation
+results must be regenerated with the new model.
 
 ## 6. Settings that can change the result
 
-The standalone CLI exposes only the four things needed to select a run: input directory, video ID, model directory and output directory.
-
-The Python API exposes additional model and preprocessing settings. These are mainly relevant when fitting or comparing model variants.
+The CLI selects the saved extraction, video, model and output directory.
+Settings that affect predictions are stored with the model: changing them
+usually requires a new fit. The table below identifies those settings for
+readers preparing a different model; the [maintainer guide](maintaining.md)
+explains which changes require refitting.
 
 | Setting | Current default | Where it lives | What it changes |
 | --- | ---: | --- | --- |
@@ -170,4 +184,16 @@ The standalone runner found existing files at the chosen output path.
 
 ## 8. Further detail
 
-The [overview](how_it_works.md) explains how the final contacts are produced. [Fixed heuristics](heuristics.md) covers the masks, shuttle rejection, rough rallies and contact-search rules. [Tree model stack](tree_stack.md) covers the `0.9` contact score and the later tree-to-tree interactions. The [maintainer guide](maintaining.md) covers which code and setting changes affect fitted models.
+`python -m annotator.rally_segmentation` is the older, rule-only segmentation
+command. `python -m annotator` runs the full fitted annotation chain.
+
+| Task | Document |
+|---|---|
+| Understand the full pipeline | [How the annotator works](how_it_works.md) |
+| Inspect the fixed rules | [Fixed heuristics](heuristics.md) |
+| Understand the fitted classifiers | [Tree model stack](tree_stack.md) |
+| Check saved inputs and output fields | [Inputs and outputs](inputs_outputs.md) |
+| Fit a new model | [Retuning guide](retuning.md) |
+| Reproduce the completed comparison | [Annotator reproduction guide](../../experiments/annotator/reports/model_refit.md) |
+| Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
+| Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |

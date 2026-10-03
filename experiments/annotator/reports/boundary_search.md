@@ -1,6 +1,6 @@
 # First/last stroke buffered search
 
-## Bottom line
+## Finding
 
 The 90-frame first/last-stroke buffer was useful as a diagnostic, but it
 should not become a matching rule. It revealed 19 additional correct
@@ -56,16 +56,14 @@ hiding useful first or last stroke candidates in covered rallies. Accepting
 any candidate in the wider buffer would introduce substantially more
 ambiguity than useful recovery.
 
-Keep the analyser and this evidence pack so the conclusion remains
-reproducible. Do not use the buffered search as a contact matcher.
-
-TODO: remove `wide_edge_contact_rows` and routine `wide_edge_contacts.csv`
-generation after updating their direct tests and any report or schema
-consumers.
+The analyser and saved CSV preserve this diagnostic. Routine
+`wide_edge_contact_rows` and `wide_edge_contacts.csv` generation remain in the
+measurement code. Their removal would also involve direct tests and report or
+schema consumers.
 
 ## Evidence
 
-- `first_last_stroke_buffered_search_20260730-173434.csv` contains one
+- [Saved CSV](../first_last_stroke_buffered_search_20260730/first_last_stroke_buffered_search_20260730-173434.csv) contains one
   post-hoc classification row per assessed first/last-stroke buffer.
 - `scripts/analyse_first_last_stroke_buffered_search.py` regenerates a
   timestamped CSV from a completed measurement directory without rerunning

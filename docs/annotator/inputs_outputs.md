@@ -1,8 +1,8 @@
 # Inputs and outputs
 
-The standalone annotator reads one video's saved dataset-builder stages and writes four annotation files.
-
-It does not read arbitrary detector output directly. Court, pose and shuttle data must already be in the dataset builder's saved formats.
+The standalone annotator reads one video's saved court, pose and shuttle data
+in the dataset builder's formats and writes four annotation files. This page
+specifies those files, their array shapes and the fields in the saved result.
 
 ## Input directory layout
 
@@ -213,11 +213,18 @@ Counts and summary information for shuttle visibility, inpainting and guard code
 
 ### Contact membership
 
-`filtered_by_rally` is the field that directly states which final contacts belong to each rally. Filtering the full event stream against the rally spans is not a substitute for it.
+`filtered_by_rally` contains the final contacts assigned to each rally.
+`contact_events` contains the complete final stream, including hits outside
+all rally spans. Filtering that stream by the clip boundaries can therefore
+give a different result from the saved membership.
 
-`contact_events` serves a different purpose. It is the complete final event stream and can include contacts outside every rally span.
+### Historical contact field names
 
-In the current fitted-model path, `contacts` and `filtered_contacts` contain the same chosen contact rows. The dataset builder's rally records also keep a field named `raw_candidates` for historical reasons. It holds those same final contacts, not the contact tree's pre-selection shortlist. Older benchmark reports therefore show identical raw and final contact metrics for these runs; the final metrics are the ones to read.
+In the fitted-model path, `contacts` and `filtered_contacts` contain the same
+chosen rows. The dataset builder also saves those final contacts under the
+older name `raw_candidates`. Despite the name, that field contains the selected
+hits. This explains why older benchmark reports show identical raw and final
+contact metrics for these runs; use the final metrics.
 
 ### `Top` and `Bot`
 

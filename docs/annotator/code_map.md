@@ -1,8 +1,9 @@
 # Code map
 
-[Fixed heuristics](heuristics.md) explains the rule-based front end by behaviour rather than file. [Tree model stack](tree_stack.md) gives the same treatment to the fitted classifiers and the scores passed between them.
-
-This page maps the maintained auto-annotator from the command line down to individual modules.
+This page maps the auto-annotator from its command-line entry point to the
+modules that produce an annotation. The [symptom table](#symptom--likely-starting-point)
+maps common problems to relevant modules. [Fixed heuristics](heuristics.md) and
+[Tree model stack](tree_stack.md) explain the algorithms.
 
 The annotation runtime is only part of `src/annotator`. Evaluation tools, manual review utilities and VLM experiments live in the same package but run separately.
 
@@ -266,7 +267,7 @@ This directory contains the Issue-38 VLM scene benchmark. It is not called by th
 | `src/dataset_builder/shuttle_evidence.py` | Shuttle inpaint/guard filenames and validation. |
 | `configs/dataset_builder/*.toml` | Model paths and upstream extraction settings. |
 | `models/annotator/` | Usual location for the selected model directory. |
-| `experiments/annotator/` | Retained comparisons and experiment records, including the old-court regression check and the prepared new-court refit runner. |
+| `experiments/annotator/` | Retained comparisons and experiment records, including the old-court regression check and the completed new-court refit comparison. |
 | `scratch/contact_det*` and related scratch directories | Historical development material and rejected/older variants. |
 | `tests/test_annotator_*.py` | Current behaviour and edge cases in executable form. |
 

@@ -120,7 +120,7 @@ repeated after the inpaint guards improve.
 
 ## Rally-boundary and landing diagnostics
 
-The [first/last-stroke buffer analysis](../../first_last_stroke_buffered_search_20260730/README.md)
+The [first/last-stroke buffer analysis](../../reports/boundary_search.md)
 checked whether a correct contact sat just outside a predicted rally. It found
 19 extra correct candidate-to-target associations per court mode, all in
 split-rally cases. The same buffers selected 229 wrong static candidates and

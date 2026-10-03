@@ -336,7 +336,7 @@ candidate would also accept 229 static and 223 live-detection candidates that
 were wrong for the target. Every correct candidate in a covered rally was
 already inside its predicted span, so simple boundary extension recovered
 nothing. The
-[short evidence note](../experiments/annotator/first_last_stroke_buffered_search_20260730/README.md)
+[short evidence note](../experiments/annotator/reports/boundary_search.md)
 explains the counts and their limits.
 
 The other end-to-end labels are presently weak:

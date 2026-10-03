@@ -1,8 +1,8 @@
 # Maintainer guide
 
-[Fixed heuristics](heuristics.md) describes the rule-based inputs to the fitted models. [Tree model stack](tree_stack.md) describes the eight fitted classifiers and their dependencies.
-
-This page maps common code changes to the affected annotator stage. It also lists the relevant tests and whether the fitted models need to change.
+This guide maps code changes to affected modules, refitting requirements and
+relevant tests. The [fixed heuristics](heuristics.md)
+and [tree model stack](tree_stack.md) explain the behaviour behind those decisions.
 
 ## Main data path
 
@@ -71,7 +71,15 @@ The saved contact tree depends on the exact order in `CONTACT_FEATURE_NAMES`. `m
 
 The score cutoff is different: it is stored in `ContactModelConfig` inside `models.joblib`. A different cutoff changes which initial contacts reach sequence refinement, so model comparisons are clearest when each cutoff has its own complete fitted model directory.
 
-`ContactModelConfig.reject_masked_without_player` is stored the same way and defaults to off. `score_contact_features()` applies it, and that one function is called both by annotation (`hybrid.predict_contacts()`) and by sequence training (`training/workflow.py::sequence_training_video()`). The rule needs the shuttle hallucination mask, which `run_video()` places on `ContactEvidence`. Turning the rule on without that mask raises an error.
+`ContactModelConfig.reject_masked_without_player` is also stored in the bundle
+and defaults to off. When enabled, it removes unreliable shuttle candidates
+that have no selected player nearby. Both annotation (`hybrid.predict_contacts()`)
+and sequence training (`training/workflow.py::sequence_training_video()`) apply
+the rule through `score_contact_features()`, keeping their behaviour aligned.
+
+The rule requires the shuttle hallucination mask that `run_video()` places on
+`ContactEvidence`. A caller enabling it must supply that mask; otherwise scoring
+raises an error.
 
 Two details of contact-tree fitting affect reproducibility:
 
@@ -228,6 +236,6 @@ A few files outside `src/annotator` are also relevant:
 - `src/dataset_builder/shuttle_evidence.py` — shuttle guard files;
 - `configs/dataset_builder/*.toml` — vision-model paths and extraction settings;
 - `tests/test_annotator_*.py` — current behaviour and edge-case coverage;
-- [`experiments/annotator/`](../../experiments/annotator/README.md) — retained comparisons, historical measurements and the temporary refit runner, not the normal runtime path.
+- [`experiments/annotator/`](../../experiments/annotator/README.md) — development history, measurements and experiment runners.
 
 The [code map](code_map.md) gives a more complete per-module listing.

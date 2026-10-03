@@ -1,43 +1,83 @@
-# Annotator experiments
+# Auto-annotator: experiments and handover
 
-The maintained annotation and retuning path is described in the
-[auto-annotator guide](../../docs/annotator/README.md).
+The auto-annotator turns badminton footage into rallies with contact times and
+court-half assignments (near or far player). Its purpose is to reduce the manual labelling needed
+to build a dataset for studying player performance. A useful rally must be
+correct from beginning to end: one missed hit, extra hit, wrong player or bad
+clip boundary can make it unsuitable for that dataset.
 
-`heuristic_tuning/` retains earlier parameter sweeps and fixed-fixture scoring.
-These compare heuristic variants; they are separate from normal model fitting.
-`measurement.py` runs the fixed end-to-end court/annotation comparison and
-requires `--annotator-models` pointing to a freshly fitted bundle.
+This work grew over several months from hand-written motion and geometry rules
+into a pipeline of contact detection, rally repair and review ranking. The
+experiments explain why those parts exist, which approaches earned their place,
+and where the system still falls short.
 
-The historical contact studies remain in `scratch/contact_det*` while the new
-court inputs are retuned. Their selected feature, refinement and fitting code
-now lives in `src/annotator`; their saved results describe the old court inputs.
-They contain rejected variants and older model binaries, so begin with the
-maintained guide when running or changing the annotator.
+**The current system finds most contacts, but complete rallies still need human
+review.** The selected model recovers 1,744 of 3,327 labelled rallies in the
+46-video ShuttleSet22 comparison. That is 52.4% under the recorded evaluation
+rules. These videos have been examined repeatedly during development; the result
+does not establish performance on unfamiliar broadcasts or club footage.
 
-The [court geometry repair bundle](court_geometry_repair/README.md) contains
-paired issue #148 evidence, saved-output checks and a pipeline reproduction recipe.
+## Reading guide
 
-The fixed annotator CLI writes each successful or failed measurement to `runs/<UTC timestamp>/`.
-Successful runs add `summary.json.gz` and `report.md`, then clean commit-candidate files in place.
+| Purpose | Guide |
+|---|---|
+| Understand the build and avoid repeating failed approaches | [Development: what we tried and learned](development.md) |
+| Understand the results and their limits | [Evaluation](evaluation.md) |
+| Check a result or run an experiment | [Reproducing the experiments](reproducing.md) |
+| Run the annotator on saved video extracts | [Quickstart](../../docs/annotator/quickstart.md) |
+| Understand or change the implementation | [How it works](../../docs/annotator/how_it_works.md), then the [code map](../../docs/annotator/code_map.md) |
 
-New NumPy, JSON, and CSV artifacts are compressed as `.npy.xz`, `.json.gz`, and `.csv.gz`.
-Git retains the complete cleaned run, so stage the timestamped directory without selecting files by hand.
-Legacy uncompressed `.npy` artifacts remain ignored to prevent old large arrays from being staged accidentally.
+The development guide covers the main experiments and their consequences in one
+place. The detailed reports supply the measurements and reproduction details.
 
-To retry cleaning a completed run, install the operational tools and run:
+## Current system
 
-```bash
-uv sync --extra annotator-experiments
-python -m experiments.annotator.records experiments/annotator/runs/<YYYYMMDD-HHMMSS>
-```
+The working pipeline uses saved court geometry, shuttle tracks and player poses.
+Rules find plausible contact frames, a learned classifier scores them, and
+later models compare small repairs to each rally. A separate model ranks the
+finished rallies for review. The normal annotation and retraining commands live
+in `src/annotator`; the code here runs experiments around that implementation.
 
-An `rg` 15.1.0 executable already available on `PATH` also satisfies the ripgrep requirement.
+The selected model is the **new-court base**, recorded on 3 October 2026. Its
+files are in [the committed model directory](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
+The quickstart covers its environment and input requirements. The latest refit
+is one comparison within the larger build: it recovered more contacts than the
+historical model, but fewer complete rallies.
 
-The cleaner saves non-array files to `local_scratch/annotator_experiment_backups/` before any rewrite or deletion. It scans temporary decompressed copies of gzip text artifacts. A cleaned Git copy can omit a file which the historical manifest records as produced. Staging, committing and promotion remain manual.
+Three substantial problems remain:
 
-The [old-court regression findings](old_court_regression/findings.md) explain
-why refitting changed the benchmark and what the follow-up controls found.
-The [good-court refit](good_court_refit/README.md) runs the two serial builds
-and their [evaluation](good_court_refit/evaluation.md). The fit and V validation
-queue was launched on 3 October 2026 using the released patched courts; results
-and model selection are pending.
+- **Whole-rally reliability.** Missing opening hits, extra contacts, wrong sides
+  and clip boundaries interact. The development experiments distinguish these
+  errors and show which repairs helped.
+- **Transfer to new footage.** End-to-end performance on unfamiliar broadcasts
+  and club recordings is unmeasured. The amateur court-fitting trials cover
+  only part of that question.
+- **Review quality.** The confidence model ranks clips, but the number of correct
+  rallies recovered varies with queue size. Automatic acceptance of its labels
+  remains unsupported.
+
+The [development guide](development.md#where-to-continue) connects these directions
+to the experiments that motivate them.
+
+## Where things live
+
+The four guides at this level are the student reading path. `reports/` holds
+detailed comparisons and specialist reproduction instructions. The remaining
+directories contain runnable experiments and their saved evidence:
+
+| Code or evidence | Purpose |
+|---|---|
+| `heuristic_tuning/` | Calibration fixtures and parameter sweeps for the early rules |
+| `first_last_stroke_buffered_search_20260730/`, `contact_attribution_comparison_20260814/` | Early boundary-search and player-distance experiments |
+| `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
+| `old_court_regression/`, `good_court_refit/` | Refit runners, pinned inputs and comparison evidence |
+| `measurement.py`, `records.py`, `runs/` | End-to-end measurement, result packaging and saved runs |
+
+Earlier contact-model and sequence-repair research remains in tracked
+`scratch/contact_det*` directories. The development guide links specific reports
+when their detail is useful. Their local run paths and historical status notes
+describe the experiment at the time.
+
+The development guide records each substantial experiment through its question,
+result and implication. Detailed reports hold the evidence and rerun instructions;
+large caches and temporary logs belong with the run outputs.

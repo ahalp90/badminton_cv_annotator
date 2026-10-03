@@ -1,14 +1,23 @@
 # Three-frame court sampling comparison
 
-This experiment compares three ways to fit a scene's court from the first,
-middle and last frames of the midpoint's 3 s player window. A production
-baseline runs alongside them. Production sampling is unchanged; nothing here
-feeds the annotation pipeline.
+This experiment asks whether looking at three nearby frames gives a better
+court estimate than fitting just the middle frame, and how much extra detector
+work that requires. It compares three strategies with the production detector
+using the first, middle and last frames of a three-second interval around the
+scene midpoint. Player positions are measured over that same interval.
 
-The selection rule under test picks the accepted court with the highest final
-paint score. **Paint score is not an accuracy measure.** Detector scores,
-agreement between frames and agreement with the baseline are diagnostics, not
-ground truth.
+The strategies trade independent searches against reusing a court fitted on
+another frame. The [arms table](#arms) explains those choices. All use the
+highest final paint score to select an accepted court. That score measures how
+well the court agrees with painted-line evidence; reference labels or visual
+checks are still needed to establish accuracy. The initial comparison left production sampling unchanged. Later detector
+development adopted three-frame composites; the [production design](../../../docs/court_detector/design.md)
+records that integration.
+
+The first part of this guide covers running and inspecting the comparison.
+Two optional analyses follow: [rescoring saved fits](#rescoring-saved-fits) with
+additional line and net evidence, and [combining markings from several frames](#composing-one-court-per-scene)
+to fit one court for the scene.
 
 ## Run
 
@@ -37,7 +46,7 @@ PYTHONPATH=.:src python -m experiments.annotator.court_scene_sampling.render \
   --results results/results.json.gz --output-dir overlays/ --scene SCENE_ID
 ```
 
-Repeat `--scene` for each scene; omit it to draw every court. File names read
+`--scene` accepts repeated values; omitting it draws every court. File names read
 `scene__arm__route_role_frame`, with `__chosen` on each method's selected court.
 Courts with equal corners on one frame share an image; `index.tsv` lists every
 label.
@@ -111,12 +120,12 @@ arm: no endpoint work runs. Only a scene that reuses none of them reaches the
 arm's own work below. Reviewed `scenes` skip this step, so every arm evaluates
 them in full.
 
-| Arm | Work after history reuse fails |
-| --- | --- |
-| `baseline` | Production `CourtDetector.detect()` on the middle frame, with its own feet step |
-| `full_three` | Full middle-frame search. After a court, full independent searches of both endpoints |
-| `cheap_first` | Search all three frames, finish the frame with the best cheap score, then refit its court on the other two |
-| `seed_refit` | Full middle-frame search. After a court, refit it on each endpoint; an endpoint whose refit fails gets a full search |
+| Arm | Question | Work after history reuse fails |
+| --- | --- | --- |
+| `baseline` | What does the production detector produce from the middle frame? | Run `CourtDetector.detect()` on the middle frame, including its feet step. |
+| `full_three` | What changes when every frame gets an independent search? | Search the middle frame fully. If it yields a court, search both endpoints fully. |
+| `cheap_first` | Can an inexpensive first pass choose where to spend the full fitting work? | Start searches on all three frames, finish the frame with the best cheap score, then refit its court on the other two. |
+| `seed_refit` | Is a middle-frame court a sufficient starting point for the endpoints? | Search the middle frame fully, then refit its court at each endpoint. An endpoint whose refit fails gets a full search. |
 
 **Stop rule.** If a method's first evaluation returns no court, it stops for
 that scene. That evaluation is the middle frame for `full_three` and
@@ -240,9 +249,11 @@ and missing-score rules, and one composite end to end.
 
 ## Rescoring saved fits
 
-`rescore.py` re-ranks each method's saved accepted courts without running a new
-search. It reads a finished or partial `results.json.gz` and a lines cache, and
-writes to a new directory. The source results stay unchanged.
+The main comparison selects a court by paint score. This optional analysis
+asks whether including line support and net evidence would select a different
+one from the courts already found. `rescore.py` reads a finished or partial
+`results.json.gz` and a lines cache, then writes the new rankings to a separate
+directory. It reuses the saved courts and performs no new court search.
 
 ```bash
 PYTHONPATH=.:src python -m experiments.annotator.court_scene_sampling.rescore \
@@ -314,16 +325,21 @@ never counts as zero, and the method is never ranked on the courts that remain.
   quality or timing of that other chronological run.
 - The source run's timings stay as measured. Line recovery and rescoring times
   are reported apart from them.
-- Rescoring ranks by detector evidence. Paint and line support are not accuracy
-  measures, and `vs_baseline` measures disagreement, not error.
+- To assess accuracy, compare the selected outlines with reference labels or
+  inspect them visually. The scores and `vs_baseline` distances describe the
+  detector evidence and how much the choices differ.
 
 ## Composing one court per scene
 
-`compose.py` fits one extra court per scene for `full_three`, from the best-painted
-markings across its accepted frames. It then scores that composite and the saved
-courts on the same frames. It runs no search and writes to a new directory; the
-source results and caches stay unchanged. Other methods keep only the rescore
-comparison.
+Different frames can expose different court lines: a player may cover one
+marking in the middle frame while leaving it visible at an endpoint. This
+optional analysis tests whether taking each marking from the frame with the
+strongest painted-line evidence gives a better combined fit.
+
+`compose.py` fits one extra court per scene for `full_three` from those selected
+markings. It compares that court with the saved courts by scoring all of them
+on the same frames. Results go to a new directory, preserving the original
+run and caches. Other methods receive only the rescoring comparison.
 
 ```bash
 PYTHONPATH=.:src python -m experiments.annotator.court_scene_sampling.compose \
