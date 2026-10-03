@@ -35,7 +35,7 @@ courts were also shared with other scenes, spreading the effect of those choices
 
 ## What the review images show
 
-None of the 16 review images--which were supposed to have courts--actually had a court.
+None of the 16 images with detections contained a real court.
 The four other review images had no detected court; leaving them that way was
 judged reasonable.
 
@@ -53,8 +53,8 @@ makes this mistake across a whole broadcast.
 ## Results files
 
 [Per-video results](per_video.csv.gz) and [paired scenes](paired_scenes.csv.gz)
-contain the numerical comparisons. The [main report](../../report.md) includes
-the separate trial that also removed player checks during search, and the
-later sharing repair across all 86 videos. The
+contain the numerical comparisons. The [trial report](../README.md) covers the broader search without player
+rejection. The [release evaluation](../../released_dataset_evaluation/README.md)
+covers the later sharing repair across all 86 videos. The
 [reproduction guide](../../reproduce.md#compare-the-three-search-methods)
 rebuilds the trial tables.

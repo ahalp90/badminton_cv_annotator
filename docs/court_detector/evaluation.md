@@ -3,8 +3,10 @@
 The current [court-detection dataset](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md)
 contains 86 videos. After the sharing repair, 85 of 86 representative courts
 agree with the supplied default-camera reference within 10 px mean corner error.
-The [full-corpus report](../../experiments/court_detector/report.md) gives the
-current results, remaining errors and rejected search-policy changes.
+The [release evaluation](../../experiments/court_detector/released_dataset_evaluation/README.md)
+gives the current results and remaining errors. The
+[development story](../../experiments/court_detector/report.md) connects these
+results to the earlier experiments and design choices.
 
 The September checks below explain earlier design and performance decisions.
 Their output counts and timings describe those historical runs. The

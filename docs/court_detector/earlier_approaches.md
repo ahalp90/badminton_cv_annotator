@@ -3,7 +3,7 @@
 These experiments explain why some tempting fixes were set aside. They used
 small development sets, often with settings adjusted after seeing the results.
 Their counts are not accuracy estimates for today's detector. The
-[current design](design.md) and [released dataset report](../../experiments/court_detector/report.md)
+[current design](design.md) and [development story](../../experiments/court_detector/report.md)
 are the starting points for current work.
 
 ## Finding lines is only part of finding the court

@@ -1,23 +1,35 @@
-# Court-detector research
+# Court detector: development and experiments
 
-**The extracted courts are in
-[`data/court_detections/sset_and_sset22/extractions_20261003/`](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md).**
-It contains the 86 prediction files and a loading example. This directory
-contains the comparisons and tools used to improve the detector.
+The court detector turns badminton footage into court geometry: four corners that let
+the project map image positions onto the court floor. It was built to work beyond the
+camera views and venues covered by an existing court model. The difficult part is
+deciding which visible lines belong to the playing court, then keeping that decision
+reliable through occlusion and camera cuts.
 
-| What you need | Open |
+**[The development story](report.md)** explains why a replacement was needed, how the
+detector works, what the experiments changed, and where it still fails.
+
+| Topic | Documentation |
 | --- | --- |
-| Results, chosen method and remaining errors | [report.md](report.md) |
-| Images of the released courts | [Final gallery](released_dataset_evaluation/gallery.md) |
-| Commands to reproduce measurements or images | [reproduce.md](reproduce.md) |
-| Detector code and CLI usage | [Source README](../../src/court_detector/README.md) |
+| Current design choices | [Design guide](../../docs/court_detector/design.md) |
+| Setup, operation and outputs | [Operator guide](../../src/court_detector/README.md) |
+| Existing 86-video extraction | [Released predictions and loading example](../../data/court_detections/sset_and_sset22/extractions_20261003/README.md) |
+| Earlier approaches and development measurements | [Earlier approaches](../../docs/court_detector/earlier_approaches.md) and [development evaluation](../../docs/court_detector/evaluation.md) |
+| Released results | [Release evaluation](released_dataset_evaluation/README.md) and [court gallery](released_dataset_evaluation/gallery.md) |
 
-## Folder map
+## Supporting experiments and tools
 
-| Folder | Why it is here |
-| --- | --- |
-| [released_dataset_evaluation/](released_dataset_evaluation/README.md) | Accuracy tables and galleries for the released dataset |
-| [baseline/](baseline/README.md) | Original results for the same 86 videos, before court-sharing repairs; needed for before/after comparisons |
-| [search_policy_trial/](search_policy_trial/README.md) | Eight-video tests of alternative search and selection rules, with reviewed failure examples; explains why those changes were rejected |
-| [inputs/](inputs/README.md) | Saved predictions, choices and timings for reproducing those comparisons without rerunning detection |
-| [saved_views/](saved_views/README.md) | Fixed-frame fixtures and a diagnostic runner used when changing detector logic |
+These folders answer specific questions raised in the story:
+
+- [Search trial](search_policy_trial/README.md): would relaxing player checks
+  recover useful courts, and what false detections would it introduce?
+- [Original extraction](baseline/README.md): what did the same 86 videos look
+  like before the court-sharing repair?
+- [Fixed-frame checks](saved_views/README.md): how can a detector change be
+  compared on the same saved images and observations?
+- [Saved inputs](inputs/README.md) and [reproduction commands](reproduce.md):
+  how can the release and search-trial measurements be rebuilt?
+
+The earlier line-search prototype and its recorded comparisons live under [the
+independent-court experiment](../annotator/independent_court/README.md). The maintained
+implementation is in `src/court_detector/`.

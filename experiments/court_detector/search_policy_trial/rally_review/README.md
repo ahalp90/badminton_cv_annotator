@@ -2,7 +2,7 @@
 
 These examples show what changed when player checks were relaxed, including
 false courts and views that the detector missed. The
-[report](../../report.md#did-changing-the-search-help) gives the numerical results.
+[trial report](../README.md#comparison-and-results) gives the numerical results.
 
 ## Three rallies crossing camera cuts
 

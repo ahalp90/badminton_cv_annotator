@@ -1,7 +1,7 @@
 # Original court detections: before the sharing repair
 
 These are measurements and images from the original 86-video extraction.
-They let the [main report](../report.md) compare the same scenes before and after
+They let the [release evaluation](../released_dataset_evaluation/README.md) compare the same scenes before and after
 the court-sharing repair. The current reusable predictions live in the
 [released dataset](../../../data/court_detections/sset_and_sset22/extractions_20261003/README.md).
 
