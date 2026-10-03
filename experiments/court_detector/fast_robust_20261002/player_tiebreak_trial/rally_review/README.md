@@ -24,12 +24,12 @@ overlay positions.
 
 ## PNG folders
 
-The [full SS22 27 scene](../../../../../local_scratch/court_evaluation/easy_court_misses/clips/ss22_27_scene0027.mp4) lasts
+The [full SS22 27 scene](scene_clips/ss22_27_scene0027.mp4) lasts
 56.0 seconds; its detector sample is at 28.0 seconds. The
-[full SS22 44 scene](../../../../../local_scratch/court_evaluation/easy_court_misses/clips/ss22_44_scene0349.mp4) lasts
+[full SS22 44 scene](scene_clips/ss22_44_scene0349.mp4) lasts
 20.3 seconds; its detector sample is at 10.13 seconds. Both clips are plain,
 silent 1080p video covering the complete detected scene, without overlays.
-These two clips are local review files and are not committed.
+These two clips are optional bulk data; see the [saved inputs](../../inputs/README.md#optional-bulk-files).
 The [actual detection-frame PNGs](easy_court_misses/) compare all three methods
 at the sampled frames for these two scenes and ShuttleSet 36 scene 383.
 
@@ -69,15 +69,17 @@ has `plan`, `fetch` and `render` commands. Run from the repository root with
 host holding the source videos. It checks the decoded frame positions.
 
 The [manifest](manifest.json.gz) records the source frames, saved courts,
-selected scenes and encoded clip checks. The raw fetched frames and clips
-remain in `local_scratch/court_evaluation/rally_review/fetched/`.
+selected scenes and encoded clip checks. Fetched frames and clips are disposable intermediates. Set `PLAN`, `FRAMES`
+and `GALLERY` to working paths of your choice. Use the script’s `plan --output "$PLAN"` command, then resolve its `source_video`
+filenames against your video storage. Run `fetch --plan "$PLAN" --output "$FRAMES"`
+to extract the source frames and clips.
 
 ```bash
 PYTHONPATH=src:. ~/.venvs/badminton-cicd/bin/python \
   scripts/render_court_trial_rallies.py render \
-  --plan local_scratch/court_evaluation/rally_review/plan.json.gz \
-  --fetched local_scratch/court_evaluation/rally_review/fetched \
-  --output experiments/court_detector/fast_robust_20261002/player_tiebreak_trial/rally_review
+  --plan "$PLAN" \
+  --fetched "$FRAMES" \
+  --output "$GALLERY"
 ```
 
 All nine clips have the expected frame counts and dimensions. All 60 planned

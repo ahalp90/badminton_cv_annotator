@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from court_detector.paint_geometry import CENTRE_SEGMENTS_M, STRIPE_WIDTH_M
+from dataset_builder.source_annotations import logical_set_id
 from shared.court import HOMOGRAPHY_RESOLUTION
 from shared.court_model import CORNER_COURT_M
 
@@ -66,6 +67,14 @@ def read_json_gz(path: Path) -> object:
 def write_json_gz(path: Path, payload: object) -> None:
     with gzip.open(path, "wt", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=1, allow_nan=False)
+
+
+def read_label_table(root: Path, name: str) -> pd.DataFrame:
+    """Read one plain or gzip-compressed official label table."""
+    paths = sorted(Path(root).glob(f"{name}.csv*"))
+    if len(paths) != 1:
+        raise FileNotFoundError(f"expected one {name}.csv or {name}.csv.gz under {root}, found {paths}")
+    return pd.read_csv(paths[0])
 
 
 def finite_or_none(value: float) -> float | None:
@@ -116,10 +125,15 @@ def read_rallies(set_dir: Path, frame_count: int) -> tuple[pd.DataFrame, dict[st
 
     :return: Rallies with ``start_frame`` and exclusive ``end_frame``, and row counts.
     """
-    paths = sorted(set_dir.glob("set*.csv"))
+    paths = sorted(set_dir.glob("set*.csv*"))
     if not paths:
-        raise FileNotFoundError(f"no set*.csv under {set_dir}")
-    tables = [pd.read_csv(path, usecols=["rally", "ball_round", "frame_num"]).assign(set=path.stem) for path in paths]
+        raise FileNotFoundError(f"no set*.csv or set*.csv.gz under {set_dir}")
+    tables = [
+        pd.read_csv(path, usecols=["rally", "ball_round", "frame_num"]).assign(
+            set=logical_set_id(path)
+        )
+        for path in paths
+    ]
     contacts = pd.concat(tables, ignore_index=True)
     frame = pd.to_numeric(contacts["frame_num"], errors="coerce")
     finite = np.isfinite(frame)
@@ -420,8 +434,11 @@ def analyse(input_root: Path, dataset_roots: dict[str, Path], output_dir: Path) 
     cohort_sources = {(entry["dataset"], entry["source_id"]) for entry in cohort}
     if cohort_sources != released_sources() or len(cohort) != len(cohort_sources):
         raise ValueError(f"cohort differs from the release manifests: {sorted(cohort_sources ^ released_sources())}")
-    matches = {name: pd.read_csv(root / "match.csv").set_index("id") for name, root in dataset_roots.items()}
-    homographies = {name: pd.read_csv(root / "homography.csv").set_index("id") for name, root in dataset_roots.items()}
+    matches = {name: read_label_table(root, "match").set_index("id") for name, root in dataset_roots.items()}
+    homographies = {
+        name: read_label_table(root, "homography").set_index("id")
+        for name, root in dataset_roots.items()
+    }
 
     scene_tables, rally_tables, video_rows = [], [], []
     for entry in cohort:
@@ -581,7 +598,8 @@ def render(requests_path: Path, frames_dir: Path, output_dir: Path) -> int:
                 raise ValueError(f"cannot read {frame_paths[0]}")
             if list(image.shape[1::-1]) != request["native_size"]:
                 raise ValueError(f"frame is {image.shape[1]}x{image.shape[0]}, expected {request['native_size']}")
-            draw_court(image, np.array(request["corners_native_px"], dtype=float))
+            if request["corners_native_px"] is not None:
+                draw_court(image, np.array(request["corners_native_px"], dtype=float))
         except ValueError as error:
             # One bad frame should not stop the other drawings.
             failures += 1

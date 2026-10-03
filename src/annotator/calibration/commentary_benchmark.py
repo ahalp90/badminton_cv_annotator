@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
 import dataclasses
 import json
 import math
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,11 @@ from annotator.calibration.commentary_benchmark_inputs import (
     _mapping,
     _sequence,
 )
-from annotator.calibration.shuttleset22_features import ANNOTATION_TREE_SHA256, _tree_digest
+from annotator.calibration.shuttleset22_features import (
+    ANNOTATION_TREE_SHA256,
+    DEFAULT_ANNOTATION_ROOT,
+    _tree_digest,
+)
 from annotator.fps_constants import scale_for_fps
 from annotator.replay_mask import filter_short_exclusion_runs
 from dataset_builder.vision import save_json_gz
@@ -42,7 +46,6 @@ from scraper.commentary_pairing import (
     pair_video,
 )
 from scraper.commentary_retiming import AlignStatus
-
 
 RESULT_SCHEMA = "issue104-commentary-benchmark/4"
 EVALUATOR_BASE_COMMIT = "002238dc62ac0390c2e2b4005780cf3d81420255"
@@ -722,7 +725,7 @@ def _validate_corpus_inputs(
         issue103_rally_records,
         issue103_artifacts,
     )
-    annotation_digest = _tree_digest(shuttleset22_root / "annotations")
+    annotation_digest = _tree_digest(shuttleset22_root / "set")
     if annotation_digest != ANNOTATION_TREE_SHA256:
         raise ValueError(
             "ShuttleSet22 annotation tree SHA-256 differs: "
@@ -917,7 +920,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--issue103-rally-records", type=Path, required=True)
     parser.add_argument("--issue103-artifacts", type=Path, required=True)
     parser.add_argument("--shuttleset-ground-truth-root", type=Path, required=True)
-    parser.add_argument("--shuttleset22-root", type=Path, required=True)
+    parser.add_argument(
+        "--shuttleset22-root",
+        type=Path,
+        default=DEFAULT_ANNOTATION_ROOT,
+        help="Checked-in ShuttleSet22 annotation root; defaults to data/shuttleset22.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 

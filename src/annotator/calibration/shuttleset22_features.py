@@ -8,10 +8,11 @@ needs court evidence rebuilt by the current court stage and new identity pins.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from annotator.calibration.shuttleset_features import (
     feature_population,
 )
 from annotator.shuttle_track import validate_shuttle_track
+from dataset_builder.source_annotations import logical_set_id
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
     COURT_KEEP_VOTE_FILENAME,
@@ -37,7 +39,6 @@ from dataset_builder.vision import (
 )
 from shuttleset22 import Source, SourceKind, load_sources
 
-
 RESULT_SCHEMA = "shuttleset22-trial-feature-comparison/2"
 COURT_RECEIPT_SCHEMA = "shuttleset22-court/0.1"
 ISSUE106_HANDOFF_COMMIT = "ba24a95c334300c78e30a8d1b7c2a6134b8b5fa9"
@@ -45,9 +46,11 @@ ISSUE120_COURT_COMMIT = "0c873762d85719f65d6898b22ea2fc6b6327066a"
 ANNOTATION_UPSTREAM_COMMIT = "45517f7d4cb936b03f3eabf939cc7959d39226fe"
 ANNOTATION_SHA256 = "2c0208d13d13a4b72a9005ec16e92c442bfe5f223e0f9c499ea5a36f4339052c"
 SOURCE_MANIFEST_SHA256 = "2d0e82acf90371957bee1ff561fb56758344607da1ac7ef059a1fbbe5c70e052"
-ANNOTATION_TREE_SHA256 = "55f832221646229b8b65dea31e24e8d02e0876fd6d0799cb0f6eff12583e1485"
+ANNOTATION_TREE_SHA256 = "d2b059df168dfd6bccc1c08a6076d68973b35cfaba16b713d80aa8d4a58fdc8e"
 ARTIFACT_IDENTITY_SHA256 = "dffe2cc2afc75f78eb89b30236477eb732f92a824b22ee3a01a4f893a673864e"
 EXPECTED_FPS = 30.0
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_ANNOTATION_ROOT = REPO_ROOT / "data" / "shuttleset22"
 
 
 @dataclass(frozen=True)
@@ -184,9 +187,9 @@ def load_annotation_rallies(
 ) -> tuple[list[dict[str, object]], dict[str, int]]:
     """Build feature records from usable ShuttleSet22 human contact rows."""
     tables = []
-    for path in sorted(Path(set_dir).glob("set*.csv")):
+    for path in sorted(Path(set_dir).glob("set*.csv*")):
         table = pd.read_csv(path)
-        table["set_id"] = path.stem
+        table["set_id"] = logical_set_id(path)
         tables.append(table)
     if not tables:
         raise ValueError(f"no ShuttleSet22 set tables under {set_dir}")
@@ -211,7 +214,7 @@ def load_annotation_rallies(
         ordered = group.sort_values(["ball_round", "frame_num"])
         contact_frames = ordered["frame_num"].tolist()
         if not contact_frames or any(
-            right <= left for left, right in zip(contact_frames, contact_frames[1:])
+            right <= left for left, right in pairwise(contact_frames)
         ):
             non_monotonic += 1
             non_monotonic_rows += len(group)
@@ -268,7 +271,11 @@ def _player_slot(row: pd.Series) -> str | None:
     return "Top" if player_y < opponent_y else "Bot"
 
 
-def evaluate_source(data_root: Path, source: Source) -> dict[str, object]:
+def evaluate_source(
+    data_root: Path,
+    source: Source,
+    annotation_root: Path = DEFAULT_ANNOTATION_ROOT,
+) -> dict[str, object]:
     """Validate and evaluate one non-overlap ShuttleSet22 source."""
     output = data_root / "extracted-simple" / f"{source.match_id:02d} {source.video}"
     metadata = validate_artifact_directory(output, source)
@@ -289,7 +296,7 @@ def evaluate_source(data_root: Path, source: Source) -> dict[str, object]:
         track, pose, court, str(source.match_id)
     )
     records, annotation_population = load_annotation_rallies(
-        data_root / "annotations" / "set" / source.video,
+        annotation_root / "set" / source.video,
         metadata.frame_count,
     )
     rallies = []
@@ -397,10 +404,14 @@ def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
     }
 
 
-def evaluate_corpus(data_root: Path, source_manifest: Path) -> dict[str, object]:
+def evaluate_corpus(
+    data_root: Path,
+    source_manifest: Path,
+    annotation_root: Path = DEFAULT_ANNOTATION_ROOT,
+) -> dict[str, object]:
     """Evaluate every available non-overlap ShuttleSet22 source once."""
     source_manifest_digest = _sha256(source_manifest)
-    annotation_tree_digest = _tree_digest(data_root / "annotations")
+    annotation_tree_digest = _tree_digest(annotation_root / "set")
     _require_digest("source manifest", source_manifest_digest, SOURCE_MANIFEST_SHA256)
     _require_digest("annotation tree", annotation_tree_digest, ANNOTATION_TREE_SHA256)
     sources = tuple(
@@ -411,7 +422,7 @@ def evaluate_corpus(data_root: Path, source_manifest: Path) -> dict[str, object]
     per_video: dict[str, dict[str, object]] = {}
     for source in sources:
         print(f"{source.match_id:02d}: validating and extracting features", flush=True)
-        per_video[f"{source.match_id:02d}"] = evaluate_source(data_root, source)
+        per_video[f"{source.match_id:02d}"] = evaluate_source(data_root, source, annotation_root)
     all_rallies = [
         rally
         for video in per_video.values()
@@ -504,6 +515,7 @@ def _positive_integer(value: object, name: str) -> int:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, required=True)
+    parser.add_argument("--annotation-root", type=Path, default=DEFAULT_ANNOTATION_ROOT)
     parser.add_argument("--source-manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
@@ -515,6 +527,7 @@ def main() -> None:
     result = evaluate_corpus(
         arguments.data_root.resolve(strict=True),
         arguments.source_manifest.resolve(strict=True),
+        arguments.annotation_root.resolve(strict=True),
     )
     save_json_gz(arguments.output, result)
     print(f"saved {arguments.output}", flush=True)

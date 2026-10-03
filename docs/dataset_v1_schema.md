@@ -175,12 +175,14 @@ PYTHONPATH=src uv run python -m dataset_builder export-v1 \
 ```
 
 The ShuttleSet22 export reads the issue #106 and #120 primitives. Its
-`--data-root` holds `extracted-simple/`, `annotations/`, and `sources/`. On
-Carmack that is `/scratch/cmarti56/issue106-shuttleset22-data`.
+`--data-root` holds `extracted-simple/` and `sources/`. The checked-in
+ShuttleSet22 annotation root is `data/shuttleset22` and is used by default.
+Set `SHUTTLESET22_DATA` to the external extraction root.
 
 ```bash
 PYTHONPATH=src uv run python -m dataset_builder export-v1-shuttleset22 \
-  --data-root /scratch/cmarti56/issue106-shuttleset22-data \
+  --data-root "$SHUTTLESET22_DATA" \
+  --annotation-root data/shuttleset22 \
   --output-dir /scratch/<user>/dataset-v1/shuttleset22 \
   --run-id issue106-ba24a95 \
   --commentary-root /scratch/<user>/<commentary preparation root> \

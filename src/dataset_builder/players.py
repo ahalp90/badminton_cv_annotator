@@ -20,7 +20,6 @@ import pandas as pd
 
 from dataset_builder.features import COURT_SIDES
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PLAYERS = REPO_ROOT / "configs" / "players.csv"
 MATCH_TABLE_FILENAME = "match.csv"
@@ -123,6 +122,16 @@ def load_match_players(
         )
     # ShuttleSet labels the match winner A, and downcourt says where A starts.
     return MatchPlayers(player_a=winner, player_b=loser, first_a_is_top=bool(downcourt))
+
+
+def match_table_path(set_root: Path) -> Path:
+    """Find the plain or gzip-compressed match table beside a dataset's set folders."""
+    paths = sorted(Path(set_root).glob(f"{MATCH_TABLE_FILENAME}*"))
+    if len(paths) != 1:
+        raise FileNotFoundError(
+            f"expected one {MATCH_TABLE_FILENAME} or {MATCH_TABLE_FILENAME}.gz under {set_root}"
+        )
+    return paths[0]
 
 
 def a_is_top(first_a_is_top: bool, set_number: int, post_switch: bool) -> bool:

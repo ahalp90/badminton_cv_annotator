@@ -127,13 +127,13 @@ The per-video table includes the earlier original extraction for context; it
 is a separate run, not a paired control for selection. Only the court-sharing-patched and
 score-first outputs use the same search records.
 
-Raw inputs are under
-`local_scratch/court_evaluation/player_tiebreak_results/{carmack,bourbaki}/stage_a/`.
-`videos/` contains the court-sharing-patched results, `trial_videos/` contains score-first
-results, and `choices/` contains the individual fits and candidate measurements.
-The analysis reuses `analyse_video`, `video_row` and `score_courts` from
-`scripts/evaluate_courts_fast_robust.py`. The saved reproduction script is
-`local_scratch/court_evaluation/player_tiebreak_results/analysis_a/reproduce.py`.
+The [saved inputs](../../inputs/README.md) retain stage-A predictions, choices
+and timings. `videos/` contains the court-sharing-patched results and
+`trial_videos/` contains score-first results. The maintained
+[comparison script](../search_results/compare_search.py) now compares these
+methods alongside the broader-search trial. It reuses the same evaluator and
+fixed main-view population; the [reproduction guide](../../reproduce.md) gives
+the command.
 
 All eight jobs completed with exit 0. Scene partitions match, saved individual
 fits match the choice records, and no scene or group errors were recorded.

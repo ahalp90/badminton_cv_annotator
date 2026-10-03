@@ -26,10 +26,10 @@ import pandas as pd
 from scripts import evaluate_courts_fast_robust as evaluator
 
 EVALUATION_DIR = Path("experiments/court_detector/fast_robust_20261002")
-TRIAL_RESULTS = Path("local_scratch/court_evaluation/player_tiebreak_results")
+TRIAL_RESULTS = EVALUATION_DIR / "inputs" / "player_tiebreak_results"
 LABEL_ROOTS = {
     "ShuttleSet": Path("data/shuttleset/set"),
-    "ShuttleSet22": Path("local_scratch/court_evaluation/shuttleset22/set"),
+    "ShuttleSet22": Path("data/shuttleset22/set"),
 }
 HOST_VIDEOS = {
     "carmack": ("sset_11", "sset_21", "sset_30", "sset_36"),
@@ -142,9 +142,9 @@ def plan_representatives(video_id: str, video: pd.Series, outputs: dict[str, dic
     dataset = video["dataset"]
     labels = LABEL_ROOTS[dataset]
     source_id = int(video["source_id"])
-    homography = pd.read_csv(labels / "homography.csv").set_index("id").loc[source_id]
+    homography = evaluator.read_label_table(labels, "homography").set_index("id").loc[source_id]
     official, _ = evaluator.read_official_corners(homography, dataset)
-    match_dir = labels / pd.read_csv(labels / "match.csv").set_index("id").loc[source_id, "video"]
+    match_dir = labels / evaluator.read_label_table(labels, "match").set_index("id").loc[source_id, "video"]
     rallies, _ = evaluator.read_rallies(match_dir, int(video["frame_count"]))
     entry = {"id": video_id, "dataset": dataset}
     representatives = []
@@ -168,7 +168,7 @@ def plan_representatives(video_id: str, video: pd.Series, outputs: dict[str, dic
     return representatives
 
 
-def plan(output_path: Path, reusable_frames: Path) -> None:
+def plan(output_path: Path, reusable_frames: Path | None) -> None:
     """Write the clip and representative-frame plan, and note which raw frames already exist locally."""
     per_video = pd.read_csv(EVALUATION_DIR / "per_video.csv.gz").set_index("video_id")
     per_scene = pd.read_csv(EVALUATION_DIR / "per_scene.csv.gz")
@@ -176,7 +176,7 @@ def plan(output_path: Path, reusable_frames: Path) -> None:
     trial_videos = [video_id for video_ids in HOST_VIDEOS.values() for video_id in video_ids]
     outputs = {video_id: read_outputs(video_id) for video_id in trial_videos}
     for video_id, video_outputs in outputs.items():
-        original = evaluator.read_json_gz(Path("local_scratch/court_evaluation/videos") / f"{video_id}.json.gz")
+        original = evaluator.read_json_gz((EVALUATION_DIR / "inputs" / "videos") / f"{video_id}.json.gz")
         if scene_partition(video_outputs["court_sharing_patched"]) != scene_partition(original):
             raise ValueError(f"{video_id}: trial scenes differ from the original run's scenes")
 
@@ -196,7 +196,9 @@ def plan(output_path: Path, reusable_frames: Path) -> None:
     for video_id in trial_videos:
         for representative in plan_representatives(video_id, per_video.loc[video_id], outputs[video_id]):
             request_output = reusable.get((video_id, representative["frame_index"]))
-            reuse_path = None if request_output is None else reusable_frames / (Path(request_output).stem + ".png")
+            reuse_path = None
+            if request_output is not None and reusable_frames is not None:
+                reuse_path = reusable_frames / (Path(request_output).stem + ".png")
             representative["reused_frame"] = None if reuse_path is None or not reuse_path.exists() else str(reuse_path)
             representatives.append(representative)
 
@@ -409,7 +411,7 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     plan_parser = commands.add_parser("plan", help="choose rallies and representative frames")
     plan_parser.add_argument("--output", type=Path, required=True, help="plan .json.gz")
-    plan_parser.add_argument("--reusable-frames", type=Path, default=Path("local_scratch/court_evaluation/frames"),
+    plan_parser.add_argument("--reusable-frames", type=Path,
                              help="raw frames fetched for the original evaluation")
     fetch_parser = commands.add_parser("fetch", help="decode the planned frames on the video host")
     fetch_parser.add_argument("--plan", type=Path, required=True)

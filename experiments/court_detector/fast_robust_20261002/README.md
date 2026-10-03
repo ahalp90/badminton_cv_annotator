@@ -8,6 +8,7 @@ use a consistent far-baseline-first output order.
 - [Dataset and loading instructions](court_sharing_patched/README.md)
 - [Final representative gallery and complete rally samples](court_sharing_patched/gallery.md)
 - [Reproduce the evaluation](reproduce.md)
+- [Saved comparison inputs and optional candidate data](inputs/README.md)
 - [Earlier user-reviewed trial galleries](player_tiebreak_trial/rally_review/README.md)
 
 Patched sharing raises representative agreement within 10 px from 74/86 to

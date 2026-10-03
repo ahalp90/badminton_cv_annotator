@@ -139,3 +139,7 @@ phase_a_stems.txt
 
 # Commentary-scraper output root (annotator/config.py default; BADMINTON_SCRAPE_DIR overrides)
 data/scrape_output/
+
+# Optional court research data: distributed separately from the compact comparison inputs.
+experiments/court_detector/fast_robust_20261002/inputs/candidate_pools/
+experiments/court_detector/fast_robust_20261002/player_tiebreak_trial/rally_review/scene_clips/

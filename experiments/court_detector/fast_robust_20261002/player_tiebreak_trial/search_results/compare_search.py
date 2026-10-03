@@ -40,7 +40,7 @@ from scripts import summarise_court_rally_views as rally_view_summary
 from shared.court import HOMOGRAPHY_RESOLUTION
 
 SEARCH_RESULTS = Path(__file__).resolve().parent
-EVALUATION_ROOT = Path("local_scratch/court_evaluation")
+EVALUATION_ROOT = SEARCH_RESULTS.parents[1] / "inputs"
 REVIEW_SAMPLES = SEARCH_RESULTS.parent / "selection_results" / "review_samples.csv.gz"
 
 HOST_VIDEOS = {
@@ -107,7 +107,7 @@ METRICS = {
 }
 DIFFERENCE_UNITS = {"px": "px", "%": "percentage points"}
 STAGE_JOBS = ("stage_a_jobs", "stage_b_jobs")
-LABEL_ROOTS = {"ShuttleSet": Path("data/shuttleset/set"), "ShuttleSet22": EVALUATION_ROOT / "shuttleset22/set"}
+LABEL_ROOTS = {"ShuttleSet": Path("data/shuttleset/set"), "ShuttleSet22": Path("data/shuttleset22/set")}
 SCENE_KEY = ["start_frame", "end_frame", "frame_index"]
 COURT_SOURCES = {POOLED_KEY: "pooled", GROUP_SCENE_KEY: "group_scene"}
 
@@ -417,9 +417,9 @@ def compare_video(entry: dict, stage_dirs: dict[str, Path], evaluation_root: Pat
     video_id, dataset = entry["id"], entry["dataset"]
     labels = LABEL_ROOTS[dataset]
     source_id = int(entry["source_id"])
-    homography = pd.read_csv(labels / "homography.csv").set_index("id").loc[source_id]
+    homography = evaluator.read_label_table(labels, "homography").set_index("id").loc[source_id]
     official, _ = evaluator.read_official_corners(homography, dataset)
-    match_dir = labels / pd.read_csv(labels / "match.csv").set_index("id").loc[source_id, "video"]
+    match_dir = labels / evaluator.read_label_table(labels, "match").set_index("id").loc[source_id, "video"]
 
     outputs = {ORIGINAL: evaluator.read_json_gz(evaluation_root / "videos" / f"{video_id}.json.gz")}
     audit: dict[str, object] = {"video_id": video_id}
