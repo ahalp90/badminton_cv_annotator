@@ -50,7 +50,7 @@ This is the main reason the contact tree and sequence trees are better thought o
 
 ### The optional rule removes rows before scoring
 
-A model directory can turn on `ContactModelConfig.reject_masked_without_player`. It is off by default. When on, candidate rows with a rejected shuttle guard grade and no picked player at the five feature offsets are removed before the contact tree scores anything. Those rows are then missing from the whole candidate pool, including the serve and later-contact shortlists described below. [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) gives the exact condition.
+A model directory can turn on `ContactModelConfig.reject_masked_without_player`. It is off by default. When on, candidate rows with a shuttle guard grade flagged as unreliable and no picked player at the five feature offsets are removed before the contact tree scores anything. Those rows are then missing from the whole candidate pool, including the serve and later-contact shortlists described below. [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) gives the exact condition.
 
 The rule does not change which rows the contact tree is trained on. It changes the candidates that the sequence trees and the rally-confidence tree are trained and run on.
 

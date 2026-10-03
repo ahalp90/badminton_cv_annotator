@@ -7,6 +7,25 @@ maps common problems to relevant modules. [Fixed heuristics](heuristics.md) and
 
 The annotation runtime is only part of `src/annotator`. Evaluation tools, manual review utilities and VLM experiments live in the same package but run separately.
 
+## Symptom → likely starting point
+
+| Symptom | Relevant code |
+| --- | --- |
+| Rally opens or closes at the wrong time | `rally/spans.py`, `rally/serve.py` |
+| Replay/dead frames leak into a rally | `masks/replay.py`, `masks/dead.py`, `run_video.py` |
+| FPS-dependent timing looks wrong | `fps_constants.py`, `resolve.py` |
+| Player assignment jumps | `rally/evidence.py` and its court/pose inputs |
+| A real hit is never scored | `contacts/features.py` search regions, then exclusion masks |
+| Contact probability looks wrong | `contacts/features.py`, `contacts/model.py` |
+| Serve repair looks wrong | `sequence/candidates.py`, `sequence/edits.py`, serve features/targets |
+| Later-hit repair looks wrong | `sequence/candidates.py`, `sequence/refine.py`, `training/sequences.py` |
+| `Top`/`Bot` assignment looks wrong | `hybrid.py::sequence_inputs`, `sequence/sides.py`, side geometry |
+| Rally review score looks wrong | `sequence/confidence.py`, `training/confidence.py` |
+| Winner or landing looks wrong | `outcomes/point_winner.py`, `outcomes/video.py` |
+| Model directory will not load | `models.py` |
+| Fitting appears to leak match groups | `training/workflow.py`, `training/sequences.py` |
+| Saved standalone output differs from builder output | `annotator/cli.py`, `dataset_builder/vision.py` |
+
 ## Production call map
 
 ```text
@@ -270,24 +289,5 @@ This directory contains the Issue-38 VLM scene benchmark. It is not called by th
 | `experiments/annotator/` | Retained comparisons and experiment records, including the old-court regression check and the completed new-court refit comparison. |
 | `scratch/contact_det*` and related scratch directories | Historical development material and rejected/older variants. |
 | `tests/test_annotator_*.py` | Current behaviour and edge cases in executable form. |
-
-## Symptom → likely starting point
-
-| Symptom | Relevant code |
-| --- | --- |
-| Rally opens or closes at the wrong time | `rally/spans.py`, `rally/serve.py` |
-| Replay/dead frames leak into a rally | `masks/replay.py`, `masks/dead.py`, `run_video.py` |
-| FPS-dependent timing looks wrong | `fps_constants.py`, `resolve.py` |
-| Player assignment jumps | `rally/evidence.py` and its court/pose inputs |
-| A real hit is never scored | `contacts/features.py` search regions, then exclusion masks |
-| Contact probability looks wrong | `contacts/features.py`, `contacts/model.py` |
-| Serve repair looks wrong | `sequence/candidates.py`, `sequence/edits.py`, serve features/targets |
-| Later-hit repair looks wrong | `sequence/candidates.py`, `sequence/refine.py`, `training/sequences.py` |
-| `Top`/`Bot` assignment looks wrong | `hybrid.py::sequence_inputs`, `sequence/sides.py`, side geometry |
-| Rally review score looks wrong | `sequence/confidence.py`, `training/confidence.py` |
-| Winner or landing looks wrong | `outcomes/point_winner.py`, `outcomes/video.py` |
-| Model directory will not load | `models.py` |
-| Fitting appears to leak match groups | `training/workflow.py`, `training/sequences.py` |
-| Saved standalone output differs from builder output | `annotator/cli.py`, `dataset_builder/vision.py` |
 
 Historical experiment code can still answer questions about an earlier design or measurement. For current annotation behaviour, the modules above are the direct implementation path.

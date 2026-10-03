@@ -97,6 +97,14 @@ Example `retune/manifest.json`:
 
 Paths are resolved relative to the manifest file. Each `id` matches a video directory name in the extraction run and can appear only once.
 
+### Validation and test roles
+
+Validation compares model variants with fixed video splits and labels. A
+separate test set measures the chosen model on footage that did not guide its
+selection. Repeated development decisions based on test errors remove that
+independence. The completed ShuttleSet22 comparison below has informed such
+decisions and is now a familiar benchmark.
+
 ### Groups
 
 `group` keeps related footage together. Videos from the same match, or footage with closely shared scene/player conditions, belong to the same group.
@@ -278,15 +286,7 @@ counts how many labelled hits were found.
 The hit labels used here provide no correctness measure for winners, landings
 or hit heights. Changes to those rules need their own evaluation.
 
-## 8. Validation and test roles
-
-Validation compares model variants with fixed video splits and labels. A
-separate test set measures the chosen model on footage that did not guide its
-selection. Repeated development decisions based on test errors remove that
-independence. The completed ShuttleSet22 comparison below has informed such
-decisions and is now a familiar benchmark.
-
-## 9. Python fit settings
+## 8. Python fit settings
 
 The CLI takes the manifest, output path and choice of net geometry for player
 sides. `TrainingSettings`, passed to `fit_from_manifest()` from Python,
@@ -334,14 +334,14 @@ The serve tree uses 100 iterations, 7 leaves and seed `20260824`.
 
 A comparison is easier to interpret when one variable changes at a time. For example, a contact-tree hyperparameter comparison can keep preprocessing and the data split fixed.
 
-## 10. Contact selection settings
+## 9. Contact selection settings
 
 `ContactModelConfig` holds two settings. Both are saved in the model directory and used again at annotation time.
 
 | Setting | Default | Effect |
 | --- | ---: | --- |
 | `score_cutoff` | `0.9` | Lowest contact score kept in the initial contact stream |
-| `reject_masked_without_player` | `False` | When true, drops candidate frames that have a rejected shuttle guard grade and no picked player at the five feature offsets |
+| `reject_masked_without_player` | `False` | When true, drops candidate frames that have a shuttle guard grade flagged as unreliable and no picked player at the five feature offsets |
 
 [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) gives the exact condition for the second setting.
 
@@ -365,7 +365,7 @@ fit_from_manifest(
 )
 ```
 
-## 11. Checks before selecting a model directory
+## 10. Checks before selecting a model directory
 
 A complete model comparison normally includes:
 

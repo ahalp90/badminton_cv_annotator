@@ -43,21 +43,24 @@ The current codes are:
 | Code | Meaning | Current treatment |
 | ---: | --- | --- |
 | `0` | no flag | usable |
-| `1` | repeated moving pattern; treated as fabricated | rejected |
-| `2` | repeated flat pattern; suspicious | rejected |
-| `3` | degraded frame near one of those recurrent patterns | rejected |
+| `1` | repeated moving pattern; treated as fabricated | flagged as unreliable |
+| `2` | repeated flat pattern; suspicious | flagged as unreliable |
+| `3` | degraded frame near one of those recurrent patterns | flagged as unreliable |
 
-`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3}`. `run_video()` turns the rejected grades into one boolean frame mask, which the code calls the shuttle hallucination mask.
+`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3}`.
+`run_video()` marks positions with those grades in a boolean frame mask, which
+the code calls the shuttle hallucination mask. Each stage uses that mask
+differently, as described below.
 
-The rejection matters because fabricated shuttle coordinates can create convincing but false movement. A repeated or inpainted track can produce a sharp change in velocity, an apparent contact, or a plausible landing even when the shuttle was not really observed there.
+The guard matters because fabricated shuttle coordinates can create convincing but false movement. A repeated or inpainted track can produce a sharp change in velocity, an apparent contact, or a plausible landing even when the shuttle was not really observed there.
 
-Rejected frames are handled in three places:
+Flagged shuttle positions affect three stages:
 
-- **Slow-motion detection.** Speed steps that touch a rejected frame are left out when the detector estimates normal rally speed.
-- **Outcome rules.** Landing estimates do not use rejected frames. If the last contact of a rally sits on a rejected frame, the landing is left empty rather than measured from an earlier hit.
-- **Contact candidates, only when the optional rule below is on.**
+- **Slow-motion detection.** Speed steps that touch a flagged position are left out when the detector estimates normal rally speed.
+- **Outcome rules.** Landing estimates do not use flagged positions. If the last contact of a rally sits on a flagged frame, the landing is left empty rather than measured from an earlier hit.
+- **Contact candidates.** The contact tree scores flagged frames by default. The optional rule below removes some of those candidates before scoring.
 
-By default the contact tree still scores rejected frames, and a contact can be selected on one. Grades `2` and `3` mark suspicious or degraded tracking; they do not prove that no hit happened.
+A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark suspicious or degraded tracking; they do not prove that no hit happened.
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 
@@ -67,14 +70,14 @@ Relevant code: `masks/inpaint.py`, `run_video.py::build_shuttle_hallucination_ma
 
 `ContactModelConfig.reject_masked_without_player` is off by default. When it is on, a candidate frame is dropped before the contact tree scores it if both of these hold:
 
-- the frame's shuttle guard grade is one of the model's rejected grades (`1`, `2` and `3` by default);
+- the frame's shuttle guard grade is flagged as unreliable (`1`, `2` and `3` by default, as set by `rejected_grades`);
 - the player tracker has selected no detected person on either court half at any of the five feature offsets (`-10`, `-5`, `0`, `+5` and `+10` frames at 30 FPS, scaled to the video).
 
 A picked player counts even when its wrists were not measured. An offset that falls outside the candidate's search interval counts as no player.
 
 Dropped rows leave the candidate pool completely. They cannot be selected as initial contacts, and the sequence stage cannot shortlist them later as a serve or a missed contact.
 
-The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#10-contact-selection-settings) covers how it is set for a fit.
+The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#9-contact-selection-settings) covers how it is set for a fit.
 
 Relevant code: `contacts/model.py::score_contact_features()`, `hybrid.py`, `training/workflow.py`.
 

@@ -77,7 +77,7 @@ Shape:
 
 These codes mark shuttle positions considered unreliable because of repeated or fabricated-looking track patterns. The standalone command recomputes the codes from `shuttle_track.npy.xz` and requires an exact match with the saved file.
 
-The default annotator settings treat codes `1`, `2` and `3` as rejected. Rejected frames are left out of the slow-motion speed estimate and are not used for landings. They are removed from contact candidates only when the model directory turns on the optional rule described in [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates).
+The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. They are removed from contact candidates only when the model directory turns on the optional rule described in [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates).
 
 ### `*_inpaint_mask.json.gz`
 
@@ -189,7 +189,7 @@ The final boolean mask used by annotation. It starts from the replay/off-rally m
 
 ### `shuttle_quality.json.gz`
 
-Counts and summary information for shuttle visibility, inpainting and guard codes. Guard codes describe the reliability of the shuttle track itself rather than masking the whole video frame. The summary also records which codes the model settings reject; the default is `1`, `2` and `3`. [Fixed heuristics](heuristics.md) explains how those codes are produced, where rejected frames are used, and why they are kept separate from the frame mask.
+Counts and summary information for shuttle visibility, inpainting and guard codes. Guard codes describe the reliability of the shuttle track itself rather than masking the whole video frame. The summary also records which codes the model settings flag as unreliable; the default is `1`, `2` and `3`. [Fixed heuristics](heuristics.md) explains how those codes are produced, how each stage uses flagged positions, and why they are kept separate from the frame mask.
 
 ## `AnnotatorResult` fields
 
@@ -237,7 +237,7 @@ They are not permanent player identities. When players change ends, the labels r
 
 ### Missing outcome values
 
-Some outcome fields can be unresolved even when the contact sequence is usable. For example, rejected shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. A shuttle that is not visible on the contact frame leaves that hit height unresolved and adds a row to `hit_height_failures`.
+Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. A shuttle that is not visible on the contact frame leaves that hit height unresolved and adds a row to `hit_height_failures`.
 
 ## Direct Python call
 
