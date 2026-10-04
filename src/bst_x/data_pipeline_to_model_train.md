@@ -23,74 +23,51 @@ New here? [`data_pipeline_and_model_train_overview.md`](data_pipeline_and_model_
 
 ## Quick Start: End-to-End Execution
 
-The project uses three separate Python environments so the pipeline, pose-extraction and training stacks stay independently pinned. All three target **Python 3.11+** (the extraction set is validated on 3.13). The legacy OpenMMLab stack and its numpy < 2.0 pin (`preparing_data/requirements-legacy-3d.txt`, separate venv) remain only as the env for the parked 3D pose stream design.
-
-| Environment | Requirements file | Purpose |
-|---|---|---|
-| **Pipeline** | `src/bst_x/pipeline/requirements.txt` | Download videos, generate clips, verify output |
-| **Pose extraction (rtmlib)** | `src/bst_x/preparing_data/requirements.txt` | Pose estimation (step 1 of data preparation) |
-| **BST training** | `src/bst_x/requirements.txt` | Collation, training, inference. Also shared by TrackNetV3. |
+Dataset preparation, RTMLib pose extraction, TrackNetV3 and BST-X use the
+root project environment on **Python 3.12 or newer**. The requirements files
+under `src/bst_x` include the root requirements; the pipeline file also adds
+its video-download and editing packages.
 
 ### Environment setup
 
+From the repository root:
+
 ```bash
-# Run this setup and the execution commands below from the repository root.
+uv sync --extra bst-x-runtime --extra dev
+uv pip install --python .venv/bin/python -r src/bst_x/pipeline/requirements.txt
+source .venv/bin/activate
 export PYTHONPATH=src:src/bst_x
-
-# 1. Pipeline venv
-python3.11 -m venv venv-pipeline
-source venv-pipeline/bin/activate
-pip install -r src/bst_x/pipeline/requirements.txt
-
-# 2. Pose-extraction venv (rtmlib over onnxruntime; no source builds)
-python3.11 -m venv venv-rtmlib
-source venv-rtmlib/bin/activate
-pip install -r src/bst_x/preparing_data/requirements.txt
-# GPU extract box: swap onnxruntime -> onnxruntime-gpu per the notes in that file.
-# GPU runtime: onnxruntime-gpu SILENTLY falls back to CPU (~10x slower, two red
-# log lines, then it keeps going) unless the dynamic loader can find cuDNN 9 and
-# the CUDA 13 runtime libs. The venv bundles both; export BEFORE python starts
-# (the loader reads LD_LIBRARY_PATH once, at process start, so the repo .env
-# cannot deliver this):
-#   SP=$VIRTUAL_ENV/lib/python3.11/site-packages/nvidia
-#   export LD_LIBRARY_PATH="$SP/cudnn/lib:$SP/cu13/lib:$LD_LIBRARY_PATH"
-# Confirmed on bourbaki 2026-07-08 (the pilot pose pass first ran CPU-silent).
-# torch (any modern CPU build is fine) is needed only for the prepare_train module path:
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-# 3. BST training venv
-python3.11 -m venv venv-bst-x
-source venv-bst-x/bin/activate
-pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -r src/bst_x/requirements.txt
 ```
+
+The base install supports CPU pose inference. The
+[court setup guide](../../docs/court_detector/usage.md#cuda-pose-inference)
+covers CUDA inference in this same environment. A later `uv sync` restores
+the base packages, so the pipeline additions and GPU runtime replacement
+belong after the final sync.
 
 ### Execution order
 
 ```bash
-# ── Stage 1: Build dataset (pipeline venv) ──────────────────────────
-source venv-pipeline/bin/activate
+# Stage 1: Build the dataset
 
 python -m pipeline.build_dataset --dry-run                # preview
 python -m pipeline.build_dataset --skip-shuttle            # download + clips + verify
-# Optional: shuttle extraction (uses BST venv for TrackNetV3)
+# Optional: shuttle extraction with the same environment
 python -m pipeline.build_dataset --skip-download \
-    --tracknet-python /path/to/venv-bst-x/bin/python
+    --tracknet-python .venv/bin/python
 # Resume after crash (skip completed steps 3-5, run only shuttle extraction)
 python -m pipeline.build_dataset \
     --skip-download --skip-resolution --skip-clips --skip-verify \
-    --tracknet-python /path/to/venv-bst-x/bin/python
+    --tracknet-python .venv/bin/python
 
-# ── Stage 2: Pose estimation (rtmlib venv) ──────────────────────────
-source venv-rtmlib/bin/activate
+# Stage 2: Pose estimation
 
 # On engelbart, symlink the taxonomy output dir to scratch first (see Stage 2 Setup below).
 
 python -m preparing_data.prepare_train_on_shuttleset \
     --skip-collate                                         # pose only (no shuttle CSV needed)
 
-# ── Stage 3: Collation + training (BST venv) ────────────────────────
-source venv-bst-x/bin/activate
+# Stage 3: Collation and training
 
 python -m preparing_data.prepare_train_on_shuttleset \
     --skip-pose                                            # collate (reads shuttle npys)
@@ -124,7 +101,7 @@ The pipeline downloads match videos, cuts them into labeled stroke clips, option
 | `clip_generator.py` | Extracts individual stroke clips from full match videos. Reads ShuttleSet CSV annotations (Chinese column names), maps A/B players to Top/Bottom, filters excluded videos and removed shots, and organizes clips into `{split}/{Player}_{stroke_type}/` folders. | `generate_all_clips()`, `apply_class_merge()` (moves clips from rare subtype folders into their parent type folders per the active taxonomy's merge map). Three clip window modes: `middle_in_a_sec`, `between_2_hits`, `between_2_hits_with_max_limits` (default, clamps to 1.5s each side). |
 | `classifier_shared/player_mapping.py` | Maps ShuttleSet A/B labels to Top/Bottom court positions. Handles set-3 court switches. | `collect_shots()`, `map_players()`, `find_set3_switch_rally()`. |
 | `verify.py` | Post-generation sanity checks: all splits present, no clips from excluded videos, no removed shots, merged subtype folders empty, no orphan files. | `verify_splits_present()`, `verify_no_excluded()`, `verify_no_removed_shots()`, `verify_class_merge()`, `verify_shuttle_sync()`, `print_dataset_summary()`. |
-| `shuttle_extractor.py` | Runs TrackNetV3 on each clip to detect shuttle positions, then converts CSVs to normalized `(t, 3)` numpy arrays `[x_norm, y_norm, visibility]`. The CSV->npy conversion regenerates every npy unconditionally (no skip-existing), so a re-extract pops a fresh npy rather than leaving a stale one. Uses **batch mode** (`batch_predict.py`) to load models once per worker and iterate over clips in-process, avoiding the ~8s model-reload per clip. Uses the default `eval_mode='weight'` (full temporal ensemble) for maximum detection accuracy. `--batch_size` (default 32, configurable via CLI) controls GPU utilization. Inference runs in **FP32** to preserve detection accuracy on fast-moving shuttles (FP16 rounding can flip the 0.5 heatmap threshold on faint responses). Frames are pre-resized during loading using PIL BICUBIC (bit-identical to the Dataset's own resize). VideoCapture handles are explicitly released and `gc.collect()` + `torch.cuda.empty_cache()` run between clips to prevent resource exhaustion. `--workers N` launches N parallel batch workers, each with its own model copy (use 1 on V100 16GB, 2+ on larger GPUs). On V100 16GB, batch_size 16 fits most clips; a few may OOM, so re-run with batch_size 8 to pick up stragglers (resume logic skips clips that already have CSVs). `--dry-run` processes clips without writing output files (for testing). TrackNetV3 shares the BST training venv. **Pretrained weights** (`ckpts/TrackNet_best.pt`, `ckpts/InpaintNet_best.pt`) must be downloaded separately (~150 MB, gitignored) — see `src/shared/tracknetv3/README.md`. | `extract_all_shuttles(tracknet_dir, tracknet_python, max_workers, batch_size, dry_run)`, `shuttle_csvs_to_npy()`. Intermediate output: `data/shuttleset/shuttle_csv/` (flat dir of per-clip CSVs, taxonomy/split independent). Final output: `data/shuttleset/shuttle_npy/{clip}.npy` (flat; split + label come from `notebooks/clips_master.csv` at collation time). |
+| `shuttle_extractor.py` | Runs TrackNetV3 on each clip to detect shuttle positions, then converts CSVs to normalized `(t, 3)` numpy arrays `[x_norm, y_norm, visibility]`. The CSV->npy conversion regenerates every npy unconditionally (no skip-existing), so a re-extract pops a fresh npy rather than leaving a stale one. Uses **batch mode** (`batch_predict.py`) to load models once per worker and iterate over clips in-process, avoiding the ~8s model-reload per clip. Uses the default `eval_mode='weight'` (full temporal ensemble) for maximum detection accuracy. `--batch_size` (default 32, configurable via CLI) controls GPU utilization. Inference runs in **FP32** to preserve detection accuracy on fast-moving shuttles (FP16 rounding can flip the 0.5 heatmap threshold on faint responses). Frames are pre-resized during loading using PIL BICUBIC (bit-identical to the Dataset's own resize). VideoCapture handles are explicitly released and `gc.collect()` + `torch.cuda.empty_cache()` run between clips to prevent resource exhaustion. `--workers N` launches N parallel batch workers, each with its own model copy (use 1 on V100 16GB, 2+ on larger GPUs). On V100 16GB, batch_size 16 fits most clips; a few may OOM, so re-run with batch_size 8 to pick up stragglers (resume logic skips clips that already have CSVs). `--dry-run` processes clips without writing output files (for testing). TrackNetV3 uses the same project environment. **Pretrained weights** (`ckpts/TrackNet_best.pt`, `ckpts/InpaintNet_best.pt`) must be downloaded separately (~150 MB, gitignored) — see `src/shared/tracknetv3/README.md`. | `extract_all_shuttles(tracknet_dir, tracknet_python, max_workers, batch_size, dry_run)`, `shuttle_csvs_to_npy()`. Intermediate output: `data/shuttleset/shuttle_csv/` (flat dir of per-clip CSVs, taxonomy/split independent). Final output: `data/shuttleset/shuttle_npy/{clip}.npy` (flat; split + label come from `notebooks/clips_master.csv` at collation time). |
 | `shared/court.py` | Homography-based camera-to-court projection shared with BRIC and the annotator. | `build_all_court_info()`, `to_court_coordinate()`, `normalize_position()`. |
 
 #### Pipeline output structure

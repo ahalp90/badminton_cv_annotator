@@ -110,7 +110,8 @@ paths and won't work for others
 
 ## 9. BST subproject setup
 
-The BST subproject (src/bst_x/) requires Python 3.11.x and multiple separate venvs due to numpy version conflicts between MMPose
-and the training stack.
+Pose extraction and court detection share the root project environment on
+Python 3.12 or newer. RTMLib supplies pose estimation; MMPose is no longer a
+dependency.
 
 See src/bst_x/data_pipeline_to_model_train.md for full setup instructions.

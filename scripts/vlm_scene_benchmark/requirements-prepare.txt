@@ -1,2 +1,3 @@
+# Video decoding and scene detection for benchmark preparation.
 opencv-python==5.0.0.93
 scenedetect==0.7.1

@@ -30,7 +30,7 @@ caches it for later runs. The detector also imports `src/shared` and
 | Need | Used for | Where it comes from |
 | --- | --- | --- |
 | DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage). The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; see [runtime/README.md](../../runtime/README.md). They are gitignored |
-| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | `rtmlib==0.0.15` and `opencv-contrib-python==5.0.0.93`, with `onnxruntime==1.27.0` for CPU or `onnxruntime-gpu==1.27.0` for CUDA |
+| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | CPU inference is included in the base install: RTMLib 0.0.15, ONNX Runtime 1.27.0 and matching OpenCV 5.0.0.93 wheels. CUDA setup is below |
 | PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Included in the base project environment, pinned at 0.7.1 |
 | CuPy | `--template-device cuda` only | Required in the GPU environment; not a project dependency |
 
@@ -38,25 +38,47 @@ DeepLSD loads from its checkout, not from an installed package. The loader puts
 the checkout first on `sys.path` and fails if the folder is missing. Its upstream installation instructions cover
 the line-detection dependencies needed in the same environment.
 
-The court environment uses the root project's NumPy, pandas and SciPy versions.
-RTMLib also installs `opencv-contrib-python`, which shares the `cv2` package with
-the root project's `opencv-python`. Both wheels need the matching version above.
-Installing the full pose requirements file would replace the root dependencies
-with the older pose-environment pins.
+Court detection and dataset-builder pose extraction use the same root project
+environment and RTMLib adapter. RTMLib requires both `opencv-python` and
+`opencv-contrib-python`; the project pins them to the same version because
+both install into the `cv2` package.
 
-Live court pose runs under OpenCV 5.0; the separate pose environment uses 4.13.
-These versions produce slightly different image crops for RTMPose. The effect
-on real model keypoints has not been measured, so live and saved poses have not
-been validated as equivalent across these environments.
+RTMLib downloads the RTMDet person and RTMPose pose models on first use. An
+offline run needs those weights cached beforehand. Current installs use OpenCV
+5 throughout; the [migration notes](../architecture_notes/rtmlib_migration/README.md#environment-used-for-the-recorded-results)
+record its small numerical differences from earlier saved poses.
 
-RTMLib downloads the configured RTMDet person and RTMPose pose models on first
-use. An offline run therefore needs those weights cached beforehand. Live CUDA
-pose extraction needs `onnxruntime-gpu` and compatible CUDA/cuDNN libraries. The
-[pose setup notes](../../src/bst_x/preparing_data/requirements.txt) describe the GPU libraries, including the `LD_LIBRARY_PATH`
-required before Python starts. The adapter raises an error if ONNX Runtime silently
-falls back to CPU. The court environment is not fully specified by
-`uv sync --extra dev`: live pose, GPU template dependencies and the external
-model setup above remain additional steps.
+### CUDA pose inference
+
+The base install includes CPU ONNX Runtime. On Linux, the project selects CUDA
+13 PyTorch wheels so that PyTorch and `onnxruntime-gpu==1.27.0` use compatible
+CUDA and cuDNN libraries. A CUDA 13-capable driver is required; the
+[ONNX Runtime compatibility table](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements)
+describes the supported combinations.
+
+After the base installation, the GPU build replaces CPU ONNX Runtime:
+
+```bash
+uv pip uninstall --python .venv/bin/python onnxruntime
+uv pip install --python .venv/bin/python onnxruntime-gpu==1.27.0
+```
+
+Only one ONNX Runtime distribution can be installed at a time: both provide
+`onnxruntime`. A later `uv sync` restores the project's CPU dependency, so the
+GPU replacement needs to follow each sync. CUDA runs can use `.venv/bin/python` directly or `uv run --no-sync`.
+
+The Linux PyTorch installation supplies the CUDA and cuDNN libraries. Their
+locations must be on `LD_LIBRARY_PATH` before the pose process starts:
+
+```bash
+pose_site_packages="$(.venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+export LD_LIBRARY_PATH="$pose_site_packages/nvidia/cudnn/lib:$pose_site_packages/nvidia/cu13/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+```
+
+`onnxruntime.get_available_providers()` must include `CUDAExecutionProvider`.
+The adapter raises an error if a requested CUDA session falls back to CPU.
+DeepLSD source and weights, plus CuPy for GPU template scoring, remain
+additional setup as listed above.
 
 **Devices.**
 
@@ -278,9 +300,10 @@ optional `vision.court_mode` key sets `--court-mode` and defaults to
 `video-robust`. `fast-robust` requires `court_reuse_courts = false`.
 
 Both supplied configurations read the court interpreter from
-`BADMINTON_COURT_PYTHON`, whose value is the absolute path of the court
-environment's Python executable. They request CUDA for both neural inference and template
-scoring, so that environment needs the GPU dependencies above. The builder sets
+`BADMINTON_COURT_PYTHON`, whose value is the absolute path of the root project
+environment's Python executable. `BADMINTON_POSE_PYTHON` can use the same path.
+The supplied configs request CUDA for neural inference and template scoring,
+so this environment needs the GPU dependencies above. The builder sets
 the child working directory to the repository root and `PYTHONPATH=src:src/bst_x`.
 
 The result reader checks the schema, video dimensions, frame count and complete

@@ -122,8 +122,8 @@ The base development install does not include all dependencies imported by the f
 
 Before running the trial pipeline:
 
-- Configure the separate pose environment using the [pose extraction requirements and GPU setup notes](src/bst_x/preparing_data/requirements.txt).
-- Set `BADMINTON_TRACKNET_PYTHON` and `BADMINTON_POSE_PYTHON` to the Python executables for the extraction environments.
+- Pose extraction and court detection share the root project environment; [the court setup guide](docs/court_detector/usage.md#cuda-pose-inference) covers CUDA dependencies.
+- `BADMINTON_TRACKNET_PYTHON`, `BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON` identify the Python executables used by the extraction stages. All three can point to the root project's `.venv/bin/python`.
 - Supply the TrackNet, InpaintNet and court model weights at the paths in [`configs/dataset_builder/trial.toml`](configs/dataset_builder/trial.toml), or update the configuration to match their locations.
 - Set `GEMINI_API_KEY` for the trial's enabled commentary stage. Full vision processing also needs FFmpeg and a suitable GPU environment.
 

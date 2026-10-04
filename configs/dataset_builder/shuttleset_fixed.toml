@@ -10,6 +10,7 @@ result_count = 1
 match = ["fixed ShuttleSet source"]
 
 [environment]
+# These variables can all point to the root project's .venv/bin/python.
 tracknet_python = "BADMINTON_TRACKNET_PYTHON"
 pose_python = "BADMINTON_POSE_PYTHON"
 court_python = "BADMINTON_COURT_PYTHON"

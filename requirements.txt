@@ -1,47 +1,47 @@
-# Pinned dependency set for CI (single source of truth: uv.lock).
+# Shared dependencies for CI and pip-based installs. Python 3.12 or newer.
+# Package versions come from uv.lock; ./scripts/gen-requirements.sh --check
+# reports differences after a dependency update. See docs/ci.md.
 #
-# Pins are taken from the uv lockfile. After changing dependencies in
-# pyproject.toml (and `uv lock`), update them with:
-#   ./scripts/gen-requirements.sh --check     # reports any pin that drifted from uv.lock
-# then bump the versions below to match. See docs/ci.md.
-#
-# torch / torchvision are intentionally LEFT UNPINNED here. CI installs their
-# CPU builds first from the PyTorch index, so pip sees them as already satisfied.
-# Pinning them here would fight that step because the lockfile resolves torch to
-# a `+cu128` build on Linux.
+# CI installs CPU builds of torch and torchvision before this file. They remain
+# unpinned here so pip can use those builds rather than the Linux CUDA wheels
+# recorded in uv.lock. uv sync installs the project's configured CUDA builds.
 
-# --- ML & Data ---
-torch                 # installed via explicit --index-url before this file; unpinned on purpose
-torchvision           # ditto
+# Models and numerical analysis
+torch
+torchvision
 numpy==2.5.3
-numba==0.68.0               # Court line-support scoring on the CPU
-llvmlite==0.50.0            # Numba compiler runtime
+numba==0.68.0                # Compiles court-scoring functions
+llvmlite==0.50.0             # Compiler library used by Numba
 pandas==3.0.6
 matplotlib==3.10.9
 scipy==1.18.1
-scikit-learn==1.9.1
-joblib==1.6.0                # Hybrid annotator model loading
-cloudpickle==3.1.2           # joblib serialisation
-narwhals==2.26.0             # scikit-learn dataframe inputs
-threadpoolctl==3.6.0         # Match the lockfile's numerical thread control
-opencv-python==5.0.0.93      # cv2; classifier video metadata and video tests
-scenedetect==0.7.1     # scene cuts and image hashes; uses the OpenCV package above
-ultralytics==8.4.50          # YOLO11 + ByteTrack; perception/players.py + scripts/preprocess_videos.py
-positional-encodings==6.0.4  # Positional encoding layers used by BST-X transformer model (bst_x/model/)
-torchinfo==1.8.0             # Model summary utility used by tempose.py in the BST-X model module
-tensorboard==2.20.0          # Backs torch.utils.tensorboard.SummaryWriter (imported at module load in bst_x_train.py)
-torcheval==0.0.7             # multiclass_f1_score used in the bst_x_train training loop
-transformers==5.8.1          # HuggingFace; provides get_cosine_schedule_with_warmup for the bst_x_train LR schedule
-httpx==0.28.1                # Indirect transport dependency of transformers via huggingface-hub
-pyyaml==6.0.3                # tests/test_active_classes.py reads taxonomy YAMLs
-parse==1.22.0                # TrackNetV3 vendor dep (src/shared/tracknetv3)
+scikit-learn==1.9.1          # Matches the included annotator model
+joblib==1.6.0                # Loads annotator models
+cloudpickle==3.1.2           # Serialisation used by joblib
+narwhals==2.26.0             # Dataframe support in scikit-learn
+threadpoolctl==3.6.0         # Controls numerical-library thread pools
 
-# --- Testing & Infrastructure ---
-pytest==9.0.3
+# Video, court detection and pose extraction
+opencv-python==5.0.0.93
+opencv-contrib-python==5.0.0.93  # RTMLib needs both wheels; their shared cv2 package needs matching versions
+rtmlib==0.0.15               # Person detection and pose estimation
+onnxruntime==1.27.0          # CPU inference; CUDA setup is in docs/court_detector/usage.md
+flatbuffers==25.12.19        # Binary serialisation used by ONNX Runtime
+scenedetect==0.7.1           # Scene cuts and image hashes
+ultralytics==8.4.50          # Player detection and tracking for BRIC
+parse==1.22.0                # TrackNetV3 filename parsing
 
-# bst_x subproject has complex dependencies; so requires 2-3 separate venvs depending on how you run it.
-# No longer requires Python <=3.11 since pose moved to RTMLib.
+# Classifier training and evaluation
+positional-encodings==6.0.4  # Position information for BST-X transformer inputs
+torchinfo==1.8.0             # Model summaries
+tensorboard==2.20.0          # Training logs
+torcheval==0.0.7             # F1 scores
+transformers==5.8.1          # Learning-rate schedules
+httpx==0.28.1                # HTTP client used by Hugging Face downloads
 
+# Configuration, runtime checks and tests
+pyyaml==6.0.3
 jaxtyping
 beartype
-frozendict>=2.4,<3           # Hyp's immutable dict defaults (bst_x_train); matches the pyproject pin
+frozendict>=2.4,<3           # Immutable training settings
+pytest==9.0.3
