@@ -19,6 +19,7 @@ from annotator.sequence import (
 )
 from annotator.sequence.confidence import RallyConfidence, score_rally_confidence
 from annotator.types import StickyResult
+from shared.progress import report
 
 
 @dataclass(frozen=True)
@@ -95,15 +96,19 @@ def sequence_inputs(
 
 def predict_contacts(evidence: ContactEvidence, models: AnnotatorModels) -> HybridPrediction:
     """Build features once, score contacts and refine their rally sequences."""
+    report("building contact features")
     features = features_from_evidence(evidence)
+    report("scoring contact candidates")
     contacts = score_contact_features(
         features.rows, models.contact, evidence.fps, models.contact_settings,
         shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
     )
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
+    report("refining rally sequences")
     refined = refine_contact_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
     )
+    report("scoring rally confidence")
     confidence = score_rally_confidence(refined, models.confidence, models.sequences.insertion, evidence.fps)
     return HybridPrediction(features, contacts, refined, confidence)

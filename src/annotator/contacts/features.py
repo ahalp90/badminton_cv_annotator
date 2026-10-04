@@ -14,6 +14,7 @@ from typing import NamedTuple
 import numpy as np
 
 from annotator.types import SmoothingMode, StickyResult
+from shared.progress import progress_iter
 
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
 RELAXED_IMPULSE_MULTIPLE = 1.25
@@ -375,7 +376,7 @@ def build_contact_features(
     )
     dtype = contact_feature_dtype()
     chunks: list[np.ndarray] = []
-    for interval_id, (start, end) in enumerate(search_intervals):
+    for interval_id, (start, end) in enumerate(progress_iter(search_intervals, "building contact features", unit="intervals")):
         frames = np.arange(start, end, dtype=np.int32)
         rows = np.zeros(len(frames), dtype=dtype)
         rows["interval_id"] = interval_id

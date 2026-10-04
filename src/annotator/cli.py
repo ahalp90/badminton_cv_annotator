@@ -3,6 +3,7 @@
 import argparse
 from collections.abc import Sequence
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -81,7 +82,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument('--video-id', required=True, help='Video directory name within each extraction stage')
     parser.add_argument('--models', required=True, type=Path, help='Directory containing the fitted annotator bundle')
     parser.add_argument('--output-dir', required=True, type=Path, help='New or empty directory for annotation results')
+    parser.add_argument('--progress', choices=('auto', 'on', 'off'), default='auto',
+                        help='Terminal progress: auto on a TTY, on to force, off for plain logs')
     arguments = parser.parse_args(argv)
-    output = annotate_saved_video(arguments.run_dir, arguments.video_id, arguments.models, arguments.output_dir)
+    from dataset_builder.progress import RunProgress
+
+    display = RunProgress(SimpleNamespace(fixed_sources=None, commentary_enabled=True, pose_shards=1),
+                          ('annotation',), arguments.progress,
+                          log_dir=arguments.output_dir.parent / 'terminal-logs')
+    name = f'annotation:{arguments.video_id}'
+    with display.stage(name) as stage:
+        output = annotate_saved_video(arguments.run_dir, arguments.video_id, arguments.models, arguments.output_dir)
+    if display.enabled:
+        from dataset_builder.models import StageOutcome
+
+        display.finish(name, SimpleNamespace(outcome=StageOutcome.PROCESSED, reused=False, reason=None),
+                       SimpleNamespace(counts=(('rallies', len(output.run.result.spans)),)), stage)
     print(f'Saved {len(output.run.result.spans)} rallies to {output.artifacts.result}')
     return 0

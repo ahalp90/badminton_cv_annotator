@@ -2738,3 +2738,20 @@ def test_runtime_support_owns_paths_interpreters_and_isolated_typed_state(
     assert first.ffmpeg_interpreter is None
     first.state.active_ids.add("video")
     assert second.state.active_ids == set()
+
+
+def test_terminal_progress_preserves_stage_order_outputs_and_resume(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "trial.toml")
+    run_dir = tmp_path / "run"
+    first = _FixtureControl()
+    result = cli.run_dataset_builder(config, run_dir, runtime_factory=_factory(first), progress="on")
+    assert first.executed == list(cli.PHASE_ORDER)
+    assert [event.name for event in result.events] == list(cli.PHASE_ORDER)
+    assert all(event.outcome is StageOutcome.PROCESSED for event in result.events)
+    before = {path.name: path.read_bytes() for path in (run_dir / "fixture").iterdir()}
+    second = _FixtureControl()
+    resumed = cli.run_dataset_builder(config, run_dir, runtime_factory=_factory(second), progress="on")
+    assert second.executed == []
+    assert second.restored == list(cli.PHASE_ORDER)
+    assert all(event.reused for event in resumed.events)
+    assert before == {path.name: path.read_bytes() for path in (run_dir / "fixture").iterdir()}
