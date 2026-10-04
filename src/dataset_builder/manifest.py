@@ -125,7 +125,7 @@ def resolve_interpreter(
     *,
     version_option: str = "--version",
 ) -> InterpreterIdentity:
-    """Resolve an executable and capture its version string."""
+    """Locate an executable and capture its version without bypassing its venv."""
     requested = os.fspath(executable)
     located = shutil.which(requested)
     if located is None:
@@ -133,7 +133,10 @@ def resolve_interpreter(
         if not candidate.is_file():
             raise FileNotFoundError(f"interpreter is not an executable file: {requested}")
         located = os.fspath(candidate)
-    path = Path(located).resolve(strict=True)
+    # Keep the configured launch path: resolving a venv Python symlink
+    # launches the base interpreter without the venv's site-packages.
+    path = Path(os.path.abspath(located))
+    path.resolve(strict=True)  # Validate the target without using it to launch.
     if not os.access(path, os.X_OK):
         raise PermissionError(f"interpreter is not executable: {path}")
     try:
