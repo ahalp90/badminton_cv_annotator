@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from annotator.calibration.shuttleset22_features import (
+from annotator.evaluation.shuttleset22_features import (
     _player_slot,
     _require_digest,
     _validate_identity,

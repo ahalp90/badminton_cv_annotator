@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.calibration.shuttleset_features import (
+from annotator.courts.evidence import detected_court_info
+from annotator.evaluation.shuttleset_features import (
     InterpolationType,
     ShuttleFeatureInputs,
     coordinate_error_summary,
@@ -24,12 +25,11 @@ from annotator.calibration.shuttleset_features import (
     rally_duration_base30,
     rally_timestamps,
     recovery_at_opponent_contacts,
+    score_contact_coordinates,
     select_sticky_keypoints,
     serve_speed_proxy,
-    score_contact_coordinates,
     tanh_degradation,
 )
-from annotator.court_evidence import detected_court_info
 
 
 def test_sticky_selection_and_posture_formula() -> None:

@@ -12,7 +12,8 @@ from time import perf_counter
 import cv2
 import numpy as np
 
-from annotator.court_views import CourtView, describe_court_view
+from annotator.courts.views import CourtView
+from annotator.courts.views import describe_court_view
 from courtkeynet.court_corners import pick_scene_corners
 from courtkeynet.wrapper import CourtKeyNetDetector
 

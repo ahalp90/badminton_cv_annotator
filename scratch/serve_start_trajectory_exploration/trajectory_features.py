@@ -10,7 +10,7 @@ from typing import Literal, NamedTuple
 import numpy as np
 
 from annotator.fps_constants import ScalingKind
-from annotator.point_winner import Half, _phase_assignment
+from annotator.outcomes.point_winner import Half, alternating_player_sides
 from annotator.types import true_runs
 
 MIN_PATH_FRAMES = 5
@@ -456,4 +456,4 @@ def first_player_from_final_half(final_half: Half | None, contact_count: int) ->
         raise ValueError("contact_count must be positive when final_half is fitted")
     if final_half is None:
         return None
-    return _phase_assignment(final_half, count)[0]
+    return alternating_player_sides(final_half, count)[0]

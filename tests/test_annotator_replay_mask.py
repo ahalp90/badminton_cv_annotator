@@ -10,14 +10,14 @@ import warnings
 import numpy as np
 import pytest
 
-import annotator.replay_mask as replay_mask_module
+import annotator.masks.replay as replay_mask_module
 from annotator.config import (
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
 )
 from annotator.fps_constants import scale_for_fps
-from annotator.inpaint_guard import FABRICATED, code_counts, grade_track
-from annotator.replay_mask import (
+from annotator.masks.inpaint import FABRICATED, code_counts, grade_track
+from annotator.masks.replay import (
     HOMOGRAPHY_CORNER_COLS,
     _cli_non_evidence,
     combine_mask,
@@ -312,7 +312,7 @@ def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     n_frames = 30
     track = _speed_track(0.1, n_frames) if case == 'all-excluded' else np.zeros((n_frames, 3))
     baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else None
-    caplog.set_level(logging.INFO, logger='annotator.replay_mask')
+    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
@@ -469,7 +469,7 @@ def _cli_fabricated_track() -> np.ndarray:
 def test_cli_non_evidence_grades_rejected_frames_and_logs_counts(caplog):
     track = _cli_fabricated_track()
     codes, _info = grade_track(track)
-    caplog.set_level(logging.INFO, logger='annotator.replay_mask')
+    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
 
     result = _cli_non_evidence(track)
 
@@ -518,7 +518,7 @@ def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
     raw[:14] = True
     raw[20:] = True
     monkeypatch.setattr(replay_mask_module, 'combine_mask', lambda *args, **kwargs: raw.copy())
-    caplog.set_level(logging.INFO, logger='annotator.replay_mask')
+    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
 
     monkeypatch.setattr(sys, 'argv', [
         'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),

@@ -289,7 +289,7 @@ def build_validation_rally_predictions(
     if SOURCE_COMMIT.fullmatch(source_commit) is None:
         raise ValueError("source commit must be a short or full Git commit")
     if side_attributor is None:
-        from annotator.point_winner import attribute_half
+        from annotator.outcomes.point_winner import attribute_half
 
         side_attributor = attribute_half
 

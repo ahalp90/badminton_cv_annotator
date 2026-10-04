@@ -19,7 +19,7 @@ WORKSET = Path(__file__).resolve().parents[1]
 ANALYSIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO / "src"))
 
-from annotator import inpaint_guard  # noqa: E402
+from annotator.masks import inpaint as inpaint_guard  # noqa: E402
 
 
 FIXTURES = {"sset_01": 1, "sset_15": 15, "sset_21": 21}
@@ -146,7 +146,7 @@ def split_recurrence_components(
     halo_frames = inpaint_guard.DEFAULT_HALO_FRAMES
     # Grade 3 does not expose its two components. This analysis-only
     # reconstruction follows the current internals and asserts exact agreement.
-    _, _, varying, flat, _ = inpaint_guard._candidate_attractors(
+    _, _, varying, flat, _ = inpaint_guard.candidate_attractors(
         track, window, halo_frames
     )
     proven = inpaint_guard._cover(len(track), varying, window)

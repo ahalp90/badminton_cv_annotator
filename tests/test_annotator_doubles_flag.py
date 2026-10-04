@@ -19,7 +19,6 @@ from annotator import config
 from annotator.doubles_flag import doubles_flag, read_whole_video_flags
 from annotator.run_video import AnnotatorResult
 
-
 # -- Span-fraction boundary: strict greater-than -----------------------------
 
 

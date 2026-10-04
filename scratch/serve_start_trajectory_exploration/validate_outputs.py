@@ -398,7 +398,7 @@ def _validate_frozen_sources(rallies: pd.DataFrame, spans: pd.DataFrame) -> None
         sys.path.insert(0, str(source_root))
     import experiment_data
 
-    from annotator import point_winner
+    from annotator.outcomes import point_winner
 
     shared_gt_tables = experiment_data.load_gt_tables()
     expected_fixtures = {fixture.name for fixture in experiment_data.FIXTURES}

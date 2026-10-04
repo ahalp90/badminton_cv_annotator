@@ -117,6 +117,7 @@ class BuilderConfig:
     commentary_clean_model: str
     commentary_api_key_environment: str
     fixed_sources: FixedSourceConfig | None = None
+    annotator_model_dir: Path = REPO_ROOT / 'models' / 'annotator'
 
 
 @dataclass(frozen=True)
@@ -229,6 +230,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
     environment = _section(payload, "environment", {"tracknet_python", "pose_python", "court_python"})
     models = _section(
         payload, "models", {"tracknet_dir", "tracknet", "inpaint", "deeplsd_source", "deeplsd_weights"},
+        optional_fields=frozenset({'annotator'}),
     )
     vision = _section(
         payload,
@@ -314,6 +316,7 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         inpaint_model=inpaint_model,
         deeplsd_source=_repo_path(models["deeplsd_source"], "models.deeplsd_source", repo_root),
         deeplsd_weights=_repo_path(models["deeplsd_weights"], "models.deeplsd_weights", repo_root),
+        annotator_model_dir=_repo_path(models.get('annotator', 'models/annotator'), 'models.annotator', repo_root),
         tracknet_workers=_positive_integer(
             vision["tracknet_workers"], "vision.tracknet_workers",
         ),

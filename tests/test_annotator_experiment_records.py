@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from pathlib import Path
 import subprocess
 import tarfile
+from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
-import annotator.experiment_records as records
 from annotator.artifact_io import read_json_object, write_json_object
+from experiments.annotator import records
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
@@ -70,10 +70,10 @@ def test_utc_directory_naming_and_collision_rejection(tmp_path: Path, monkeypatc
     assert path.name == "20260730-183124"
     path.mkdir(parents=True)
     with pytest.raises(ValueError, match="already exists"):
-        import annotator.e2e_court_annotator as runner
+        import experiments.annotator.measurement as runner
         monkeypatch.setattr(runner, "utc_run_directory", lambda: path)
         program = runner.CourtProgram(tmp_path / "python", tmp_path / "DeepLSD")
-        runner._run_cli_measurement(tmp_path / "missing.json", "cpu", ("runner",), program)
+        runner._run_cli_measurement(tmp_path / "missing.json", "cpu", ("runner",), program, tmp_path / "models")
 
 
 @pytest.mark.parametrize("repository_name", ["badminton_cv_annotator", "badminton_stroke_classification"])
@@ -86,7 +86,7 @@ def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_fai
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    import annotator.e2e_court_annotator as runner
+    import experiments.annotator.measurement as runner
 
     run = tmp_path / "experiments" / "annotator" / "runs" / "20260730-183124"
     program = runner.CourtProgram(tmp_path / "python", tmp_path / "DeepLSD")
@@ -101,10 +101,10 @@ def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_fai
 
     monkeypatch.setattr(runner, "write_summary_and_report", write_records)
     monkeypatch.setattr(runner, "clean_run", lambda _path: (events.append("clean") or None))
-    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program) == 0
+    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program, tmp_path / "models") == 0
     assert events == ["report", "clean"]
     monkeypatch.setattr(runner, "run_annotator_measurement", lambda *_args, **_kwargs: 3)
-    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program) == 3
+    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program, tmp_path / "models") == 3
     assert events == ["report", "clean"]
     monkeypatch.setattr(runner, "run_annotator_measurement", lambda *_args, **_kwargs: 0)
 
@@ -112,7 +112,7 @@ def test_cli_writes_records_before_cleaning_and_skips_them_after_measurement_fai
         raise KeyError("status")
 
     monkeypatch.setattr(runner, "write_summary_and_report", fail_summary)
-    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program) == 1
+    assert runner._run_cli_measurement(tmp_path / "input.json", "cpu", ("runner",), program, tmp_path / "models") == 1
     assert "measurement completed" in capsys.readouterr().err
 
 

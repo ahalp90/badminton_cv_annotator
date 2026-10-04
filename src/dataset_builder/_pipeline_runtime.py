@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import sys
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import replace
-import os
 from pathlib import Path, PurePosixPath
-import shutil
-import sys
 
-from annotator.config import BaseAnnotatorConfig
-from annotator.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.models import model_files
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.video_metadata import probe_video_metadata
 from dataset_builder._runtime_support import (
     RuntimeSupport,
@@ -22,7 +22,11 @@ from dataset_builder._runtime_support import (
     _valid_selection,
     _write_candidates_snapshot,
 )
-from dataset_builder._vision_plans import pose_plans, shuttle_plans, tracknet_input_plans
+from dataset_builder._vision_plans import (
+    pose_plans,
+    shuttle_plans,
+    tracknet_input_plans,
+)
 from dataset_builder.artifact_index import (
     VIDEO_ARTIFACT_INDEX_SCHEMA,
     artifact_index_input_manifest,
@@ -44,7 +48,11 @@ from dataset_builder.fixed_sources import (
     save_fixed_acquisition,
     select_fixed_source_entries,
 )
-from dataset_builder.manifest import load_run_manifest, resolve_interpreter, run_manifest_sha256
+from dataset_builder.manifest import (
+    load_run_manifest,
+    resolve_interpreter,
+    run_manifest_sha256,
+)
 from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.records import (
     RALLY_RECORD_COLLECTION_SCHEMA,
@@ -69,12 +77,20 @@ from dataset_builder.selection import (
 )
 from dataset_builder.shuttle_evidence import shuttle_evidence_artifacts
 from dataset_builder.tracknet_input import load_tracknet_input
-from dataset_builder.vision import RAW_REPLAY_MASK_FILENAME, run_full_annotation_stage, save_json_gz
-from scraper import commentary_cleaning, config as scraper_config
-from scraper import download_scraped_videos, relevance_triage, search_index
-from scraper import transcript_acquisition
+from dataset_builder.vision import (
+    RAW_REPLAY_MASK_FILENAME,
+    run_full_annotation_stage,
+    save_json_gz,
+)
+from scraper import (
+    commentary_cleaning,
+    download_scraped_videos,
+    relevance_triage,
+    search_index,
+    transcript_acquisition,
+)
+from scraper import config as scraper_config
 from scraper.commentary_pairing import pair_video_with_metadata
-
 
 METADATA_FILENAME = "video_metadata.json.gz"
 PAIRING_FILENAME = "commentary_pairing.json.gz"
@@ -133,6 +149,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
             missing.append("DeepLSD source")
         if missing:
             raise FileNotFoundError(f"required model files are unavailable: {missing}")
+        _ = self.annotator_models
         self._prepare_fixed_sources()
 
     def preflight_replay(self) -> None:
@@ -156,6 +173,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
         missing = [name for name, path in required_files.items() if not path.is_file()]
         if missing:
             raise FileNotFoundError(f"required replay model files are unavailable: {missing}")
+        _ = self.annotator_models
         self._prepare_fixed_sources()
 
     def prepare_annotation_replay(self, manifest: RunManifest) -> tuple[str, ...]:
@@ -1012,6 +1030,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,
+                models=self.annotator_models,
             )
             self.state.annotations[video_id] = annotation
             return StageExecution(
@@ -1042,6 +1061,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
             ),
             command=(self._current().path, "-m", "annotator.run_video", video_id),
             configuration=_annotation_configuration(),
+            model_weights=model_files(self.config.annotator_model_dir),
             inputs=inputs,
             execute=execute,
             restore=lambda: self._restore_annotation(video_id, output_dir),
@@ -1460,19 +1480,7 @@ def _projection_input_manifest(manifest: RunManifest) -> RunManifest:
 
 
 def _annotation_configuration() -> dict[str, object]:
-    base = BaseAnnotatorConfig()
+    # The fingerprinted model bundle carries its fitted preprocessing settings.
     return {
-        "thresholds": dict(base.thresholds._asdict()),
-        "dead_mask_mode": base.dead_mask_mode.value,
-        "smoothing_mode": base.smoothing_mode.value,
-        "overrides_base30": base.overrides_base30,
-        "span_open": None if base.span_open is None else base.span_open.value,
-        "gap_state_demotion_bound": base.gap_state_demotion_bound,
-        "reentry_guard_variant": (
-            None if base.reentry_guard_variant is None else base.reentry_guard_variant.value
-        ),
-        "reentry_guard_buffer": base.reentry_guard_buffer,
-        "quiet_start_window": base.quiet_start_window,
-        "rejected_grades": sorted(base.rejected_grades),
         "landing_filter": dict(SHIPPED_LANDING_FILTER_OPTIONS._asdict()),
     }

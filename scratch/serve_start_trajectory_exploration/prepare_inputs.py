@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.calibration.fixtures import FIXTURES, Fixture
+from annotator.evaluation.fixtures import FIXTURES, Fixture
 
 RUN_DIR = Path(__file__).resolve().parent
 REPO_ROOT = RUN_DIR.parents[1]

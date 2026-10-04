@@ -2,47 +2,41 @@
 name = "badminton-cv-annotator"
 version = "0.1.0"
 description = "Badminton video auto-annotation pipeline with optional BST-X and BRIC stroke classification."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
-# ---------------------------------------------------------------------------
-# Shared base — installed by every `uv sync`.
-# These deps are shared by the annotator and classifier pipelines.
-# Architecture-specific deps go in the extras groups below.
+# Shared environment for annotation, court detection, pose extraction and
+# classifier inference. Optional packages for training and development follow.
 #
-# Compatible coexistence notes:
-#   - BRIC and BST-X inference can share one venv. Both use PyTorch,
-#     TrackNetV3 and opencv.
-#   - **Pose extraction runs in its own dataset-build venv.** The 2D extraction
-#     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
-#     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
-#     isolation, but still lives in a separate build venv managed outside this
-#     pyproject. The numpy<2 OpenMMLab stack remains for reference (src/bst_x/preparing_data/requirements-legacy-3d.txt).
-#   - Therefore numpy>=2 is fine for everything in this pyproject. Modern
-#     TrackNetV3 (per the vendored requirements.txt header) supports it.
+# Examples:
+#   uv sync --extra dev                                  # Development tools
+#   uv sync --extra bric --extra dev                     # BRIC training
+#   uv sync --extra bric-runtime --extra bst-x-runtime   # Both classifiers
 #
-# Install patterns:
-#   - BRIC training:                     uv sync --extra bric --extra dev
-#   - BRIC inference only:               uv sync --extra bric-runtime
-#   - Both classifier architectures:     uv sync --extra bric-runtime --extra bst-x-runtime
-#   - Dev tooling only (lint / tests):   uv sync --extra dev
-# ---------------------------------------------------------------------------
+# RTMLib uses CPU ONNX Runtime by default. CUDA setup is described in
+# docs/court_detector/usage.md.
 dependencies = [
     # Core ML — both architectures are PyTorch models
     "torch>=2.5",
     "torchvision",
     # Numerics
-    "numpy",
-    "numba==0.67.0",
-    "pandas",
-    "scipy",
+    "numpy>=2.5.3",
+    "numba>=0.68.0",
+    "pandas>=3.0.6",
+    "scipy>=1.18.1",
+    # Hybrid annotator contact and sequence trees.
+    "scikit-learn==1.9.1",  # Must match the shipped annotator model.
+    "joblib>=1.6.0",
     # Video / image I/O
-    "opencv-python",
+    "opencv-python==5.0.0.93",
+    "opencv-contrib-python==5.0.0.93",  # RTMLib requires both wheels; their shared cv2 package needs matching versions.
+    "rtmlib==0.0.15",  # Shared person detection and pose estimation.
+    "onnxruntime==1.27.0",  # CPU inference; CUDA setup uses onnxruntime-gpu.
     "scenedetect==0.7.1",
     "Pillow",
     # Vendored TrackNetV3 runtime deps (both arches do shuttle tracking)
     "tqdm",
     "parse",
-    "pycocotools",     # used by TrackNetV3 inference_utils; if the ARM64 wheel install fails, patch and drop
+    "pycocotools",     # TrackNetV3 mask utilities.
     # Config
     "pyyaml",
     # Runtime type + shape enforcement for tensor-shape/dtype contracts.
@@ -91,26 +85,15 @@ bric = [
     "badminton-cv-annotator[bric-runtime,bric-train]",
 ]
 
-# BST-X classifier runtime deps for in-process inference.
-#
-# **Pre-populated as a starting guess** from the project's existing
-# requirements.txt (which is BST-X's source of truth). Comments mirror the
-# usage notes from that file. The BST-X pipeline owner should prune this
-# down to inference-only deps once the in-process adapter is implemented. Training-only
-# tooling (tensorboard, matplotlib, etc.) can move to a future
-# `bst-x-train` extras group.
-#
-# Pose extraction (rtmlib) deliberately omitted; it runs in its own
-# dataset-build venv (src/bst_x/preparing_data/requirements.txt), outside the
-# root project environment.
+# BST-X inference also imports packages used by its training modules.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)
     "torchinfo",              # Model summary utility (imported by tempose.py)
-    "torcheval",              # multiclass_f1_score; may be used at eval time
-    "transformers",           # HF cosine LR schedule (training); in case shared modules import
+    "torcheval",              # F1 scores during evaluation
+    "transformers",           # Learning-rate scheduler imported by training modules
     "tensorboard",            # SummaryWriter; module-load import in bst_x_train.py
     "scikit-learn",           # Eval / preprocessing utilities
-    "matplotlib",             # Plots; rarely needed at inference, BST-X owner can drop
+    "matplotlib",             # Evaluation plots
 ]
 
 # Dev tooling.
@@ -120,19 +103,12 @@ dev = [
     "ruff",   # configured in [tool.ruff] below; invoke via `uv run ruff check`
 ]
 
-# uv-managed PyTorch sources: on Linux, pull torch + torchvision from
-# PyTorch's CUDA wheel index so we get prebuilt CUDA wheels (works for
-# both x86_64 and aarch64). On macOS, uv falls back to the default PyPI
-# wheels (MPS-capable on Apple Silicon).
-#
-# cu128 is the default — recent enough to support current-generation
-# GPUs. If your training host has a different CUDA driver version, pick
-# the matching index — see docs/training_env_setup.md for the table.
-# Available channels include cu121, cu124, cu126, cu128, plus nightly:
-#   url = "https://download.pytorch.org/whl/nightly/cu128"
+# Linux uses CUDA 13 PyTorch builds to match ONNX Runtime 1.27 GPU inference.
+# macOS uses the PyPI builds, including MPS support on Apple Silicon.
+# Setup and driver requirements are described in docs/training_env_setup.md.
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.uv.sources]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import gzip
 from pathlib import Path
@@ -14,7 +15,6 @@ import matplotlib.pyplot as plt
 
 from scratch.contact_det_closing_pass.scripts.run_serve_followups import (
     OUTPUT,
-    ROOT,
     VARIANTS,
 )
 from scratch.contact_det_followup.scripts.prediction_io import read_json
@@ -77,7 +77,7 @@ def write_population(population: str, payload: dict) -> str:
     return text
 
 
-def save_csv(payloads: dict) -> None:
+def save_csv(payloads: dict, path: Path) -> None:
     rows = []
     for population, payload in payloads.items():
         for variant, tolerances in payload["variants"].items():
@@ -85,7 +85,8 @@ def save_csv(payloads: dict) -> None:
                 for video in result["by_video"]:
                     rows.append({"population": population, "detector": variant, "tolerance_base30": tolerance, **video})
     fields = sorted({key for row in rows for key in row})
-    with gzip.open(OUTPUT / "serve_per_video.csv.gz", "wt", encoding="utf-8", newline="") as handle:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
@@ -104,12 +105,16 @@ def timing_plot(payloads: dict, path: Path) -> None:
                  xlabel="Predicted − labelled serve time (base-30 frames)", ylabel="Matched serves")
         axis.set_xlim(-11, 11)
     figure.suptitle("Recommended detector: serve timing at ±10; dashed lines mark ±5")
+    path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=160)
     plt.close(figure)
 
 
-def run() -> None:
-    payloads = {population: read_json(OUTPUT / f"{population}_serves.json.gz") for population in ("development", "broader")}
+def run(serve_results: Path, report_dir: Path) -> None:
+    """Write serve_discovery.md, its figure and per-video CSV under report_dir, keeping the report's relative links."""
+    payloads = {
+        population: read_json(serve_results / f"{population}_serves.json.gz") for population in ("development", "broader")
+    }
     text = "# Serve discovery and server attribution\n\n"
     headline = payloads["broader"]["variants"]["recommended"]["10"]["total"]
     text += (
@@ -135,10 +140,22 @@ def run() -> None:
         text += write_population(population, payload) + "\n"
     text += "## Serve timing\n\n![Serve timing errors and missed serves for the recommended detector.](figures/serve_timing.png)\n\n"
     text += "[Per-video counts](results/serve_followups/serve_per_video.csv.gz) accompany the full saved rows and identity comparisons.\n"
-    (ROOT / "serve_tables.md").write_text(text, encoding="utf-8")
-    save_csv(payloads)
-    timing_plot(payloads, ROOT / "figures/serve_timing.png")
+    # summarise_metrics owns serve_tables.md, so this report keeps its own name.
+    report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "serve_discovery.md").write_text(text, encoding="utf-8")
+    save_csv(payloads, report_dir / "results/serve_followups/serve_per_video.csv.gz")
+    timing_plot(payloads, report_dir / "figures/serve_timing.png")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--serve-results", type=Path, default=OUTPUT, help="folder with development_serves and broader_serves files",
+    )
+    parser.add_argument("--report-dir", type=Path, required=True)
+    args = parser.parse_args()
+    run(args.serve_results, args.report_dir)
 
 
 if __name__ == "__main__":
-    run()
+    main()

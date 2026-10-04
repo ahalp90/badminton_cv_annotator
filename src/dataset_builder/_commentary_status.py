@@ -8,7 +8,6 @@ from pathlib import Path
 from dataset_builder.selection import COMMENTARY_FAILED
 from dataset_builder.vision import load_json_gz, save_json_gz
 
-
 _SCHEMA = "commentary-cleaning-status/0.1"
 
 

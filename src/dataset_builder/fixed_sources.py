@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+import re
+import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path, PurePosixPath
-import re
-import tomllib
 from urllib.parse import urlparse
 
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import ArtifactIntegrity
-
 
 FIXED_SOURCE_MANIFEST_SCHEMA = "dataset-builder-fixed-sources/1"
 FIXED_SOURCE_DATASET = "ShuttleSet"

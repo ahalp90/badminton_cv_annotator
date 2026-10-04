@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 import numpy as np
 
 if TYPE_CHECKING:
-    from annotator.court_evidence import CourtSceneRecord, SceneStatus
+    from annotator.courts.evidence import CourtSceneRecord, SceneStatus
 
 
 T = TypeVar("T")
@@ -34,7 +34,7 @@ def load_court_provenance(
 
 
 def _scene_record(payload: object, name: str) -> CourtSceneRecord:
-    from annotator.court_evidence import CourtSceneRecord
+    from annotator.courts.evidence import CourtSceneRecord
 
     record = _object(payload, name)
     expected = {field.name for field in fields(CourtSceneRecord)}
@@ -60,7 +60,7 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
 
 
 def _status(payload: object, name: str) -> SceneStatus:
-    from annotator.court_evidence import SceneStatus
+    from annotator.courts.evidence import SceneStatus
 
     try:
         return SceneStatus(_string(payload, name))
@@ -73,7 +73,7 @@ def _validate_scene_records(
     raw_cuts: Sequence[tuple[int, int]],
     video_id: str,
 ) -> None:
-    from annotator.court_evidence import SceneStatus
+    from annotator.courts.evidence import SceneStatus
 
     if len(records) != len(raw_cuts):
         raise ValueError("court scene record count differs from raw cuts")

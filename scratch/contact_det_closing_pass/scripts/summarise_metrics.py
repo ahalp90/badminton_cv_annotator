@@ -23,6 +23,7 @@ from scratch.contact_det_closing_pass.scripts.regenerate_figures import (
 )
 from scratch.contact_det_closing_pass.scripts.run_later_broader import restore_stream
 from scratch.contact_det_followup.scripts.prediction_io import read_json
+from scratch.contact_det_followup.scripts.score_followup import DEFAULT_LABELS
 from scratch.contact_det_followup.scripts.score_start_model import (
     _with_alternating_sides,
     apply_whole_rally_alternation,
@@ -51,12 +52,22 @@ STAGES = {
         "followups/early_boundary_broader_predictions_fixed_membership.json.gz", None, "Wider early shortlist",
     ),
 }
+# The chosen detector chain. The other stages are rejected or ablation experiments.
+SELECTED_STAGES = ("original", "opening", "combined", "later", "local", "recommended")
+# Closing-pass totals on the original 47 videos; only checked in reference mode.
+REFERENCE_STAGE_COMPLETE = {"original": 995, "opening": 1105, "combined": 1435, "later": 1597,
+                            "local": 1622, "boundaries": 1732, "recommended": 1763, "early": 1767}
+REFERENCE_CONTACTS = {"labelled": 38218, "predicted": 41605, "matched": 33716, "side_correct": 32667,
+                      "serve_matched": 2781, "serve_side_correct": 2647,
+                      "start_matched": 2624, "start_side_correct": 2536}
 SideRows = Mapping[tuple[str, str], tuple[str | None, ...]]
 
 
-def load_populations(annotations: Path) -> tuple[dict[str, HumanLabels], dict]:
+def load_populations(
+    annotations: Path, check_reference_counts: bool = True, trusted_labels: Path = DEFAULT_LABELS,
+) -> tuple[dict[str, HumanLabels], dict]:
     """Retain each source row's side, including conflicting sides at duplicate timestamps."""
-    retained = test_labels()
+    retained = test_labels(trusted_labels)
     names = pd.read_csv(annotations / "set/match.csv").set_index("id")["video"].to_dict()
     rallies, sides, side_rows = {}, {}, {}
     for fixture in retained.rallies:
@@ -77,8 +88,9 @@ def load_populations(annotations: Path) -> tuple[dict[str, HumanLabels], dict]:
             assert side_rows[fixture, rally.rally_id] == tuple(
                 retained.target_sides[fixture, frame] for frame in rally.frames
             )
-    assert sum(map(len, rallies.values())) == 3965
-    assert sum(len(rally.frames) for values in rallies.values() for rally in values) == 43159
+    if check_reference_counts:
+        assert sum(map(len, rallies.values())) == 3965
+        assert sum(len(rally.frames) for values in rallies.values() for rally in values) == 43159
     return {"retained": retained, "all_gt": HumanLabels(rallies, sides)}, side_rows
 
 
@@ -233,6 +245,8 @@ def stage_table(result: Mapping[str, Any]) -> str:
         ("recommended", "Final detector"),
         ("early", "Wider serve shortlist"),
     ):
+        if stage not in result["stages"]:
+            continue
         cells = [title]
         for population in ("retained", "all_gt"):
             counts = result["stages"][stage][population]
@@ -272,7 +286,7 @@ def selected_counts_table(result: Mapping[str, Any], tolerance: int = 10) -> str
     return "\n".join(lines)
 
 
-def write_table(result: Mapping[str, Any], path: Path) -> None:
+def write_table(result: Mapping[str, Any], path: Path, snapshot_note: bool = True) -> None:
     trusted = result["contacts"]["retained"]["10"]
     all_gt = result["contacts"]["all_gt"]["10"]
     selected = result["selected"]["retained"]["10"]
@@ -333,28 +347,51 @@ def write_table(result: Mapping[str, Any], path: Path) -> None:
         (
             '```bash\nPYTHONPATH="$PWD/src:$PWD" ~/.venvs/badminton-cicd/bin/python \\\n'
             "  -m scratch.contact_det_closing_pass.scripts.summarise_metrics \\\n"
-            "  --annotations /path/to/ShuttleSet22\n```"
+            "  --annotations /path/to/ShuttleSet22 \\\n"
+            "  --report-dir local_scratch/contact-report"
+            + (" --reference-check" if snapshot_note else " --results /path/to/results")
+            + "\n```"
         ),
         (
-            "The script rebuilds the counts and figures from saved predictions, checks the trusted-GT results "
-            "against the saved experiments, and writes `results/metric_summary.json.gz`. "
+            "The script rebuilds the counts and figures from saved predictions and writes "
+            "`results/metric_summary.json.gz` under the report directory. "
+            "Use `--reference-check` to check the original closing-pass totals. "
             "It does **not** retrain models or rerun vision."
         ),
         "Clip review notes: `results/selected_clip_review.csv`.\n",
     ]
+    if not snapshot_note:
+        # The note dates the original closing-pass numbers, so a fresh run must not inherit it.
+        del paragraphs[1]
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n\n".join(paragraphs))
 
 
-def run(annotations: Path, results: Path, table: Path) -> None:
-    populations, sides = load_populations(annotations)
+def check_reference(result: Mapping[str, Any]) -> None:
+    """Fail unless the run reproduces the original closing-pass counts exactly."""
+    for stage, stage_result in result["stages"].items():
+        assert stage_result["retained"]["10"]["unique_complete"] == REFERENCE_STAGE_COMPLETE[stage], stage
+    counts = result["contacts"]["retained"]["10"]
+    for key, value in REFERENCE_CONTACTS.items():
+        assert counts[key] == value, (key, counts[key], value)
+
+
+def run(
+    annotations: Path, results: Path, report_dir: Path, reference_check: bool, selected_only: bool,
+    trusted_labels: Path = DEFAULT_LABELS,
+) -> None:
+    """Write the summary, table and figures under report_dir, mirroring the closing-pass layout."""
+    writes_original_report = report_dir.resolve() == ROOT
+    if writes_original_report and (selected_only or not reference_check):
+        raise SystemExit(f"{ROOT} holds the original report; rewrite it only with --reference-check and all stages")
+    populations, sides = load_populations(annotations, reference_check, trusted_labels)
     acceptance = read_json(results / "serve_followups/chosen_acceptance_broader.json.gz")
     threshold = acceptance["frozen_policies"]["gap"]["comparison"]["threshold"]
     accepted = {(row["fixture"], row["span_id"]): row for row in acceptance["rows"] if row["gap_score"] >= threshold}
-    expected = {"original": 995, "opening": 1105, "combined": 1435, "later": 1597,
-                "local": 1622, "boundaries": 1732, "recommended": 1763, "early": 1767}
     result: dict[str, Any] = {"schema": "contact-metric-summary/1", "selection_threshold": threshold,
                               "stages": {}, "contacts": {}, "selected": {}, "selected_rows": {}}
-    for stage in STAGES:
+    stages = SELECTED_STAGES if selected_only else tuple(STAGES)
+    for stage in stages:
         stream, fps = load_stream(results, stage)
         stage_result = {}
         for population, labels in populations.items():
@@ -376,26 +413,34 @@ def run(annotations: Path, results: Path, table: Path) -> None:
                     str(tolerance): full_stream_counts(stream, labels, sides, fps, tolerance)
                     for tolerance in (10, 5)
                 }
-        assert stage_result["retained"]["10"]["unique_complete"] == expected[stage]
         result["stages"][stage] = stage_result
         print(stage, {key: value["10"]["unique_complete"] for key, value in stage_result.items()}, flush=True)
-    counts = result["contacts"]["retained"]["10"]
-    for key, value in {"labelled": 38218, "predicted": 41605, "matched": 33716, "side_correct": 32667,
-                       "serve_matched": 2781, "serve_side_correct": 2647,
-                       "start_matched": 2624, "start_side_correct": 2536}.items():
-        assert counts[key] == value, (key, counts[key], value)
-    write_json(results / "metric_summary.json.gz", result)
-    write_table(result, table)
-    regenerate_metric_figures(result, results=results)
+    if reference_check:
+        check_reference(result)
+    write_json(report_dir / "results/metric_summary.json.gz", result)
+    write_table(result, report_dir / "serve_tables.md", snapshot_note=reference_check)
+    regenerate_metric_figures(result, report_dir / "figures", results, historical=not selected_only)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--annotations", type=Path, required=True)
-    parser.add_argument("--results", type=Path, default=ROOT / "results")
-    parser.add_argument("--table", type=Path, default=ROOT / "serve_tables.md")
+    parser.add_argument("--annotations", type=Path, required=True, help="ShuttleSet22 root containing set/match.csv")
+    parser.add_argument("--results", type=Path, default=ROOT / "results", help="saved prediction and acceptance files")
+    parser.add_argument("--trusted-labels", type=Path, default=DEFAULT_LABELS, help="saved clean-label JSON file")
+    parser.add_argument(
+        "--report-dir", type=Path, required=True,
+        help="writes serve_tables.md, results/metric_summary.json.gz and figures/ here",
+    )
+    parser.add_argument(
+        "--reference-check", action="store_true",
+        help="assert the original closing-pass counts; needed to rewrite the original report",
+    )
+    parser.add_argument(
+        "--selected-only", action="store_true",
+        help="score only the chosen detector chain and skip figures that need rejected-experiment files",
+    )
     args = parser.parse_args()
-    run(args.annotations, args.results, args.table)
+    run(args.annotations, args.results, args.report_dir, args.reference_check, args.selected_only, args.trusted_labels)
 
 
 if __name__ == "__main__":

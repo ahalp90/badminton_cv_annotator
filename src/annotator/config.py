@@ -1,17 +1,14 @@
-"""Annotation-chain constants separated from scraper configuration.
+"""Fixed heuristic preprocessing settings and shared annotation output paths.
 
-See ``docs/scraper_pipeline/scraper_architecture.md`` for the current public
-file contracts.
-
-SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are also defined
-here (annotator-owned) because the annotator package consumes them directly;
-scraper.config imports them inward so its own consumers keep the same names
-and values.
+The model bundle carries the preprocessing settings used during fitting.
+Changing these settings changes the inputs the trees see and requires a refit.
+Direct tree-scoring settings live with the contact model.
 """
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, NamedTuple
+from typing import NamedTuple
 
 from .fps_constants import FpsConstants, scale_for_fps
 from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
@@ -44,14 +41,10 @@ PROXIMITY_MAX = 0.15  # norm court units; player-proximity cross-check (guardrai
 
 
 class RallySegmentationThresholds(NamedTuple):
-    """The ten rally-segmentation trajectory-rule thresholds bundled as one value.
+    """Trajectory thresholds used to find initial rallies and contact candidates.
 
-    One field per swept constant above, so a caller can hand ``segment_video`` a
-    whole threshold set instead of leaning on the module globals. ``thresholds=None``
-    reads the globals (the default path); a preset here reads its fields instead.
-    One preset ships: SHIPPED_THRESHOLDS (the constants above, selected by the
-    segmentation sweep). PROXIMITY_MAX is not swept, so it stays a plain global
-    and is not carried here.
+    ``resolve`` scales frame-rate-sensitive values before annotation. The
+    proximity cross-check stays separate because it measures court distance.
     """
 
     rest_speed: float
@@ -81,20 +74,12 @@ SHIPPED_THRESHOLDS = RallySegmentationThresholds(
 # ---------------------------------------------------------------------------
 # Replay and off-rally masking rules
 # ---------------------------------------------------------------------------
-# Reprojected-corner displacement between adjacent segment homographies, as a
-# fraction of frame size. Spec names the constant without a default; 0.05 is
-# the build's starting value from the mid-July 2026 amateur-footage scoping.
+# Reprojected-corner displacement as a fraction of frame size.
 PERSPECTIVE_SHIFT_THRESHOLD = 0.05
-# Median speed under this fraction of rally median = slow-mo. 0.15 is swept
-# against the decontaminated baseline (records/decontam_frac_sweep, autograder
-# docs); the old 0.3 was tuned against the pre-decontamination norm and read
-# rally-tail deceleration as slow motion.
+# A lower speed fraction avoids mistaking rally-end deceleration for slow motion.
 SLOWMO_SPEED_FRAC = 0.15
 
-# Composition dead-mask (`composition_mask`), the per-segment alternative to
-# the replay mask. A PySceneDetect content pass cuts the timeline; each segment is
-# kept or dropped by the court-view vote. content threshold 27 with vote 0.5
-# (comp_content27_v0p5) is the config the sset_01 scoring picked.
+# Scene-based exclusion uses camera cuts and the fraction of court-view frames.
 COMPOSITION_CONTENT_THRESHOLD = 27.0  # PySceneDetect ContentDetector default
 COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of its frames vote court-view
 
@@ -103,28 +88,25 @@ COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of it
 # ---------------------------------------------------------------------------
 # A clip- or segment-level doubles flag fires only when the per-frame
 # over-count (>2 in-court candidates) holds across more than half the frames
-# of a rally span. Fraction only (ruled 2026-07-07): a consecutive-run leg
-# would fire on any passerby crossing the court. Transient walk-throughs
-# (a coach or ball-kid crossing) stay unflagged. Starting value.
+# of a rally span. A short consecutive run could instead count a coach or
+# ball-kid crossing the court as a doubles player.
 DOUBLES_SPAN_FRACTION = 0.5
 
 
 @dataclass(frozen=True)
 class BaseAnnotatorConfig:
-    """Preset carrying the non-fps knobs for an annotator run.
+    """Heuristic preprocessing policy saved with the fitted model bundle.
 
     The preset carries legacy 25fps-surface values for fps-sensitive fields.
     Resolution overwrites every fps-sensitive field from the shipped base-30 table.
     ``overrides_base30`` may replace named rows before their final per-fps
-    values are built. Strategy fields (dead-mask producer, smoothing, and
-    serve lanes) are carried by the same preset.
+    values are built. These are fixed model inputs, rather than routine
+    prediction-time tuning options.
     """
 
     thresholds: RallySegmentationThresholds = SHIPPED_THRESHOLDS
     dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
-    # Chosen together on 2026-07-28: ignore invisible coordinates during
-    # smoothing, then classify sustained gaps with the ruled two-sided re-entry
-    # guard.
+    # Invisible coordinates must not pull a smoothed trajectory towards zero.
     smoothing_mode: SmoothingMode = SmoothingMode.IGNORE_INVISIBLE
     overrides_base30: Mapping[str, float] | None = None
     span_open: SpanOpen | None = SpanOpen.BACK_FILL
@@ -132,15 +114,12 @@ class BaseAnnotatorConfig:
     reentry_guard_variant: ReentryGuardVariant | None = ReentryGuardVariant.TWO_SIDED
     reentry_guard_buffer: float | None = 0.05
     quiet_start_window: float | None = None
-    # Shipping default selected in commit 3f7621b (2026-07-22): rejecting all
-    # three grades raised recorded correct landing calls from 59 to 72 of 287;
-    # rejecting only proven-fabricated frames produced 46. frozenset() disables
-    # event rejection entirely.
+    # Reject contacts and landings on uncertain or fabricated shuttle tracks.
     rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
     def __post_init__(self) -> None:
         if not isinstance(self.rejected_grades, frozenset):
-            raise ValueError('rejected_grades must be a frozenset')
+            raise ValueError('rejected_grades must be a frozenset')  # noqa: TRY004 -- invalid configuration value
         if any(
             isinstance(code, bool) or not isinstance(code, int) or code not in {1, 2, 3}
             for code in self.rejected_grades

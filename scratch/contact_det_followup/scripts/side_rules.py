@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from annotator.point_winner import Half, fit_alternation
+from annotator.outcomes.point_winner import Half, fit_alternation
 from scratch.contact_det.scripts.score_contact_rallies import FixedEvent, FixedSpan
 
 SectionIdentity = tuple[str, int]

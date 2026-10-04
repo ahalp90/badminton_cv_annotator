@@ -15,13 +15,13 @@ evidence, not current behaviour.**
 - **Pre-W3.1 rename.** The CSVs use the pre-W3.1 fixture stems
   (`pilot`, `vid15`, `sset21`). Canonical stems at the current tip are
   `sset_01`, `sset_15`, `sset_21` respectively; nothing else about fixture
-  identity changed. See `src/annotator/calibration/fixtures.py:295-355`.
+  identity changed. See `src/annotator/evaluation/fixtures.py:295-355`.
 - **Producer not ported.** The scratch script that produced these files
   (`local_scratch/autograder_architecture/now_tracked/serve_prepend/serve_miss_scope.py`,
   gitignored) reads pre-W3.1 identifiers and pre-W2.9 chain outputs.
   Do not run it against the current tip; the current-chain rerun uses the
   substitute described in `local_scratch/autograder_architecture/TODO.md`
-  (built on `annotator.calibration.gt_scoring.build_run_video_inputs`).
+  (built on `annotator.evaluation.gt_scoring.build_run_video_inputs`).
 
 ## Files
 

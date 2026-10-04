@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-import math
-import re
 from typing import Any, TypeAlias
 
 from frozendict import frozendict
-
 
 JsonScalar: TypeAlias = None | bool | int | float | str
 JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]

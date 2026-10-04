@@ -13,15 +13,15 @@ disposition at unresolved rather than keep.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from annotator.calibration.commentary_benchmark_inputs import (
+from annotator.evaluation.commentary_benchmark_inputs import (
     RETIMED_RELATIVE_DIR,
     load_retimed_chunks_for_video,
 )
@@ -36,7 +36,6 @@ from dataset_builder.schema_v1 import (
 from dataset_builder.vision import load_npy_xz
 from scraper.commentary_pairing import chunk_start_on_mask
 from scraper.commentary_retiming import AlignStatus
-
 
 TRANSCRIPTS_DIRECTORY = "transcripts"
 CLEANED_CHUNKS_DIRECTORY = "commentary/cleaned_chunks"

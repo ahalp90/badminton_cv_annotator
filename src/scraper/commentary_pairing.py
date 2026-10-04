@@ -30,7 +30,7 @@ from frozendict import frozendict
 import numpy as np
 
 from annotator.fps_constants import scale_for_fps
-from annotator.replay_mask import filter_short_exclusion_runs
+from annotator.masks.replay import filter_short_exclusion_runs
 from annotator.video_metadata import VideoMetadata
 from .config import (
     CHUNKS_DIR,

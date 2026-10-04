@@ -13,7 +13,6 @@ from __future__ import annotations
 
 # This standalone script adds the audit and project folders before importing them.
 # ruff: noqa: E402
-
 import argparse
 import csv
 import gzip
@@ -48,7 +47,7 @@ import audit_production_variants as variants
 import audit_tracks as audit
 
 from annotator.fps_constants import ScalingKind
-from annotator.inpaint_guard import NO_FLAG, grade_track
+from annotator.masks.inpaint import NO_FLAG, grade_track
 
 
 @dataclass(frozen=True)

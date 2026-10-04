@@ -1,13 +1,14 @@
-# Annotator regression measurement: current state
+# Annotator regression measurement: July 2026
 
-Status: current source of truth
+Status: historical measurement and recommendations
 
 Date: 2026-07-31
 
-This document describes what the project can measure now, what the current
-evidence shows, and the smallest justified next step. It covers the annotator
-calibration and serve-prepend measurement lanes. It does not authorise a
-production feature or a new test framework.
+This document records the calibration and serve-prepend measurements available
+on 31 July 2026. References below to “current” behaviour and proposed next steps
+describe that stage of development. The [annotator guides](../annotator/README.md)
+cover the maintained implementation; the [experiment reproduction guide](../../experiments/annotator/reproducing.md)
+covers the available measurement commands.
 
 ## TL;DR
 
@@ -18,9 +19,9 @@ track-quality evidence, and writes reload-checked output. The recorded run
 shows substantial clean evidence around many missed serves, but it does not yet
 measure a serve-prepend candidate or its false-positive cost.
 
-Do not build a standalone regression harness now. The current feature-specific
-measurement lane is the right place for the next candidate experiment. If a
-later annotator change needs causal stage isolation, the existing calibration
+The July recommendation was to extend the feature-specific measurement lane
+for the next candidate experiment. If a later annotator change needs causal
+stage isolation, the existing calibration
 path has enough seams for a small GT-span/contact wrapper. That future wrapper
 should reuse the current runner and scoring path. It should not become a new
 package, experiment framework, or parallel production runner.
@@ -114,7 +115,7 @@ adds a `RunCapture`, and calls `run_video()`
 `build_run_video_inputs()` validates the length and Boolean dtype of the pinned
 `court_present` array. It loads the pinned scene rows and converts them to the
 homography-row input expected by `run_video()`
-([`gt_scoring.py` lines 401-448](../../src/annotator/calibration/gt_scoring.py#L401-L448)).
+([`gt_scoring.py` lines 401-448](../../src/annotator/evaluation/gt_scoring.py#L401-L448)).
 
 ### Ground-truth use
 
@@ -298,7 +299,7 @@ path:
 `load_gt_rallies()` exposes inclusive first and last stroke frames. A wrapper
 would convert each extent to `(first_frame, last_frame + 1)` before passing it
 as a half-open span
-([`scoring.py` lines 34-77](../../src/annotator/calibration/scoring.py#L34-L77)).
+([`scoring.py` lines 34-77](../../src/annotator/evaluation/scoring.py#L34-L77)).
 
 This future comparison would not bypass every policy. Injected contacts would
 still be subject to exclusion and hallucination filtering. The selected mask
@@ -312,7 +313,7 @@ mode identity in an output path or small manifest.
 Do not add a new package, generic experiment-axis framework, resume system,
 derived-array hashing, or shared CSV-schema field until an actual consumer
 requires it. Do not extend the fixed
-`src/annotator/e2e_court_annotator.py` measurement matrix for this purpose. It
+`experiments/annotator/measurement.py` measurement matrix for this purpose. It
 has a separate job measuring static and detected court-evidence configurations.
 
 ## Scope and minimum validation
@@ -353,14 +354,14 @@ Primary current evidence:
 
 Relevant execution seams:
 
-- `src/annotator/calibration/gt_scoring.py:401-448` for pinned fixture input assembly
-- `src/annotator/calibration/gt_scoring.py:527-645` for existing calibration scoring
-- `src/annotator/calibration/gt_scoring.py:690-702` for the current automatic floors
+- `src/annotator/evaluation/gt_scoring.py:401-448` for pinned fixture input assembly
+- `src/annotator/evaluation/gt_scoring.py:527-645` for existing calibration scoring
+- `src/annotator/evaluation/gt_scoring.py:690-702` for the current automatic floors
 - `src/annotator/run_video.py:199-231,349-465` for ordinary and injected input paths
-- `src/annotator/calibration/scoring.py:34-77` for GT rally extents
+- `src/annotator/evaluation/scoring.py:34-77` for GT rally extents
 
 The recorded summary was generated at Git SHA
-`63f40938a62f6612ca9a63b61127d24442a80865`, which matches the current `HEAD`.
+`63f40938a62f6612ca9a63b61127d24442a80865`, the `HEAD` at the time of the July review.
 The summary is evidence from one recorded run. This document did not rerun the
 measurement script or the test suite.
 
@@ -369,5 +370,5 @@ confirmed the relevant definitions and usages. PyCharm's Python call-hierarchy
 query did not resolve the callable FQNs, so the usage claims rely on those
 searches and source reads.
 
-This document is an audit lead and current working decision. Future data or a
-concrete stage-isolation requirement can change the recommendation.
+These recommendations record the July review. The [development history](../../experiments/annotator/development.md)
+describes the later experiments and decisions.

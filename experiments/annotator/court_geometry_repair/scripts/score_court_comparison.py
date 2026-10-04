@@ -10,8 +10,8 @@ from typing import Any
 import joblib
 import numpy as np
 
-from annotator.point_winner import attribute_half
-from annotator.scene_courts import build_scene_courts, court_at_frame
+from annotator.courts.scenes import build_scene_courts, court_at_frame
+from annotator.outcomes.point_winner import attribute_half
 from dataset_builder.vision import load_npy_xz, save_json_gz, save_npy_xz
 from experiments.annotator.court_geometry_repair.scripts.prepare_court_comparison import (
     _global_tracker_mode,

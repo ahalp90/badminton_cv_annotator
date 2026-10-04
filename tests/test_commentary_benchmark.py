@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.calibration.commentary_benchmark import (
+from annotator.evaluation.commentary_benchmark import (
     LAG_SWEEP_SECONDS,
     _cleaning_aggregate,
     _dataset_aggregate,
@@ -18,16 +18,16 @@ from annotator.calibration.commentary_benchmark import (
     _pairing_aggregate,
     evaluate_video,
 )
-from annotator.calibration.commentary_benchmark_inputs import (
+from annotator.evaluation.commentary_benchmark_inputs import (
     EXPECTED_SHUTTLESET22_IDS,
     EXPECTED_SHUTTLESET_IDS,
     RETIMED_RELATIVE_DIR,
     VideoInputs,
-    load_retimed_chunks_for_video,
-    _validate_repair_metadata,
     _validate_rallies,
+    _validate_repair_metadata,
     _validate_timed_rows,
     _validate_unique_chunk_starts,
+    load_retimed_chunks_for_video,
 )
 
 

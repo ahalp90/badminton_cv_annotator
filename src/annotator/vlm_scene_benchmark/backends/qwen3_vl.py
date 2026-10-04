@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
 import gc
-from importlib.metadata import version
 import math
 import os
+from collections.abc import Callable, Mapping
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
 from . import BackendSpec, GenerationEvidence, require_complete_frame_grid
-
 
 SPEC = BackendSpec(
     key="qwen3-vl",

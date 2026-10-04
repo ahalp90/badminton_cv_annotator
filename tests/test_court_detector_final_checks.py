@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator.court_evidence import detected_court_info
+from annotator.courts.evidence import detected_court_info
 from court_detector import detect
 from court_detector.geometry import normalise_output_corners
 

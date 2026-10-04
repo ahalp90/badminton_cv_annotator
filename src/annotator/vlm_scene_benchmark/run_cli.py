@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import socket
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
-import socket
 
 from .backends import GenerationEvidence, SceneBackend, backend_spec, load_backend
 from .contracts import (
@@ -27,7 +27,6 @@ from .runtime import (
     parse_prediction_response,
     write_raw_response,
 )
-
 
 DEFAULT_MAX_NEW_TOKENS = 32_768
 

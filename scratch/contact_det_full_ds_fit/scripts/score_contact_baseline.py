@@ -154,7 +154,7 @@ def load_contact_labels(path: Path, split: DevelopmentSplit) -> ContactLabels:
 
     import pandas as pd
 
-    from annotator.calibration.scoring import load_gt_rallies
+    from annotator.evaluation.scoring import load_gt_rallies
 
     table = pd.read_csv(source_path, usecols=["vid", "set_id", "rally", "frame_num"])
     frames: dict[str, np.ndarray] = {}

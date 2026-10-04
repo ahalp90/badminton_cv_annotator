@@ -3,24 +3,23 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
-from dataclasses import dataclass
 import json
 import math
-from pathlib import Path
 import subprocess
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 import cv2
 
-from annotator.composition_mask import detect_cuts
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.fps_constants import scale_for_fps
+from annotator.masks.composition import detect_cuts
 
 from .contracts import ShardSpec
 from .runtime import sha256_file
-
 
 MANIFEST_SCHEMA_VERSION = 1
 

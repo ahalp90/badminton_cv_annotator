@@ -18,7 +18,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from annotator.artifact_io import open_text_artifact, read_json_object
-from annotator.calibration.scoring import RallyBoundary, classify_rally_boundary
+from annotator.evaluation.scoring import RallyBoundary, classify_rally_boundary
 
 
 class CandidateGtRelation(StrEnum):

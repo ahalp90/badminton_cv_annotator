@@ -16,16 +16,16 @@ import scene_aware_ransac as scene
 import score_rally_ender_counterfactual as ender
 import score_serve_protection as score
 
-from annotator.calibration.fixtures import SSET_01, SSET_15, SSET_21, Fixture
-from annotator.calibration.gt_scoring import (
+from annotator.evaluation.fixtures import SSET_01, SSET_15, SSET_21, Fixture
+from annotator.evaluation.gt_scoring import (
     build_run_video_inputs,
     canonical_tolerance,
     flatten_metrics,
     score_video,
 )
-from annotator.calibration.scoring import load_gt_rallies, safe_f1, strict_contact_rows
+from annotator.evaluation.scoring import load_gt_rallies, safe_f1, strict_contact_rows
+from annotator.outcomes.video import LandingHorizonRow
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.video_outcomes import LandingHorizonRow
 
 DEFAULT_QUALIFICATION = Path(__file__).resolve().parent / "results/serve_qualification.json.gz"
 DEFAULT_OUTPUT = (

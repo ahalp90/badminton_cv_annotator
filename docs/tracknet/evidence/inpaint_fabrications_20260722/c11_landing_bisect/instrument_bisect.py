@@ -7,8 +7,8 @@ Runs the pilot video through run_video twice, identical but for build_landing_ki
 Everything upstream (contacts, spans, strikers, window_end) is identical by construction; the
 only moving part is the per-frame carry_ratio/ankle_ratio the settle cap and carry filter read.
 
-Traces pick_landing / window_end / _settle_cap / filtered_descending_landing by monkeypatching
-them on the annotator.point_winner module (bare-name internal calls resolve through the module
+Traces pick_landing / window_end / landing_settle_cap / filtered_descending_landing by monkeypatching
+them on the annotator.outcomes.point_winner module (bare-name internal calls resolve through the module
 globals, so wrapping the module attribute catches the nested calls too). Then recomputes the
 settle-cap arithmetic offline from the two captured kin objects to attribute the mechanism.
 """
@@ -19,14 +19,14 @@ from pathlib import Path
 
 import numpy as np
 
-import annotator.point_winner as pw
-from annotator.point_winner import LandingKinematics
+import annotator.outcomes.point_winner as pw
+from annotator.outcomes.point_winner import LandingKinematics
 from annotator.rally_segmentation import (
     ANKLE_L, ANKLE_R, WRIST_L, WRIST_R,
     compute_speed, court_scale_boxes, rolling_nanmedian,
 )
-from annotator.calibration.fixtures import PILOT
-from annotator.calibration.gt_scoring import build_run_video_inputs
+from annotator.evaluation.fixtures import PILOT
+from annotator.evaluation.gt_scoring import build_run_video_inputs
 from annotator.run_video import run_video
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
@@ -34,7 +34,7 @@ OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 
 # ---------------------------------------------------------------------------
 # Pool (d04a789) build_landing_kinematics, copied verbatim from
-# git show d04a789:src/annotator/point_winner.py (lines ~417-452).
+# git show d04a789:src/annotator/outcomes/point_winner.py (lines ~417-452).
 # ---------------------------------------------------------------------------
 def build_landing_kinematics_pool(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
@@ -62,10 +62,10 @@ def build_landing_kinematics_pool(
 
 
 # ---------------------------------------------------------------------------
-# Offline replication of _settle_cap arithmetic, exposing intermediates.
+# Offline replication of landing_settle_cap arithmetic, exposing intermediates.
 # ---------------------------------------------------------------------------
 def settle_cap_detail(final_contact, win_end, kin, opts):
-    """Return (cap, n_static, n_held, n_ground_static), replicating pw._settle_cap exactly."""
+    """Return (cap, n_static, n_held, n_ground_static), replicating pw.landing_settle_cap exactly."""
     speed_seg = kin.speed[final_contact:win_end]
     static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
     held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
@@ -117,7 +117,7 @@ def count_terminals(final_contact, cap, track, min_descend):
 _orig = {
     'pick_landing': pw.pick_landing,
     'window_end': pw.window_end,
-    '_settle_cap': pw._settle_cap,
+    'landing_settle_cap': pw.landing_settle_cap,
     'filtered_descending_landing': pw.filtered_descending_landing,
 }
 
@@ -144,7 +144,7 @@ def _install_trace():
         return end
 
     def wrapped_settle_cap(final_contact, win_end, kin, opts):
-        cap = _orig['_settle_cap'](final_contact, win_end, kin, opts)
+        cap = _orig['landing_settle_cap'](final_contact, win_end, kin, opts)
         if _state['current'] is not None:
             _state['current']['cap_traced'] = int(cap)
             _state['current']['converted_opts'] = opts
@@ -160,14 +160,14 @@ def _install_trace():
 
     pw.pick_landing = wrapped_pick_landing
     pw.window_end = wrapped_window_end
-    pw._settle_cap = wrapped_settle_cap
+    pw.landing_settle_cap = wrapped_settle_cap
     pw.filtered_descending_landing = wrapped_fdl
 
 
 def _restore_trace():
     pw.pick_landing = _orig['pick_landing']
     pw.window_end = _orig['window_end']
-    pw._settle_cap = _orig['_settle_cap']
+    pw.landing_settle_cap = _orig['landing_settle_cap']
     pw.filtered_descending_landing = _orig['filtered_descending_landing']
 
 

@@ -25,13 +25,18 @@ against the set number.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import math
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from dataset_builder.schema_v1 import PLAYER_RALLIES, RALLIES, ColumnType, RallyOrigin, TableSpec
-
+from dataset_builder.schema_v1 import (
+    PLAYER_RALLIES,
+    RALLIES,
+    ColumnType,
+    RallyOrigin,
+    TableSpec,
+)
 
 # Issue #138 asked to sweep a range of temperatures if that was cheap, and
 # otherwise pick a magic number like 2. The sweep was skipped, so 2 is that

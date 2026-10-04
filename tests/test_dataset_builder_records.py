@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.point_winner import (
+from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
     Landing,
@@ -21,7 +21,11 @@ from annotator.point_winner import (
 from annotator.run_video import AnnotatorResult
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
-from dataset_builder.manifest import artifact_integrity, run_manifest_sha256, write_run_manifest
+from dataset_builder.manifest import (
+    artifact_integrity,
+    run_manifest_sha256,
+    write_run_manifest,
+)
 from dataset_builder.models import (
     ArtifactIntegrity,
     InterpreterIdentity,
@@ -47,7 +51,6 @@ from dataset_builder.records import (
 )
 from dataset_builder.vision import load_json_gz, save_json_gz
 from scraper.commentary_pairing import CanonicalPairing, pair_video_with_metadata
-
 
 CODE_VERSION = "a" * 40
 FPS = Fraction(25, 1)
@@ -304,6 +307,19 @@ def _write(
     )
 
 
+def test_final_contact_sides_and_review_scores_reach_rally_records(tmp_path: Path) -> None:
+    from annotator.sequence import ContactEvent
+
+    annotation = _annotation()._replace(
+        contact_events=(ContactEvent(20, .95, Half.BOT), ContactEvent(30, .91, Half.TOP), ContactEvent(70, .8, Half.BOT)),
+        rally_confidence=(.9, .4),
+    )
+    records = _assemble(tmp_path, annotation=annotation).records
+    assert [row['player_half'] for row in records[0]['contacts']['accepted']] == ['Bot', 'Top']
+    assert records[1]['contacts']['accepted'][0]['player_half'] == 'Bot'
+    assert [record['contacts']['review_score'] for record in records] == [.9, .4]
+
+
 def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> None:
     metadata = _metadata(tmp_path)
     projection = _assemble(tmp_path, metadata=metadata)
@@ -354,10 +370,11 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                     },
                 ],
                 "accepted": [
-                    {"stroke_idx": 0, "contact_frame": 20, "hit_height_code": 1},
-                    {"stroke_idx": 1, "contact_frame": 30, "hit_height_code": None},
+                    {"stroke_idx": 0, "contact_frame": 20, "hit_height_code": 1, "player_half": None},
+                    {"stroke_idx": 1, "contact_frame": 30, "hit_height_code": None, "player_half": None},
                 ],
                 "stroke_count": 2,
+                "review_score": None,
                 "hit_height_failures": [{
                     "stroke_idx": 1,
                     "contact_frame": 30,
@@ -426,9 +443,10 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                     "suppressed": False,
                 }],
                 "accepted": [
-                    {"stroke_idx": 0, "contact_frame": 70, "hit_height_code": 2},
+                    {"stroke_idx": 0, "contact_frame": 70, "hit_height_code": 2, "player_half": None},
                 ],
                 "stroke_count": 1,
+                "review_score": None,
                 "hit_height_failures": [],
             },
             "outcomes": {

@@ -5,14 +5,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.court_evidence as evidence
-import annotator.point_winner as point_winner
-from annotator.calibration.fixtures import FIXTURES
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
-from annotator.point_winner import (
+from annotator.courts import evidence
+from annotator.evaluation.fixtures import FIXTURES
+from annotator.outcomes import point_winner
+from annotator.outcomes.point_winner import (
     corner_error_band_from_corners,
     project_pixels_to_court,
 )
+
 
 def _identity_info() -> dict[str, object]:
     return {

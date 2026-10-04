@@ -17,9 +17,7 @@ Models:
 
 The five-array raw schema, `sticky_anchor` player selection, and collation are
 byte-preserved; keypoint values are gated by parity against the committed
-mmpose extraction. The 3D pose stream was removed upstream;
-`requirements-legacy-3d.txt` remains only as the env for its parked revival
-design.
+mmpose extraction. The 3D pose stream and OpenMMLab dependencies have been removed.
 
 ## Detector selection
 
@@ -62,6 +60,21 @@ nano at 0.3 is the fast option, at the price of the dropped players above.
   cut; the adapter returns none by design. 4 of 160,940 sampled committed
   detections are that fabricated person.
 
+## Environment used for the recorded results
+
+The migration checks below used NumPy 2.4.6, pandas 3.0.3, SciPy 1.17.1 and
+OpenCV 4.13.0.92, with RTMLib 0.0.15 and ONNX Runtime 1.27.0.
+
+Current pose extraction shares the root project environment with court
+detection. It uses the same RTMLib and ONNX Runtime versions, with the root
+numerical packages and OpenCV 5.0.0.93. The
+[court setup guide](../../court_detector/usage.md) describes the CPU and CUDA
+installation.
+
+A six-frame CPU check against OpenCV 4.13 found identical person boxes and
+99% of keypoints within 1.32 pixels. A few low-confidence joints shifted by up
+to 25.92 pixels. Current installs use OpenCV 5 throughout.
+
 ## Verifying
 
 - `validation_scripts/rtmlib_migration/download_and_verify_models.py`
@@ -69,11 +82,11 @@ nano at 0.3 is the fast option, at the price of the dropped players above.
   vendors them to the pool.
 - Raw-schema assembly (synthetic, inference-free): `tests/test_raw_schema.py`,
   run under CI with the rest of the pytest suite (no rtmlib needed).
-- CPU checks (repo root, `PYTHONPATH=src/bst_x:src`, venv per
-  `preparing_data/requirements.txt`): `adapter_contract_test`,
+- CPU checks (repo root, `PYTHONPATH=src/bst_x:src`, using the root
+  environment): `adapter_contract_test`,
   `gate_cpu_determinism` (`OMP_NUM_THREADS=1`), `gate_dtype_parity`,
   `gate_keypoint_value`, `gate_cpu_downstream_byteeq`, `gate_deployed_parity`.
-- GPU checks (CUDA box; env recipe in `preparing_data/requirements.txt`):
+- GPU checks (with CUDA configured as described in the court setup guide):
   `gate_cuda_selfvariance`, then `gate_gpu_parity`, then `phase_a_decision`
   over their JSON outputs. Paths and knobs are `RTMLIB_GATE_*` env vars,
   documented in each script's docstring.

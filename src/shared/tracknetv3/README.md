@@ -4,13 +4,16 @@ Shuttle trajectory extraction for the ShuttleSet stroke classification pipeline.
 
 ## Setup
 
-TrackNetV3 shares the BST training venv rather than maintaining a separate environment. See `../../bst_x/requirements.txt` for the full dependency list, and `requirements.txt` in this directory for standalone setup instructions if needed.
+TrackNetV3 uses the root project environment, shared with pose extraction and
+the classifiers. From the repository root:
 
 ```bash
-# From the repository root with the BST training venv active:
-pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -r src/bst_x/requirements.txt
+uv sync
 ```
+
+The [root requirements](../../../requirements.txt) also support pip installs.
+The subprocess setting `BADMINTON_TRACKNET_PYTHON` can point to the same
+`.venv/bin/python` used by the dataset builder.
 
 ### Pretrained Weights
 

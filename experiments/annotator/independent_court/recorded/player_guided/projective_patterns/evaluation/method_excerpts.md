@@ -1,6 +1,6 @@
 # Exact method excerpts
 
-Read the [evidence guide](README.md) first. These are literal source excerpts,
+Read the [evidence guide](../../../../../reports/court_selection.md) first. These are literal source excerpts,
 not a standalone runnable module. Module names and whole-file MD5s identify the
 source snapshots. Imports and unrelated functions are omitted. `np` means NumPy,
 `cv2` means OpenCV; other names refer to the named project modules. No new result

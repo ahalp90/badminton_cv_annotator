@@ -1,0 +1,29 @@
+digraph heuristics {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad=0.2, nodesep=0.45, ranksep=0.45];
+  node [shape=box, style="rounded,filled", fillcolor="white", color="black", fontcolor="black", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
+  edge [color="black", fontcolor="black", fontname="Helvetica", fontsize=9];
+
+  inputs [label="Saved vision evidence\nshuttle · pose · court · FPS"];
+  guards [label="Shuttle guard grades\nflag recurrent or degraded track points"];
+  sticky [label="Sticky player evidence\nTop/Bot picks · wrist gaps · ankle motion"];
+  mask [label="Frame exclusion mask\ncourt absence · slow-motion-like motion\n+ invalid scene geometry"];
+  spans [label="Rough rally spans\nrest · fast burst · long rest · gap guards"];
+  impulse [label="Impulse heuristic\nchange in shuttle velocity\nrelative to local impulse floor"];
+  seeds [label="Broader search regions\nraw/relaxed impulse · wrist minimum · visibility change\nrally/scene start · serve look-back"];
+  tree [label="Contact tree\n85 features per searched frame"];
+
+  inputs -> guards;
+  inputs -> sticky;
+  guards -> mask [label="unsafe shuttle steps omitted\nfrom speed baseline"];
+  inputs -> mask;
+  mask -> spans;
+  spans -> impulse;
+  sticky -> impulse [label="wrist gate"];
+  spans -> seeds;
+  impulse -> seeds [label="raw contact seeds"];
+  sticky -> seeds;
+  mask -> seeds [label="split eligible intervals"];
+  seeds -> tree;
+  guards -> tree [style=dashed, label="optional rule, off by default:\ndrop guarded rows with no picked player"];
+}

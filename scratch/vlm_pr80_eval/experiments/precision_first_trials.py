@@ -13,10 +13,10 @@ from typing import Any
 
 import numpy as np
 
-from annotator.calibration.fixtures import FIXTURES, Fixture
-from annotator.calibration.gt_scoring import RallyRow, load_gt_tables, score_video
+from annotator.evaluation.fixtures import FIXTURES, Fixture
+from annotator.evaluation.gt_scoring import RallyRow, load_gt_tables, score_video
 from annotator.fps_constants import ScalingKind
-from annotator.inpaint_guard import NO_FLAG
+from annotator.masks.inpaint import NO_FLAG
 from annotator.run_video import AnnotatorResult
 from dataset_builder._runtime_support import _annotation_result
 from dataset_builder.vision import load_npy_xz

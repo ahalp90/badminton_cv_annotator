@@ -15,7 +15,10 @@ from scratch.contact_det.scripts.score_contact_rallies import (
     RallyReference,
 )
 from scratch.contact_det_closing_pass.scripts.matching import match_contacts
-from scratch.contact_det_followup.scripts.score_followup import load_saved_test_labels
+from scratch.contact_det_followup.scripts.score_followup import (
+    DEFAULT_LABELS,
+    load_saved_test_labels,
+)
 from scratch.contact_det_followup.scripts.score_start_model import (
     _with_alternating_sides,
 )
@@ -32,8 +35,8 @@ def write_json(path: Path, payload: object) -> None:
         handle.write("\n")
 
 
-def test_labels() -> HumanLabels:
-    saved = load_saved_test_labels().labels
+def test_labels(path: Path = DEFAULT_LABELS) -> HumanLabels:
+    saved = load_saved_test_labels(path).labels
     rallies = {}
     sides = {}
     for fixture, human_rallies in saved.rallies_by_fixture.items():

@@ -1,12 +1,10 @@
 # MMPose pose extraction: changes and pipeline context
 
-This documents the OpenMMLab-based extraction path that produced the committed
-keypoint dataset. Nothing in the live pipeline runs it: the 2D path runs rtmlib
-(`docs/architecture_notes/rtmlib_migration/`) and the 3D stream was removed
-(parked design: `docs/archive/completed_general_refactors/structure_and_guards_pass/pose_3d_stream_design.md`,
-env: `requirements-legacy-3d.txt`).
-
-This directory bridges the pipeline's clip output and BST-X's expected input format. The pose extraction code in `prepare_train_on_shuttleset.py` runs MMPose on ~33k short clips to produce per-clip skeleton keypoints, court positions, and shuttle trajectories.
+This is a historical account of the extraction that produced the original
+keypoint dataset. Current extraction uses RTMLib; MMPose and the other
+OpenMMLab packages are no longer dependencies. The
+[RTMLib migration report](../../../docs/architecture_notes/rtmlib_migration/README.md)
+records the replacement and output comparisons.
 
 ---
 
@@ -103,7 +101,7 @@ Every helper function in the pose processing chain is byte-identical:
 |--------|-------|
 | Inferencer | `MMPoseInferencer('human')` |
 | Resolved models | RTMDet-M person detector @640 (235e8209, ~94 MB) + RTMPose-M body7 pose estimator (e48f03d0, ~52 MB) |
-| MMPose version | 1.3.2 (pinned in `requirements-legacy-3d.txt`) |
+| MMPose version | 1.3.2 (used for the original extraction) |
 | Keypoint format | COCO 17-joint |
 | Input | Raw `.mp4` file path (no preprocessing) |
 | Frame processing | Per-frame via generator (always, see note below) |

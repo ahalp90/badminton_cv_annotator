@@ -1,10 +1,10 @@
 """Serve-start options and sticky serve-setup policy."""
 
+import warnings
 from dataclasses import dataclass
 from enum import StrEnum
 from numbers import Real
 from typing import NamedTuple
-import warnings
 
 import numpy as np
 
@@ -229,7 +229,7 @@ class ServeStartOptions(NamedTuple):
     stillness_window_frames: int | None = None
 
 
-def _serve_distance_ratio_passes(
+def serve_distance_ratio_passes(
     window_dist: np.ndarray, window_height: np.ndarray, threshold_bh: float,
 ) -> bool:
     """Return whether paired distance evidence passes the body-height threshold.
@@ -244,7 +244,7 @@ def _serve_distance_ratio_passes(
     return bool(ratio <= threshold_bh)
 
 
-def _sticky_serve_setup_before(
+def sticky_serve_setup_before(
     setup: ServeSetupInputs, burst: int, threshold: float, lookback_frames: int,
     stillness_threshold_bh: float | None, stillness_window_frames: int | None,
 ) -> bool:
@@ -280,7 +280,7 @@ def _sticky_serve_setup_before(
                np.count_nonzero(valid[:, slot]) < 2 for slot in Slot):
             return False
         if not any(
-            _serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold)
+            serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold)
             for slot in Slot
         ):
             return False
@@ -293,7 +293,7 @@ def _sticky_serve_setup_before(
             slot_valid = valid[:, slot]
             if np.mean(slot_valid) < PLAYER_PRESENT_MIN_FRAC or np.count_nonzero(slot_valid) < 2:
                 continue
-            if not _serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold):
+            if not serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold):
                 continue
             if stillness_threshold_bh is None:
                 return True
@@ -325,7 +325,7 @@ def _sticky_serve_setup_before(
 
 
 @dataclass(frozen=True)
-class _ServeGate:
+class ServeGate:
     """Validated serve-start evidence and thresholds."""
 
     setup: ServeSetupInputs
@@ -336,7 +336,7 @@ class _ServeGate:
 
     def qualifies(self, burst: int) -> bool:
         """Return whether one burst has qualifying setup evidence."""
-        return _sticky_serve_setup_before(
+        return sticky_serve_setup_before(
             self.setup,
             burst,
             self.threshold,
@@ -360,7 +360,7 @@ def _valid_serve_threshold(value: object, name: str) -> float:
     return float(value)
 
 
-def _resolve_serve_gate(options: ServeStartOptions) -> _ServeGate:
+def resolve_serve_gate(options: ServeStartOptions) -> ServeGate:
     """Validate serve-start options and return the executable gate."""
     if options.dist is not None:
         raise ValueError('legacy serve-start dist is no longer supported; supply setup')
@@ -384,7 +384,7 @@ def _resolve_serve_gate(options: ServeStartOptions) -> _ServeGate:
             else _valid_serve_window(options.stillness_window_frames, 'stillness_window_frames')
         )
     options.setup.validate()
-    return _ServeGate(
+    return ServeGate(
         options.setup,
         threshold,
         lookback_frames,

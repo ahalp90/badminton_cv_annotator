@@ -1,2 +1,2 @@
-# Loaded alongside the PyTorch image so TorchCodec can decode local videos.
+# Conda package added to the PyTorch container for local video decoding.
 ffmpeg=7.1.1=gpl_hbbdf940_911

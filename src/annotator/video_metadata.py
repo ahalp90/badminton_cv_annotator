@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 from dataclasses import dataclass
 from fractions import Fraction
-import json
 from pathlib import Path
-import subprocess
 from typing import Any
-
 
 _FULL_METADATA_ENTRIES = (
     "stream=codec_type,nb_frames,nb_read_frames,width,height,r_frame_rate,"

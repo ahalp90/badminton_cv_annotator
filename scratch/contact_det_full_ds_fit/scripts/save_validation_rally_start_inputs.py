@@ -314,7 +314,7 @@ def save_validation_rally_start_inputs(
     if source_root not in sys.path:
         sys.path.insert(0, source_root)
     if side_attributor is None:
-        from annotator.point_winner import attribute_half
+        from annotator.outcomes.point_winner import attribute_half
 
         side_attributor = attribute_half
 

@@ -4,14 +4,14 @@ End-to-end checklist for setting up a development / training environment
 for BRIC. Platform-agnostic — covers Apple Silicon (MPS), Linux + Nvidia
 CUDA (x86_64 or ARM64), and CPU-only fallback.
 
-Estimated time: ~10 minutes once the host is reachable and Python 3.11+
+Estimated time: ~10 minutes once the host is reachable and Python 3.12+
 is available.
 
 ---
 
 ## 1. Prerequisites
 
-- **Python 3.11 or newer** on PATH (`python3 --version`).
+- **Python 3.12 or newer** on PATH (`python3 --version`).
   `uv` will manage the project's actual Python version — system Python
   just needs to be recent enough to bootstrap.
 - **Git**.
@@ -59,16 +59,16 @@ uv sync --extra bric
 What this does:
 - Reads `pyproject.toml`.
 - Creates a `.venv/` if not present, using a Python interpreter that
-  satisfies `requires-python = ">=3.11"`.
+  satisfies `requires-python = ">=3.12"`.
 - Installs the **shared base** (always): torch, torchvision, numpy,
-  pandas, scipy, opencv-python, Pillow, tqdm, parse, pycocotools,
+  pandas, scipy, OpenCV, RTMLib, CPU ONNX Runtime, Pillow, tqdm, parse, pycocotools,
   pyyaml, jaxtyping, beartype, frozendict, and pyrefly.
 - Installs the **`bric` extras** on top: ultralytics, transformers,
   torcheval (combines `bric-runtime` + `bric-train`). R(2+1)D-18 ships
   in torchvision (a base dep) so no extra ML lib is needed beyond
   ultralytics.
 - For `torch` / `torchvision` on **Linux**, pulls from the CUDA wheel
-  index configured in `[tool.uv.sources]` (currently `cu128`). On
+  index configured in `[tool.uv.sources]` (currently `cu130`). On
   **macOS**, falls back to the default PyPI wheels (MPS-capable on
   Apple Silicon).
 - Writes `uv.lock` so the install is reproducible.
@@ -85,26 +85,22 @@ Other install patterns:
 ### Adjusting the CUDA wheel version
 
 The default `[[tool.uv.index]].url` in `pyproject.toml` is
-`https://download.pytorch.org/whl/cu128`. If your driver reports a
-different CUDA version, you may need to switch:
+`https://download.pytorch.org/whl/cu130`. The CUDA 13 build matches ONNX
+Runtime 1.27's GPU package used for pose extraction. It needs a compatible NVIDIA driver. The `nvidia-smi` CUDA version
+shows the newest CUDA runtime supported by the driver, not a toolkit installed
+in the project environment.
 
-| Driver CUDA | Try this index URL |
-|-------------|-------------------|
-| 12.1        | `https://download.pytorch.org/whl/cu121` |
-| 12.4        | `https://download.pytorch.org/whl/cu124` |
-| 12.6        | `https://download.pytorch.org/whl/cu126` |
-| 12.8        | `https://download.pytorch.org/whl/cu128` |
-| 13.x        | `https://download.pytorch.org/whl/cu128` (forward-compat) or PyTorch nightly |
-
-Newer Nvidia drivers are backward-compatible with older CUDA runtimes,
-so picking a slightly older index is generally safe — you may just miss
-the latest GPU-specific optimisations.
+Older drivers need an upgrade for this GPU setup. A different PyTorch wheel
+alone does not make ONNX Runtime compatible: both libraries need matching CUDA
+and cuDNN versions. The [court setup guide](court_detector/usage.md#cuda-pose-inference)
+covers the shared GPU installation; [PyTorch's installation options](https://pytorch.org/get-started/previous-versions/)
+list available builds.
 
 ### Common install failures
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `No matching distribution found for torch` | Wrong CUDA wheel for your driver | Edit `[[tool.uv.index]].url` in `pyproject.toml` per the table above |
+| `No matching distribution found for torch` | No wheel for the selected Python version, platform or package index | Available builds are listed in the PyTorch installation options linked above |
 | `nvidia-smi: command not found` | CUDA driver not installed | Install via your distro's package manager or Nvidia's installer |
 | `Killed` during install | Out of memory during wheel build | Add swap, or `uv sync --extra bric --no-build-isolation` |
 | pycocotools wheel build fails | C compiler / headers missing | Install `build-essential` (Linux) or Xcode CLI tools (macOS); or remove pycocotools and patch the TrackNetV3 import that uses it |
@@ -185,7 +181,7 @@ no need for `source .venv/bin/activate` first.
 - Newer ecosystem, fewer prebuilt third-party wheels. Most things in
   the BRIC dep set have ARM64 wheels; if one doesn't, `uv` will try to
   build from source and may need `build-essential` or equivalent.
-- The PyTorch CUDA index (cu126/cu128) does ship `linux_aarch64` wheels;
+- The PyTorch CUDA 13 index ships `linux_aarch64` wheels;
   this is the path the `[tool.uv.sources]` block targets.
 
 ### CPU-only

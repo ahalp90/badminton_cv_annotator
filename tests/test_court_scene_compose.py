@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from court_detector import composition, reuse
 from court_detector.detect import LiveModules, load_live_modules
 from court_detector.line_observations import MARKINGS, distances_to_segments

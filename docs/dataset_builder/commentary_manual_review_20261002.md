@@ -1,94 +1,85 @@
-# Manual commentary review, 2 October 2026
+# Manual commentary review — 2 October 2026
 
-Curtis Martin reviewed 134 commentary passages from 85 videos across
-ShuttleSet and ShuttleSet22. These represent 135 candidate links in the
-frozen dataset-v1 export, which contains 3,500 links. The full dataset remains
-the delivery; this review supplies quality evidence for selected examples.
+The frozen dataset contains **6,833 manually annotated rallies from 86 videos**
+across ShuttleSet and ShuttleSet22, alongside **6,254 cleaned transcript chunks**.
+Every chunk retains its video identity and speech timestamps.
 
-Ari requested a human check of the existing video–commentary pairs before
-submission. Curtis performed this labelled review. The frozen main archive
-already includes timestamped transcripts, 6,254 cleaned passages and the
-3,500 candidate rally links. The 2,756 passages without a rally link retain
-their video identity and timestamps. They remain part of the delivery.
+| Transcript chunks | Count |
+| --- | ---: |
+| Linked to at least one candidate rally | 3,498 |
+| Kept as timestamped video–text without a rally link | 2,756 |
+| **Total** | **6,254** |
 
-## Method and results
+Two chunks each link to two candidate rallies, giving **3,500 commentary–rally
+links** in total. The 2,756 unlinked chunks remain in the dataset with their
+accompanying video times. This preserves commentary beyond the rally-linked
+examples; replays and other non-rally scene types are not separately counted.
+The [dataset handover](../../README.md#dataset-handover) describes the full delivery.
 
-The reviewer watched the candidate rally and listened to the audio. Each
-candidate was labelled `matches`, `other`, `general` or `unclear`. Speech
-timing was labelled separately as `matches`, `off` or `unclear`. Original
-notes and review timestamps are preserved without reclassification.
+Curtis Martin reviewed **134 commentary passages from 85 videos**, covering
+135 of those candidate rally links.
+
+The review found 116 passages that described the candidate rally, 13 that contained general discussion rather than commentary on that rally, and five that were unclear. One unclear passage had two candidate rallies, giving six unclear links.
+
+These counts describe the reviewed set. The sampling method and its limits are
+explained below.
+
+## Results
 
 | Association label | Passages | Candidate links |
 | --- | ---: | ---: |
-| matches | 116 | 116 |
-| general | 13 | 13 |
-| unclear | 5 | 6 |
-| other | 0 | 0 |
-| Total | 134 | 135 |
+| `matches` | 116 | 116 |
+| `general` | 13 | 13 |
+| `unclear` | 5 | 6 |
+| `other` | 0 | 0 |
+| **Total** | **134** | **135** |
 
-One unclear passage has two candidates, explaining the different totals.
-Passage timing labels are 128 matching, four off and two unclear. Some matching
-timing labels also have delay notes; the notes qualify those judgements.
+Speech timing was reviewed separately: 128 passages were marked `matches`, four `off` and two `unclear`. Some timing matches also have delay notes, which remain in the saved review data.
 
-Selection used a fixed seed and favoured different videos and replay-masked,
-inside-rally and post-rally cases. Passages had at least five words and
-clips lasted at most 105 seconds. Later batches excluded one-frame candidate
-intervals. The sample is deliberately selected, not random. It cannot
-establish whole-dataset accuracy, confidence bounds or missed-link coverage.
+`general` means that the passage did not describe the specific candidate rally. It can still contain useful match or player discussion. The unclear cases included poor source rally intervals and audio that was too difficult to judge.
 
-## Findings
+Passage IDs identify the dataset, video and commentary chunk: `sset_14_c19`,
+for example, is ShuttleSet video 14, chunk 19.
 
-General discussion appeared in every main selection category. This label
-means the passage was not judged to describe that specific rally; it is not
-automatically an unusable video–text example. Broader match or player context
-may still be useful. The 116 matching passages are 86.6% of the reviewed
-sample, not an overall video–text accuracy score. Unclear cases included
-poor source rally intervals and inaudible speech.
+Four passages were flagged for timing problems: `sset_14_c19`, `ss22_28_c42`, `ss22_29_c24` and `sset_19_c51`.
 
-Four passages were flagged for timing problems: `sset_14_c19`,
-`ss22_28_c42`, `ss22_29_c24` and `sset_19_c51`. Their original notes retain
-the observed times. These do not establish a shared offset across videos.
+The review also caught several text problems:
 
-Player-name errors were flagged in `ss22_28_c42` and `ss22_42_c84`. The
-raw exported text already contains the errors, and cleaning retains them.
-For `sset_34_c39`, raw text and the reviewer agree on “train,” while cleaned
-text changes it to “match.” Other notes identify quiet audio or approximate
-paraphrasing. Text fidelity was not systematically labelled, so it has no
-measured accuracy rate. No source text or timestamp was corrected here.
+- `ss22_28_c42` and `ss22_42_c84` contain player-name errors already present in the raw exported text;
+- in `sset_34_c39`, the raw text and review note say “train”, while the cleaned text changes it to “match”;
+- other notes record quiet audio or approximate paraphrasing.
 
-## Evidence files and joining
+Transcript fidelity was not scored systematically, and the review did not alter the frozen text or timestamps.
 
-The files are under [data/commentary_review_20261002](data/commentary_review_20261002/):
+## Sample construction
 
-- `reviewed-passages.csv.gz`: 134 passage judgements with raw and cleaned
-  text, source references, speech times, labels and notes.
-- `reviewed-links.csv.gz`: 135 candidate judgements with exact frozen
-  export keys and source rally boundaries.
-- `all-links-review-status.csv.gz`: all 3,500 frozen link rows with review
-  status and labels attached. The 3,365 unreviewed rows have empty labels.
-- `review-responses.json.gz`: original saved responses.
-- `review-manifest.json.gz`: selected passages, source provenance and
-  review context bounds, without local clip filenames.
-- `review-summary.json.gz`: counts and scope.
+Selection used a fixed seed and favoured coverage across videos, replay-masked cases, commentary inside a rally and commentary after a rally. Passages contained at least five words and review clips lasted no more than 105 seconds. The review proceeded in batches; later batches excluded candidate rallies
+whose annotated intervals lasted only one frame.
 
-Join the link tables to the frozen export using `(run_id, source_dataset,
-video_id, chunk_id, rally_origin, rally_id)`. A passage can have multiple
-candidate rows. Keep identifiers as strings. Unreviewed is distinct from
-unclear: an unclear link was inspected but could not be judged.
+This sampling was designed to expose different failure modes. It does not provide a population accuracy estimate or measure valid links that the pairing process missed.
 
-Source times are seconds in the recording. `source_url` identifies the
-public recording where available. Carmack paths preserve the exact local
-copies used during review; they are provenance, not portable download links.
-No clips are required in the supplement. Developers with access to the
-recordings can inspect the times or recreate context clips.
+## Evidence files
 
-## Delivery status
+The review files are under [`data/commentary_review_20261002/`](data/commentary_review_20261002/) beside this document.
 
-The review supplements the frozen dataset without replacing its files or
-changing its schema. Association remains provisional for the population.
-General and unclear links are not positive rally descriptions. A matching
-association does not verify its timestamp or transcript. Consult the timing
-label and notes before selecting examples for downstream work.
+| File | Contents |
+| --- | --- |
+| `reviewed-passages.csv.gz` | 134 passage judgements with raw and cleaned text, source references, speech times, labels and notes |
+| `reviewed-links.csv.gz` | 135 candidate-link judgements with frozen export keys and source rally boundaries |
+| `all-links-review-status.csv.gz` | All 3,500 candidate links with review status attached; 3,365 remain unreviewed |
+| `review-responses.json.gz` | Original saved review responses |
+| `review-manifest.json.gz` | Selected passages, provenance and review context bounds |
+| `review-summary.json.gz` | Counts and review scope |
 
-The large local clip package was used for review. The delivery supplement
-contains the compressed evidence and this document, without video clips.
+The link tables join to the frozen export on:
+
+```text
+(run_id, source_dataset, video_id, chunk_id, rally_origin, rally_id)
+```
+
+Identifiers remain strings. A passage can have more than one candidate row. `unclear` means the reviewer inspected the link but could not judge it; `unreviewed` means it was not part of this review.
+
+Source times are seconds in the recording. `source_url` identifies the public recording where available. Paths on the review machine, `Carmack`, record the local copies used during
+review and are retained as provenance.
+
+The review files do not include the video clips. The compressed labels and notes are sufficient to identify every reviewed passage and candidate link.

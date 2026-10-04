@@ -303,9 +303,9 @@ def _load_ground_truth() -> GroundTruth:
     """Load timing labels only after feature verification has succeeded."""
     import pandas as pd
 
-    from annotator.calibration.fixtures import REPO_ROOT as CALIBRATION_ROOT
-    from annotator.calibration.fixtures import SHARED_FILES, verify_file
-    from annotator.calibration.scoring import load_gt_rallies
+    from annotator.evaluation.fixtures import REPO_ROOT as CALIBRATION_ROOT
+    from annotator.evaluation.fixtures import SHARED_FILES, verify_file
+    from annotator.evaluation.scoring import load_gt_rallies
 
     master_pin = next(pin for pin in SHARED_FILES if pin.path.name == "shots_master.csv")
     verify_file(master_pin)

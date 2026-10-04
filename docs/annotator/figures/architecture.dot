@@ -1,0 +1,19 @@
+digraph annotator {
+  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.45", bgcolor="white"];
+  node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
+  edge [fontname="Helvetica", fontsize=9];
+
+  inputs [label="Saved inputs\nmetadata · shuttle · pose · court"];
+  validate [label="Load and check\nframe counts · shuttle guards · court data"];
+  prep [label="Prepare frame evidence\nFPS scaling · court scenes · tracked players · exclusion mask"];
+  rough [label="Find rough rallies\ninitial spans + contact search regions"];
+  contact [label="Contact tree\n85 features → probability → selected contacts"];
+  seq [label="Repair contact sequences\nserve repair · deletion · ≤1 later insertion\n3 chooser stages"];
+  finish [label="Finish each rally\nwiden bounds + assign alternating Top/Bot halves"];
+  outcomes [label="Estimate outcomes\nserver · winner · landing · hit height"];
+  confidence [label="Score for review\none score per finished rally"];
+  persist [label="Save results\nannotation JSON · masks · shuttle-quality summary"];
+
+  inputs -> validate -> prep -> rough -> contact -> seq -> finish -> outcomes -> persist;
+  seq -> confidence -> persist;
+}

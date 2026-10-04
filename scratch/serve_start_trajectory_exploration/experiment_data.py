@@ -12,19 +12,19 @@ from typing import Any, TypeAlias, TypedDict
 import numpy as np
 import pandas as pd
 
-from annotator import point_winner
-from annotator.calibration.fixtures import FIXTURES, Fixture
-from annotator.calibration.gt_scoring import load_gt_tables
-from annotator.calibration.scoring import (
+from annotator.evaluation.fixtures import FIXTURES, Fixture
+from annotator.evaluation.gt_scoring import load_gt_tables
+from annotator.evaluation.scoring import (
     GtRally,
     RallyBoundary,
     classify_all,
     load_gt_rallies,
 )
 from annotator.fps_constants import scale_for_fps
-from annotator.inpaint_guard import grade_track
+from annotator.masks.inpaint import grade_track
+from annotator.masks.replay import _read_homography_rows
+from annotator.outcomes import point_winner
 from annotator.rally_segmentation import build_sticky_result, tracker_segments
-from annotator.replay_mask import _read_homography_rows
 from annotator.types import StickyResult
 from classifier_shared.dataset import SET_INFO_DIR
 from classifier_shared.player_mapping import collect_shots

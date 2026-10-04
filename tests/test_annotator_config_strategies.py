@@ -6,11 +6,11 @@ import inspect
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, SHIPPED_THRESHOLDS
-from annotator.fps_constants import scale_for_fps
-from annotator.rally.spans import _find_rally_spans_quiet_start, _gap_state_rest_mask
-from annotator.rally_segmentation import segment_video
 import annotator.run_video as run_video_module
+from annotator.config import SHIPPED_THRESHOLDS, BaseAnnotatorConfig
+from annotator.fps_constants import scale_for_fps
+from annotator.rally.spans import quiet_start_rally_spans, gap_state_rest_mask
+from annotator.rally_segmentation import segment_video
 from annotator.resolve import resolve
 from annotator.run_video import build_serve_options, run_video
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
@@ -26,12 +26,6 @@ def test_base30_overrides_resolve_all_scaling_kinds() -> None:
     assert resolved.thresholds.rest_window == 8
     assert resolved.thresholds.rest_speed == pytest.approx(0.0036)
     assert resolved.thresholds.contact_impulse_multiple == 5.5
-
-
-def test_no_base30_overrides_is_bit_identical() -> None:
-    assert resolve(BaseAnnotatorConfig(), 25.0) == resolve(
-        BaseAnnotatorConfig(overrides_base30=None), 25.0,
-    )
 
 
 def test_shipped_tracking_strategies_resolve_at_video_fps() -> None:
@@ -132,7 +126,7 @@ def test_quiet_start_and_serve_start_fail_in_run_video() -> None:
             base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), landing_options=None,
             net_band=(0.0, 1.0), resolution=(1.0, 1.0), video_id=1,
             court_info={}, homo_df=None, gate_court_info={}, gate_resolution_table=None,
-            serve_start=object(),
+            serve_start=object(), heuristic_only=True,
         )
 
 
@@ -142,7 +136,7 @@ def test_quiet_start_and_span_open_fail_in_run_video(span_open: SpanOpen) -> Non
         run_video(
             None, None, None, None, None, fps=30.0,
             base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open),
-            court_optional=True, stop_after_segmentation=True,
+            court_optional=True, stop_after_segmentation=True, heuristic_only=True,
         )
 
 
@@ -154,8 +148,8 @@ def test_gap_state_with_and_without_reentry_guard() -> None:
     speed = np.full(len(track), np.nan)
     thresholds = SHIPPED_THRESHOLDS._replace(rest_window=3, rest_speed=1.0)
     constants = scale_for_fps(25.0)
-    unguarded = _gap_state_rest_mask(speed, track, thresholds, constants, 75, None, None)
-    guarded = _gap_state_rest_mask(
+    unguarded = gap_state_rest_mask(speed, track, thresholds, constants, 75, None, None)
+    guarded = gap_state_rest_mask(
         speed, track, thresholds, constants, 75, ReentryGuardVariant.REENTRY_ONLY, 0.1,
     )
     assert not unguarded[10]
@@ -171,7 +165,7 @@ def test_quiet_start_selects_later_quiet_preceded_burst() -> None:
     thresholds = SHIPPED_THRESHOLDS._replace(
         start_speed=0.5, start_min_frames=3, end_rest_frames=100,
     )
-    assert _find_rally_spans_quiet_start(speed, at_rest, thresholds, 5) == [(15, 30)]
+    assert quiet_start_rally_spans(speed, at_rest, thresholds, 5) == [(15, 30)]
 
 
 def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
@@ -184,21 +178,6 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
     )
     assert tuple(getattr(values25, field) for field in fields) == (10, 5, 2, 10, 5, 2)
     assert tuple(getattr(values30, field) for field in fields) == (12, 6, 2, 12, 6, 2)
-
-
-def test_off_path_keeps_legacy_rest_mask_call_shapes(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The frozen sweep rebinds _rest_mask to a (speed, track) replacement; until
-    # Until the legacy rest-mask path is retired, the OFF path must accept its call shapes.
-    import annotator.rally_segmentation as seg
-    import annotator.rally.spans as rally_spans
-
-    def two_arg_rest_mask(speed: np.ndarray, track: np.ndarray, thresholds=None) -> np.ndarray:
-        return np.zeros(len(speed), dtype=bool)
-
-    monkeypatch.setattr(rally_spans, '_rest_mask', two_arg_rest_mask)
-    track = np.column_stack([np.zeros(20), np.zeros(20), np.ones(20)])
-    assert seg.find_rally_spans(track) == []
-    assert seg.find_rally_spans(track, SHIPPED_THRESHOLDS) == []
 
 
 def test_impulse_cell_candidates_consumes_threshold_multiple() -> None:

@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from pathlib import Path
-import subprocess
-import sys
 
 import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.court_evidence as court_evidence_module
+import annotator.courts.evidence as court_evidence_module
 import annotator.run_video as run_video_module
+from annotator.cli import main as annotation_main
 from annotator.config import BaseAnnotatorConfig
-from annotator.court_evidence import (
+from annotator.courts.evidence import (
     DETECTOR_RESULT_SCHEMA,
     CourtEvidenceResult,
     CourtInputs,
@@ -25,7 +27,9 @@ from annotator.court_evidence import (
     SceneStatus,
     build_court_detector_evidence,
 )
-from annotator.point_winner import (
+from annotator.masks.inpaint import grade_track
+from annotator.models import AnnotatorModels, save_models
+from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
     Landing,
@@ -34,10 +38,15 @@ from annotator.point_winner import (
     VerdictSource,
 )
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
+from annotator.sequence import ContactEvent
 from annotator.types import ContactCandidate, DeadMaskMode
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
-from dataset_builder.shuttle_quality import ShuttleQualitySummary, summarize_shuttle_quality
+from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
+from dataset_builder.shuttle_quality import (
+    ShuttleQualitySummary,
+    summarize_shuttle_quality,
+)
 from scraper.commentary_pairing import pair_video
 
 
@@ -179,6 +188,7 @@ def _direct_annotation(
     pose: vision.PoseArrays,
     court: vision.CourtVision,
     guard_codes: np.ndarray,
+    models,
 ) -> tuple[AnnotatorResult, RunCapture]:
     inputs = court.evidence.inputs
     assert inputs is not None
@@ -190,6 +200,7 @@ def _direct_annotation(
         pose.kps,
         pose.ndet,
         fps=float(metadata.fps),
+        models=models,
         landing_options=run_video_module.point_winner.SHIPPED_LANDING_FILTER_OPTIONS,
         net_band=inputs.net_band,
         resolution=inputs.resolution,
@@ -824,6 +835,7 @@ def test_court_loader_rejects_missing_scene_provenance(tmp_path: Path) -> None:
 
 def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
     tmp_path: Path,
+    annotator_models,
 ) -> None:
     metadata = _metadata(tmp_path, frame_count=60)
     video_id = "match-alpha"
@@ -838,6 +850,7 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         pose,
         court,
         guard_codes,
+        annotator_models,
     )
 
     output = vision.run_full_annotation_stage(
@@ -849,6 +862,7 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
         pose=pose,
         court=court,
         output_dir=tmp_path / "annotation",
+        models=annotator_models,
     )
 
     assert output.run.result == direct_result
@@ -863,6 +877,91 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
     assert output.run.raw_replay_mask.shape == (metadata.frame_count,)
     assert output.run.definitive_exclusion_mask.dtype == np.bool_
     assert output.run.definitive_exclusion_mask.shape == (metadata.frame_count,)
+
+
+@pytest.fixture
+def saved_cli_inputs(tmp_path: Path, annotator_models: AnnotatorModels) -> list[str]:
+    metadata = _metadata(tmp_path, frame_count=60)
+    video_id = "match-alpha"
+    stages = tmp_path / "extracted" / "stages"
+    vision.save_json_gz(stages / "metadata" / video_id / "video_metadata.json.gz", metadata.to_dict())
+    pose = _pose_arrays(metadata.frame_count)
+    for name, filename in vision.POSE_FILENAMES.items():
+        vision.save_npy_xz(stages / "pose" / video_id / filename, getattr(pose, name))
+    vision.persist_court_vision(
+        stages / "court" / video_id, video_id=video_id, court=_court_vision(video_id, metadata.frame_count),
+        frame_count=metadata.frame_count, resolution=(float(metadata.width), float(metadata.height)),
+    )
+    shuttle_dir = stages / "shuttle" / video_id
+    track = np.zeros((metadata.frame_count, 3))
+    guard_codes, _ = grade_track(track)
+    vision.save_npy_xz(shuttle_dir / vision.TRACK_FILENAME, track)
+    vision.save_npy_xz(shuttle_dir / GUARD_CODES_FILENAME, guard_codes)
+    vision.save_json_gz(shuttle_dir / "source_stride8_inpaint_mask.json.gz", {
+        "schema": "inpaint_fill_mask/1", "index_space": "frame", "n_rows": metadata.frame_count,
+        "input_video": metadata.source_path.name, "inpaint_status": "applied", "inpaint_selected": [[2, 5]],
+    })
+    save_models(annotator_models, tmp_path / "models")
+    metadata.source_path.unlink()  # Annotation only needs the saved evidence.
+    return [
+        "--run-dir", str(stages.parent), "--video-id", video_id,
+        "--models", str(tmp_path / "models"), "--output-dir", str(tmp_path / "annotation"),
+    ]
+
+
+def test_annotation_cli_runs_saved_inputs_without_source_video_or_builder_manifest(
+    tmp_path: Path, saved_cli_inputs: list[str], annotator_models: AnnotatorModels,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    environment = {**os.environ, "PYTHONPATH": str(repository / "src")}
+    completed = subprocess.run(
+        [sys.executable, "-m", "annotator", *saved_cli_inputs], capture_output=True, text=True, check=False,
+        cwd=repository, env=environment,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    output = tmp_path / "annotation"
+    expected, capture = _direct_annotation(
+        "match-alpha", _metadata(tmp_path, frame_count=60), np.zeros((60, 3)),
+        _pose_arrays(60), _court_vision("match-alpha", 60), np.zeros(60, dtype=np.uint8), annotator_models,
+    )
+    assert vision.load_json_gz(output / vision.ANNOTATOR_RESULT_FILENAME) == vision.annotation_result_payload(
+        "match-alpha", expected,
+    )
+    np.testing.assert_array_equal(vision.load_npy_xz(output / vision.RAW_REPLAY_MASK_FILENAME), capture.raw_exclusion_mask)
+    np.testing.assert_array_equal(
+        vision.load_npy_xz(output / vision.DEFINITIVE_EXCLUSION_MASK_FILENAME), capture.definitive_exclusion_mask,
+    )
+    quality = vision.load_json_gz(output / vision.SHUTTLE_QUALITY_FILENAME)
+    assert quality["inpaint_filled_frames"] == 3
+
+
+@pytest.mark.parametrize(("failure", "expected_error"), [
+    ("missing-model", FileNotFoundError), ("wrong-video", ValueError),
+    ("wrong-frame-count", ValueError), ("mismatched-guard", ValueError), ("existing-output", FileExistsError),
+])
+def test_annotation_cli_rejects_bad_inputs_without_replacing_outputs(
+    tmp_path: Path, saved_cli_inputs: list[str], failure: str, expected_error: type[Exception],
+) -> None:
+    output = tmp_path / "annotation"
+    if failure == "missing-model":
+        (tmp_path / "models" / "models.joblib").unlink()
+    elif failure == "existing-output":
+        output.mkdir()
+        (output / "keep.txt").write_text("keep this result")
+    elif failure == "mismatched-guard":
+        guards = tmp_path / "extracted/stages/shuttle/match-alpha" / GUARD_CODES_FILENAME
+        vision.save_npy_xz(guards, np.ones(60, dtype=np.uint8))
+    else:
+        sidecar = tmp_path / "extracted/stages/shuttle/match-alpha/source_stride8_inpaint_mask.json.gz"
+        payload = vision.load_json_gz(sidecar)
+        payload["input_video" if failure == "wrong-video" else "n_rows"] = "other.mp4" if failure == "wrong-video" else 59
+        vision.save_json_gz(sidecar, payload)
+    with pytest.raises(expected_error):
+        annotation_main(saved_cli_inputs)
+    if failure == "existing-output":
+        assert (output / "keep.txt").read_text() == "keep this result"
+    else:
+        assert not output.exists()
 
 
 def test_full_annotation_rejects_non_replay_dead_mask_mode(tmp_path: Path) -> None:
@@ -1021,6 +1120,8 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
         },
         hit_height_by_frame={12: 2},
         hit_height_failures=[(0, 0, 12, "unmeasured")],
+        contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.TOP)),
+        rally_confidence=(.75,),
     )
     raw_mask = np.zeros(50, dtype=bool)
     raw_mask[10:15] = True
@@ -1060,6 +1161,11 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     assert primitives["verdict_rows"]["0"]["verdict_source"] == "next_server"
     assert primitives["landings"]["0"]["norm"] == [0.4, 0.8]
     assert primitives["hit_height_failures"] == [[0, 0, 12, "unmeasured"]]
+    from dataset_builder._runtime_support import _annotation_result
+
+    assert _annotation_result(primitives) == result
+    assert primitives['contact_events'][0] == {'frame': 2, 'probability': .4, 'side': None}
+    assert primitives['rally_confidence'] == [.75]
     np.testing.assert_array_equal(vision.load_npy_xz(artifacts.raw_replay_mask), raw_mask)
     assert vision.load_json_gz(artifacts.shuttle_quality) == run.shuttle_quality.to_payload()
     np.testing.assert_array_equal(

@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, is_dataclass, replace
-from datetime import datetime, timezone
-from enum import Enum
 import gzip
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import asdict, is_dataclass, replace
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
 from uuid import uuid4
 
 from dataset_builder.models import (
@@ -30,7 +30,6 @@ from dataset_builder.models import (
     StageRecord,
     freeze_json_object,
 )
-
 
 MANIFEST_FILENAME = "run_manifest.json.gz"
 REDACTED = "<redacted>"

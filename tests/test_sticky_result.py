@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from annotator.courts.scenes import build_scene_courts
 from annotator.rally_segmentation import (
     WRIST_L,
     WRIST_R,
     build_sticky_result,
     segment_video,
 )
-from annotator.scene_courts import build_scene_courts
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:

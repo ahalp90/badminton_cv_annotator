@@ -12,7 +12,7 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
-from annotator.court_evidence import (
+from annotator.courts.evidence import (
     _as_ref_corners,
     build_keep_vote,
     detected_court_info,

@@ -1,0 +1,24 @@
+digraph refit {
+  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.45", bgcolor="white"];
+  node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
+  edge [fontname="Helvetica", fontsize=9];
+
+  data [label="Saved extraction + manual contact labels"];
+  manifest [label="Manifest\ntrain / validation / test kept separate by group"];
+  heur [label="Build training inputs\nrough rallies + contact features"];
+  finalcontact [label="Deployment contact tree\nfit on all training groups"];
+  crosscontact [label="Out-of-group contact scores\neach training group scored by a tree that did not see it"];
+  seq [label="Sequence trees\nfit from shared repair options"];
+  conf [label="Rally review tree\nfit from out-of-group finished rallies"];
+  bundle [label="Model directory\ncontact + sequence + review trees\nsettings + side geometry"];
+  val [label="Validation\ncompare model variants"];
+  test [label="Test\nfinal held-out measurement"];
+
+  data -> manifest -> heur;
+  heur -> finalcontact;
+  heur -> crosscontact -> seq -> conf;
+  finalcontact -> bundle;
+  seq -> bundle;
+  conf -> bundle;
+  bundle -> val -> test;
+}

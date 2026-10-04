@@ -11,7 +11,6 @@ from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
 
-
 LOGGER = logging.getLogger(__name__)
 _INTEGER_RE = re.compile(r"^[+-]?[0-9]+$")
 

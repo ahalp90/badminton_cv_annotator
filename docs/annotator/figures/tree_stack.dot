@@ -1,0 +1,38 @@
+digraph tree_stack {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", pad=0.2, nodesep=0.35, ranksep=0.45];
+  node [shape=box, style="rounded,filled", fillcolor="white", color="black", fontcolor="black", fontname="Helvetica", fontsize=10.5, margin="0.12,0.08"];
+  edge [color="black", fontcolor="black", fontname="Helvetica", fontsize=9];
+
+  candidates [label="Searched frames\n85 physical/validity features each"];
+  contact [label="1. Contact tree\nscore every candidate frame"];
+  initial [label="Initial contacts\nscore ≥ 0.9 + nearby suppression"];
+  pool [label="Candidate pool remains available\nincluding lower-scoring rows"];
+
+  serve1 [label="2a. Serve-summary tree\nearlier serve timing + scores + sides"];
+  serve2 [label="2b. Serve-physical tree\nserve summary + physical contact features"];
+  insertion [label="3. Insertion tree\nlocal evidence for one missed later hit"];
+
+  whole [label="4. Whole-sequence chooser\nkeep · serve repair · deletion"];
+  later [label="5. Later-contact chooser\nmay add one later contact\nneeds +0.05 margin"];
+  scored [label="6. Scored-insertion chooser\nadds insertion-tree score\nneeds +0.05 margin"];
+  finish [label="Rule-based finish\nboundary widening · Top/Bot alternation"];
+  confidence [label="7. Rally-confidence tree\nreview score only; does not edit result"];
+
+  candidates -> contact;
+  contact -> initial;
+  contact -> pool;
+  pool -> serve1;
+  pool -> serve2;
+  pool -> insertion;
+  initial -> whole;
+  serve1 -> whole;
+  serve2 -> whole;
+  whole -> later;
+  pool -> later;
+  later -> scored;
+  insertion -> scored;
+  scored -> finish;
+  finish -> confidence;
+  pool -> confidence [label="discarded candidates + gap evidence"];
+}

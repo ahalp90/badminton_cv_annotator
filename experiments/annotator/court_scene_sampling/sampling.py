@@ -33,7 +33,7 @@ from typing import Any, NamedTuple
 import cv2
 import numpy as np
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from court_detector import feet, proposals, reuse, search
 from court_detector.composition import ENDPOINT_ROLES, FRAME_ROLES
 from court_detector.detect import (

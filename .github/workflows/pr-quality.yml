@@ -66,7 +66,7 @@ jobs:
           fetch-depth: 0   # need base + head to diff the PR range
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       # Deterministic, stdlib-only. Inserts/refreshes a short "Main files changed"
       # block (top files by churn). Idempotent: a no-op edit is skipped, so it
       # doesn't retrigger this `edited`-listening workflow. Never blocks.
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/setup-python@v6
         if: ${{ env.GEMINI_API_KEY != '' }}
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       # Script never exits non-zero: rate-limit/outage/bad-model -> ::warning::, not a failure.
       - name: AI PR quick read (non-blocking)
         if: ${{ env.GEMINI_API_KEY != '' }}

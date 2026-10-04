@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from annotator.calibration.selection import (
+from experiments.annotator.heuristic_tuning.selection import (
     best_config_clears_quality_floor,
     boundary_live_key_rally_id_f1,
     boundary_report_key_coverage_first,

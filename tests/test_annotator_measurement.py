@@ -14,14 +14,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.e2e_court_annotator as runner
+import experiments.annotator.measurement as runner
 from annotator.artifact_io import (
     load_npy,
     open_text_artifact,
     read_json_object,
     write_json_object,
 )
-from annotator.court_evidence import (
+from annotator.courts.evidence import (
     DETECTED_PARENT,
     DETECTOR_RESULT_SCHEMA,
     PERSON_COURT_MARGIN,
@@ -34,6 +34,15 @@ from annotator.court_evidence import (
 from annotator.run_video import AnnotatorResult
 from dataset_builder import vision
 from dataset_builder.vision import CourtDetectorSettings
+
+FAKE_MODELS = SimpleNamespace(preprocessing=runner.BaseAnnotatorConfig())
+
+
+@pytest.fixture(autouse=True)
+def install_fake_model_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner, "load_models", lambda _directory: FAKE_MODELS)
+    monkeypatch.setattr(runner, "model_files", lambda _directory: {})
+
 
 COURT_SETTINGS = CourtDetectorSettings(
     python=Path("court-python"),
@@ -96,7 +105,7 @@ def test_configuration_reports_the_executable_measurement_policy() -> None:
 def _manifest_payload() -> dict[str, object]:
     producers = {key: f"producer:{key}" for key in runner._PRODUCER_KEYS}
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "videos": {
             "sset_01": _pin("videos/sset_01.mp4"),
             "sset_15": _pin("videos/sset_15.mp4"),
@@ -105,6 +114,7 @@ def _manifest_payload() -> dict[str, object]:
         "track_overrides": {
             "sset_01/tracknet-stride-1": _pin("tracks/sset_01_stride1.npy"),
         },
+        "inpaint_codes": {case.case_id: _pin(f"guards/{case.case_id}.npy") for case in runner.CASES},
         "deeplsd_weights": _pin("weights/deeplsd_md.tar"),
         "producers": producers,
     }
@@ -123,7 +133,7 @@ def test_input_manifest_rejects_unknown_missing_and_historical_fields() -> None:
 
     payload = _manifest_payload()
     payload["schema_version"] = 1
-    with pytest.raises(ValueError, match="schema_version must be integer 2"):
+    with pytest.raises(ValueError, match="schema_version must be integer 3"):
         runner.parse_input_manifest(payload)
 
     payload = _manifest_payload()
@@ -341,7 +351,7 @@ def test_setup_failure_returns_one_and_writes_only_terminal_run_manifest(
     monkeypatch.setattr(runner, "_source_commit", lambda: "a" * 40)
     monkeypatch.setattr(runner, "_require_clean_source_tree", lambda: (_ for _ in ()).throw(ValueError("dirty")))
     output_root = tmp_path / "run"
-    assert runner.run_annotator_measurement(manifest_path, output_root) == 1
+    assert runner.run_annotator_measurement(manifest_path, output_root, annotator_models=tmp_path / "models") == 1
     payload = read_json_object(output_root / "manifest.json.gz")
     assert payload["status"] == "failed"
     assert payload["source_commit"] == "a" * 40
@@ -370,7 +380,7 @@ def test_inference_failure_keeps_closed_court_evidence_and_terminal_manifest(
     output_root.mkdir()
     driver = runner.RunDriver(
         tmp_path / "inputs.json", output_root, "cpu", ("runner",), "now", 0.0,
-        input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
+        models=FAKE_MODELS, input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
         resolved_device="cpu", homo_df=pd.DataFrame(), resolution=pd.DataFrame(),
     )
     state = runner.ConfigurationState(
@@ -403,7 +413,7 @@ def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
     output_root.mkdir()
     driver = runner.RunDriver(
         tmp_path / "inputs.json", output_root, "cpu", ("runner",), "now", 0.0,
-        input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
+        models=FAKE_MODELS, input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
         resolved_device="cpu", master=pd.DataFrame(), courts={},
     )
     state = runner.ConfigurationState(
@@ -443,6 +453,8 @@ def _fake_case(fixed: runner.FixedCase, fixture: runner.Fixture) -> runner.CaseD
         np.zeros((n_frames, n_slots, 17, 2), dtype=float),
         np.ones(n_frames, dtype=np.int64),
         [(0, n_frames)],
+        runner.FilePin(Path(f"guards/{fixed.case_id}.npy"), "0" * 32, "fixtures"),
+        np.array([0, 4], dtype=np.uint8),
         status="succeeded",
     )
 
@@ -563,6 +575,15 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     gt_loads = 0
     detector_calls = 0
     inference_calls = 0
+    model_loads = 0
+
+    def load_supplied_models(directory: Path):
+        nonlocal model_loads
+        model_loads += 1
+        assert directory == (tmp_path / "models").resolve()
+        return FAKE_MODELS
+
+    monkeypatch.setattr(runner, "load_models", load_supplied_models)
     synthetic_cases: list[runner.CaseData] = []
 
     def fake_load_gt_tables():
@@ -614,12 +635,15 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     monkeypatch.setattr(runner, "verify_eligible_gt_files", fake_verify_gt_files)
 
     def fake_run_video(
-        *_args, capture: runner.RunCapture, base, landing_options, **_kwargs,
+        *_args, capture: runner.RunCapture, base, models, inpaint_codes, landing_options, **_kwargs,
     ) -> AnnotatorResult:
         nonlocal inference_calls
         inference_calls += 1
         assert not gt_verified
-        assert base is runner.BASE_ANNOTATOR_CONFIG
+        assert models is FAKE_MODELS
+        assert base is FAKE_MODELS.preprocessing
+        np.testing.assert_array_equal(inpaint_codes, np.array([0, 4], dtype=np.uint8))
+        assert len(inpaint_codes) == len(_args[0])
         assert landing_options is runner.LANDING_OPTIONS
         capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
@@ -641,8 +665,9 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
 
     monkeypatch.setattr(runner, "_load_case", capture_case)
     output_root = tmp_path / "run"
-    assert runner.run_annotator_measurement(manifest_path, output_root) == 0
+    assert runner.run_annotator_measurement(manifest_path, output_root, annotator_models=tmp_path / "models") == 0
     assert gt_loads == 1
+    assert model_loads == 1
     assert detector_calls == 1
     assert inference_calls == 8
     assert gt_verified
@@ -681,7 +706,7 @@ def test_shared_case_failure_marks_both_parents_failed_and_keeps_independent_cas
         failed_case_id=failed_case,
     )
 
-    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root, annotator_models=tmp_path / "models") == 3
     payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{failed_case}"] == "failed"
@@ -708,7 +733,7 @@ def test_parent_inference_failure_does_not_stop_sibling_or_later_configurations(
         ),
     )
 
-    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root, annotator_models=tmp_path / "models") == 3
     payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
@@ -731,7 +756,7 @@ def test_local_scoring_failure_does_not_stop_later_scoring(
         scoring_failure_video_id=target_video_id,
     )
 
-    assert runner.run_annotator_measurement(manifest_path, output_root) == 3
+    assert runner.run_annotator_measurement(manifest_path, output_root, annotator_models=tmp_path / "models") == 3
     payload = read_json_object(output_root / "manifest.json.gz")
     statuses = {item["configuration_id"]: item["status"] for item in payload["configurations"]}
     assert statuses[f"{runner.PARENTS[0]}/{target.case_id}"] == "failed"
@@ -802,7 +827,7 @@ def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
     output_root.mkdir()
     driver = runner.RunDriver(
         tmp_path / "inputs.json", output_root, "cpu", ("runner",), "now", 0.0,
-        input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
+        models=FAKE_MODELS, input_manifest=runner.parse_input_manifest(_manifest_payload()), source_commit="a" * 40,
         resolved_device="cpu", court_settings=COURT_SETTINGS,
     )
     state = runner.ConfigurationState(
@@ -838,7 +863,7 @@ def test_court_detector_setup_needs_the_launch_settings(tmp_path: Path, monkeypa
     monkeypatch.setenv("ANNOTATOR_FIXTURES_ROOT", str(tmp_path))
     driver = runner.RunDriver(
         tmp_path / "inputs.json", tmp_path, "cuda", ("runner",), "now", 0.0,
-        input_manifest=runner.parse_input_manifest(_manifest_payload()),
+        models=FAKE_MODELS, input_manifest=runner.parse_input_manifest(_manifest_payload()),
     )
     with pytest.raises(ValueError, match="--court-python and --deeplsd-source"):
         runner._prepare_court_detector(driver)
@@ -852,3 +877,51 @@ def test_court_detector_setup_needs_the_launch_settings(tmp_path: Path, monkeypa
     assert driver.court_settings.device == "cuda"
     assert (driver.court_settings.template_device, driver.court_settings.reuse_courts) == ("cuda", True)
     assert driver.court_settings.deeplsd_weights.name == "deeplsd_md.tar"
+
+
+def test_input_manifest_requires_guard_pins_for_every_case() -> None:
+    payload = _manifest_payload()
+    del payload["inpaint_codes"]
+    with pytest.raises(ValueError, match="inpaint_codes"):
+        runner.parse_input_manifest(payload)
+    payload = _manifest_payload()
+    payload["inpaint_codes"].pop(runner.CASES[0].case_id)
+    with pytest.raises(ValueError, match="each of the four fixed cases"):
+        runner.parse_input_manifest(payload)
+
+
+@pytest.mark.parametrize("codes", [np.zeros((2, 1), dtype=int), np.zeros(1, dtype=int), np.zeros(2)])
+def test_guard_codes_must_be_frame_aligned_integer_grades(codes: np.ndarray) -> None:
+    with pytest.raises(ValueError, match="inpaint guard codes"):
+        runner.validate_inpaint_codes(codes, 2, "example")
+
+
+def test_load_case_verifies_and_loads_the_pinned_guard_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixed = runner.CASES[0]
+    fixture = runner._fixture_by_name()[fixed.fixture_name]
+    manifest = runner.parse_input_manifest(_manifest_payload())
+    inpaint_pin = manifest.inpaint_codes[fixed.case_id]
+    guards = np.array([0, 4], dtype=np.uint8)
+    checked = []
+    monkeypatch.setattr(runner, "verify_selected_pins", checked.extend)
+    monkeypatch.setattr(runner, "_load_array", lambda pin: guards if pin == inpaint_pin else np.zeros((2, 3)))
+    monkeypatch.setattr(runner, "_validate_arrays", lambda *_args: None)
+    monkeypatch.setattr(runner, "_pin_path", lambda _pin: Path("video.mp4"))
+    monkeypatch.setattr(runner, "probe_video", lambda _path: None)
+    monkeypatch.setattr(runner, "validate_video_metadata", lambda *_args: None)
+    monkeypatch.setattr(runner, "build_raw_cut_intervals", lambda *_args: [(0, 2)])
+    case = runner._load_case(fixed, manifest, fixture)
+    assert inpaint_pin in checked
+    assert case.inpaint_codes is guards
+    assert case.inpaint_pin == inpaint_pin
+    records = runner._input_records(case, manifest)
+    guard_record = next(record for record in records if record["role"] == "inpaint_codes")
+    assert guard_record["shape"] == [2]
+
+
+def test_cli_requires_explicit_fresh_model_directory() -> None:
+    arguments = ["--manifest", "inputs.json", "--court-python", "python", "--deeplsd-source", "DeepLSD"]
+    with pytest.raises(SystemExit):
+        runner.build_parser().parse_args(arguments)
+    parsed = runner.build_parser().parse_args([*arguments, "--annotator-models", "models"])
+    assert parsed.annotator_models == Path("models")

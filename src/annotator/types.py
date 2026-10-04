@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from .fps_constants import ScalingKind as ScalingKind
-
 if TYPE_CHECKING:
     from .rally_segmentation import ServeStartClose, ServeStartMode
 

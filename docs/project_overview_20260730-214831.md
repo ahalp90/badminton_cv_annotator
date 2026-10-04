@@ -336,7 +336,7 @@ candidate would also accept 229 static and 223 live-detection candidates that
 were wrong for the target. Every correct candidate in a covered rally was
 already inside its predicted span, so simple boundary extension recovered
 nothing. The
-[short evidence note](../experiments/annotator/first_last_stroke_buffered_search_20260730/README.md)
+[short evidence note](../experiments/annotator/reports/boundary_search.md)
 explains the counts and their limits.
 
 The other end-to-end labels are presently weak:
@@ -494,7 +494,7 @@ contact and commentary evidence.
   is the pre-migration target contract.
 - The [annotator measurement history](scraper_pipeline/annotator_measurement_history.md)
   records historical calibration campaigns and their boundaries.
-- The [first/last-stroke buffered search](../experiments/annotator/first_last_stroke_buffered_search_20260730/)
+- The [first/last-stroke buffered search](../experiments/annotator/reports/boundary_search.md)
   carries the result and row-level evidence.
 - The [inpaint sidecar contract](tracknet/inpaint_sidecar.md) and
   [consumer status](tracknet/inpaint_sidecar_consumption.md) cover fabricated

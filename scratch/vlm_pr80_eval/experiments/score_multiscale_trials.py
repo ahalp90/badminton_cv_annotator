@@ -11,7 +11,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from annotator.calibration.gt_scoring import RallyRow, VideoScoring
+from annotator.evaluation.gt_scoring import RallyRow, VideoScoring
 
 from .multiscale_schema import (
     BroadContent,

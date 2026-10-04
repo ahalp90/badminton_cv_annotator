@@ -7,28 +7,28 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.calibration import gt_scoring
-from annotator.calibration.fixtures import FIXTURES
-from annotator.calibration.gt_scoring import (
+from annotator.courts.scenes import SceneCourt
+from annotator.evaluation import gt_scoring
+from annotator.evaluation.fixtures import FIXTURES
+from annotator.evaluation.gt_scoring import (
     REFERENCE_SCORES,
     flatten_metrics,
     render_table,
     run_fixture,
 )
-from annotator.calibration.scoring import (
+from annotator.evaluation.scoring import (
     CANONICAL_CONTACT_TOLERANCE_BASE30,
     GtRally,
     strict_contact_rows,
     wide_edge_contact_rows,
 )
-from annotator.point_winner import (
+from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
     Half,
     Landing,
     LandingFilterOptions,
 )
 from annotator.run_video import AnnotatorResult
-from annotator.scene_courts import SceneCourt
 from annotator.types import ContactCandidate
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,

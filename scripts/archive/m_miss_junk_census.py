@@ -461,7 +461,7 @@ def _census_rows(
         fitted_half = point_winner.fit_alternation(guesses)
         stroke_index = rally_frames.index(frame)
         if fitted_half is not None:
-            phase = point_winner._phase_assignment(fitted_half, len(rally_frames))  # noqa: SLF001
+            phase = point_winner.alternating_player_sides(fitted_half, len(rally_frames))  # noqa: SLF001
             disagreement = int(attributed_half is not None and attributed_half != phase[stroke_index])
         if not is_matched:
             junk_rows.append({

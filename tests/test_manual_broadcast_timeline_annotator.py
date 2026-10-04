@@ -5,8 +5,7 @@ from pathlib import Path
 import cv2
 import pytest
 
-from annotator.broadcast_timeline_labels import SceneTruth, VideoMetadata, make_interval
-from annotator.manual_broadcast_timeline_annotator import (
+from annotator.review.broadcast_editor import (
     GuideInterval,
     TimelineSession,
     build_parser,
@@ -15,7 +14,7 @@ from annotator.manual_broadcast_timeline_annotator import (
     read_scene_partition,
     video_metadata,
 )
-
+from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
 
 METADATA = VideoMetadata("sset_01", 25.0, 10)
 

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-import math
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from annotator.inpaint_guard import code_counts, grade_track
+from annotator.masks.inpaint import code_counts, grade_track
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.vision import (
     load_json_gz,
@@ -19,7 +19,6 @@ from dataset_builder.vision import (
     save_json_gz,
     save_npy_xz,
 )
-
 
 INPAINT_SIDECAR_SCHEMA = "inpaint_fill_mask/1"
 SHUTTLE_GUARD_SCHEMA = "shuttle-guard/0.1"
@@ -217,8 +216,29 @@ def load_inpaint_fill_mask(
     ):
         raise ValueError("inpaint sidecar th_h_px differs from the TrackNet input height")
     _validate_extracted_utc(payload["extracted_utc"])
-    mask = _mask_from_spans(payload["inpaint_selected"], frame_count)
-    if expected_status == "disabled" and mask.any():
+    return inpaint_mask_from_record(payload, frame_count, input_video.name)
+
+
+def inpaint_mask_from_record(payload: Mapping[str, object], frame_count: int, video_name: str) -> np.ndarray:
+    """Restore saved fill flags without needing the original extraction models.
+
+    Standalone annotation needs frame alignment and the recorded fill locations.
+    The dataset builder additionally checks extraction settings when deciding
+    whether it can reuse a shuttle extraction.
+    """
+    for name, expected in {
+        "schema": INPAINT_SIDECAR_SCHEMA,
+        "index_space": "frame",
+        "n_rows": frame_count,
+        "input_video": video_name,
+    }.items():
+        if payload.get(name) != expected:
+            raise ValueError(f"inpaint sidecar {name} is {payload.get(name)!r}, expected {expected!r}")
+    status = payload.get("inpaint_status")
+    if status not in ("applied", "disabled"):
+        raise ValueError(f"invalid inpaint_status: {status!r}")
+    mask = _mask_from_spans(payload.get("inpaint_selected"), frame_count)
+    if status == "disabled" and mask.any():
         raise ValueError("disabled inpaint sidecar must not select frames")
     return mask
 

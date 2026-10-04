@@ -19,15 +19,15 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.court_evidence import detected_court_info
+from annotator.courts.evidence import detected_court_info
+from annotator.courts.scenes import build_scene_courts, scene_ref_corners
 from annotator.fps_constants import ScalingKind
-from annotator.point_winner import (
+from annotator.outcomes.point_winner import (
     COURT_LENGTH_M,
     COURT_WIDTH_M,
     project_pixels_to_court,
 )
 from annotator.rally.evidence import build_sticky_result, tracker_segments
-from annotator.scene_courts import build_scene_courts, scene_ref_corners
 from dataset_builder.vision import CourtVision, PoseArrays
 
 EYE_INDICES = (1, 2)

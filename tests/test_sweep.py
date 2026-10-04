@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
-import csv
 import argparse
+import csv
+import json
 import sys
 from types import SimpleNamespace
 
@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.calibration import sweep
-from annotator.calibration.fixtures import SSET_01
-from annotator.calibration.gt_scoring import RunVideoInputs
-from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
-from annotator.calibration.schemas import CSV_COLUMNS_BY_FILENAME
+from experiments.annotator.heuristic_tuning import sweep
+from annotator.evaluation.fixtures import SSET_01
+from annotator.evaluation.gt_scoring import RunVideoInputs
+from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
+from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.types import ContactCandidate, SpanOpen
 from annotator.resolve import resolve
+from annotator.types import ContactCandidate, SpanOpen
 
 
 def _row(spec: sweep.CandidateSpec, *, covered: int = 100) -> dict[str, object]:

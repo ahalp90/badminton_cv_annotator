@@ -8,22 +8,22 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.replay_mask import perspective_shift_signal
-from annotator.calibration.fixtures import (
+from annotator.evaluation.fixtures import (
+    _HOMOGRAPHY_SOURCE,
+    _RESOLUTION_SOURCE,
     FIXTURES,
+    REPO_ROOT,
+    SHARED_FILES,
     SSET_01,
     SSET_15,
     SSET_21,
-    _HOMOGRAPHY_SOURCE,
-    _RESOLUTION_SOURCE,
     _load_calibration_geometry,
-    REPO_ROOT,
-    SHARED_FILES,
     verify_file,
     verify_fixture,
     verify_run_video_fixture,
 )
-from annotator.calibration.gt_scoring import build_run_video_inputs
+from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.masks.replay import perspective_shift_signal
 
 # The complete nine-file external pin set per fixture (track, five pose-role
 # arrays including kp_scores, dead mask, court-present mask, scene rows),

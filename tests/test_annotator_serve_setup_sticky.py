@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from annotator.rally.serve import _sticky_serve_setup_before
+from annotator.rally.serve import sticky_serve_setup_before
 from annotator.rally_segmentation import (
     ServeSetupInputs,
     ServeStartMode,
@@ -31,26 +31,26 @@ def make_setup(serve_setup_defaults):
 def test_sticky_lanes_route_each_bound_median(make_setup, count: float) -> None:
     setup = make_setup(count)
     expected = count >= 1.0
-    assert _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None) is expected
+    assert sticky_serve_setup_before(setup, 3, 0.3, 4, None, None) is expected
 
 
 def test_sticky_coverage_fails_closed_and_stillness_can_be_off(make_setup) -> None:
     setup = make_setup(2.0)
     setup = setup._replace(analysed=np.array([True, False, True, True]))
-    assert not _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
-    assert _sticky_serve_setup_before(make_setup(2.0), 3, 0.3, 4, None, None)
+    assert not sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
+    assert sticky_serve_setup_before(make_setup(2.0), 3, 0.3, 4, None, None)
 
 
 def test_partial_lane_rejects_alternating_cross_slot_minimum(make_setup) -> None:
     setup = make_setup(1.0)
     distances = np.array([[0.2, 0.8], [0.8, 0.2], [0.2, 0.8], [0.8, 0.2]])
     setup = setup._replace(wrist_dist=distances)
-    assert not _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
+    assert not sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
 
 
 def test_standard_lane_accepts_either_slot_when_its_ratio_passes(make_setup) -> None:
     setup = make_setup(2.0)._replace(wrist_dist=np.full((4, 2), (0.02, 0.8)))
-    assert _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
+    assert sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
 
 
 def test_standard_lane_pairs_each_distance_with_its_own_height(make_setup) -> None:
@@ -60,7 +60,7 @@ def test_standard_lane_pairs_each_distance_with_its_own_height(make_setup) -> No
     )
     # Top's ratio is 1.0 and bottom's is 0.5. The bottom slot passes at 0.55;
     # pooled distance and height evidence would incorrectly fail at 0.4 / 0.6.
-    assert _sticky_serve_setup_before(setup, 3, 0.55, 4, None, None)
+    assert sticky_serve_setup_before(setup, 3, 0.55, 4, None, None)
 
 
 def test_sticky_gate_ignores_invisible_corner_garbage(make_setup) -> None:
@@ -72,16 +72,16 @@ def test_sticky_gate_ignores_invisible_corner_garbage(make_setup) -> None:
         wrist_dist=np.where(np.isfinite(wrist_dist), wrist_dist, 0.02),
     )
 
-    assert not _sticky_serve_setup_before(new_setup, 5, 0.3, 6, None, None)
+    assert not sticky_serve_setup_before(new_setup, 5, 0.3, 6, None, None)
     # The old cache's finite corner distances make the same window pass.
-    assert _sticky_serve_setup_before(old_corner_setup, 5, 0.3, 6, None, None)
+    assert sticky_serve_setup_before(old_corner_setup, 5, 0.3, 6, None, None)
 
 
 def test_sticky_distance_window_excludes_burst_frame(make_setup) -> None:
     setup = make_setup(1.0)
     wrist_dist = np.full((4, 2), 0.4)
     wrist_dist[3] = 0.01
-    assert not _sticky_serve_setup_before(
+    assert not sticky_serve_setup_before(
         setup._replace(wrist_dist=wrist_dist), 3, 0.3, 4, None, None,
     )
 
@@ -93,7 +93,7 @@ def test_burst_frame_count_cannot_change_lane_selection(make_setup) -> None:
     )
     # The burst row would route the inclusive window into the >=2 lane, where the
     # absent bottom slot fails the presence floor. The exclusive setup window is >=1.
-    assert _sticky_serve_setup_before(setup, 2, 0.3, 2, None, None)
+    assert sticky_serve_setup_before(setup, 2, 0.3, 2, None, None)
 
 
 def test_burst_analysed_row_is_ignored_without_stillness_and_required_with_it(make_setup) -> None:
@@ -101,8 +101,8 @@ def test_burst_analysed_row_is_ignored_without_stillness_and_required_with_it(ma
         analysed=np.array([True, True, True, False]),
         wrist_dist=np.full((4, 2), 0.02),
     )
-    assert _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
-    assert not _sticky_serve_setup_before(setup, 3, 0.3, 4, 0.5, 1)
+    assert sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
+    assert not sticky_serve_setup_before(setup, 3, 0.3, 4, 0.5, 1)
 
 
 def test_empty_setup_window_returns_before_downstream_medians(
@@ -112,12 +112,12 @@ def test_empty_setup_window_returns_before_downstream_medians(
         pytest.fail('empty setup window must return before median work')
 
     monkeypatch.setattr(np, 'median', poisoned_median)
-    assert not _sticky_serve_setup_before(make_setup(1.0), 0, 0.3, 4, None, None)
+    assert not sticky_serve_setup_before(make_setup(1.0), 0, 0.3, 4, None, None)
 
 
 def test_standard_lane_presence_floor_keeps_absent_slot_from_being_rescued(make_setup) -> None:
     setup = make_setup(2.0)._replace(wrist_dist=np.column_stack([np.full(4, 0.02), np.full(4, np.nan)]))
-    assert not _sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
+    assert not sticky_serve_setup_before(setup, 3, 0.3, 4, None, None)
 
 
 def test_standard_lane_stillness_rejects_a_player_even_when_distance_passes(make_setup) -> None:
@@ -126,7 +126,7 @@ def test_standard_lane_stillness_rejects_a_player_even_when_distance_passes(make
     setup = make_setup(2.0)._replace(
         wrist_dist=np.full((4, 2), 0.02), bot_ankles=bot_ankles,
     )
-    assert not _sticky_serve_setup_before(setup, 3, 0.3, 4, 0.1, 4)
+    assert not sticky_serve_setup_before(setup, 3, 0.3, 4, 0.1, 4)
 
 
 def test_builder_converts_and_preserves_sentinels() -> None:
@@ -199,4 +199,4 @@ def test_one_row_clipped_window_fails_closed_in_both_lanes(make_setup, count: fl
     # Claimed frame 0 clips the window to a single row: below the primitive's
     # two-detection floor, so both lanes fail even with the stillness gate off.
     setup = make_setup(count)
-    assert _sticky_serve_setup_before(setup, 0, 0.3, 4, None, None) is False
+    assert sticky_serve_setup_before(setup, 0, 0.3, 4, None, None) is False

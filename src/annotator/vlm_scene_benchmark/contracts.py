@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import StrEnum
 import json
 import math
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
 from typing import Any, Mapping, TypeVar
 
-from annotator.broadcast_timeline_labels import SceneTruth
-
+from annotator.review.broadcast_labels import SceneTruth
 
 RUN_SCHEMA_VERSION = 2
 SUPPORTED_RUN_SCHEMA_VERSIONS = (1, RUN_SCHEMA_VERSION)

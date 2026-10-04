@@ -6,12 +6,12 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-import annotator.calibration.shuttleset_benchmark as benchmark
-from annotator.calibration.gt_scoring import RallyRow, _hit_height_gt_map
-from annotator.calibration.shuttleset_benchmark import (
+import annotator.evaluation.shuttleset_benchmark as benchmark
+from annotator.evaluation.gt_scoring import RallyRow, _hit_height_gt_map
+from annotator.evaluation.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
-    _aggregate_feature_outputs,
     _aggregate_contact_curves,
+    _aggregate_feature_outputs,
     _contact_ground_truth,
     _coordinate_rows_summary,
     _landing_coordinate_output,
@@ -19,7 +19,7 @@ from annotator.calibration.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.point_winner import Half, Verdict, VerdictSource
+from annotator.outcomes.point_winner import Half, Verdict, VerdictSource
 from dataset_builder.vision import save_json_gz
 
 

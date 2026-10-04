@@ -89,9 +89,11 @@ Most likely outcome: one ML-leaning + one FE-leaning. Each picks their own path.
 
 ## Stage 1: Foundation (week 1, parallel)
 
-### rtmlib migration (~3 days, Ariel, first)
+### RTMLib migration — completed
 
-Swap the slow, brittly-pinned MMPose / RTMPose-L step (which requires its own venv) for a more efficient implementation. rtmlib is a more modern keypoint library wrapper that's still maintained. It includes RTMPose-L, so the minimal fix is a straight swap. Run some quick tests on an extract to make sure the keypoints only drift within reasonable GPU noise. If that's okay, run a couple of full 5-serial trains on the `bst_25` and `une_v1_14` taxonomies for a full sanity check.
+RTMLib now provides pose extraction in the shared project environment. The
+[migration report](rtmlib_migration/README.md) records the model choices and
+comparisons with the saved poses. MMPose is no longer a project dependency.
 
 ### Data expansion (~1 week, Curtis, parallel)
 

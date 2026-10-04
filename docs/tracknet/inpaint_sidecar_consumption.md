@@ -38,17 +38,17 @@ guard codes are the authoritative rejection evidence in the dataset builder.
 
 The annotator has an event-mask seam for frame-aligned evidence.
 
-`annotator.calibration.gt_scoring.build_run_video_inputs` calls
-`annotator.inpaint_guard.grade_track` on the loaded shuttle track and
+`annotator.evaluation.gt_scoring.build_run_video_inputs` calls
+`annotator.masks.inpaint.grade_track` on the loaded shuttle track and
 passes the resulting per-frame codes into `run_video` as `inpaint_codes`
-(`src/annotator/calibration/gt_scoring.py:409`,
+(`src/annotator/evaluation/gt_scoring.py:409`,
 `src/annotator/run_video.py:189`). `run_video._build_shuttle_hallucination_mask`
 adapts those grades into a single boolean mask read by the downstream event
 rules and enforces that `inpaint_codes` and an externally supplied mask
 are mutually exclusive (`src/annotator/run_video.py:26-41`). The grades are
 the codes described in `evidence/inpaint_fabrications_20260722/detector_options.md`
 (0 clean, 1 fabricated / proven, 2 flat / suspect, 3 degraded); their
-implementation is `src/annotator/inpaint_guard.py`.
+implementation is `src/annotator/masks/inpaint.py`.
 
 The dataset builder now follows the same recurrence-grade boundary. Its
 shuttle stage calls `grade_track`, persists the codes and diagnostics, and

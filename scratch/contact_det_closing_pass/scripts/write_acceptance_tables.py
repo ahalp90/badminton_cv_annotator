@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import gzip
 import tomllib
@@ -40,9 +41,9 @@ CSV_FIELDS = (
 )
 
 
-def _load_population(population: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    acceptance = read_json(OUTPUT / f"chosen_acceptance_{population}.json.gz")
-    serve = read_json(OUTPUT / f"{population}_serves.json.gz")
+def _load_population(serve_results: Path, population: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    acceptance = read_json(serve_results / f"chosen_acceptance_{population}.json.gz")
+    serve = read_json(serve_results / f"{population}_serves.json.gz")
     recommended = serve["variants"]["recommended"]
     sections = {tolerance: recommended[tolerance]["sections"] for tolerance in TOLERANCES}
     policies = acceptance["policies"] if population == "development" else acceptance["frozen_policies"]
@@ -109,8 +110,7 @@ def _csv_rows(
     return output
 
 
-def _write_csv(rows: list[dict[str, Any]]) -> None:
-    path = OUTPUT / "acceptance_per_video.csv.gz"
+def _write_csv(rows: list[dict[str, Any]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(path, "wt", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
@@ -128,7 +128,7 @@ def _plot_curve(axis: Any, curve: list[Mapping[str, Any]], label: str, colour: s
     )
 
 
-def _plot(populations: Mapping[str, tuple[dict[str, Any], dict[str, Any]]]) -> None:
+def _plot(populations: Mapping[str, tuple[dict[str, Any], dict[str, Any]]], path: Path) -> None:
     development = populations["development"][0]
     broader = populations["broader"][0]
     figure, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharex=True, sharey=True, layout="constrained")
@@ -171,20 +171,33 @@ def _plot(populations: Mapping[str, tuple[dict[str, Any], dict[str, Any]]]) -> N
     axes[0].set_ylabel("Verified correct / all accepted (%) at ±10 base-30 frames")
     axes[0].legend(loc="lower left", frameon=False)
     figure.suptitle("Acceptance on local insertion + guarded edges; broader points use frozen thresholds")
-    path = ROOT / "figures/chosen_acceptance.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=180)
     plt.close(figure)
 
 
-def run() -> None:
-    populations = {population: _load_population(population) for population in ("development", "broader")}
-    write_json(OUTPUT / "acceptance_breakdown.json.gz", {
+def run(serve_results: Path, report_dir: Path) -> None:
+    """Write outputs under report_dir in the closing-pass layout, where the figure builders look for them."""
+    populations = {
+        population: _load_population(serve_results, population) for population in ("development", "broader")
+    }
+    write_json(report_dir / "results/serve_followups/acceptance_breakdown.json.gz", {
         population: breakdown for population, (_acceptance, breakdown) in populations.items()
     })
-    _write_csv(_csv_rows(populations))
-    _plot(populations)
+    _write_csv(_csv_rows(populations), report_dir / "results/serve_followups/acceptance_per_video.csv.gz")
+    _plot(populations, report_dir / "figures/chosen_acceptance.png")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--serve-results", type=Path, default=OUTPUT,
+        help="folder with chosen_acceptance_* and *_serves files",
+    )
+    parser.add_argument("--report-dir", type=Path, required=True)
+    args = parser.parse_args()
+    run(args.serve_results, args.report_dir)
 
 
 if __name__ == "__main__":
-    run()
+    main()

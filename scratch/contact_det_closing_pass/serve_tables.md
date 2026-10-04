@@ -108,9 +108,10 @@ From the repository root, with the original ShuttleSet22 annotations:
 ```bash
 PYTHONPATH="$PWD/src:$PWD" ~/.venvs/badminton-cicd/bin/python \
   -m scratch.contact_det_closing_pass.scripts.summarise_metrics \
-  --annotations /path/to/ShuttleSet22
+  --annotations /path/to/ShuttleSet22 \
+  --report-dir local_scratch/contact-report --reference-check
 ```
 
-The script rebuilds the counts and figures from saved predictions, checks the trusted-GT results against the saved experiments, and writes `results/metric_summary.json.gz`. It does **not** retrain models or rerun vision.
+The script rebuilds the counts and figures from saved predictions and writes `results/metric_summary.json.gz` under the report directory. Use `--reference-check` to check the original closing-pass totals. It does **not** retrain models or rerun vision.
 
 Clip review notes: `results/selected_clip_review.csv`.

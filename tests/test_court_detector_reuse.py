@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator import court_views
+from annotator.courts import views as court_views
 from court_detector import measurements, reuse, stripe_refit
 from court_detector.detect import (
     LiveModules,

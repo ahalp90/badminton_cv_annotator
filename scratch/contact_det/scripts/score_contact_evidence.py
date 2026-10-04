@@ -632,8 +632,8 @@ def _fit_metrics(
 
 def _score_verified(verified: VerifiedFreeze) -> dict[str, Any]:
     """Import and load GT only after ``verify_freeze`` has completed."""
-    from annotator.calibration.gt_scoring import load_gt_tables
-    from annotator.calibration.scoring import classify_all, load_gt_rallies
+    from annotator.evaluation.gt_scoring import load_gt_tables
+    from annotator.evaluation.scoring import classify_all, load_gt_rallies
 
     master, _homography, _court_info, _resolution = load_gt_tables()
     gt_by_fixture: dict[str, list[object]] = {}

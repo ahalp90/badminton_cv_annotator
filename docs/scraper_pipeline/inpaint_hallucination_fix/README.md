@@ -188,7 +188,7 @@ MPLCONFIGDIR=/tmp/badminton-matplotlib \
   --top-n 6 --view all
 ```
 
-`audit_tracks.py` calls the live `annotator.inpaint_guard.grade_track`. Its
+`audit_tracks.py` calls the live `annotator.masks.inpaint.grade_track`. Its
 separate RANSAC lens fits a local quadratic in pixel coordinates over 16-frame
 windows, uses a 3-pixel residual and 32 deterministic sample triples, and
 steps windows by four frames. Any window containing exact `(0, 0)` masking is

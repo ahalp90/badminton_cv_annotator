@@ -4,23 +4,20 @@ from __future__ import annotations
 
 from enum import Enum
 
-from annotator.calibration.scoring import CONTACT_TOLERANCES_BASE30
-from annotator.calibration.schemas import (
-    ALIGNMENT_OWN_COVERED_COLUMNS,
-    ALIGNMENT_SHARED_COLUMNS,
-    BEST_CONFIG_COMPARISON_COLUMNS,
-    BOUNDARY_SWEEP_COLUMNS,
-    CONTACT_FRONTIER_COLUMNS,
-    CONTACT_STABILITY_COLUMNS,
-    CONTACT_SWEEP_COLUMNS,
-    CSV_COLUMNS_BY_FILENAME,
-    FROZEN_ROW_COLUMNS,
-    SPLIT_LOG_COLUMNS,
-    WINNER_JSON_TOLERANCES_BASE30,
-    winner_document,
-    winner_spec,
-)
-
+from experiments.annotator.heuristic_tuning.schemas import ALIGNMENT_OWN_COVERED_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import ALIGNMENT_SHARED_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import BEST_CONFIG_COMPARISON_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import BOUNDARY_SWEEP_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import CONTACT_FRONTIER_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import CONTACT_STABILITY_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import CONTACT_SWEEP_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
+from experiments.annotator.heuristic_tuning.schemas import FROZEN_ROW_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import SPLIT_LOG_COLUMNS
+from experiments.annotator.heuristic_tuning.schemas import WINNER_JSON_TOLERANCES_BASE30
+from experiments.annotator.heuristic_tuning.schemas import winner_document
+from experiments.annotator.heuristic_tuning.schemas import winner_spec
+from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
 
 EXPECTED_FROZEN_ROW_COLUMNS = (
     "label", "rest_speed", "rest_window", "end_rest_frames", "start_speed",

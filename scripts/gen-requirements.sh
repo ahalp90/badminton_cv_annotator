@@ -24,7 +24,7 @@ command -v uv >/dev/null 2>&1 || { echo "error: 'uv' is required (https://docs.a
 EXPORT="$(mktemp)"
 trap 'rm -f "$EXPORT"' EXIT
 
-# Resolve the full CI install (every extra except the pose-extraction subprocess venv).
+# Export the runtime, training and development packages used by CI.
 # The lock can list one package twice, split on a python-version marker
 # (e.g. positional-encodings 6.0.3 / 6.0.4). CI runs 3.12, so drop the
 # below-3.12 entries; keep this filter in step with ci.yml's python-version.

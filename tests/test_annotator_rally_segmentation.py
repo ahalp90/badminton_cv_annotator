@@ -7,12 +7,21 @@ pin the measured impulse rule and its largest-impulse de-duplication.
 import numpy as np
 import pytest
 
-from annotator.calibration.fixtures import SSET_01
 from annotator.config import (
     END_REST_FRAMES,
     SHIPPED_THRESHOLDS,
     SMOOTH_WINDOW,
 )
+from annotator.evaluation.fixtures import SSET_01
+from annotator.fps_constants import scale_for_fps
+from annotator.rally.serve import serve_distance_ratio_passes
+from annotator.rally.spans import (
+    burst_rally_spans,
+    active_region_rally_spans,
+    last_rest_close,
+    serve_qualified_rally_spans,
+)
+from annotator.rally.trajectory import _nan_rolling_mean, _rolling_mean
 from annotator.rally_segmentation import (
     CourtGeo,
     ServeSetupInputs,
@@ -30,15 +39,6 @@ from annotator.rally_segmentation import (
     suppress_contact_flags,
     wrist_contact_near,
 )
-from annotator.rally.serve import _serve_distance_ratio_passes
-from annotator.rally.spans import (
-    _find_rally_spans,
-    _find_rally_spans_span_open,
-    _last_rest_close,
-    _serve_start_find_rally_spans,
-)
-from annotator.rally.trajectory import _nan_rolling_mean, _rolling_mean
-from annotator.fps_constants import scale_for_fps
 from annotator.types import SmoothingMode
 
 SSET_01_COURT_GEO = CourtGeo(*SSET_01.court_geo)
@@ -444,8 +444,8 @@ def _span_open_speed_rest() -> tuple[np.ndarray, np.ndarray]:
 def test_span_open_region_start_vs_back_fill_differ_on_no_burst_region():
     speed, at_rest = _span_open_speed_rest()
     thresholds = SHIPPED_THRESHOLDS._replace(end_rest_frames=40)
-    region_start = _find_rally_spans_span_open(speed, at_rest, thresholds, SpanOpen.REGION_START)
-    back_fill = _find_rally_spans_span_open(speed, at_rest, thresholds, SpanOpen.BACK_FILL)
+    region_start = active_region_rally_spans(speed, at_rest, thresholds, SpanOpen.REGION_START)
+    back_fill = active_region_rally_spans(speed, at_rest, thresholds, SpanOpen.BACK_FILL)
     # The burst region opens at its start under BOTH rules; the no-burst region opens only under
     # REGION_START (the gate is dropped) and yields nothing under BACK_FILL (the gate holds).
     assert region_start == [(0, 60), (110, 200)]
@@ -541,10 +541,10 @@ def _serve_start_speed_rest_setup(
 def test_serve_start_opens_at_first_qualifying_burst():
     # Burst 10's lookback is NaN (fails); burst 60's is small (passes). Both modes open at 60.
     speed, at_rest, setup = _serve_start_speed_rest_setup({60})
-    assert _find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS) == [(10, 120)]  # stock opens at 10
+    assert burst_rally_spans(speed, at_rest, _SERVE_THRESHOLDS) == [(10, 120)]  # stock opens at 10
     for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
         options = ServeStartOptions(dist=None, threshold=0.10, mode=mode, setup=setup, lookback_frames=25)
-        assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(60, 120)]
+        assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(60, 120)]
 
 
 def test_serve_start_trim_falls_back_when_no_qualifying_burst():
@@ -554,7 +554,7 @@ def test_serve_start_trim_falls_back_when_no_qualifying_burst():
         dist=None, threshold=0.10, mode=ServeStartMode.TRIM, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 120)]
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 120)]
     assert diag['n_no_qualify'] == 1 and diag['n_qualified'] == 0
     assert diag['no_qualify_regions'] == [(0, 120)]
 
@@ -566,7 +566,7 @@ def test_serve_start_reject_drops_region_when_no_qualifying_burst():
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == []
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == []
     assert diag['n_no_qualify'] == 1 and diag['no_qualify_regions'] == [(0, 120)]
 
 
@@ -576,7 +576,7 @@ def test_serve_start_back_fill_opens_qualifying_region_at_region_start():
     options = ServeStartOptions(
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT, setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, SpanOpen.BACK_FILL) == [(0, 120)]
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, SpanOpen.BACK_FILL) == [(0, 120)]
 
 
 def test_segment_video_serve_start_none_is_exact_stock():
@@ -634,10 +634,10 @@ def _three_burst_speed_rest_setup(
 
 def test_last_rest_close_picks_last_qualifying_run_else_burst():
     rest_runs = [(5, 8), (30, 40), (55, 60), (90, 100)]
-    assert _last_rest_close(rest_runs, open_frame=10, next_burst=80) == 55   # later of (30,40),(55,60)
-    assert _last_rest_close(rest_runs, open_frame=45, next_burst=80) == 55   # (30,40) starts before open
-    assert _last_rest_close(rest_runs, open_frame=10, next_burst=25) == 25   # none between -> burst
-    assert _last_rest_close(rest_runs, open_frame=60, next_burst=95) == 95   # (90,100) ends past burst
+    assert last_rest_close(rest_runs, open_frame=10, next_burst=80) == 55   # later of (30,40),(55,60)
+    assert last_rest_close(rest_runs, open_frame=45, next_burst=80) == 55   # (30,40) starts before open
+    assert last_rest_close(rest_runs, open_frame=10, next_burst=25) == 25   # none between -> burst
+    assert last_rest_close(rest_runs, open_frame=60, next_burst=95) == 95   # (90,100) ends past burst
 
 
 def test_serve_start_split_off_is_single_span():
@@ -648,7 +648,7 @@ def test_serve_start_split_off_is_single_span():
             dist=None, threshold=0.10, mode=mode, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
-        assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 200)]
+        assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 200)]
         assert diag['qualifying_counts'] == [3]
 
 
@@ -658,19 +658,19 @@ def test_serve_start_split_burst_cuts_at_every_qualifying_burst():
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
         setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
         (10, 80), (80, 150), (150, 200)]
 
 
 def test_serve_start_split_burst_unions_to_the_single_span():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150})
-    single = _serve_start_find_rally_spans(
+    single = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
             dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
             setup=setup, lookback_frames=25,
         ), None)
-    split = _serve_start_find_rally_spans(
+    split = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
             dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
@@ -687,7 +687,7 @@ def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
         (10, 80), (80, 100), (150, 200)]
 
 
@@ -697,7 +697,7 @@ def test_serve_start_split_last_rest_takes_the_last_of_several_runs():
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
-    assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 55), (80, 200)]
+    assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 55), (80, 200)]
 
 
 def test_serve_start_split_no_qualify_region_honours_mode():
@@ -708,13 +708,13 @@ def test_serve_start_split_no_qualify_region_honours_mode():
             dist=None, threshold=0.10, mode=ServeStartMode.TRIM, close=close, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
-        assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, trim, None) == [(10, 200)]
+        assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, trim, None) == [(10, 200)]
         assert diag['n_no_qualify'] == 1 and diag['qualifying_counts'] == [0]
         reject = ServeStartOptions(
             dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=close,
             setup=setup, lookback_frames=25,
         )
-        assert _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, reject, None) == []
+        assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, reject, None) == []
 
 
 def test_serve_start_split_diagnostics_carry_counts_and_spacings():
@@ -724,7 +724,7 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
         dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
         close=ServeStartClose.BURST, diagnostics=diag, setup=setup, lookback_frames=25,
     )
-    _serve_start_find_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None)
+    serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None)
     assert diag['qualifying_counts'] == [3]
     assert diag['qualifying_spacings'] == [70, 70]  # 80-10, 150-80
 
@@ -733,6 +733,6 @@ def test_serve_distance_ratio_helper_uses_distance_mask_and_boundary() -> None:
     window_dist = np.array([0.2, 0.4, np.nan])
     window_height = np.array([1.0, 1.0, 100.0])
     boundary = float(np.median(window_dist[:2]) / np.mean(window_height[:2]))
-    assert _serve_distance_ratio_passes(window_dist, window_height, boundary)
-    assert not _serve_distance_ratio_passes(window_dist, window_height, np.nextafter(boundary, 0.0))
-    assert not _serve_distance_ratio_passes(np.full(3, np.nan), window_height, 1.0)
+    assert serve_distance_ratio_passes(window_dist, window_height, boundary)
+    assert not serve_distance_ratio_passes(window_dist, window_height, np.nextafter(boundary, 0.0))
+    assert not serve_distance_ratio_passes(np.full(3, np.nan), window_height, 1.0)

@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-import signal
 import shutil
+import signal
 import subprocess
 import time
+from pathlib import Path
 from types import FrameType
 from typing import Mapping, Sequence
 
 import numpy as np
-
 
 POSE_CHILD_STEM = "pose"
 _RAW_POSE_SUFFIXES = {

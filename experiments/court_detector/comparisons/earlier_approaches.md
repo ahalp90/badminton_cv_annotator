@@ -16,7 +16,7 @@ lines belonged to the playing court.
 Player positions and net evidence helped some of the three short-clip examples.
 They did not establish a reliable acceptance rule. In particular, choosing the
 players involved in the rally remains separate from finding people in the image.
-The [independent-court experiment](../../annotator/independent_court/README.md)
+The [independent-court experiment](../../annotator/reports/court_fitting.md)
 keeps its implementation and compact results. The
 [manual examples](../../../data/amateur_court_corners/README.md) retain useful inputs.
 

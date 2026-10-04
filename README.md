@@ -45,52 +45,52 @@ accuracy report, galleries and tools for improving the detector.
 
 ## Dataset handover
 
-The COSC595 dataset handover preserves the existing exports and supporting model outputs. It does not include a new extraction run.
+The COSC595 handover is a frozen delivery of the existing dataset exports and supporting model outputs. It is not a fresh extraction run.
 
-Start with the [handover folder and README](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1). Delivery checks and review status are recorded in [issue #134](https://github.com/ahalp90/badminton_cv_annotator/issues/134).
+The [handover folder](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1) contains the packages and their README. [Issue #134](https://github.com/ahalp90/badminton_cv_annotator/issues/134) records the delivery checks and review status. The [`START-HERE.md` developer guide](https://drive.google.com/file/d/1rrfn8f0zK75nDKESeBlJQSU2FBtpW_5j/view) gives the shortest route into the code and the remaining work.
 
-Read the [developer starting guide (`START-HERE.md`)](https://drive.google.com/file/d/1rrfn8f0zK75nDKESeBlJQSU2FBtpW_5j/view) in the handover folder for a new developer's first steps, expected check results, code entry points and unfinished work. The package README covers loading and verification in detail.
-
-| Download | Purpose |
+| Download | Contents |
 | --- | --- |
-| `cosc595-dataset-v1-main.zip` (about 130 MB) | Tables, manifests, player signals, schema, attribution, loading example and checks. Start here to use the exported features. |
-| `cosc595-dataset-v1-supporting-extracts.zip` (about 8.2 GB) | Optional pose, bounding-box, shuttle, court and mask outputs referenced by the dataset. These are model outputs, not match videos. |
+| `cosc595-dataset-v1-main.zip` (about 130 MB) | Tables, manifests, player signals, schema, attribution, loading example and checks |
+| `cosc595-dataset-v1-supporting-extracts.zip` (about 8.2 GB) | Optional pose, bounding-box, shuttle, court and mask outputs referenced by the dataset; these are model outputs, not match videos |
 
-Extract both packages into the same parent folder when the supporting outputs are needed. Both use a `dataset-v1/` directory. The handover README includes Python setup and verification commands. `SHA256SUMS` and `archive-inventory.json` record the published archives.
+Both archives unpack into a `dataset-v1/` directory, so they can share one parent folder. `SHA256SUMS` and `archive-inventory.json` record the published contents.
 
-The main dataset contains **6,833 human-source rallies across 86 videos**: 3,182 from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. ShuttleSet also contains automatic rally rows. Select `rally_origin == "source_contacts"` for the human-source population.
+The main dataset contains **6,833 human-source rallies across 86 videos**: 3,182 from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. ShuttleSet also contains automatically generated rally rows; `rally_origin == "source_contacts"` identifies the human-source population.
 
-ShuttleSet22 video 15 is excluded, as implemented in [PR #159](https://github.com/ahalp90/badminton_cv_annotator/pull/159). The schema is [`rally-dataset/1.3`](docs/dataset_v1_schema.md). The frozen repository baseline is [`2488f9b`](https://github.com/ahalp90/badminton_cv_annotator/tree/2488f9b5c116d499ef79e9ed21dd837ec0b0c44f). Original export provenance is preserved in the handover's `docs/SOURCE_RECORD.md` and manifests.
+ShuttleSet22 video 15 is excluded because its labels are misaligned; [PR #159](https://github.com/ahalp90/badminton_cv_annotator/pull/159) records that change. The schema is [`rally-dataset/1.3`](docs/dataset_v1_schema.md), and the frozen repository baseline is [`2488f9b`](https://github.com/ahalp90/badminton_cv_annotator/tree/2488f9b5c116d499ef79e9ed21dd837ec0b0c44f). The handover also keeps the original export provenance in `docs/SOURCE_RECORD.md` and the package manifests.
 
-The 47-video evaluation reported below includes the video later excluded from the 46-video ShuttleSet22 delivery. Those results are not a new evaluation of the filtered export.
+A later manual review checked 134 commentary passages covering 135 of the dataset's 3,500 candidate commentary–rally links. It found 116 matching passages, 13 general-discussion passages and five unclear passages. The sample was selected rather than random, so it does **not** establish whole-dataset pairing accuracy. The [review record](docs/dataset_builder/commentary_manual_review_20261002.md) preserves the labels, timing checks and notes.
 
-The full dataset includes 3,500 candidate commentary–rally links. A
-[manual review of 134 passages](docs/dataset_builder/commentary_manual_review_20261002.md)
-found 116 matching associations, 13 general-discussion passages and five
-unclear passages. The compressed evidence marks reviewed and unreviewed links
-separately and retains timing labels and notes. This selected sample does
-not establish whole-dataset pairing accuracy.
-
-The wider manual label sweep remains deferred. Existing court errors can affect derived features. The features are experimental measurements, not validated player skill grades.
-
-The [court-detector follow-up (#148)](https://github.com/ahalp90/badminton_cv_annotator/issues/148) remains separate from this delivery. Court integration, retraining and re-extraction are deferred. Full match videos are outside the packages. See the handover's rebuild notes for the additional inputs needed to reproduce the exports.
+The frozen handover predates the latest court integration and annotator refit. Existing court errors can therefore affect its derived features. The features are experimental measurements, not validated player-skill grades. Full match videos are also outside the packages; the handover's rebuild notes list the extra inputs needed to reproduce the exports.
 
 ## Auto-annotator
 
-Our most ambitious sub-project is the auto-annotator. It automates processing any badminton video into a scored sequence of rallies: detect the court, find live-play sections, identify shuttle contacts, work out which player hit them, and reconstruct each rally.
+The auto-annotator is the part of the project that tries to turn badminton
+footage into complete, correctly labelled rallies. It finds live play, detects
+racket contacts, assigns them to the near or far player, repairs the contact
+sequence and ranks rallies for human review.
 
-The annotator combines pretrained CV components with court geometry, shuttle motion, wrist position and other hand-engineered evidence, then uses lightweight learned models where they help. A deep model would probably make short work of it within its own dataset distribution. But we're trying to build a system that will transfer cleanly to unfamiliar contexts, so that it might work equally well on professional broadcast footage, amateur YouTube videos, and even matches down at the local club. All without needing annotated exemplars from each of those contexts.
+Over several months, the work progressed from hand-written shuttle and pose
+rules to learned contact detection, rally-wide side assignment, bounded sequence
+repairs and a separate review model. Court detection and player tracking also
+needed substantial work: bad geometry can spoil the evidence supplied to every
+later stage. The [development narrative](experiments/annotator/development.md)
+explains the experiments, including approaches that were tried and rejected.
 
-On a test of **47 previously unseen ShuttleSet22 videos** (fully held-out dataset), the current contact detector reaches **82.5% F1** within ±5 frames. Player-side attribution is around **92% accurate** on matched contacts.
+Individual contacts are now much more reliable than complete rallies. The
+selected model finds 34,200 of 37,184 labelled contacts and recovers **1,744 of
+3,327 complete rallies (52.4%)** on the 46-video ShuttleSet22 comparison, using
+a ±10-frame timing allowance at 30 fps. This is a frequently examined development
+benchmark; transfer to unfamiliar broadcasts and club footage remains unproven.
+The [evaluation guide](experiments/annotator/evaluation.md) explains the scoring,
+historical baselines and limits. The output still needs human review before it
+can supply trustworthy research labels.
 
-Whole rallies are much harder. The baseline produced 483 completely correct rally sections; a simple rally-wide alternating-player rule raised that to **901 / 3,982 (22.6%)**, repairing 418 rallies without breaking any that were already right.
-
-![Held-out complete-rally results](scratch/contact_det_followup/figures/01_complete_rallies.png)
-
-So it kind of, sort of works. Individual contacts are reasonably strong; trustworthy complete rallies are still the bottleneck. 
-Performance largely falls down where broadcast footage interweaves cutaways with standard court view footage within a single rally. So any single cutaway can ruin a whole rally. In theory, a static stream from the local club should fare much better.
-
-See the [contact-detector follow-up](scratch/contact_det_followup/report.md).
+The [student handover](experiments/annotator/README.md) covers the project
+and remaining research questions. The [quickstart](docs/annotator/quickstart.md)
+covers running the selected model; [how it works](docs/annotator/how_it_works.md)
+explains the implementation.
 
 ## Court detector
 
@@ -122,14 +122,14 @@ The base development install does not include all dependencies imported by the f
 
 Before running the trial pipeline:
 
-- Configure the separate pose environment using the [pose extraction requirements and GPU setup notes](src/bst_x/preparing_data/requirements.txt).
-- Set `BADMINTON_TRACKNET_PYTHON` and `BADMINTON_POSE_PYTHON` to the Python executables for the extraction environments.
+- Pose extraction and court detection share the root project environment; [the court setup guide](docs/court_detector/usage.md#cuda-pose-inference) covers CUDA dependencies.
+- `BADMINTON_TRACKNET_PYTHON`, `BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON` identify the Python executables used by the extraction stages. All three can point to the root project's `.venv/bin/python`.
 - Supply the TrackNet, InpaintNet and court model weights at the paths in [`configs/dataset_builder/trial.toml`](configs/dataset_builder/trial.toml), or update the configuration to match their locations.
 - Set `GEMINI_API_KEY` for the trial's enabled commentary stage. Full vision processing also needs FFmpeg and a suitable GPU environment.
 
 A fresh full pipeline rebuild was not tested during this handover. The package's `docs/REBUILD.md` lists the additional source data and saved records needed to reproduce the delivered exports.
 
-Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), FFmpeg, and CUDA-capable hardware for the full vision pipeline.
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), FFmpeg, and CUDA-capable hardware for the full vision pipeline.
 
 ```bash
 git clone https://github.com/ahalp90/badminton_cv_annotator.git
@@ -151,7 +151,7 @@ PYTHONPATH=src uv run python -m dataset_builder run \
 
 The trial configuration includes video discovery and commentary. Re-running against the same directory validates and reuses completed stages rather than blindly recomputing expensive vision work.
 
-Useful starting points are the [dataset-builder trial](docs/dataset_builder/issue_15_batch_5_e2e_report.md), [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), [contact-detector follow-up](scratch/contact_det_followup/report.md), and [HPC quickstart](docs/hpc_quickstart.md).
+Useful starting points are the [dataset-builder trial](docs/dataset_builder/issue_15_batch_5_e2e_report.md), [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), [annotator handover](experiments/annotator/README.md), and [HPC quickstart](docs/hpc_quickstart.md).
 
 ## Project
 

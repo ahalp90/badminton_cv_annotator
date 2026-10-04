@@ -2,21 +2,24 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-import math
 
 import pytest
 
 from annotator.config import (
+    SHIPPED_THRESHOLDS,
     BaseAnnotatorConfig,
     ResolvedAnnotatorConfig,
-    SHIPPED_THRESHOLDS,
 )
-from annotator.fps_constants import ScalingKind as FpsScalingKind, scale_for_fps
+from annotator.fps_constants import ScalingKind, scale_for_fps
 from annotator.rally_segmentation import scale_thresholds
 from annotator.resolve import resolve
-from annotator.types import DeadMaskMode, ReentryGuardVariant, ScalingKind, Slot, SmoothingMode
+from annotator.types import (
+    DeadMaskMode,
+    ReentryGuardVariant,
+    Slot,
+    SmoothingMode,
+)
 from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
-
 
 _FIELDS = {
     'rest_speed': (0.002, ScalingKind.PER_FRAME_SPEED),
@@ -36,10 +39,6 @@ _FIELDS = {
     'body_unit_half_window': (12.0, ScalingKind.FRAME_COUNT),
     'composition_min_scene_len': (15.0, ScalingKind.FRAME_COUNT),
 }
-
-
-def test_scaling_kind_remains_reexported_from_types() -> None:
-    assert ScalingKind is FpsScalingKind
 
 
 def test_scaling_kind_matches_every_fps_constant_field() -> None:
@@ -105,13 +104,3 @@ def test_config_dataclasses_are_frozen() -> None:
         base.thresholds = SHIPPED_THRESHOLDS  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
         resolved.fps = 60.0  # type: ignore[misc]
-
-
-def test_scaling_kind_invalid_guard_matches_scale_for_fps_message() -> None:
-    for fps in (0.0, -25.0, float('nan'), float('inf')):
-        with pytest.raises(ValueError) as scaling_error:
-            ScalingKind.DIMENSIONLESS.scale(1.0, fps)
-        with pytest.raises(ValueError) as table_error:
-            scale_for_fps(fps)
-        assert str(scaling_error.value) == str(table_error.value)
-        assert math.isnan(fps) or 'fps' in str(scaling_error.value)

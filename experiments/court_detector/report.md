@@ -51,7 +51,7 @@ Paint evidence helped distinguish court markings from other edges. Filtering for
 bright painted stripes improved accepted courts on the development broadcast examples
 and rejected the non-court controls. It still failed on the labelled amateur frames.
 That made paint a useful source of evidence within the search, while amateur court
-selection remained unresolved. The [prototype record](../annotator/independent_court/README.md)
+selection remained unresolved. The [prototype record](../annotator/reports/court_fitting.md)
 retains the numerical comparisons.
 
 People supplied another useful constraint. Applying a player check retrospectively to

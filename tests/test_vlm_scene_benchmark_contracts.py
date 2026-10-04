@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from annotator.broadcast_timeline_labels import SceneTruth
+from annotator.review.broadcast_labels import SceneTruth
 from annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
@@ -26,7 +26,6 @@ from annotator.vlm_scene_benchmark.contracts import (
     read_run_record,
     write_run_record,
 )
-
 
 SHA256 = "a" * 64
 

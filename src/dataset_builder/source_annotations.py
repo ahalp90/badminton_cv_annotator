@@ -9,7 +9,7 @@ rally structure and the player-signal positions, then validates the
 completed table against the frozen schema.
 
 Reproduces the rally-usability rules from the benchmark-only reader
-``annotator.calibration.shuttleset22_features.load_annotation_rallies``: a
+``annotator.evaluation.shuttleset22_features.load_annotation_rallies``: a
 rally is unusable if any of its rows has an invalid frame, or if its contact
 frames are not strictly increasing in (ball_round, frame_num) order. See
 issue #18.

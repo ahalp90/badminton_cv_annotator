@@ -1,10 +1,10 @@
 """FPS-relativity regression tests for the scraper's base-30 public table."""
 from __future__ import annotations
 
-from dataclasses import asdict, fields, replace
 import json
-from pathlib import Path
 import subprocess
+from dataclasses import asdict, fields, replace
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,8 @@ from annotator.fps_constants import (
     probe_fps,
     scale_for_fps,
 )
-from annotator.point_winner import (
+from annotator.masks.replay import combine_mask, court_absence_signal
+from annotator.outcomes.point_winner import (
     Half,
     LandingFilterOptions,
     LandingKinematics,
@@ -33,7 +34,6 @@ from annotator.rally_segmentation import (
     scale_thresholds,
     segment_video,
 )
-from annotator.replay_mask import combine_mask, court_absence_signal
 from annotator.resolve import resolve
 
 

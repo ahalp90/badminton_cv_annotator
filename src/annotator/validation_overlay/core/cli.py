@@ -16,18 +16,17 @@ import cv2
 import numpy as np
 
 from annotator.validation_overlay.core.decode import iter_span_frames
-from annotator.video_metadata import VideoMetadata
 from annotator.validation_overlay.core.encode import encode_frames
 from annotator.validation_overlay.core.hud import HudStyle, draw_hud, make_hud_style
 from annotator.validation_overlay.core.timeline import (
     Segment,
     SegmentPlan,
-    SpanState,
     SpacerPlan,
+    SpanState,
     TimelinePlan,
     build_timeline,
 )
-
+from annotator.video_metadata import VideoMetadata
 
 DrawFn = Callable[[np.ndarray, int, bool], list[str] | None]
 

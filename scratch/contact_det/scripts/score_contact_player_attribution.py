@@ -358,7 +358,7 @@ def _shipped_attribution_map(
     freezes: Mapping[str, TreeFreeze],
     variants: Mapping[str, Mapping[str, np.ndarray]],
 ) -> dict[tuple[str, int], str | None]:
-    from annotator import point_winner
+    from annotator.outcomes import point_winner
 
     _verify_stage_inputs(data_root, freezes)
     frames_by_fixture: dict[str, set[int]] = {fixture: set() for fixture in evidence_freezer.FIXTURE_SPECS}
@@ -408,7 +408,7 @@ def _shipped_attribution_map(
 
 def _load_side_ground_truth() -> dict[tuple[str, int], str]:
     """Read the player-side labels after every prediction stream is frozen."""
-    from annotator.calibration.gt_scoring import load_gt_tables
+    from annotator.evaluation.gt_scoring import load_gt_tables
 
     master, _homography, _court_info, _resolution = load_gt_tables()
     sides: dict[tuple[str, int], str] = {}
@@ -431,9 +431,9 @@ def _load_timing_ground_truth() -> tree_scorer.GroundTruth:
     """Load only contact timing columns for the eligible-court HGB rerun."""
     import pandas as pd
 
-    from annotator.calibration.fixtures import REPO_ROOT as CALIBRATION_ROOT
-    from annotator.calibration.fixtures import SHARED_FILES, verify_file
-    from annotator.calibration.scoring import load_gt_rallies
+    from annotator.evaluation.fixtures import REPO_ROOT as CALIBRATION_ROOT
+    from annotator.evaluation.fixtures import SHARED_FILES, verify_file
+    from annotator.evaluation.scoring import load_gt_rallies
 
     master_pin = next(pin for pin in SHARED_FILES if pin.path.name == "shots_master.csv")
     verify_file(master_pin)
@@ -618,8 +618,8 @@ def _score_heuristics(
     retained_score: Mapping[str, Any],
     sides: Mapping[tuple[str, int], str],
 ) -> dict[str, Any]:
-    from annotator.calibration.gt_scoring import load_gt_tables
-    from annotator.calibration.scoring import load_gt_rallies
+    from annotator.evaluation.gt_scoring import load_gt_tables
+    from annotator.evaluation.scoring import load_gt_rallies
 
     master, _homography, _court_info, _resolution = load_gt_tables()
     evidence_by_fixture = {str(row["fixture"]): row for row in verified.evidence["fixtures"]}

@@ -1,34 +1,40 @@
-"""GT-free annotation-chain composition for one video."""
+"""Run the mixed heuristic and tree annotator for one video."""
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from itertools import pairwise
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 
-import annotator.rally_segmentation as rally_segmentation
-from annotator import point_winner as point_winner
+from annotator import rally_segmentation
 from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
-from annotator.dead_mask import build_dead_mask
-from annotator.replay_mask import filter_short_exclusion_runs
-from annotator.resolve import resolve
-from annotator.scene_courts import SceneCourt, build_scene_courts
-from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
-from annotator.video_outcomes import (
+from annotator.courts.scenes import SceneCourt, build_scene_courts
+from annotator.hybrid import ContactEvidence, HybridPrediction, predict_contacts
+from annotator.masks.dead import build_dead_mask
+from annotator.masks.replay import filter_short_exclusion_runs
+from annotator.models import AnnotatorModels, load_models
+from annotator.outcomes import point_winner
+from annotator.outcomes.video import (
     LandingHorizonRow,
     build_contact_data,
     build_hit_heights,
+    build_refined_contact_data,
     build_verdict_data,
 )
-from annotator.video_outcomes import (
-    scoring_filter as scoring_filter,
-)
+from annotator.resolve import resolve
+from annotator.sequence import ContactEvent
+from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
+
+DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
+DEFAULT_MODEL_DIRECTORY = Path('models/annotator')
 
 
-def _build_shuttle_hallucination_mask(
+def build_shuttle_hallucination_mask(
     n_frames: int, rejected_grades: frozenset[int],
     inpaint_codes: np.ndarray | None, shuttle_hallucination_mask: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
@@ -53,9 +59,8 @@ def build_serve_options(
 ) -> rally_segmentation.ServeStartOptions:
     """Build sticky-sourced serve-start evidence from the unmasked cache.
 
-    Serve evidence deliberately comes from the sticky cache built before any masking; the
-    committed mask demonstrably eats live serves on sset_21, and masking policy belongs to the
-    decontamination commit and parked redesign, not this lane.
+    Build serve evidence before replay masking, which can otherwise remove
+    the quiet setup frames needed to recognise a serve.
     """
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
@@ -70,14 +75,15 @@ def build_serve_options(
 
 
 class AnnotatorResult(NamedTuple):
-    """Everything the chain produces for one video, before any GT is read.
+    """Final rallies, contacts, player sides and outcomes for one video.
 
     :param spans: detected rally spans, `[(start, end), ...]`; rally_id is the list index.
-    :param contacts: RAW `ContactCandidate` rows. `wrist_near` is the wrist gate verdict and
-        `suppressed` records a gate-passing candidate that lost suppression.
+    :param contacts: Contact rows owned by rallies. Tree-selected rows have no
+        heuristic wrist or suppression verdict. In heuristic-only comparisons,
+        these fields retain the original candidate gate results.
     :param filtered_contacts: rows where `wrist_near is not False and suppressed is not True`.
         This keeps suppression winners and the unmeasured no-gate path — the set
-        `annotator.calibration.scoring.score_contacts` scores the ball_round column against.
+        `annotator.evaluation.scoring.score_contacts` scores the ball_round column against.
     :param filtered_by_rally: rally_id -> ascending contact frames from `filtered_contacts`.
     :param striker_halves: fitted final-contact half per rally_id (None: no contacts, or a tied
         fit); index-aligned to `spans`.
@@ -93,6 +99,9 @@ class AnnotatorResult(NamedTuple):
         filtered contact that scored successfully.
     :param hit_height_failures: `(rally_id, stroke_idx, contact_frame, error)` for filtered
         contacts where hit_height raised (shuttle not visible at that exact frame).
+    :param contact_events: Full final tree-model stream, including contacts outside
+        every rally. Each event retains its score and individual player side.
+    :param rally_confidence: Review-ranking score per rally, in span order.
     """
 
     spans: list[tuple[int, int]]
@@ -108,6 +117,8 @@ class AnnotatorResult(NamedTuple):
     geometric_verdict_rows: dict[int, object]
     hit_height_by_frame: dict[int, int]
     hit_height_failures: list[tuple[int, int, int, str]]
+    contact_events: tuple[ContactEvent, ...] = ()
+    rally_confidence: tuple[float, ...] = ()
 
 
 @dataclass
@@ -116,11 +127,13 @@ class RunCapture:
 
     raw_exclusion_mask: np.ndarray | None = None
     definitive_exclusion_mask: np.ndarray | None = None
-    landing_horizon_rows: list['LandingHorizonRow'] = field(default_factory=list)
+    landing_horizon_rows: list[LandingHorizonRow] = field(default_factory=list)
+    hybrid: HybridPrediction | None = None
+    contact_evidence: ContactEvidence | None = None
 
 
 @dataclass(frozen=True)
-class _CourtInputs:
+class CourtInputs:
     """Court and player evidence used only by court-dependent modes."""
 
     bboxes: np.ndarray | None
@@ -140,16 +153,17 @@ class _CourtInputs:
 
 
 @dataclass(frozen=True)
-class _SegmentationData:
+class SegmentationData:
     """Final spans, contacts, and exclusion mask from the segmentation phase."""
 
     spans: list[tuple[int, int]]
     contacts: list[ContactCandidate]
     definitive_exclusion_mask: np.ndarray
     sticky: StickyResult | None = None
+    tracker_intervals: Sequence[tuple[int, int]] = ()
 
 
-def _validate_landing_horizons(
+def validate_landing_horizons(
     capture: RunCapture | None, landing_horizons_s: tuple[float, ...],
 ) -> None:
     """Validate optional horizon capture without changing its rounding policy."""
@@ -160,12 +174,12 @@ def _validate_landing_horizons(
     for horizon in landing_horizons_s:
         if not math.isfinite(horizon) or horizon <= 0:
             raise ValueError('landing_horizons_s must contain finite positive values')
-    for earlier, later in zip(landing_horizons_s, landing_horizons_s[1:]):
+    for earlier, later in pairwise(landing_horizons_s):
         if later <= earlier:
             raise ValueError('landing_horizons_s must be strictly increasing')
 
 
-def _span_options(resolved: ResolvedAnnotatorConfig) -> dict[str, Any]:
+def build_span_options(resolved: ResolvedAnnotatorConfig) -> dict[str, Any]:
     """Return the shared options for every span-finding path."""
     return {
         'thresholds': resolved.thresholds,
@@ -178,8 +192,8 @@ def _span_options(resolved: ResolvedAnnotatorConfig) -> dict[str, Any]:
     }
 
 
-def _validate_run_inputs(
-    court: _CourtInputs,
+def validate_run_inputs(
+    court: CourtInputs,
     *,
     serve_start: ServeStartConfig | None,
     spans: list[tuple[int, int]] | None,
@@ -252,7 +266,7 @@ def _validate_run_inputs(
     return court.homography_rows
 
 
-def _empty_result(
+def empty_result(
     spans: list[tuple[int, int]], contacts: list[ContactCandidate],
 ) -> AnnotatorResult:
     """Return the existing segmentation-only result shape."""
@@ -264,7 +278,7 @@ def _empty_result(
     )
 
 
-def _injected_contact_rows(contacts: dict[int, list[int]]) -> list[ContactCandidate]:
+def injected_contact_rows(contacts: dict[int, list[int]]) -> list[ContactCandidate]:
     """Adapt injected rally-indexed frames to unmeasured contact rows."""
     return [
         ContactCandidate(rally_id, frame, None, None, None)
@@ -273,7 +287,7 @@ def _injected_contact_rows(contacts: dict[int, list[int]]) -> list[ContactCandid
     ]
 
 
-def _finalize_exclusion_mask(
+def finalise_exclusion_mask(
     raw_exclusion_mask: np.ndarray,
     *,
     n_frames: int,
@@ -303,7 +317,7 @@ def _finalize_exclusion_mask(
     return definitive_exclusion_mask
 
 
-def _run_court_optional_segmentation(
+def run_court_optional_segmentation(
     track: np.ndarray,
     positions: np.ndarray | None,
     spans: list[tuple[int, int]] | None,
@@ -312,14 +326,14 @@ def _run_court_optional_segmentation(
     capture: RunCapture | None,
     resolved: ResolvedAnnotatorConfig,
     span_options: dict[str, Any],
-) -> _SegmentationData:
+) -> SegmentationData:
     """Run the court-free segmentation-only mode."""
     raw_mask = (
         raw_exclusion_mask
         if raw_exclusion_mask is not None
         else np.zeros(len(track), dtype=bool)
     )
-    definitive_exclusion_mask = _finalize_exclusion_mask(
+    definitive_exclusion_mask = finalise_exclusion_mask(
         raw_mask,
         n_frames=len(track),
         replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
@@ -340,15 +354,15 @@ def _run_court_optional_segmentation(
         final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
             track, **span_options,
         )
-        raw_contacts = _injected_contact_rows(contacts)
-    return _SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask)
+        raw_contacts = injected_contact_rows(contacts)
+    return SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask)
 
 
-def _run_court_segmentation(
+def run_court_segmentation(
     track: np.ndarray,
     *,
     fps: float,
-    court: _CourtInputs,
+    court: CourtInputs,
     homography_rows: object,
     scene_courts: tuple[SceneCourt, ...],
     raw_exclusion_mask: np.ndarray | None,
@@ -362,7 +376,7 @@ def _run_court_segmentation(
     stop_after_segmentation: bool,
     resolved: ResolvedAnnotatorConfig,
     span_options: dict[str, Any],
-) -> _SegmentationData:
+) -> SegmentationData:
     """Build sticky evidence, exclusion masks, spans, and contacts."""
     # Sticky evidence must see the original track. Build it once before any replay masking.
     segments = rally_segmentation.tracker_segments(
@@ -380,7 +394,7 @@ def _run_court_segmentation(
         final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
             track, **span_options,
         )
-        raw_contacts = _injected_contact_rows(contacts)
+        raw_contacts = injected_contact_rows(contacts)
         if raw_exclusion_mask is None:
             raw_exclusion_mask = build_dead_mask(
                 resolved.dead_mask_mode, len(track), fps, court_present=court.court_present,
@@ -418,7 +432,7 @@ def _run_court_segmentation(
         usable_court_frames[start:end] = True
     if court_invalid_is_excluded:
         usable_court_frames = usable_court_frames & court.court_present
-    definitive_exclusion_mask = _finalize_exclusion_mask(
+    definitive_exclusion_mask = finalise_exclusion_mask(
         raw_exclusion_mask,
         n_frames=len(track),
         replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
@@ -437,7 +451,7 @@ def _run_court_segmentation(
             smoothing_mode=resolved.smoothing_mode,
             **span_options,
         )
-    return _SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask, sticky)
+    return SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask, sticky, segments)
 
 
 def run_video(
@@ -448,7 +462,9 @@ def run_video(
     ndet: np.ndarray | None = None,
     *,
     fps: float,
-    base: BaseAnnotatorConfig = BaseAnnotatorConfig(),
+    base: BaseAnnotatorConfig | None = None,
+    models: AnnotatorModels | None = None,
+    heuristic_only: bool = False,
     landing_options: point_winner.LandingFilterOptions | None = None,
     net_band: tuple[float, float] | None = None,
     resolution: tuple[float, float] | None = None,
@@ -478,6 +494,11 @@ def run_video(
     landing_horizons_s: tuple[float, ...] = (),
 ) -> AnnotatorResult:
     """Run segmentation, attribution, verdict, landing, and hit-height for one video.
+
+    Full annotation uses ``models`` or loads ``models/annotator`` from the
+    working directory. Its preprocessing settings must match the fitted bundle.
+    ``heuristic_only`` supports feature preparation and historical comparisons;
+    normal annotation runs the complete mixed heuristic/tree system.
 
     Core arrays are ``track`` as ``(t, 3)`` normalised shuttle ``[x, y,
     visibility]``; ``bboxes`` as ``(t, n_max, 4)`` xyxy pose boxes; ``scores``
@@ -512,7 +533,17 @@ def run_video(
     ``court_invalid_is_excluded`` also excludes frames where ``court_present``
     is false. Neither exclusion is added when stopping after segmentation.
     """
-    court = _CourtInputs(
+    if heuristic_only and models is not None:
+        raise ValueError('heuristic_only cannot be combined with fitted models')
+    if not stop_after_segmentation and not heuristic_only:
+        models = load_models(DEFAULT_MODEL_DIRECTORY) if models is None else models
+        if base is not None and base != models.preprocessing:
+            raise ValueError('Preprocessing differs from the fitted model bundle; use its settings or refit the models')
+        base = models.preprocessing
+    if base is None:
+        base = DEFAULT_PREPROCESSING
+
+    court = CourtInputs(
         bboxes=bboxes, scores=scores, kps=kps, ndet=ndet, resolution=resolution,
         video_id=video_id, court_info=court_info, homo_df=homo_df,
         gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
@@ -523,13 +554,15 @@ def run_video(
         capture.raw_exclusion_mask = None
         capture.definitive_exclusion_mask = None
         capture.landing_horizon_rows.clear()
-    _validate_landing_horizons(capture, landing_horizons_s)
+        capture.hybrid = None
+        capture.contact_evidence = None
+    validate_landing_horizons(capture, landing_horizons_s)
     if capture is not None and raw_exclusion_mask is not None:
         capture.raw_exclusion_mask = raw_exclusion_mask.copy()
 
     resolved = resolve(base, fps)
-    span_options = _span_options(resolved)
-    homography_rows = _validate_run_inputs(
+    span_options = build_span_options(resolved)
+    homography_rows = validate_run_inputs(
         court,
         serve_start=serve_start,
         spans=spans,
@@ -540,21 +573,21 @@ def run_video(
         net_band=net_band,
         landing_error_band_m=landing_error_band_m,
     )
-    shuttle_hallucination_mask, source_codes = _build_shuttle_hallucination_mask(
+    shuttle_hallucination_mask, source_codes = build_shuttle_hallucination_mask(
         len(track), resolved.rejected_grades, inpaint_codes, shuttle_hallucination_mask,
     )
 
     if court_optional:
-        segmentation = _run_court_optional_segmentation(
+        segmentation = run_court_optional_segmentation(
             track, positions=positions, spans=spans, contacts=contacts,
             raw_exclusion_mask=raw_exclusion_mask, capture=capture,
             resolved=resolved, span_options=span_options,
         )
-        return _empty_result(segmentation.spans, segmentation.contacts)
+        return empty_result(segmentation.spans, segmentation.contacts)
 
     assert homography_rows is not None
     scene_courts = build_scene_courts(homography_rows, court.resolution, ref_err_px)
-    segmentation = _run_court_segmentation(
+    segmentation = run_court_segmentation(
         track,
         fps=fps,
         court=court,
@@ -573,7 +606,7 @@ def run_video(
         span_options=span_options,
     )
     if stop_after_segmentation:
-        return _empty_result(segmentation.spans, segmentation.contacts)
+        return empty_result(segmentation.spans, segmentation.contacts)
 
     assert segmentation.sticky is not None
     assert court.bboxes is not None
@@ -581,15 +614,41 @@ def run_video(
     assert court.resolution is not None
     assert court.court_info is not None
     assert net_band is not None
-    contact_data = build_contact_data(
-        spans=segmentation.spans, contacts=segmentation.contacts,
-        definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
-        track=track, sticky=segmentation.sticky, bboxes=court.bboxes, net_band=net_band,
-        scene_courts=scene_courts,
+    final_spans = segmentation.spans
+    final_contacts = segmentation.contacts
+    contact_events = ()
+    rally_confidence = ()
+    evidence = ContactEvidence(
+        identity=str(video_id), fps=fps, resolution=court.resolution,
+        track=track, pose_kps=court.kps, bboxes=court.bboxes, sticky=segmentation.sticky,
+        tracker_intervals=segmentation.tracker_intervals,
+        exclusion_mask=segmentation.definitive_exclusion_mask,
+        heuristic_spans=segmentation.spans,
+        raw_contact_frames=[contact.contact_frame for contact in segmentation.contacts],
+        scene_courts=scene_courts, net_band=net_band,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
     )
+    if capture is not None:
+        capture.contact_evidence = evidence
+    if models is None:
+        contact_data = build_contact_data(
+            spans=final_spans, contacts=final_contacts,
+            definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
+            track=track, sticky=segmentation.sticky, bboxes=court.bboxes, net_band=net_band,
+            scene_courts=scene_courts,
+        )
+    else:
+        prediction = predict_contacts(evidence, models)
+        if capture is not None:
+            capture.hybrid = prediction
+        final_spans = [(sequence.start_frame, sequence.end_frame) for sequence in prediction.refined.sequences]
+        contact_data = build_refined_contact_data(prediction.refined.sequences)
+        final_contacts = contact_data.filtered_contacts
+        contact_events = prediction.refined.events
+        rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
     verdict_data = build_verdict_data(
         track,
-        fps=fps, spans=segmentation.spans,
+        fps=fps, spans=final_spans,
         definitive_exclusion_mask=segmentation.definitive_exclusion_mask,
         sticky=segmentation.sticky, contact_data=contact_data, resolved=resolved,
         kps=court.kps, resolution=court.resolution,
@@ -603,13 +662,13 @@ def run_video(
         scene_courts=scene_courts,
     )
     hit_height_by_frame, hit_height_failures = build_hit_heights(
-        spans=segmentation.spans, filtered_by_rally=contact_data.filtered_by_rally,
+        spans=final_spans, filtered_by_rally=contact_data.filtered_by_rally,
         track=track, net_band=net_band, resolution=court.resolution,
         scene_courts=scene_courts,
     )
     return AnnotatorResult(
-        spans=segmentation.spans,
-        contacts=segmentation.contacts,
+        spans=final_spans,
+        contacts=final_contacts,
         filtered_contacts=contact_data.filtered_contacts,
         filtered_by_rally=contact_data.filtered_by_rally,
         striker_halves=contact_data.striker_halves,
@@ -621,4 +680,6 @@ def run_video(
         geometric_verdict_rows=verdict_data.geometric_verdict_rows,
         hit_height_by_frame=hit_height_by_frame,
         hit_height_failures=hit_height_failures,
+        contact_events=contact_events,
+        rally_confidence=rally_confidence,
     )

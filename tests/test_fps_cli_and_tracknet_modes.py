@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 from annotator.resolve import resolve
 from annotator.run_video import AnnotatorResult
+from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 
 
 def test_rally_dead_mask_loader_keeps_dead_mask_filename(tmp_path: Path) -> None:
@@ -26,7 +26,7 @@ def test_rally_dead_mask_loader_keeps_dead_mask_filename(tmp_path: Path) -> None
 
 
 def test_composition_mask_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
-    import annotator.composition_mask as composition_mask
+    import annotator.masks.composition as composition_mask
 
     keep_vote_path = tmp_path / 'keep_vote.npy'
     np.save(keep_vote_path, np.ones(200, dtype=bool))
@@ -66,7 +66,7 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     expected_impulse: int | None,
 ) -> None:
     import annotator.run_video as run_video_module
-    import annotator.rally_segmentation as rally_segmentation
+    from annotator import rally_segmentation
 
     shuttle_dir = tmp_path / 'shuttles'
     shuttle_dir.mkdir()
@@ -117,7 +117,7 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
 ) -> None:
     """The contacts CSV carries both verdict columns, blank on the no-gate path."""
     import annotator.run_video as run_video_module
-    import annotator.rally_segmentation as rally_segmentation
+    from annotator import rally_segmentation
     from annotator.types import ContactCandidate
 
     shuttle_dir = tmp_path / 'shuttles'
@@ -153,7 +153,7 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
 def test_rally_segmentation_main_requires_an_fps_source(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
 ) -> None:
-    import annotator.rally_segmentation as rally_segmentation
+    from annotator import rally_segmentation
 
     shuttle_dir = tmp_path / 'shuttles'
     shuttle_dir.mkdir()
@@ -167,7 +167,7 @@ def test_rally_segmentation_main_requires_an_fps_source(
 
 
 def test_replay_main_requires_fps(monkeypatch: pytest.MonkeyPatch) -> None:
-    import annotator.replay_mask as replay
+    from annotator.masks import replay
 
     monkeypatch.setattr(sys, 'argv', ['replay', '--video-id', 'one'])
     with pytest.raises(SystemExit, match='2'):
@@ -186,7 +186,7 @@ def test_extract_shuttle_builds_tracknet_command(
     large_video: bool,
     present: bool,
 ) -> None:
-    import src.bric.perception.shuttle as shuttle
+    from src.bric.perception import shuttle
 
     weights_dir = tmp_path / 'weights'
     weights_dir.mkdir()
@@ -214,7 +214,7 @@ def test_extract_shuttle_builds_tracknet_command(
 
 
 def test_extract_shuttle_rejects_stride_three(tmp_path: Path) -> None:
-    import src.bric.perception.shuttle as shuttle
+    from src.bric.perception import shuttle
 
     weights_dir = tmp_path / 'weights'
     weights_dir.mkdir()

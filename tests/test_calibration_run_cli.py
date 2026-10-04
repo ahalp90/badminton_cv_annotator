@@ -5,8 +5,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from annotator.calibration import run_cli
-from annotator.calibration.fixtures import SSET_01
+from annotator.evaluation.fixtures import SSET_01
+from experiments.annotator.heuristic_tuning import run_cli
 
 
 @contextmanager

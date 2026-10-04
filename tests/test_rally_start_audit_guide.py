@@ -6,13 +6,13 @@ import csv
 import gzip
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
 
-import annotator.rally_start_events as events
-from annotator.manual_broadcast_timeline_annotator import read_guides
-
+import annotator.review.rally_starts as events
+from annotator.review.broadcast_editor import read_guides
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = (
@@ -190,8 +190,13 @@ def test_output_package_is_deterministic_and_viewer_compatible(tmp_path: Path) -
     assert all((first / name).read_bytes() == (second / name).read_bytes() for name in first_files)
     assert all(
         (first / name).read_bytes() == (guide.DEFAULT_OUTPUT_DIR / name).read_bytes()
-        for name in first_files
+        for name in first_files if name != "summary.json.gz"
     )
+    saved_summary = json.loads(gzip.decompress((guide.DEFAULT_OUTPUT_DIR / "summary.json.gz").read_bytes()))
+    # Source paths and hashes describe the historical generator; outputs must still agree.
+    assert {key: value for key, value in first_summary.items() if key != "inputs"} == {
+        key: value for key, value in saved_summary.items() if key != "inputs"
+    }
     assert first_summary["counts"]["pooled_targets"] == 136
     assert first_summary["counts"]["pooled_quality_audit"] == 26
     assert first_summary["counts"]["pooled_transition_controls"] == 6

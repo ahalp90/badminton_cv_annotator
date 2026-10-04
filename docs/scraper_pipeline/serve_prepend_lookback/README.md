@@ -26,7 +26,7 @@ This directory is the current measurement package for the deferred serve-prepend
   records the completed disposable-copy pilot and the full-audit companion commands
 - [rally_start_visibility_pilot_report_20260809.md](rally_start_visibility_pilot_report_20260809.md)
   reports the completed four-state pilot and its sampling limits
-- [`src/annotator/rally_start_event_annotator.py`](../../../src/annotator/rally_start_event_annotator.py)
+- [`src/annotator/review/rally_start_editor.py`](../../../src/annotator/review/rally_start_editor.py)
   reviews proposal-keyed rally starts while keeping timeline inputs read-only
 - [data/serve_prepend_lookback_20260731-040847/](data/serve_prepend_lookback_20260731-040847/)
   contains the gzip CSV/JSON and native NumPy-over-XZ/LZMA-9 evidence pack
