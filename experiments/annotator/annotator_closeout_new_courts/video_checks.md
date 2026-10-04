@@ -14,7 +14,7 @@
 
 ## Video 15 stays excluded
 
-Nothing here changes the earlier decision. Video 15's labels refer to the wrong rallies across all three games, so [#147](https://github.com/ahalp90/badminton_cv_annotator/issues/147) drops it. The [earlier label checks](../annotator_wrapup_evaluation/video_checks.md#video-15-exclude-it) give the evidence.
+Nothing here changes the earlier decision. Video 15's labels refer to the wrong rallies across all three games, so [#147](https://github.com/ahalp90/badminton_cv_annotator/issues/147) drops it. The [earlier label checks](../../../scratch/annotator_wrapup_evaluation/video_checks.md#video-15-exclude-it) give the evidence.
 
 ## Video 53 holds up
 
@@ -35,7 +35,7 @@ The ranges are the shifts that recover the most hits.
 
 The footage agrees. One hit was checked in each rally. In all four, the labelled player does not hit within ten frames of the label; the nearest visible hits sit 13–16 frames away. In three, the model's prediction is within three frames of the visible hit. The rallies themselves are right: during rally 17 the scoreboard shows An 10–6 Pusarla, and the official row records 11–6 after it.
 
-Together these rallies hold **101 of video 12's 128 misses**. The rest of video 12 scores normally: 29 of 57 rallies fully correct and 27 misses in 643 labels. The [earlier report's](../annotator_wrapup_evaluation/video_checks.md#other-weak-videos) late label at frame 18,232 is in rally 8.
+Together these rallies hold **101 of video 12's 128 misses**. The rest of video 12 scores normally: 29 of 57 rallies fully correct and 27 misses in 643 labels. The [earlier report's](../../../scratch/annotator_wrapup_evaluation/video_checks.md#other-weak-videos) late label at frame 18,232 is in rally 8.
 
 No other rally looks like this. A search over every rally found no other case where shifting the labels by eight or more frames recovers five or more hits.
 
@@ -98,7 +98,7 @@ So the sampled extra hits are the model's errors. With 0 label errors in 16 case
 
 Shots into the net and misjudged landings fail this way more often. 10.0% of rallies ending in the net and 13.5% ending in a misjudged landing fail on the extra hit alone, against 5.4% of rallies ending with a shot out. The false hit tends to come when the receiver reacts to a dead or dropping shuttle.
 
-This answers the earlier open question. The [earlier follow-up](../annotator_wrapup_evaluation/last_followups.md#endpoint-deletion) found many extras after the final label but could not tell whether they were physical hits. In the checked cases they are not.
+This answers the earlier open question. The [earlier follow-up](../../../scratch/annotator_wrapup_evaluation/last_followups.md#endpoint-deletion) found many extras after the final label but could not tell whether they were physical hits. In the checked cases they are not.
 
 ### Swapped sides
 

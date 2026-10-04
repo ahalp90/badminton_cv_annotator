@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = ROOT.parents[1]
+REPOSITORY = ROOT.parents[2]
 OFFICIAL = REPOSITORY / "data/shuttleset22/set"
 CLEANED = ROOT / "raw/run/output/shared/labels/test"
 ENDING_NAMES = {

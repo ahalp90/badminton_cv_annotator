@@ -42,7 +42,7 @@ The selected model stayed fixed. No model was refitted for this closeout.
 | Annotator code | `code/` in that run, commit `97b5e4de` |
 | Court release | `court_sharing_patched`, commit `e0151791` |
 | Labels | `output/shared/labels/{test,development}/*.csv`, cleaned |
-| Old-court contexts and outputs | `../annotator_wrapup_evaluation/results/` |
+| Old-court contexts and outputs | `scratch/annotator_wrapup_evaluation/results/` |
 | Paired gained/lost rally IDs | `experiments/annotator/good_court_refit/evidence/saved-stream-analysis.json.gz` |
 
 ## Environment
@@ -88,7 +88,7 @@ Read the CSVs with `dtype={"video": str}`: development video IDs such as `sset_3
 
 ## Pull the saved run
 
-Copy these run subfolders into `scratch/annotator_closeout_new_courts/raw/run/`, keeping their paths:
+Copy these run subfolders into `experiments/annotator/annotator_closeout_new_courts/raw/run/`, keeping their paths:
 
 ```text
 output/base/eval
@@ -117,7 +117,7 @@ All 46 rebuilt streams matched the saved streams.
 
 ```bash
 PYTHONPATH=.:src python -m scratch.annotator_closeout_new_courts.scripts.evaluate_saved
-python scratch/annotator_closeout_new_courts/scripts/collect_context.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/collect_context.py
 ```
 
 The recount takes about three minutes. It uses the library's contact matching and replicates its whole-rally rule at both tolerances. Correct sides use the raw stream event sides, as the run's own comparison does.
@@ -128,7 +128,7 @@ The context step joins each labelled ShuttleSet22 frame to its scene record and 
 
 ```bash
 PYTHONPATH=.:src python -m scratch.annotator_closeout_new_courts.scripts.summarise
-python scratch/annotator_closeout_new_courts/scripts/summarise_court_change.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/summarise_court_change.py
 ```
 
 The court comparison marks a rally as rejected under a court version when any of its labelled hits falls in a frame that version rejected. Old-court states come from the earlier evaluation's contexts. The fresh old-court refit used the same court inputs as the historical model, so one old state serves both comparisons.
@@ -136,9 +136,9 @@ The court comparison marks a rally as rejected under a court version when any of
 ## Figures and per-video viewer
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/plot_evaluation.py
-python scratch/annotator_closeout_new_courts/scripts/plot_court_cases.py
-python scratch/annotator_closeout_new_courts/scripts/build_video_view.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_evaluation.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_court_cases.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/build_video_view.py
 ```
 
 The court-case figures reuse the earlier evaluation's saved frames and old outlines. The new outlines come from the run's scene records.
@@ -148,12 +148,12 @@ The court-case figures reuse the earlier evaluation's saved frames and old outli
 ### Random miss sample
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/sample_misses.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/sample_misses.py
 # beside the run, with extract_views.py and miss_sample.csv.gz copied to $WORK:
 "$RUN_PYTHON" "$WORK/extract_views.py" --sample "$WORK/miss_sample.csv.gz" \
   --sources "$SOURCES" --output "$WORK/miss_frames"
 # copy $WORK/miss_frames/ to raw/miss_frames/, write the judgements to worklog/, then:
-python scratch/annotator_closeout_new_courts/scripts/summarise_judgements.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/summarise_judgements.py
 ```
 
 The sample uses seed `20261004` and draws 24 of the 2,984 missed hits uniformly. Each case has a context sheet of nine stills at half-second steps over ±2 seconds, a burst of nine stills at three-frame steps around the label, and a full-resolution centre frame.
@@ -165,15 +165,15 @@ The earlier OpenCV stills were checked against frame-exact decoding: 21 of 24 ce
 ### Failure-group checks
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/sample_label_checks.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/sample_label_checks.py
 # beside the run, with render_label_checks.py, label_check_cases.csv.gz and the miss-sample files in $WORK:
 PYTHONPATH="$RUN/code/src" "$RUN_PYTHON" "$WORK/render_label_checks.py" \
   --cases "$WORK/label_check_cases.csv.gz" --sources "$SOURCES" --extracted "$PREPARED" \
   --output "$WORK/label_frames" --saved-sample "$WORK/miss_sample.csv.gz" --saved-stills "$WORK/miss_frames"
 # copy $WORK/label_frames/ to raw/label_frames/, write the judgements to worklog/, then:
-python scratch/annotator_closeout_new_courts/scripts/trace_label_rows.py
-python scratch/annotator_closeout_new_courts/scripts/summarise_label_checks.py
-python scratch/annotator_closeout_new_courts/scripts/count_tail_endings.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/trace_label_rows.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/summarise_label_checks.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/count_tail_endings.py
 ```
 
 The sample uses seed `20261004` and has three groups:
@@ -197,7 +197,7 @@ The brief's example note happened to describe case L08's query frame as a contac
 ## Detector audit checks
 
 ```bash
-PYTHONPATH=src python scratch/annotator_closeout_new_courts/scripts/audit_checks.py
+PYTHONPATH=src python experiments/annotator/annotator_closeout_new_courts/scripts/audit_checks.py
 ```
 
 The script recomputes every count in the [detector audit](detector_audit.md). It reads the detector stages each rejected scene ran from the court release, compares each scene's 3-second foot window with the labelled rallies, measures vote-failed courts against the frame and the video's accepted courts, and follows each false final hit through the saved sequences and landings. It needs `raw/run/` and the official ShuttleSet22 rows.
@@ -207,7 +207,7 @@ The script recomputes every count in the [detector audit](detector_audit.md). It
 Run `scripts/pull_shuttle_guard_runs.py` on the machine holding the inpainted ShuttleSet22 extract, with the extract root as its only argument. It reads the inpainted tracks, guard codes and fill sidecars that the evaluated run read, and writes `results/shuttle_guard_runs.json.gz` to standard output.
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/count_guarded_final_hits.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/count_guarded_final_hits.py
 ```
 
 The script recomputes every count in the [shuttle guard addendum](shuttle_guard_addendum.md). It looks up the guard code at each emitted hit and compares false final hits with real ones. It then counts what dropping a flagged final hit would rescue and break.
@@ -220,5 +220,5 @@ The script recomputes every count in the [shuttle guard addendum](shuttle_guard_
 - Every per-video record in the viewer sums back to the headline contact count.
 - Both rally-group comparisons cover all 3,327 rallies, and the label groups sum to 33,551 historical and 34,200 new matches.
 - All 37,184 cleaned test labels are official ShuttleSet22 rows with the same frame and side.
-- The pulled guard runs reproduce the [shuttle guard measurement](../shuttle_hallucinations/README.md)'s guard and inpainting counts for all 3,761 ShuttleSet22 rallies.
+- The pulled guard runs reproduce the [shuttle guard measurement](../../../scratch/shuttle_hallucinations/README.md)'s guard and inpainting counts for all 3,761 ShuttleSet22 rallies.
 - Ruff passes on the closeout scripts.

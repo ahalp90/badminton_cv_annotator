@@ -6,7 +6,7 @@ The rule was found by looking at the test results, so that gain is optimistic. I
 
 ## What the guard is
 
-The inpainted shuttle tracks carry a guard code for every frame. Code 1 is the strongest evidence that the inpainting made a position up: a false position that keeps recurring. Code 3 marks degraded positions next to a flagged one, or positions that match a known false one. The [shuttle guard measurement](../shuttle_hallucinations/README.md) gives the definitions and how often each code appears around labelled hits.
+The inpainted shuttle tracks carry a guard code for every frame. Code 1 is the strongest evidence that the inpainting made a position up: a false position that keeps recurring. Code 3 marks degraded positions next to a flagged one, or positions that match a known false one. The [shuttle guard measurement](../../../scratch/shuttle_hallucinations/README.md) gives the definitions and how often each code appears around labelled hits.
 
 The evaluated run read these same saved codes, and the annotator treats codes 1–3 as unreliable (`rejected_grades`, `src/annotator/config.py:118`).
 
@@ -38,8 +38,8 @@ The second place already treats a flagged last hit as untrustworthy. Its comment
 
 Two earlier trials used the guard against hits. Neither tested this rule.
 
-- **The nomination veto** rejects a flagged candidate hit only when no player is selected nearby ([model selection](../../experiments/annotator/reports/model_selection.md)). On the new courts it lost four ShuttleSet22 rallies, and it stayed off ([completed experiments](last_followups.md)).
-- **Blocking every code-1 hit added by the sequence repair** gained 15 rallies and lost 58 ([refit regression](../../experiments/annotator/reports/refit_regression.md)). A flag alone does not prove a hit is absent. That holds here too: 785 matched hits sit on flagged frames.
+- **The nomination veto** rejects a flagged candidate hit only when no player is selected nearby ([model selection](../reports/model_selection.md)). On the new courts it lost four ShuttleSet22 rallies, and it stayed off ([completed experiments](last_followups.md)).
+- **Blocking every code-1 hit added by the sequence repair** gained 15 rallies and lost 58 ([refit regression](../reports/refit_regression.md)). A flag alone does not prove a hit is absent. That holds here too: 785 matched hits sit on flagged frames.
 
 The difference is position. Among a rally's final hits, flagged ones are nearly all false.
 
@@ -59,10 +59,10 @@ This is a simulation on saved outputs. In the pipeline, the landing search would
 
 ## Method and evidence
 
-`scripts/pull_shuttle_guard_runs.py` reads the guard codes, inpainting spans and visibility for all 47 ShuttleSet22 videos. Run it on the machine holding the inpainted ShuttleSet22 extract, with the extract root as its argument. Its output reproduces the [shuttle guard measurement](../shuttle_hallucinations/README.md)'s per-rally guard and inpainting counts exactly for all 3,761 ShuttleSet22 rallies.
+`scripts/pull_shuttle_guard_runs.py` reads the guard codes, inpainting spans and visibility for all 47 ShuttleSet22 videos. Run it on the machine holding the inpainted ShuttleSet22 extract, with the extract root as its argument. Its output reproduces the [shuttle guard measurement](../../../scratch/shuttle_hallucinations/README.md)'s per-rally guard and inpainting counts exactly for all 3,761 ShuttleSet22 rallies.
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/count_guarded_final_hits.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/count_guarded_final_hits.py
 ```
 
 - `results/shuttle_guard_runs.json.gz` — frame runs of each guard code, inpainted frames and hidden frames, per video

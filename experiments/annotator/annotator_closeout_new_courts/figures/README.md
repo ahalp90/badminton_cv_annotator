@@ -48,15 +48,15 @@ Removing a video changes the denominator. It does not repair saved output. The v
 - [`contact_sample_results.png`](contact_sample_results.png) — direct hit/player checks of 24 randomly sampled missed contacts, split by court decision.
 - [`label_check_results.png`](label_check_results.png) — label verdicts for 28 cases drawn from the largest failure groups.
 
-Both court figures draw on the same source frames as the [earlier court evidence](../../annotator_wrapup_evaluation/figures/README.md#source-frame-evidence).
+Both court figures draw on the same source frames as the [earlier court evidence](../../../../scratch/annotator_wrapup_evaluation/figures/README.md#source-frame-evidence).
 
 ## Generate the figures
 
 From the repository root, run:
 
 ```bash
-python scratch/annotator_closeout_new_courts/scripts/plot_evaluation.py
-python scratch/annotator_closeout_new_courts/scripts/plot_court_cases.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_evaluation.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_court_cases.py
 ```
 
 The first script reads the tables in `results/` and writes every summary figure here. `plot_court_cases.py` makes the two court overlays. `summarise_judgements.py` makes `contact_sample_results.png`, and `summarise_label_checks.py` makes `label_check_results.png`. The court overlays need the earlier evaluation's saved frames and the pulled court records in the ignored `raw/` directory. [Methods and reproduction](../evaluation_reproduction.md) covers the steps that produce those inputs.

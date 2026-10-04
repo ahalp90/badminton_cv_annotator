@@ -18,7 +18,7 @@ import numpy as np
 from matplotlib.axes import Axes
 
 ROOT = Path(__file__).resolve().parents[1]
-EARLIER = ROOT.parent / "annotator_wrapup_evaluation"
+EARLIER = ROOT.parents[2] / "scratch/annotator_wrapup_evaluation"
 BLUE = "#0072B2"
 ORANGE = "#C65D00"
 PURPLE = "#7651A8"

@@ -95,7 +95,7 @@ The existing conclusions were reused; no RANSAC detector was rerun.
 
 ## Related result
 
-The [annotator closeout's shuttle guard addendum](../annotator_closeout_new_courts/shuttle_guard_addendum.md)
+The [annotator closeout's shuttle guard addendum](../../experiments/annotator/annotator_closeout_new_courts/shuttle_guard_addendum.md)
 reads the same ShuttleSet22 guard codes at the annotator's predicted hits.
 The guard flags almost half of the false hits it adds after a rally ends, and almost no real final hits.
 

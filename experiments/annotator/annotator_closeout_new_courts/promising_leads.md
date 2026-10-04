@@ -1,6 +1,6 @@
 # Promising leads: what remains to investigate
 
-First find out why the model adds hits after rallies end. Then check court coverage, player-side errors and serves. Closed ideas are in [last_followups.md](last_followups.md). The [earlier backlog](../annotator_wrapup_evaluation/promising_leads.md) holds the label-sweep and release-inventory items that this work did not change.
+First find out why the model adds hits after rallies end. Then check court coverage, player-side errors and serves. Closed ideas are in [last_followups.md](last_followups.md). The [earlier backlog](../../../scratch/annotator_wrapup_evaluation/promising_leads.md) holds the label-sweep and release-inventory items that this work did not change.
 
 **Contents**  
 [Priority map](#priority-map)  
@@ -54,7 +54,7 @@ The [detector audit](detector_audit.md#the-court-stage) found two causes:
 - **888 misses** sit in 145 scenes dropped before any court search. The detector checks players only in the three seconds around each scene's middle frame. In these scenes that window overlaps a labelled rally 12% of the time, against 93% in accepted scenes. The same scenes hold 362 of the 588 newly rejected hits.
 - **286 misses** sit in vote-failed scenes whose court reaches well outside the frame or is over twice the video's usual size. The detector has no check against that.
 
-Try placing the foot window on active play, or several windows per scene, before relaxing any player check. The [earlier search trial](../../experiments/court_detector/comparisons/search.md) found that relaxing them adds false courts. Add a size and position check against the frame and the video's other courts.
+Try placing the foot window on active play, or several windows per scene, before relaxing any player check. The [earlier search trial](../../court_detector/comparisons/search.md) found that relaxing them adds false courts. Add a size and position check against the frame and the video's other courts.
 
 [What the footage shows](court_checks.md#what-the-footage-shows) records the sampled rejected scenes.
 

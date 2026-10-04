@@ -1,6 +1,6 @@
 # Last annotator follow-ups
 
-**Keep the nomination veto off.** After refitting on the new courts, it loses four ShuttleSet22 rallies for a three-rally validation gain. The detector experiments rejected before the court change are in the [earlier follow-ups](../annotator_wrapup_evaluation/last_followups.md), and the old-court refit trials are in the [refit regression report](../../experiments/annotator/reports/refit_regression.md). Work still to do is in [promising_leads.md](promising_leads.md).
+**Keep the nomination veto off.** After refitting on the new courts, it loses four ShuttleSet22 rallies for a three-rally validation gain. The detector experiments rejected before the court change are in the [earlier follow-ups](../../../scratch/annotator_wrapup_evaluation/last_followups.md), and the old-court refit trials are in the [refit regression report](../reports/refit_regression.md). Work still to do is in [promising_leads.md](promising_leads.md).
 
 **Contents**  
 [Nomination veto on the new courts](#nomination-veto-on-the-new-courts)  
@@ -32,7 +32,7 @@ Of the 48 ShuttleSet22 rallies the veto lost, 27 miss their first labelled hit. 
 **Decision:** keep the veto off. Its old-court gain did not carry over, and court geometry now changes which players get nominated.
 
 Evidence: `experiments/annotator/good_court_refit/evidence/test-base-vs-veto.json.gz`, `validation-base-vs-veto.json.gz`, `validation-base-vs-base_inference_veto.json.gz`  
-Report: [model_selection.md](../../experiments/annotator/reports/model_selection.md)
+Report: [model_selection.md](../reports/model_selection.md)
 
 ## Earlier experiments still stand
 
@@ -45,4 +45,4 @@ These were decided on the old courts and nothing here reopens them:
 - **Repairing video 15:** excluded instead.
 - **Noise-aware training:** deferred until a small verified contact set exists.
 
-The [earlier follow-ups](../annotator_wrapup_evaluation/last_followups.md) give the counts and evidence.
+The [earlier follow-ups](../../../scratch/annotator_wrapup_evaluation/last_followups.md) give the counts and evidence.

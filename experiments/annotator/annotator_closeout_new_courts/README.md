@@ -8,7 +8,7 @@
 
 **The shuttle track's guard already flags half the false hits after a rally ends.** It flags 110 of them, against 12 real final hits in fully correct rallies. Dropping a flagged final hit would take the test videos from 1,744 to 1,842 fully correct rallies; the development videos have to confirm it first. The [shuttle guard addendum](shuttle_guard_addendum.md) gives the detail.
 
-This closeout repeats the [earlier investigation](../annotator_wrapup_evaluation/README.md) for the model refitted on the new court detector, with the same videos, labels and scoring. The [model selection report](../../experiments/annotator/reports/model_selection.md) chose that model, and it stayed fixed here. The main results cover **46 ShuttleSet22 videos**; video 15 stays excluded for misaligned labels. Scores use cleaned labels and **±10 frames at 30 fps**. These videos had already been examined during earlier work.
+This closeout repeats the [earlier investigation](../../../scratch/annotator_wrapup_evaluation/README.md) for the model refitted on the new court detector, with the same videos, labels and scoring. The [model selection report](../reports/model_selection.md) chose that model, and it stayed fixed here. The main results cover **46 ShuttleSet22 videos**; video 15 stays excluded for misaligned labels. Scores use cleaned labels and **±10 frames at 30 fps**. These videos had already been examined during earlier work.
 
 **Contents**  
 [What did better courts change?](#what-did-better-courts-change)  

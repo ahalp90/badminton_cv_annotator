@@ -1,6 +1,6 @@
 # Evaluation numbers and definitions
 
-Use this reference for exact counts, error breakdowns and differences between scoring populations. The [main report](README.md) explains the findings with figures. Earlier-model counts come from the [earlier evaluation tables](../annotator_wrapup_evaluation/evaluation_tables.md) and use the same 46 videos unless labelled otherwise.
+Use this reference for exact counts, error breakdowns and differences between scoring populations. The [main report](README.md) explains the findings with figures. Earlier-model counts come from the [earlier evaluation tables](../../../scratch/annotator_wrapup_evaluation/evaluation_tables.md) and use the same 46 videos unless labelled otherwise.
 
 **Contents**  
 [Population](#population)  

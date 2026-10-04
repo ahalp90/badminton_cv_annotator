@@ -107,6 +107,6 @@ Live work: [promising_leads.md](promising_leads.md).
 - `results/court_change_groups.json.gz` — old-versus-new court decisions per label and rally
 - `raw/run/output/shared/court/test/<video>/court_evidence.json.gz` — new court records (local, ignored)
 - `raw/player_state/<video>.npz` — rerun player picks, identical to the saved streams (local, ignored)
-- `../annotator_wrapup_evaluation/results/visual_geometry.json.gz` — old outlines drawn in the two figures
+- `scratch/annotator_wrapup_evaluation/results/visual_geometry.json.gz` — old outlines drawn in the two figures
 
 Commands: [evaluation_reproduction.md](evaluation_reproduction.md).

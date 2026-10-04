@@ -28,7 +28,7 @@ Both refits track players within each scene and use one net position per video t
 
 ## How much refitting alone moves the totals
 
-Two refits with different random seeds differed by **33 complete rallies** ([refit regression](../../experiments/annotator/reports/refit_regression.md)). The new model sits 10 above the fresh refit and 19 below the historical model. Both gaps are smaller than that seed difference.
+Two refits with different random seeds differed by **33 complete rallies** ([refit regression](../reports/refit_regression.md)). The new model sits 10 above the fresh refit and 19 below the historical model. Both gaps are smaller than that seed difference.
 
 Refitting alone also moves many individual rallies. Going from the historical model to the fresh old-court refit turned 170 complete rallies incorrect, for a net loss of 29. Fit row order and library version each shifted the total as well. So the totals alone cannot separate a court effect of a few dozen rallies from refit churn. The court-decision groups below can.
 
@@ -130,8 +130,8 @@ The flat total comes from two smaller court effects pulling in opposite directio
 - `results/court_change_groups.json.gz` — label and rally groups by old and new court decision
 - `results/summary.json.gz` — `court_comparison` holds per-video gained and lost counts
 - `results/contexts.csv.gz` — new court and player state at each labelled frame
-- `../annotator_wrapup_evaluation/results/contexts.csv.gz` — old court state at each labelled frame
+- `scratch/annotator_wrapup_evaluation/results/contexts.csv.gz` — old court state at each labelled frame
 - `experiments/annotator/good_court_refit/evidence/saved-stream-analysis.json.gz` — gained and lost rally IDs against both old models
-- [model_selection.md](../../experiments/annotator/reports/model_selection.md) — fresh-refit totals and per-video regressions
+- [model_selection.md](../reports/model_selection.md) — fresh-refit totals and per-video regressions
 
 Commands: [evaluation_reproduction.md](evaluation_reproduction.md).

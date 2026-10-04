@@ -64,6 +64,7 @@ to the experiments that motivate them.
 | `contact_attribution_comparison_20260814/` | Player-distance experiment code and evidence |
 | `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
 | `old_court_regression/`, `good_court_refit/` | Refit runners, pinned inputs and comparison evidence |
+| `annotator_closeout_new_courts/` | Closeout of the new-court model: where it fails, footage checks, detector audit and shuttle guard addendum |
 | `measurement.py`, `records.py`, `runs/` | End-to-end measurement, result packaging and saved runs |
 
 Earlier contact-model and sequence-repair research remains in tracked

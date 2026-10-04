@@ -16,8 +16,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-EARLIER = ROOT.parent / "annotator_wrapup_evaluation"
-REPOSITORY = ROOT.parents[1]
+REPOSITORY = ROOT.parents[2]
+EARLIER = REPOSITORY / "scratch/annotator_wrapup_evaluation"
 GROUP_ORDER = ["Accepted under both courts", "Rescued by the new courts", "Rejected under both courts",
                "Rejected only under the new courts"]
 

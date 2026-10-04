@@ -30,7 +30,7 @@ In the rejected scenes, the window mostly samples the break between rallies rath
 
 Some windows that miss a labelled rally may still hold play: cleaning dropped 524 of the 3,851 official rallies. That cannot close a gap of 12% against 93%.
 
-The [earlier search trial](../../experiments/court_detector/comparisons/search.md) relaxed the player checks and found false courts. This cause is different. The checks can stay; they are applied to the wrong three seconds. Placing the window on active play, or trying several windows, keeps the checks intact.
+The [earlier search trial](../../court_detector/comparisons/search.md) relaxed the player checks and found false courts. This cause is different. The checks can stay; they are applied to the wrong three seconds. Placing the window on active play, or trying several windows, keeps the checks intact.
 
 ### Oversized courts pass the detector, then fail the vote
 
@@ -61,7 +61,7 @@ The footage confirms one case. Video 52's checked frame shows all four court cor
 | Sequence chooser (`sequence/choices.py:24–56`) | Could delete it, but keeps it as the rally's last hit | 233 of 233 |
 | Landing search (`outcomes/point_winner.py:231`) | Starts after the last kept hit, so any landing it finds comes after the false hit | 67 found, all after |
 
-The rally's end is detected only after the hits are fixed, and nothing feeds it back. A visible end cue, such as a landing, a settled shuttle or a catch, needs to reach the hit choice before the last hit is accepted. That differs from the rejected [endpoint deletion](../annotator_wrapup_evaluation/last_followups.md#endpoint-deletion), which removed hits by their position after the last label.
+The rally's end is detected only after the hits are fixed, and nothing feeds it back. A visible end cue, such as a landing, a settled shuttle or a catch, needs to reach the hit choice before the last hit is accepted. That differs from the rejected [endpoint deletion](../../../scratch/annotator_wrapup_evaluation/last_followups.md#endpoint-deletion), which removed hits by their position after the last label.
 
 One end cue is already computed. The shuttle track's guard flags 110 of these false hits on their own frame, and the landing check already distrusts a flagged last hit. The [shuttle guard addendum](shuttle_guard_addendum.md) measures it.
 
@@ -114,7 +114,7 @@ The audit ran once, read-only, on `main` at `d4994bad`. Since the evaluated run,
 Every finding above was then rechecked: the quoted lines against the code, the counts with `scripts/audit_checks.py`, and the untested predictions against the held-back data.
 
 ```bash
-PYTHONPATH=src python scratch/annotator_closeout_new_courts/scripts/audit_checks.py
+PYTHONPATH=src python experiments/annotator/annotator_closeout_new_courts/scripts/audit_checks.py
 ```
 
 The script reads `results/` and the Git-ignored `raw/run/` pull. Shuttle tracks, pose arrays and footage were not available to the audit.

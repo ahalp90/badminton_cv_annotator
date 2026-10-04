@@ -26,7 +26,7 @@ from experiments.annotator.old_court_regression.retrain import stream_from_paylo
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN = ROOT / "raw/run/output"
-REPOSITORY = ROOT.parents[1]
+REPOSITORY = ROOT.parents[2]
 TOLERANCES_BASE30 = (10, 5)
 # The historical review cutoff; no new cutoff was chosen for the retrained confidence model.
 HISTORICAL_THRESHOLD = 0.7570784853533734

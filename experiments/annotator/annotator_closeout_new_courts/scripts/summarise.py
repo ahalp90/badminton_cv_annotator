@@ -18,7 +18,7 @@ from annotator.training.sequences import match_contacts
 from dataset_builder.vision import load_json_gz
 
 ROOT = Path(__file__).resolve().parents[1]
-REPOSITORY = ROOT.parents[1]
+REPOSITORY = ROOT.parents[2]
 STREAMS = ROOT / "raw/run/output/base/eval/test"
 ERROR_NAMES = {"missing": "Missed contacts", "extra": "Extra contacts",
                "wrong_player": "Wrong player", "boundary_error": "Clip cuts off rally"}
