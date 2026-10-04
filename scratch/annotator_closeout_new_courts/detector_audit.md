@@ -63,6 +63,8 @@ The footage confirms one case. Video 52's checked frame shows all four court cor
 
 The rally's end is detected only after the hits are fixed, and nothing feeds it back. A visible end cue, such as a landing, a settled shuttle or a catch, needs to reach the hit choice before the last hit is accepted. That differs from the rejected [endpoint deletion](../annotator_wrapup_evaluation/last_followups.md#endpoint-deletion), which removed hits by their position after the last label.
 
+One end cue is already computed. The shuttle track's guard flags 110 of these false hits on their own frame, and the landing check already distrusts a flagged last hit. The [shuttle guard addendum](shuttle_guard_addendum.md) measures it.
+
 The false hit also becomes the rally's recorded striker in all 233. It does not cost the predicted point winner, which is read from who serves next. That winner agrees with the official rows in 80.1% of these rallies, against 74.2% of fully correct ones.
 
 ## Wrong sides

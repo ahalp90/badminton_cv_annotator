@@ -6,6 +6,8 @@
 
 **A code audit finds a cause behind each of the three largest failures.** The court detector checks for players at the wrong moment in long scenes. Nothing challenges a false hit after the rally ends. Most side errors follow from missed hits. The [detector audit](detector_audit.md) gives the detail.
 
+**The shuttle track's guard already flags half the false hits after a rally ends.** It flags 110 of them, against 12 real final hits in fully correct rallies. Dropping a flagged final hit would take the test videos from 1,744 to 1,842 fully correct rallies; the development videos have to confirm it first. The [shuttle guard addendum](shuttle_guard_addendum.md) gives the detail.
+
 This closeout repeats the [earlier investigation](../annotator_wrapup_evaluation/README.md) for the model refitted on the new court detector, with the same videos, labels and scoring. The [model selection report](../../experiments/annotator/reports/model_selection.md) chose that model, and it stayed fixed here. The main results cover **46 ShuttleSet22 videos**; video 15 stays excluded for misaligned labels. Scores use cleaned labels and **±10 frames at 30 fps**. These videos had already been examined during earlier work.
 
 **Contents**  
@@ -146,7 +148,7 @@ Original ShuttleSet still trails ShuttleSet22 on serves and whole rallies. On th
 
 ## What next?
 
-- **Stop the model adding a hit after the rally ends.** 233 rallies, 14.7% of the failed ones, fail only on one extra hit 10–60 frames after the last label. No sampled case shows a real hit there, and the official rows record the rally as over. The contact model scores it highly, and the landing search starts only after it.
+- **Stop the model adding a hit after the rally ends.** 233 rallies, 14.7% of the failed ones, fail only on one extra hit 10–60 frames after the last label. No sampled case shows a real hit there, and the official rows record the rally as over. The contact model scores it highly, and the landing search starts only after it. Start by dropping a final hit that the shuttle guard flags: that would rescue 110 of these rallies for 12 broken.
 - **Fix where the court detector looks for players.** It checks only the three seconds around each scene's middle frame. In 145 rejected scenes that window falls mostly between rallies: 888 missed hits. Another 286 sit in scenes where it accepted a court far larger than the frame.
 - **Fix video 42's net position, then revisit side errors.** Video 42 takes its net position from a broken court. Most other side errors follow from missed hits, because sides alternate within a rally.
 - **Then inspect serves.** Their timing matches fell from 2,766 to 2,722, and their timing is the loosest.
@@ -162,6 +164,7 @@ The optional nomination veto was tested on the new courts and not adopted. The [
 | Whether the earlier court failures are fixed, and where rejections remain | [Court checks](court_checks.md) |
 | Whether the labels agree with the footage | [Label and video checks](video_checks.md) |
 | Why the failures happen in the code | [Detector audit](detector_audit.md) |
+| Whether the shuttle guard marks the false final hits | [Shuttle guard addendum](shuttle_guard_addendum.md) |
 | Saved files, scripts and rerun commands | [Methods and reproduction](evaluation_reproduction.md) |
 
 These results describe previously examined footage. The sampled checks establish particular label and pipeline failures; they are not collection-wide rates.

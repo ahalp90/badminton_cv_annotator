@@ -14,6 +14,7 @@ Use this reference to check how the closeout was done, trace a published number 
 [Figures and per-video viewer](#figures-and-per-video-viewer)  
 [Footage checks](#footage-checks)  
 [Detector audit checks](#detector-audit-checks)  
+[Shuttle guard checks](#shuttle-guard-checks)  
 [Validation already completed](#validation-already-completed)
 
 ## Investigation sequence
@@ -27,6 +28,7 @@ Use this reference to check how the closeout was done, trace a published number 
 | Do the labels agree with the footage? | Drew 24 missed hits at random and judged each from stills around the labelled frame. |
 | Are bulk failures label errors? | Searched rallies for time-shifted labels, swapped sides and extra final hits; judged 28 cases blind from frame-exact stills. |
 | What in the code causes the largest failures? | A read-only audit of the current code traced each failure to file and line; every finding was recounted from the saved run and its untested predictions scored on held-back data. |
+| Does the shuttle guard mark the false final hits? | Read the saved guard code at every emitted hit, compared false final hits with real ones, and simulated dropping a flagged final hit. |
 | How does original ShuttleSet compare? | Rescored the saved validation and held-out development outputs the same way. |
 
 The selected model stayed fixed. No model was refitted for this closeout.
@@ -78,6 +80,7 @@ Local scoring steps need the project dependencies with `PYTHONPATH=.:src`. The f
 | `results/label_check_judgements.csv.gz` | Footage judgements and label verdicts for those cases |
 | `results/label_trace.csv.gz` | Official ShuttleSet22 rows behind every checked case |
 | `results/tail_rallies.csv.gz` | The 262 rallies with an extra hit after the last label: extra counts, sole-error flag and official ending |
+| `results/shuttle_guard_runs.json.gz` | Frame runs of each shuttle guard code, inpainted frames and hidden frames for the 47 ShuttleSet22 videos |
 
 Read the CSVs with `dtype={"video": str}`: development video IDs such as `sset_31` share the column with ShuttleSet22 numbers.
 
@@ -199,6 +202,16 @@ PYTHONPATH=src python scratch/annotator_closeout_new_courts/scripts/audit_checks
 
 The script recomputes every count in the [detector audit](detector_audit.md). It reads the detector stages each rejected scene ran from the court release, compares each scene's 3-second foot window with the labelled rallies, measures vote-failed courts against the frame and the video's accepted courts, and follows each false final hit through the saved sequences and landings. It needs `raw/run/` and the official ShuttleSet22 rows.
 
+## Shuttle guard checks
+
+Run `scripts/pull_shuttle_guard_runs.py` on the machine holding the inpainted ShuttleSet22 extract, with the extract root as its only argument. It reads the inpainted tracks, guard codes and fill sidecars that the evaluated run read, and writes `results/shuttle_guard_runs.json.gz` to standard output.
+
+```bash
+python scratch/annotator_closeout_new_courts/scripts/count_guarded_final_hits.py
+```
+
+The script recomputes every count in the [shuttle guard addendum](shuttle_guard_addendum.md). It looks up the guard code at each emitted hit and compares false final hits with real ones. It then counts what dropping a flagged final hit would rescue and break.
+
 ## Validation already completed
 
 - The recount reproduces all fifteen published ±10 totals for the selected model, including 1,744 complete rallies, 34,200 matches, 33,156 correct sides and the 591 / 117 / 17 queue.
@@ -207,4 +220,5 @@ The script recomputes every count in the [detector audit](detector_audit.md). It
 - Every per-video record in the viewer sums back to the headline contact count.
 - Both rally-group comparisons cover all 3,327 rallies, and the label groups sum to 33,551 historical and 34,200 new matches.
 - All 37,184 cleaned test labels are official ShuttleSet22 rows with the same frame and side.
+- The pulled guard runs reproduce the [shuttle guard measurement](../shuttle_hallucinations/README.md)'s guard and inpainting counts for all 3,761 ShuttleSet22 rallies.
 - Ruff passes on the closeout scripts.

@@ -15,7 +15,7 @@ First find out why the model adds hits after rallies end. Then check court cover
 
 | Question | Why now | Next check |
 |---|---|---|
-| Can the model tell when a rally has ended? | 233 rallies fail only on one false hit after the rally ends | Feed a visible end cue into the hit choice; the landing search now starts after the false hit |
+| Can the model tell when a rally has ended? | 233 rallies fail only on one false hit after the rally ends | Test dropping a final hit that the shuttle guard flags on the development videos; then feed a visible end cue into the hit choice |
 | Why does the detector decline scenes with play? | 1,620 of 2,984 misses are in rejected scenes; outside video 53 that count barely moved | Place the 3-second foot check on active play; reject courts far larger than the frame |
 | Why do player sides fail in videos 17 and 42? | Most wrong sides follow a missed hit; video 42's net position comes from a broken court | Take the net position from a checked court; check camera changes inside video 17's 40-minute scene |
 | Why are serves weaker? | Serve timing matches fell from 2,766 to 2,722 | Directly check a small sample of accepted-scene serve misses |
@@ -29,7 +29,9 @@ The sampled added hits are false. In all 16 sampled rallies, the shuttle lands u
 
 The [detector audit](detector_audit.md#the-false-hit-after-the-rally-ends) traced the path. The contact model scores the false hit at 0.9 or above in 231 of the 233 rallies, and the sequence chooser keeps it. The landing search then starts after it, so a landing found in 67 of these rallies always comes too late to matter.
 
-The earlier follow-up rejected deleting events “after the last label”. That rule needs the labels, so it cannot run on new footage. The fix needs a cue the model can see before it accepts the last hit:
+The shuttle track's guard already flags 110 of the 232 checkable false hits on their own frame ([shuttle guard addendum](shuttle_guard_addendum.md)). It flags 2 of the real hits just before them, and 12 of 1,721 real final hits in fully correct rallies. Dropping a flagged final hit would rescue 110 rallies and break 12 on the test videos. That rule was found on the test results, so test it on the development videos first.
+
+The earlier follow-up rejected deleting events “after the last label”. That rule needs the labels, so it cannot run on new footage; the guard rule can. For the other 122, the model needs a cue it can see before it accepts the last hit:
 
 - the shuttle track settling on the floor or stopping near the net;
 - the receiver catching or collecting the shuttle rather than swinging;
