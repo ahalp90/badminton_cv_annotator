@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -425,7 +426,8 @@ def test_bad_counter_serialization_and_length_are_nonfatal(tmp_path, monkeypatch
     assert list(progress_iter(Items(), "counter")) == [42]
 
 
-def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path):
+def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path, monkeypatch):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
     owner = RunProgress(config(), ("shuttle",), "on", io.StringIO(), tmp_path / "logs")
     with owner.stage("shuttle:video") as stage:
         child = subprocess.run(
@@ -438,11 +440,13 @@ def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path):
                     'print("worker error", file=sys.stderr); sys.exit(7)'
                 ),
             ],
+            env=dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src")),
+            cwd=tmp_path,
             capture_output=True,
             text=True,
             check=False,
         )
-    assert child.returncode == 7
+    assert child.returncode == 7, child.stderr
     assert child.stdout == child.stderr == ""
     assert "worker output" in stage.log_path.read_text()
     assert "worker error" in stage.log_path.read_text()
