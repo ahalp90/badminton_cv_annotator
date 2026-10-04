@@ -30,7 +30,7 @@ caches it for later runs. The detector also imports `src/shared` and
 | Need | Used for | Where it comes from |
 | --- | --- | --- |
 | DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage). The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; see [runtime/README.md](../../runtime/README.md). They are gitignored |
-| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | `rtmlib==0.0.15` with `onnxruntime==1.27.0` for CPU, or `onnxruntime-gpu==1.27.0` for CUDA |
+| RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | `rtmlib==0.0.15` and `opencv-contrib-python==5.0.0.93`, with `onnxruntime==1.27.0` for CPU or `onnxruntime-gpu==1.27.0` for CUDA |
 | PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Included in the base project environment, pinned at 0.7.1 |
 | CuPy | `--template-device cuda` only | Required in the GPU environment; not a project dependency |
 
@@ -39,9 +39,15 @@ the checkout first on `sys.path` and fails if the folder is missing. Its upstrea
 the line-detection dependencies needed in the same environment.
 
 The court environment uses the root project's NumPy, pandas and SciPy versions.
-It needs only the RTMLib and ONNX Runtime packages from the separate pose setup;
-installing the full pose requirements file would replace those versions with
-the older pose-environment pins.
+RTMLib also installs `opencv-contrib-python`, which shares the `cv2` package with
+the root project's `opencv-python`. Both wheels need the matching version above.
+Installing the full pose requirements file would replace the root dependencies
+with the older pose-environment pins.
+
+Live court pose runs under OpenCV 5.0; the separate pose environment uses 4.13.
+These versions produce slightly different image crops for RTMPose. The effect
+on real model keypoints has not been measured, so live and saved poses have not
+been validated as equivalent across these environments.
 
 RTMLib downloads the configured RTMDet person and RTMPose pose models on first
 use. An offline run therefore needs those weights cached beforehand. Live CUDA

@@ -93,9 +93,7 @@ def main() -> None:
     views_path, video_key, video_path, checkout_root, output_dir = sys.argv[1:]
     checkout_root, output_dir = Path(checkout_root), Path(output_dir)
     sys.path[:0] = [str(checkout_root / "src"), str(checkout_root / "src/bst_x")]
-    from preparing_data.rtmlib_pose import (
-        RtmlibPoseExtractor,  # pyrefly: ignore[missing-import]
-    )
+    from shared.rtmlib_pose import RtmlibPoseExtractor
 
     views = [view for view in json.loads(Path(views_path).read_text()) if view["video"] == video_key]
     capture = cv2.VideoCapture(video_path)

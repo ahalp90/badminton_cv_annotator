@@ -47,6 +47,7 @@ onnxruntime==1.27.0              # CPU inference (deterministic); CUDA box: onnx
 # Standard libraries
 numpy==2.4.6                     # numpy-2 clean now that OpenMMLab is off the 2D path
 opencv-python==4.13.0.92         # cv2: video decode + the RGB-fix cvtColor in the adapter
+opencv-contrib-python==4.13.0.92 # RTMLib requires both OpenCV wheels; their versions must match.
 pandas==3.0.3                    # collation; G5 verified identical downstream output on 3.0.3 (exact _failed, floats at atol 1e-5)
 scipy==1.17.1                    # court projection / geometry helpers
 tqdm==4.68.3                     # progress bars

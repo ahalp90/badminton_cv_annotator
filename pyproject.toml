@@ -12,11 +12,13 @@ requires-python = ">=3.12"
 # Compatible coexistence notes:
 #   - BRIC and BST-X inference can share one venv. Both use PyTorch,
 #     TrackNetV3 and opencv.
-#   - **Pose extraction runs in its own dataset-build venv.** The 2D extraction
+#   - Dataset-builder pose extraction runs in its own venv. The 2D extraction
 #     path migrated to rtmlib (onnxruntime, numpy-2 clean); see
 #     src/bst_x/preparing_data/requirements.txt. It no longer needs numpy<2
 #     isolation, but still lives in a separate build venv managed outside this
 #     pyproject. The numpy<2 OpenMMLab stack remains for reference (src/bst_x/preparing_data/requirements-legacy-3d.txt).
+#     The court detector runs live pose in the root environment; its additional
+#     dependencies are listed in docs/court_detector/usage.md.
 #   - Therefore numpy>=2 is fine for everything in this pyproject. Modern
 #     TrackNetV3 (per the vendored requirements.txt header) supports it.
 #
@@ -39,7 +41,7 @@ dependencies = [
     "scikit-learn==1.9.1",  # Must match the shipped annotator model.
     "joblib>=1.6.0",
     # Video / image I/O
-    "opencv-python",
+    "opencv-python==5.0.0.93",  # Matches the court setup's RTMLib contrib wheel.
     "scenedetect==0.7.1",
     "Pillow",
     # Vendored TrackNetV3 runtime deps (both arches do shuttle tracking)
@@ -103,9 +105,9 @@ bric = [
 # tooling (tensorboard, matplotlib, etc.) can move to a future
 # `bst-x-train` extras group.
 #
-# Pose extraction (rtmlib) deliberately omitted; it runs in its own
-# dataset-build venv (src/bst_x/preparing_data/requirements.txt), outside the
-# root project environment.
+# Dataset-builder pose extraction uses a separate environment
+# (src/bst_x/preparing_data/requirements.txt). Court live-pose dependencies
+# are documented in docs/court_detector/usage.md.
 bst-x-runtime = [
     "positional-encodings",   # BST-X transformer model uses these (tempose.py)
     "torchinfo",              # Model summary utility (imported by tempose.py)
