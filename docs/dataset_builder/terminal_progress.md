@@ -43,3 +43,9 @@ the stage. Display events do not become annotation outputs or manifest inputs.
 
 Validation uses CPU fixtures, including spawned pose workers. A real CUDA
 TrackNet/RTMLib/DeepLSD run has not been performed for this change.
+
+Progress is best-effort: terminal, counter-channel, renderer, and progress-log
+failures disable the display or fall back to ordinary output. They do not retry
+or skip pipeline work, change processing errors, or suppress cancellation.
+TrackNet's Python status messages are captured in the same per-stage log when
+progress is active; with progress off it keeps its normal terminal output.

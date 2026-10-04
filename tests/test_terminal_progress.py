@@ -277,3 +277,199 @@ def test_completed_reused_and_failed_are_distinct():
     assert "24 rallies" in stream.getvalue()
     assert "reused" in stream.getvalue()
     assert "✗ Annotation" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    "failure", ["temporary", "events", "log_directory", "log_open", "renderer"]
+)
+def test_setup_failure_runs_processing_once(tmp_path, monkeypatch, failure):
+    import builtins
+    from pathlib import Path
+
+    import dataset_builder.progress as display
+    from shared.progress import LOG_ENV
+
+    monkeypatch.setenv(PROGRESS_ENV, "prior-events")
+    monkeypatch.setenv(LOG_ENV, "prior-log")
+    owner = RunProgress(config(), ("pose",), "on", io.StringIO(), tmp_path / "logs")
+
+    def broken(*args, **kwargs):
+        raise OSError("display unavailable")
+
+    if failure == "temporary":
+        monkeypatch.setattr(display.tempfile, "TemporaryDirectory", broken)
+    elif failure == "events":
+        monkeypatch.setattr(Path, "touch", broken)
+    elif failure == "log_directory":
+        (tmp_path / "logs").write_text("occupied")
+    elif failure == "log_open":
+        monkeypatch.setattr(builtins, "open", broken)
+    else:
+        monkeypatch.setattr(StageProgress, "start", broken)
+    results = []
+    with owner.stage("pose:video"):
+        results.append(42)
+    assert results == [42]
+    assert not owner.enabled
+    assert os.environ[PROGRESS_ENV] == "prior-events"
+    assert os.environ[LOG_ENV] == "prior-log"
+
+
+@pytest.mark.parametrize("operation", ["write", "flush", "isatty"])
+def test_broken_terminal_cannot_fail_processing(operation):
+    class Broken(io.StringIO):
+        pass
+
+    def broken(*args):
+        raise OSError("terminal closed")
+
+    setattr(Broken, operation, broken)
+    owner = RunProgress(config(), ("pose",), "on", Broken())
+    with owner.stage("pose:video"):
+        assert list(progress_iter([1, 2], "pose")) == [1, 2]
+    assert not owner.enabled
+
+
+@pytest.mark.parametrize(
+    "processing_error", [None, RuntimeError("model failed"), KeyboardInterrupt()]
+)
+def test_cleanup_preserves_processing_error(tmp_path, monkeypatch, processing_error):
+    import dataset_builder.progress as display
+    from shared.progress import LOG_ENV
+
+    monkeypatch.delenv(PROGRESS_ENV, raising=False)
+    monkeypatch.delenv(LOG_ENV, raising=False)
+    owner = RunProgress(config(), ("pose",), "on", io.StringIO(), tmp_path / "logs")
+    original_close = StageProgress.close
+    original_cleanup = display.tempfile.TemporaryDirectory.cleanup
+
+    def broken_close(self):
+        original_close(self)
+        raise OSError("render cleanup")
+
+    def broken_cleanup(self):
+        original_cleanup(self)
+        raise OSError("temporary cleanup")
+
+    monkeypatch.setattr(StageProgress, "close", broken_close)
+    monkeypatch.setattr(display.tempfile.TemporaryDirectory, "cleanup", broken_cleanup)
+    try:
+        with owner.stage("pose:video") as stage:
+            if processing_error is not None:
+                raise processing_error
+    except (RuntimeError, KeyboardInterrupt) as exc:
+        assert exc is processing_error
+    else:
+        assert processing_error is None
+    assert not stage.thread.is_alive()
+    assert PROGRESS_ENV not in os.environ
+    assert LOG_ENV not in os.environ
+
+
+def test_failed_log_write_and_close_fall_back(monkeypatch):
+    import builtins
+
+    from shared.progress import capture_output
+
+    class FailedLog:
+        def write(self, text):
+            raise OSError("disk full")
+
+        def close(self):
+            raise OSError("flush failed")
+
+    stdout, stderr = io.StringIO(), io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+    monkeypatch.setattr(builtins, "open", lambda *a, **kw: FailedLog())
+    error = RuntimeError("processing failed")
+    with pytest.raises(RuntimeError) as caught, capture_output("log"):
+        print("still processing", flush=True)
+        print("useful diagnostic", file=sys.stderr, flush=True)
+        raise error
+    assert caught.value is error
+    assert sys.stdout is stdout and sys.stderr is stderr
+    assert "still processing" in stdout.getvalue()
+    assert "useful diagnostic" in stderr.getvalue()
+
+
+def test_renderer_thread_failure_disables_display(tmp_path, monkeypatch):
+    import threading
+
+    called = threading.Event()
+    owner = RunProgress(config(), ("pose",), "on", io.StringIO())
+
+    def broken_watch(self):
+        called.set()
+        raise OSError("event read failed")
+
+    monkeypatch.setattr(StageProgress, "_watch", broken_watch)
+    with owner.stage("pose:video"):
+        assert called.wait(2)
+    assert not owner.enabled
+
+
+def test_bad_counter_serialization_and_length_are_nonfatal(tmp_path, monkeypatch):
+    path = tmp_path / "events"
+    path.touch()
+    monkeypatch.setenv(PROGRESS_ENV, str(path))
+    report("counter", object())
+
+    class Items:
+        def __iter__(self):
+            yield 42
+
+        def __len__(self):
+            raise ValueError("length is not available")
+
+    assert list(progress_iter(Items(), "counter")) == [42]
+
+
+def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path):
+    owner = RunProgress(config(), ("shuttle",), "on", io.StringIO(), tmp_path / "logs")
+    with owner.stage("shuttle:video") as stage:
+        child = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys; from shared.progress import capture_output; "
+                    '\nwith capture_output():\n print("worker output"); '
+                    'print("worker error", file=sys.stderr); sys.exit(7)'
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    assert child.returncode == 7
+    assert child.stdout == child.stderr == ""
+    assert "worker output" in stage.log_path.read_text()
+    assert "worker error" in stage.log_path.read_text()
+
+
+def test_zero_width_terminal_does_not_show_unknown_eta(tmp_path):
+    channel = tmp_path / "events"
+    channel.touch()
+    owner = RunProgress(config(), ("pose",), "on", io.StringIO())
+    stage = StageProgress(owner, channel, "Pose extraction", "")
+    stage.start()
+    try:
+        stage.bar.dynamic_ncols = lambda stream: (0, 40)
+        stage.consume(
+            json.dumps(
+                {
+                    "activity": "pose",
+                    "unit": "frames",
+                    "worker": "a",
+                    "completed": 0,
+                    "total": 10,
+                }
+            )
+        )
+        rendered = str(stage.bar)
+        assert "pose" in rendered
+        assert "?" not in rendered
+        assert "ETA" not in rendered
+    finally:
+        stage.close()

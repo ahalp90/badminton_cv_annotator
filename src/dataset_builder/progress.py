@@ -1,5 +1,8 @@
 """Quiet tqdm terminal display driven by real processing counters."""
 
+# Display-only boundaries deliberately catch ordinary exceptions, never cancellation.
+# ruff: noqa: BLE001
+
 from __future__ import annotations
 
 import json
@@ -9,11 +12,12 @@ import sys
 import tempfile
 import threading
 import time
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import wraps
 from pathlib import Path
 
-from shared.progress import PROGRESS_ENV
+from shared.progress import LOG_ENV, PROGRESS_ENV, SafeOutput, capture_output
 
 LABELS = {
     "search": "Source discovery",
@@ -84,9 +88,24 @@ class Counter:
         )
 
 
+def optional_display(method):
+    """Catch only display work, never the processing body of a stage."""
+
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except Exception:
+            self.disable()
+
+    return guarded
+
+
 class RunProgress:
     def __init__(self, config, phases, mode: str = "auto", stream=None, log_dir=None):
-        self.stream = stream if stream is not None else sys.stderr
+        self.stream = SafeOutput(
+            stream if stream is not None else sys.stderr, on_failure=self.disable
+        )
         self.enabled = mode == "on" or (mode == "auto" and self.stream.isatty())
         if mode not in {"auto", "on", "off"}:
             raise ValueError(f"unknown progress mode: {mode}")
@@ -121,6 +140,9 @@ class RunProgress:
                         f"  {', '.join(LABELS[name] for name in names)} · {reason}"
                     )
 
+    def disable(self):
+        self.enabled = False
+
     def style(self, text, code):
         return f"\033[{code}m{text}\033[0m" if self.stream.isatty() else text
 
@@ -133,56 +155,85 @@ class RunProgress:
         if not self.enabled or phase in self.suppressed:
             yield None
             return
-        if video and video != self.video:
-            self.write("\n" + self.style(f"Video  {video}", "1;36"))
-            self.video = video
-        elif not video and self.video is not None:
-            self.write("\nRun outputs")
-            self.video = None
-        label = LABELS.get(phase, phase)
-        detail = ""
-        if phase == "pose" and self.config.pose_shards > 1:
-            detail = f"  {self.config.pose_shards} parallel shards"
-        elif phase == "court":
-            detail = "  8 workers"
-        self.write(
-            "  " + self.style("›", "36") + f" {label:<{WIDTH}}  {'working':<20}{detail}"
-        )
-        with tempfile.TemporaryDirectory(prefix="badminton-progress-") as root:
-            path = Path(root) / "events.jsonl"
-            path.touch()
-            previous = os.environ.get(PROGRESS_ENV)
-            os.environ[PROGRESS_ENV] = str(path)
-            stage = StageProgress(self, path, label, detail)
-            failed = None
+        stage = temporary = None
+        previous = {key: os.environ.get(key) for key in (PROGRESS_ENV, LOG_ENV)}
+        try:
             try:
-                stage.start()
-                if self.log_dir is None:
-                    yield stage
-                else:
-                    self.log_dir.mkdir(parents=True, exist_ok=True)
-                    stage.log_path = self.log_dir / f"{phase}-{time.time_ns()}.log"
-                    with (
-                        stage.log_path.open("w") as log,
-                        redirect_stdout(log),
-                        redirect_stderr(log),
-                    ):
-                        yield stage
-            except BaseException as error:
-                failed = error
-                raise
-            finally:
-                stage.close()
-                if previous is None:
-                    os.environ.pop(PROGRESS_ENV, None)
-                else:
-                    os.environ[PROGRESS_ENV] = previous
-                if failed is not None:
-                    self.write(
-                        f"  ✗ {label:<{WIDTH}}  interrupted or failed  {elapsed(stage.seconds)}"
+                if video and video != self.video:
+                    self.write("\n" + self.style(f"Video  {video}", "1;36"))
+                    self.video = video
+                elif not video and self.video is not None:
+                    self.write("\nRun outputs")
+                    self.video = None
+                label = LABELS.get(phase, phase)
+                detail = ""
+                if phase == "pose" and self.config.pose_shards > 1:
+                    detail = f"  {self.config.pose_shards} parallel shards"
+                elif phase == "court":
+                    detail = "  8 workers"
+                self.write(
+                    "  "
+                    + self.style("›", "36")
+                    + f" {label:<{WIDTH}}  {'working':<20}{detail}"
+                )
+                if self.enabled:
+                    temporary = tempfile.TemporaryDirectory(
+                        prefix="badminton-progress-"
                     )
+                    path = Path(temporary.name) / "events.jsonl"
+                    path.touch()
+                    stage = StageProgress(self, path, label, detail)
+                    if self.log_dir is not None:
+                        self.log_dir.mkdir(parents=True, exist_ok=True)
+                        stage.log_path = self.log_dir / f"{phase}-{time.time_ns()}.log"
+                    os.environ[PROGRESS_ENV] = str(path)
+                    stage.start()
+            except Exception:
+                self.disable()
+            if not self.enabled:
+                self._restore_environment(previous)
+                # No retry or interception of processing: yield exactly once.
+                yield None
+            else:
+                with capture_output(
+                    stage.log_path if self.log_dir is not None else "", self.disable
+                ) as log_path:
+                    stage.log_path = Path(log_path) if log_path is not None else None
+                    if log_path is not None:
+                        os.environ[LOG_ENV] = str(log_path)
+                    try:
+                        yield stage
+                    except BaseException:
+                        self.write(f"  ✗ {label:<{WIDTH}}  interrupted or failed")
+                        raise
+        finally:
+            # Each cleanup is independent; display failures cannot mask an
+            # exception from processing or prevent environment restoration.
+            try:
+                if stage is not None:
+                    stage.close()
+            except Exception:
+                self.disable()
+            finally:
+                self._restore_environment(previous)
+                if temporary is not None:
+                    try:
+                        temporary.cleanup()
+                    except Exception:
+                        self.disable()
 
+    @staticmethod
+    def _restore_environment(previous):
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    @optional_display
     def finish(self, name, event, record, stage):
+        if not self.enabled:
+            return
         phase = name.partition(":")[0]
         outcome = event.outcome.value
         if phase in self.suppressed and outcome in {"skipped", "unavailable"}:
@@ -255,6 +306,10 @@ class StageProgress:
             @property
             def format_dict(bar):
                 values = super().format_dict
+                # A zero-column recording PTY must not trigger tqdm's default
+                # format, which includes unknown ETA placeholders.
+                if values["ncols"] == 0:
+                    values["ncols"] = None
                 values["eta"] = ""
                 rate, total, done = values["rate"], values["total"], values["n"]
                 if (
@@ -305,10 +360,16 @@ class StageProgress:
             self.bar.bar_format = "    {work} · elapsed {elapsed}"
 
     def watch(self):
+        try:
+            self._watch()
+        except Exception:
+            self.owner.disable()
+
+    def _watch(self):
         # Keep incomplete lines buffered: another process may be appending.
         pending = ""
         with self.path.open() as events:
-            while True:
+            while self.owner.enabled:
                 pending += events.read()
                 lines = pending.split("\n")
                 pending = lines.pop()

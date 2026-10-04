@@ -17,12 +17,13 @@ import os
 import sys
 from pathlib import Path
 
-import torch
-
-from predict import load_models, predict_video
+from shared.progress import capture_output
 
 
 def main():
+    import torch
+    from predict import load_models, predict_video
+
     parser = argparse.ArgumentParser(
         description='Batch TrackNetV3 inference: load models once, process many clips.',
     )
@@ -113,4 +114,5 @@ def main():
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    with capture_output():
+        raise SystemExit(main())
