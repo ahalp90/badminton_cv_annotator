@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import gzip
 import json
+import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,6 @@ from dataset_builder.models import (
     StageFingerprint,
     StageOutcome,
 )
-
 
 SOURCE_COMMIT = "a" * 40
 INTERPRETER = InterpreterIdentity("/resolved/python", "Python 3.11.9")
@@ -315,3 +315,56 @@ def test_stage_outcomes_have_the_approved_wire_values() -> None:
         "failed",
         "unavailable",
     }
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX venv symlinks")
+@pytest.mark.parametrize("lookup", ["absolute", "relative", "PATH"])
+def test_interpreter_preserves_symlinked_virtualenv(tmp_path, monkeypatch, lookup):
+    import subprocess
+    import venv
+
+    environment = tmp_path / "venv"
+    venv.EnvBuilder(with_pip=False, symlinks=True).create(environment)
+    executable = environment / "bin/python"
+    assert executable.is_symlink()
+    site_packages = Path(
+        subprocess.check_output(
+            [
+                str(executable),
+                "-I",
+                "-c",
+                'import sysconfig; print(sysconfig.get_path("purelib"))',
+            ],
+            text=True,
+        ).strip()
+    )
+    # Only this venv can import the marker; system Python cannot find it.
+    (site_packages / "launcher_venv_marker.py").write_text('VALUE = "venv-only"\n')
+    if lookup == "relative":
+        monkeypatch.chdir(tmp_path)
+        requested = Path("venv/bin/python")
+    elif lookup == "PATH":
+        monkeypatch.setenv(
+            "PATH", str(executable.parent) + os.pathsep + os.environ.get("PATH", "")
+        )
+        requested = "python"
+    else:
+        requested = executable
+
+    identity = resolve_interpreter(requested)
+    child = subprocess.run(
+        [
+            identity.path,
+            "-I",
+            "-c",
+            (
+                "import sys, launcher_venv_marker; "
+                "print(sys.prefix); print(launcher_venv_marker.VALUE)"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert identity.path == str(executable)
+    assert child.stdout.splitlines() == [str(environment), "venv-only"]
