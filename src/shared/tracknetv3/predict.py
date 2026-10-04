@@ -1,16 +1,22 @@
-import os
-import logging
 import argparse
+import logging
+import os
+
 import numpy as np
-from tqdm import tqdm
-
 import torch
+from dataset import (
+    ExactFFV1StreamDataset,
+    Shuttlecock_Trajectory_Dataset,
+    Video_IterableDataset,
+)
+from inference_utils import generate_inpaint_mask, get_ensemble_weight, predict_location
 from torch.utils.data import DataLoader
-
-from inference_utils import predict_location, get_ensemble_weight, generate_inpaint_mask
-from write_inpaint_metadata import write_inpaint_metadata
-from dataset import ExactFFV1StreamDataset, Shuttlecock_Trajectory_Dataset, Video_IterableDataset
+from tqdm import tqdm
 from utils.general import *
+from write_inpaint_metadata import write_inpaint_metadata
+
+from shared.progress import enabled as progress_enabled
+from shared.progress import progress_iter
 
 # NOTE: This file uses a star import from utils.general (upstream TrackNetV3 code).
 # Lint rules F403/F405 are suppressed via ruff config — this code has not been
@@ -209,7 +215,8 @@ def predict_video(video_file, tracknet, inpaintnet,
                                                  frame_arr=np.array(frame_list)[:, :, :, ::-1], padding=True)
             data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, drop_last=False)
 
-        for step, (i, x) in enumerate(tqdm(data_loader)):
+        for step, (i, x) in enumerate(progress_iter(tqdm(data_loader, disable=progress_enabled()),
+                                                           "tracking shuttle", unit="batches")):
             x = x.float().cuda()
             with torch.no_grad():
                 y_pred = tracknet(x).detach().cpu()
@@ -243,7 +250,8 @@ def predict_video(video_file, tracknet, inpaintnet,
         frame_i = torch.arange(seq_len-1, -1, -1) # [7, 6, 5, 4, 3, 2, 1, 0]
         y_pred_buffer = torch.zeros((buffer_size, seq_len, HEIGHT, WIDTH), dtype=torch.float32)
         weight = get_ensemble_weight(seq_len, eval_mode)
-        for step, (i, x) in enumerate(tqdm(data_loader)):
+        for step, (i, x) in enumerate(progress_iter(tqdm(data_loader, disable=progress_enabled()),
+                                                           "tracking shuttle", unit="batches")):
             x = x.float().cuda()
             b_size, seq_len = i.shape[0], i.shape[1]
             with torch.no_grad():
@@ -297,7 +305,8 @@ def predict_video(video_file, tracknet, inpaintnet,
             dataset = Shuttlecock_Trajectory_Dataset(seq_len=seq_len, sliding_step=seq_len, data_mode='coordinate', pred_dict=tracknet_pred_dict, padding=True)
             data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, drop_last=False)
 
-            for step, (i, coor_pred, inpaint_mask) in enumerate(tqdm(data_loader)):
+            for step, (i, coor_pred, inpaint_mask) in enumerate(progress_iter(tqdm(data_loader, disable=progress_enabled()),
+                                                           "inpainting shuttle", unit="batches")):
                 coor_pred, inpaint_mask = coor_pred.float(), inpaint_mask.float()
                 with torch.no_grad():
                     coor_inpaint = inpaintnet(coor_pred.cuda(), inpaint_mask.cuda()).detach().cpu()
@@ -325,7 +334,8 @@ def predict_video(video_file, tracknet, inpaintnet,
             frame_i = torch.arange(seq_len-1, -1, -1) # [7, 6, 5, 4, 3, 2, 1, 0]
             coor_inpaint_buffer = torch.zeros((buffer_size, seq_len, 2), dtype=torch.float32)
 
-            for step, (i, coor_pred, inpaint_mask) in enumerate(tqdm(data_loader)):
+            for step, (i, coor_pred, inpaint_mask) in enumerate(progress_iter(tqdm(data_loader, disable=progress_enabled()),
+                                                           "inpainting shuttle", unit="batches")):
                 coor_pred, inpaint_mask = coor_pred.float(), inpaint_mask.float()
                 b_size = i.shape[0]
                 with torch.no_grad():

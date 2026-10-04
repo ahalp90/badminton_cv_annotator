@@ -49,8 +49,6 @@ from pprint import pprint
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-from tqdm import tqdm
-
 from pipeline.clip_index import build_clip_path_index
 from pipeline.config import CLIPS_OUTPUT_DIR, COCO_N_JOINTS
 from preparing_data.extract_failures import (
@@ -59,6 +57,9 @@ from preparing_data.extract_failures import (
     log_failed_clip,
 )
 from preparing_data.heuristics.base import RAW_SUFFIXES
+from tqdm import tqdm
+
+from shared.progress import progress_iter, report
 
 if TYPE_CHECKING:  # runtime import is lazy (in main) so this module loads without rtmlib
     from shared.rtmlib_pose import FrameDetections, RtmlibPoseExtractor
@@ -144,7 +145,7 @@ def extract_one_clip(
     kp_scores_ls: list[np.ndarray] = []
     ndet_ls: list[int] = []
 
-    for frame_num, det in enumerate(extractor.iter_video(video_path)):
+    for frame_num, det in enumerate(progress_iter(extractor.iter_video(video_path), "extracting pose", unit="frames")):
         kps, bboxes, scores, kp_scores, n = extract_raw_frame(
             det, n_max, video_path.stem, frame_num, over_det_warned,
         )
@@ -159,6 +160,7 @@ def extract_one_clip(
         # log + skip instead. Writing no npys keeps resume able to retry.
         return False
 
+    report("saving pose arrays")
     np.save(save_branch + "_raw_kps.npy", np.stack(kps_ls))
     np.save(save_branch + "_raw_bboxes.npy", np.stack(bboxes_ls))
     np.save(save_branch + "_raw_scores.npy", np.stack(scores_ls))

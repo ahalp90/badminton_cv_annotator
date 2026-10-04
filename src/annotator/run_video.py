@@ -29,6 +29,7 @@ from annotator.outcomes.video import (
 from annotator.resolve import resolve
 from annotator.sequence import ContactEvent
 from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
+from shared.progress import report
 
 DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
 DEFAULT_MODEL_DIRECTORY = Path('models/annotator')
@@ -560,6 +561,7 @@ def run_video(
     if capture is not None and raw_exclusion_mask is not None:
         capture.raw_exclusion_mask = raw_exclusion_mask.copy()
 
+    report("finding rallies")
     resolved = resolve(base, fps)
     span_options = build_span_options(resolved)
     homography_rows = validate_run_inputs(
@@ -646,6 +648,7 @@ def run_video(
         final_contacts = contact_data.filtered_contacts
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
+    report("resolving outcomes")
     verdict_data = build_verdict_data(
         track,
         fps=fps, spans=final_spans,
@@ -661,6 +664,7 @@ def run_video(
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
         scene_courts=scene_courts,
     )
+    report("calculating hit heights")
     hit_height_by_frame, hit_height_failures = build_hit_heights(
         spans=final_spans, filtered_by_rally=contact_data.filtered_by_rally,
         track=track, net_band=net_band, resolution=court.resolution,

@@ -25,6 +25,7 @@ import sys
 import uuid
 from pathlib import Path
 
+from shared.progress import report
 from shared.video_sharding.range_decode import (
     md5_file,
     metadata_frame_count,
@@ -33,7 +34,7 @@ from shared.video_sharding.shard_plan import (
     NDET_INT8_CAP,
     plan_frame_shards,
 )
-from shared.video_sharding.shard_worker import EXTRACTOR_SPECS, worker_entry
+from shared.video_sharding.shard_worker import EXTRACTOR_SPECS, shard_stem, worker_entry
 from shared.video_sharding.stitch import (
     stitch_and_publish,
     write_run_manifest,
@@ -99,6 +100,8 @@ def extract_sharded(
 
     ctx = multiprocessing.get_context("spawn")
     workers: list[tuple[tuple[int, int], multiprocessing.Process]] = []
+    for start, end in plan:
+        report("extracting pose", 0, end - start, "frames", worker=shard_stem(start, end))
     try:
         for start, end in plan:
             kwargs = {
@@ -138,6 +141,7 @@ def extract_sharded(
     if failed:
         raise RuntimeError(f"{len(failed)} shard worker(s) failed: {'; '.join(failed)}")
 
+    report("stitching and saving pose")
     return stitch_and_publish(run_dir, out_root / f"publish_{run_id}", stem)
 
 

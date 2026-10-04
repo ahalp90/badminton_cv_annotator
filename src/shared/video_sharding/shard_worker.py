@@ -35,6 +35,7 @@ from uuid import uuid4
 import numpy as np
 from preparing_data.raw_extract import extract_raw_frame
 
+from shared.progress import progress_iter
 from shared.video_sharding.range_decode import iter_frame_range
 
 # Ordered to match heuristics.base.RAW_SUFFIXES / RawClip field order.
@@ -117,7 +118,8 @@ def run_shard(
     kps_ls, bboxes_ls, scores_ls, kp_scores_ls, ndet_ls = [], [], [], [], []
     over_det_warned: set[str] = set()
     probe_end = end + 1 if probe_past_end else end
-    for offset, frame in enumerate(iter_frame_range(video_path, start, probe_end, decode_mode)):
+    for offset, frame in enumerate(progress_iter(iter_frame_range(video_path, start, probe_end, decode_mode),
+                                               "extracting pose", total=span, unit="frames", worker=stem)):
         if offset == span:
             raise RuntimeError(
                 f"{stem}: source still has frames past planned end {end}; the "

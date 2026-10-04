@@ -388,6 +388,7 @@ def run_dataset_builder(
     *,
     runtime_factory: RuntimeFactory | None = None,
     retry_unavailable: bool = False,
+    progress: str = "off",
 ) -> DatasetBuilderRun:
     """Run or safely resume every configured dataset-builder phase."""
     config = load_builder_config(config_path)
@@ -406,6 +407,7 @@ def run_dataset_builder(
         manifest,
         PHASE_ORDER,
         retry_unavailable=retry_unavailable,
+        display=_progress_display(config, PHASE_ORDER, progress, destination),
     )
 
 
@@ -415,6 +417,7 @@ def run_dataset_builder_replay(
     *,
     runtime_factory: ReplayRuntimeFactory | None = None,
     retry_unavailable: bool = False,
+    progress: str = "off",
 ) -> DatasetBuilderRun:
     """Rerun annotation and projection from validated fixed vision artifacts."""
     config = load_builder_config(config_path)
@@ -441,7 +444,14 @@ def run_dataset_builder_replay(
         manifest,
         REPLAY_PHASE_ORDER,
         retry_unavailable=retry_unavailable,
+        display=_progress_display(config, REPLAY_PHASE_ORDER, progress, destination),
     )
+
+
+def _progress_display(config, phases, mode, destination):
+    from dataset_builder.progress import RunProgress
+
+    return RunProgress(config, phases, mode, log_dir=destination / "terminal-logs")
 
 
 def _run_pipeline_phases(
@@ -452,18 +462,26 @@ def _run_pipeline_phases(
     phases: Sequence[str],
     *,
     retry_unavailable: bool,
+    display=None,
 ) -> DatasetBuilderRun:
     events: list[StageEvent] = []
     stopped_after: str | None = None
     for phase in phases:
         for plan in runtime.plans(phase, manifest):
-            manifest, event = _run_stage_plan(
-                destination,
-                source_commit,
-                manifest,
-                plan,
-                reuse_unavailable=not retry_unavailable,
-            )
+            from contextlib import nullcontext
+
+            context = display.stage(plan.name) if display is not None else nullcontext()
+            with context as stage_progress:
+                manifest, event = _run_stage_plan(
+                    destination,
+                    source_commit,
+                    manifest,
+                    plan,
+                    reuse_unavailable=not retry_unavailable,
+                )
+            if display is not None and display.enabled:
+                record = next(record for record in manifest.stages if record.name == plan.name)
+                display.finish(plan.name, event, record, stage_progress)
             events.append(event)
             if plan.blocks_pipeline and event.outcome is StageOutcome.FAILED:
                 stopped_after = plan.name
@@ -542,6 +560,9 @@ def _run_stage_plan(
     started = time.monotonic()
     try:
         execution = plan.execute()
+        from shared.progress import report
+
+        report("validating outputs")
         validations = _validate_stage_outputs(run_dir, execution, plan.semantic_validators)
         execution = replace(
             execution,
@@ -761,6 +782,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retry validated optional unavailable stages instead of reusing them.",
     )
+    for command_parser in (run_parser, replay_parser):
+        command_parser.add_argument(
+            "--progress", choices=("auto", "on", "off"), default="auto",
+            help="Terminal progress: auto on a TTY, on to force, off for plain logs.",
+        )
     export_parser = subparsers.add_parser(
         "export-v1",
         help="Write the frozen v1 dataset tables from one completed run.",
@@ -920,6 +946,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.config,
             arguments.run_dir,
             retry_unavailable=arguments.retry_unavailable,
+            progress=arguments.progress,
         )
     except Exception as error:
         print(f"dataset builder failed: {type(error).__name__}: {error}", file=sys.stderr)

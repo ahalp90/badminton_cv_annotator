@@ -13,6 +13,7 @@ from annotator.courts.scenes import SceneCourt, court_at_frame
 from annotator.outcomes import point_winner
 from annotator.sequence.contacts import ContactSequence
 from annotator.types import ContactCandidate, StickyResult
+from shared.progress import progress_iter
 
 OTHER_HALF = point_winner.OTHER_HALF
 
@@ -562,7 +563,7 @@ def build_verdict_data(
     verdict_rows: dict[int, point_winner.VerdictRow] = {}
     landings: dict[int, point_winner.Landing | None] = {}
     geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow] = {}
-    for rally_id, span in enumerate(spans):
+    for rally_id, span in enumerate(progress_iter(spans, "resolving outcomes", unit="rallies")):
         striker = contact_data.striker_halves[rally_id]
         if striker is None:
             scored_frames = contact_data.scored_by_rally.get(rally_id, [])

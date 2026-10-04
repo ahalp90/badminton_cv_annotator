@@ -24,6 +24,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
+from shared.progress import report
+
 # Process workers inherit these settings. Set them before importing NumPy.
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -339,6 +341,7 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
     """
     if court_mode == CourtMode.FAST_ROBUST and reuse_courts:
         raise ValueError('fast-robust fits every scene afresh, so it cannot reuse courts')
+    report("finding camera scenes")
     started = perf_counter()
     switches = tools.detector.switches
     pose_prerun_seconds = 0.0
@@ -364,12 +367,14 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         scene_seconds = perf_counter() - scene_started
         processing_started = perf_counter()
         rows = []
+        report("detecting courts", 0, len(scenes), "scenes")
         pool = None if court_mode == CourtMode.SCENE_ROBUST else VideoPool(tools.detector.live, switches, court_mode)
         for row in scene_courts(tools.detector, frames, people, tools.lines, scenes, video_id=video_id,
                                 reuse_courts=reuse_courts, compose_scenes=court_mode != CourtMode.FAST_ROBUST,
                                 on_court=None if pool is None else pool.add,
                                 on_courtless=None if pool is None else pool.add_receiver):
             rows.append(row)
+            report("detecting courts", len(rows), len(scenes), "scenes")
             logger.info('%s: scene %d/%d %s', video_id, len(rows), len(scenes), row['status'])
             if pool is None:
                 if row['corners_native_px'] is not None:
@@ -379,6 +384,7 @@ def detect_video(video: Path, tools: CourtTools, *, video_id: str, people_dir: P
         if pool is not None:
             # Pooling can change earlier rows, so they print only once every court is final.
             logger.info('%s: pooling courts across scenes', video_id)
+            report('pooling courts')
             extra['view_groups'] = pool.apply()
             logger.info('%s: pooling finished with %d view groups', video_id, len(extra['view_groups']))
             for row in rows:

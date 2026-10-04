@@ -30,6 +30,7 @@ from dataset_builder.shuttle_quality import (
     ShuttleQualitySummary,
     summarize_shuttle_quality,
 )
+from shared.progress import report
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -871,6 +872,7 @@ def persist_annotation_run(
     if run.shuttle_quality.frame_count != frame_count:
         raise ValueError("shuttle quality frame count differs from annotation frame count")
     root = Path(output_dir)
+    report("saving annotations")
     raw_path = save_npy_xz(root / RAW_REPLAY_MASK_FILENAME, raw_mask)
     definitive_path = save_npy_xz(root / DEFINITIVE_EXCLUSION_MASK_FILENAME, definitive_mask)
     result_path = save_json_gz(

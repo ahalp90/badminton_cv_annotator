@@ -22,8 +22,9 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config
+from shared.progress import progress_iter
 
+from . import config
 
 CANDIDATES_CSV = config.CANDIDATES_CSV
 VIDEOS_DIR = config.VIDEOS_DIR
@@ -575,7 +576,7 @@ def download_all_videos(
             )
             for task in tasks
         ]
-        for future in futures:
+        for future in progress_iter(futures, "collecting downloads", unit="videos"):
             try:
                 outcomes.append(future.result())
             except Exception as exc:

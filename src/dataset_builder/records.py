@@ -41,6 +41,7 @@ from dataset_builder.manifest import (
 from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.vision import load_json_gz, save_json_gz
 from scraper.commentary_pairing import CanonicalPairing
+from shared.progress import progress_iter
 
 
 @dataclass(frozen=True)
@@ -187,7 +188,7 @@ def assemble_rally_records(
     }
 
     records: list[dict[str, object]] = []
-    for rally_id, (start_frame, end_frame) in enumerate(spans):
+    for rally_id, (start_frame, end_frame) in enumerate(progress_iter(spans, "projecting rallies", unit="rallies")):
         duration_frames = end_frame - start_frame
         records.append({
             "schema": RALLY_RECORD_SCHEMA,
@@ -243,7 +244,7 @@ def write_rally_records(
     projection_manifest_sha256 = run_manifest_sha256(projection_manifest)
     sources: list[dict[str, object]] = []
     records: list[dict[str, object]] = []
-    for projection in projections:
+    for projection in progress_iter(projections, "assembling videos", unit="videos"):
         if not isinstance(projection, RallyRecordProjection):
             raise TypeError("projections must contain RallyRecordProjection values")
         if projection.input_manifest_sha256 != projection_manifest_sha256:
