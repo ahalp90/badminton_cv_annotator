@@ -1,8 +1,7 @@
 """Draw the performance overview with a whole-rally panel for all output.
 
 The middle panel shows how many labelled rallies the annotator gets fully right
-without confidence selection. It replaces the bold footer line in
-performance_overview.png, so all-output and selected-clip rally scores sit side by side.
+without confidence selection, so all-output and selected-clip rally scores sit side by side.
 """
 
 from __future__ import annotations

@@ -6,7 +6,7 @@ The [main report](../README.md) uses ten figures to explain practical use, the c
 
 | Figure | Question answered |
 |---|---|
-| [Performance overview](performance_overview.png) | How accurate is contact detection overall, and what quality and coverage does confidence selection provide? |
+| [Performance overview](performance_overview_rallies.png) | How accurate is contact detection overall, how many whole rallies are fully correct, and what quality and coverage does confidence selection provide? |
 | [High-confidence clips](high_confidence_selection.png) | How many selected clips are exact, need corrections, cut off a rally or cannot be assessed? |
 | [Selected-clip errors](selected_errors.png) | Which errors occur together in the 117 incorrect high-confidence annotations? |
 | [Court-decision groups](court_change_groups.png) | How do contact recovery and rally gains/losses change with court acceptance? Each panel identifies its old-model baseline. |
