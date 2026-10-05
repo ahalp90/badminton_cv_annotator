@@ -33,6 +33,8 @@ At this stage we've built a proof of concept dataset by extracting and deriving 
 
 See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
 
+The [player-feature evaluation and report figures](docs/dataset_builder/player_feature_evaluation/README.md) compare 43 player summaries with recorded rally outcomes. The associations remain exploratory; performance prediction was not evaluated on separate matches.
+
 ## Court-detection dataset
 
 The [ShuttleSet and ShuttleSet22 court detections](data/court_detections/sset_and_sset22/extractions_20261003/README.md)
