@@ -1,62 +1,68 @@
-# Figures
+# Report figures
 
-These figures summarise the saved new-court results. All use the 46 ShuttleSet22 videos outside video 15, cleaned labels and ±10 frames at 30 fps unless the figure says otherwise. Earlier-model numbers appear in the report text, not the plots, except in the two court-comparison figures.
+The [main report](../README.md) uses ten figures to explain practical use, the court change and the remaining errors. The other figures support the detailed evaluation and development history.
 
-**Contents**  
-[Exploring the results](#exploring-the-results)  
-[Old versus new courts](#old-versus-new-courts)  
-[Summary figures](#summary-figures)  
-[Footage and court evidence](#footage-and-court-evidence)  
-[Generate the figures](#generate-the-figures)
+## Main report
 
-## Exploring the results
-
-These plots show the spread and kinds of errors behind the headline scores. They are embedded in the [main report](../README.md).
-
-| Figure | What it shows |
+| Figure | Question answered |
 |---|---|
-| [Video variation](video_variation.png) | Contact recovery against fully correct rally rate, one point per video |
-| [Video outcomes, first half](video_outcome_breakdown_1.png), [second half](video_outcome_breakdown_2.png) | Correct-player matches, other matches and missed labels for every video |
-| [Rally coverage](rally_coverage.png) | Complete, incomplete and unreached rallies before selection |
-| [Selection](selection.png) | Correct, wrong and unknown clips kept and discarded |
-| [Error combinations](selected_errors.png) | Which errors occur together in wrong selected clips |
-| [Timing offsets](timing_offsets.png) | How close matched contacts are to labels; misses excluded |
-| [Contact position](contact_position.png) | Serve, middle and final-contact miss rates at two tolerances |
-| [Input conditions](upstream_context.png) | Court and player availability within missed and matched contacts |
+| [Performance overview](performance_overview.png) | How accurate is contact detection overall, and what quality and coverage does confidence selection provide? |
+| [High-confidence clips](high_confidence_selection.png) | How many selected clips are exact, need corrections, cut off a rally or cannot be assessed? |
+| [Selected-clip errors](selected_errors.png) | Which errors occur together in the 117 incorrect high-confidence annotations? |
+| [Court-decision groups](court_change_groups.png) | How do contact recovery and rally gains/losses change with court acceptance? Each panel identifies its old-model baseline. |
+| [Video variation](video_variation.png) | How much do contact recovery and complete-rally correctness vary between videos? |
+| [Video outcomes, first half](video_outcome_breakdown_1.png), [second half](video_outcome_breakdown_2.png) | Which videos lose contacts or correct player assignments, and how many complete rallies remain? |
+| [Court and player availability](upstream_context.png) | Which inputs were available at each missed contact? |
+| [Shuttle guard](final_hit_guard.png) | How often does the guard flag false final contacts and the real contacts used for comparison? |
+| [Position within a rally](contact_position.png) | How often are serves, middle contacts and final contacts missed in court-accepted frames? |
 
-The [interactive video breakdown](../VIDEO_BREAKDOWN.html) adds per-video player confusion, extra predictions, input conditions and the old-versus-new court result; open it locally.
+Counts and percentages are printed on the plots. The main report uses the repository's blue and sand palette, with grey for additional groups. This avoids relying on red–green contrast. Labels, legends and annotations have space around them. The video scatter plot uses 0–100% on both axes.
 
-## Old versus new courts
+## Supporting figures
 
-- [`court_comparison.png`](court_comparison.png) — fully correct totals for the historical model, the fresh old-court refit and the new model, against the 33-rally gap between two training seeds; rallies gained and lost in each video.
-- [`court_change_groups.png`](court_change_groups.png) — matched hits and rallies gained and lost, grouped by whether the old and new courts accepted each scene.
+| Figure | Purpose |
+|---|---|
+| [Contact metrics](results_at_a_glance.png) | Timing and timing-plus-player precision, recall and F1 |
+| [Rally gains and losses](rally_change_decomposition.png) | Net changes by court decision, supporting the court comparison |
+| [Historical development](system_progression_trusted.png) | Cumulative development stages on the earlier 3,422-rally, 47-video benchmark |
+| [Timing offsets](timing_offsets.png) | Cumulative distance from labels among matched contacts; missed contacts are excluded |
+| [Rally coverage](rally_coverage.png) | Complete, incomplete and unreached rallies before confidence selection |
+| [Selection](selection.png) | Correct, wrong and unassessed clips kept or discarded |
+| [Court comparison](court_comparison.png) | Aggregate rally totals, training-seed variation and per-video gains/losses |
+| [Court-input comparison](court_input_contact_recall.png) | Missed contacts under the old-court refit and new-court annotator |
+| [Rally correctness](rally_correctness.png) | Exact contact sequences and fully correct rallies, with and without video 53 |
+| [Contact correctness](contact_correctness.png) | Timing and timing-plus-player recovery for those populations |
+| [Review queue](review_queue.png) | Correct, wrong and unassessed selected clips for those populations |
+| [Misses by input state](misses_by_input_state.png) | Court and player state at missed contacts |
+| [Original ShuttleSet comparison](original_comparison.png) | Validation and held-out development results alongside ShuttleSet22 |
 
-## Summary figures
-
-- [`rally_correctness.png`](rally_correctness.png) — exact rally-sequence and fully-correct-rally rates, with and without video 53.
-- [`contact_correctness.png`](contact_correctness.png) — contact timing and timing+player recovery for the same populations.
-- [`review_queue.png`](review_queue.png) — correct, wrong and unjudgeable selected clips for each population.
-- [`misses_by_input_state.png`](misses_by_input_state.png) — where the 2,984 misses occur in the pipeline.
-- [`original_comparison.png`](original_comparison.png) — original-ShuttleSet validation and held-out development videos against ShuttleSet22.
-
-Removing a video changes the denominator. It does not repair saved output. The version without video 53 is a sensitivity view, not a better benchmark.
+The [interactive video breakdown](../VIDEO_BREAKDOWN.html) provides more detail for each video and can be opened locally. Removing video 53 is a sensitivity check; it changes the evaluated population without changing the saved predictions.
 
 ## Footage and court evidence
 
-- [`video53_court_fixed.png`](video53_court_fixed.png) — the earlier video 53 frame with the old OpenCV-broken outline and the new outline.
-- [`video17_court_fixed.png`](video17_court_fixed.png) — the earlier video 17 frame with the old shared outline and the new outline.
-- [`contact_sample_results.png`](contact_sample_results.png) — direct hit/player checks of 24 randomly sampled missed contacts, split by court decision.
-- [`label_check_results.png`](label_check_results.png) — label verdicts for 28 cases drawn from the largest failure groups.
+- [Video 53 court](video53_court_fixed.png) — the old and new outlines on the checked frame.
+- [Video 17 court](video17_court_fixed.png) — the corrected outline retains the visible far player.
+- [Random contact sample](contact_sample_results.png) — judgements for 24 randomly sampled misses.
+- [Targeted label checks](label_check_results.png) — judgements for 28 cases from the largest error groups.
 
-Both court figures draw on the same source frames as the [earlier court evidence](../../../../scratch/annotator_wrapup_evaluation/figures/README.md#source-frame-evidence).
+The court overlays use the same frames as the [earlier court evidence](../../../../scratch/annotator_wrapup_evaluation/figures/README.md#source-frame-evidence).
 
-## Generate the figures
+## Regeneration
 
-From the repository root, run:
+From the repository root, after the report is placed in its experiment directory:
 
 ```bash
-python experiments/annotator/annotator_closeout_new_courts/scripts/plot_evaluation.py
-python experiments/annotator/annotator_closeout_new_courts/scripts/plot_court_cases.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_readme_summary.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_closeout_story.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_readme_details.py
+python experiments/annotator/annotator_closeout_new_courts/scripts/plot_video_variation.py
 ```
 
-The first script reads the tables in `results/` and writes every summary figure here. `plot_court_cases.py` makes the two court overlays. `summarise_judgements.py` makes `contact_sample_results.png`, and `summarise_label_checks.py` makes `label_check_results.png`. The court overlays need the earlier evaluation's saved frames and the pulled court records in the ignored `raw/` directory. [Methods and reproduction](../evaluation_reproduction.md) covers the steps that produce those inputs.
+The four scripts write fourteen figures beside the report. While working in a nested draft folder, run the scripts from that folder's `scripts/` directory instead; each script writes to its own parent directory's `figures/` folder.
+
+- `plot_readme_summary.py` draws contact metrics, selected clips and historical development. It checks current counts against `results/` when all required tables are present. Otherwise it uses the published snapshot embedded in the script.
+- `plot_closeout_story.py` draws the combined court-decision comparison, missed contacts by court input, rally gains/losses and shuttle-guard rates from the published counts.
+- `plot_readme_details.py` draws selected-clip errors, cumulative timing accuracy, accepted-frame miss rates and input availability from the evaluation tables.
+- `plot_video_variation.py` draws the scatter plot and two per-video panels from `results/per_video.csv.gz`. Use `--results <directory>` to read that table from outside a nested draft folder.
+
+The remaining figures use `plot_evaluation.py`, `plot_court_cases.py`, `summarise_judgements.py` and `summarise_label_checks.py`. Run `plot_evaluation.py` before the four scripts above: it also writes some of the same filenames. Court overlays need the earlier saved frames and local court records. The judgement-summary scripts need their original local JSON inputs. [Methods and reproduction](../evaluation_reproduction.md) records those dependencies.

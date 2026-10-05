@@ -1,11 +1,12 @@
 # Evaluation numbers and definitions
 
-Use this reference for exact counts, error breakdowns and differences between scoring populations. The [main report](README.md) explains the findings with figures. Earlier-model counts come from the [earlier evaluation tables](../../../scratch/annotator_wrapup_evaluation/evaluation_tables.md) and use the same 46 videos unless labelled otherwise.
+This is the exact-count reference for the closeout: scoring populations, error breakdowns and the differences between related measures. The [main report](README.md) explains the findings with figures. Historical-model counts come from the [earlier evaluation tables](../../../scratch/annotator_wrapup_evaluation/evaluation_tables.md) and use the same 46 videos unless labelled otherwise.
 
-**Contents**  
+**Contents**
+
 [Population](#population)  
 [Definitions](#definitions)  
-[New-court output](#new-court-output)  
+[Current annotator output](#current-annotator-output)\
 [Selected review queue](#selected-review-queue)  
 [Proposal overlap and rally coverage](#proposal-overlap-and-rally-coverage)  
 [What selection discards](#what-selection-discards)  
@@ -28,7 +29,7 @@ Use this reference for exact counts, error breakdowns and differences between sc
 - **46 ShuttleSet22 videos**; video 15 stays excluded.
 - **3,327 cleaned rallies / 37,184 contacts.**
 - **±10 frames at 30 fps** is the main timing allowance.
-- The selected new-court base model and its saved output are unchanged.
+- These counts score the saved output of the selected new-court base model.
 
 The 45-video column without video 53 is a sensitivity check only.
 
@@ -42,13 +43,13 @@ The 45-video column without video 53 is a sensitivity check only.
 
 **Selected clip** — a proposal kept by the historical review cutoff, 0.757; “selected” does not mean correct. The cutoff was carried over unchanged to the new confidence model.
 
-**Cleaned labels** — the label subset used for the main evaluation; old result files call them `retained`.
+**Cleaned labels** — official labels after removing whole rallies with flawed, invalid or out-of-order rows; old result files call them `retained`. Contacts within retained rallies are unchanged.
 
 **Court rejected** — the labelled frame lies in a scene the court stage rejected: either no usable court was found, or the two-player vote failed.
 
-## New-court output
+## Current annotator output
 
-| Cleaned labels, ±10 frames | Earlier model, 46 videos | **New courts, 46 videos** | New courts without video 53: sensitivity |
+| Cleaned labels, ±10 frames | Historical model, 46 videos | **New-court annotator** | Annotator without video 53: sensitivity |
 |---|---:|---:|---:|
 | Labelled rallies | 3,327 | **3,327** | 3,251 |
 | Labelled contacts | 37,184 | **37,184** | 36,247 |
@@ -60,11 +61,11 @@ The 45-video column without video 53 is a sensitivity check only.
 | Serve timing + correct player | 2,642 (79.4%) | **2,587 (77.8%)** | 2,532 (77.9%) |
 | A clip contains the whole rally interval | 2,989 (89.8%) | **2,983 (89.7%)** | 2,920 (89.8%) |
 
-These contact percentages are label-recovery rates. A fresh refit on the old courts gets 1,734 fully correct; [court comparison](court_comparison.md#how-much-refitting-alone-moves-the-totals) compares these totals with refit noise.
+These contact percentages are label-recovery rates. A fresh refit on the old courts gets 1,734 fully correct; [court comparison](court_comparison.md#overall-contact-and-rally-scores) compares these totals with refit noise.
 
 ## Selected review queue
 
-| Selected clips | Earlier model, 46 videos | **New courts, 46 videos** | Without video 53: sensitivity |
+| Selected clips | Historical model, 46 videos | **New-court annotator** | Without video 53: sensitivity |
 |---|---:|---:|---:|
 | Total | 747 | **725** | 714 |
 | Known correct | 616 | **591** | 585 |
@@ -73,14 +74,23 @@ These contact percentages are label-recovery rates. A fresh refit on the old cou
 
 For the 46-video queue:
 
-| Exact selected annotation | Result |
+| High-confidence exact annotation, no manual correction | Result |
 |---|---:|
 | Precision among judgeable clips | **591 / 708 = 83.5%** |
 | Recall across labelled rallies | **591 / 3,327 = 17.8%** |
 | F1 | **29.3%** |
 | Known-correct share if unknowns get no credit | **591 / 725 = 81.5%** |
 
-“Unknown” means the labels cannot settle exact correctness.
+For a person preparing annotations, the same cutoff supplies complete rally clips with contact or player corrections still to make:
+
+| High-confidence complete-rally clips for review | Result |
+|---|---:|
+| Judgeable selected clips containing exactly one whole rally | **706 / 708 = 99.7%** |
+| Recall across labelled rallies | **706 / 3,327 = 21.2%** |
+| F1 | **35.0%** |
+| Confirmed whole-rally share if unknowns get no credit | **706 / 725 = 97.4%** |
+
+The confidence filter returns 725 clips. The cleaned labels can judge 708: 591 are already exact annotations, while 115 more still contain exactly one complete rally and need only local contact/player correction. The other two judgeable clips cut the rally off. “Unknown” means the cleaned labels cannot settle the clip; those 17 clips are excluded from the judgeable precision denominator.
 
 ## Proposal overlap and rally coverage
 
@@ -94,7 +104,7 @@ Across the 46 videos:
 
 Best available rally output:
 
-| Best available output | Earlier model | New courts | New courts without video 53 |
+| Best available output | Historical model | New courts | New courts without video 53 |
 |---|---:|---:|---:|
 | Fully correct | 1,763 | **1,744** | 1,712 |
 | Contains all labels but has another error | 1,226 | **1,239** | 1,208 |
@@ -158,9 +168,9 @@ Categories overlap. One clip fails only because of player assignment.
 
 These are event counts matched within each selected clip, not full-video contact counts.
 
-The largest exclusive combinations are 65 extras-only, 22 misses-only and 21 with both. The earlier model had 85 extra and 67 missed events across 114 wrong clips. Serves made up 35 of those misses; now 21.
+The largest exclusive combinations are 65 extras-only, 22 misses-only and 21 with both. The historical model had 85 extra and 67 missed events across 114 wrong clips. Serves made up 35 of those misses; now 21.
 
-“After the final label” is not proof that a physical hit is false. Earlier deletion work could not separate real tail contacts from bad extras reliably.
+“After the final label” by itself does not establish that the physical hit is false. The separate footage checks test that question directly.
 
 ## Where misses occur
 
@@ -173,7 +183,7 @@ The largest exclusive combinations are 65 extras-only, 22 misses-only and 21 wit
 
 A label can match even when its exact frame is rejected because the ±10-frame window can reach a nearby event.
 
-The 1,620 court-rejected misses are **54.3%** of all misses; the earlier model had 2,374 (65.3%). Without video 53, 1,602 of 2,927 misses are still in rejected scenes (**54.7%**); the earlier figure was 1,640 of 2,891.
+The 1,620 court-rejected misses are **54.3%** of all misses; the historical model had 2,374 (65.3%). Without video 53, 1,602 of 2,927 misses are still in rejected scenes (**54.7%**); the earlier figure was 1,640 of 2,891.
 
 | Rejected misses by cause | Missed |
 |---|---:|
@@ -186,7 +196,7 @@ The 1,620 court-rejected misses are **54.3%** of all misses; the earlier model h
 
 Among court-accepted frames:
 
-| Contact position | Missed | Total | Miss rate | Earlier model |
+| Contact position | Missed | Total | Miss rate | Historical model |
 |---|---:|---:|---:|---:|
 | Serve | 293 | 2,826 | 10.4% | 9.0% |
 | Middle | 721 | 29,441 | 2.4% | 2.3% |
@@ -198,7 +208,9 @@ Across all frames, the new model matches 2,722/3,327 serves, 28,746/30,570 middl
 
 ## Timing of matched contacts
 
-The rows are cumulative over the 34,200 matches.
+The rows are cumulative over the 34,200 matches: each wider window includes the narrower ones.
+
+![Cumulative timing accuracy among matched contacts: 26.4% at the exact frame, 83.2% within two frames and 98.0% within five.](figures/timing_offsets.png)
 
 | Distance from label | Matches | Share |
 |---|---:|---:|
@@ -206,7 +218,7 @@ The rows are cumulative over the 34,200 matches.
 | Within 2 frames | 28,460 | 83.2% |
 | Within 5 frames | 33,504 | 98.0% |
 
-Median offset is zero; mean offset is about half a frame early. The earlier model was 26.9%, 83.6% and 98.0%.
+Median offset is zero; mean offset is about half a frame early. The historical model was 26.9%, 83.6% and 98.0%.
 
 This describes only contacts that already match; the 2,984 misses are outside the timing-offset distribution. It does not support globally shifting predictions.
 
@@ -237,9 +249,9 @@ At the weak end, causes differ: videos 17 and 42 fail mostly on player sides; vi
 
 ## Weak videos
 
-Low score tells us where to look, not what the cause is.
+A low score identifies where the model struggles, but not why.
 
-| Video | Timing matches | Fully correct rallies | Misses in rejected scenes | Earlier model: timing / fully correct |
+| Video | Timing matches | Fully correct rallies | Misses in rejected scenes | Historical model: timing / fully correct |
 |---|---:|---:|---:|---|
 | 42 | 564/624 | 15/58 | 13/60 | 586 / 30 |
 | 17 | 876/976 | 20/73 | 0/100 | 842 / 17 |
@@ -253,7 +265,7 @@ Low score tells us where to look, not what the cause is.
 | 24 | 277/330 | 14/31 | 41/53 | 248 / 11 |
 | 39 | 683/717 | 46/75 | 12/34 | 577 / 38 |
 
-Videos 42, 11 and 25 were not in the earlier weak-video table. They and video 38 match fewer hits than the earlier model did. Video 38 has 73 labelled hits in newly rejected scenes, more than any other video.
+Videos 42, 11 and 25 were not in the earlier weak-video table. They and video 38 match fewer hits than the historical model did. Video 38 has 73 labelled hits in newly rejected scenes, more than any other video.
 
 Video 12's misses are mostly label errors. 101 of its 128 sit in four rallies whose official timestamps are about 15 frames off the visible hits; see [label checks](video_checks.md#video-12-four-rallies-with-shifted-timestamps).
 
@@ -278,18 +290,18 @@ All 16 rallies sampled from the 262 showed no hit at the extra frame, and all 16
 
 ## Rally length
 
-| Rally length | Fully correct | Rate | Earlier model, 47 videos |
+| Rally length | Fully correct | Rate | Historical model, 47 videos |
 |---|---:|---:|---:|
 | 1–5 contacts | 486/967 | 50.3% | 52.3% |
 | 6–10 | 533/1,004 | 53.1% | 51.6% |
 | 11–20 | 515/936 | 55.0% | 52.2% |
 | More than 20 | 210/420 | 50.0% | 48.0% |
 
-Length is still not the main explanation for the current failures.
+Rally length is not a strong explanation for the current failures.
 
 ## Tighter timing: ±5 frames
 
-| Cleaned labels, ±5 frames | New courts, 46 videos |
+| Cleaned labels, ±5 frames | New-court annotator |
 |---|---:|
 | Exact whole-rally contact sequence | 1,410 (42.4%) |
 | Fully correct rally | 1,394 (41.9%) |
@@ -302,9 +314,13 @@ Serves lose the most when the allowance tightens: serve timing matches fall from
 
 ## Contact precision and recall
 
+Precision is the share of predictions that match labels. Recall is the share of labels recovered. F1 is their harmonic mean. Requiring the correct player gives the player-aware version of each metric.
+
+![Current contact timing and timing-plus-player precision, recall and F1.](figures/results_at_a_glance.png)
+
 | Population, ±10 | Matched predictions | Predictions | Labels | Precision | Recall | F1 | Player-aware F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| New courts, 46 videos | 34,200 | 40,246 | 37,184 | 84.98% | 91.98% | 88.34% | 85.64% |
+| New-court annotator | 34,200 | 40,246 | 37,184 | 84.98% | 91.98% | 88.34% | 85.64% |
 | Without video 53 | 33,320 | 39,333 | 36,247 | 84.71% | 91.92% | 88.17% | 85.50% |
 | Fresh old-court refit, 46 videos | 33,529 | 39,428 | 37,184 | 85.04% | 90.17% | 87.53% | — |
 
@@ -312,7 +328,7 @@ The historical model's 47-video figures were 81.04% precision and 88.22% recall,
 
 ## Original ShuttleSet
 
-| New-court model, ±10 | Validation: 8 videos | Development: 32 videos |
+| New-court annotator, ±10 | Validation: 8 videos | Development: 32 videos |
 |---|---:|---:|
 | Labelled rallies / contacts | 668 / 5,696 | 2,691 / 27,571 |
 | Fully correct rally | 273 (40.9%) | 1,229 (45.7%) |
@@ -326,4 +342,4 @@ Validation videos are scored with a contact tree trained on the other 32. Each d
 
 ## Reproduce
 
-[Methods, saved files and commands](evaluation_reproduction.md) explain how these counts were produced.
+[Methods, saved files and commands](evaluation_reproduction.md) record how these counts were produced.

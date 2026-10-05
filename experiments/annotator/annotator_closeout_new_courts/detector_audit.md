@@ -1,16 +1,16 @@
-# Detector audit: why the remaining failures happen
+# Detector audit: code paths behind the remaining errors
 
-**The audit traced the three largest failures to specific code paths.** Each was found by a read-only audit of the current code and then rechecked against the saved run.
+This audit traces three substantial error groups through the code: rejected court scenes, false contacts after play ends, and incorrect near/far player assignments. The saved outputs show how each failure arises and identify changes that can be tested separately.
 
 - **The court stage judges each scene on one 3-second sample, and in rejected scenes that sample mostly falls between rallies.** 888 missed hits sit in 145 scenes dropped before any court search. Another 286 sit in scenes where the detector accepted a court far larger than the picture, which the two-player vote then rejected.
-- **Nothing stops a false hit after the rally ends.** The contact model scores it at 0.9 or above in 231 of the 233 rallies, the sequence chooser keeps it, and the landing search starts after it.
-- **Most wrong sides follow from a missed hit.** Sides alternate within a rally, so one missed hit flips every hit on one side of it: 837 of the 1,043 wrong sides. Video 42 also takes its net position from a broken court.
+- **The pipeline retains a false contact after the rally ends.** The contact model scores it at 0.9 or above in 231 of the 233 rallies, the sequence chooser keeps it, and the landing search starts after it.
+- **Most wrong sides follow from a missed hit.** Sides alternate within a rally, and 837 of the 1,043 wrong or missing assignments occur in rallies with a missed interior contact. Video 42 also takes its net position from a broken court.
 
-**Contents**  
+**Contents**
+
 [The court stage](#the-court-stage)  
 [The false hit after the rally ends](#the-false-hit-after-the-rally-ends)  
 [Wrong sides](#wrong-sides)  
-[Corrections to the audit](#corrections-to-the-audit)  
 [Method and evidence](#method-and-evidence)
 
 ## The court stage
@@ -28,9 +28,9 @@ The court search applies the same rule to each candidate court (`measurements.py
 
 In the rejected scenes, the window mostly samples the break between rallies rather than play. These scenes hold **888 of the 1,620** rejected-scene misses. They also hold 362 of the 588 hits that the new courts newly reject.
 
-Some windows that miss a labelled rally may still hold play: cleaning dropped 524 of the 3,851 official rallies. That cannot close a gap of 12% against 93%.
+Some windows that miss a labelled rally may still hold play: cleaning dropped 524 of the 3,851 official rallies. That cannot explain a gap of 12% against 93%.
 
-The [earlier search trial](../../court_detector/comparisons/search.md) relaxed the player checks and found false courts. This cause is different. The checks can stay; they are applied to the wrong three seconds. Placing the window on active play, or trying several windows, keeps the checks intact.
+The [earlier search trial](../../court_detector/comparisons/search.md) relaxed the player checks and found false courts. The problem here is different: the checks are being applied to the wrong three seconds. Moving the sample to active play, or trying several windows, would preserve the checks themselves.
 
 ### Oversized courts pass the detector, then fail the vote
 
@@ -43,7 +43,7 @@ The annotator's two-player vote then fails these scenes by a wide margin:
 | Court reaches more than 10% outside the frame, or is over twice the video's usual area | 48 | **286** | 17% |
 | Other courts | 28 | 171 | 39% |
 
-The vote needs exactly two people inside the court, so umpires, line judges and spectators inside an oversized court are the likely cause. The pose arrays needed to confirm this are not in the saved results.
+The vote needs exactly two people inside the court, so umpires, line judges and spectators inside an oversized court are the likely cause. The pose arrays needed to confirm that are not in the saved results.
 
 The footage confirms one case. Video 52's checked frame shows all four court corners in view, but the detector's court runs off the frame at 2.4 times the usual area. The other two checked vote failures, in videos 26 and 38, have ordinary courts and votes just under 50%.
 
@@ -61,9 +61,9 @@ The footage confirms one case. Video 52's checked frame shows all four court cor
 | Sequence chooser (`sequence/choices.py:24–56`) | Could delete it, but keeps it as the rally's last hit | 233 of 233 |
 | Landing search (`outcomes/point_winner.py:231`) | Starts after the last kept hit, so any landing it finds comes after the false hit | 67 found, all after |
 
-The rally's end is detected only after the hits are fixed, and nothing feeds it back. A visible end cue, such as a landing, a settled shuttle or a catch, needs to reach the hit choice before the last hit is accepted. That differs from the rejected [endpoint deletion](../../../scratch/annotator_wrapup_evaluation/last_followups.md#endpoint-deletion), which removed hits by their position after the last label.
+The rally's end is detected only after the contacts are chosen, and nothing feeds that information back into contact selection. A visible end cue, such as a landing, a settled shuttle or a catch, would need to reach the hit choice before the last hit is accepted. The cue must be available from the video. The earlier [endpoint deletion trial](../../../scratch/annotator_wrapup_evaluation/last_followups.md#endpoint-deletion) relied on knowing the last label.
 
-One end cue is already computed. The shuttle track's guard flags 110 of these false hits on their own frame, and the landing check already distrusts a flagged last hit. The [shuttle guard addendum](shuttle_guard_addendum.md) measures it.
+One end cue is already computed. The shuttle track's guard flags 110 of these false hits on their own frame, and the landing check already distrusts a flagged last hit. The [shuttle guard analysis](shuttle_guard_addendum.md) measures it, and the [summary figure](figures/final_hit_guard.png) shows how rarely the same flag appears on real final hits.
 
 The false hit also becomes the rally's recorded striker in all 233. It does not cost the predicted point winner, which is read from who serves next. That winner agrees with the official rows in 80.1% of these rallies, against 74.2% of fully correct ones.
 
@@ -82,7 +82,7 @@ The model gives each rally's hits alternating sides. It picks whichever of the t
 
 117 rallies with exactly one miss and no extra have wrong sides. In 115 of them, every hit on one side of the gap is wrong.
 
-These rallies already fail on the missed hit, so the flipped sides rarely cost a rally. They do lower the per-hit player score. They would also mislabel hits in any partly correct rally used downstream.
+These rallies already fail on the missed hit, so the flipped sides rarely cost another rally. They do lower the per-hit player score and would mislabel hits in any partly correct rally used downstream.
 
 ### Video 42 takes its net position from a broken court
 
@@ -96,20 +96,13 @@ Video 42's wrong sides run 66 near-to-far against 26 far-to-near. In its rallies
 
 Video 17's first scene runs 73,167 frames. Its court puts the far baseline at y ≈ 270 px, against ≈ 418 px in the median of the video's 60 other accepted courts. As the longest scene, it also supplies the video-wide net position. 208 of the video's 209 wrong sides sit in this scene.
 
-The errors arrive through missed hits: 203 of the 209 are in rallies with a miss, and its clean rallies have 6 wrong sides in 357. The odd court suggests it was fitted to a different camera view from most of the scene. Frames from across scene 0 would show whether the camera changes.
-
-## Corrections to the audit
-
-The rechecks changed four of the audit's statements:
-
-- It put all 21 vote-failed scenes with ordinary courts at 42–50%. They range from 5% to 50%, with a median of 42%.
-- Its oversized-court count, 339, included seven scenes flagged only for a small area. Four are one recurring wide view in video 38. The table above uses the stricter count, 286.
-- It said nothing downstream can remove a trailing hit. The sequence chooser can; it chose not to in all 233.
-- It predicted the false hit would cost the point winner. It does not: 80.1% against 74.2%.
+The errors arrive mainly through missed hits: 203 of the 209 are in rallies with a miss, and its clean rallies have 6 wrong sides in 357. The odd court suggests it was fitted to a different camera view from most of the scene. Frames spread across scene 0 would establish whether the camera changes within that 40-minute record.
 
 ## Method and evidence
 
-The audit ran once, read-only, on `main` at `d4994bad`. Since the evaluated run, the annotator has changed only in evaluation files and progress messages. The court gate matches the release commit. Line numbers match `main` at `8b65a268`. The brief named the three failures and the code paths. Each claim needed a call chain with quoted lines and a prediction written before its data check. The official rally endings and old-court decisions were held back to score its untested predictions.
+The audit ran once, read-only, on `main` at `d4994bad`. Since the evaluated run, the annotator has changed only in evaluation files and progress messages. The court checks match the release commit. Line numbers match `main` at `8b65a268`.
+
+The audit started from the three large failure groups and required each proposed cause to identify the relevant call path and make a prediction that could be checked against saved data. The official rally endings and old-court decisions were held back until those predictions had been written.
 
 Every finding above was then rechecked: the quoted lines against the code, the counts with `scripts/audit_checks.py`, and the untested predictions against the held-back data.
 
