@@ -137,60 +137,6 @@ def plot_results_at_a_glance(metrics: dict[str, int]) -> None:
          "Precision: share of predictions matching labels. Recall: share of labels recovered.")
 
 
-def plot_performance_overview(metrics: dict[str, int]) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
-    fig.subplots_adjust(left=0.06, right=0.98, bottom=0.20, top=0.70, wspace=0.18)
-    fig.suptitle("The annotator finds most contacts and selects reliable rally clips",
-                 x=0.04, ha="left", fontsize=16, weight="bold")
-    panels = [
-        (
-            "All output: contact accuracy",
-            f'{metrics["labelled_contacts"]:,} labels · {metrics["predicted_contacts"]:,} predictions',
-            metrics["predicted_contacts"],
-            metrics["labelled_contacts"],
-            [
-                ("Correct timing", metrics["matched_contacts"], BLUE),
-                ("Correct timing and player", metrics["correct_side_contacts"], SAND),
-            ],
-        ),
-        (
-            "Selected clips: confidence ≥ 0.757",
-            f'{metrics["selected"]} selected clips · {metrics["selected_judgeable"]} assessed',
-            metrics["selected_judgeable"],
-            metrics["labelled_rallies"],
-            [
-                ("Rally boundaries correct", metrics["selected_whole_rally"], BLUE),
-                ("Fully correct rallies (including all contacts)", metrics["selected_exact"], SAND),
-            ],
-        ),
-    ]
-    positions = np.arange(3)
-    width = 0.36
-    for ax, (title, population, precision_total, recall_total, series) in zip(axes, panels, strict=True):
-        ax.set_title(f"{title}\n{population}", loc="left", fontsize=12, pad=51)
-        for series_index, (label, count, colour) in enumerate(series):
-            precision = 100 * count / precision_total
-            recall = 100 * count / recall_total
-            values = [precision, recall, f1(precision, recall)]
-            offset = (series_index - 0.5) * width
-            bars = ax.bar(positions + offset, values, width, color=colour, label=label)
-            ax.bar_label(bars, labels=[f"{value:.1f}%" for value in values], padding=4, fontsize=10)
-        ax.set_xticks(positions, ["Precision", "Recall", "F1"])
-        ax.set_ylim(0, 110)
-        ax.set_yticks([0, 25, 50, 75, 100])
-        ax.set_axisbelow(True)
-        ax.grid(axis="y", alpha=0.15)
-        ax.legend(frameon=False, loc="lower left", bbox_to_anchor=(0, 1.01), fontsize=10)
-    axes[0].set_ylabel("Percent")
-    fully_correct = metrics["fully_correct_rallies"]
-    rally_total = metrics["labelled_rallies"]
-    fig.text(0.06, 0.09,
-             f'Fully correct rally annotations: {fully_correct:,} / {rally_total:,} ({100 * fully_correct / rally_total:.1f}%)',
-             fontsize=11, weight="bold")
-    save(fig, "performance_overview",
-         "46 ShuttleSet22 videos · timing allowance ±10 frames at 30 fps")
-
-
 def plot_historical_progression() -> None:
     labels, counts = zip(*HISTORICAL_PROGRESSION, strict=True)
     fig, ax = plt.subplots(figsize=(11.5, 5.7))
@@ -252,7 +198,6 @@ def plot_high_confidence_selection(metrics: dict[str, int]) -> None:
 def main() -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     metrics = current_metrics()
-    plot_performance_overview(metrics)
     plot_results_at_a_glance(metrics)
     plot_historical_progression()
     plot_high_confidence_selection(metrics)
