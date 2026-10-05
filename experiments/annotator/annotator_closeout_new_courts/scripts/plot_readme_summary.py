@@ -159,8 +159,8 @@ def plot_performance_overview(metrics: dict[str, int]) -> None:
             metrics["selected_judgeable"],
             metrics["labelled_rallies"],
             [
-                ("Fully correct rallies (including all contacts)", metrics["selected_exact"], BLUE),
-                ("Rally boundaries correct", metrics["selected_whole_rally"], SAND),
+                ("Rally boundaries correct", metrics["selected_whole_rally"], BLUE),
+                ("Fully correct rallies (including all contacts)", metrics["selected_exact"], SAND),
             ],
         ),
     ]
