@@ -8,6 +8,7 @@ FIGURES = Path(__file__).resolve().parents[1] / "figures"
 BLUE = "#4477AA"
 SAND = "#DDCC77"
 GREY = "#999999"
+LABELLED_CONTACTS = 37_184
 plt.rcParams.update({"font.size": 12, "axes.spines.top": False, "axes.spines.right": False})
 
 
@@ -100,9 +101,9 @@ def plot_upstream_context() -> None:
     total = sum(counts)
     fig, ax = plt.subplots(figsize=(11.5, 4.9))
     fig.subplots_adjust(left=0.29, right=0.98, bottom=0.25, top=0.82)
-    fig.suptitle("Court rejection accounts for 54.3% of missed contacts", x=0.04,
+    fig.suptitle(f"Source of missed contacts ({total:,} missed—{LABELLED_CONTACTS:,} total contacts)", x=0.04,
                  ha="left", fontsize=15, weight="bold")
-    fig.text(0.04, 0.895, f"Court and player availability at each of the {total:,} missed labelled contacts")
+    fig.text(0.04, 0.895, f"{LABELLED_CONTACTS - total:,} contacts correctly identified", fontstyle="italic")
     bars = ax.barh(labels, counts, color=[SAND, GREY, BLUE], height=0.68)
     for bar, count in zip(bars, counts, strict=True):
         ax.text(count + 25, bar.get_y() + bar.get_height() / 2,
