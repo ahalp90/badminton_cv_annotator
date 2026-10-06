@@ -17,8 +17,9 @@ source manifest.
 Set `SHUTTLESET_SOURCE_ROOT` to the directory containing the exact MP4
 basenames in
 `configs/dataset_builder/shuttleset_sources_v1.toml`. The tracked ground truth
-must remain under `training/data/shuttleset/annotations`. Configure the
-TrackNet and pose interpreter environment variables required by
+must remain under `training/data/shuttleset/annotations`. Set the TrackNet,
+pose and court interpreter variables (`BADMINTON_TRACKNET_PYTHON`,
+`BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON`) required by
 `configs/dataset_builder/shuttleset_fixed.toml`, then run:
 
 ```bash
