@@ -19,6 +19,7 @@ from . import line_observations as assignment
 from . import paint_geometry
 from . import stripe_measurements as stripe_observations
 from .image_sources import CaseProvenance
+from .sampling import remap_points
 
 WORKING_SIZE = (960, 540)
 CAMERA_LIMIT = 0.1
@@ -244,7 +245,7 @@ def historical_predicates(gates: dict) -> dict[str, bool]:
 def grayscale_sample(image: np.ndarray, points: np.ndarray) -> np.ndarray:
     grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.float32)
     maps = np.asarray(points, dtype=np.float32).reshape(-1, 2)
-    values = cv2.remap(grey, maps[:, 0], maps[:, 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    values = remap_points(grey, maps, cv2.BORDER_REPLICATE)
     return values.reshape(np.asarray(points).shape[:-1])
 
 
