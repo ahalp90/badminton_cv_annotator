@@ -86,5 +86,8 @@ def test_stripe_sample_image_accepts_points_over_the_cap(plane_shape: tuple[int,
     points = random_points(OVER_CAP_SHAPE, rng)
     sampled, valid = stripe_refit.sample_image(planes, points, np.empty((0, 4)))
     expected = remap_in_small_pieces(planes, points.reshape(-1, 2), cv2.BORDER_CONSTANT)
+    # The stripe refit indexes samples by fragment, position and channel, so the shapes must hold.
+    assert sampled.shape == points.shape[:-1] + planes.shape[2:]
+    assert valid.shape == points.shape[:-1]
     assert valid.all()
     np.testing.assert_array_equal(sampled, expected.reshape(sampled.shape))
