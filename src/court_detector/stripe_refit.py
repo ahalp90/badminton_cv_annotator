@@ -11,8 +11,9 @@ and the contrast reaches CONTRAST_LEVELS grey levels. Only the positions change;
 then the court is refitted (fixed_stripe_refit.refine) and validated (fit_geometry).
 
 Research scripts import these back, so this module stays a leaf: it imports numpy,
-OpenCV, stripe_fitting and, for observable_points, measurements.py (the package
-copy of the archived w5_holistic/verifier.py). It never edits sys.path.
+OpenCV, stripe_fitting, sampling.py for remap_points and, for observable_points,
+measurements.py (the package copy of the archived w5_holistic/verifier.py). It never
+edits sys.path.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import numpy as np
 
 from . import stripe_fitting as fitting
 from .measurements import observable_points
+from .sampling import remap_points
 
 FRACTIONS = np.linspace(0.1, 0.9, 24)
 SHIFTS_WORKING = np.asarray((-4, -2, 0, 2, 4), dtype=float)
@@ -59,8 +61,7 @@ def sample_image(values: np.ndarray, points: np.ndarray, boxes: np.ndarray) -> t
     output = np.full((len(flat),) + values.shape[2:], np.nan, dtype=float)
     if valid.any():
         xy = flat[valid].astype(np.float32)
-        sampled = cv2.remap(values, xy[:, 0], xy[:, 1], cv2.INTER_LINEAR,
-                            borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        sampled = remap_points(values, xy, cv2.BORDER_CONSTANT)
         output[valid] = sampled.reshape(output[valid].shape)
     return output.reshape(points.shape[:-1] + values.shape[2:]), valid.reshape(points.shape[:-1])
 
