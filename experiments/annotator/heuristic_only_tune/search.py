@@ -37,6 +37,8 @@ COUPLED_AXES = (
     ('smooth_window', 'impulse_floor_half_window_frames'),
     ('contact_dedup_radius_frames', 'contact_suppression_radius_frames'),
     ('contact_impulse_multiple', 'contact_suppression_radius_frames'),
+    ('contact_impulse_multiple', 'wrist_distance_body_heights'),
+    ('contact_suppression_radius_frames', 'wrist_distance_body_heights'),
 )
 OBJECTIVES = ('contacts', 'rallies')
 
@@ -162,8 +164,10 @@ def refine_specs(
             for value in adjacent_values(values[key], choices):
                 append(CandidateSpec('refine', {**parent.overrides_base30, key: value}, parent.strategies))
         for first, second in COUPLED_AXES:
+            if first not in axes or second not in axes:
+                continue
             first_values = adjacent_values(parent.overrides_base30[first], axes[first])
-            second_values = adjacent_values(parent.overrides_base30[second], axes[second])
+            second_values = adjacent_values(values[second], axes[second])
             for first_value, second_value in product(first_values, second_values):
                 append(CandidateSpec('refine', {
                     **parent.overrides_base30, first: first_value, second: second_value,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import pickle
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -85,7 +86,7 @@ def test_existing_saved_thresholds_gain_the_native_wrist_default() -> None:
     assert restored.wrist_distance_body_heights == 1.4
 
 
-def test_sweep_routes_and_saves_wrist_distance_without_changing_its_identity(tmp_path) -> None:
+def test_sweep_routes_and_saves_wrist_distance_without_changing_its_identity(tmp_path: Path) -> None:
     spec = CandidateSpec('wider wrist gate', {'wrist_distance_body_heights': 2.0}, {})
     identity = candidate_id(spec)
     payload = serialise_spec(spec)

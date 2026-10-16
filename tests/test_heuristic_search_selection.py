@@ -79,6 +79,8 @@ def test_probe_covers_both_objectives_and_all_supplied_values() -> None:
     refined = refine_specs(rows, 'contacts', 1, axes)
     assert {spec.overrides_base30['wrist_distance_body_heights'] for spec in refined
             if 'wrist_distance_body_heights' in spec.overrides_base30} == {0.8, 2.0}
+    assert any(spec.overrides_base30.get('wrist_distance_body_heights') == 0.8
+               and spec.overrides_base30['contact_impulse_multiple'] == 3 for spec in refined)
 
 
 @pytest.mark.parametrize(('split', 'smoke', 'count'), [('test', False, 32), ('train', True, 32), ('train', False, 8)])
