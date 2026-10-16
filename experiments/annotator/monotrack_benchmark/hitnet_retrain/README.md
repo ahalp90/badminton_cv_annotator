@@ -42,8 +42,10 @@ These choices adapt MonoTrack to the available data and extraction pipeline:
   windows. This roughly tenfold larger dataset already produces far more updates per pass,
   so the release's tenfold update multiplier is removed.
 - **Court failures:** rallies where MonoTrack's court detector fails are skipped during
-  training and counted by split in `training_data.json.gz`. Benchmark scoring retains
-  failed rallies so these errors affect the result.
+  training and counted by split in `training_data.json.gz`: 50 training rallies and
+  nine validation rallies. The saved results contain 52 failed fits, five detector
+  crashes and two jobs that reached the existing one-hour court-detection limit.
+  Benchmark scoring retains failed rallies so these errors affect the result.
 - **Pose-filling failures:** MonoTrack's missing-pose interpolation crashes when a
   selected player has a detection in only one frame. We skip these rallies during
   training and count them separately from court failures: four training rallies

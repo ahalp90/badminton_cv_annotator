@@ -41,7 +41,7 @@ def summarise(output: Path) -> dict[str, Any]:
             **{name: runs[name]['by_tolerance'] for name in OURS},
         },
         'interpolation_off': {arm: runs[f'mono_{arm}_own_off']['by_tolerance'] for arm in ('kept', 'zeroed')},
-        'failures': {name: {key: result[key] for key in ('failed_videos', 'failed_rallies')}
+        'failures': {name: {key: result[key] for key in ('failed_videos', 'failed_rallies', 'failure_stages')}
                      for name, result in runs.items()},
     }
     write_json(output / 'comparison.json.gz', summary)

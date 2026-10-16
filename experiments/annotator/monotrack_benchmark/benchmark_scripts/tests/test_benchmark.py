@@ -10,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import monotrack_runner
+import score
 from common import read_json, write_json
 from prepare_inputs import image_order, vote_free_courts
 from score import score_item
@@ -27,8 +28,27 @@ def test_discovery_counts_contacts_outside_supplied_windows() -> None:
     scores = score_item(item(), result)['10']
     assert scores['matched_contacts'] == 2 and scores['predicted_contacts'] == 3
     assert scores['fully_correct_rallies'] == 1
+    assert scores['predicted_contacts_outside_windows'] == 1
     result['boundaries'] = 'provided'
     assert score_item(item(), result)['10']['predicted_contacts'] == 2
+    assert score_item(item(), result)['10']['predicted_contacts_outside_windows'] == 0
+
+
+def test_failure_summary_separates_courts_from_pose_filling(tmp_path: Path, monkeypatch) -> None:
+    video = item()
+    video['spans'].append({'span_id': 1, 'rally_id': 'r2', 'start_frame': 170, 'end_frame': 231,
+                           'label_frames': [180, 200], 'label_sides': ['Bot', 'Top']})
+    monkeypatch.setattr(score, 'load_manifest', lambda _: {'items': [video]})
+    write_json(tmp_path / 'fixture.json.gz', {
+        'item_id': 'fixture', 'status': 'completed', 'boundaries': 'provided', 'stream': {'events': []},
+        'failed_rallies': [{'span_id': 0, 'reason': 'court_detection'},
+                           {'span_id': 1, 'reason': 'ValueError', 'stage': 'pose_filling'}],
+    })
+    result = score.score_run(tmp_path, tmp_path)
+    assert result['failed_rallies'] == 2
+    assert result['failure_stages'] == {'court_detection': 1, 'pose_filling': 1}
+    assert result['by_tolerance']['10']['labelled_contacts'] == 4
+    assert result['by_tolerance']['10']['matched_contacts'] == 0
 
 
 def test_empty_inference_keeps_all_labels() -> None:

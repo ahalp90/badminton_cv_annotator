@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 from common import fixed_stream, labels_for_item, load_manifest, read_json, write_json
 
 COUNT_FIELDS = ('labelled_rallies', 'labelled_contacts', 'predicted_contacts', 'matched_contacts',
-                'correct_side_contacts', 'fully_correct_rallies')
+                'correct_side_contacts', 'fully_correct_rallies', 'predicted_contacts_outside_windows')
 
 
 def add_rates(counts: dict[str, Any]) -> dict[str, Any]:
@@ -25,9 +26,12 @@ def score_item(item: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
     )
 
     events = result['stream']['events']
+    inside_windows = [any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
+                      for event in events]
+    outside_count = len(events) - sum(inside_windows)
     if result['boundaries'] == 'provided':
-        events = [event for event in events
-                  if any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])]
+        events = [event for event, inside in zip(events, inside_windows, strict=True) if inside]
+        outside_count = 0
     elif result['boundaries'] != 'discovered':
         raise ValueError('Unknown rally-boundary condition')
     # Discovery keeps out-of-window events here: they must count as false positives.
@@ -42,6 +46,7 @@ def score_item(item: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
             'predicted_contacts': len(predictions), 'matched_contacts': sum(bool(row['matched']) for row in contacts),
             'correct_side_contacts': sum(bool(row['player_correct']) for row in contacts),
             'fully_correct_rallies': sum(bool(row['fully_correct']) for row in rallies),
+            'predicted_contacts_outside_windows': outside_count,
         })
     return scores
 
@@ -52,6 +57,7 @@ def score_run(inputs: Path, run: Path) -> dict[str, Any]:
     by_video = {}
     failed_videos = []
     failed_rallies = 0
+    failure_stages: Counter[str] = Counter()
     for item in manifest['items']:
         # Missing files indicate an unfinished run; explicit failures contain an empty stream.
         result = read_json(run / f'{item["item_id"]}.json.gz')
@@ -61,11 +67,14 @@ def score_run(inputs: Path, run: Path) -> dict[str, Any]:
         if result['status'] == 'failed':
             failed_videos.append(item['item_id'])
         failed_rallies += len(result.get('failed_rallies', []))
+        failure_stages.update(failure.get('stage', failure['reason'])
+                              for failure in result.get('failed_rallies', []))
         for tolerance, counts in totals.items():
             for key in COUNT_FIELDS:
                 counts[key] += by_video[item['item_id']][tolerance][key]
     summary = {'by_tolerance': {key: add_rates(value) for key, value in totals.items()}, 'by_video': by_video,
-               'failed_videos': failed_videos, 'failed_rallies': failed_rallies}
+               'failed_videos': failed_videos, 'failed_rallies': failed_rallies,
+               'failure_stages': dict(failure_stages)}
     write_json(run / 'scores.json.gz', summary)
     return summary
 

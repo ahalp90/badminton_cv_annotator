@@ -65,6 +65,8 @@ HitNet trains, use `--phase ours`. Later run `--phase monotrack`, followed by
 The outputs contain per-video predictions, failure records and scores.
 `comparison.json.gz` holds the five main results and interpolation comparisons;
 `shuttle_comparison.json.gz` holds both shuttle results and the selected variant.
+Summaries separate failures by stage and count discovery predictions outside the
+labelled rally windows.
 Local configuration and execution logs are ignored by Git.
 
 ## Review failures
