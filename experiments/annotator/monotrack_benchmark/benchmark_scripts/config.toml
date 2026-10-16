@@ -1,0 +1,13 @@
+# Copy to config.local.toml and set the machine-specific paths there.
+[paths]
+inputs = "experiments/annotator/monotrack_benchmark/benchmark_results/inputs"
+sources = "/path/to/shuttleset22/sources"
+pose_root = "/path/to/shuttleset22/extracted-simple"
+inpaint_root = "/path/to/shuttleset22/inpainted-tracks"
+bundle = "data/annotator/sset_and_sset22_trained_20261003T041112Z"
+weights = "experiments/annotator/monotrack_benchmark/hitnet_retrain/weights"
+
+[execution]
+monotrack_python = "/path/to/tensorflow-2.15-environment/bin/python"
+annotator_python = "/path/to/annotator-environment/bin/python"
+annotator_workers = 5
