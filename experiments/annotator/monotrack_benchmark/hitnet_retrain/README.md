@@ -64,9 +64,12 @@ augmentation, class balancing, batch size 64, early stopping and learning-rate
 reduction. The best validation checkpoint is reloaded before temperature
 calibration and export.
 
-MonoTrack's shuttle interpolation remains off during training. For benchmarking,
-it is enabled as in the released inference code, with a second comparison
-disabling it. This interpolation is separate from InpaintNet's predictions.
+MonoTrack's shuttle interpolation is off during training. The main benchmark
+also disables it at inference and uses `hitnet_zeroed.h5`, with InpaintNet-filled
+positions replaced by zeros. Both shuttle inputs were evaluated with inference
+interpolation on and off; Appendix A of the reports compares all four settings.
+Zeroed input with interpolation off scored highest on ShuttleSet22. MonoTrack's
+interpolation is separate from InpaintNet's predictions.
 
 ## Setup and run
 

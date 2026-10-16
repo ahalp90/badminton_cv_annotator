@@ -18,16 +18,16 @@ The adapter gives HitNet the court-corner order used in training; the vendored
 MonoTrack code stays unchanged. When our annotator receives MonoTrack's courts,
 it accepts every successful fit without applying our detector's person vote.
 
-Both shuttle variants are evaluated on MonoTrack's courts with the released
-inference interpolation enabled. The variant with higher test contact F1 at
-±10 frames supplies the two MonoTrack rows above. Both variant results are
-retained for the report's footnote. Each is also evaluated with interpolation
-disabled as a separate comparison.
+Both MonoTrack rows use `hitnet_zeroed.h5`, with InpaintNet-filled positions
+replaced by zeros and MonoTrack's shuttle interpolation off at inference.
+We report the highest-scoring of its four configurations tested on ShuttleSet22.
+Appendix A compares both shuttle inputs with inference interpolation on and off.
 
 For provided boundaries, contacts are scored inside the common padded rally
 windows. Discovery is scored across the whole video, including false positives
 outside those windows. Fully correct rallies use the same fixed windows in all
-five conditions. Results include ±10- and ±5-frame contact scores.
+five conditions. The main results use ±10 frames. Appendix E gives the ±5-frame
+timing-sensitivity comparison.
 
 Each tolerance has three measures:
 
@@ -58,24 +58,65 @@ python prepare_inputs.py \
 cp config.toml config.local.toml
 ```
 
-Set the data paths and Python interpreters in `config.local.toml`, then run:
+Set the data paths and Python interpreters in `config.local.toml`. The checked-in
+input folder can be reused when the evaluation population and court inputs are
+unchanged. Run from this directory with the annotator environment active. Set
+`monotrack_python` to the TensorFlow 2.15 interpreter and choose a fresh output
+directory:
 
 ```bash
+benchmark_output=/path/to/benchmark-output
+monotrack_python=/path/to/tensorflow-2.15-environment/bin/python
+
 python run_benchmarks.py \
   --config config.local.toml \
-  --output ../benchmark_results/comparison
+  --phase ours \
+  --output "$benchmark_output" &&
+"$monotrack_python" monotrack_runner.py \
+  --config config.local.toml \
+  --arm zeroed --courts monotrack --interpolation off \
+  --output "$benchmark_output/mono_zeroed_own_off" &&
+python score.py \
+  --inputs ../benchmark_results/inputs \
+  --run "$benchmark_output/mono_zeroed_own_off" &&
+"$monotrack_python" monotrack_runner.py \
+  --config config.local.toml \
+  --arm zeroed --courts ours --interpolation off \
+  --output "$benchmark_output/mono_zeroed_our_courts_off" &&
+python score.py \
+  --inputs ../benchmark_results/inputs \
+  --run "$benchmark_output/mono_zeroed_our_courts_off"
 ```
 
-Each condition needs a fresh output directory. To run our annotator while
-HitNet trains, use `--phase ours`. Later run `--phase monotrack`, followed by
-`--phase summarise`, with the same output root.
+Use the same input folder for `score.py` as `paths.inputs` in the configuration.
+Each condition needs a fresh output directory. The annotator phase can run while
+HitNet trains; the MonoTrack commands require the exported weights.
+
+The reports use these five condition directories under
+`../benchmark_results/comparison/`:
+
+| Condition | Directory |
+|---|---|
+| Our annotator, our per-rally courts | `ours_our_courts/` |
+| Our annotator, MonoTrack courts | `ours_mono_courts/` |
+| Our annotator, full discovery | `ours_discovery/` |
+| MonoTrack, its own courts | `mono_zeroed_own_off/` |
+| MonoTrack, our per-rally courts | `mono_zeroed_our_courts_off/` |
+
+To reproduce the remaining Appendix A configurations, run `monotrack_runner.py`
+with `--courts monotrack` and each of the following settings, then score each
+output with `score.py`:
+
+| Shuttle input | Inference interpolation | Output directory |
+|---|---|---|
+| `--arm kept` | `--interpolation on` | `mono_kept_own_on/` |
+| `--arm kept` | `--interpolation off` | `mono_kept_own_off/` |
+| `--arm zeroed` | `--interpolation on` | `mono_zeroed_own_on/` |
 
 The outputs contain per-video predictions, failure records and scores.
-`comparison.json.gz` holds the five main results and interpolation comparisons;
-`shuttle_comparison.json.gz` holds both shuttle results and the selected variant.
-Summaries separate failures by stage and count discovery predictions outside the
-labelled rally windows.
-Local configuration and execution logs are ignored by Git.
+Each condition's `scores.json.gz` supplies the report's results. These files
+separate failures by stage and count discovery predictions outside the labelled
+rally windows. Local configuration and execution logs are ignored by Git.
 
 ## Review failures
 
@@ -85,12 +126,13 @@ and the ground-truth hit labels overlaid:
 ```bash
 python review_failures.py \
   --config config.local.toml \
-  --results ../benchmark_results/comparison \
-  --output ../benchmark_results/review_clips
+  --results "$benchmark_output" \
+  --output /path/to/new-review-clips
 ```
 
 Each affected rally gets one clip, even if it failed in several conditions.
-`index.json.gz` lists the failures and GT labels. The clips are ignored by Git.
+`index.json.gz` lists the failures and GT labels. The reviewed clip and its note
+are retained under `../benchmark_results/review_clips/`.
 FFmpeg with subtitle and text-rendering support is required.
 
 ## Checks
