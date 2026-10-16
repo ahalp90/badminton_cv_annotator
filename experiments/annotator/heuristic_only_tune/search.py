@@ -141,7 +141,10 @@ def adjacent_values(value: float, values: tuple[float, ...]) -> tuple[float, ...
     return tuple(([max(below)] if below else []) + ([min(above)] if above else []))
 
 
-def refine_specs(rows: list[dict[str, Any]], objective: str, parents: int) -> list[CandidateSpec]:
+def refine_specs(
+    rows: list[dict[str, Any]], objective: str, parents: int,
+    axes: dict[str, tuple[float, ...]] = AXES,
+) -> list[CandidateSpec]:
     seen = {row['candidate_id'] for row in rows}
     specs = []
 
@@ -153,12 +156,12 @@ def refine_specs(rows: list[dict[str, Any]], objective: str, parents: int) -> li
 
     for row in sorted(rows, key=lambda item: rank_key(item, objective))[:parents]:
         parent = spec_from_row(row['spec'])
-        for key, choices in AXES.items():
+        for key, choices in axes.items():
             for value in adjacent_values(parent.overrides_base30[key], choices):
                 append(CandidateSpec('refine', {**parent.overrides_base30, key: value}, parent.strategies))
         for first, second in COUPLED_AXES:
-            first_values = adjacent_values(parent.overrides_base30[first], AXES[first])
-            second_values = adjacent_values(parent.overrides_base30[second], AXES[second])
+            first_values = adjacent_values(parent.overrides_base30[first], axes[first])
+            second_values = adjacent_values(parent.overrides_base30[second], axes[second])
             for first_value, second_value in product(first_values, second_values):
                 append(CandidateSpec('refine', {
                     **parent.overrides_base30, first: first_value, second: second_value,
@@ -190,6 +193,7 @@ def main() -> None:
     refine.add_argument('--results', type=Path, nargs='+', required=True)
     refine.add_argument('--objective', choices=OBJECTIVES, required=True)
     refine.add_argument('--parents', type=int, default=3)
+    refine.add_argument('--ranges', type=Path, help='recorded training-only range additions, as a JSON.gz mapping')
     refine.add_argument('--output', type=Path, required=True)
     shortlist = subparsers.add_parser('shortlist')
     shortlist.add_argument('--results', type=Path, nargs='+', required=True)
@@ -209,8 +213,16 @@ def main() -> None:
     if args.command == 'refine':
         if args.parents < 1:
             raise ValueError('parents must be positive')
-        specs = refine_specs(rows, args.objective, args.parents)
+        axes = dict(AXES)
+        if args.ranges is not None:
+            additions = read_json(args.ranges)
+            if unknown := additions.keys() - axes.keys():
+                raise ValueError(f'unknown parameter ranges: {sorted(unknown)}')
+            for key, values in additions.items():
+                axes[key] = tuple(sorted(set(axes[key]) | set(values)))
+        specs = refine_specs(rows, args.objective, args.parents, axes)
         write_candidates(args.output, 'refine', specs, objective=args.objective,
+                         axes=axes,
                          previous_candidate_ids=sorted(row['candidate_id'] for row in rows))
         return
     per_objective = 1 if args.command == 'select' else args.per_objective

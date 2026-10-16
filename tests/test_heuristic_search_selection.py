@@ -55,6 +55,16 @@ def test_refinement_changes_coupled_axes_and_skips_completed_settings() -> None:
                for spec in refined)
 
 
+def test_refinement_can_explore_past_a_training_winner_at_a_range_edge() -> None:
+    seed = seed_specs()[0]
+    seed.overrides_base30['smooth_window'] = 3
+    prior = {**row(candidate_id(seed), 0.8, 40), 'spec': serialise_spec(seed)}
+    axes = {**AXES, 'smooth_window': (1, 2, *AXES['smooth_window'])}
+    refined = refine_specs([prior], 'contacts', 1, axes)
+    assert any(spec.overrides_base30['smooth_window'] == 2 for spec in refined)
+    assert AXES['smooth_window'] == (3, 5, 7, 9)
+
+
 @pytest.mark.parametrize(('split', 'smoke', 'count'), [('test', False, 32), ('train', True, 32), ('train', False, 8)])
 def test_training_selection_refuses_test_and_partial_results(tmp_path: Path, split: str, smoke: bool, count: int) -> None:
     path = tmp_path / 'summary.json.gz'

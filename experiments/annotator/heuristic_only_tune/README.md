@@ -39,6 +39,9 @@ choosing its successors. Stop contact refinement when a round leaves the
 leader unchanged, or after two rounds. Then run one local round for fully
 correct rallies. A winner at a range edge warrants a documented training-only
 extension before freezing the shortlist. Do not extend ranges after validation.
+Pass `refine --ranges additions.json.gz` to add recorded values to the original
+ranges. This file maps parameter names to lists of extra values. Each generated
+refinement file records the resulting ranges as well as every configuration.
 
 ## Scores and limits
 
