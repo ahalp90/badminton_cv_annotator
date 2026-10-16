@@ -1,0 +1,9 @@
+[paths]
+shots_master = "training/data/shuttleset/annotations/shots_master.csv"
+stages = "/path/to/original-shuttleset/artifacts/stages"
+development_courts = "/path/to/original-shuttleset/scene-courts"
+test_inputs = "experiments/annotator/monotrack_benchmark/benchmark_results/inputs"
+test_courts = "experiments/annotator/monotrack_benchmark/benchmark_results/inputs/discovery"
+inpaint_root = "/path/to/shuttleset22/inpainted-tracks"
+pose_root = "/path/to/shuttleset22/poses"
+bundle = "data/annotator/sset_and_sset22_trained_20261003T041112Z"
