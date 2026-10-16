@@ -29,6 +29,14 @@ windows. Discovery is scored across the whole video, including false positives
 outside those windows. Fully correct rallies use the same fixed windows in all
 five conditions. Results include ±10- and ±5-frame contact scores.
 
+Each tolerance has three measures:
+
+- Contact precision, recall and F1 count one-to-one matches within the time allowance.
+- Attributed-contact precision, recall and F1 require those matches to have the correct
+  hitter too. A wrong hitter counts as both a false positive and a missed labelled contact.
+- Fully correct rallies (%) require every labelled contact, no extra contacts, and the
+  correct hitter for every contact within the common rally window.
+
 Court and inference failures remain in the denominator. An inference exception
 fails the affected rally or video and the remaining work continues. Missing
 result files mean a run is unfinished and prevent scoring.

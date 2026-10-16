@@ -15,9 +15,15 @@ COUNT_FIELDS = ('labelled_rallies', 'labelled_contacts', 'predicted_contacts', '
 def add_rates(counts: dict[str, Any]) -> dict[str, Any]:
     matched, predicted, labelled = (counts[key] for key in
                                    ('matched_contacts', 'predicted_contacts', 'labelled_contacts'))
+    attributed = counts['correct_side_contacts']
+    rallies = counts['labelled_rallies']
     return {**counts, 'precision': matched / predicted if predicted else 0.0,
             'recall': matched / labelled if labelled else 0.0,
-            'f1': 2 * matched / (predicted + labelled) if predicted + labelled else 0.0}
+            'f1': 2 * matched / (predicted + labelled) if predicted + labelled else 0.0,
+            'attributed_precision': attributed / predicted if predicted else 0.0,
+            'attributed_recall': attributed / labelled if labelled else 0.0,
+            'attributed_f1': 2 * attributed / (predicted + labelled) if predicted + labelled else 0.0,
+            'fully_correct_rallies_percent': 100 * counts['fully_correct_rallies'] / rallies if rallies else 0.0}
 
 
 def score_item(item: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
