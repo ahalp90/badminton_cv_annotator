@@ -120,6 +120,7 @@ exclude = [
     "notebooks/",
     "**/deprecated/",
     "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
+    "experiments/annotator/monotrack_benchmark/monotrack/",  # Unmodified MonoTrack release
     "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
 ]
 
