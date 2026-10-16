@@ -91,6 +91,12 @@ def build_video(task: tuple[dict[str, Any], Path, Path]) -> dict[str, Any]:
         court = Court(np.asarray(result["corners_native_px"])[[3, 2, 0, 1]])
         players = select_players(kps[start:end], scores[start:end], ndet[start:end], court)
         record["missing_player_frames"] = np.isnan(players).all(axis=(2, 3)).sum(axis=0).tolist()
+        singleton_coordinates = (~np.isnan(players)).sum(axis=0) == 1
+        if singleton_coordinates.any():
+            # Released slinear filling crashes with only one observation.
+            # Exclude these training rallies; benchmark inference still runs them.
+            output["rallies"].append({**record, "excluded": "pose_interpolation"})
+            continue
         players = fill_players(players)
         labels = np.zeros(end - start, dtype=np.int8)
         for frame, side in zip(span["label_frames"], span["label_sides"], strict=True):
@@ -137,6 +143,8 @@ def build(config: dict[str, Any], output: Path, workers: int) -> dict[str, Any]:
         summary["by_split"][role] = {
             "usable_rallies": counts[role, "usable"], "no_court_rallies": counts[role, "no_court"],
             "usable_contacts": contacts[role, "usable"], "no_court_contacts": contacts[role, "no_court"],
+            "pose_interpolation_rallies": counts[role, "pose_interpolation"],
+            "pose_interpolation_contacts": contacts[role, "pose_interpolation"],
         }
     write_json(output / "summary.json.gz", summary)
     print(json.dumps(summary, indent=2), flush=True)

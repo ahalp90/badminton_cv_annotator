@@ -135,10 +135,31 @@ def test_build_preserves_labels_and_counts_failed_courts(tmp_path: Path, monkeyp
         assert labels[10] == 1 and labels[20] == 2
     assert np.all(result["zeroed"][0][15:19, :2] == 0)
     np.testing.assert_array_equal(result["kept"][1], result["zeroed"][1])
+    source_selection = builder.select_players
+
+    def one_observation(*args):
+        players = source_selection(*args)
+        players[1:] = np.nan
+        return players
+
+    monkeypatch.setattr(builder, "select_players", one_observation)
+    skipped = builder.build_video((video, stages, courts))
+    assert skipped["labels"] == []
+    assert [rally["excluded"] for rally in skipped["rallies"]] == [
+        "pose_interpolation", "no_court", "pose_interpolation",
+    ]
+    assert sum(rally["contacts"] for rally in skipped["rallies"] if rally["excluded"] == "pose_interpolation") == 4
     # A missing court result is an incomplete dataset, not an authorised skip.
     (courts / "fixture_0001.json.gz").unlink()
     with pytest.raises(FileNotFoundError):
         builder.build_video((video, stages, courts))
+
+
+def test_single_observation_still_fails_inference_fill() -> None:
+    players = np.full((20, 2, 17, 2), np.nan)
+    players[5] = 1.0
+    with pytest.raises(ValueError, match="at least 2 entries"):
+        inputs.fill_players(players)
 
 
 def test_augmentation_matches_notebook() -> None:
