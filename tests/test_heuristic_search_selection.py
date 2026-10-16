@@ -9,6 +9,7 @@ from experiments.annotator.heuristic_only_tune.search import (
     AXES,
     coarse_specs,
     load_summaries,
+    probe_specs,
     rank_key,
     refine_specs,
     seed_specs,
@@ -63,6 +64,21 @@ def test_refinement_can_explore_past_a_training_winner_at_a_range_edge() -> None
     refined = refine_specs([prior], 'contacts', 1, axes)
     assert any(spec.overrides_base30['smooth_window'] == 2 for spec in refined)
     assert AXES['smooth_window'] == (3, 5, 7, 9)
+
+
+def test_probe_covers_both_objectives_and_all_supplied_values() -> None:
+    first, second = seed_specs()[:2]
+    rows = [
+        {**row(candidate_id(first), 0.8, 30), 'spec': serialise_spec(first)},
+        {**row(candidate_id(second), 0.7, 40), 'spec': serialise_spec(second)},
+    ]
+    specs = probe_specs(rows, 'wrist_distance_body_heights', [0.8, 1.4, 2.0], 1)
+    assert len(specs) == 6
+    assert {spec.overrides_base30['wrist_distance_body_heights'] for spec in specs} == {0.8, 1.4, 2.0}
+    axes = {**AXES, 'wrist_distance_body_heights': (0.8, 1.4, 2.0)}
+    refined = refine_specs(rows, 'contacts', 1, axes)
+    assert {spec.overrides_base30['wrist_distance_body_heights'] for spec in refined
+            if 'wrist_distance_body_heights' in spec.overrides_base30} == {0.8, 2.0}
 
 
 @pytest.mark.parametrize(('split', 'smoke', 'count'), [('test', False, 32), ('train', True, 32), ('train', False, 8)])

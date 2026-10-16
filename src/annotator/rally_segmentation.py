@@ -126,6 +126,7 @@ def scale_thresholds(
         contact_dedup_radius_frames=values.contact_dedup_radius_frames,
         contact_suppression_radius_frames=values.contact_suppression_radius_frames,
         contact_impulse_multiple=overrides.get('contact_impulse_multiple', thresholds.contact_impulse_multiple),
+        wrist_distance_body_heights=overrides.get('wrist_distance_body_heights', thresholds.wrist_distance_body_heights),
     )
 
 

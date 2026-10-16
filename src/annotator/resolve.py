@@ -9,7 +9,9 @@ from .config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
 from .fps_constants import FPS_CONSTANT_FIELD_NAMES, ScalingKind, scale_for_fps
 from .rally_segmentation import scale_thresholds
 
-_OVERRIDABLE_BASE30_ROWS = FPS_CONSTANT_FIELD_NAMES | frozenset({'contact_impulse_multiple'})
+_OVERRIDABLE_BASE30_ROWS = FPS_CONSTANT_FIELD_NAMES | frozenset({
+    'contact_impulse_multiple', 'wrist_distance_body_heights',
+})
 
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:

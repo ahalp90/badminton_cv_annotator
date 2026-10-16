@@ -2,7 +2,12 @@
 
 import numpy as np
 
-from ..config import PROXIMITY_MAX, SMOOTH_WINDOW, RallySegmentationThresholds
+from ..config import (
+    PROXIMITY_MAX,
+    SHIPPED_THRESHOLDS,
+    SMOOTH_WINDOW,
+    RallySegmentationThresholds,
+)
 from ..fps_constants import scale_for_fps
 from ..types import ContactCandidate, SmoothingMode
 from .trajectory import _nan_rolling_mean, _rolling_mean
@@ -13,7 +18,7 @@ IMPULSE_FLOOR_HALF_WINDOW_FRAMES = scale_for_fps(25.0).impulse_floor_half_window
 CONTACT_DEDUP_RADIUS_FRAMES = scale_for_fps(25.0).contact_dedup_radius_frames
 CONTACT_IMPULSE_MULTIPLE = 4.0
 FLOOR_EPS = 1e-4
-BODY_UNIT_WRIST_THRESHOLD = 1.4
+BODY_UNIT_WRIST_THRESHOLD = SHIPPED_THRESHOLDS.wrist_distance_body_heights
 CONTACT_SUPPRESSION_RADIUS_FRAMES = scale_for_fps(25.0).contact_suppression_radius_frames
 
 # ---------------------------------------------------------------------------
@@ -151,7 +156,9 @@ def contact_proximity_ok(
     return bool(np.nanmin(distances) <= PROXIMITY_MAX)
 
 
-def wrist_contact_near(sticky_distances: np.ndarray | None, contact_frame: int) -> bool | None:
+def wrist_contact_near(
+    sticky_distances: np.ndarray | None, contact_frame: int, threshold: float = BODY_UNIT_WRIST_THRESHOLD,
+) -> bool | None:
     """The single-frame body-unit wrist gate on one contact, in player-box-height units.
 
     Mirrors `contact_proximity_ok`'s three-way verdict. None distances mean the gate never
@@ -162,7 +169,7 @@ def wrist_contact_near(sticky_distances: np.ndarray | None, contact_frame: int) 
     if sticky_distances is None:
         return None
     distance = sticky_distances[contact_frame]
-    return bool(np.isfinite(distance) and distance <= BODY_UNIT_WRIST_THRESHOLD)
+    return bool(np.isfinite(distance) and distance <= threshold)
 
 
 def suppress_contact_flags(
@@ -197,7 +204,8 @@ def assemble_contacts(
     if sticky_distances is None:
         return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)
                 for r, f, _ in raw_flags]
-    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(sticky_distances, f)]
+    wrist_distance = BODY_UNIT_WRIST_THRESHOLD if thresholds is None else thresholds.wrist_distance_body_heights
+    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(sticky_distances, f, wrist_distance)]
     radius = ((CONTACT_SUPPRESSION_RADIUS_FRAMES if thresholds is None else thresholds.contact_suppression_radius_frames)
               if suppression_radius is None else suppression_radius)
     accepted = set(suppress_contact_flags(gated, radius=radius))

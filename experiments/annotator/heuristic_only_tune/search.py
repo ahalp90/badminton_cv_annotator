@@ -8,6 +8,7 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
+from annotator.rally.contacts import BODY_UNIT_WRIST_THRESHOLD
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
@@ -156,8 +157,9 @@ def refine_specs(
 
     for row in sorted(rows, key=lambda item: rank_key(item, objective))[:parents]:
         parent = spec_from_row(row['spec'])
+        values = {'wrist_distance_body_heights': BODY_UNIT_WRIST_THRESHOLD, **parent.overrides_base30}
         for key, choices in axes.items():
-            for value in adjacent_values(parent.overrides_base30[key], choices):
+            for value in adjacent_values(values[key], choices):
                 append(CandidateSpec('refine', {**parent.overrides_base30, key: value}, parent.strategies))
         for first, second in COUPLED_AXES:
             first_values = adjacent_values(parent.overrides_base30[first], axes[first])
@@ -168,6 +170,22 @@ def refine_specs(
                 }, parent.strategies))
         other_open = 'REGION_START' if parent.strategies['span_open'] == 'BACK_FILL' else 'BACK_FILL'
         append(CandidateSpec('refine', parent.overrides_base30, {'span_open': other_open}))
+    return specs
+
+
+def probe_specs(rows: list[dict[str, Any]], parameter: str, values: list[float], parents: int) -> list[CandidateSpec]:
+    """Try supplied values around both objectives' leaders before validation."""
+    seen = {row['candidate_id'] for row in rows}
+    specs = []
+    for objective in OBJECTIVES:
+        for row in sorted(rows, key=lambda item: rank_key(item, objective))[:parents]:
+            parent = spec_from_row(row['spec'])
+            for value in values:
+                spec = CandidateSpec('probe', {**parent.overrides_base30, parameter: value}, parent.strategies)
+                identity = candidate_id(spec)
+                if valid_spec(spec) and identity not in seen:
+                    seen.add(identity)
+                    specs.append(spec)
     return specs
 
 
@@ -195,6 +213,12 @@ def main() -> None:
     refine.add_argument('--parents', type=int, default=3)
     refine.add_argument('--ranges', type=Path, help='recorded training-only range additions, as a JSON.gz mapping')
     refine.add_argument('--output', type=Path, required=True)
+    probe = subparsers.add_parser('probe')
+    probe.add_argument('--results', type=Path, nargs='+', required=True)
+    probe.add_argument('--parameter', choices=(*AXES, 'wrist_distance_body_heights'), required=True)
+    probe.add_argument('--values', type=float, nargs='+', required=True)
+    probe.add_argument('--parents', type=int, default=3)
+    probe.add_argument('--output', type=Path, required=True)
     shortlist = subparsers.add_parser('shortlist')
     shortlist.add_argument('--results', type=Path, nargs='+', required=True)
     shortlist.add_argument('--per-objective', type=int, default=3)
@@ -210,16 +234,22 @@ def main() -> None:
         rows = load_summaries([args.results], 'validation')
     else:
         rows = load_summaries(args.results, 'train')
+    if args.command == 'probe':
+        if args.parents < 1:
+            raise ValueError('parents must be positive')
+        specs = probe_specs(rows, args.parameter, args.values, args.parents)
+        write_candidates(args.output, 'probe', specs, parameter=args.parameter, values=args.values)
+        return
     if args.command == 'refine':
         if args.parents < 1:
             raise ValueError('parents must be positive')
         axes = dict(AXES)
         if args.ranges is not None:
             additions = read_json(args.ranges)
-            if unknown := additions.keys() - axes.keys():
+            if unknown := additions.keys() - axes.keys() - {'wrist_distance_body_heights'}:
                 raise ValueError(f'unknown parameter ranges: {sorted(unknown)}')
             for key, values in additions.items():
-                axes[key] = tuple(sorted(set(axes[key]) | set(values)))
+                axes[key] = tuple(sorted(set(axes.get(key, ())) | set(values)))
         specs = refine_specs(rows, args.objective, args.parents, axes)
         write_candidates(args.output, 'refine', specs, objective=args.objective,
                          axes=axes,

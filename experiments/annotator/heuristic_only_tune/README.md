@@ -42,6 +42,11 @@ extension before freezing the shortlist. Do not extend ranges after validation.
 Pass `refine --ranges additions.json.gz` to add recorded values to the original
 ranges. This file maps parameter names to lists of extra values. Each generated
 refinement file records the resulting ranges as well as every configuration.
+Use `probe --parameter NAME --values ... --results ... --output ...` to test
+all supplied values around the best three settings for each objective. This
+covers a missed value directly, without requiring several adjacent steps.
+The wrist-distance threshold is measured in player bounding-box heights and
+is not scaled with frame rate. Its unchanged default is 1.4.
 
 ## Scores and limits
 
@@ -65,8 +70,12 @@ The heuristic keeps its existing scene-specific net geometry and fitted
 alternating player order. The full annotator uses its fitted bundle's geometry
 policy. The comparison therefore measures what the current learned system
 adds to the existing heuristic system, including that architectural difference.
-The full annotator's earlier development included inspecting ShuttleSet22;
-this new heuristic search must not use it for parameter selection.
+The full annotator's base configuration was chosen over an optional veto after
+both validation and ShuttleSet22 scores had been inspected. ShuttleSet22 cases
+also helped motivate that veto. Its contact tree was fitted on all 40 original
+ShuttleSet videos, so this bundle is used only for the test comparison here.
+See the [model-selection report](../reports/model_selection.md). This new
+heuristic search keeps ShuttleSet22 out of parameter selection.
 
 ## Run
 
