@@ -45,6 +45,9 @@ These choices adapt MonoTrack to the available data and extraction pipeline:
   training and counted by split in `training_data.json.gz`: 50 training rallies and
   nine validation rallies. The saved results contain 52 failed fits, five detector
   crashes and two jobs that reached the existing one-hour court-detection limit.
+  We reject a crashed detector's output even if it wrote a corner file before exiting;
+  the released pipeline can still try to use that file. All five crash cases reproduce
+  a memory error through the released executable with memory-error checking enabled.
   Benchmark scoring retains failed rallies so these errors affect the result.
 - **Pose-filling failures:** MonoTrack's missing-pose interpolation crashes when a
   selected player has a detection in only one frame. We skip these rallies during
