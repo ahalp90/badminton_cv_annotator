@@ -5,6 +5,8 @@ They disable all eight annotator trees while retaining the saved shuttle,
 pose and court inputs. Both the heuristic and full annotator discover rallies.
 The scripts do not change production defaults.
 
+The completed search and test comparison are in [RESULTS.md](RESULTS.md).
+
 ## Search and selection
 
 Use the frozen original ShuttleSet split: 32 training videos (2,691 rallies,
@@ -141,3 +143,28 @@ shared queue. Each worker uses one numerical-library thread. The expensive
 player-tracking loop is sequential, so extra threads within one job would not
 help that part. The runner caches inputs within workers and reuses fixed player
 evidence between configurations.
+
+## Repeat the frozen comparison
+
+After filling in the input paths, run each condition in a fresh output directory:
+
+```bash
+results=experiments/annotator/heuristic_only_tune/results
+python -m experiments.annotator.heuristic_only_tune.run \
+  --paths "$search_dir/paths.toml" --candidates "$results/selected.json.gz" \
+  --split test --output "$search_dir/test" --workers 26
+python -m experiments.annotator.heuristic_only_tune.run \
+  --paths "$search_dir/paths.toml" --candidates "$results/full.json.gz" \
+  --split test --full --output "$search_dir/test_full" --workers 26
+```
+
+Rebuild the selected result table from the committed summaries:
+
+```bash
+python -m experiments.annotator.heuristic_only_tune.report \
+  --summaries "$results/rallies/summary.json.gz" \
+    "$results/validation/summary.json.gz" "$results/test/summary.json.gz" \
+    "$results/test_full/summary.json.gz" \
+  --selected "$results/selected.json.gz" \
+  --output "$search_dir/selected_tables.json.gz"
+```
