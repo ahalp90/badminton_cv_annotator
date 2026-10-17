@@ -7,6 +7,11 @@ The scripts do not change production defaults.
 
 The completed search and test comparison are in [RESULTS.md](RESULTS.md).
 
+For supplied rally boundaries and either set of known-rally courts, use the
+[core benchmark runner](../monotrack_benchmark/benchmark_scripts/README.md#run)
+with `--heuristic-settings results/selected.json.gz` (relative to this directory).
+It uses the same frozen settings and the core benchmark's ±1-second rally windows.
+
 ## Search and selection
 
 Use the frozen original ShuttleSet split: 32 training videos (2,691 rallies,

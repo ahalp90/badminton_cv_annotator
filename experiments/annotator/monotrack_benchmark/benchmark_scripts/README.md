@@ -92,6 +92,25 @@ Use the same input folder for `score.py` as `paths.inputs` in the configuration.
 Each condition needs a fresh output directory. The annotator phase can run while
 HitNet trains; the MonoTrack commands require the exported weights.
 
+To evaluate the frozen tuned heuristic with supplied rally windows, pass its
+selected settings to `annotator_runner.py`:
+
+```bash
+python annotator_runner.py \
+  --config config.local.toml --condition ours_our_courts \
+  --heuristic-settings ../../heuristic_only_tune/results/selected.json.gz \
+  --output "$benchmark_output/heuristic_our_courts" &&
+python score.py \
+  --inputs ../benchmark_results/inputs \
+  --run "$benchmark_output/heuristic_our_courts"
+```
+
+Repeat with `--condition ours_mono_courts` and a fresh output directory for
+MonoTrack's courts. Both conditions supply the exact stored windows, from one
+second before the first labelled contact to one second after the last. The
+heuristic settings stay fixed across court conditions. Omitting
+`--heuristic-settings` retains the full annotator.
+
 The reports use these five condition directories under
 `../benchmark_results/comparison/`:
 
