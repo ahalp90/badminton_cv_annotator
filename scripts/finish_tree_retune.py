@@ -33,12 +33,16 @@ def process_alive(pid: int) -> bool:
 
 
 def worker_processes(parent: int) -> list[dict]:
-    rows = subprocess.check_output(['ps', '-ww', '-eo', 'pid=,ppid=,stat=,cputimes=,rss=,args='], text=True)
+    rows = subprocess.check_output(['ps', '-ww', '-eo', 'pid=,ppid=,stat=,cputimes=,rss=,wchan:32=,args='], text=True)
     workers = []
     for line in rows.splitlines():
-        pid, ppid, state, cpu, rss, command = line.split(None, 5)
+        pid, ppid, state, cpu, rss, wait_channel, command = line.split(None, 6)
         if int(ppid) == parent and 'multiprocessing.spawn' in command:
-            workers.append({'pid': int(pid), 'paused': 'T' in state, 'cpu_s': int(cpu), 'rss_kib': int(rss)})
+            workers.append({
+                'pid': int(pid), 'paused': 'T' in state, 'cpu_s': int(cpu), 'rss_kib': int(rss),
+                # A replacement pool worker waits on its task pipe until assigned a fit.
+                'idle': wait_channel in ('pipe_read', 'anon_pipe_read'),
+            })
     return workers
 
 
@@ -50,7 +54,8 @@ def available_memory_gib() -> float:
 def controls(workers: list[dict], available: float, maximum: int,
              emergency_floor: float = 10) -> tuple[list[int], list[int]]:
     """Keep a few advancing fits when memory is tight; resume one at a time."""
-    active = sorted((row for row in workers if not row['paused']), key=lambda row: row['cpu_s'], reverse=True)
+    active = sorted((row for row in workers if not row['paused'] and not row['idle']),
+                    key=lambda row: row['cpu_s'], reverse=True)
     paused = sorted((row for row in workers if row['paused']), key=lambda row: row['cpu_s'], reverse=True)
     target = min(maximum, 0 if available < emergency_floor else 1 if available < 64 else 4 if available < 96 else len(active))
     stop = [row['pid'] for row in active[target:]]
@@ -101,8 +106,9 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
                     last_controls={'paused': stop, 'resumed': resume},
                     memory_floor_gib=emergency_floor,
                     memory_emergency=available < emergency_floor,
-                    memory_stalled=bool(paused := [row for row in workers if row['paused']])
-                    and len(paused) == len(workers)
+                    idle_workers=[row['pid'] for row in workers if row['idle']],
+                    memory_stalled=any(row['paused'] for row in workers)
+                    and all(row['paused'] or row['idle'] for row in workers)
                     and available < (16 if emergency_floor == 10 else emergency_floor + 2),
                 )
                 write_state(state_path, state)

@@ -15,7 +15,7 @@ from scripts import finish_tree_retune as finish
 
 
 def test_memory_controls_keep_work_and_respect_core_limit() -> None:
-    workers = [{'pid': index + 100, 'paused': False, 'cpu_s': index} for index in range(26)]
+    workers = [{'pid': index + 100, 'paused': False, 'idle': False, 'cpu_s': index} for index in range(26)]
     stop, resume = finish.controls(workers, 100, 20)
     assert len(stop) == 6 and not resume
     stop, resume = finish.controls(workers, 80, 20)
@@ -23,10 +23,10 @@ def test_memory_controls_keep_work_and_respect_core_limit() -> None:
     stop, resume = finish.controls(workers, 25, 20)
     assert len(stop) == 25 and not resume
     assert finish.controls(workers, 8, 20) == ([row['pid'] for row in reversed(workers)], [])
-    paused = [{'pid': 100, 'paused': True, 'cpu_s': 20}]
+    paused = [{'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 20}]
     assert finish.controls(paused, 16, 20) == ([], [100])
     assert finish.controls(paused, 9, 20) == ([], [])
-    active = [{'pid': 101, 'paused': False, 'cpu_s': 30}]
+    active = [{'pid': 101, 'paused': False, 'idle': False, 'cpu_s': 30}]
     assert finish.controls(paused + active, 60, 20) == ([], [])
     assert finish.controls(paused + active, 100, 20) == ([], [100])
     assert finish.controls(paused, 6.7, 16, emergency_floor=4) == ([], [100])
@@ -58,11 +58,61 @@ def test_worker_discovery_and_pause_preserve_a_live_child() -> None:
         child.wait(timeout=5)
 
 
+@pytest.mark.parametrize(('floor', 'available'), [(4, 22.8), (10, 22.8), (4, 6), (10, 16)])
+@pytest.mark.parametrize('cpu_s', [0, 6000])
+def test_memory_controls_advance_fit_beside_idle_pool_worker(floor: float, available: float, cpu_s: int) -> None:
+    workers = [
+        {'pid': 100, 'paused': True, 'idle': False, 'cpu_s': cpu_s},
+        {'pid': 200, 'paused': False, 'idle': True, 'cpu_s': 1},
+    ]
+    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [100])
+    workers[0]['paused'] = False
+    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [])
+
+
+@pytest.mark.parametrize(('floor', 'available'), [(4, 5.9), (10, 15.9)])
+def test_memory_controls_wait_for_recovery_before_replacing_worker(floor: float, available: float) -> None:
+    workers = [
+        {'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 6000},
+        {'pid': 200, 'paused': False, 'idle': True, 'cpu_s': 1},
+    ]
+    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [])
+
+
+def test_worker_discovery_identifies_idle_task_pipe() -> None:
+    reader, writer = os.pipe()
+    child = subprocess.Popen(
+        [sys.executable, '-c',
+         "import os, sys; print('ready', flush=True); os.read(int(sys.argv[1]), 1)",
+         str(reader), 'multiprocessing.spawn'],
+        pass_fds=(reader,), stdout=subprocess.PIPE, text=True,
+    )
+    try:
+        assert child.stdout.readline() == 'ready\n'
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            row = next(row for row in finish.worker_processes(os.getpid()) if row['pid'] == child.pid)
+            if row['idle']:
+                break
+            time.sleep(0.01)
+        assert row['idle'] and not row['paused']
+        assert finish.controls([row], 8, 16) == ([], [])
+        os.write(writer, b'x')
+        assert child.wait(timeout=5) == 0
+    finally:
+        os.close(reader)
+        os.close(writer)
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=5)
+
+
 def test_temporary_recovery_restores_normal_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     alive, memory = iter((True, True, False)), iter((6.7, 32))
     monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
     monkeypatch.setattr(finish, 'available_memory_gib', lambda: next(memory))
-    monkeypatch.setattr(finish, 'worker_processes', lambda pid: [{'pid': 100, 'paused': True, 'cpu_s': 20}])
+    monkeypatch.setattr(finish, 'worker_processes',
+                        lambda pid: [{'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 20}])
     monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
     monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
     signals = []
@@ -72,6 +122,22 @@ def test_temporary_recovery_restores_normal_floor(tmp_path: Path, monkeypatch: p
     assert state['initial_memory_recovery_complete']
     assert state['memory_floor_gib'] == 10
     assert signals == [(100, signal.SIGCONT), (100, signal.SIGCONT)]
+
+
+def test_monitor_reports_stalled_fits_beside_idle_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    alive = iter((True, False))
+    workers = [
+        {'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 6000},
+        {'pid': 200, 'paused': False, 'idle': True, 'cpu_s': 1},
+    ]
+    monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
+    monkeypatch.setattr(finish, 'available_memory_gib', lambda: 15)
+    monkeypatch.setattr(finish, 'worker_processes', lambda pid: workers)
+    monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
+    monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
+    state = {}
+    finish.monitor(99, state, tmp_path / 'state.json', 16)
+    assert state['memory_stalled'] and state['idle_workers'] == [200]
 
 
 def test_baseline_gate_rejects_changed_contact_selection(tmp_path: Path) -> None:
