@@ -18,12 +18,17 @@ def test_memory_controls_keep_work_and_respect_core_limit() -> None:
     workers = [{'pid': index + 100, 'paused': False, 'cpu_s': index} for index in range(26)]
     stop, resume = finish.controls(workers, 100, 20)
     assert len(stop) == 6 and not resume
-    stop, resume = finish.controls(workers, 25, 20)
+    stop, resume = finish.controls(workers, 80, 20)
     assert len(stop) == 22 and not resume
-    stop, resume = finish.controls(workers, 8, 20)
+    stop, resume = finish.controls(workers, 25, 20)
     assert len(stop) == 25 and not resume
+    assert finish.controls(workers, 8, 20) == ([row['pid'] for row in reversed(workers)], [])
     paused = [{'pid': 100, 'paused': True, 'cpu_s': 20}]
-    assert finish.controls(paused, 60, 20) == ([], [100])
+    assert finish.controls(paused, 16, 20) == ([], [100])
+    assert finish.controls(paused, 9, 20) == ([], [])
+    active = [{'pid': 101, 'paused': False, 'cpu_s': 30}]
+    assert finish.controls(paused + active, 60, 20) == ([], [])
+    assert finish.controls(paused + active, 100, 20) == ([], [100])
 
 
 def test_worker_discovery_and_pause_preserve_a_live_child() -> None:

@@ -97,7 +97,7 @@ def available_memory_kib(path: Path = Path('/proc/meminfo')) -> int:
     raise ValueError(f'{path}: MemAvailable is absent')
 
 
-def repeat_status(run_root: Path, now: float) -> dict[str, Any] | None:
+def repeat_status(run_root: Path, now: float, plan: dict[str, Any] | None = None) -> dict[str, Any] | None:
     root = run_root / 'repeats'
     progress_path = root / 'progress.json.gz'
     plan_path = root / 'plan.json.gz'
@@ -106,7 +106,8 @@ def repeat_status(run_root: Path, now: float) -> dict[str, Any] | None:
     progress = read_object(progress_path) if progress_path.exists() else {'phase': 'planned'}
     unfinished, queued = [], []
     if plan_path.exists():
-        plan = read_object(plan_path)
+        if plan is None:
+            plan = read_object(plan_path)
         for offset in plan['seed_offsets']:
             seed_root = run_root / 'grid48' if offset == 0 else root / f'seed-{offset}'
             for candidate in plan['candidates']:
@@ -157,9 +158,7 @@ def final_test_status(run_root: Path, now: float) -> dict[str, Any] | None:
             for bundle in candidate['bundles']:
                 offset = bundle['seed_offset']
                 trial = root / 'trials' / candidate['id'] / f'seed-{offset}'
-                result_path = trial / 'result.json.gz'
-                if result_path.exists():
-                    read_object(result_path)
+                if result_exists(trial / 'result.json.gz', candidate['id'], candidate['label'], 46):
                     continue
                 label = f"final test {candidate['label']} seed+{offset}"
                 trial_progress = trial / 'progress.json.gz'
@@ -169,6 +168,7 @@ def final_test_status(run_root: Path, now: float) -> dict[str, Any] | None:
                         'id': candidate['id'], 'label': label, 'seed_offset': offset, 'stage': record['stage'],
                         'progress_age_s': max(0, now - trial_progress.stat().st_mtime),
                         'video': record.get('video'), 'fit': record.get('fit'),
+                        'items_complete': record.get('complete'), 'items_planned': record.get('planned'),
                     })
                 else:
                     queued.append(label)
@@ -213,8 +213,13 @@ def collect_status(run_root: Path) -> dict[str, Any]:
                 queued.append(label)
         if result_exists(trial / 'validation.json.gz', identity, label, 8):
             validation_complete.append(identity)
+    repeat_plan_path = run_root / 'repeats/plan.json.gz'
+    repeat_plan = read_object(repeat_plan_path) if repeat_plan_path.exists() else None
     shortlist_path = output / 'shortlist.json.gz'
-    shortlist = read_object(shortlist_path)['ids'] if shortlist_path.exists() else []
+    if repeat_plan is not None:
+        shortlist = [candidate['id'] for candidate in repeat_plan['candidates']]
+    else:
+        shortlist = read_object(shortlist_path)['ids'] if shortlist_path.exists() else []
     if len(shortlist) != len(set(shortlist)) or not set(shortlist).issubset(labels):
         raise ValueError(f'{shortlist_path}: shortlist IDs differ from the frozen grid')
     if not set(validation_complete).issubset(shortlist):
@@ -242,7 +247,7 @@ def collect_status(run_root: Path) -> dict[str, Any]:
         live_guard = any(row['pid'] == int(guard_pid) and 'Z' not in row['state'] for row in processes)
         if not live_guard:
             error = 'automation guard stopped'
-    repeats = repeat_status(run_root, now)
+    repeats = repeat_status(run_root, now, repeat_plan)
     final_test = final_test_status(run_root, now)
     grid_finished = len(completed) == len(labels) and bool(shortlist) and len(validation_complete) == len(shortlist)
     repeats_finished = repeats is None or (repeats['phase'] == 'complete' and repeats['selected_label'] is not None)
@@ -250,12 +255,30 @@ def collect_status(run_root: Path) -> dict[str, Any]:
         final_test['phase'] == 'complete' and final_test['complete'] == final_test['planned']
     )
     finished = grid_finished and repeats_finished and final_finished and automation.get('status') != 'running'
+    if repeat_plan is not None:
+        repeat_jobs = len(repeat_plan['candidates']) * len(repeat_plan['seed_offsets'])
+        fresh_jobs = repeat_jobs - len(repeat_plan['candidates'])
+        repeats_finished = repeats is not None and repeats_finished and (
+            repeats.get('fits_complete') == repeats.get('fits_planned') == repeat_jobs
+            and repeats.get('fresh_fits_complete') == repeats.get('fresh_fits_planned') == fresh_jobs
+            and repeats.get('validation_complete') == repeats.get('validation_planned') == repeat_jobs
+        )
+        final_finished = final_test is not None and final_finished and final_test['planned'] > 0
+        finished = grid_finished and repeats_finished and final_finished and automation.get('status') == 'complete'
+    alerts = []
+    if automation.get('status') != 'complete':
+        if automation.get('memory_emergency'):
+            alerts.append('Memory emergency: fits paused because available memory fell below 10 GiB')
+        if automation.get('memory_stalled'):
+            alerts.append('Memory stalled: all fits paused and memory remains below 16 GiB; watcher action needed')
     if error or automation.get('status') == 'failed':
         phase = 'failed'
     elif finished:
         phase = 'complete'
     elif failure and not workers:
         phase = 'failed'
+    elif automation.get('status') == 'complete':
+        phase = 'incomplete saved results'
     elif automation.get('phase'):
         phase = automation['phase']
     elif len(completed) < len(labels):
@@ -277,7 +300,7 @@ def collect_status(run_root: Path) -> dict[str, Any]:
         'repeats': repeats, 'final_test': final_test,
         'unfinished_trials': unfinished, 'queued_labels': queued, 'workers': workers,
         'memory_available_kib': available_memory_kib(), 'automation': automation,
-        'failure': failure, 'error': error, 'process_roots': sorted(roots),
+        'failure': failure, 'error': error, 'alerts': alerts, 'process_roots': sorted(roots),
     }
 
 
@@ -310,6 +333,8 @@ def print_status(status: dict[str, Any]) -> None:
     print(f"Workers {len(workers)} ({paused} paused) | memory available {available_gib:.1f} GiB")
     if status['error']:
         print(f"ERROR: {status['error']}")
+    for alert in status.get('alerts', []):
+        print(f'ALERT: {alert}')
     if status['failure']:
         failure = status['failure']
         print(f"Recorded failure: {failure.get('action', '?')} {failure.get('id', '?')}")
@@ -328,6 +353,8 @@ def print_status(status: dict[str, Any]) -> None:
         detail = trial.get('video') or trial.get('fit') or ''
         if trial['stage'] == 'validation':
             detail = f"{trial['completed_video_streams']}/8 video streams saved"
+        if trial.get('items_planned') is not None:
+            detail += f" ({trial['items_complete']}/{trial['items_planned']})"
         age = trial['progress_age_s']
         updated = f'{duration(age)} ago' if age is not None else 'unavailable'
         print(f"  {trial['label']}: {trial['stage']} {detail} | last saved progress {updated}")

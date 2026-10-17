@@ -141,7 +141,6 @@ def test_repeat_phase_keeps_grid_counts_and_reports_seed_trials(tmp_path: Path, 
     row = candidate('shipped', 3)
     identity = status.candidate_identity(row)
     write_json(tmp_path / 'grid48/snapshot.json.gz', {'candidates': {'candidates': [row]}})
-    write_json(tmp_path / 'grid48/shortlist.json.gz', {'ids': [identity]})
     trial = tmp_path / 'grid48/trials' / identity
     write_json(trial / 'result.json.gz', result(row, 32))
     write_json(trial / 'validation.json.gz', result(row, 8))
@@ -173,7 +172,9 @@ def test_final_test_progress_and_seed_selection(tmp_path: Path, capsys: pytest.C
     write_json(tmp_path / 'final_test/plan.json.gz', {
         'candidates': [{'id': 'one', 'label': 'chosen', 'bundles': [{'seed_offset': 0}, {'seed_offset': 100}]}],
     })
-    write_json(tmp_path / 'final_test/trials/one/seed-0/result.json.gz', {'complete': True})
+    finished = result(candidate('chosen', 3), 46)
+    finished['id'] = 'one'
+    write_json(tmp_path / 'final_test/trials/one/seed-0/result.json.gz', finished)
     write_json(tmp_path / 'final_test/trials/one/seed-100/progress.json.gz', {'stage': 'test', 'video': '8'})
     final_test = status.final_test_status(tmp_path, 100)
     assert final_test is not None and final_test['complete'] == 1
@@ -188,3 +189,46 @@ def test_final_test_progress_and_seed_selection(tmp_path: Path, capsys: pytest.C
     assert 'Selected configuration: chosen' in output
     assert 'Final test: final_test | 1/2' in output
     assert 'final test chosen seed+100: test 8' in output
+
+
+def test_repeat_protocol_needs_guard_completion_and_finished_counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    row = candidate('shipped', 3)
+    identity = status.candidate_identity(row)
+    write_json(tmp_path / 'grid48/snapshot.json.gz', {'candidates': {'candidates': [row]}})
+    trial = tmp_path / 'grid48/trials' / identity
+    write_json(trial / 'result.json.gz', result(row, 32))
+    write_json(trial / 'validation.json.gz', result(row, 8))
+    write_json(tmp_path / 'repeats/plan.json.gz', {'candidates': [{'id': identity, **row}], 'seed_offsets': [0]})
+    repeat_progress = {
+        'phase': 'complete', 'fits_complete': 1, 'fits_planned': 1,
+        'fresh_fits_complete': 0, 'fresh_fits_planned': 0, 'validation_complete': 1, 'validation_planned': 1,
+    }
+    write_json(tmp_path / 'repeats/progress.json.gz', repeat_progress)
+    write_json(tmp_path / 'repeats/selected.json.gz', {'config_id': identity, 'label': row['label']})
+    write_json(tmp_path / 'final_test/progress.json.gz', {'phase': 'complete', 'complete': 1, 'planned': 1})
+    monkeypatch.setattr(status, 'process_rows', list)
+    monkeypatch.setattr(status, 'available_memory_kib', lambda: 1024**2)
+    write_json(tmp_path / 'automation.json', {'phase': 'final test', 'status': 'running'})
+    assert not status.collect_status(tmp_path)['complete']
+    write_json(tmp_path / 'automation.json', {'phase': 'complete', 'status': 'complete'})
+    assert status.collect_status(tmp_path)['complete']
+    write_json(tmp_path / 'repeats/progress.json.gz', {**repeat_progress, 'validation_complete': 0})
+    report = status.collect_status(tmp_path)
+    assert not report['complete']
+    assert report['phase'] == 'incomplete saved results'
+
+
+def test_memory_pause_flags_show_alerts_until_complete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture,
+) -> None:
+    write_json(tmp_path / 'grid48/snapshot.json.gz', {'candidates': {'candidates': [candidate('shipped', 3)]}})
+    automation = {'phase': 'training', 'status': 'running', 'memory_emergency': True, 'memory_stalled': True}
+    write_json(tmp_path / 'automation.json', automation)
+    monkeypatch.setattr(status, 'process_rows', list)
+    monkeypatch.setattr(status, 'available_memory_kib', lambda: 5 * 1024**2)
+    report = status.collect_status(tmp_path)
+    assert len(report['alerts']) == 2
+    status.print_status(report)
+    assert 'watcher action needed' in capsys.readouterr().out
+    write_json(tmp_path / 'automation.json', {**automation, 'status': 'complete'})
+    assert status.collect_status(tmp_path)['alerts'] == []

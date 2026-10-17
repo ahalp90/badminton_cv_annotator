@@ -51,12 +51,12 @@ def controls(workers: list[dict], available: float, maximum: int) -> tuple[list[
     """Keep a few advancing fits when memory is tight; resume one at a time."""
     active = sorted((row for row in workers if not row['paused']), key=lambda row: row['cpu_s'], reverse=True)
     paused = sorted((row for row in workers if row['paused']), key=lambda row: row['cpu_s'], reverse=True)
-    target = min(maximum, 1 if available < 12 else 4 if available < 32 else len(active))
+    target = min(maximum, 0 if available < 10 else 1 if available < 64 else 4 if available < 96 else len(active))
     stop = [row['pid'] for row in active[target:]]
     resume = []
     # Paused workers retain their allocations. Staggering their next allocations
     # lets the most advanced fits finish and release memory before others grow.
-    if paused and len(active) < maximum and (available > 56 or (not active and available >= 32)):
+    if paused and len(active) < maximum and (available > 96 or (not active and available >= 16)):
         resume = [paused[0]['pid']]
     return stop, resume
 
@@ -93,6 +93,9 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
                     updated_utc=datetime.now(UTC).isoformat(), available_gib=available,
                     worker_count=len(workers), paused_workers=[row['pid'] for row in workers if row['paused']],
                     last_controls={'paused': stop, 'resumed': resume},
+                    memory_emergency=available < 10,
+                    memory_stalled=bool(paused := [row for row in workers if row['paused']])
+                    and len(paused) == len(workers) and available < 16,
                 )
                 write_state(state_path, state)
                 last_record = time.monotonic()
@@ -109,8 +112,8 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
         # Resume only verified workers within both limits. If recovery needs
         # intervention, retain their identities for the failure alert.
         resumed = []
-        if available_memory_gib() >= 32:
-            for pid in paused[:slots]:
+        if available_memory_gib() >= 64:
+            for pid in paused[:min(slots, 1)]:
                 try:
                     os.kill(pid, signal.SIGCONT)
                     resumed.append(pid)
@@ -162,7 +165,7 @@ def main() -> None:
     parser.add_argument('--initial-supervisor-pid', type=int)
     parser.add_argument('--previous-streams', type=Path, required=True)
     parser.add_argument('--test-paths', type=Path, required=True)
-    parser.add_argument('--workers', type=int, default=20)
+    parser.add_argument('--workers', type=int, default=16)
     args = parser.parse_args()
     if not 1 <= args.workers <= 20:
         parser.error('workers must be between one and twenty')
