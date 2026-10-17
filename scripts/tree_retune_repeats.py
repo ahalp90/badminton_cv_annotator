@@ -18,6 +18,7 @@ sys.path.insert(0, str(REPOSITORY))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
 from experiments.annotator.tree_hp_tune import run as grid
+from scripts.finish_tree_retune import CPU_BUDGET
 
 SEED_OFFSETS = (0, 100, 200, 300, 400)
 SCHEMA = 'tree-retune-repeats-v1'
@@ -135,7 +136,8 @@ def result_path(root: Path, candidate: dict[str, Any], offset: int, action: str)
     return seed_root(root, offset) / 'trials' / candidate['id'] / name
 
 
-def repeat_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[str, Path], action: str) -> None:
+def repeat_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[str, Path], action: str,
+               threads: int = 1) -> None:
     spec = spec_for(candidate)
     settings = seeded_settings(offset)
     # Both modules bind their own settings name; fits run in a fresh process.
@@ -147,9 +149,9 @@ def repeat_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[s
         trial.mkdir(parents=True, exist_ok=True)
         metadata = {'schema': SCHEMA, 'id': candidate['id'], 'seed_offset': offset, 'settings': settings_record(settings)}
         grid.write_json(trial / 'repeat-seed.json.gz', metadata)
-        grid.fit_trial(spec, paths, output, 1)
+        grid.fit_trial(spec, paths, output, threads)
     elif action == 'validate':
-        grid.validate_trial(spec, paths, output, 1)
+        grid.validate_trial(spec, paths, output, threads)
     else:
         raise ValueError(f'unknown repeat action: {action}')
 
@@ -187,7 +189,8 @@ def write_progress(root: Path, plan: dict[str, Any], phase: str, **extra: Any) -
     })
 
 
-def run_phase(root: Path, plan: dict[str, Any], paths: dict[str, Path], action: str, workers: int) -> None:
+def run_phase(root: Path, plan: dict[str, Any], paths: dict[str, Path], action: str, workers: int,
+              threads: int = 1) -> None:
     jobs = []
     for candidate in plan['candidates']:
         for offset in SEED_OFFSETS:
@@ -208,7 +211,7 @@ def run_phase(root: Path, plan: dict[str, Any], paths: dict[str, Path], action: 
                 if job is None:
                     break
                 candidate, offset = job
-                future = executor.submit(repeat_job, root, candidate, offset, paths, action)
+                future = executor.submit(repeat_job, root, candidate, offset, paths, action, threads)
                 active[future] = job
             if not active:
                 break
@@ -299,18 +302,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-root', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=20)
+    parser.add_argument('--threads', type=int, default=1)
     parser.add_argument('--repository', type=Path, default=REPOSITORY)
     args = parser.parse_args()
     if not 1 <= args.workers <= 20:
         parser.error('workers must be between one and twenty')
+    if args.threads < 1 or args.workers * args.threads > CPU_BUDGET:
+        parser.error(f'workers times threads must be at most {CPU_BUDGET}')
     root, repository = args.run_root.resolve(), args.repository.resolve()
     if repository != REPOSITORY:
         parser.error('--repository must identify the checkout containing this script')
     (root / 'repeats').mkdir(parents=True, exist_ok=True)
     try:
         plan, paths = freeze_plan(root, repository)
-        run_phase(root, plan, paths, 'fit', args.workers)
-        run_phase(root, plan, paths, 'validate', min(args.workers, 6))
+        run_phase(root, plan, paths, 'fit', args.workers, args.threads)
+        run_phase(root, plan, paths, 'validate', min(args.workers, 6), args.threads)
         summary, selected = summarise(root, plan)
         grid.write_json(root / 'repeats' / 'summary.json.gz', summary)
         grid.write_json(root / 'repeats' / 'selected.json.gz', selected)

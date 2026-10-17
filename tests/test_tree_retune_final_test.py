@@ -112,7 +112,10 @@ def test_final_contact_uses_original_40_order_and_preserves_downstream(
     assert record['sampling_order'] == record['fit_order'] == list(expected)
 
 
-def test_final_job_scores_all_46_and_resumes_saved_streams(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize('threads', [1, 2])
+def test_final_job_scores_all_46_and_resumes_saved_streams(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, threads: int,
+) -> None:
     document = selected_document(tmp_path)
     candidate = document['results'][0]
     models = SimpleNamespace(preprocessing='frozen')
@@ -121,6 +124,13 @@ def test_final_job_scores_all_46_and_resumes_saved_streams(tmp_path: Path, monke
     trial.mkdir(parents=True)
     final.grid.write_json(trial / 'contact-fit.json.gz', {'seed_offset': 100})
     calls = []
+    thread_limits = []
+
+    def limit_threads(*, limits: int) -> nullcontext[None]:
+        thread_limits.append(limits)
+        return nullcontext()
+
+    monkeypatch.setattr(final.grid, 'threadpool_limits', limit_threads)
     monkeypatch.setattr(final.grid, 'load_models', lambda _path: models)
     monkeypatch.setattr(final, 'load_test_videos', lambda _path: videos)
     monkeypatch.setattr(final, 'load_test_inputs', lambda video, *_args: video)
@@ -135,12 +145,14 @@ def test_final_job_scores_all_46_and_resumes_saved_streams(tmp_path: Path, monke
     counts = {name: 1 for name in final.grid.COUNT_FIELDS}
     monkeypatch.setattr(final.grid, 'score_stream', lambda *_args: {'5': counts, '10': counts})
     paths = {name: tmp_path for name in ('test_inputs', 'inpaint_root', 'pose_root', 'test_courts')}
-    final.final_job(tmp_path, candidate, 100, paths)
+    final.final_job(tmp_path, candidate, 100, paths, threads)
     result = final.grid.read_json(trial / 'result.json.gz')
     assert len(calls) == len(result['per_video']) == 46
     assert result['totals']['10']['labelled_contacts'] == 46
-    final.final_job(tmp_path, candidate, 100, paths)
+    assert result['threads'] == threads
+    final.final_job(tmp_path, candidate, 100, paths, threads)
     assert len(calls) == 46
+    assert thread_limits == [threads, threads]
 
 
 def test_summary_compares_paired_means_without_choosing_on_test(tmp_path: Path) -> None:

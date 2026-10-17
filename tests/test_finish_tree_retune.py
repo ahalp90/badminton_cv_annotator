@@ -10,10 +10,57 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts import finish_tree_retune as finish
+
+
+def test_all_future_phases_receive_14_workers_and_two_threads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    for index in range(26):
+        result = tmp_path / 'grid48' / 'trials' / str(index) / 'result.json.gz'
+        result.parent.mkdir(parents=True)
+        with gzip.open(result, 'wt') as stream:
+            json.dump({}, stream)
+    selected = tmp_path / 'repeats' / 'selected.json.gz'
+    selected.parent.mkdir()
+    with gzip.open(selected, 'wt') as stream:
+        json.dump({'config_id': 'winner', 'label': 'tuned'}, stream)
+    monkeypatch.setattr(sys, 'argv', [
+        'finish_tree_retune', '--run-root', str(tmp_path), '--repository', str(tmp_path),
+        '--initial-pid', '99', '--previous-streams', str(tmp_path / 'previous'),
+        '--test-paths', str(tmp_path / 'test.toml'), '--workers', '14', '--threads', '2',
+    ])
+    monkeypatch.setattr(finish, 'monitor', lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(finish, 'verify_baseline', lambda *_args: {'different_selections': []})
+    commands = []
+
+    def launch(command: list[str], *, env: dict[str, str], **_kwargs: object) -> SimpleNamespace:
+        commands.append((command, env))
+        return SimpleNamespace(pid=100 + len(commands))
+
+    monkeypatch.setattr(finish.subprocess, 'Popen', launch)
+    finish.main()
+    assert len(commands) == 3
+    for command, environment in commands:
+        assert command[command.index('--workers') + 1] == '14'
+        assert command[command.index('--threads') + 1] == '2'
+        assert environment['OMP_NUM_THREADS'] == environment['OPENBLAS_NUM_THREADS'] == '1'
+    state = json.loads((tmp_path / 'automation.json').read_text())
+    assert state['status'] == 'complete'
+    assert state['future_threads_per_fit'] == 2 and state['cpu_budget'] == 28
+
+
+def test_future_phases_reject_more_than_28_cores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, 'argv', [
+        'finish_tree_retune', '--run-root', str(tmp_path), '--repository', str(tmp_path),
+        '--initial-pid', '99', '--previous-streams', str(tmp_path / 'previous'),
+        '--test-paths', str(tmp_path / 'test.toml'), '--workers', '15', '--threads', '2',
+    ])
+    with pytest.raises(SystemExit) as error:
+        finish.main()
+    assert error.value.code == 2 and not (tmp_path / 'automation.json').exists()
 
 
 def test_memory_controls_keep_work_and_respect_core_limit() -> None:

@@ -106,31 +106,38 @@ def test_exact_mean_ties_prefer_baseline(tmp_path: Path) -> None:
     assert selected['config_id'] == 'baseline'
 
 
-def test_seeded_worker_reuses_existing_fits_and_original_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize('threads', [1, 2])
+def test_seeded_worker_reuses_existing_fits_and_original_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, threads: int,
+) -> None:
     spec = repeats.grid.CandidateSpec('shipped', {}, {})
     candidate = {'id': repeats.grid.candidate_id(spec), 'label': spec.label, 'overrides_base30': {}, 'strategies': {}}
     paths = {name: tmp_path / name for name in ('shots_master', 'stages', 'development_courts')}
     seen = []
 
-    def fit(actual_spec: object, actual_paths: dict, output: Path, threads: int) -> None:
+    def fit(actual_spec: object, actual_paths: dict, output: Path, actual_threads: int) -> None:
         assert actual_paths == paths and 'test_inputs' not in actual_paths
         assert repeats.grid.DEFAULT_TRAINING_SETTINGS == repeats.seeded_settings(100)
         assert repeats.grid.retrain.DEFAULT_TRAINING_SETTINGS == repeats.seeded_settings(100)
-        assert actual_spec == spec and threads == 1
+        assert actual_spec == spec and actual_threads == threads
+        repeats.grid.write_json(output / 'trials' / candidate['id'] / 'result.json.gz',
+                                {'id': candidate['id'], 'label': candidate['label'], 'threads': actual_threads})
         seen.append(('fit', output))
 
-    def validate(actual_spec: object, actual_paths: dict, output: Path, threads: int) -> None:
+    def validate(actual_spec: object, actual_paths: dict, output: Path, actual_threads: int) -> None:
         assert actual_paths == paths and 'test_inputs' not in actual_paths
-        assert actual_spec == spec and threads == 1
+        assert actual_spec == spec and actual_threads == threads
         seen.append(('validation', output))
 
     monkeypatch.setattr(repeats.grid, 'DEFAULT_TRAINING_SETTINGS', repeats.ORIGINAL_SETTINGS)
     monkeypatch.setattr(repeats.grid.retrain, 'DEFAULT_TRAINING_SETTINGS', repeats.ORIGINAL_SETTINGS)
     monkeypatch.setattr(repeats.grid, 'fit_trial', fit)
     monkeypatch.setattr(repeats.grid, 'validate_trial', validate)
-    repeats.repeat_job(tmp_path, candidate, 100, paths, 'fit')
-    repeats.repeat_job(tmp_path, candidate, 100, paths, 'validate')
+    repeats.repeat_job(tmp_path, candidate, 100, paths, 'fit', threads)
+    repeats.repeat_job(tmp_path, candidate, 100, paths, 'validate', threads)
     assert seen == [('fit', tmp_path / 'repeats/seed-100'), ('validation', tmp_path / 'repeats/seed-100')]
+    fitted = repeats.read_result(tmp_path, candidate, 100, 'fit')
+    assert fitted is not None and fitted['threads'] == threads
 
 
 def test_freeze_checks_snapshot_and_rejects_changed_repeat_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

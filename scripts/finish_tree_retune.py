@@ -13,6 +13,8 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+CPU_BUDGET = 28
+
 
 def read_json(path: Path):
     with gzip.open(path, 'rt') as stream:
@@ -183,16 +185,20 @@ def main() -> None:
     parser.add_argument('--previous-streams', type=Path, required=True)
     parser.add_argument('--test-paths', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=16)
+    parser.add_argument('--threads', type=int, default=1)
     parser.add_argument('--initial-memory-floor', type=float, choices=(4, 10), default=10,
                         help='Use 4 only for explicitly authorised recovery of the existing overcommitted batch.')
     args = parser.parse_args()
     if not 1 <= args.workers <= 20:
         parser.error('workers must be between one and twenty')
+    if args.threads < 1 or args.workers * args.threads > CPU_BUDGET:
+        parser.error(f'workers times threads must be at most {CPU_BUDGET}')
     root, output = args.run_root, args.run_root / 'grid48'
     state_path = root / 'automation.json'
     state = {
         'phase': 'first_batch', 'status': 'running', 'guard_pid': os.getpid(),
         'started_utc': datetime.now(UTC).isoformat(), 'max_workers': args.workers,
+        'future_threads_per_fit': args.threads, 'cpu_budget': CPU_BUDGET,
         'automatic_time_kill': False,
     }
     write_state(state_path, state)
@@ -213,22 +219,27 @@ def main() -> None:
         write_state(state_path, state)
         state['baseline_parity'] = verify_baseline(output, args.previous_streams)
         environment = dict(os.environ, PYTHONPATH=f'{args.repository / "src"}:{args.repository}')
+        # Idle replacements must start with one thread; each fit raises its own limit.
         for variable in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
             environment[variable] = '1'
+        # Change only the frozen CLI's old CPU allowance, not its fitting code.
+        grid_entry = f'from experiments.annotator.tree_hp_tune import run; run.MAX_CORES = {CPU_BUDGET}; run.main()'
         commands = [
             ('remaining_grid', [
-                sys.executable, '-m', 'experiments.annotator.tree_hp_tune.run', 'run',
+                sys.executable, '-c', grid_entry, 'run',
                 '--paths', str(root / 'paths.toml'),
                 '--candidates', str(args.repository / 'experiments/annotator/tree_hp_tune/grid-48.json.gz'),
-                '--output', str(output), '--workers', str(args.workers), '--threads', '1', '--hours', 'inf',
+                '--output', str(output), '--workers', str(args.workers), '--threads', str(args.threads), '--hours', 'inf',
             ]),
             ('seed_repeats', [
                 sys.executable, str(args.repository / 'scripts/tree_retune_repeats.py'),
                 '--run-root', str(root), '--repository', str(args.repository), '--workers', str(args.workers),
+                '--threads', str(args.threads),
             ]),
             ('final_test', [
                 sys.executable, str(args.repository / 'scripts/tree_retune_final_test.py'),
                 '--run-root', str(root), '--test-paths', str(args.test_paths), '--workers', str(args.workers),
+                '--threads', str(args.threads),
             ]),
         ]
         for phase, command in commands:

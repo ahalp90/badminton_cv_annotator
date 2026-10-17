@@ -162,11 +162,11 @@ def fit_final_contact(root: Path, candidate: dict[str, Any], offset: int, paths:
     return record
 
 
-def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[str, Path]) -> None:
+def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[str, Path], threads: int = 1) -> None:
     started = time.perf_counter()
     trial = trial_root(root, candidate['id'], offset)
     trial.mkdir(parents=True, exist_ok=True)
-    with grid.threadpool_limits(limits=1):
+    with grid.threadpool_limits(limits=threads):
         if not (trial / 'contact-fit.json.gz').exists():
             fit_final_contact(root, candidate, offset, paths)
         models = grid.load_models(trial / 'bundle_final40')
@@ -191,6 +191,7 @@ def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[st
             'per_video': per_video, 'totals': grid.pooled_scores(per_video),
             'bundle': str((trial / 'bundle_final40').resolve()),
             'contact_fit': grid.read_json(trial / 'contact-fit.json.gz'), 'wall_s': time.perf_counter() - started,
+            'threads': threads,
         }
         grid.write_json(trial / 'result.json.gz', result)
         trial_progress(trial, 'complete', complete=46, planned=46)
@@ -218,7 +219,7 @@ def write_progress(root: Path, plan: dict[str, Any], phase: str, **extra: Any) -
     })
 
 
-def run_jobs(root: Path, plan: dict[str, Any], paths: dict[str, Path], workers: int) -> None:
+def run_jobs(root: Path, plan: dict[str, Any], paths: dict[str, Path], workers: int, threads: int = 1) -> None:
     done = {(row['id'], row['seed_offset']) for row in completed(root, plan)}
     jobs = [(candidate, offset) for candidate in plan['candidates'] for offset in repeats.SEED_OFFSETS
             if (candidate['id'], offset) not in done]
@@ -234,7 +235,7 @@ def run_jobs(root: Path, plan: dict[str, Any], paths: dict[str, Path], workers: 
                 if job is None:
                     break
                 candidate, offset = job
-                future = executor.submit(final_job, root, candidate, offset, paths)
+                future = executor.submit(final_job, root, candidate, offset, paths, threads)
                 active[future] = job
             if not active:
                 break
@@ -292,16 +293,19 @@ def main() -> None:
     parser.add_argument('--repository', type=Path, default=REPOSITORY)
     parser.add_argument('--test-paths', type=Path, help='TOML supplying the four final test input roots')
     parser.add_argument('--workers', type=int, default=20)
+    parser.add_argument('--threads', type=int, default=1)
     args = parser.parse_args()
     if not 1 <= args.workers <= 20:
         parser.error('workers must be between one and twenty')
+    if args.threads < 1 or args.workers * args.threads > repeats.CPU_BUDGET:
+        parser.error(f'workers times threads must be at most {repeats.CPU_BUDGET}')
     root, repository = args.run_root.resolve(), args.repository.resolve()
     if repository != REPOSITORY:
         parser.error('--repository must identify the checkout containing this script')
     (root / 'final_test').mkdir(parents=True, exist_ok=True)
     try:
         plan, paths = freeze_plan(root, repository, args.test_paths)
-        run_jobs(root, plan, paths, args.workers)
+        run_jobs(root, plan, paths, args.workers, args.threads)
         grid.write_json(root / 'final_test' / 'summary.json.gz', summarise(root, plan))
         write_progress(root, plan, 'complete')
     except BaseException:
