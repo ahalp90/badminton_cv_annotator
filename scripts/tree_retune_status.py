@@ -63,14 +63,14 @@ def result_exists(path: Path, identity: str, label: str, expected_videos: int) -
 
 def process_rows() -> list[dict[str, Any]]:
     output = subprocess.check_output(
-        ['ps', '-ww', '-eo', 'pid=,ppid=,stat=,pcpu=,rss=,etimes=,args='], text=True,
+        ['ps', '-ww', '-eo', 'pid=,ppid=,stat=,pcpu=,cputimes=,rss=,etimes=,args='], text=True,
     )
     rows = []
     for line in output.splitlines():
-        pid, parent, state, cpu, rss, elapsed, command = line.split(None, 6)
+        pid, parent, state, cpu, cpu_s, rss, elapsed, command = line.split(None, 7)
         rows.append({
             'pid': int(pid), 'ppid': int(parent), 'state': state, 'cpu_percent': float(cpu),
-            'rss_kib': int(rss), 'elapsed_s': int(elapsed), 'command': command,
+            'cpu_s': int(cpu_s), 'rss_kib': int(rss), 'elapsed_s': int(elapsed), 'command': command,
         })
     return rows
 

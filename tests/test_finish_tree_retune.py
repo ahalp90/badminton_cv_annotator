@@ -2,11 +2,13 @@
 
 import gzip
 import json
+import multiprocessing
 import os
 import signal
 import subprocess
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -122,6 +124,23 @@ def test_temporary_recovery_restores_normal_floor(tmp_path: Path, monkeypatch: p
     assert state['initial_memory_recovery_complete']
     assert state['memory_floor_gib'] == 10
     assert signals == [(100, signal.SIGCONT), (100, signal.SIGCONT)]
+
+
+def test_replacement_pool_workers_do_not_block_paused_fits() -> None:
+    with ProcessPoolExecutor(
+        max_workers=2, mp_context=multiprocessing.get_context('spawn'), max_tasks_per_child=1,
+    ) as executor:
+        futures = [executor.submit(os.getpid) for _ in range(2)]
+        finished_pids = {future.result(timeout=10) for future in futures}
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            workers = finish.worker_processes(os.getpid())
+            if len(workers) == 2 and all(row['idle'] and row['pid'] not in finished_pids for row in workers):
+                break
+            time.sleep(0.01)
+        assert len(workers) == 2 and all(row['idle'] for row in workers)
+        paused_fit = {'pid': 99999999, 'paused': True, 'idle': False, 'cpu_s': 6000}
+        assert finish.controls(workers + [paused_fit], 22, 16) == ([], [paused_fit['pid']])
 
 
 def test_monitor_reports_stalled_fits_beside_idle_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -130,10 +130,11 @@ def test_process_listing_requests_unlimited_command_width(monkeypatch: pytest.Mo
 
     def check_output(command: list[str], *, text: bool) -> str:
         seen.append(command)
-        return '21 20 S 99.0 1024 60 python spawn_main(...)\n'
+        return '21 20 S 99.0 59 1024 60 python spawn_main(...)\n'
 
     monkeypatch.setattr(status.subprocess, 'check_output', check_output)
-    assert status.process_rows()[0]['pid'] == 21
+    worker = status.process_rows()[0]
+    assert worker['pid'] == 21 and worker['cpu_s'] == 59
     assert '-ww' in seen[0]
 
 

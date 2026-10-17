@@ -33,15 +33,18 @@ def process_alive(pid: int) -> bool:
 
 
 def worker_processes(parent: int) -> list[dict]:
-    rows = subprocess.check_output(['ps', '-ww', '-eo', 'pid=,ppid=,stat=,cputimes=,rss=,wchan:32=,args='], text=True)
+    rows = subprocess.check_output(['ps', '-ww', '-eo', 'pid=,ppid=,stat=,nlwp=,cputimes=,rss=,wchan:32=,args='],
+                                   text=True)
     workers = []
     for line in rows.splitlines():
-        pid, ppid, state, cpu, rss, wait_channel, command = line.split(None, 6)
+        pid, ppid, state, threads, cpu, rss, wait_channel, command = line.split(None, 7)
         if int(ppid) == parent and 'multiprocessing.spawn' in command:
+            queue_read = wait_channel in ('pipe_read', 'anon_pipe_read')
+            # These single-thread fits use no shared semaphores except the task queue.
+            queue_lock = int(threads) == 1 and wait_channel.startswith('futex')
             workers.append({
                 'pid': int(pid), 'paused': 'T' in state, 'cpu_s': int(cpu), 'rss_kib': int(rss),
-                # A replacement pool worker waits on its task pipe until assigned a fit.
-                'idle': wait_channel in ('pipe_read', 'anon_pipe_read'),
+                'idle': queue_read or queue_lock,
             })
     return workers
 
