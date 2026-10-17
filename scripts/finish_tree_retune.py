@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 CPU_BUDGET = 28
+# Six completed fits peaked below17GiB; reserve another0.5GiB per fit.
+FIT_PEAK_GIB = 17.5
 
 
 def read_json(path: Path):
@@ -57,19 +59,26 @@ def available_memory_gib() -> float:
 
 
 def controls(workers: list[dict], available: float, maximum: int,
-             emergency_floor: float = 10) -> tuple[list[int], list[int]]:
-    """Keep a few advancing fits when memory is tight; resume one at a time."""
-    active = sorted((row for row in workers if not row['paused'] and not row['idle']),
-                    key=lambda row: row['cpu_s'], reverse=True)
-    paused = sorted((row for row in workers if row['paused']), key=lambda row: row['cpu_s'], reverse=True)
-    target = min(maximum, 0 if available < emergency_floor else 1 if available < 32
-                 else 2 if available < 48 else 3 if available < 64 else 4 if available < 96 else maximum)
-    stop = [row['pid'] for row in active[target:]]
+             emergency_floor: float = 10, fit_peak_gib: float = FIT_PEAK_GIB) -> tuple[list[int], list[int]]:
+    """Reserve remaining fit growth instead of charging resident memory twice."""
+    fits = [row for row in workers if not row['idle']]
+    peak = max([fit_peak_gib] + [row['rss_kib'] / 1048576 + 0.5 for row in fits])
+    growth = {row['pid']: max(0.0, peak - row['rss_kib'] / 1048576) for row in fits}
+    active = [row for row in fits if not row['paused']]
+    headroom = available - sum(growth[row['pid']] for row in active)
+    stop = []
+    # Pausing frees no resident RAM. Keep nearly finished fits advancing so they
+    # can exit; stop fits with the most growth ahead when reserves run short.
+    for row in sorted(active, key=lambda row: growth[row['pid']], reverse=True):
+        over_limit = len(active) - len(stop) > maximum
+        if not over_limit and (headroom >= emergency_floor or growth[row['pid']] < 1):
+            break
+        stop.append(row['pid'])
+        headroom += growth[row['pid']]
+    paused = sorted((row for row in fits if row['paused']), key=lambda row: (growth[row['pid']], -row['cpu_s']))
     resume = []
-    # Paused workers retain their allocations. Staggering their next allocations
-    # lets the most advanced fits finish and release memory before others grow.
-    restart_floor = 16 if emergency_floor == 10 else emergency_floor + 2
-    if paused and len(active) < target and available >= restart_floor:
+    reserve = 16 if emergency_floor == 10 else emergency_floor + 2
+    if paused and len(active) - len(stop) < maximum and headroom - growth[paused[0]['pid']] >= reserve:
         resume = [paused[0]['pid']]
     return stop, resume
 
@@ -87,6 +96,7 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
     state.update(training_pid=parent, status='running')
     last_record = 0.0
     known = {}
+    fit_peak_gib = state.get('fit_peak_budget_gib', FIT_PEAK_GIB)
     try:
         while process_alive(parent):
             workers = worker_processes(parent)
@@ -98,7 +108,10 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
             if emergency_floor < 10 and available >= 32:
                 emergency_floor = 10
                 state['initial_memory_recovery_complete'] = True
-            stop, resume = controls(workers, available, maximum, emergency_floor)
+            # Retain larger observed peaks after a fit exits or releases scratch arrays.
+            fit_peak_gib = max([fit_peak_gib] + [row['rss_kib'] / 1048576 + 0.5
+                                               for row in workers if not row['idle']])
+            stop, resume = controls(workers, available, maximum, emergency_floor, fit_peak_gib)
             for action, pids in ((signal.SIGSTOP, stop), (signal.SIGCONT, resume)):
                 for pid in pids:
                     try:
@@ -110,12 +123,12 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
                     updated_utc=datetime.now(UTC).isoformat(), available_gib=available,
                     worker_count=len(workers), paused_workers=[row['pid'] for row in workers if row['paused']],
                     last_controls={'paused': stop, 'resumed': resume},
-                    memory_floor_gib=emergency_floor,
+                    memory_floor_gib=emergency_floor, fit_peak_budget_gib=fit_peak_gib,
                     memory_emergency=available < emergency_floor,
                     idle_workers=[row['pid'] for row in workers if row['idle']],
                     memory_stalled=any(row['paused'] for row in workers)
                     and all(row['paused'] or row['idle'] for row in workers)
-                    and available < (16 if emergency_floor == 10 else emergency_floor + 2),
+                    and not resume,
                 )
                 write_state(state_path, state)
                 last_record = time.monotonic()
@@ -200,11 +213,12 @@ def main() -> None:
         'phase': 'first_batch', 'status': 'running', 'guard_pid': os.getpid(),
         'started_utc': datetime.now(UTC).isoformat(), 'max_workers': args.workers,
         'future_threads_per_fit': args.threads, 'cpu_budget': CPU_BUDGET,
+        'initial_active_limit': CPU_BUDGET, 'fit_peak_budget_gib': FIT_PEAK_GIB,
         'automatic_time_kill': False,
     }
     write_state(state_path, state)
     try:
-        monitor(args.initial_pid, state, state_path, args.workers, emergency_floor=args.initial_memory_floor)
+        monitor(args.initial_pid, state, state_path, CPU_BUDGET, emergency_floor=args.initial_memory_floor)
         if (output / 'failure.json.gz').exists():
             raise RuntimeError(f'initial training failed: {read_json(output / "failure.json.gz")}')
         if len(list(output.glob('trials/*/result.json.gz'))) < 26:
