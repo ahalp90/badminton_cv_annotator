@@ -4,6 +4,9 @@
 
 On ShuttleSet22, the tuned heuristic reaches **60.38% correct-player contact F1** and **107 of 3,327 fully correct rallies (3.22%)** at ±10 base-30 frames. The full annotator reaches **85.64%** and **1,744 rallies (52.42%)**.
 
+The follow-up [known-rally comparison](KNOWN_RALLIES.md) evaluates these same
+settings with the core MonoTrack benchmark's supplied rally windows and court inputs.
+
 On training, tuning substantially improves the recovered historical heuristic settings. The full system still finds more true contacts, assigns more of them to the right player, and reconstructs many more complete rallies. These are the best settings found by this staged search; the search does not establish a global optimum.
 
 ## Test comparison

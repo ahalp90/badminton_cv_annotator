@@ -6,6 +6,8 @@ pose and court inputs. Both the heuristic and full annotator discover rallies.
 The scripts do not change production defaults.
 
 The completed search and test comparison are in [RESULTS.md](RESULTS.md).
+The [known-rally comparison](KNOWN_RALLIES.md) reports the frozen heuristic under
+the core MonoTrack benchmark's supplied windows and two sets of court inputs.
 
 For supplied rally boundaries and either set of known-rally courts, use the
 [core benchmark runner](../monotrack_benchmark/benchmark_scripts/README.md#run)

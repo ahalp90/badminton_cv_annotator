@@ -6,6 +6,10 @@ for the comparison of our annotator and court detector with MonoTrack on
 The [first report](annotator_monotrack_own_weights_compared_writeup.md) is also
 retained.
 
+The later [tuned heuristic comparison](../heuristic_only_tune/KNOWN_RALLIES.md)
+adds the tree-disabled annotator with the same supplied rally windows, both
+sets of known-rally courts and the same scoring at ±10 and ±5 frames.
+
 Both MonoTrack conditions use `hitnet_zeroed.h5`, with InpaintNet-filled shuttle
 positions replaced by zeros and shuttle interpolation off at inference. Main
 results use ±10 frames. Appendix A compares all four shuttle/interpolation
