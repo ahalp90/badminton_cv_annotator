@@ -47,16 +47,18 @@ def available_memory_gib() -> float:
     return int(line.split()[1]) / 1048576
 
 
-def controls(workers: list[dict], available: float, maximum: int) -> tuple[list[int], list[int]]:
+def controls(workers: list[dict], available: float, maximum: int,
+             emergency_floor: float = 10) -> tuple[list[int], list[int]]:
     """Keep a few advancing fits when memory is tight; resume one at a time."""
     active = sorted((row for row in workers if not row['paused']), key=lambda row: row['cpu_s'], reverse=True)
     paused = sorted((row for row in workers if row['paused']), key=lambda row: row['cpu_s'], reverse=True)
-    target = min(maximum, 0 if available < 10 else 1 if available < 64 else 4 if available < 96 else len(active))
+    target = min(maximum, 0 if available < emergency_floor else 1 if available < 64 else 4 if available < 96 else len(active))
     stop = [row['pid'] for row in active[target:]]
     resume = []
     # Paused workers retain their allocations. Staggering their next allocations
     # lets the most advanced fits finish and release memory before others grow.
-    if paused and len(active) < maximum and (available > 96 or (not active and available >= 16)):
+    restart_floor = 16 if emergency_floor == 10 else emergency_floor + 2
+    if paused and len(active) < maximum and (available > 96 or (not active and available >= restart_floor)):
         resume = [paused[0]['pid']]
     return stop, resume
 
@@ -69,7 +71,8 @@ def process_identity(pid: int) -> tuple[str, str] | None:
         return None
 
 
-def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=None) -> int | None:
+def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=None,
+            emergency_floor: float = 10) -> int | None:
     state.update(training_pid=parent, status='running')
     last_record = 0.0
     known = {}
@@ -81,7 +84,10 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
                 if identity is not None:
                     known[worker['pid']] = identity[0]
             available = available_memory_gib()
-            stop, resume = controls(workers, available, maximum)
+            if emergency_floor < 10 and available >= 32:
+                emergency_floor = 10
+                state['initial_memory_recovery_complete'] = True
+            stop, resume = controls(workers, available, maximum, emergency_floor)
             for action, pids in ((signal.SIGSTOP, stop), (signal.SIGCONT, resume)):
                 for pid in pids:
                     try:
@@ -93,9 +99,11 @@ def monitor(parent: int, state: dict, state_path: Path, maximum: int, process=No
                     updated_utc=datetime.now(UTC).isoformat(), available_gib=available,
                     worker_count=len(workers), paused_workers=[row['pid'] for row in workers if row['paused']],
                     last_controls={'paused': stop, 'resumed': resume},
-                    memory_emergency=available < 10,
+                    memory_floor_gib=emergency_floor,
+                    memory_emergency=available < emergency_floor,
                     memory_stalled=bool(paused := [row for row in workers if row['paused']])
-                    and len(paused) == len(workers) and available < 16,
+                    and len(paused) == len(workers)
+                    and available < (16 if emergency_floor == 10 else emergency_floor + 2),
                 )
                 write_state(state_path, state)
                 last_record = time.monotonic()
@@ -166,6 +174,8 @@ def main() -> None:
     parser.add_argument('--previous-streams', type=Path, required=True)
     parser.add_argument('--test-paths', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=16)
+    parser.add_argument('--initial-memory-floor', type=float, choices=(4, 10), default=10,
+                        help='Use 4 only for explicitly authorised recovery of the existing overcommitted batch.')
     args = parser.parse_args()
     if not 1 <= args.workers <= 20:
         parser.error('workers must be between one and twenty')
@@ -178,7 +188,7 @@ def main() -> None:
     }
     write_state(state_path, state)
     try:
-        monitor(args.initial_pid, state, state_path, args.workers)
+        monitor(args.initial_pid, state, state_path, args.workers, emergency_floor=args.initial_memory_floor)
         if (output / 'failure.json.gz').exists():
             raise RuntimeError(f'initial training failed: {read_json(output / "failure.json.gz")}')
         if len(list(output.glob('trials/*/result.json.gz'))) < 26:

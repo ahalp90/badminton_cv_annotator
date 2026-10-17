@@ -267,10 +267,12 @@ def collect_status(run_root: Path) -> dict[str, Any]:
         finished = grid_finished and repeats_finished and final_finished and automation.get('status') == 'complete'
     alerts = []
     if automation.get('status') != 'complete':
+        floor = automation.get('memory_floor_gib', 10)
         if automation.get('memory_emergency'):
-            alerts.append('Memory emergency: fits paused because available memory fell below 10 GiB')
+            alerts.append(f'Memory emergency: fits paused because available memory fell below {floor:g} GiB')
         if automation.get('memory_stalled'):
-            alerts.append('Memory stalled: all fits paused and memory remains below 16 GiB; watcher action needed')
+            restart_floor = 16 if floor == 10 else floor + 2
+            alerts.append(f'Memory stalled: all fits paused below {restart_floor:g} GiB; watcher action needed')
     if error or automation.get('status') == 'failed':
         phase = 'failed'
     elif finished:
@@ -331,6 +333,8 @@ def print_status(status: dict[str, Any]) -> None:
     paused = sum(worker['status'] == 'paused' for worker in workers)
     available_gib = status['memory_available_kib'] / 1024**2
     print(f"Workers {len(workers)} ({paused} paused) | memory available {available_gib:.1f} GiB")
+    if status['automation'].get('memory_floor_gib', 10) < 10:
+        print('Authorised temporary recovery: 4 GiB emergency floor; normal floor returns at 32 GiB available')
     if status['error']:
         print(f"ERROR: {status['error']}")
     for alert in status.get('alerts', []):

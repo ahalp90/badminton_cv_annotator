@@ -29,6 +29,8 @@ def test_memory_controls_keep_work_and_respect_core_limit() -> None:
     active = [{'pid': 101, 'paused': False, 'cpu_s': 30}]
     assert finish.controls(paused + active, 60, 20) == ([], [])
     assert finish.controls(paused + active, 100, 20) == ([], [100])
+    assert finish.controls(paused, 6.7, 16, emergency_floor=4) == ([], [100])
+    assert finish.controls(active, 3.9, 16, emergency_floor=4) == ([101], [])
 
 
 def test_worker_discovery_and_pause_preserve_a_live_child() -> None:
@@ -54,6 +56,22 @@ def test_worker_discovery_and_pause_preserve_a_live_child() -> None:
         os.kill(child.pid, signal.SIGCONT)
         child.terminate()
         child.wait(timeout=5)
+
+
+def test_temporary_recovery_restores_normal_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    alive, memory = iter((True, True, False)), iter((6.7, 32))
+    monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
+    monkeypatch.setattr(finish, 'available_memory_gib', lambda: next(memory))
+    monkeypatch.setattr(finish, 'worker_processes', lambda pid: [{'pid': 100, 'paused': True, 'cpu_s': 20}])
+    monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
+    monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
+    signals = []
+    monkeypatch.setattr(finish.os, 'kill', lambda pid, action: signals.append((pid, action)))
+    state = {}
+    finish.monitor(99, state, tmp_path / 'state.json', 16, emergency_floor=4)
+    assert state['initial_memory_recovery_complete']
+    assert state['memory_floor_gib'] == 10
+    assert signals == [(100, signal.SIGCONT), (100, signal.SIGCONT)]
 
 
 def test_baseline_gate_rejects_changed_contact_selection(tmp_path: Path) -> None:

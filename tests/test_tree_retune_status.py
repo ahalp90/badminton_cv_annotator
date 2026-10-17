@@ -183,7 +183,7 @@ def test_final_test_progress_and_seed_selection(tmp_path: Path, capsys: pytest.C
         'utc': 'now', 'phase': 'final test', 'elapsed_s': 10, 'batch_started_utc': 'before',
         'training': {'complete': 48, 'planned': 48}, 'validation': {'complete': 6, 'planned': 6},
         'repeats': repeats, 'final_test': final_test, 'workers': [], 'memory_available_kib': 1024**2,
-        'error': None, 'failure': None, 'unfinished_trials': [], 'queued_labels': [],
+        'error': None, 'failure': None, 'unfinished_trials': [], 'queued_labels': [], 'automation': {},
     })
     output = capsys.readouterr().out
     assert 'Selected configuration: chosen' in output
