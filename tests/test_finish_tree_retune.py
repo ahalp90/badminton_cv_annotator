@@ -76,10 +76,30 @@ def test_memory_controls_keep_work_and_respect_core_limit() -> None:
     assert finish.controls(paused, 16, 20) == ([], [100])
     assert finish.controls(paused, 9, 20) == ([], [])
     active = [{'pid': 101, 'paused': False, 'idle': False, 'cpu_s': 30}]
-    assert finish.controls(paused + active, 60, 20) == ([], [])
+    assert finish.controls(paused + active, 60, 20) == ([], [100])
     assert finish.controls(paused + active, 100, 20) == ([], [100])
     assert finish.controls(paused, 6.7, 16, emergency_floor=4) == ([], [100])
     assert finish.controls(active, 3.9, 16, emergency_floor=4) == ([101], [])
+
+
+@pytest.mark.parametrize(('available', 'resumed'), [(31.9, []), (32, [100]), (55.3, [100]), (64, [100])])
+def test_memory_guard_fills_available_slots_one_fit_at_a_time(available: float, resumed: list[int]) -> None:
+    workers = [
+        {'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 6000},
+        {'pid': 101, 'paused': True, 'idle': False, 'cpu_s': 5900},
+        {'pid': 200, 'paused': False, 'idle': False, 'cpu_s': 7000},
+    ]
+    assert finish.controls(workers, available, 14) == ([], resumed)
+
+
+@pytest.mark.parametrize(('available', 'resumed'), [(47.9, []), (48, [100]), (58.6, [100])])
+def test_memory_guard_allows_third_resident_fit(available: float, resumed: list[int]) -> None:
+    workers = [
+        {'pid': 100, 'paused': True, 'idle': False, 'cpu_s': 6000},
+        {'pid': 200, 'paused': False, 'idle': False, 'cpu_s': 7000},
+        {'pid': 201, 'paused': False, 'idle': False, 'cpu_s': 6900},
+    ]
+    assert finish.controls(workers, available, 14) == ([], resumed)
 
 
 def test_worker_discovery_and_pause_preserve_a_live_child() -> None:

@@ -62,13 +62,14 @@ def controls(workers: list[dict], available: float, maximum: int,
     active = sorted((row for row in workers if not row['paused'] and not row['idle']),
                     key=lambda row: row['cpu_s'], reverse=True)
     paused = sorted((row for row in workers if row['paused']), key=lambda row: row['cpu_s'], reverse=True)
-    target = min(maximum, 0 if available < emergency_floor else 1 if available < 64 else 4 if available < 96 else len(active))
+    target = min(maximum, 0 if available < emergency_floor else 1 if available < 32
+                 else 2 if available < 48 else 3 if available < 64 else 4 if available < 96 else maximum)
     stop = [row['pid'] for row in active[target:]]
     resume = []
     # Paused workers retain their allocations. Staggering their next allocations
     # lets the most advanced fits finish and release memory before others grow.
     restart_floor = 16 if emergency_floor == 10 else emergency_floor + 2
-    if paused and len(active) < maximum and (available > 96 or (not active and available >= restart_floor)):
+    if paused and len(active) < target and available >= restart_floor:
         resume = [paused[0]['pid']]
     return stop, resume
 
