@@ -175,3 +175,27 @@ python -m experiments.annotator.heuristic_only_tune.report \
   --selected "$results/selected.json.gz" \
   --output "$search_dir/selected_tables.json.gz"
 ```
+
+## Check additional inference context
+
+To change the context around known rallies while keeping the scoring windows
+fixed, prepare a separate input folder:
+
+```bash
+inputs=experiments/annotator/monotrack_benchmark/benchmark_results/inputs
+python -m experiments.annotator.heuristic_only_tune.padding \
+  --inputs "$inputs" --output "$search_dir/context_inputs" \
+  --before-seconds 2 --after-seconds 1
+```
+
+These are total margins before the first labelled contact and after the last.
+The helper preserves the fitted courts and their acceptance decisions. It extends
+their coverage with the inference windows, limiting added context at saved scene
+cuts and midpoints between neighbouring windows. It preserves the original
+windows even where a scene cut falls inside them. `padding.json.gz` records the
+requested margins and how much context was added.
+
+Point `paths.inputs` in a separate benchmark configuration at the new folder,
+then run the frozen heuristic as above. Score with the **original** input folder,
+or the new folder's `score_inputs`, which contains an unchanged copy of the
+original scoring manifest. The prepared root manifest is for inference only.
