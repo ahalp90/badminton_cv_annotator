@@ -185,10 +185,12 @@ fixed, prepare a separate input folder:
 inputs=experiments/annotator/monotrack_benchmark/benchmark_results/inputs
 python -m experiments.annotator.heuristic_only_tune.padding \
   --inputs "$inputs" --output "$search_dir/context_inputs" \
-  --before-seconds 2 --after-seconds 1
+  --before-seconds 2 --after-seconds 3
 ```
 
 These are total margins before the first labelled contact and after the last.
+The [completed comparison](KNOWN_RALLIES.md#main-comparison-dataset-clip-margins)
+uses these 2/3-second margins alongside the original 1/1-second baseline.
 The helper preserves the fitted courts and their acceptance decisions. It extends
 their coverage with the inference windows, limiting added context at saved scene
 cuts and midpoints between neighbouring windows. It preserves the original
