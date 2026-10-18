@@ -1,107 +1,167 @@
-# Tree refits across a frozen preprocessing grid
+# Tree retune over preprocessing settings
 
-The current run uses the automatic five-seed workflow below. The single-seed
-commands later in this document describe the underlying grid runner.
+**Result: the shipped settings stay.**
 
-## Automatic five-seed comparison
+- Tried: 48 combinations of preprocessing settings, mixing shipped values with
+  the tuned heuristic's values. The trees were retrained for each one.
+- Best on validation: `grid-017`.
+- On test: +0.13 points of correct-player F1. That's less than the spread
+  between seeds.
 
-[`finish_tree_retune.py`](../../../scripts/finish_tree_retune.py) supervises the
-existing first batch, checks its shipped baseline, finishes the grid and runs
-the repeat and final-test scripts. Future batches use 16 single-thread workers.
-The guard slows down below 96/64 GiB available and pauses all fits below the
-10 GiB emergency floor. Paused fits retain memory; an all-paused state below
-16 GiB requires intervention. No phase kills training at a runtime limit.
+Full numbers: [RESULTS.md](RESULTS.md).
 
-[`tree_retune_repeats.py`](../../../scripts/tree_retune_repeats.py) freezes the
-training top four plus shipped, then adds four seed settings to each original
-fit. Seed offsets are 0, 100, 200, 300 and 400 across all existing random seeds.
-Mean attributed F1 at ±10 frames on the original eight validation videos
-selects the configuration. Training has no weight after shortlisting.
-Mean correct-rally count and mean F1 at ±5 break ties; an exact tie favours shipped.
+## Files
 
-[`tree_retune_final_test.py`](../../../scripts/tree_retune_final_test.py) compares
-all five fits of the frozen winner and shipped configuration. It refits contact
-on the original 40 videos and preserves each seed's downstream models trained
-on 32. The fixed 46-video ShuttleSet22 cohort is read only after selection.
-Results retain per-video counts, seed means, spread and paired differences.
-No seed is chosen from its test score.
+| File | What it does |
+| --- | --- |
+| [run.py](run.py) | Fits the trees for each of the 48 settings on the 32 training videos |
+| [repeats.py](repeats.py) | Takes the top four settings plus shipped, fits four more seeds of each, scores all five seeds on validation and picks the winner |
+| [final_test.py](final_test.py) | Scores the winner and shipped on the 46 test videos, five seeds each |
+| [supervise.py](supervise.py) | Runs the phases one after another and pauses fits when memory runs low |
+| [status.py](status.py) | Shows how far a run has got |
+| [grid-48.json.gz](grid-48.json.gz) | The 48 settings |
+| [results/](results/) | Scores, predictions and the ten test models from the run |
 
-[`tree_retune_status.py`](../../../scripts/tree_retune_status.py) reports progress:
+Tests: `tests/test_tree_hp_tune*.py`.
 
-```bash
-python scripts/tree_retune_status.py --run-root /path/to/run
-```
+## What you need
 
-The run directory contains `grid48/`, `repeats/`, `final_test/`, `automation.json`
-and phase logs. Each repeat/final phase pins its inputs and skips completed
-results on resume. Do not launch a second coordinator while one is alive.
+- The full repository. The scripts read these files from outside this folder:
+  - labels: `training/data/shuttleset/annotations/shots_master.csv`
+  - training/validation split: `experiments/annotator/monotrack_benchmark/hitnet_retrain/shuttleset_development_split.json.gz`
+  - training groups: `scratch/contact_det_full_ds_fit/records/training_video_score_groups.json`
+  - test labels and video list: `experiments/annotator/monotrack_benchmark/benchmark_results/inputs/`
+- Prepared shuttle tracks, poses and court evidence for every video. These
+  aren't in the repository. The paths files point to them.
+- Python 3.12 and scikit-learn 1.9.1. The saved models only load with that
+  scikit-learn version.
+- About 17 GiB of RAM per fit. Each fit takes one to six hours.
 
-## Underlying grid runner
+## Set up a run
 
-This runner tests 48 preprocessing configurations with matched tree refits.
-Smoothing stays fixed at the shipped value of three frames at 30 fps.
-Every fit uses the original ShuttleSet 32 training videos. The eight original
-validation videos select among the training shortlist. Test data never enters
-the search.
+1. Make a run folder. The commands below call it `RUN`.
+2. Write `RUN/paths.toml` in the format of
+   [paths.example.toml](../heuristic_only_tune/paths.example.toml). Fill in
+   `shots_master`, `stages` and `development_courts`.
+3. Write a second paths file for the test, called `TEST_PATHS.toml` below. It
+   needs the same three entries plus `test_inputs`, `test_courts`,
+   `inpaint_root` and `pose_root`.
+4. Choose worker counts within these limits:
+   - RAM: workers × 17 GiB must fit.
+   - Cores: workers × threads at most 26 for `run.py`, 28 for the others.
+   - Workers: at most 20 for `repeats.py`, `final_test.py` and `supervise.py`.
 
-Each configuration keeps the existing tree hyperparameters, seeds, group
-membership, sampling order and fitting order. Its saved bundle includes the
-preprocessing configuration used to produce its training evidence. The
-original group record is tracked at
-[`training_video_score_groups.json`](../../../scratch/contact_det_full_ds_fit/records/training_video_score_groups.json).
+Run every command from the repository root.
 
-Supply a paths TOML using the existing
-[`paths.example.toml`](../heuristic_only_tune/paths.example.toml) format. This
-runner reads only `shots_master`, `stages` and `development_courts`. Relative
-paths resolve from the repository root. Run commands from that root with the
-project environment active.
-
-Start with the shipped configuration to measure a complete refit:
+## Run the phases
 
 ```bash
-python -m experiments.annotator.tree_hp_tune.run run \
-  --paths /path/to/paths.toml \
+# 1. Fit all 48 settings
+python -m experiments.annotator.tree_hp_tune.run \
+  --paths RUN/paths.toml \
   --candidates experiments/annotator/tree_hp_tune/grid-48.json.gz \
-  --output /path/to/output \
-  --workers 1 --threads 1 --hours 3 --only shipped
+  --output RUN/grid48 --workers 13 --threads 2 --hours inf
+
+# 2. Check the shipped fit against the published one
+python -c "from pathlib import Path; from experiments.annotator.tree_hp_tune import supervise; \
+print(supervise.verify_baseline(Path('RUN/grid48'), Path('experiments/annotator/tree_hp_tune/results/grid48/trials/a322221a4890572e9065814a2e4e3e0ad033ba679e9b60a46ed38d9b639d7cd6/training_streams')))"
+
+# 3. Refit the shortlist with more seeds and pick the winner
+python -m experiments.annotator.tree_hp_tune.repeats --run-root RUN --workers 14 --threads 2
+
+# 4. Score the winner and shipped on test
+python -m experiments.annotator.tree_hp_tune.final_test --run-root RUN --test-paths TEST_PATHS.toml --workers 10 --threads 2
+
+# Progress at any point
+python -m experiments.annotator.tree_hp_tune.status --run-root RUN
 ```
 
-Resume the same output directory with the whole frozen grid:
+Notes:
+
+- Step 2 must pass before `repeats.py` will start.
+- To time one fit first: add `--only shipped` to step 1.
+- To resume after a stop: rerun the same command. Finished work is skipped.
+- After changing code or inputs: start a new run folder.
+
+## Run unattended
+
+`supervise.py` runs every phase after the grid, one after another. The
+completed run used it.
+
+What it does about memory:
+
+- reserves room for each running fit's remaining memory growth
+- pauses the fits with the most growth left when there isn't enough room
+- resumes them as memory frees up
+
+To use it, start the grid in the background and pass the supervisor its
+process ID:
 
 ```bash
-python -m experiments.annotator.tree_hp_tune.run run \
-  --paths /path/to/paths.toml \
+python -m experiments.annotator.tree_hp_tune.run --paths RUN/paths.toml \
   --candidates experiments/annotator/tree_hp_tune/grid-48.json.gz \
-  --output /path/to/output \
-  --workers 16 --threads 1 --hours inf
+  --output RUN/grid48 --workers 16 --threads 1 --hours inf &
+python -m experiments.annotator.tree_hp_tune.supervise --run-root RUN --repository . \
+  --initial-pid $! \
+  --previous-streams experiments/annotator/tree_hp_tune/results/grid48/trials/a322221a4890572e9065814a2e4e3e0ad033ba679e9b60a46ed38d9b639d7cd6/training_streams \
+  --test-paths TEST_PATHS.toml --workers 14 --threads 2
 ```
 
-Workers run complete configurations in separate processes. Worker count times
-threads must be at most 26. Use one or two threads per worker according to the
-measured throughput. The hours limit stops new submissions; active refits may
-finish afterwards. Completed configurations are skipped on resume. The pilot
-still records all 48 planned configurations and cannot unlock validation.
+Output:
 
-The output snapshot pins the complete grid, source, package versions, original
-group record and input file records. Changed source, inputs or candidates
-require a fresh output directory. Sticky player evidence is cached within
-that directory and shared across configurations.
+- state: `RUN/automation.json`
+- logs: `RUN/<phase>.log`
 
-After all 48 configurations complete, validate the frozen shortlist:
+## Try different settings
 
-```bash
-python -m experiments.annotator.tree_hp_tune.run validate \
-  --paths /path/to/paths.toml \
-  --candidates experiments/annotator/tree_hp_tune/grid-48.json.gz \
-  --output /path/to/output \
-  --workers 6 --threads 1 --hours 3
-```
+1. Write a new grid file in the format of `grid-48.json.gz`. Each entry has a
+   label, setting overrides at 30 fps and strategy choices. One entry must be
+   labelled `shipped`.
+2. Update the hard-coded values:
+   - `repeats.py`: expects 48 fits and reads `grid-48.json.gz`
+   - `supervise.py`: expects at least 26 fits from the first batch
 
-The shortlist contains the top five training results plus the shipped
-configuration if needed. Ranking uses player-attributed contact F1 at ten
-frames, then fully correct rallies at ten frames, then player-attributed F1
-at five frames. Those matching tolerances are defined at 30 fps and scaled to
-each video's frame rate. Counts are pooled across videos before rates are calculated.
-The same ranking selects the validation winner. Validation uses one numerical
-thread per worker. Streams, per-video counts, pooled scores and timings remain
-in the output directory. No new configurations are added after validation.
+## What's in results/
+
+A trimmed copy of the run folder, with the same layout.
+
+Path labels inside the records:
+
+- `<run>`: the run folder
+- `<stages>`, `<development_courts>`, `<test_inputs>`, `<test_courts>`,
+  `<inpaint_root>`, `<pose_root>`: the matching paths-file entries
+- anything else: relative to the repository root
+
+| Path | Contents |
+| --- | --- |
+| `grid48/snapshot.json.gz` | Code revision, package versions, code MD5s, and input file paths, sizes and timestamps |
+| `grid48/training.json.gz` | Training scores for all 48 settings, best first |
+| `grid48/trials/<id>/result.json.gz` | One setting's training counts per video, fit details, run time and peak memory |
+| `grid48/baseline-parity.json.gz` | Result of the step 2 check |
+| `grid48/trials/a322…/training_streams/` | Shipped training predictions, used by step 2 |
+| `grid48/trials/<id>/validation*` | Seed 0 validation scores and predictions for the shortlist |
+| `repeats/seed-<offset>/trials/<id>/` | The other four seeds: training scores, seed settings, validation scores and predictions |
+| `repeats/plan.json.gz`, `summary.json.gz`, `selected.json.gz` | Frozen shortlist and seeds, five-seed results, and the winner |
+| `final_test/plan.json.gz`, `summary.json.gz` | Test plan, and every seed's test totals with paired differences |
+| `final_test/trials/<id>/seed-<offset>/` | Test scores, test predictions, contact refit record and the model |
+
+Setting IDs:
+
+- `grid-017`: `a521305d…`
+- shipped: `a322221a…`
+
+Load a test model: `annotator.models.load_models(<trial>/bundle_final40)`.
+
+Not included:
+
+- the 64 models fitted during selection
+- most training predictions
+- cached player evidence
+
+Use the commands above to recreate them.
+
+Code version:
+
+- The run used commit `2dda36ff`.
+- Since then the scripts moved here from `scripts/` with updated imports, and
+  an unused validation shortcut was removed from `run.py`.
