@@ -241,18 +241,18 @@ def main() -> None:
         grid_entry = f'from experiments.annotator.tree_hp_tune import run; run.MAX_CORES = {CPU_BUDGET}; run.main()'
         commands = [
             ('remaining_grid', [
-                sys.executable, '-c', grid_entry, 'run',
+                sys.executable, '-c', grid_entry,
                 '--paths', str(root / 'paths.toml'),
                 '--candidates', str(args.repository / 'experiments/annotator/tree_hp_tune/grid-48.json.gz'),
                 '--output', str(output), '--workers', str(args.workers), '--threads', str(args.threads), '--hours', 'inf',
             ]),
             ('seed_repeats', [
-                sys.executable, str(args.repository / 'scripts/tree_retune_repeats.py'),
+                sys.executable, str(args.repository / 'experiments/annotator/tree_hp_tune/repeats.py'),
                 '--run-root', str(root), '--repository', str(args.repository), '--workers', str(args.workers),
                 '--threads', str(args.threads),
             ]),
             ('final_test', [
-                sys.executable, str(args.repository / 'scripts/tree_retune_final_test.py'),
+                sys.executable, str(args.repository / 'experiments/annotator/tree_hp_tune/final_test.py'),
                 '--run-root', str(root), '--test-paths', str(args.test_paths), '--workers', str(args.workers),
                 '--threads', str(args.threads),
             ]),

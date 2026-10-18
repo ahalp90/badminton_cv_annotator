@@ -13,12 +13,12 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-REPOSITORY = Path(__file__).resolve().parents[1]
+REPOSITORY = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
 from experiments.annotator.tree_hp_tune import run as grid
-from scripts.finish_tree_retune import CPU_BUDGET
+from experiments.annotator.tree_hp_tune.supervise import CPU_BUDGET
 
 SEED_OFFSETS = (0, 100, 200, 300, 400)
 SCHEMA = 'tree-retune-repeats-v1'

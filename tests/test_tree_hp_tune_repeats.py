@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import tree_retune_repeats as repeats
+from experiments.annotator.tree_hp_tune import repeats
 
 
 def result(identity: str, score: float, label: str = 'candidate') -> dict:

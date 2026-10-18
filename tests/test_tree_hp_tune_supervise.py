@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts import finish_tree_retune as finish
+from experiments.annotator.tree_hp_tune import supervise
 
 
 def test_all_future_phases_receive_14_workers_and_two_threads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -32,16 +32,16 @@ def test_all_future_phases_receive_14_workers_and_two_threads(tmp_path: Path, mo
         '--initial-pid', '99', '--previous-streams', str(tmp_path / 'previous'),
         '--test-paths', str(tmp_path / 'test.toml'), '--workers', '14', '--threads', '2',
     ])
-    monkeypatch.setattr(finish, 'monitor', lambda *_args, **_kwargs: 0)
-    monkeypatch.setattr(finish, 'verify_baseline', lambda *_args: {'different_selections': []})
+    monkeypatch.setattr(supervise, 'monitor', lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(supervise, 'verify_baseline', lambda *_args: {'different_selections': []})
     commands = []
 
     def launch(command: list[str], *, env: dict[str, str], **_kwargs: object) -> SimpleNamespace:
         commands.append((command, env))
         return SimpleNamespace(pid=100 + len(commands))
 
-    monkeypatch.setattr(finish.subprocess, 'Popen', launch)
-    finish.main()
+    monkeypatch.setattr(supervise.subprocess, 'Popen', launch)
+    supervise.main()
     assert len(commands) == 3
     for command, environment in commands:
         assert command[command.index('--workers') + 1] == '14'
@@ -59,16 +59,16 @@ def test_future_phases_reject_more_than_28_cores(tmp_path: Path, monkeypatch: py
         '--test-paths', str(tmp_path / 'test.toml'), '--workers', '15', '--threads', '2',
     ])
     with pytest.raises(SystemExit) as error:
-        finish.main()
+        supervise.main()
     assert error.value.code == 2 and not (tmp_path / 'automation.json').exists()
 
 
 def test_memory_controls_respect_the_core_limit() -> None:
     workers = [{'pid': index + 100, 'paused': False, 'idle': False,
                 'rss_kib': 14 * 1048576, 'cpu_s': index} for index in range(26)]
-    stop, resume = finish.controls(workers, 300, 20)
+    stop, resume = supervise.controls(workers, 300, 20)
     assert len(stop) == 6 and not resume
-    assert finish.controls(workers, 8, 28) == ([row['pid'] for row in workers], [])
+    assert supervise.controls(workers, 8, 28) == ([row['pid'] for row in workers], [])
 
 
 @pytest.mark.parametrize('available', [70.6, 95.9, 96.1])
@@ -79,16 +79,16 @@ def test_resident_fits_resume_without_fixed_memory_tiers(available: float) -> No
         for index in range(20)
     ]
     for _ in range(16):
-        stop, resume = finish.controls(workers, available, 28)
+        stop, resume = supervise.controls(workers, available, 28)
         assert not stop and len(resume) == 1
         workers[resume[0]]['paused'] = False
-    assert finish.controls(workers, available, 28) == ([], [])
+    assert supervise.controls(workers, available, 28) == ([], [])
 
 
 def test_fresh_fit_waits_for_its_growth_and_host_reserve() -> None:
     workers = [{'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 0.2 * 1048576, 'cpu_s': 1}]
-    assert finish.controls(workers, 33.2, 14) == ([], [])
-    assert finish.controls(workers, 33.4, 14) == ([], [100])
+    assert supervise.controls(workers, 33.2, 14) == ([], [])
+    assert supervise.controls(workers, 33.4, 14) == ([], [100])
 
 
 def test_memory_pressure_pauses_growth_but_keeps_near_peak_fit_running() -> None:
@@ -96,8 +96,8 @@ def test_memory_pressure_pauses_growth_but_keeps_near_peak_fit_running() -> None
         {'pid': 100, 'paused': False, 'idle': False, 'rss_kib': 13.5 * 1048576, 'cpu_s': 6000},
         {'pid': 101, 'paused': False, 'idle': False, 'rss_kib': 17 * 1048576, 'cpu_s': 6000},
     ]
-    assert finish.controls(workers, 12, 28) == ([100], [])
-    assert finish.controls(workers, 8, 28) == ([100], [])
+    assert supervise.controls(workers, 12, 28) == ([100], [])
+    assert supervise.controls(workers, 8, 28) == ([100], [])
 
 
 def test_larger_observed_fit_raises_the_growth_budget() -> None:
@@ -105,8 +105,8 @@ def test_larger_observed_fit_raises_the_growth_budget() -> None:
         {'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 6000},
         {'pid': 101, 'paused': False, 'idle': False, 'rss_kib': 23 * 1048576, 'cpu_s': 6000},
     ]
-    assert finish.controls(workers, 25, 14) == ([], [])
-    assert finish.controls(workers, 26, 14) == ([], [100])
+    assert supervise.controls(workers, 25, 14) == ([], [])
+    assert supervise.controls(workers, 26, 14) == ([], [100])
 
 
 def test_monitor_retains_larger_peak_after_that_fit_exits(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,15 +114,15 @@ def test_monitor_retains_larger_peak_after_that_fit_exits(tmp_path: Path, monkey
     large = {'pid': 101, 'paused': False, 'idle': False, 'rss_kib': 23 * 1048576, 'cpu_s': 6000}
     waiting = {'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 6000}
     snapshots = iter(([large, waiting], [waiting]))
-    monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
-    monkeypatch.setattr(finish, 'worker_processes', lambda pid: next(snapshots))
-    monkeypatch.setattr(finish, 'available_memory_gib', lambda: 25)
-    monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
-    monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
+    monkeypatch.setattr(supervise, 'process_alive', lambda pid: next(alive))
+    monkeypatch.setattr(supervise, 'worker_processes', lambda pid: next(snapshots))
+    monkeypatch.setattr(supervise, 'available_memory_gib', lambda: 25)
+    monkeypatch.setattr(supervise, 'process_identity', lambda pid: None)
+    monkeypatch.setattr(supervise.time, 'sleep', lambda seconds: None)
     signals = []
-    monkeypatch.setattr(finish.os, 'kill', lambda pid, action: signals.append((pid, action)))
+    monkeypatch.setattr(supervise.os, 'kill', lambda pid, action: signals.append((pid, action)))
     state = {}
-    finish.monitor(99, state, tmp_path / 'state.json', 14)
+    supervise.monitor(99, state, tmp_path / 'state.json', 14)
     assert not signals and state['fit_peak_budget_gib'] == 23.5
 
 
@@ -133,16 +133,16 @@ def test_worker_discovery_and_pause_preserve_a_live_child() -> None:
     )
     try:
         assert child.stdout.readline() == 'ready\n'
-        workers = finish.worker_processes(os.getpid())
+        workers = supervise.worker_processes(os.getpid())
         assert child.pid in {row['pid'] for row in workers}
         os.kill(child.pid, signal.SIGSTOP)
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
-            row = next(row for row in finish.worker_processes(os.getpid()) if row['pid'] == child.pid)
+            row = next(row for row in supervise.worker_processes(os.getpid()) if row['pid'] == child.pid)
             if row['paused']:
                 break
             time.sleep(0.01)
-        assert row['paused'] and finish.process_alive(child.pid)
+        assert row['paused'] and supervise.process_alive(child.pid)
         os.kill(child.pid, signal.SIGCONT)
         assert child.poll() is None
     finally:
@@ -158,9 +158,9 @@ def test_memory_controls_advance_fit_beside_idle_pool_worker(floor: float, avail
         {'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': cpu_s},
         {'pid': 200, 'paused': False, 'idle': True, 'rss_kib': 0.2 * 1048576, 'cpu_s': 1},
     ]
-    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [100])
+    assert supervise.controls(workers, available, 16, emergency_floor=floor) == ([], [100])
     workers[0]['paused'] = False
-    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [])
+    assert supervise.controls(workers, available, 16, emergency_floor=floor) == ([], [])
 
 
 @pytest.mark.parametrize(('floor', 'available'), [(4, 5.9), (10, 15.9)])
@@ -169,7 +169,7 @@ def test_memory_controls_wait_for_recovery_before_replacing_worker(floor: float,
         {'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 6000},
         {'pid': 200, 'paused': False, 'idle': True, 'rss_kib': 0.2 * 1048576, 'cpu_s': 1},
     ]
-    assert finish.controls(workers, available, 16, emergency_floor=floor) == ([], [])
+    assert supervise.controls(workers, available, 16, emergency_floor=floor) == ([], [])
 
 
 def test_worker_discovery_identifies_idle_task_pipe() -> None:
@@ -184,12 +184,12 @@ def test_worker_discovery_identifies_idle_task_pipe() -> None:
         assert child.stdout.readline() == 'ready\n'
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline:
-            row = next(row for row in finish.worker_processes(os.getpid()) if row['pid'] == child.pid)
+            row = next(row for row in supervise.worker_processes(os.getpid()) if row['pid'] == child.pid)
             if row['idle']:
                 break
             time.sleep(0.01)
         assert row['idle'] and not row['paused']
-        assert finish.controls([row], 8, 16) == ([], [])
+        assert supervise.controls([row], 8, 16) == ([], [])
         os.write(writer, b'x')
         assert child.wait(timeout=5) == 0
     finally:
@@ -202,16 +202,16 @@ def test_worker_discovery_identifies_idle_task_pipe() -> None:
 
 def test_temporary_recovery_restores_normal_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     alive, memory = iter((True, True, False)), iter((9.5, 32))
-    monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
-    monkeypatch.setattr(finish, 'available_memory_gib', lambda: next(memory))
-    monkeypatch.setattr(finish, 'worker_processes',
+    monkeypatch.setattr(supervise, 'process_alive', lambda pid: next(alive))
+    monkeypatch.setattr(supervise, 'available_memory_gib', lambda: next(memory))
+    monkeypatch.setattr(supervise, 'worker_processes',
                         lambda pid: [{'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 20}])
-    monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
-    monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
+    monkeypatch.setattr(supervise, 'process_identity', lambda pid: None)
+    monkeypatch.setattr(supervise.time, 'sleep', lambda seconds: None)
     signals = []
-    monkeypatch.setattr(finish.os, 'kill', lambda pid, action: signals.append((pid, action)))
+    monkeypatch.setattr(supervise.os, 'kill', lambda pid, action: signals.append((pid, action)))
     state = {}
-    finish.monitor(99, state, tmp_path / 'state.json', 16, emergency_floor=4)
+    supervise.monitor(99, state, tmp_path / 'state.json', 16, emergency_floor=4)
     assert state['initial_memory_recovery_complete']
     assert state['memory_floor_gib'] == 10
     assert signals == [(100, signal.SIGCONT), (100, signal.SIGCONT)]
@@ -225,13 +225,13 @@ def test_replacement_pool_workers_do_not_block_paused_fits() -> None:
         finished_pids = {future.result(timeout=10) for future in futures}
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            workers = finish.worker_processes(os.getpid())
+            workers = supervise.worker_processes(os.getpid())
             if len(workers) == 2 and all(row['idle'] and row['pid'] not in finished_pids for row in workers):
                 break
             time.sleep(0.01)
         assert len(workers) == 2 and all(row['idle'] for row in workers)
         paused_fit = {'pid': 99999999, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 6000}
-        assert finish.controls(workers + [paused_fit], 22, 16) == ([], [paused_fit['pid']])
+        assert supervise.controls(workers + [paused_fit], 22, 16) == ([], [paused_fit['pid']])
 
 
 def test_monitor_reports_stalled_fits_beside_idle_worker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -240,13 +240,13 @@ def test_monitor_reports_stalled_fits_beside_idle_worker(tmp_path: Path, monkeyp
         {'pid': 100, 'paused': True, 'idle': False, 'rss_kib': 14 * 1048576, 'cpu_s': 6000},
         {'pid': 200, 'paused': False, 'idle': True, 'rss_kib': 0.2 * 1048576, 'cpu_s': 1},
     ]
-    monkeypatch.setattr(finish, 'process_alive', lambda pid: next(alive))
-    monkeypatch.setattr(finish, 'available_memory_gib', lambda: 15)
-    monkeypatch.setattr(finish, 'worker_processes', lambda pid: workers)
-    monkeypatch.setattr(finish, 'process_identity', lambda pid: None)
-    monkeypatch.setattr(finish.time, 'sleep', lambda seconds: None)
+    monkeypatch.setattr(supervise, 'process_alive', lambda pid: next(alive))
+    monkeypatch.setattr(supervise, 'available_memory_gib', lambda: 15)
+    monkeypatch.setattr(supervise, 'worker_processes', lambda pid: workers)
+    monkeypatch.setattr(supervise, 'process_identity', lambda pid: None)
+    monkeypatch.setattr(supervise.time, 'sleep', lambda seconds: None)
     state = {}
-    finish.monitor(99, state, tmp_path / 'state.json', 16)
+    supervise.monitor(99, state, tmp_path / 'state.json', 16)
     assert state['memory_stalled'] and state['idle_workers'] == [200]
 
 
@@ -263,8 +263,8 @@ def test_baseline_gate_rejects_changed_contact_selection(tmp_path: Path) -> None
         for directory in (previous, trial / 'training_streams'):
             with gzip.open(directory / f'{identity}.json.gz', 'wt') as stream:
                 json.dump(payload, stream)
-    assert finish.verify_baseline(output, previous)['exact_streams'] == 32
+    assert supervise.verify_baseline(output, previous)['exact_streams'] == 32
     with gzip.open(trial / 'training_streams' / f'{identities[0]}.json.gz', 'wt') as stream:
         json.dump({'events': [[11, 0.9, 'Top']], 'sequences': []}, stream)
     with pytest.raises(ValueError, match='baseline selections differ'):
-        finish.verify_baseline(output, previous)
+        supervise.verify_baseline(output, previous)

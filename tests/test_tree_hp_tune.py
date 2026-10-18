@@ -62,12 +62,7 @@ def test_pool_counts_before_rates() -> None:
     assert pooled['5']['labelled_contacts'] == 30
 
 
-def test_shortlist_requires_whole_grid_and_keeps_baseline() -> None:
-    rows = [result(str(index), index / 10) for index in range(1, 7)]
-    rows.append(result('baseline', 0, 'shipped'))
-    with pytest.raises(ValueError, match='complete original grid'):
-        grid.shortlist(rows[:1], 7)
-    assert grid.shortlist(rows, 7) == ['6', '5', '4', '3', '2', 'baseline']
+def test_rank_breaks_f1_ties_on_correct_rallies() -> None:
     assert grid.rank_key(result('a', 0.4, correct=4)) > grid.rank_key(result('b', 0.4, correct=3))
 
 
@@ -88,8 +83,6 @@ def test_resume_keeps_full_grid_and_rejects_snapshot_changes(tmp_path: Path) -> 
     grid.write_json(tmp_path / 'trials' / baseline_id / 'result.json.gz', result(baseline_id, 0.5, 'shipped'))
     completed = grid.completed(tmp_path, specs, 'result.json.gz')
     assert len(completed) == 1
-    with pytest.raises(ValueError, match='complete original grid'):
-        grid.shortlist(completed, len(specs))
     snapshot_path = tmp_path / 'snapshot.json.gz'
     snapshot = {'source': {'revision': 'one', 'files_md5': {'code': 'abc'}}, 'candidates': ['both']}
     grid.keep_run_identity(snapshot_path, snapshot)

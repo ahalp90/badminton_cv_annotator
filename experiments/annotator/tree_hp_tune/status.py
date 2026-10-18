@@ -215,13 +215,9 @@ def collect_status(run_root: Path) -> dict[str, Any]:
             validation_complete.append(identity)
     repeat_plan_path = run_root / 'repeats/plan.json.gz'
     repeat_plan = read_object(repeat_plan_path) if repeat_plan_path.exists() else None
-    shortlist_path = output / 'shortlist.json.gz'
-    if repeat_plan is not None:
-        shortlist = [candidate['id'] for candidate in repeat_plan['candidates']]
-    else:
-        shortlist = read_object(shortlist_path)['ids'] if shortlist_path.exists() else []
+    shortlist = [candidate['id'] for candidate in repeat_plan['candidates']] if repeat_plan is not None else []
     if len(shortlist) != len(set(shortlist)) or not set(shortlist).issubset(labels):
-        raise ValueError(f'{shortlist_path}: shortlist IDs differ from the frozen grid')
+        raise ValueError(f'{repeat_plan_path}: shortlist IDs differ from the frozen grid')
     if not set(validation_complete).issubset(shortlist):
         raise ValueError('validation results exist outside the frozen shortlist')
     if len(completed) == len(labels):

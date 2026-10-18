@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts import tree_retune_final_test as final
+from experiments.annotator.tree_hp_tune import final_test as final
 
 
 def test_selection_gate_precedes_any_test_reads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

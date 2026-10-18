@@ -1,4 +1,4 @@
-"""Refit a frozen preprocessing grid on original ShuttleSet, then validate its shortlist."""
+"""Refit a frozen preprocessing grid on original ShuttleSet and score fitted bundles on validation."""
 
 from __future__ import annotations
 
@@ -115,17 +115,6 @@ def pooled_scores(per_video: dict[str, Any]) -> dict[str, Any]:
 def rank_key(result: dict[str, Any]) -> tuple[float, float, float]:
     totals = result['totals']
     return (totals['10']['attributed_f1'], totals['10']['fully_correct_rallies'], totals['5']['attributed_f1'])
-
-
-def shortlist(results: list[dict[str, Any]], planned: int) -> list[str]:
-    if len(results) != planned:
-        raise ValueError('validation requires the complete original grid')
-    ordered = sorted(results, key=rank_key, reverse=True)
-    chosen = [row['id'] for row in ordered[:5]]
-    baseline = next(row for row in results if row['label'] == 'shipped')
-    if baseline['id'] not in chosen:
-        chosen.append(baseline['id'])
-    return chosen
 
 
 def progress(root: Path, stage: str, started: float, **details: Any) -> None:
@@ -264,13 +253,10 @@ def completed(output: Path, specs: list[CandidateSpec], filename: str) -> list[d
     return sorted(results, key=rank_key, reverse=True)
 
 
-def run_jobs(action: str, specs: list[CandidateSpec], paths: dict[str, Path], args: argparse.Namespace) -> None:
-    filename = 'result.json.gz' if action == 'run' else 'validation.json.gz'
-    done = {row['id'] for row in completed(args.output, specs, filename)}
+def run_jobs(specs: list[CandidateSpec], paths: dict[str, Path], args: argparse.Namespace) -> None:
+    done = {row['id'] for row in completed(args.output, specs, 'result.json.gz')}
     pending = iter(spec for spec in specs if candidate_id(spec) not in done)
     deadline = time.monotonic() + args.hours * 3600
-    function = fit_trial if action == 'run' else validate_trial
-    threads = args.threads if action == 'run' else 1
     with ProcessPoolExecutor(
         max_workers=args.workers, mp_context=multiprocessing.get_context('spawn'), max_tasks_per_child=1,
     ) as executor:
@@ -280,7 +266,7 @@ def run_jobs(action: str, specs: list[CandidateSpec], paths: dict[str, Path], ar
                 spec = next(pending, None)
                 if spec is None:
                     break
-                future = executor.submit(function, spec, paths, args.output, threads)
+                future = executor.submit(fit_trial, spec, paths, args.output, args.threads)
                 active[future] = spec
             if not active:
                 break
@@ -291,7 +277,7 @@ def run_jobs(action: str, specs: list[CandidateSpec], paths: dict[str, Path], ar
                     future.result()
                 except BaseException:
                     write_json(args.output / 'failure.json.gz', {
-                        'id': candidate_id(spec), 'action': action, 'traceback': traceback.format_exc(),
+                        'id': candidate_id(spec), 'action': 'run', 'traceback': traceback.format_exc(),
                     })
                     for unfinished in active:
                         unfinished.cancel()
@@ -300,7 +286,6 @@ def run_jobs(action: str, specs: list[CandidateSpec], paths: dict[str, Path], ar
 
 def argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('run', 'validate'))
     parser.add_argument('--paths', type=Path, required=True)
     parser.add_argument('--candidates', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -318,8 +303,6 @@ def main() -> None:
         parser.error('workers and threads must be positive and their product at most 26')
     if args.hours <= 0:
         parser.error('hours must be positive')
-    if args.action == 'validate' and args.only:
-        parser.error('--only applies to training pilots')
     paths = load_paths(args.paths)
     document, specs = load_candidates(args.candidates)
     if len({spec.label for spec in specs}) != len(specs) or sum(spec.label == 'shipped' for spec in specs) != 1:
@@ -334,33 +317,16 @@ def main() -> None:
     files['training_groups'] = GROUPS_FILE
     snapshot = {'source': source, 'inputs': file_manifest(files), 'candidates': document}
     snapshot_path = args.output / 'snapshot.json.gz'
-    if args.action == 'validate' and not snapshot_path.exists():
-        raise FileNotFoundError('validation needs an existing training snapshot')
     args.output.mkdir(parents=True, exist_ok=True)
     keep_run_identity(snapshot_path, snapshot)
-    if args.action == 'run':
-        chosen = [spec for spec in specs if args.only is None or spec.label == args.only]
-        if not chosen:
-            raise ValueError(f'unknown pilot label: {args.only}')
-        run_jobs('run', chosen, paths, args)
-        results = completed(args.output, specs, 'result.json.gz')
-        summary = {'planned': len(specs), 'complete': len(results), 'results': results}
-        write_json(args.output / 'training.json.gz', summary)
-        print(json.dumps({'planned': len(specs), 'complete': len(results)}), flush=True)
-    else:
-        training = completed(args.output, specs, 'result.json.gz')
-        selected = shortlist(training, len(specs))
-        selection_path = args.output / 'shortlist.json.gz'
-        frozen = {'ids': selected, 'training_complete': len(training), 'planned': len(specs)}
-        if selection_path.exists() and read_json(selection_path) != frozen:
-            raise ValueError('frozen validation shortlist differs')
-        write_json(selection_path, frozen)
-        run_jobs('validate', [spec for spec in specs if candidate_id(spec) in selected], paths, args)
-        results = completed(args.output, [spec for spec in specs if candidate_id(spec) in selected], 'validation.json.gz')
-        write_json(args.output / 'validation.json.gz', {'planned': len(selected), 'complete': len(results), 'results': results})
-        if len(results) == len(selected):
-            write_json(args.output / 'selected.json.gz', results[0])
-        print(json.dumps({'planned': len(selected), 'complete': len(results)}), flush=True)
+    chosen = [spec for spec in specs if args.only is None or spec.label == args.only]
+    if not chosen:
+        raise ValueError(f'unknown pilot label: {args.only}')
+    run_jobs(chosen, paths, args)
+    results = completed(args.output, specs, 'result.json.gz')
+    summary = {'planned': len(specs), 'complete': len(results), 'results': results}
+    write_json(args.output / 'training.json.gz', summary)
+    print(json.dumps({'planned': len(specs), 'complete': len(results)}), flush=True)
 
 
 if __name__ == '__main__':

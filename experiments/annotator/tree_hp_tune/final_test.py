@@ -13,11 +13,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-REPOSITORY = Path(__file__).resolve().parents[1]
+REPOSITORY = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
-from scripts import tree_retune_repeats as repeats
+from experiments.annotator.tree_hp_tune import repeats
 
 # isort: split
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import tree_retune_status as status
+from experiments.annotator.tree_hp_tune import status
 
 
 def write_json(path: Path, payload: object) -> None:
@@ -75,7 +75,7 @@ def test_validation_completion_and_malformed_result_fail_loudly(tmp_path: Path, 
     identity = status.candidate_identity(row)
     output = tmp_path / 'grid48'
     write_json(output / 'snapshot.json.gz', {'candidates': {'candidates': [row]}})
-    write_json(output / 'shortlist.json.gz', {'ids': [identity]})
+    write_json(tmp_path / 'repeats/plan.json.gz', {'candidates': [{'id': identity, 'label': row['label']}], 'seed_offsets': [0]})
     write_json(tmp_path / 'automation.json', {'phase': 'validation', 'initial_training_success': True})
     (tmp_path / 'batch1.exit').write_text('137\n')
     trial = output / 'trials' / identity
@@ -86,7 +86,7 @@ def test_validation_completion_and_malformed_result_fail_loudly(tmp_path: Path, 
     assert report['phase'] == 'validation'
     assert report['unfinished_trials'][0]['stage'] == 'validation'
     write_json(trial / 'validation.json.gz', result(row, 8))
-    assert status.collect_status(tmp_path)['complete']
+    assert status.collect_status(tmp_path)['validation'] == {'complete': 1, 'planned': 1}
     write_json(trial / 'result.json.gz', {'id': identity, 'label': row['label']})
     with pytest.raises(ValueError, match='32 videos'):
         status.collect_status(tmp_path)
