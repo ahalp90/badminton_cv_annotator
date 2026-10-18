@@ -19,8 +19,9 @@ Full numbers: [RESULTS.md](RESULTS.md).
 | [final_test.py](final_test.py) | Scores the winner and shipped on the 46 test videos, five seeds each |
 | [supervise.py](supervise.py) | Runs the phases one after another and pauses fits when memory runs low |
 | [status.py](status.py) | Shows how far a run has got |
+| [test_rerun.py](test_rerun.py) | Scores the saved 32-video and 40-video models on test under three rally and court conditions |
 | [grid-48.json.gz](grid-48.json.gz) | The 48 settings |
-| [results/](results/) | Scores, predictions and the ten test models from the run |
+| [results/](results/) | Scores, predictions and the saved models from the run |
 
 Tests: `tests/test_tree_hp_tune*.py`.
 
@@ -178,6 +179,8 @@ Path labels inside the records:
 | `final_test/plan.json.gz`, `summary.json.gz` | Test plan, and every seed's test totals with paired differences |
 | `grid48/trials/<id>/bundle_v32/`, `repeats/seed-<offset>/trials/<id>/bundle_v32/` | 32-video models for grid-017 and shipped, used for validation |
 | `final_test/trials/<id>/seed-<offset>/` | Test scores, test predictions, contact refit record and the model |
+| `test_rerun/<condition>/<stage>/<label>/seed-<offset>/` | Test scores and predictions from `test_rerun.py`. Condition is A, B or C; stage is `v32` or `final40` |
+| `test_rerun/summary.json.gz` | Five-seed mean, min and max per condition, plus the production check |
 
 Setting IDs:
 

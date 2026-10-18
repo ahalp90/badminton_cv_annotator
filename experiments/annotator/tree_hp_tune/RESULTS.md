@@ -12,6 +12,8 @@ grid-017, the best on validation, against shipped on the 46 test videos:
 
 Shipped seed 0 matches the production model's test result exactly: 40,246 predicted contacts, 34,200 matched, 33,156 with the right player and 1,744 fully correct rallies.
 
+Training the contact tree on all 40 videos instead of 32 raised fully correct rallies on test by 0.7–0.8 points with discovered rallies and 1.5–1.7 points with known rallies. Details: [32-video and 40-video contact trees](#32-video-and-40-video-contact-trees-on-test).
+
 ## Test results
 
 Test set: 46 ShuttleSet22 videos, 3,327 labelled rallies, 37,184 labelled contacts.
@@ -140,6 +142,100 @@ Values are percentages. Win/tie counts use unrounded values.
 | 55 | 85.56 | 85.45 | 83.66 | 83.78 | 57.25 | 58.82 |
 | 57 | 90.04 | 90.26 | 88.73 | 88.76 | 61.59 | 63.81 |
 
+## 32-video and 40-video contact trees on test
+
+**The contact tree trained on all 40 videos did better on test than the 32-video one.** Fully correct rallies gained most. grid-017 still didn't beat shipped.
+
+At ±10, 40-video tree minus 32-video tree:
+
+- discovered rallies (A): +0.7 to +0.8 points of fully correct rallies, +0.1 to +0.2 points of correct-player F1
+- known rallies (B and C): +1.5 to +1.7 points of fully correct rallies, +0.15 to +0.19 points of correct-player F1
+- every seed improved on all three scores under B and C; under A, a few seeds dropped slightly
+
+At ±10, grid-017 minus shipped on correct-player F1:
+
+- discovered rallies: +0.07 points with the 32-video tree, +0.13 with the 40-video tree
+- known rallies: −0.11 and −0.07 points
+- every seed range includes zero
+
+What differs between the two models:
+
+- 32-video models: the ones scored on validation
+- 40-video models: the test models in the tables above
+- only the contact tree changes; both use the same 32-video sequence, serve and confidence models and the same seed offsets
+
+Conditions:
+
+- A: the annotator finds the rallies itself, using scene courts from fast-robust mode. This is the setup of the test results above.
+- B: labelled rallies, padded by 1 second at each end, with video-robust courts.
+- C: as B, with MonoTrack's courts.
+
+B and C are the `ours_our_courts` and `ours_mono_courts` conditions of the [MonoTrack benchmark](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup.md). They drop predictions outside the padded windows and judge each rally inside its window. Their scores run higher than A's for that reason, so A can't be compared with B or C directly.
+
+Check: under B and C, shipped seed 0 with the 40-video tree matched the benchmark's production scores exactly.
+
+Table format as above: 46 test videos, 3,327 labelled rallies, five seeds per row. Records: `results/test_rerun/`.
+
+### Scores at ±10
+
+| Condition | Configuration | Contact tree | Contact F1 | Correct-player F1 | Fully correct rallies |
+| --- | --- | --- | ---: | ---: | ---: |
+| A: discovered rallies | Shipped | 32 videos | 88.30 (88.22–88.38) | 85.37 (85.08–85.52) | 51.39 (50.74–52.06) |
+| A: discovered rallies | Shipped | 40 videos | 88.33 (88.27–88.41) | 85.48 (85.35–85.67) | 52.16 (51.73–52.42) |
+| A: discovered rallies | grid-017 | 32 videos | 88.23 (88.21–88.24) | 85.44 (85.29–85.59) | 51.02 (50.44–51.37) |
+| A: discovered rallies | grid-017 | 40 videos | 88.28 (88.23–88.31) | 85.61 (85.45–85.83) | 51.72 (50.89–52.15) |
+| B: known rallies, video-robust courts | Shipped | 32 videos | 96.59 (96.52–96.69) | 94.21 (94.08–94.31) | 59.96 (58.88–60.93) |
+| B: known rallies, video-robust courts | Shipped | 40 videos | 96.72 (96.68–96.77) | 94.37 (94.28–94.48) | 61.50 (60.99–62.07) |
+| B: known rallies, video-robust courts | grid-017 | 32 videos | 96.56 (96.52–96.61) | 94.10 (93.98–94.29) | 59.72 (59.60–59.93) |
+| B: known rallies, video-robust courts | grid-017 | 40 videos | 96.71 (96.65–96.77) | 94.29 (94.21–94.44) | 61.40 (60.93–61.71) |
+| C: known rallies, MonoTrack courts | Shipped | 32 videos | 96.53 (96.46–96.63) | 94.14 (94.01–94.24) | 59.84 (58.76–60.84) |
+| C: known rallies, MonoTrack courts | Shipped | 40 videos | 96.66 (96.62–96.70) | 94.30 (94.20–94.41) | 61.35 (60.84–61.89) |
+| C: known rallies, MonoTrack courts | grid-017 | 32 videos | 96.50 (96.46–96.55) | 94.04 (93.92–94.23) | 59.59 (59.48–59.78) |
+| C: known rallies, MonoTrack courts | grid-017 | 40 videos | 96.66 (96.59–96.71) | 94.23 (94.16–94.37) | 61.27 (60.81–61.62) |
+
+### Scores at ±5
+
+| Condition | Configuration | Contact tree | Contact F1 | Correct-player F1 | Fully correct rallies |
+| --- | --- | --- | ---: | ---: | ---: |
+| A: discovered rallies | Shipped | 32 videos | 86.50 (86.38–86.58) | 83.74 (83.41–83.85) | 41.21 (40.61–41.78) |
+| A: discovered rallies | Shipped | 40 videos | 86.58 (86.48–86.69) | 83.90 (83.74–84.11) | 42.19 (41.75–42.77) |
+| A: discovered rallies | grid-017 | 32 videos | 86.37 (86.31–86.46) | 83.76 (83.58–83.85) | 40.85 (40.34–41.54) |
+| A: discovered rallies | grid-017 | 40 videos | 86.41 (86.33–86.50) | 83.91 (83.79–84.19) | 41.33 (40.79–42.08) |
+| B: known rallies, video-robust courts | Shipped | 32 videos | 94.70 (94.62–94.79) | 92.50 (92.31–92.63) | 48.79 (48.27–49.53) |
+| B: known rallies, video-robust courts | Shipped | 40 videos | 94.87 (94.74–95.00) | 92.69 (92.59–92.78) | 50.17 (48.99–51.13) |
+| B: known rallies, video-robust courts | grid-017 | 32 videos | 94.61 (94.47–94.76) | 92.32 (92.15–92.51) | 48.00 (47.07–49.20) |
+| B: known rallies, video-robust courts | grid-017 | 40 videos | 94.78 (94.70–94.94) | 92.55 (92.47–92.65) | 49.58 (49.05–50.83) |
+| C: known rallies, MonoTrack courts | Shipped | 32 videos | 94.63 (94.55–94.72) | 92.42 (92.24–92.55) | 48.67 (48.09–49.41) |
+| C: known rallies, MonoTrack courts | Shipped | 40 videos | 94.80 (94.68–94.94) | 92.62 (92.51–92.69) | 50.04 (48.87–50.92) |
+| C: known rallies, MonoTrack courts | grid-017 | 32 videos | 94.53 (94.40–94.69) | 92.25 (92.09–92.42) | 47.86 (46.89–49.11) |
+| C: known rallies, MonoTrack courts | grid-017 | 40 videos | 94.72 (94.63–94.89) | 92.48 (92.39–92.58) | 49.49 (48.93–50.77) |
+
+### 40-video minus 32-video tree at ±10
+
+Paired by seed offset. Values are differences in points: the mean, with the lowest and highest seed in brackets.
+
+| Condition | Configuration | Contact F1 | Correct-player F1 | Fully correct rallies |
+| --- | --- | ---: | ---: | ---: |
+| A: discovered rallies | Shipped | +0.03 (−0.08 to +0.11) | +0.11 (−0.10 to +0.30) | +0.77 (+0.06 to +1.41) |
+| A: discovered rallies | grid-017 | +0.05 (−0.01 to +0.10) | +0.17 (+0.02 to +0.26) | +0.70 (−0.03 to +1.65) |
+| B: known rallies, video-robust courts | Shipped | +0.13 (+0.04 to +0.18) | +0.15 (+0.09 to +0.25) | +1.54 (+0.60 to +2.10) |
+| B: known rallies, video-robust courts | grid-017 | +0.15 (+0.05 to +0.20) | +0.19 (+0.06 to +0.29) | +1.68 (+1.32 to +1.89) |
+| C: known rallies, MonoTrack courts | Shipped | +0.13 (+0.05 to +0.18) | +0.16 (+0.09 to +0.25) | +1.51 (+0.57 to +2.07) |
+| C: known rallies, MonoTrack courts | grid-017 | +0.15 (+0.05 to +0.21) | +0.19 (+0.07 to +0.28) | +1.68 (+1.32 to +1.89) |
+
+### grid-017 minus shipped at ±10
+
+Same format as the table above.
+
+| Condition | Contact tree | Contact F1 | Correct-player F1 | Fully correct rallies |
+| --- | --- | ---: | ---: | ---: |
+| A: discovered rallies | 32 videos | −0.07 (−0.14 to 0.00) | +0.07 (−0.17 to +0.20) | −0.37 (−1.08 to +0.42) |
+| A: discovered rallies | 40 videos | −0.05 (−0.17 to +0.01) | +0.13 (−0.14 to +0.45) | −0.44 (−1.53 to +0.03) |
+| B: known rallies, video-robust courts | 32 videos | −0.02 (−0.12 to +0.04) | −0.11 (−0.25 to +0.08) | −0.25 (−0.99 to +0.96) |
+| B: known rallies, video-robust courts | 40 videos | 0.00 (−0.11 to +0.03) | −0.07 (−0.18 to +0.12) | −0.10 (−1.14 to +0.42) |
+| C: known rallies, MonoTrack courts | 32 videos | −0.02 (−0.12 to +0.04) | −0.11 (−0.24 to +0.08) | −0.25 (−1.05 to +0.93) |
+| C: known rallies, MonoTrack courts | 40 videos | 0.00 (−0.11 to +0.04) | −0.07 (−0.18 to +0.10) | −0.08 (−1.08 to +0.39) |
+
 ## What was tested
 
 Question: do the trees do better when trained on the [tuned heuristic](../heuristic_only_tune/RESULTS.md)'s preprocessing settings?
@@ -220,6 +316,8 @@ Scoring code: `score_stream` in [heuristic_only_tune/data.py](../heuristic_only_
 ## Compute
 
 74 fits in total: 48 grid fits, 16 seed repeats and 10 final contact refits. Per grid fit: 16.7–17.0 GiB peak memory, 1.1–6.3 hours, one or two numerical threads.
+
+The 32-video and 40-video comparison added 50 test runs with saved models and no fitting. They took about 40 minutes on 28 cores.
 
 ## Grid training table
 
