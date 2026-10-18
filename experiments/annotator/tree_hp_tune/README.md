@@ -24,6 +24,39 @@ Full numbers: [RESULTS.md](RESULTS.md).
 
 Tests: `tests/test_tree_hp_tune*.py`.
 
+## Rerun saved models on test
+
+- [test_rerun.py](test_rerun.py) compares the saved 32-video and 40-video
+  contact-tree fits on all 46 test videos. It scores `grid-017` and shipped
+  across five seeds, without refitting.
+- Conditions: A discovers rallies with fast-robust scene courts; B uses known
+  rallies ±1 second with video-robust courts; C uses the same known rallies
+  with MonoTrack courts. A reuses the ten committed 40-video test runs.
+- Paths: `TEST_PATHS.toml` needs `[paths]` entries for `test_inputs`,
+  `test_courts`, `inpaint_root` and `pose_root`. Use the original benchmark
+  inputs root for `test_inputs` to retain the ±1 second rally windows.
+- Workers: at most `--workers` jobs run together, each with one numerical
+  thread. The default is 28. Use the model-compatible environment described
+  below.
+
+```bash
+python -m experiments.annotator.tree_hp_tune.test_rerun \
+  --paths TEST_PATHS.toml --output RUN/test_rerun --workers 28
+```
+
+- Results: `RUN/test_rerun/<A|B|C>/<v32|final40>/<grid-017|shipped>/seed-<offset>/`
+  contains per-video predictions and `scores.json.gz`.
+- Summary: `summary.json.gz` and a printed table give the mean, min and max
+  over five seeds at ±10 and ±5 frames. Counts are pooled across videos first.
+  Production parity for shipped final40 seed 0 under B and C must pass.
+- Resume: rerun the same command. Complete 46-video jobs are skipped; partial
+  job directories are restarted. After changing code or inputs, use a new
+  output folder. Job failures save tracebacks and stop new work while active
+  jobs finish.
+- Private files: exclude `RUN/test_rerun/configs/` from commits. Its generated
+  TOMLs contain absolute input and bundle paths. Predictions and scores keep
+  those paths out.
+
 ## What you need
 
 - The full repository. The scripts read these files from outside this folder:
@@ -143,6 +176,7 @@ Path labels inside the records:
 | `repeats/seed-<offset>/trials/<id>/` | The other four seeds: training scores, seed settings, validation scores and predictions |
 | `repeats/plan.json.gz`, `summary.json.gz`, `selected.json.gz` | Frozen shortlist and seeds, five-seed results, and the winner |
 | `final_test/plan.json.gz`, `summary.json.gz` | Test plan, and every seed's test totals with paired differences |
+| `grid48/trials/<id>/bundle_v32/`, `repeats/seed-<offset>/trials/<id>/bundle_v32/` | 32-video models for grid-017 and shipped, used for validation |
 | `final_test/trials/<id>/seed-<offset>/` | Test scores, test predictions, contact refit record and the model |
 
 Setting IDs:
@@ -154,7 +188,7 @@ Load a test model: `annotator.models.load_models(<trial>/bundle_final40)`.
 
 Not included:
 
-- the 64 models fitted during selection
+- the other 54 models fitted during selection
 - most training predictions
 - cached player evidence
 
