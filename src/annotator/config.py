@@ -45,6 +45,7 @@ class RallySegmentationThresholds(NamedTuple):
 
     ``resolve`` scales frame-rate-sensitive values before annotation. The
     proximity cross-check stays separate because it measures court distance.
+    The wrist gate measures distance in player box heights.
     """
 
     rest_speed: float
@@ -57,6 +58,7 @@ class RallySegmentationThresholds(NamedTuple):
     contact_dedup_radius_frames: int = _AT_25FPS.contact_dedup_radius_frames
     contact_suppression_radius_frames: int = _AT_25FPS.contact_suppression_radius_frames
     contact_impulse_multiple: float = 4.0
+    wrist_distance_body_heights: float = 1.4
 
 
 # The shipped thresholds as one value, built from the constants above so the

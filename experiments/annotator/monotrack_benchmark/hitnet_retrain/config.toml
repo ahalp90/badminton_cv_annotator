@@ -1,0 +1,10 @@
+# Copy to config.local.toml and set the three saved-input paths.
+# No detector or annotator is rerun.
+[inputs]
+stages = "/path/to/shuttleset/stages"
+spans = "/path/to/sset_spans.json.gz"
+courts = "/path/to/monotrack/court-results"
+
+[execution]
+feature_workers = 4
+parallel_trials = 12

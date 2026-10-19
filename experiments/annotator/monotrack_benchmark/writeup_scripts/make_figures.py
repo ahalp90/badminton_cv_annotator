@@ -1,0 +1,526 @@
+"""Draw the v3 MonoTrack comparison charts from ``metrics.py`` output.
+
+Each figure carries its own title, axis labels and notes so it reads without the report.
+
+Usage: python make_figures.py --data DIR --out DIR
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.legend import Legend
+from matplotlib.legend_handler import HandlerTuple
+
+MONOTRACK_COLOUR = '#eb6834'
+ANNOTATOR_COLOUR = '#2a78d6'
+TREES_OFF_COLOUR = '#1baf7a'
+TEXT = '#0b0b0b'
+MUTED = '#52514e'
+GRID = '#e4e3df'
+SURFACE = '#fcfcfb'
+SEEDS = (0, 100, 200, 300, 400)
+REVIEW_THRESHOLD = 0.7570784853533734
+MIN_KEPT = 50
+POPULATION = '46 ShuttleSet22 videos, 3,327 labelled rallies, 37,184 labelled hits'
+SCORING_NOTE = 'A hit counts as found within ±10 frames (1/3 s). Annotator values are the mean of five training seeds.'
+ERROR_TYPES = (
+    ('missed', 'Labelled hit missed', '#6250d6'),
+    ('wrong_player', 'Hit found, wrong player', '#eda100'),
+    ('extra_inside_windows', 'Extra hit inside a scored rally', '#e87ba4'),
+    ('extra_outside_windows', 'Extra hit outside every labelled rally', '#6f6e69'),
+)
+
+
+@dataclass(frozen=True)
+class Condition:
+    key: str
+    label: str
+    colour: str
+    marker: str
+    found: bool
+
+
+CONDITIONS = (
+    Condition('monotrack_own_courts', 'MonoTrack, its own courts', MONOTRACK_COLOUR, 'o', False),
+    Condition('monotrack_our_courts', 'MonoTrack, our courts', MONOTRACK_COLOUR, 's', False),
+    Condition('annotator_our_courts', 'Our annotator, our courts', ANNOTATOR_COLOUR, 'o', False),
+    Condition('annotator_monotrack_courts', "Our annotator, MonoTrack's courts", ANNOTATOR_COLOUR, 's', False),
+    Condition('heuristic_our_courts', 'Our annotator, trees off, our courts', TREES_OFF_COLOUR, 'o', False),
+    Condition('heuristic_monotrack_courts', "Our annotator, trees off, MonoTrack's courts", TREES_OFF_COLOUR, 's',
+              False),
+    Condition('annotator_discovery', 'Our annotator, finds its own rallies', ANNOTATOR_COLOUR, 'D', True),
+    Condition('heuristic_discovery', 'Our annotator, trees off, finds its own rallies', TREES_OFF_COLOUR, 'D', True),
+)
+ROW_GAP = 0.8
+
+
+def style_axes(axes: plt.Axes, grid_axis: str = 'x') -> None:
+    axes.set_facecolor(SURFACE)
+    for side in ('top', 'right'):
+        axes.spines[side].set_visible(False)
+    for side in ('left', 'bottom'):
+        axes.spines[side].set_color(MUTED)
+    axes.tick_params(colors=MUTED, labelcolor=TEXT)
+    axes.grid(axis=grid_axis, color=GRID, linewidth=0.8)
+    axes.set_axisbelow(True)
+
+
+def condition_rows() -> np.ndarray:
+    """Row positions top to bottom, with a gap before the found-rally block."""
+    rows = np.arange(len(CONDITIONS))[::-1].astype(float)
+    found = np.array([condition.found for condition in CONDITIONS])
+    rows[found] -= ROW_GAP
+    return rows
+
+
+def block_labels(axes: plt.Axes, rows: np.ndarray, x: float) -> None:
+    supplied_top = rows[0] + 0.55
+    found_top = rows[[condition.found for condition in CONDITIONS]].max() + 0.55
+    axes.text(x, supplied_top, 'Given the rally bounds', fontsize=9.5, color=MUTED, style='italic', va='bottom')
+    axes.text(x, found_top, 'Finds the rallies itself', fontsize=9.5, color=MUTED, style='italic', va='bottom')
+
+
+def value(summary: dict, key: str, metric: str, statistic: str = 'mean') -> float:
+    return summary[key]['10'][metric][statistic]
+
+
+DISCOVERY_FACE = '#9cc3ef'
+# key, label, colour, marker; the last row finds its own rallies and sits below a divider.
+HEADLINE_ROWS = (
+    ('annotator_our_courts', 'Our annotator, our courts', ANNOTATOR_COLOUR, 'o'),
+    ('annotator_monotrack_courts', "Our annotator, MonoTrack's courts", ANNOTATOR_COLOUR, 'o'),
+    ('monotrack_own_courts', 'MonoTrack, its own courts', MONOTRACK_COLOUR, 's'),
+    ('monotrack_our_courts', 'MonoTrack, our courts', MONOTRACK_COLOUR, 's'),
+    ('annotator_discovery', 'Our annotator,\nfinds its own rallies', DISCOVERY_FACE, 'D'),
+)
+HEADLINE_METRICS = (
+    ('f1', 'Contact F1 (%)\nhit found within ±10 frames', (84, 100)),
+    ('player_f1', 'Correct-player F1 (%)\nhit found and hitter right', (84, 100)),
+    ('fully_correct', 'Fully correct rallies (%)\nevery hit and hitter right, no extras', (40, 65)),
+)
+
+
+def headline_figure(summary: dict, out: Path) -> None:
+    figure, axes_row = plt.subplots(1, 3, figsize=(13, 4.6), sharey=True, facecolor=SURFACE)
+    rows = np.arange(len(HEADLINE_ROWS))[::-1].astype(float)
+    rows[-1] -= 0.5  # gap before the row that finds its own rallies: a harder task
+    for axes, (metric, title, (low, high)) in zip(axes_row, HEADLINE_METRICS, strict=True):
+        style_axes(axes)
+        for row, (key, _label, colour, marker) in zip(rows, HEADLINE_ROWS, strict=True):
+            mean = value(summary, key, metric)
+            axes.plot([low, mean], [row, row], color=GRID, linewidth=1.5, zorder=1)
+            label_at = mean
+            if key.startswith('annotator'):
+                axes.plot([value(summary, key, metric, 'min'), value(summary, key, metric, 'max')], [row, row],
+                          color=TEXT, linewidth=1.6, zorder=2)
+                label_at = max(mean, value(summary, key, metric, 'max'))
+            axes.scatter(mean, row, s=90, color=colour, marker=marker, zorder=3, linewidth=1.5,
+                         edgecolor=ANNOTATOR_COLOUR if colour == DISCOVERY_FACE else SURFACE)
+            axes.annotate(f'{mean:.1f}', (label_at, row), xytext=(9, 0), textcoords='offset points', va='center',
+                          fontsize=10, color=TEXT)
+        axes.set_xlim(low, high + 2.5)
+        axes.set_title(title, fontsize=11, color=TEXT, loc='left')
+    axes_row[0].set_yticks(rows, [label for _key, label, _colour, _marker in HEADLINE_ROWS], fontsize=10)
+    for axes in axes_row:
+        axes.axhline(rows[-1] + 0.75, color=MUTED, linewidth=0.8, linestyle=':')
+    figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
+    figure.text(0.01, 0.045, 'Rows 1-4 are given rally bounds built from the labels (1 s either side); row 5 finds '
+                'the rallies itself. Axes do not start at zero.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.01, 'Our annotator: mean of five training seeds; the black line spans the lowest to highest '
+                'seed. MonoTrack was trained once.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.075, 1, 0.95))
+    figure.savefig(out / 'fig1_headline.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+def error_figure(summary: dict, out: Path) -> None:
+    figure, axes = plt.subplots(figsize=(13, 5.6), facecolor=SURFACE)
+    style_axes(axes)
+    rows = condition_rows()
+    largest = 0.0
+    for row, condition in zip(rows, CONDITIONS, strict=True):
+        start = 0.0
+        for key, _label, colour in ERROR_TYPES:
+            width = value(summary, condition.key, key)
+            if width == 0:
+                continue
+            axes.barh(row, width, left=start, height=0.62, color=colour, edgecolor=SURFACE, linewidth=1.5)
+            if width >= 700:
+                axes.text(start + width / 2, row, f'{width:,.0f}', ha='center', va='center', fontsize=8.5,
+                          color='white' if key in ('missed', 'extra_outside_windows') else TEXT)
+            start += width
+        rallies = value(summary, condition.key, 'rallies_not_fully_correct')
+        axes.text(start + 150, row, f'{start:,.0f} hit errors in {rallies:,.0f} rallies', va='center', fontsize=9.5,
+                  color=TEXT)
+        largest = max(largest, start)
+    axes.set_yticks(rows, [condition.label for condition in CONDITIONS], fontsize=10)
+    axes.set_xlim(0, largest * 1.42)
+    axes.set_ylim(rows.min() - 0.6, rows.max() + 1.0)
+    block_labels(axes, rows, 0)
+    axes.set_xlabel('Hit-level errors: each one is a hit a person would add, delete or reassign', color=TEXT)
+    handles = [plt.Rectangle((0, 0), 1, 1, color=colour) for _key, _label, colour in ERROR_TYPES]
+    axes.legend(handles, [label for _key, label, _colour in ERROR_TYPES], loc='upper center', frameon=False,
+                fontsize=9.5, ncol=3, bbox_to_anchor=(0.4, -0.12))
+    figure.suptitle(f'Hit errors by type, ±10 frames ({POPULATION})', fontsize=13, color=TEXT, x=0.01, ha='left')
+    figure.text(0.01, 0.04, 'With rally bounds given, hits outside the bounds are not scored. Annotator values are '
+                'means of five training seeds.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.012, 'Predictions inside the 524 ShuttleSet22 rallies that the test set leaves out because of '
+                'flawed labels are ignored.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.07, 1, 0.95))
+    figure.savefig(out / 'fig3_hit_errors.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+def per_video_figure(data: Path, out: Path) -> None:
+    ours = pd.read_csv(data / 'per_video_annotator_our_courts.csv', index_col='video')
+    theirs = pd.read_csv(data / 'per_video_monotrack_own_courts.csv', index_col='video')
+    metrics = (('f1', 'Contact F1 (%)'), ('player_f1', 'Correct-player F1 (%)'),
+               ('fully_correct', 'Fully correct rallies (%)'))
+    figure, axes_row = plt.subplots(1, 3, figsize=(14, 4.9), facecolor=SURFACE)
+    for axes, (metric, title) in zip(axes_row, metrics, strict=True):
+        style_axes(axes, 'both')
+        x, y = theirs[metric], ours[metric]
+        low = float(min(x.min(), y.min())) - 2
+        high = float(max(x.max(), y.max())) + 2
+        axes.plot([low, high], [low, high], color=MUTED, linewidth=1, linestyle='--', zorder=1)
+        axes.scatter(x, y, s=34, color=ANNOTATOR_COLOUR, edgecolor=SURFACE, linewidth=0.8, zorder=3)
+        above, below = int((y > x).sum()), int((y < x).sum())
+        axes.text(0.03, 0.97, f'Above the line (ours higher): {above} videos\nBelow (MonoTrack higher): {below}',
+                  transform=axes.transAxes, va='top', fontsize=9.5, color=TEXT)
+        axes.set_xlim(low, high)
+        axes.set_ylim(low, high)
+        axes.set_aspect('equal')
+        axes.set_title(title, fontsize=11, color=TEXT, loc='left')
+        axes.set_xlabel('MonoTrack, its own courts', color=TEXT)
+        axes.set_ylabel('Our annotator, our courts', color=TEXT)
+    figure.suptitle('Each dot is one of the 46 test videos; rally bounds given to both systems',
+                    fontsize=13, color=TEXT, x=0.01, ha='left')
+    figure.text(0.01, 0.01, 'Annotator values are per-video means of five training seeds. ±10 frames.',
+                fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.06, 1, 0.94))
+    figure.savefig(out / 'fig4_per_video.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+LADDER_RUNGS = (
+    ('boundaries_right', 'Boundaries right', 0.35),
+    ('hits_right', 'Hits right (hitters not checked)', 0.65),
+    ('fully_correct', 'Fully correct', 1.0),
+)
+# Section title, conditions and the steps that apply; given bounds make the boundary step automatic.
+LADDER_SECTIONS = (
+    ('Rally bounds provided', ('monotrack_own_courts', 'annotator_our_courts', 'heuristic_our_courts'),
+     LADDER_RUNGS[1:]),
+    ('Rally bounds discovered', ('annotator_discovery', 'heuristic_discovery'), LADDER_RUNGS),
+)
+LADDER_LABELS = {
+    'monotrack_own_courts': 'MonoTrack, its own courts',
+    'annotator_our_courts': 'Our annotator, our courts',
+    'heuristic_our_courts': 'Our annotator, trees off,\nour courts',
+    'annotator_discovery': 'Our annotator',
+    'heuristic_discovery': 'Our annotator, trees off',
+}
+
+
+# The legends end at the axis edge, beside each section's short lower bars, so the bars keep the full width.
+LADDER_AXIS_END = 100
+
+
+def ladder_figure(summary: dict, out: Path) -> None:
+    """Rally-level outcomes: boundaries, then hits, then hitters."""
+    by_key = {condition.key: condition for condition in CONDITIONS}
+    figure, axes = plt.subplots(figsize=(13, 6.6), facecolor=SURFACE)
+    style_axes(axes)
+    ticks, labels = [], []
+    row, divider = 0.0, None
+    for section_index, (title, keys, rungs) in enumerate(LADDER_SECTIONS):
+        if section_index:
+            divider = row + 0.1
+            row -= 0.9
+        axes.text(0.5, row, title, va='center', fontsize=11, color=TEXT, fontweight='bold')
+        row -= 1.1
+        for key in keys:
+            colour = by_key[key].colour
+            first = row
+            for metric, _label, shade in rungs:
+                mean = value(summary, key, metric)
+                axes.barh(row, mean, height=0.8, color=colour, alpha=shade, edgecolor=SURFACE)
+                axes.text(mean + 0.8, row, f'{mean:.1f}%', va='center', fontsize=9.5, color=TEXT)
+                row -= 1
+            ticks.append((first + row + 1) / 2)
+            labels.append(LADDER_LABELS[key])
+            row -= 0.6
+        # Each legend swatch shows that step's shade in every colour used in this section.
+        handles = [tuple(plt.Rectangle((0, 0), 1, 1, color=by_key[key].colour, alpha=shade) for key in keys)
+                   for _metric, _label, shade in rungs]
+        legend = Legend(axes, handles, [label for _metric, label, _shade in rungs], loc='lower right',
+                             bbox_to_anchor=(LADDER_AXIS_END, row + 0.7), bbox_transform=axes.transData, frameon=False,
+                             borderaxespad=0, borderpad=0,
+                             fontsize=9.5, handler_map={tuple: HandlerTuple(ndivide=None, pad=0)},
+                             handlelength=1.2 * len(keys))
+        axes.add_artist(legend)
+    axes.axhline(divider, color=MUTED, linestyle='--', linewidth=1)
+    axes.set_yticks(ticks, labels, fontsize=10)
+    axes.set_ylim(row + 0.3, 0.8)
+    axes.set_xlim(0, LADDER_AXIS_END)
+    axes.set_xlabel('Share of the 3,327 labelled rallies (%)', color=TEXT)
+    figure.suptitle('How many labelled rallies come out right, step by step (±10 frames)', fontsize=13, color=TEXT,
+                    x=0.01, ha='left')
+    figure.text(0.01, 0.045, 'Boundaries right: one found rally spans the whole labelled rally and no other. Hits '
+                'right: also every hit found, no extras. Fully correct: every hitter right too.', fontsize=9,
+                color=MUTED)
+    figure.text(0.01, 0.015, f'{POPULATION}. Annotator values are means of five training seeds. Found-rally edges '
+                'get the same ±10-frame allowance as hit timing.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.07, 1, 0.95))
+    figure.savefig(out / 'fig5_rally_ladder.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+CUTOFF_LABELS = {
+    'balanced': 'best balance',
+    'historical': 'historical',
+    'boundaries_99': '99% right boundaries',
+}
+# Label offsets in points, placed to keep each label clear of both curves.
+CUTOFF_LABEL_OFFSETS = {'balanced': (6, 8), 'historical': (4, 12), 'boundaries_99': (4, 22)}
+
+
+def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Cut-offs and the seed mean, lowest and highest, blanked where too few rallies are kept."""
+    table = curves.pivot(index='threshold', columns='seed', values=column)
+    kept = curves.pivot(index='threshold', columns='seed', values='kept')
+    # Above a high cut-off only a handful of rallies remain, so shares there are noise.
+    table = table.where(kept.min(axis=1) >= MIN_KEPT, axis=0)
+    return table.index.to_numpy(), table.mean(axis=1).to_numpy(), table.min(axis=1).to_numpy(), table.max(axis=1).to_numpy()
+
+
+def cutoff_text(value: float) -> str:
+    """A cut-off as the report writes it: 0.35, 0.757, 0.84."""
+    return f'{value:.3f}'.rstrip('0')
+
+
+def confidence_figure(data: Path, out: Path) -> None:
+    test = pd.read_csv(data / 'test_confidence_curve.csv')
+    validation = pd.read_csv(data / 'validation_confidence_curve.csv')
+    cutoffs = json.loads((data / 'confidence_cutoffs.json').read_text())['cutoffs']
+    grid = test[test['threshold'].isin(np.round(np.arange(0, 1.0001, 0.005), 3))]
+    figure, (left, right) = plt.subplots(1, 2, figsize=(14, 5.8), facecolor=SURFACE,
+                                         gridspec_kw={'width_ratios': (1.25, 1)})
+    style_axes(left, 'both')
+    lines = (
+        ('boundaries_right_share', 'Kept rallies with the right boundaries (% of kept)', TEXT, '-'),
+        ('fully_correct_share', 'Kept rallies fully correct (% of kept)', ANNOTATOR_COLOUR, '-'),
+        ('coverage', 'Fully correct rallies handed over (% of all 3,327 labelled rallies)', ANNOTATOR_COLOUR, ':'),
+    )
+    for column, label, colour, style in lines:
+        thresholds, mean, low, high = seed_band(grid, column)
+        left.fill_between(thresholds, low, high, color=colour, alpha=0.15, linewidth=0)
+        left.plot(thresholds, mean, color=colour, linestyle=style, linewidth=2, label=label)
+    left.axhline(99, color=MUTED, linewidth=0.8, linestyle=(0, (1, 2)))
+    left.text(0.01, 99.6, '99%', fontsize=8.5, color=MUTED)
+    for name, value in cutoffs.items():
+        left.axvline(value, color=MUTED, linewidth=1, linestyle='-', alpha=0.6)
+        left.text(value, 101, cutoff_text(value), ha='center', va='bottom', fontsize=8.5, color=TEXT)
+    left.set_xlim(0, 1)
+    left.set_ylim(0, 100)
+    left.set_xlabel('Keep found rallies with confidence at or above this cut-off', color=TEXT)
+    left.set_ylabel('%', color=TEXT)
+    left.set_title('Test videos: what each cut-off keeps', fontsize=11, color=TEXT, loc='left', pad=16)
+    left.legend(loc='lower left', frameon=False, fontsize=9)
+
+    style_axes(right, 'both')
+    for curves, label, colour, style in ((test, 'Test (46 videos)', ANNOTATOR_COLOUR, '-'),
+                                         (validation, 'Validation (8 other videos)', MUTED, '--')):
+        sampled = curves[curves['threshold'].isin(np.round(np.arange(0, 1.0001, 0.005), 3))]
+        _thresholds, coverage, _low, _high = seed_band(sampled, 'coverage')
+        _thresholds, share, _low, _high = seed_band(sampled, 'fully_correct_share')
+        right.plot(coverage, share, color=colour, linestyle=style, linewidth=2, label=label)
+        for name, value in cutoffs.items():
+            row = curves[np.isclose(curves['threshold'], value)].groupby('threshold').mean(numeric_only=True).iloc[0]
+            # Validation points are hollow; the cut-off labels belong to the filled test points.
+            right.scatter(row['coverage'], row['fully_correct_share'], s=36, zorder=4, linewidth=1.5,
+                          color=colour if curves is test else SURFACE, edgecolor=colour)
+            if curves is test:
+                right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
+                               xytext=CUTOFF_LABEL_OFFSETS[name], textcoords='offset points', fontsize=9, color=TEXT)
+    right.set_xlim(0, 55)
+    right.set_ylim(30, 100)
+    right.set_xlabel('Fully correct rallies handed over (% of all labelled rallies)', color=TEXT)
+    right.set_ylabel('Share of kept rallies fully correct (%)', color=TEXT)
+    right.set_title('Trade-off: each point is one cut-off', fontsize=11, color=TEXT, loc='left', pad=16)
+    right.legend(loc='upper right', frameon=False, fontsize=9)
+    figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
+                    x=0.01, ha='left')
+    figure.text(0.01, 0.075, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} gives the highest F1 for '
+                f'"fully correct"; {cutoff_text(cutoffs["boundaries_99"])} is the lowest cut-off where 99% of kept '
+                f'rallies have the right boundaries. {cutoff_text(cutoffs["historical"])} is carried over from an '
+                'earlier confidence model.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.045, f'Mean of five training seeds; shading spans lowest to highest seed. Lines stop where fewer '
+                f'than {MIN_KEPT} found rallies are kept. ±10 frames.', fontsize=9, color=MUTED)
+    example = test[np.isclose(test['threshold'], cutoffs['historical'])].mean(numeric_only=True)
+    figure.text(0.01, 0.015, f'Example: at {cutoff_text(cutoffs["historical"])}, {example["kept"]:,.0f} found rallies are kept and '
+                f'{example["fully_correct_share"]:.1f}% of them ({example["fully_correct_kept"]:,.0f}) are fully correct. '
+                f'Those are {example["coverage"]:.1f}% of all 3,327 labelled rallies.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.1, 1, 0.95))
+    figure.savefig(out / 'fig6_confidence.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+# Band colour and the darker mean-line colour for each contact-tree training set.
+THIRTY_TWO_VIDEO_COLOURS = (ANNOTATOR_COLOUR, '#163f75')
+FORTY_VIDEO_COLOURS = ('#7b52c9', '#3f2380')
+# heading, 32-video key, 40-video key; the last group finds its own rallies and sits below a divider.
+STABILITY_GROUPS = (
+    ('Given rally bounds,\nour courts', 'annotator_our_courts', 'annotator40_our_courts'),
+    ("Given rally bounds,\nMonoTrack's courts", 'annotator_monotrack_courts', 'annotator40_monotrack_courts'),
+    ('Finds its own rallies', 'annotator_discovery', 'annotator40_discovery'),
+)
+# Both F1 panels share one range so their bands compare directly.
+STABILITY_METRICS = (
+    ('f1', 'Contact F1 (%)', (89.4, 97.2)),
+    ('player_f1', 'Correct-player F1 (%)', (89.4, 97.2)),
+    ('fully_correct', 'Fully correct rallies (%)', (50.3, 62.7)),
+)
+
+
+def stability_figure(summary: dict, out: Path) -> None:
+    """Fig 1's layout, one row per contact-tree training set, with each row's seed range as a band."""
+    figure, axes_row = plt.subplots(1, 3, figsize=(13, 6.6), sharey=True, facecolor=SURFACE)
+    rows, headings = [], []
+    top = 0.0
+    for group_index, (heading, key32, key40) in enumerate(STABILITY_GROUPS):
+        if group_index == len(STABILITY_GROUPS) - 1:
+            top -= 0.5  # extra gap before the group that finds its own rallies: a harder task
+        headings.append((top, heading))
+        rows += [(top - 0.6, key32, '32 videos (headline)', THIRTY_TWO_VIDEO_COLOURS),
+                 (top - 1.5, key40, '40 videos', FORTY_VIDEO_COLOURS)]
+        top -= 2.6
+    for axes, (metric, title, (low, high)) in zip(axes_row, STABILITY_METRICS, strict=True):
+        style_axes(axes)
+        for row, key, _label, (band_colour, mean_colour) in rows:
+            lowest, mean, highest = (value(summary, key, metric, statistic) for statistic in ('min', 'mean', 'max'))
+            axes.plot([low, lowest], [row, row], color=GRID, linewidth=1.5, zorder=1)
+            # The edge keeps sub-point seed ranges visible on the shared F1 scale.
+            axes.barh(row, highest - lowest, left=lowest, height=0.4, color=band_colour, alpha=0.4,
+                      edgecolor=band_colour, linewidth=1, zorder=2)
+            axes.plot([mean, mean], [row - 0.2, row + 0.2], color=mean_colour, linewidth=1.5, zorder=3)
+            # Labels sit under the band so the x range only has to hold the data. Near a panel edge,
+            # the label starts at the band's inner end so it stays inside the panel.
+            position = (mean - low) / (high - low)
+            anchor, align = (lowest, 'left') if position < 0.2 else (highest, 'right') if position > 0.8 else (
+                mean, 'center')
+            axes.annotate(f'{mean:.1f} ({lowest:.1f}–{highest:.1f})', (anchor, row), xytext=(0, -12),
+                          textcoords='offset points', ha=align, va='top', fontsize=8.5, color=TEXT)
+        axes.set_xlim(low, high)
+        axes.xaxis.set_major_locator(plt.MultipleLocator(2))
+        axes.set_title(title, fontsize=11, color=TEXT, loc='left')
+    first = axes_row[0]
+    first.set_yticks([row for row, *_rest in rows], [label for _row, _key, label, _colours in rows], fontsize=10)
+    first.set_ylim(rows[-1][0] - 0.6, headings[0][0] + 0.2)
+    for row, heading in headings:
+        first.text(-0.04, row + 0.05, heading, transform=first.get_yaxis_transform(), ha='right', va='center',
+                   fontsize=10, fontweight='bold', color=TEXT)
+    figure.suptitle("Our annotator's performance on ShuttleSet22, contact tree trained on 32 videos (train only) vs "
+                    '40 videos (train + validation)', fontsize=13, color=TEXT, x=0.01, y=0.985, ha='left', va='top')
+    # Why only the contact tree changes: the downstream trees are cross-fitted on the 32 training videos.
+    figure.text(0.01, 0.938, 'All other trees keep their 32-video fits in both, so only the contact tree differs. They '
+                'learn from contact-tree predictions on training videos held out from that contact tree.', fontsize=10,
+                color=MUTED, va='top')
+    figure.text(0.01, 0.06, 'Shaded band: lowest to highest of five training seeds. Dark line and first number: '
+                'the mean. ±10 frames.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.025, 'The two F1 panels share one scale. MonoTrack, given rally bounds on its own courts, scores '
+                '96.0, 95.8 and 48.2. Axes do not start at zero.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.09, 1, 0.91))
+    # One unbroken divider across the figure, placed after layout so it lands on the same gap in every panel.
+    _x, divider_y = figure.transFigure.inverted().transform(first.transData.transform((0, headings[-1][0] + 0.5)))
+    figure.add_artist(plt.Line2D([0.01, 0.99], [divider_y, divider_y], transform=figure.transFigure, color=MUTED,
+                                 linewidth=0.8, linestyle=':'))
+    figure.savefig(out / 'fig10_tree_stability.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+PER_SCENE_COLOUR = '#9cc3ef'
+COURT_SOURCES = (
+    ('ours_rally', 'Our court, per rally', ANNOTATOR_COLOUR),
+    ('monotrack', "MonoTrack's court, per rally", MONOTRACK_COLOUR),
+    ('ours_discovery', 'Our court, per scene, without rally bounds', PER_SCENE_COLOUR),
+)
+MAX_COURT_ERROR_SHOWN = 15
+
+
+def court_error_figure(courts: pd.DataFrame, out: Path) -> None:
+    figure, (left, right) = plt.subplots(1, 2, figsize=(13, 5.2), facecolor=SURFACE,
+                                         gridspec_kw={'width_ratios': (1.5, 1)})
+    style_axes(left, grid_axis='both')
+    for key, label, colour in COURT_SOURCES:
+        errors = courts[f'{key}_error_px']
+        found = np.sort(errors.dropna().to_numpy())
+        # Rallies without a court count against the curve, so it ends below 100%.
+        share = 100 * np.arange(1, len(found) + 1) / len(courts)
+        left.step(found, share, where='post', color=colour, linewidth=2.2,
+                  label=f'{label}\nmedian {errors.median():.1f} px; no court on {errors.isna().sum()} rallies')
+    left.set_xlim(0, MAX_COURT_ERROR_SHOWN)
+    left.set_xticks(np.arange(0, MAX_COURT_ERROR_SHOWN + 1))
+    left.set_ylim(0, 101)
+    left.set_xlabel('Mean distance of the four court corners from the reference corners (px, 1920×1080 frame)',
+                    color=TEXT)
+    left.set_ylabel('Rallies with a court this close or closer (%)', color=TEXT)
+    left.legend(loc='lower right', frameon=False, fontsize=9)
+    left.set_title('Per rally: share of the 3,327 rallies within each error', fontsize=11, color=TEXT, loc='left')
+
+    style_axes(right)
+    medians = courts.groupby('video')[[f'{key}_error_px' for key, _label, _colour in COURT_SOURCES]].median()
+    generator = np.random.default_rng(0)
+    for row, (key, _label, colour) in enumerate(COURT_SOURCES):
+        values = medians[f'{key}_error_px'].to_numpy()
+        jitter = generator.uniform(-0.18, 0.18, size=len(values))
+        right.scatter(values, row + jitter, s=26, color=colour, edgecolor=ANNOTATOR_COLOUR if key == 'ours_discovery'
+                      else SURFACE, linewidth=0.6)
+        right.plot([np.median(values)] * 2, [row - 0.3, row + 0.3], color=TEXT, linewidth=2)
+        right.text(np.median(values), row + 0.42, f'median {np.median(values):.1f} px', ha='center', fontsize=9,
+                   color=TEXT)
+    ours_lower = (medians['ours_rally_error_px'] < medians['monotrack_error_px']).sum()
+    right.set_yticks(range(len(COURT_SOURCES)), ['Our court,\nper rally', "MonoTrack's\ncourt", 'Our court,\nper scene'])
+    right.set_ylim(len(COURT_SOURCES) - 0.25, -0.5)
+    right.set_xlim(0, 12)
+    right.set_xlabel('Median error in each video (px); one dot per video', color=TEXT)
+    right.set_title(f'Per video: our per-rally court is closer in {ours_lower} of {len(medians)} videos',
+                    fontsize=11, color=TEXT, loc='left')
+    figure.suptitle("How close each court is to ShuttleSet22's reference corners", fontsize=13, color=TEXT,
+                    x=0.01, ha='left')
+    figure.text(0.01, 0.04, 'The reference is one set of corners per video, drawn for the main camera view.',
+                fontsize=9, color=MUTED)
+    figure.text(0.01, 0.01, 'In video 17 the broadcast zoomed in after rally 46, so all three courts read about 163 px '
+                'there; those 27 rallies lie beyond the right edge of the left panel.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.07, 1, 0.95))
+    figure.savefig(out / 'fig2_court_error.png', dpi=150, facecolor=SURFACE)
+    plt.close(figure)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--data', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+    summary = json.loads((args.data / 'contact_summary.json').read_text())['summary']
+    headline_figure(summary, args.out)
+    error_figure(summary, args.out)
+    per_video_figure(args.data, args.out)
+    ladder_figure(summary, args.out)
+    confidence_figure(args.data, args.out)
+    stability_figure(summary, args.out)
+    court_error_figure(pd.read_csv(args.data / 'rally_courts.csv.gz'), args.out)
+
+
+if __name__ == '__main__':
+    main()
