@@ -12,7 +12,7 @@ that job compared with
 MonoTrack is a published system (CVPR 2022 Workshops) that labels the same
 things.
 
-In short: given the rally bounds, our annotator gets 60.0% of rallies fully
+In short: given the rally bounds, our annotator gets 59.7% of rallies fully
 correct against MonoTrack's 48.2%, while MonoTrack names the hitter more
 reliably. Our annotator can also find the rallies itself, which MonoTrack's
 released code cannot. The two court detectors are close enough that swapping
@@ -37,8 +37,7 @@ them changes no score by more than 0.15 points.
 
 Both systems learnt from the same 32 videos of the original ShuttleSet. The
 same 8 other videos were held out for choosing settings.[^datasets] The test
-set played no part in training our annotator. One alternative setting, picked
-on validation, was also scored on test (Appendix B).
+set played no part in training our annotator or choosing its settings.
 MonoTrack's reported configuration is the highest-scoring of four tested on the
 test set. That choice can only favour MonoTrack (Appendix A).
 
@@ -83,22 +82,22 @@ out, and every condition ignores predictions inside them (Appendix G).
 ## What happened
 
 - **With rally bounds given, our annotator gets more rallies fully correct.**
-  Ours gets 60.0% of rallies fully correct, against 48.2% for MonoTrack. The gap
-  is 11.8 points (95% interval 9.0 to 14.5). Ours is higher on 43 of 46 videos
-  (Figure 1).
+  Ours gets 59.7% of rallies fully correct, against 48.2% for MonoTrack. The gap
+  is 11.6 points (95% interval 8.8 to 14.3). Ours is higher on 42 of 46 videos
+  and level on 1 (Figure 1).
 - **MonoTrack leaves fewer hits to fix.** A person would make 2,987 hit fixes to
-  MonoTrack's output and 3,344 to ours. Both miss about as many hits: 2,007 for
-  MonoTrack and 2,070 for ours. Ours gives the wrong hitter more often, 864
-  times against 75. Ours adds fewer extra hits, 411 against 905. Ours puts its
-  errors in fewer rallies: 1,332 against 1,725 (Figure 3).
+  MonoTrack's output and 3,393 to ours. Both miss about as many hits: 2,007 for
+  MonoTrack and 2,076 for ours. Ours gives the wrong hitter more often, 896
+  times against 75. Ours adds fewer extra hits, 422 against 905. Ours puts its
+  errors in fewer rallies: 1,340 against 1,725 (Figure 3).
 - **Both find hits about equally well, and MonoTrack names the hitter more
   reliably.** Contact F1 is 96.6% for ours and 96.0% for MonoTrack.
-  Correct-player F1 is 94.2% for ours and 95.8% for MonoTrack.
+  Correct-player F1 is 94.1% for ours and 95.8% for MonoTrack.
 - **Our annotator can also find the rallies itself.** Working from the whole
   video, it gets 51.5% of rallies fully correct, and the right start and end for
-  88.1%. Its confidence score can pick out a cleaner subset. At a cut-off of
-  0.757, it keeps 664 of about 3,666 found rallies, and 82.1% of those are fully
-  correct: 545 rallies, or 16.4% of all labelled rallies.
+  87.7%. Its confidence score can pick out a cleaner subset. At a cut-off of
+  0.757, it keeps 729 of about 3,966 found rallies, and 81.5% of those are fully
+  correct: 593 rallies, or 17.8% of all labelled rallies.
 - **Swapping court detectors barely changes the scores.** The median corner
   error against ShuttleSet22's reference corners is 3.8 px for our detector and
   6.5 px for MonoTrack's (Figure 2). Swapping courts between the systems moves
@@ -107,7 +106,7 @@ out, and every condition ignores predictions inside them (Appendix G).
   detector fails.
 - **The trees do most of the work, and they are stable.** With all eight off,
   ours gets 6.6% of rallies fully correct. Across five training seeds, fully
-  correct rallies span 58.9% to 60.9%.
+  correct rallies span 59.6% to 59.9%.
 
 ![Dot plots of Contact F1, Correct-player F1 and fully correct rallies for each set-up](writeup_figures/v3/fig1_headline.png)
 
@@ -139,35 +138,35 @@ camera. Our discovery mode's failures suggest that missed shot changes can leave
 its court search looking at graphics, close-ups or other camera views.
 
 Our annotator's accuracy comes from its trees. Without them, 6.6% of rallies are
-fully correct instead of 60.0%. The trees give nearly the same scores across
-seeds, with fully correct rallies spanning 2 points. Training the contact tree
-on 40 videos instead of 32 added 1.6 points, with every seed improving, and a
-retune added nothing beyond the seed spread. These modest returns are consistent
-with trees near the limit of their current design. Neither test measures that
-limit directly. A full refit of all eight runs on a CPU in one to six hours.
-Each decision traces back to named measurements of shuttle motion and player
-pose, which a person can inspect.
+fully correct instead of 59.7%. The trees give nearly the same scores across
+seeds, with fully correct rallies spanning 0.3 points. Training the contact tree
+on 40 videos instead of 32 added 1.7 points, with every seed improving.
+Retuning the preprocessing kept each headline score inside the original
+settings' seed range. These modest returns are consistent with trees near the limit of their
+current design. Neither test measures that limit directly. A full refit of all
+eight runs on a CPU in one to six hours. Each decision traces back to named
+measurements of shuttle motion and player pose, which a person can inspect.
 
 ## What the results point to next
 
 - The main gap to MonoTrack on hit fixes is naming the hitter. Ours gives the
-  wrong hitter 864 times, against 75 for MonoTrack.
+  wrong hitter 896 times, against 75 for MonoTrack.
 - Discovery mode's losses trace to two sources. In 211 rallies it found no
   court. A sample of 8 points to scene detection missing shot changes around
   transition graphics and replays (Appendix D). Discovery mode also predicts
-  1,325 hits outside every labelled rally, and what those hits show has not been
+  1,359 hits outside every labelled rally, and what those hits show has not been
   checked.
 
 ## What this means for cutting labelling work
 
 With rally bounds given, a person checking our annotator's output has something
-to fix in 1,332 rallies, against 1,725 for MonoTrack. Those rallies hold 3,344
+to fix in 1,340 rallies, against 1,725 for MonoTrack. Those rallies hold 3,393
 hit fixes for ours and 2,987 for MonoTrack. The difference comes mainly from
 ours giving the wrong hitter more often.
 
 The two counts measure different costs. Hit fixes count edits; rallies with
-something to fix count how many rallies a person must change. Ours needs 357
-more edits and leaves 393 more rallies needing no change. Which costs a person
+something to fix count how many rallies a person must change. Ours needs 406
+more edits and leaves 385 more rallies needing no change. Which costs a person
 more depends on how their checking time splits between finding a rally's
 errors and editing them, which this report does not measure.
 
@@ -179,8 +178,8 @@ The confidence score lets a person trade trust against coverage. The share of
 kept rallies that are fully correct says how far a person can trust what they
 are handed. The count of fully correct rallies says how much of the labelling is
 done. At the 0.757 cut-off, 4 in 5 kept rallies need no fixes. The rallies
-needing no fixes number 545 of the 3,327, about 1 in 6. At 0.395, 71.6% of kept
-rallies need no fixes, and those 1,323 rallies are 39.8% of all rallies. No
+needing no fixes number 593 of the 3,327, about 1 in 6. At 0.35, 68.4% of kept
+rallies need no fixes, and those 1,421 rallies are 42.7% of all rallies. No
 single cut-off suits every use (Figure 6).
 
 ## Results in detail
@@ -196,16 +195,16 @@ per-rally mode. "Per scene" courts come from its discovery mode (Appendix C).
 |---|---|---|---:|---:|---:|
 | MonoTrack | Its own | Given | 96.0% | **95.8%** | 48.2% |
 | MonoTrack | Ours | Given | 96.0% | **95.9%** | 48.3% |
-| Our annotator | Ours | Given | **96.6%** (96.5–96.7) | 94.2% (94.1–94.3) | **60.0%** (58.9–60.9) |
-| Our annotator | MonoTrack's | Given | 96.5% (96.5–96.6) | 94.1% (94.0–94.2) | 59.8% (58.8–60.8) |
+| Our annotator | Ours | Given | **96.6%** (96.5–96.6) | 94.1% (94.0–94.3) | **59.7%** (59.6–59.9) |
+| Our annotator | MonoTrack's | Given | 96.5% (96.5–96.5) | 94.0% (93.9–94.2) | 59.6% (59.5–59.8) |
 | Our annotator, trees off | Ours | Given | 88.7% | 71.0% | 6.6% |
 | Our annotator, trees off | MonoTrack's | Given | 88.7% | 70.9% | 6.6% |
-| Our annotator | Ours, per scene | Found by the annotator | 93.2% (93.1–93.3) | 90.1% (89.8–90.3) | 51.5% (50.9–52.2) |
+| Our annotator | Ours, per scene | Found by the annotator | 93.1% (93.1–93.2) | 90.2% (90.0–90.4) | 51.5% (51.0–51.8) |
 | Our annotator, trees off | Ours, per scene | Found by the annotator | 77.8% | 63.3% | 4.2% |
 
-Ours leads on Contact F1 by 0.6 points (95% interval 0.2 to 0.9), with the
-higher score on 37 of 46 videos. MonoTrack leads on Correct-player F1 by 1.6
-points (1.0 to 2.3), with the higher score on 37 of 46 videos.
+Ours leads on Contact F1 by 0.5 points (95% interval 0.2 to 0.8), with the
+higher score on 37 of 46 videos. MonoTrack leads on Correct-player F1 by 1.7
+points (1.1 to 2.4), with the higher score on 37 of 46 videos.
 
 ### Where the hit errors are
 
@@ -221,16 +220,16 @@ scored rallies hold at least one error. Dark grey: extra hits outside every
 labelled rally, which count only when the annotator finds its own rallies.
 
 - **Swapping courts.** MonoTrack on our courts leaves 2,977 errors in 1,720
-  rallies. Ours on MonoTrack's courts leaves 3,389 in 1,336.
+  rallies. Ours on MonoTrack's courts leaves 3,437 in 1,344.
 - **Trees off.** Errors rise to 15,460 in 3,106 rallies on our courts, and to
   15,486 in 3,106 on MonoTrack's.
-- **Finding its own rallies.** Ours leaves 6,112 errors in 1,613 rallies. They
-  are 3,061 missed hits, 1,130 wrong hitters, 595 extra hits inside a scored
-  rally and 1,325 extra hits outside every labelled rally. With trees off, the
+- **Finding its own rallies.** Ours leaves 6,109 errors in 1,612 rallies. They
+  are 3,059 missed hits, 1,078 wrong hitters, 614 extra hits inside a scored
+  rally and 1,359 extra hits outside every labelled rally. With trees off, the
   total is 23,319 errors in 3,188 rallies.
 
 The pattern holds video by video (Figure 4). Ours has more fully correct rallies
-on 43 of 46 videos and higher Contact F1 on 37. MonoTrack has the higher
+on 42 of 46 videos, with 1 level, and higher Contact F1 on 37. MonoTrack has the higher
 Correct-player F1 on 37.
 
 ![Per-video scatter plots, our annotator against MonoTrack](writeup_figures/v3/fig4_per_video.png)
@@ -255,7 +254,7 @@ every hitter must be right. Figure 5 breaks this into three nested steps:
 
 The found rally's edges may fall up to 10 frames short of the first or last
 labelled hit. This is the same allowance hit timing gets. It is defined at 30
-fps and scales with frame rate. The allowance adds 2.0 to 2.5 points to
+fps and scales with frame rate. The allowance adds 2.5 to 3.1 points to
 "boundaries right" across seeds. Most of those rallies start a few frames after
 the labelled serve.
 
@@ -264,18 +263,18 @@ the labelled serve.
 Figure 5. The share of the 3,327 scored rallies reaching each step. With rally
 bounds given, the boundaries are already set, so only the last two steps apply.
 
-The annotator gets the boundaries right for 88.1% of labelled rallies. Of all
-rallies, 52.3% also have every hit right, and 51.5% are fully correct. Once the
+The annotator gets the boundaries right for 87.7% of labelled rallies. Of all
+rallies, 52.4% also have every hit right, and 51.5% are fully correct. Once the
 boundaries are right, most failures come from missed hits, extra hits or wrong
 hitters, as with rally bounds given. With its trees off, boundaries are right
 for 52.1% of rallies, hits for 4.3% and 4.2% end up fully correct. With rally
-bounds given, "hits right" is 60.8% for ours, 48.2% for MonoTrack and 6.8% with
+bounds given, "hits right" is 60.4% for ours, 48.2% for MonoTrack and 6.8% with
 trees off.
 
-Contact F1 drops from 96.6% with rally bounds given to 93.2% here. Two things
+Contact F1 drops from 96.6% with rally bounds given to 93.1% here. Two things
 account for most of the drop:
 
-- **Hits outside every rally.** 1,325 predicted hits sit outside every
+- **Hits outside every rally.** 1,359 predicted hits sit outside every
   ShuttleSet22 rally. What they show has not been checked. Replays, warm-ups or
   play between rallies are possibilities.
 - **Rallies with no court.** In 211 rallies (1,461 labelled hits), discovery
@@ -284,8 +283,8 @@ account for most of the drop:
   leave the court search looking at graphics, close-ups or other camera views.
 
 These figures ignore predictions inside the 524 rallies with flawed labels:
-about 4,063 per seed. Counted as extra hits, they would put Contact F1 at 88.3%
-rather than 93.2% (Appendix G).
+about 4,075 per seed. Counted as extra hits, they would put Contact F1 at 88.2%
+rather than 93.1% (Appendix G).
 
 ### Keeping only the confident rallies
 
@@ -296,39 +295,39 @@ suits every use, so the right panel of Figure 6 shows the whole trade-off.
 
 Figure 6 and Table 2 mark three cut-offs:
 
-- **0.395, the best balance.** On the 8 validation videos, it gives the highest
+- **0.35, the best balance.** On the 8 validation videos, it gives the highest
   F1 for picking out fully correct rallies. Here precision is the share of kept
   rallies that are fully correct. Recall is the share of all fully correct found
   rallies that are kept.
 - **0.757, the historical cut-off.** It was set for an earlier version of the
   confidence model and is carried over unchanged.
-- **0.845, for boundaries.** On the validation videos, it is the lowest cut-off
+- **0.84, for boundaries.** On the validation videos, it is the lowest cut-off
   at which 99% of kept rallies have the right boundaries.
 
 Table 2. Test results at each cut-off, as five-seed means. Each seed finds about
-3,666 rallies, more than the 3,327 labelled ones: about 648 of them match no
-labelled rally, and about 88 cover only part of one or join two. The two share
+3,966 rallies, more than the 3,327 labelled ones: about 854 of them match no
+labelled rally, and about 194 cover only part of one or join two. The two share
 columns are shares of the kept rallies. The last column counts the kept rallies
 that are fully correct, with their share of all 3,327 labelled rallies.
 
-| Cut-off | Rallies kept (of 3,666 found) | Share fully correct | Share with right boundaries | Fully correct rallies handed over |
+| Cut-off | Rallies kept (of 3,966 found) | Share fully correct | Share with right boundaries | Fully correct rallies handed over |
 |---|---:|---:|---:|---:|
-| 0.395 | 1,847 | 71.6% | 96.5% | 1,323 (39.8%) |
-| 0.757 | 664 | 82.1% | 99.3% | 545 (16.4%) |
-| 0.845 | 120 | 84.6% | 99.6% | 101 (3.0%) |
+| 0.35 | 2,078 | 68.4% | 94.8% | 1,421 (42.7%) |
+| 0.757 | 729 | 81.5% | 98.9% | 593 (17.8%) |
+| 0.84 | 135 | 85.9% | 99.1% | 116 (3.5%) |
 
 The share and the count answer different questions. The share says how far a
 person can trust what they are handed: at 0.757, 4 rallies in 5 need no fixes.
-The count says how much of the labelling is done: 545 of the 3,327 rallies,
+The count says how much of the labelling is done: 593 of the 3,327 rallies,
 about 1 in 6.
 
-If only the boundaries matter, the historical cut-off already gives 99.3% of
-kept rallies the right boundaries on test. On test, that share first reaches 99%
-at about 0.69, which keeps 987 rallies. That value is read off the test set
-itself, so it only describes the test set. The 0.845 cut-off, chosen on
-validation, keeps 120. The validation videos are harder for the annotator: 41.8%
-of their rallies come out fully correct, against 51.5% on test. At 0.845, each
-seed keeps about 25 validation rallies, so that choice rests on few rallies.
+If only the boundaries matter, the historical cut-off gives 98.9% of kept
+rallies the right boundaries on test. On test, that share first reaches 99% at
+0.825, which keeps 232 rallies. That value is read off the test set itself,
+so it only describes the test set. The 0.84 cut-off, chosen on validation, keeps
+135. The validation videos are harder for the annotator: 42.3% of their rallies
+come out fully correct, against 51.5% on test. At 0.84, each seed keeps about 22
+validation rallies, so that choice rests on few rallies.
 
 ![Confidence cut-off against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v3/fig6_confidence.png)
 
@@ -429,22 +428,23 @@ these rallies as missed hits.
 ### How stable are the trees?
 
 Our annotator's trees give nearly the same scores whatever the training seed.
-More training data changes them little (Figure 10).
+More training data for the contact tree raises them modestly (Figure 10).
 
 - **Seeds.** Across five seeds with rally bounds given, Correct-player F1 spans
-  94.1–94.3%, and fully correct rallies span 58.9–60.9%. The 2-point seed spread
-  in fully correct rallies is small next to the 11.8-point gap to MonoTrack.
+  94.0–94.3%, and fully correct rallies span 59.6–59.9%. The 0.3-point seed
+  spread in fully correct rallies is small next to the 11.6-point gap to
+  MonoTrack.
 - **Training-set size.** One of the eight trees is the contact tree. Training it
-  on all 40 original videos instead of 32 raised fully correct rallies by 1.6
-  points with rally bounds given, and by 0.8 points when finding rallies.
-  Correct-player F1 rose by about 0.15 points. Every seed improved with rally
-  bounds given, by 0.6 to 2.1 points. The 32-video models use the same training
+  on all 40 original videos instead of 32 raised fully correct rallies by 1.7
+  points with rally bounds given, and by 0.7 points when finding rallies.
+  Correct-player F1 rose by about 0.2 points. Every seed improved with rally
+  bounds given, by 1.3 to 1.9 points. The 32-video models use the same training
   videos as MonoTrack, so they are the fair comparison, and the headline uses
   them.
 - **Retuning.** A search over 48 preprocessing settings, refitting all trees for
-  each, picked one alternative on validation. On test, it stayed within the seed
-  spread of the shipped settings (Appendix B). The tree hyperparameters stayed
-  fixed in that search.
+  each, chose the settings used here on validation (Appendix B). On test, each
+  of their headline scores at ±10 frames falls inside the range of the shipped
+  settings' five seeds. The tree hyperparameters stayed fixed in that search.
 
 Each tree is a scikit-learn gradient-boosted model over named measurements of
 shuttle motion and player pose. A full refit of all eight runs on a CPU in one
@@ -600,14 +600,12 @@ values, to 63.83%.
 search varied five preprocessing settings between the shipped annotator's values
 and the tuned rule-only values. That gave 48 combinations, each with all trees
 refitted on the 32 training videos. The tree hyperparameters stayed fixed. The
-four best on training, plus the shipped settings, were each refitted with five
-seeds and scored on validation. The best mean on validation (`grid-017`) led the
-shipped settings by 0.28 points of Correct-player F1, inside the seed spread. On
-test, with rally bounds given, it scored 0.11 points lower on Correct-player F1
-and 0.25 points lower on fully correct rallies, again inside the seed spread.
-The report uses the shipped settings throughout.
+four best on training, one of them the shipped settings, were each refitted with
+five seeds and scored on validation. The best mean validation Correct-player F1
+picked `grid-017`, which this report uses throughout. It led the shipped
+settings by 0.28 points, inside the seed spread.
 
-**Confidence cut-offs.** The 0.395 and 0.845 cut-offs in Table 2 were chosen on
+**Confidence cut-offs.** The 0.35 and 0.84 cut-offs in Table 2 were chosen on
 the same 8 validation videos. The 32-video models were rerun there to record
 each found rally's confidence. The best-balance cut-off maximises the five-seed
 mean F1 for picking fully correct rallies. The boundary cut-off is the lowest at
@@ -696,15 +694,15 @@ five-seed means.
 |---|---|---|---:|---:|---:|
 | MonoTrack | Its own | Given | 94.8% | 94.7% | 40.5% |
 | MonoTrack | Ours | Given | 94.8% | 94.8% | 40.6% |
-| Our annotator | Ours | Given | 94.7% | 92.5% | 48.8% |
-| Our annotator | MonoTrack's | Given | 94.6% | 92.4% | 48.7% |
+| Our annotator | Ours | Given | 94.6% | 92.3% | 48.0% |
+| Our annotator | MonoTrack's | Given | 94.5% | 92.3% | 47.9% |
 | Our annotator, trees off | Ours | Given | 83.5% | 67.2% | 4.2% |
 | Our annotator, trees off | MonoTrack's | Given | 83.5% | 67.1% | 4.2% |
-| Our annotator | Ours, per scene | Found by the annotator | 91.3% | 88.4% | 41.3% |
+| Our annotator | Ours, per scene | Found by the annotator | 91.2% | 88.4% | 41.2% |
 | Our annotator, trees off | Ours, per scene | Found by the annotator | 74.0% | 60.5% | 2.5% |
 
-At ±5 frames, the two systems find hits equally well (94.8% against 94.7%). Ours
-still gets more rallies fully correct (48.8% against 40.5%).
+At ±5 frames, the two systems find hits about equally well (94.8% against
+94.6%). Ours still gets more rallies fully correct (48.0% against 40.5%).
 
 ## Appendix F: Where the numbers come from
 
@@ -713,7 +711,8 @@ still gets more rallies fully correct (48.8% against 40.5%).
   `mono_zeroed_our_courts_off/`. Historical configurations sit beside them.
 - Our annotator with rally bounds given, 32- and 40-video models, five seeds:
   `../tree_hp_tune/results/test_rerun/B/` (our courts) and `C/` (MonoTrack's
-  courts). Finding its own rallies: `A/`.
+  courts). Finding its own rallies: `A/`. Inside each, the report uses
+  `v32/grid-017/` (32 videos) and `final40/grid-017/` (40 videos).
 - Trees off: `../heuristic_only_tune/results/known_our_courts/`,
   `known_mono_courts/` and `test/` (finding its own rallies), with the frozen
   settings in `selected.json.gz`.
@@ -723,6 +722,12 @@ still gets more rallies fully correct (48.8% against 40.5%).
 - ShuttleSet22 labels, including the left-out rallies: `data/shuttleset22/set/`
   (repository root).
 - MonoTrack training records: `hitnet_retrain/weights/`.
+- Confidence scores in discovery mode: `benchmark_results/confidence_rerun/`,
+  with `test/` and `validation/` folders. They come from a rerun of the 32-video
+  `grid-017` models whose hits and rally spans match the committed streams
+  exactly.
+- The scripts that turn these results into this report's numbers, tables and
+  figures: [`writeup_scripts/`](writeup_scripts/README.md).
 
 ## Appendix G: Rallies with flawed labels
 
@@ -740,10 +745,10 @@ flagged hits have an unknown shot type.
   correct.
 - Of the 156 flagged hits after a rally's first, 155 are timed at or before the
   hit listed before them.
-- Our annotator puts a predicted hit within 10 frames of 22% of the flagged
+- Our annotator puts a predicted hit within 10 frames of 23% of the flagged
   hits, against 92% of the unflagged hits in the same rallies.
 
-Scored as ordinary rallies, 0.6% of them come out fully correct when our
+Scored as ordinary rallies, 0.4% of them come out fully correct when our
 annotator finds its own rallies, against 51% of the scored rallies. Counting
 them would charge every system for label errors, so every condition ignores
 them.
@@ -758,12 +763,12 @@ a scored hit. A found rally left with no predictions is dropped too.
 - **With rally bounds given,** only the scored rallies are run. Ignoring the
   left-out rallies removes 1 of MonoTrack's extra hits and 3 of the trees-off
   annotator's. No rate changes at one decimal place.
-- **When the annotator finds its own rallies,** a mean of 4,063 predictions and
-  about 355 found rallies per seed are dropped. Counted as extra hits instead,
-  they would put Contact F1 at 88.3% rather than 93.2%. Correct-player F1 would
-  be 85.4% rather than 90.1%. With trees off, the figures would be 74.2% rather
-  than 77.8%, and 60.4% rather than 63.3%. Fully correct rallies move by about
-  0.1 points.
+- **When the annotator finds its own rallies,** a mean of 4,075 predictions and
+  about 368 found rallies per seed are dropped. Counted as extra hits instead,
+  they would put Contact F1 at 88.2% rather than 93.1%. Correct-player F1 would
+  be 85.4% rather than 90.2%. With trees off, the figures would be 74.2% rather
+  than 77.8%, and 60.4% rather than 63.3%. Fully correct rallies move by less
+  than 0.1 points.
 - **Court results** cover only the 3,327 scored rallies, so they do not change.
 
 The left-out rallies' bounds may also hold some false hits, so the
