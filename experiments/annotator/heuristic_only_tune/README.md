@@ -201,3 +201,23 @@ Point `paths.inputs` in a separate benchmark configuration at the new folder,
 then run the frozen heuristic as above. Score with the **original** input folder,
 or the new folder's `score_inputs`, which contains an unchanged copy of the
 original scoring manifest. The prepared root manifest is for inference only.
+
+## Recompute the report diagnostics
+
+These commands read only committed results and benchmark inputs:
+
+```bash
+python -m experiments.annotator.heuristic_only_tune.diagnostics
+
+python -m experiments.annotator.heuristic_only_tune.rescore_discovery \
+  --output "$search_dir/discovery_benchmark"
+python experiments/annotator/monotrack_benchmark/benchmark_scripts/score.py \
+  --inputs experiments/annotator/monotrack_benchmark/benchmark_results/inputs \
+  --run "$search_dir/discovery_benchmark"
+```
+
+The first command prints the derived counts quoted in both reports, such as
+rally gains and losses between conditions. It takes a few minutes on one core.
+The other two rebuild the fixed-window discovery row in
+[KNOWN_RALLIES.md](KNOWN_RALLIES.md#discovery-under-the-same-benchmark-scoring)
+from the saved test predictions.

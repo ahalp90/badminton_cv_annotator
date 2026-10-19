@@ -239,7 +239,8 @@ scene cuts come from automatic detection; they were not manually verified here.
 Use the [benchmark runner instructions](../monotrack_benchmark/benchmark_scripts/README.md#run)
 with `--heuristic-settings` pointing to [selected.json.gz](results/selected.json.gz).
 Run `ours_our_courts` and `ours_mono_courts` into fresh directories and score each
-with the original benchmark scorer. Use `ours_discovery` for the discovery row.
+with the original benchmark scorer. For the discovery row, [rescore_discovery.py](rescore_discovery.py)
+packages the saved test predictions for that scorer without new inference.
 
 The new per-video streams and pooled scores are saved under
 [known_our_courts](results/known_our_courts/), [known_mono_courts](results/known_mono_courts/)
@@ -247,6 +248,8 @@ and [discovery_benchmark](results/discovery_benchmark/). They reuse the committe
 [benchmark manifest and courts](../monotrack_benchmark/benchmark_results/inputs/).
 The [published comparison](../monotrack_benchmark/benchmark_results/comparison/)
 contains the reference streams and full precision/recall tables at both tolerances.
+[diagnostics.py](diagnostics.py) recomputes the rally gains and losses, failure
+reasons and extra-contact counts quoted in this report from these committed files.
 
 The two new inference runs used 13 workers each, with one numerical-library thread
 per worker. Together they took 80 seconds of inference wall time, including loading
