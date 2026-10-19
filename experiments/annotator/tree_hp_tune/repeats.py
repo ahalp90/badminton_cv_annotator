@@ -13,8 +13,8 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-REPOSITORY = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPOSITORY))
+# Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
+sys.path.insert(0, str(REPOSITORY := Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
 from experiments.annotator.tree_hp_tune import run as grid

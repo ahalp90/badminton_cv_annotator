@@ -15,8 +15,8 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
 from typing import Any
 
-REPOSITORY = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPOSITORY))
+# Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
+sys.path.insert(0, str(REPOSITORY := Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
 # This import sets numerical-library thread defaults before NumPy loads.

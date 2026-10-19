@@ -11,8 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-MONOTRACK = Path(__file__).resolve().parents[1] / "monotrack"
-sys.path.insert(0, str(MONOTRACK / "python/ai-badminton/src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "monotrack/python/ai-badminton/src"))
 
 from ai_badminton.court import Court  # pyrefly: ignore[missing-import]
 from ai_badminton.pose import Pose  # pyrefly: ignore[missing-import]

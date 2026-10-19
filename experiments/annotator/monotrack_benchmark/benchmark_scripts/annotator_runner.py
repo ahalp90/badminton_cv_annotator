@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from experiments.annotator.heuristic_tuning.sweep import CandidateSpec
 
-for variable in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
-    os.environ[variable] = '1'
+os.environ.update(OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
 
 from common import load_config, load_manifest, read_array, write_json
 

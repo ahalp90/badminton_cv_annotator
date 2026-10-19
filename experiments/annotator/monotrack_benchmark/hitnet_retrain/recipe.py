@@ -66,8 +66,8 @@ def corrupt_consecutive(x: np.ndarray, rep_value: float = 0.) -> np.ndarray:
     x = np.array(x)
     for i in range(x.shape[0]):
         j = random.randint(0, num_consec - 1)
-        l, r = max(0, 78 * (j - 2)), min(78 * (j + 2), 78 * num_consec)
-        x[i][l:r] = np.random.rand(1, r - l)
+        start, stop = max(0, 78 * (j - 2)), min(78 * (j + 2), 78 * num_consec)
+        x[i][start:stop] = np.random.rand(1, stop - start)
     return x
 
 

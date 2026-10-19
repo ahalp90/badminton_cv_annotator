@@ -18,14 +18,14 @@ from statistics import mean
 from typing import Any
 
 # Spawned jobs and benchmark subprocesses inherit these before numerical imports.
-for variable in (
-    'OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'BLIS_NUM_THREADS',
-    'NUMEXPR_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS',
-):
-    os.environ[variable] = '1'
+os.environ.update(
+    OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1', BLIS_NUM_THREADS='1',
+    NUMEXPR_NUM_THREADS='1', VECLIB_MAXIMUM_THREADS='1',
+)
 
-REPOSITORY = Path(__file__).resolve().parents[3]
-sys.path[:0] = [str(REPOSITORY), str(REPOSITORY / 'src')]
+# Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
+sys.path.insert(0, str(REPOSITORY := Path(__file__).resolve().parents[3]))
+sys.path.insert(1, str(REPOSITORY / 'src'))
 
 from experiments.annotator.tree_hp_tune import final_test
 

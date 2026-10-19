@@ -17,8 +17,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-REPO = Path(__file__).resolve().parents[4]
-sys.path[:0] = [str(REPO / 'src'), str(REPO)]
+# Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
+sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
+sys.path.insert(0, str(REPO / 'src'))
 
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (

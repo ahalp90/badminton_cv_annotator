@@ -31,11 +31,10 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
-for variable in (
-    'OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS',
-    'NUMBA_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS', 'BLIS_NUM_THREADS',
-):
-    os.environ[variable] = '1'
+os.environ.update(
+    OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1', NUMEXPR_NUM_THREADS='1',
+    NUMBA_NUM_THREADS='1', VECLIB_MAXIMUM_THREADS='1', BLIS_NUM_THREADS='1',
+)
 
 from threadpoolctl import threadpool_limits
 

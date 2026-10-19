@@ -17,6 +17,8 @@ import recipe
 import run_training
 from ai_badminton.pose import process_pose_file, read_player_poses
 
+MONOTRACK_NOTEBOOK = Path(__file__).resolve().parents[2] / "monotrack/modified-tracknet/train-hitnet.ipynb"
+
 
 def detections(frames: int = 30) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     kps = np.empty((frames, 4, 17, 2))
@@ -163,7 +165,7 @@ def test_single_observation_still_fails_inference_fill() -> None:
 
 
 def test_augmentation_matches_notebook() -> None:
-    notebook = json.loads((inputs.MONOTRACK / "modified-tracknet/train-hitnet.ipynb").read_text())
+    notebook = json.loads(MONOTRACK_NOTEBOOK.read_text())
     namespace: dict = {"np": np, "random": random, "num_consec": 12, "BATCH_SIZE": 64}
     # The cell also imports scipy/sklearn; extract only its numerical functions.
     import ast

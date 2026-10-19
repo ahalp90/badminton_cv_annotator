@@ -21,8 +21,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-REPO = Path(__file__).resolve().parents[4]
-sys.path[:0] = [str(REPO)]
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from experiments.annotator.monotrack_benchmark.writeup_scripts.render_gallery import (
     BLACK,
