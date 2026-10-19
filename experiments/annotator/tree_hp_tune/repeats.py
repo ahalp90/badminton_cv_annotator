@@ -17,6 +17,7 @@ from typing import Any
 sys.path.insert(0, str(REPOSITORY := Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
+from experiments.annotator.heuristic_only_tune.run import resume_identity
 from experiments.annotator.tree_hp_tune import run as grid
 from experiments.annotator.tree_hp_tune.supervise import CPU_BUDGET
 
@@ -98,15 +99,14 @@ def freeze_plan(root: Path, repository: Path) -> tuple[dict[str, Any], dict[str,
     plan = {
         'schema': SCHEMA, 'candidates': candidates, 'seed_offsets': list(SEED_OFFSETS),
         'original_snapshot': snapshot, 'baseline_parity': parity,
-        'script_md5': hashlib.md5(Path(__file__).read_bytes()).hexdigest(),
         'seed_settings': {str(offset): settings_record(seeded_settings(offset)) for offset in SEED_OFFSETS},
         'selection': 'mean original 8-video validation attributed_f1 at 10; train only shortlists',
     }
     directory = root / 'repeats'
     directory.mkdir(exist_ok=True)
     path = directory / 'plan.json.gz'
-    if path.exists() and grid.read_json(path) != plan:
-        raise ValueError('frozen repeat plan changed; resume requires identical source, inputs and repeat code')
+    if path.exists() and resume_identity(grid.read_json(path)) != resume_identity(plan):
+        raise ValueError('frozen repeat plan changed; resume requires identical environment, inputs and settings')
     grid.write_json(path, plan)
     sticky = (root / 'grid48' / 'sticky').resolve(strict=True)
     for offset in SEED_OFFSETS[1:]:

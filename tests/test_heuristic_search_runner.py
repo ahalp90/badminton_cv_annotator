@@ -237,26 +237,30 @@ def test_cache_failure_propagates_without_becoming_an_empty_prediction(
     assert search.latest_attempt(tmp_path, job.video.identity, job.spec) is None
 
 
-def test_source_and_input_content_changes_prevent_stale_resume(tmp_path: Path) -> None:
-    source = tmp_path / 'src' / 'untracked.py'
-    source.parent.mkdir()
-    source.write_text('value = 1\n')
-    fingerprint = search.source_files(tmp_path)
-    assert set(fingerprint) == {'src/untracked.py'}
-    source.write_text('value = 2\n')
-    assert search.source_files(tmp_path) != fingerprint
+def test_resume_allows_source_edits_but_preserves_inputs_and_settings(tmp_path: Path) -> None:
     array = tmp_path / 'track.npy.xz'
     array.write_bytes(b'first input')
-    manifest = search.file_manifest({'track': array})
-    identity = {'source': {'revision': 'first', 'files_md5': fingerprint}, 'input_files': manifest}
+    source = {
+        'revision': 'first', 'python': '3.12', 'packages': {'numpy': '2.0'},
+        'files_md5': {'src/model.py': 'old', 'pyproject.toml': 'old', 'uv.lock': 'old', 'groups.json.gz': 'fixed'},
+    }
+    identity = {'source': source, 'input_files': search.file_manifest({'track': array}), 'candidates': ['fixed']}
     run_path = tmp_path / 'run.json.gz'
     search.keep_run_identity(run_path, identity)
-    search.keep_run_identity(run_path, {**identity, 'source': {**identity['source'], 'revision': 'docs commit'}})
-    array.write_bytes(b'changed input')
+    current_source = {**source, 'revision': 'second', 'files_md5': {'groups.json.gz': 'fixed'}}
+    search.keep_run_identity(run_path, {**identity, 'source': current_source})
+    assert search.read_json(run_path) == identity
+    assert source['files_md5']['src/model.py'] == 'old'
+    for changed in (
+        {**identity, 'candidates': ['changed']},
+        {**identity, 'source': {**current_source, 'packages': {'numpy': '2.1'}}},
+        {**identity, 'source': {**current_source, 'files_md5': {'groups.json.gz': 'changed'}}},
+    ):
+        with pytest.raises(ValueError, match='changed'):
+            search.keep_run_identity(run_path, changed)
+    array.write_bytes(b'changed input content')
     with pytest.raises(ValueError, match='changed'):
         search.keep_run_identity(run_path, {**identity, 'input_files': search.file_manifest({'track': array})})
-    with pytest.raises(ValueError, match='changed'):
-        search.keep_run_identity(run_path, {**identity, 'source': {'files_md5': search.source_files(tmp_path)}})
 
 
 def test_progress_snapshot_keeps_the_latest_complete_counter(tmp_path: Path) -> None:

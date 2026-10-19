@@ -17,6 +17,7 @@ from typing import Any
 sys.path.insert(0, str(REPOSITORY := Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(REPOSITORY / 'src'))
 
+from experiments.annotator.heuristic_only_tune.run import resume_identity
 from experiments.annotator.tree_hp_tune import repeats
 
 # isort: split
@@ -93,14 +94,12 @@ def freeze_plan(root: Path, repository: Path, test_paths_file: Path | None) -> t
         'seed_offsets': list(repeats.SEED_OFFSETS), 'original_snapshot': original_snapshot,
         'test_inputs': grid.file_manifest(grid.input_paths(paths, videos, False)),
         'test_videos': [video.identity for video in videos], 'bundles': bundle_identity,
-        'script_md5': hashlib.md5(Path(__file__).read_bytes()).hexdigest(),
-        'repeat_helper_md5': hashlib.md5(Path(repeats.__file__).read_bytes()).hexdigest(),
         'comparison': 'all five paired seeds; final_40 contact refit; frozen v32 downstream; no further selection',
     }
     output = root / 'final_test'
     output.mkdir(exist_ok=True)
     plan_path = output / 'plan.json.gz'
-    if plan_path.exists() and grid.read_json(plan_path) != plan:
+    if plan_path.exists() and resume_identity(grid.read_json(plan_path)) != resume_identity(plan):
         raise ValueError('frozen final test plan changed; resume requires identical selection, bundles and inputs')
     grid.write_json(plan_path, plan)
     return plan, paths
@@ -187,6 +186,7 @@ def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[st
             per_video[video.identity] = grid.score_stream(video, stream)
             trial_progress(trial, 'test', video=video.identity, complete=len(per_video), planned=46)
         result = {
+            'source': grid.source_record(),
             'schema': SCHEMA, 'id': candidate['id'], 'label': candidate['label'], 'seed_offset': offset,
             'per_video': per_video, 'totals': grid.pooled_scores(per_video),
             'bundle': str((trial / 'bundle_final40').resolve()),

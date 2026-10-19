@@ -201,6 +201,16 @@ def test_frozen_plan_pins_test_inputs_and_bundles(tmp_path: Path, monkeypatch: p
     assert len(plan['bundles']) == 10
     assert all('md5' in identity for identity in plan['bundles'].values())
     assert final.freeze_plan(tmp_path, tmp_path, None)[0] == plan
+    legacy_plan = {**plan, 'script_md5': 'old', 'repeat_helper_md5': 'old'}
+    final.grid.write_json(tmp_path / 'final_test/plan.json.gz', legacy_plan)
+    assert final.freeze_plan(tmp_path, tmp_path, None)[0] == plan
+    bundle_path = Path(selected['bundles'][0]['bundle']) / 'models.joblib'
+    bundle_path.write_bytes(b'changed-bundle')
+    with pytest.raises(ValueError, match='frozen final test plan changed'):
+        final.freeze_plan(tmp_path, tmp_path, None)
+    # Freeze again after deliberately resetting the test plan.
+    (tmp_path / 'final_test/plan.json.gz').unlink()
+    final.freeze_plan(tmp_path, tmp_path, None)
     test_manifest.write_bytes(b'changed test input')
     with pytest.raises(ValueError, match='frozen final test plan changed'):
         final.freeze_plan(tmp_path, tmp_path, None)

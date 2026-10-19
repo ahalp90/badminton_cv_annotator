@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import fcntl
 import gzip
-import hashlib
 import json
 import multiprocessing
 import os
@@ -160,22 +159,10 @@ def load_paths(path: Path) -> dict[str, Path]:
     return paths
 
 
-def source_files(repository: Path) -> dict[str, str]:
-    """Hash effective source contents, including files not yet tracked by Git."""
-    files = []
-    for directory in ('src', 'experiments/annotator'):
-        files.extend((repository / directory).rglob('*.py'))
-    for name in ('pyproject.toml', 'uv.lock'):
-        path = repository / name
-        if path.exists():
-            files.append(path)
-    return {str(path.relative_to(repository)): hashlib.md5(path.read_bytes()).hexdigest() for path in sorted(files)}
-
-
 def source_record() -> dict[str, Any]:
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPOSITORY, text=True).strip()
     return {
-        'revision': revision, 'files_md5': source_files(REPOSITORY),
+        'revision': revision, 'files_md5': {},
         'python': platform.python_version(),
         'packages': {name: version(name) for name in (
             'numpy', 'scipy', 'scikit-learn', 'pandas', 'joblib', 'numba',
@@ -228,16 +215,32 @@ def file_manifest(files: dict[str, Path]) -> dict[str, dict[str, Any]]:
     return records
 
 
+def resume_identity(document: dict[str, Any]) -> dict[str, Any]:
+    """Compare inputs and settings, allowing source edits in legacy run records.
+
+    Use a fresh output directory when code changes affect the experiment itself.
+    """
+    identity = dict(document)
+    identity.pop('script_md5', None)
+    identity.pop('repeat_helper_md5', None)
+    if 'source' in identity:
+        source = dict(identity['source'])
+        source.pop('revision', None)
+        # Keep data/config hashes such as training groups from older snapshots.
+        source['files_md5'] = {
+            name: checksum for name, checksum in source.get('files_md5', {}).items()
+            if not name.endswith('.py') and name not in ('pyproject.toml', 'uv.lock')
+        }
+        identity['source'] = source
+    if 'original_snapshot' in identity:
+        identity['original_snapshot'] = resume_identity(identity['original_snapshot'])
+    return identity
+
+
 def keep_run_identity(path: Path, document: dict[str, Any]) -> None:
     if path.exists():
-        previous = read_json(path)
-        current = dict(document)
-        # A documentation-only commit can change HEAD without changing the run.
-        for identity in (previous, current):
-            identity['source'] = dict(identity['source'])
-            identity['source'].pop('revision', None)
-        if previous != current:
-            raise ValueError(f'{path}: source, inputs or configurations changed; use a fresh output directory')
+        if resume_identity(read_json(path)) != resume_identity(document):
+            raise ValueError(f'{path}: environment, inputs or configurations changed; use a fresh output directory')
     else:
         write_json(path, document)
 
@@ -317,6 +320,7 @@ def run_one_job(job: SearchJob) -> bool:
     outcome = CandidateOutcome(
         status='succeeded', elapsed_seconds=elapsed, aggregate=counts,
         fixtures={video.identity: {
+            'source': source_record(),
             'stream': stream, 'failure': failure, 'load_seconds': load_seconds, 'input_cache_hit': cache_hit,
             'inference_seconds': inference_seconds, 'score_seconds': score_seconds,
             'max_rss_mib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,

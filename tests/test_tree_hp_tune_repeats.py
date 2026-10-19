@@ -140,7 +140,7 @@ def test_seeded_worker_reuses_existing_fits_and_original_validation(
     assert fitted is not None and fitted['threads'] == threads
 
 
-def test_freeze_checks_snapshot_and_rejects_changed_repeat_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_freeze_allows_legacy_code_hashes_but_rejects_changed_seed_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     specs, results = candidates_and_results()
     grid_root = tmp_path / 'grid48'
     (grid_root / 'sticky').mkdir(parents=True)
@@ -155,6 +155,13 @@ def test_freeze_checks_snapshot_and_rejects_changed_repeat_code(tmp_path: Path, 
     assert (tmp_path / 'repeats/seed-100/sticky').resolve() == (grid_root / 'sticky').resolve()
     assert repeats.freeze_plan(tmp_path, tmp_path)[0] == plan
     plan['script_md5'] = 'changed'
+    plan['original_snapshot'] = {
+        **snapshot, 'source': {'files_md5': {'source': 'fixed', 'src/unrelated.py': 'old'}},
+    }
+    repeats.grid.write_json(tmp_path / 'repeats/plan.json.gz', plan)
+    resumed, _ = repeats.freeze_plan(tmp_path, tmp_path)
+    assert 'script_md5' not in resumed
+    plan['seed_settings']['0']['contact']['random_seed'] += 1
     repeats.grid.write_json(tmp_path / 'repeats/plan.json.gz', plan)
     with pytest.raises(ValueError, match='frozen repeat plan changed'):
         repeats.freeze_plan(tmp_path, tmp_path)

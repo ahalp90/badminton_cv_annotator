@@ -204,6 +204,7 @@ def fit_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, threads
             write_json(root / 'training_streams' / f'{video_id}.json.gz', stream)
             per_video[video_id] = score_stream(by_id[video_id], stream)
         result = {
+            'source': source_record(),
             'id': identity, 'label': spec.label, 'per_video': per_video, 'totals': pooled_scores(per_video),
             'contact_fits': fit_records, 'confidence_rows': len(labels), 'timings': timings,
             'wall_s': time.perf_counter() - started, 'cpu_s': time.process_time() - cpu_started,
@@ -233,6 +234,7 @@ def validate_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, th
         if len(per_video) != 8:
             raise ValueError('validation must contain exactly eight original videos')
         result = {
+            'source': source_record(),
             'id': identity, 'label': spec.label, 'per_video': per_video, 'totals': pooled_scores(per_video),
             'wall_s': time.perf_counter() - started, 'cpu_s': time.process_time() - cpu_started,
             'peak_rss_kib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
