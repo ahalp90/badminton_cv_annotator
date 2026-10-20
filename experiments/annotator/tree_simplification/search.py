@@ -22,13 +22,13 @@ from annotator.training.trees import TreeBackend
 
 
 def configurations(backend: TreeBackend) -> list[dict[str, Any]]:
-    runs = [
+    runs = [{'name': 'legacy-pool', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': True}]
+    runs.extend([
         {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': False}
         for leaves in (15, 7, 31)
-    ]
+    ])
     if backend == TreeBackend.XGBOOST:
         runs.append({'name': 'child-10', 'leaves': 15, 'layers': 3, 'min_child_weight': 10.0, 'legacy_pool': False})
-    runs.append({'name': 'legacy-pool', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': True})
     return runs
 
 
