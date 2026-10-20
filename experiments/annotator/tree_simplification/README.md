@@ -367,3 +367,37 @@ validation datasets.
 Normalised derivatives still depend on discretised smoothing windows, tracking
 noise and missing observations. Validation at 25/30 fps cannot establish 60 fps
 or amateur-video transfer. The existing untouched-test boundary remains intact.
+
+## Refit changed preprocessing with raw features
+
+`prepare --candidate` accepts a gzip JSON candidate document with one entry in
+`candidates`, using the existing `label`, `overrides_base30` and `strategies`
+fields. The document also names its `schema` and `stage`. Omitting the option
+keeps the default preprocessing. Each changed candidate needs its own prepared
+family and dependent fits; the saved configuration travels into the bundle.
+
+```bash
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.prepare \
+  --paths PATHS.toml --candidate candidate.json.gz \
+  --output RUN/prepared --workers 4
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages contacts \
+  --prepared RUN/prepared --output RUN/seed-0/contacts-fit \
+  --seed-offset 0 --threads 4
+```
+
+This contact stage fits the four held-group models on 24 videos each and the
+final contact model on 32 videos. Use its output as `pools --pilot`, then run
+`targets` and `train` with the selected raw selector settings. Export the
+selector and fitted review model with validation replay:
+
+```bash
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages export \
+  --run RUN/seed-0/selector --five-frame-targets RUN/seed-0/targets-five \
+  --output RUN/seed-0/export --threads 4
+```
+
+Export checks all eight validation pools and streams against the fitted run.
+It saves a production bundle, both timing tolerances, and per-span review rows
+for the fitted reviewer and selector fallback. Unknown correctness labels remain
+in those rows. No filtering threshold is applied. Repeat each retained candidate
+at offsets 0, 100, 200, 300 and 400, with matching contact and selector seeds.
