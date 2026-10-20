@@ -316,6 +316,10 @@ underlying counts and provenance.
 
 ## FPS motion-unit experiment
 
+The completed five-seed comparison retained raw features: both tested
+normalisation variants reduced mean validation recovery and attributed F1.
+See the [results and limitations](../reports/fps_motion_normalisation.md).
+
 `fps_normalisation` creates a separate prepared family with shared learned motion
 columns expressed in equivalent 30 fps units. First differences use `fps / 30`;
 second-difference impulse uses its square. The impulse ratio is recomputed with

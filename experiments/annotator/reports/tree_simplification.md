@@ -128,6 +128,10 @@ suite recorded 3,135 passed, 35 skipped and one failure because `python` was
 absent from PATH. That test passed with the virtual environment on PATH; the
 original full-suite run still exited 1.
 
+The [five-seed motion-normalisation follow-up](fps_motion_normalisation.md)
+retained raw features: neither tested transformation improved mean validation
+recovery or attributed F1. The selected structure and bundle remain unchanged.
+
 The selected bundle is ready for the next MonoTrack benchmark. That benchmark and a separate amateur/60 fps
 evaluation can test whether the development gains reduce manual correction in
 the intended footage. No redesign merge to `main` has been performed.
