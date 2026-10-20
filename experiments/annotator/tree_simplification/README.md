@@ -404,6 +404,11 @@ at offsets 0, 100, 200, 300 and 400, with matching contact and selector seeds.
 
 ## Frozen test and review-threshold evaluation
 
+The [completed preprocessing comparison](../reports/input_preprocessing.md)
+reports five-seed validation selection, the frozen 46-video test and optional
+review-score operating points. Baseline preprocessing and disabled filtering
+remain the defaults.
+
 Select finalists using validation results before evaluating test videos.
 `input_test` accepts an `annotator-input-finalists/1` gzip JSON freeze with
 `fit_policy: contact32`, `feature_units: raw`, the five ordered `seed_offsets`,
@@ -421,6 +426,10 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_test 
 The evaluator verifies the frozen bundle and source before loading the 46 test
 fixtures. It uses the saved 32-video fit without refitting. Saved per-video
 results can resume only with the same inputs, bundle and evaluator identity.
+The paths file needs `test_inputs`, `test_courts`, `inpaint_root` and `pose_root`.
+Check these entries against the
+[paths example](../heuristic_only_tune/paths.example.toml); a development-only
+paths file cannot run this evaluation.
 
 For threshold analysis, combine exported review rows and add `candidate`,
 `seed_offset` and `split` (`validation` or `test`) to each row. Preserve the
