@@ -313,3 +313,53 @@ The [selection report](../reports/tree_simplification.md) records the chosen
 configuration, all repeated comparisons, review-ranking trade-offs and the
 measured inference cost. [Saved evidence](results/README.md) preserves the
 underlying counts and provenance.
+
+## FPS motion-unit experiment
+
+`fps_normalisation` creates a separate prepared family with shared learned motion
+columns expressed in equivalent 30 fps units. First differences use `fps / 30`;
+second-difference impulse uses its square. The impulse ratio is recomputed with
+its denominator floor in those same units. Frame windows, candidate-region flags
+and vision evidence remain fixed. Both contact and rally models consume these
+columns, so this measures a whole-stack feature change.
+
+```bash
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.fps_normalisation prepare \
+  --source RUN/prepared --output RUN/fps/prepared --workers 4
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.fps_normalisation contacts \
+  --prepared RUN/fps/prepared --output RUN/fps/contacts-fit --threads 2
+```
+
+Use the existing `pools`, `targets` and `train` commands with those new paths.
+The contact stage fits four held-group 24-video models and final contact32.
+Keep the selected selector at 31 leaves, 400 rounds and one layer. Match the
+seed and span weight to the raw baseline. Then fit review ranking and verify
+all eight reconstructed validation pools and streams:
+
+```bash
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.fps_review \
+  --run RUN/fps/selector --five-frame-targets RUN/fps/targets-five \
+  --output RUN/fps/review --threads 2
+```
+
+These experimental checkpoints require the transformed preparation. The raw
+pilot and production export commands reject this family because production
+bundle metadata does not encode motion units. Prepared artifacts and input
+receipts are checked before fitting or replay. Use a fresh directory when
+inputs or transformation code change.
+
+For the velocity-only control, add `--velocity-only` to preparation and use a
+new output family. That control preserves raw impulse and ratio columns. Its
+separate units identifier prevents mixing its checkpoints with the full arm.
+
+For paired repeats, reuse each arm's prepared family and give every seed a
+separate output directory. Pass offsets 0, 100, 200, 300 and 400 to
+`contacts --seed-offset`; pass 20260905 plus that offset to `train --seed`.
+Use the corresponding raw run's saved `span_weight` with `train --span-weight`.
+Keep tree settings and the validation videos fixed. Compare paired differences
+across seeds; five fits on the same videos do not provide five independent
+validation datasets.
+
+Normalised derivatives still depend on discretised smoothing windows, tracking
+noise and missing observations. Validation at 25/30 fps cannot establish 60 fps
+or amateur-video transfer. The existing untouched-test boundary remains intact.

@@ -28,13 +28,16 @@ def test_export_resets_historical_pilot_device_before_replay(tmp_path, monkeypat
     pilot = tmp_path / 'pilot'
     save_models(AnnotatorModels(historical, SequenceModels(*(historical,) * 6), historical), pilot / 'bundle')
     run, output = tmp_path / 'run', tmp_path / 'export'
+    prepared = tmp_path / 'prepared'
+    prepared.mkdir()
+    integrate.write_json(prepared / 'preparation.json.gz', {'inputs': {}})
     (run / 'layers-1').mkdir(parents=True)
     joblib.dump((tree,), run / 'layers-1/rally-models.joblib')
     integrate.write_json(run / 'result.json.gz', {'complete': True})
     integrate.write_json(run / 'settings.json.gz', {
         'layers': 1, 'legacy_pool': False, 'target_policy': {},
         'pool_settings': {
-            'pilot': str(pilot), 'max_edits': 3, 'deletion_candidates': 6,
+            'pilot': str(pilot), 'prepared': str(prepared), 'max_edits': 3, 'deletion_candidates': 6,
             'settings': {'confidence': {}},
         },
     })

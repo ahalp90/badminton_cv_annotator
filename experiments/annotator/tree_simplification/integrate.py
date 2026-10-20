@@ -48,7 +48,11 @@ from experiments.annotator.old_court_regression.retrain import (
 )
 from experiments.annotator.tree_hp_tune.run import pooled_scores
 from experiments.annotator.tree_simplification.options import ExpandedPool
-from experiments.annotator.tree_simplification.pilot import load_prepared, progress
+from experiments.annotator.tree_simplification.pilot import (
+    load_prepared,
+    progress,
+    require_raw_features,
+)
 from experiments.annotator.tree_simplification.targets import tightest_targets
 from experiments.annotator.tree_simplification.train import LayerTrainer
 
@@ -191,6 +195,7 @@ def main() -> None:
         parser.error('--threads must be between 1 and 28')
     result = read_json(args.run / 'result.json.gz')
     settings = read_json(args.run / 'settings.json.gz')
+    require_raw_features(Path(settings['pool_settings']['prepared']))
     if not result['complete'] or args.layers > settings['layers']:
         parser.error('--run must contain the completed requested depth')
     if settings.get('specialists') or settings['legacy_pool'] or 'target_policy' not in settings:

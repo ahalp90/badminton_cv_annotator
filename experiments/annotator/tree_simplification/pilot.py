@@ -86,6 +86,11 @@ def load_prepared(directory: Path, identity: str) -> PreparedVideo:
     return joblib.load(directory / 'videos' / f'{identity}.joblib')
 
 
+def require_raw_features(prepared_root: Path) -> None:
+    if read_json(prepared_root / 'preparation.json.gz').get('motion_units') is not None:
+        raise ValueError('Experimental motion units need their own fit/replay path; production bundles use raw units')
+
+
 def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSettings) -> Any:
     video = prepared.video
     return sequence_training_video(
@@ -95,6 +100,7 @@ def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSetti
 
 
 def evaluate(prepared_root: Path, models: AnnotatorModels, output: Path) -> dict[str, Any]:
+    require_raw_features(prepared_root)
     started = time.perf_counter()
     preparation = read_json(prepared_root / 'preparation.json.gz')['inputs']
     preprocessing = json.loads(json.dumps(asdict(models.preprocessing), default=sorted))
@@ -144,6 +150,7 @@ def verify_reference(result: dict[str, Any], expected_path: Path, output: Path) 
 
 
 def fit(prepared_root: Path, paths: dict[str, Path], output: Path, settings: TrainingSettings) -> AnnotatorModels:
+    require_raw_features(prepared_root)
     videos = load_original_videos(paths['shots_master'])
     development = development_for(videos)
     training_ids = development.videos(retrain.TRAINING_GROUPS)
