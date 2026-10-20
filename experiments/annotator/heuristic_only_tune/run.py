@@ -117,6 +117,7 @@ class WorkerState:
     output: Path
     models: AnnotatorModels | None
     inputs: OrderedDict[str, OldVideoInputs]
+    source: dict[str, Any]
 
 
 @dataclass
@@ -163,6 +164,7 @@ def source_record() -> dict[str, Any]:
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPOSITORY, text=True).strip()
     return {
         'revision': revision, 'files_md5': {},
+        'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=REPOSITORY, text=True).strip()),
         'python': platform.python_version(),
         'packages': {name: version(name) for name in (
             'numpy', 'scipy', 'scikit-learn', 'pandas', 'joblib', 'numba',
@@ -226,6 +228,7 @@ def resume_identity(document: dict[str, Any]) -> dict[str, Any]:
     if 'source' in identity:
         source = dict(identity['source'])
         source.pop('revision', None)
+        source.pop('dirty', None)
         # Keep data/config hashes such as training groups from older snapshots.
         source['files_md5'] = {
             name: checksum for name, checksum in source.get('files_md5', {}).items()
@@ -249,7 +252,7 @@ def initialise_worker(paths: dict[str, Path], output: Path, full: bool) -> None:
     global _WORKER
     threadpool_limits(limits=1)
     models = load_models(paths['bundle']) if full else None
-    _WORKER = WorkerState(paths, output, models, OrderedDict())
+    _WORKER = WorkerState(paths, output, models, OrderedDict(), source_record())
 
 
 def load_video_inputs(video: SearchVideo, paths: dict[str, Path]) -> OldVideoInputs:
@@ -320,7 +323,7 @@ def run_one_job(job: SearchJob) -> bool:
     outcome = CandidateOutcome(
         status='succeeded', elapsed_seconds=elapsed, aggregate=counts,
         fixtures={video.identity: {
-            'source': source_record(),
+            'source': _WORKER.source,
             'stream': stream, 'failure': failure, 'load_seconds': load_seconds, 'input_cache_hit': cache_hit,
             'inference_seconds': inference_seconds, 'score_seconds': score_seconds,
             'max_rss_mib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,

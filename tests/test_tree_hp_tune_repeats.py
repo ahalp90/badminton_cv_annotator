@@ -155,13 +155,59 @@ def test_freeze_allows_legacy_code_hashes_but_rejects_changed_seed_settings(tmp_
     assert (tmp_path / 'repeats/seed-100/sticky').resolve() == (grid_root / 'sticky').resolve()
     assert repeats.freeze_plan(tmp_path, tmp_path)[0] == plan
     plan['script_md5'] = 'changed'
+    plan.pop('contact_prediction')
     plan['original_snapshot'] = {
         **snapshot, 'source': {'files_md5': {'source': 'fixed', 'src/unrelated.py': 'old'}},
     }
     repeats.grid.write_json(tmp_path / 'repeats/plan.json.gz', plan)
+    before = (tmp_path / 'repeats/plan.json.gz').read_bytes()
     resumed, _ = repeats.freeze_plan(tmp_path, tmp_path)
+    assert (tmp_path / 'repeats/plan.json.gz').read_bytes() == before
     assert 'script_md5' not in resumed
     plan['seed_settings']['0']['contact']['random_seed'] += 1
     repeats.grid.write_json(tmp_path / 'repeats/plan.json.gz', plan)
     with pytest.raises(ValueError, match='frozen repeat plan changed'):
         repeats.freeze_plan(tmp_path, tmp_path)
+
+
+def test_seed_zero_result_settings_are_checked(tmp_path: Path) -> None:
+    specs, _ = candidates_and_results()
+    spec = specs[0]
+    candidate = {'id': repeats.grid.candidate_id(spec), 'label': spec.label}
+    path = repeats.result_path(tmp_path, candidate, 0, 'fit')
+    path.parent.mkdir(parents=True)
+    settings = repeats.grid.settings_record(repeats.seeded_settings(0))
+    repeats.grid.write_json(path, {**candidate, 'settings': settings})
+    assert repeats.read_result(tmp_path, candidate, 0, 'fit') is not None
+    settings['contact']['random_seed'] += 1
+    repeats.grid.write_json(path, {**candidate, 'settings': settings})
+    with pytest.raises(ValueError, match='training settings changed'):
+        repeats.read_result(tmp_path, candidate, 0, 'fit')
+
+
+def test_grid_settings_and_legacy_fallback(tmp_path: Path) -> None:
+    grid = repeats.grid
+    output = tmp_path / 'grid48'
+    output.mkdir()
+    (tmp_path / 'repeats').mkdir()
+    snapshot = {'inputs': {'fixed': 'input'}}
+    settings = grid.settings_record(grid.DEFAULT_TRAINING_SETTINGS)
+    grid.keep_grid_identity(output, dict(snapshot))
+    assert grid.read_json(output / 'snapshot.json.gz')['settings'] == settings
+    grid.keep_grid_identity(output, dict(snapshot))
+    changed = grid.read_json(output / 'snapshot.json.gz')
+    changed['settings']['contact']['random_seed'] += 1
+    grid.write_json(output / 'snapshot.json.gz', changed)
+    with pytest.raises(ValueError, match='grid training settings changed'):
+        grid.keep_grid_identity(output, dict(snapshot))
+    grid.write_json(output / 'snapshot.json.gz', snapshot)
+    with pytest.raises(ValueError, match='settings are unknown'):
+        grid.keep_grid_identity(output, dict(snapshot))
+    grid.write_json(tmp_path / 'repeats/plan.json.gz', {'seed_settings': {'0': settings}})
+    before = (output / 'snapshot.json.gz').read_bytes()
+    grid.keep_grid_identity(output, dict(snapshot))
+    assert (output / 'snapshot.json.gz').read_bytes() == before
+    settings['confidence']['random_seed'] += 1
+    grid.write_json(tmp_path / 'repeats/plan.json.gz', {'seed_settings': {'0': settings}})
+    with pytest.raises(ValueError, match='grid training settings changed'):
+        grid.keep_grid_identity(output, dict(snapshot))

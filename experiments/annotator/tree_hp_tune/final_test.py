@@ -68,6 +68,10 @@ def frozen_selection(root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 def freeze_plan(root: Path, repository: Path, test_paths_file: Path | None) -> tuple[dict[str, Any], dict[str, Path]]:
     selected, candidates = frozen_selection(root)
     original_snapshot, _, paths = repeats.verify_snapshot(root, repository)
+    seed_settings = {str(offset): repeats.settings_record(repeats.seeded_settings(offset)) for offset in repeats.SEED_OFFSETS}
+    frozen_settings = grid.read_json(root / 'repeats' / 'plan.json.gz')['seed_settings']
+    if frozen_settings != seed_settings:
+        raise ValueError('training settings changed since the repeat plan was frozen')
     if test_paths_file is not None:
         test_paths = grid.load_paths(test_paths_file)
         for name in ('test_inputs', 'test_courts', 'inpaint_root', 'pose_root'):
@@ -86,11 +90,17 @@ def freeze_plan(root: Path, repository: Path, test_paths_file: Path | None) -> t
         for bundle in candidate['bundles']:
             for name, path in model_files(Path(bundle['bundle'])).items():
                 bundle_paths[f"{candidate['id']}/seed-{bundle['seed_offset']}/{name}"] = path
+    for candidate in candidates:
+        for bundle in candidate['bundles']:
+            models = grid.load_models(Path(bundle['bundle']))
+            if models.contact_settings != repeats.ORIGINAL_SETTINGS.contact_prediction:
+                raise ValueError('contact prediction settings changed')
     bundle_identity = grid.file_manifest(bundle_paths)
     for name, path in bundle_paths.items():
         bundle_identity[name]['md5'] = hashlib.md5(path.read_bytes()).hexdigest()
     plan = {
-        'schema': SCHEMA, 'selected': selected, 'candidates': candidates,
+        'schema': SCHEMA, 'selected': selected, 'candidates': candidates, 'seed_settings': seed_settings,
+        'contact_prediction': grid.settings_record(repeats.ORIGINAL_SETTINGS)['contact_prediction'],
         'seed_offsets': list(repeats.SEED_OFFSETS), 'original_snapshot': original_snapshot,
         'test_inputs': grid.file_manifest(grid.input_paths(paths, videos, False)),
         'test_videos': [video.identity for video in videos], 'bundles': bundle_identity,
@@ -99,9 +109,17 @@ def freeze_plan(root: Path, repository: Path, test_paths_file: Path | None) -> t
     output = root / 'final_test'
     output.mkdir(exist_ok=True)
     plan_path = output / 'plan.json.gz'
-    if plan_path.exists() and resume_identity(grid.read_json(plan_path)) != resume_identity(plan):
-        raise ValueError('frozen final test plan changed; resume requires identical selection, bundles and inputs')
-    grid.write_json(plan_path, plan)
+    if plan_path.exists():
+        saved = grid.read_json(plan_path)
+        # Older final plans inherit settings from the frozen repeat plan checked above.
+        saved.setdefault('seed_settings', frozen_settings)
+        comparison = dict(plan)
+        if 'contact_prediction' not in saved:
+            comparison.pop('contact_prediction')
+        if resume_identity(saved) != resume_identity(comparison):
+            raise ValueError('frozen final test plan changed; resume requires identical selection, bundles and inputs')
+    else:
+        grid.write_json(plan_path, plan)
     return plan, paths
 
 
@@ -119,6 +137,8 @@ def fit_final_contact(root: Path, candidate: dict[str, Any], offset: int, paths:
     trial.mkdir(parents=True, exist_ok=True)
     source = next(bundle for bundle in candidate['bundles'] if bundle['seed_offset'] == offset)
     models = grid.load_models(Path(source['bundle']))
+    if models.contact_settings != repeats.ORIGINAL_SETTINGS.contact_prediction:
+        raise ValueError('contact prediction settings changed')
     spec = repeats.spec_for(candidate)
     if models.preprocessing != grid.preprocessing(spec):
         raise ValueError('selected bundle preprocessing differs from its frozen configuration')
@@ -162,12 +182,17 @@ def fit_final_contact(root: Path, candidate: dict[str, Any], offset: int, paths:
 
 
 def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[str, Path], threads: int = 1) -> None:
+    source = grid.source_record()
     started = time.perf_counter()
     trial = trial_root(root, candidate['id'], offset)
     trial.mkdir(parents=True, exist_ok=True)
     with grid.threadpool_limits(limits=threads):
         if not (trial / 'contact-fit.json.gz').exists():
             fit_final_contact(root, candidate, offset, paths)
+        contact_fit = grid.read_json(trial / 'contact-fit.json.gz')
+        expected_contact = repeats.settings_record(repeats.seeded_settings(offset))['contact']
+        if contact_fit['contact_settings'] != expected_contact:
+            raise ValueError('final contact training settings changed')
         models = grid.load_models(trial / 'bundle_final40')
         videos = load_test_videos(paths['test_inputs'])
         if len(videos) != 46:
@@ -186,11 +211,12 @@ def final_job(root: Path, candidate: dict[str, Any], offset: int, paths: dict[st
             per_video[video.identity] = grid.score_stream(video, stream)
             trial_progress(trial, 'test', video=video.identity, complete=len(per_video), planned=46)
         result = {
-            'source': grid.source_record(),
+            'source': source,
+            'settings': grid.settings_record(repeats.seeded_settings(offset)),
             'schema': SCHEMA, 'id': candidate['id'], 'label': candidate['label'], 'seed_offset': offset,
             'per_video': per_video, 'totals': grid.pooled_scores(per_video),
             'bundle': str((trial / 'bundle_final40').resolve()),
-            'contact_fit': grid.read_json(trial / 'contact-fit.json.gz'), 'wall_s': time.perf_counter() - started,
+            'contact_fit': contact_fit, 'wall_s': time.perf_counter() - started,
             'threads': threads,
         }
         grid.write_json(trial / 'result.json.gz', result)
@@ -206,6 +232,11 @@ def completed(root: Path, plan: dict[str, Any]) -> list[dict[str, Any]]:
                 row = grid.read_json(path)
                 if (row['id'], row['label'], row['seed_offset']) != (candidate['id'], candidate['label'], offset):
                     raise ValueError(f'{path}: final test result identity differs')
+                settings = repeats.seeded_settings(offset)
+                if row['contact_fit']['contact_settings'] != repeats.settings_record(settings)['contact']:
+                    raise ValueError(f'{path}: final contact training settings changed')
+                if 'settings' in row:
+                    grid.check_fit_settings(row['settings'], settings, path.parent / 'bundle_final40')
                 if set(row['per_video']) != set(plan['test_videos']):
                     raise ValueError(f'{path}: final test result population differs')
                 results.append(row)

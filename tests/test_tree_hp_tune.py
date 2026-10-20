@@ -2,6 +2,7 @@
 
 import json
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -135,3 +136,25 @@ def test_trial_chain_preserves_candidate_and_fit_order(tmp_path: Path, monkeypat
     assert saved[0].preprocessing == grid.preprocessing(spec)
     assert len(result['per_video']) == 32
     assert len(list((tmp_path / 'trials' / result['id'] / 'training_streams').glob('*.json.gz'))) == 32
+
+
+@pytest.mark.parametrize('field,value', [('score_cutoff', 0.5), ('reject_masked_without_player', True)])
+def test_prediction_settings_are_checked_for_new_and_legacy_grids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str, value: object,
+) -> None:
+    settings = grid.DEFAULT_TRAINING_SETTINGS
+    changed = replace(settings, contact_prediction=replace(settings.contact_prediction, **{field: value}))
+    assert grid.settings_record(settings) != grid.settings_record(changed)
+    output = tmp_path / 'grid48'
+    bundle = output / 'trials' / 'candidate' / 'bundle_v32'
+    bundle.mkdir(parents=True)
+    (tmp_path / 'repeats').mkdir()
+    legacy_settings = grid.settings_record(settings)
+    legacy_settings.pop('contact_prediction')
+    grid.write_json(output / 'snapshot.json.gz', {'inputs': 'fixed'})
+    grid.write_json(tmp_path / 'repeats/plan.json.gz', {'seed_settings': {'0': legacy_settings}})
+    monkeypatch.setattr(grid, 'load_models', lambda _path: SimpleNamespace(contact_settings=settings.contact_prediction))
+    grid.keep_grid_identity(output, {'inputs': 'fixed'})
+    monkeypatch.setattr(grid, 'DEFAULT_TRAINING_SETTINGS', changed)
+    with pytest.raises(ValueError, match='training settings changed'):
+        grid.keep_grid_identity(output, {'inputs': 'fixed'})

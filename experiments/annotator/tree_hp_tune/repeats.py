@@ -9,7 +9,7 @@ import statistics
 import sys
 import traceback
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +42,10 @@ def seeded_settings(offset: int) -> Any:
 
 
 def settings_record(settings: Any) -> dict[str, Any]:
-    return {name: asdict(getattr(settings, name)) for name in ('contact', 'sequences', 'confidence')}
+    record = grid.settings_record(settings)
+    # Keep the historical per-seed schema; prediction rules are shared by all seeds.
+    record.pop('contact_prediction')
+    return record
 
 
 def seed_root(root: Path, offset: int) -> Path:
@@ -85,7 +88,7 @@ def verify_snapshot(root: Path, repository: Path) -> tuple[dict[str, Any], list[
     snapshot_path = root / 'grid48' / 'snapshot.json.gz'
     if not snapshot_path.exists():
         raise FileNotFoundError('repeat fitting requires an existing original grid snapshot')
-    grid.keep_run_identity(snapshot_path, snapshot)
+    grid.keep_grid_identity(root / 'grid48', snapshot)
     return grid.read_json(snapshot_path), specs, paths
 
 
@@ -99,15 +102,23 @@ def freeze_plan(root: Path, repository: Path) -> tuple[dict[str, Any], dict[str,
     plan = {
         'schema': SCHEMA, 'candidates': candidates, 'seed_offsets': list(SEED_OFFSETS),
         'original_snapshot': snapshot, 'baseline_parity': parity,
+        'contact_prediction': grid.settings_record(ORIGINAL_SETTINGS)['contact_prediction'],
         'seed_settings': {str(offset): settings_record(seeded_settings(offset)) for offset in SEED_OFFSETS},
         'selection': 'mean original 8-video validation attributed_f1 at 10; train only shortlists',
     }
     directory = root / 'repeats'
     directory.mkdir(exist_ok=True)
     path = directory / 'plan.json.gz'
-    if path.exists() and resume_identity(grid.read_json(path)) != resume_identity(plan):
-        raise ValueError('frozen repeat plan changed; resume requires identical environment, inputs and settings')
-    grid.write_json(path, plan)
+    if path.exists():
+        saved = grid.read_json(path)
+        comparison = dict(plan)
+        if 'contact_prediction' not in saved:
+            # verify_snapshot already checked the legacy grid's saved bundles.
+            comparison.pop('contact_prediction')
+        if resume_identity(saved) != resume_identity(comparison):
+            raise ValueError('frozen repeat plan changed; resume requires identical environment, inputs and settings')
+    if not path.exists():
+        grid.write_json(path, plan)
     sticky = (root / 'grid48' / 'sticky').resolve(strict=True)
     for offset in SEED_OFFSETS[1:]:
         output = seed_root(root, offset)
@@ -163,6 +174,8 @@ def read_result(root: Path, candidate: dict[str, Any], offset: int, action: str)
     result = grid.read_json(path)
     if result['id'] != candidate['id'] or result['label'] != candidate['label']:
         raise ValueError(f'{path}: result identity differs from repeat plan')
+    if 'settings' in result:
+        grid.check_fit_settings(result['settings'], seeded_settings(offset), path.parent / 'bundle_v32')
     if offset:
         metadata = grid.read_json(path.parent / 'repeat-seed.json.gz')
         expected = {

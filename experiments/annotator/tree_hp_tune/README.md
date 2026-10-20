@@ -115,7 +115,17 @@ Notes:
 - Step 2 must pass before `repeats.py` will start.
 - To time one fit first: add `--only shipped` to step 1.
 - To resume after a stop: rerun the same command. Finished work is skipped.
-- After changing code or inputs: start a new run folder.
+- Resume checks training settings and seeds as well as inputs and environment.
+  New grid snapshots and fit results record the settings used. Legacy grids use
+  seed 0 from their frozen repeat plan as the available settings record. This
+  does not independently verify the original grid fit settings. A legacy grid
+  without that plan has unknown settings and requires a fresh run folder.
+  Contact prediction rules are recorded explicitly in new snapshots and plans.
+  Legacy comparisons read those rules from the saved model bundles.
+- Accepted resumes preserve the historical snapshot and plans, including old
+  source hashes. Source revision and dirty state are recorded when each worker
+  or trial starts; they do not block resumes.
+- After changing the algorithm or inputs: start a new run folder.
 
 ## Run unattended
 
@@ -168,7 +178,7 @@ Path labels inside the records:
 
 | Path | Contents |
 | --- | --- |
-| `grid48/snapshot.json.gz` | Code revision, package versions, code MD5s, and input file paths, sizes and timestamps |
+| `grid48/snapshot.json.gz` | Source revision, package versions, training settings, and input file paths, sizes and timestamps |
 | `grid48/training.json.gz` | Training scores for all 48 settings, best first |
 | `grid48/trials/<id>/result.json.gz` | One setting's training counts per video, fit details, run time and peak memory |
 | `grid48/baseline-parity.json.gz` | Result of the step 2 check |
