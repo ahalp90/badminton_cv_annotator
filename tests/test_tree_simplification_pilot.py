@@ -23,7 +23,7 @@ def fitted_models(*, preprocessing: BaseAnnotatorConfig | None = None,
         side_geometry=side_geometry,
         contact_settings=object(),
         contact=object(),
-        sequences=object(),
+        sequences=SimpleNamespace(),
         confidence=object(),
     )
 

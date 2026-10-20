@@ -51,3 +51,60 @@ Trees train on the requested device and use CPU prediction for portable bundles
 and the existing NumPy feature pipeline. The reported downstream time includes
 feature construction and intermediate predictions; it is not pure GPU fit time.
 The result records thread count and whether this invocation fitted a bundle.
+
+## Smaller stacks
+
+The simplified stack has one contact model followed by one, two or three rally
+models. Every rally layer scores the same options. Later layers also see each
+earlier layer's scores, selected option, score margin, rank and contact changes
+relative to that selection. They can revise any earlier choice.
+
+The pool retains the existing choices and adds combinations of up to three
+contact additions or deletions. Proposals and features use detector evidence.
+Targets measure whole-rally correctness with neighbouring spans at their
+initial choices. Evaluation applies all selected changes together using the
+production boundary and player-side rules. Training gives each judged span
+equal relative weight, then scales row weights to mean one.
+
+Build the pools once from a pilot's five fitted contact models:
+
+```bash
+python -m experiments.annotator.tree_simplification.pools \
+  --prepared RUN/prepared --pilot RUN/xgb-pilot --output RUN/pools --workers 14
+```
+
+Use `--only sset_01` for a pool-building smoke test. Each video records target
+counts by edit kind and the number of spans with a correct option in the old
+and expanded pools. These span counts are diagnostics, not a recovery ceiling:
+spans need not map uniquely to labelled rallies.
+
+Run the small parallel search:
+
+```bash
+python -m experiments.annotator.tree_simplification.search \
+  --pools RUN/pools --output RUN/search --backend xgboost --device cuda \
+  --jobs 4 --threads 2
+```
+
+The search compares 7, 15 and 31 leaves and evaluates all three stack depths.
+XGBoost also gets a stronger minimum-child-weight setting. One additional
+single-rally-layer run uses only the old options, with the same features and
+targets, to distinguish pool expansion from the effect of fewer models.
+Use HGB with `--backend hist_gradient_boosting --device cpu`. The contact
+models remain fixed to the selected pilot; changing the rally backend alone
+does not change the contact backend.
+
+Each configuration writes its own log, checkpoints, validation streams and
+scores as soon as each stack depth finishes. Successful configurations survive
+a restart; failed configurations resume their completed fits. The search exits
+unsuccessfully if any configuration fails. `train --help` exposes individual
+settings for a focused follow-up.
+
+Training keeps the historical one-level contact cross-fitting procedure:
+each training video's contact model excludes its group. Rally layers recursively
+exclude the predicted group when generating earlier-layer training scores.
+Contact features still have indirect paths between training groups' labels,
+as in the previous stack. Internal fits are therefore not independent estimates
+of generalisation. The eight validation videos are excluded from every fit and
+provide the comparison scores. Initial results use one seed; close differences
+need repeat fits before choosing a final configuration.
