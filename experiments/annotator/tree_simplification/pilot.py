@@ -81,6 +81,14 @@ def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSetti
 
 def evaluate(prepared_root: Path, models: AnnotatorModels, output: Path) -> dict[str, Any]:
     started = time.perf_counter()
+    preparation = read_json(prepared_root / 'preparation.json.gz')['inputs']
+    preprocessing = json.loads(json.dumps(asdict(models.preprocessing), default=sorted))
+    if preparation['preprocessing'] != preprocessing or models.side_geometry != SideGeometry.VIDEO:
+        raise ValueError('Bundle preprocessing or side geometry differs from prepared evidence')
+    (output / 'validation_streams').mkdir(parents=True, exist_ok=True)
+    for tree in (models.contact, models.confidence, *vars(models.sequences).values()):
+        if type(tree).__module__.startswith('xgboost'):
+            tree.set_params(device='cpu')
     per_video = {}
     settings = replace(DEFAULT_TRAINING_SETTINGS, contact_prediction=models.contact_settings)
     for path in sorted((prepared_root / 'videos').glob('*.joblib')):
@@ -188,6 +196,8 @@ def main() -> None:
     args = parser.parse_args()
     if not 1 <= args.threads <= 28:
         parser.error('--threads must be between 1 and 28')
+    if args.reference_bundle is not None and not args.reference_bundle.is_dir():
+        parser.error('--reference-bundle must name an existing bundle')
     source = source_record()
     settings = settings_for(TreeBackend(args.backend), args.device, args.min_child_weight)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -200,11 +210,16 @@ def main() -> None:
     started = time.perf_counter()
     with threadpool_limits(limits=args.threads):
         bundle = args.reference_bundle or args.output / 'bundle'
+        fitted_this_run = not bundle.exists()
         models = load_models(bundle) if bundle.exists() else fit(args.prepared, load_paths(args.paths), args.output, settings)
         result = evaluate(args.prepared, models, args.output)
         if args.expected_validation:
             verify_reference(result, args.expected_validation, args.output)
-    result.update(source=source, settings=config['settings'], wall_s=time.perf_counter() - started)
+    result.update(
+        source=source, settings=config['settings'], total_wall_s=time.perf_counter() - started,
+        threads=args.threads, fitted_this_run=fitted_this_run,
+        training_device=args.device, prediction_device='cpu',
+    )
     if args.backend == TreeBackend.XGBOOST:
         result['xgboost'] = version('xgboost')
     write_json(args.output / 'result.json.gz', result)

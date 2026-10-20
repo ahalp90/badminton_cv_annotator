@@ -156,6 +156,7 @@ def test_xgb_training_entry_points_and_models_round_trip(tmp_path: Path) -> None
         assert params['max_depth'] == 0
         assert params['max_bin'] == 255
         assert params['min_child_weight'] == 5.0
+        assert params['device'] == 'cpu'
 
 
 def test_xgb_stops_when_internal_holdout_loss_cannot_improve() -> None:

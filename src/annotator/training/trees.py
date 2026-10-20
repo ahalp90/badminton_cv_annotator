@@ -100,4 +100,6 @@ def fit_binary_tree(
         training_matrix, training_labels, sample_weight=training_weights,
         eval_set=validation, sample_weight_eval_set=validation_weights, verbose=False,
     )
+    # Annotation passes NumPy arrays and also runs on machines without CUDA.
+    xgb_model.set_params(device='cpu')
     return xgb_model

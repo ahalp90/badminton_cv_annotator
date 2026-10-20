@@ -45,3 +45,9 @@ separate setting from HGB's minimum samples per leaf. Contact early stopping
 uses only an internal split of training rows. Predictions and stopping points
 are not expected to match between libraries. Compare validation results and
 fit times against the earlier HGB seed spread before choosing a backend.
+Use `--min-child-weight 10` for a small regularisation sensitivity check against
+the initial value of 5. Neither value is exactly equivalent to HGB's row minimum.
+Trees train on the requested device and use CPU prediction for portable bundles
+and the existing NumPy feature pipeline. The reported downstream time includes
+feature construction and intermediate predictions; it is not pure GPU fit time.
+The result records thread count and whether this invocation fitted a bundle.
