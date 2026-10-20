@@ -40,8 +40,12 @@ from annotator.training.trees import TreeBackend, fit_binary_tree
 
 @dataclass(frozen=True)
 class RallyFitConfig:
-    tree: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(backend=TreeBackend.XGBOOST))
-    depth: int = 2
+    """Selected development settings; deeper stacks remain available for comparisons."""
+
+    tree: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(
+        backend=TreeBackend.XGBOOST, max_iter=400, max_leaf_nodes=31,
+    ))
+    depth: int = 1
     max_edits: int = 3
     deletion_candidates: int = 6
 

@@ -158,17 +158,19 @@ Using a separate output directory for each model variant keeps later validation 
 
 ### Rally-layer bundles
 
-Use `--rally-layers` to fit the smaller XGBoost stack explicitly:
+Use `--rally-layers 1` to fit the selected smaller XGBoost stack:
 
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
   --manifest retune/manifest.json \
   --output models/annotator-layers \
-  --side-geometry video --rally-layers 2 --device cpu --threads 2
+  --side-geometry video --rally-layers 1 --device cpu --threads 2
 ```
 
-The command fits a contact model, the requested number of whole-rally selectors
-and a separate review ranker. Supported depths are 1–3. Training needs more
+The selected rally classifier uses 31 leaves, 400 boosting rounds, learning rate
+0.05 and minimum child weight 5. The contact classifier retains its existing
+31-leaf, 180-round settings. The command fits both classifiers and a separate
+review ranker. Supported selector depths are 1–3. Training needs more
 groups than selector layers, as well as the existing minimum of three groups.
 The group exclusions also apply when producing review-ranker training inputs.
 `--device cuda` uses the GPU for XGBoost fitting; saved models use CPU inference.
@@ -181,7 +183,8 @@ flag. Validation still uses the separate manifest split. A manifest refit uses
 the normal held-group contact scheme, so it does not reproduce experimental
 eight-fold contact pools. To preserve an already fitted development contender,
 use the [export and parity command](../../experiments/annotator/tree_simplification/README.md#production-export-and-review-ranking).
-Final settings and review-ranking usefulness remain subject to those checks.
+The selector settings were selected on the development validation split.
+Review-ranking usefulness and the exported bundle are checked separately.
 
 ## 5. What happens during fitting
 

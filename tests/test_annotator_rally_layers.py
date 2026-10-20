@@ -108,15 +108,17 @@ def test_review_features_keep_raw_sides_when_finished_sides_change() -> None:
     assert features.matrix.shape[1] == len(review_feature_names(2))
 
 
-def test_real_layer_fit_and_review_use_one_prediction_per_training_video() -> None:
+@pytest.mark.parametrize('depth', [1, 2])
+def test_real_layer_fit_and_review_use_one_prediction_per_training_video(depth: int) -> None:
     videos = [training_video(f'{group}-{correct}', group, correct) for group in 'ABCD' for correct in (False, True)]
     pytest.importorskip('xgboost')
-    config = RallyFitConfig(tree=TreeFitConfig(max_iter=3, min_child_weight=0, backend=TreeBackend.XGBOOST))
+    config = RallyFitConfig(tree=TreeFitConfig(max_iter=3, min_child_weight=0, backend=TreeBackend.XGBOOST), depth=depth)
     with threadpool_limits(limits=1):
         result = fit_rally_models(videos, config)
         assert set(result.cross_fitted) == {video.identity for video in videos}
         assert result.span_weight == 1.0
-        assert [model.n_features_in_ for model in result.models.layers] == [len(FEATURE_NAMES), len(FEATURE_NAMES) + 8]
+        expected_widths = [len(FEATURE_NAMES) + 8 * layer for layer in range(depth)]
+        assert [model.n_features_in_ for model in result.models.layers] == expected_widths
         # The shared contact evidence cannot recover the deliberately absent label.
         from annotator.training.confidence import ConfidenceFitConfig
         ranker = fit_rally_review_model(

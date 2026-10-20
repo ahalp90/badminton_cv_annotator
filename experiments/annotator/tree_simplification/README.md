@@ -254,9 +254,9 @@ its contact or final selector models:
 
 ```bash
 python -m experiments.annotator.tree_simplification.integrate \
-  --run RUN/tightest-expanded15 --layers 2 \
+  --run RUN/xgb-followup/longer31 --layers 1 \
   --five-frame-targets RUN/targets-five \
-  --output RUN/production-expanded15 --threads 2
+  --output RUN/production-expanded31-400 --threads 2
 ```
 
 This development export requires the 32 training videos and checks the saved
@@ -274,8 +274,9 @@ reference streams must also match their pilot. Model inference runs on CPU.
 The result reports annotation recovery/F1 and review ranking separately at ±5
 and ±10. Selector-only and fitted review scores rank identical annotations.
 Ranking measures include correct-rally AUROC, wrong-rally average precision
-and wrong rallies found in the first 10%, 25% and 50% of the review queue.
-Unjudgeable rallies are excluded. Legacy rankings use the legacy stack's own
+and wrong rallies found in the first 10%, 25% and 50% of the judged review queue.
+Unjudgeable sections are removed before ordering, so these fractions do not
+describe the full unfiltered queue. Legacy rankings use the legacy stack's own
 annotations and correctness labels, so they are context rather than a matched
 ranker comparison. Scores are not calibrated acceptance probabilities.
 
@@ -285,3 +286,30 @@ export directories for different settings; the saved input receipt prevents
 resuming with a different source run or depth. The experiment remains a
 development comparison on the existing validation set, not an untouched-test
 result or an automatic change to production defaults.
+
+## Production inference timing
+
+Compare two saved bundles through the same production entry point. The script
+uses only prepared validation videos, with two CPU threads. It reverses model
+order on the second repetition and checks every stream against its reference.
+Use a fresh output directory.
+
+```bash
+PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.benchmark \
+  --prepared RUN/prepared \
+  --old-bundle RUN/xgb-5/bundle \
+  --new-bundle RUN/production-expanded31-400/bundle \
+  --old-streams RUN/xgb-5/validation_streams \
+  --new-streams RUN/production-expanded31-400/streams \
+  --output RUN/timing-expanded31-400
+```
+
+The timed stage includes contact prediction, fresh proposal construction,
+rally selection and review scoring. It excludes vision processing, initial
+contact-feature construction, file reads and metric scoring. This is a
+descriptive CPU comparison, not a complete video-pipeline benchmark.
+
+The [selection report](../reports/tree_simplification.md) records the chosen
+configuration, all repeated comparisons, review-ranking trade-offs and the
+measured inference cost. [Saved evidence](results/README.md) preserves the
+underlying counts and provenance.

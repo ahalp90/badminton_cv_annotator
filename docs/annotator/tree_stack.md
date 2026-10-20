@@ -7,10 +7,12 @@ make those decisions. All eight use histogram gradient boosting, which combines
 small decision trees into a classifier.
 
 An opt-in rally-layer bundle uses the same contact detector, followed by fitted
-whole-rally selectors and a separate review ranker. The production loader
-chooses the runtime path from the saved bundle. The eight-model path below
-remains the reference while development comparisons select the smaller stack.
-See [fitting a rally-layer bundle](retuning.md#rally-layer-bundles).
+whole-rally selectors and a separate review ranker. The selected development
+configuration uses one 31-leaf selector with 400 boosting rounds. The production
+loader chooses the runtime path from the saved bundle. The eight-model path
+below remains the reference. See the
+[selection evidence](../../experiments/annotator/reports/tree_simplification.md)
+and [fitting a rally-layer bundle](retuning.md#rally-layer-bundles).
 
 ## Rally-layer bundles
 
