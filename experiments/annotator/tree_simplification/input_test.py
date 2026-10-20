@@ -1,4 +1,4 @@
-"""Evaluate frozen raw-production bundles on the fixed ShuttleSet22 test set."""
+"""Evaluate raw-production bundles chosen on validation on the fixed ShuttleSet22 test set."""
 
 from __future__ import annotations
 
@@ -60,31 +60,31 @@ def _evaluation_hash(identity: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _validate_freeze(document: dict[str, Any]) -> list[dict[str, Any]]:
+def _validate_selection(document: dict[str, Any]) -> list[dict[str, Any]]:
     if document.get('schema') != SCHEMA:
-        raise ValueError(f'Expected frozen shortlist schema {SCHEMA!r}')
+        raise ValueError(f'Expected test selection schema {SCHEMA!r}')
     evaluation_source = document.get('evaluation_source')
     if not isinstance(evaluation_source, dict) or evaluation_source.get('dirty') is not False:
-        raise ValueError('Frozen shortlist must record a clean evaluator checkout')
+        raise ValueError('The test selection must record a clean evaluator checkout')
     if document.get('fit_policy') != 'contact32' or document.get('feature_units') != 'raw':
-        raise ValueError('Frozen shortlist must use contact32 fits and raw feature units')
+        raise ValueError('The test selection must use contact32 fits and raw feature units')
     if document.get('seed_offsets') != list(SEED_OFFSETS):
-        raise ValueError('Frozen shortlist must name the five required seed offsets in order')
+        raise ValueError('The test selection must name the five required seed offsets in order')
     if document.get('primary_tolerance') != 10:
-        raise ValueError('Frozen shortlist primary tolerance must be 10 frames')
+        raise ValueError("The test selection's primary tolerance must be 10 frames")
     finalists = document.get('finalists')
     if not isinstance(finalists, list) or not finalists:
-        raise ValueError('Frozen shortlist must contain at least one finalist')
+        raise ValueError('The test selection must contain at least one finalist')
 
     candidates = []
     for finalist in finalists:
         if not isinstance(finalist, dict):
-            raise TypeError('Frozen finalist entries must be objects')
+            raise TypeError('Finalist entries must be objects')
         candidate = finalist.get('candidate')
         objectives = finalist.get('objectives')
         seeds = finalist.get('seeds')
         if not isinstance(candidate, str) or not candidate:
-            raise ValueError('Each frozen finalist must have a candidate string')
+            raise ValueError('Each finalist must have a candidate string')
         if not isinstance(objectives, list) or not isinstance(seeds, list) or len(seeds) != len(SEED_OFFSETS):
             raise ValueError(f'{candidate}: finalist must save objectives and exactly five seed exports')
         if any(not isinstance(seed, dict) for seed in seeds):
@@ -100,7 +100,7 @@ def _validate_freeze(document: dict[str, Any]) -> list[dict[str, Any]]:
                 raise ValueError(f'{candidate}: every seed export must be an absolute path')
             expected_keys = set(model_files(Path(export) / 'bundle'))
             if not isinstance(settings, dict) or not isinstance(hashes, dict) or set(hashes) != expected_keys:
-                raise ValueError(f'{candidate}: each seed must freeze export settings and all model-file hashes')
+                raise ValueError(f'{candidate}: each seed must record export settings and all model-file hashes')
             if any(
                 not isinstance(value, str) or len(value) != MODEL_HASH_SIZE
                 or any(character not in '0123456789abcdef' for character in value)
@@ -109,26 +109,26 @@ def _validate_freeze(document: dict[str, Any]) -> list[dict[str, Any]]:
                 raise ValueError(f'{candidate}: bundle hashes must be lowercase MD5 digests')
         candidates.append(candidate)
     if len(set(candidates)) != len(candidates):
-        raise ValueError('Frozen shortlist candidate strings must be distinct')
+        raise ValueError('Test selection candidate strings must be distinct')
     return finalists
 
 
-def _frozen_models(
-    freeze_path: Path, candidate: str, seed_offset: int,
+def _load_test_bundle(
+    selection_path: Path, candidate: str, seed_offset: int,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], AnnotatorModels]:
-    document = read_json(freeze_path)
+    document = read_json(selection_path)
     if not isinstance(document, dict):
-        raise TypeError('Frozen shortlist must be a JSON object')
-    finalists = _validate_freeze(document)
+        raise TypeError('The test selection must be a JSON object')
+    finalists = _validate_selection(document)
     matches = [finalist for finalist in finalists if finalist['candidate'] == candidate]
     if len(matches) != 1:
-        raise ValueError(f'Candidate {candidate!r} is not in the frozen shortlist')
+        raise ValueError(f'Candidate {candidate!r} is not in the test selection')
     finalist = matches[0]
     seed = next(item for item in finalist['seeds'] if item['offset'] == seed_offset)
     export = Path(seed['export'])
     export_settings = read_json(export / 'settings.json.gz')
     if seed['settings'] != export_settings:
-        raise ValueError(f'{candidate}, seed {seed_offset}: export settings differ from the frozen record')
+        raise ValueError(f'{candidate}, seed {seed_offset}: export settings differ from the test selection')
     if export_settings.get('schema') != 'tree-simplification-raw-export/1':
         raise ValueError(f'{candidate}, seed {seed_offset}: export is not a raw production export')
     result = read_json(export / 'result.json.gz')
@@ -166,25 +166,25 @@ def _frozen_models(
         if subsection:
             config = config[subsection[0]]
         if config['random_seed'] != base_seed + seed_offset:
-            raise ValueError(f'{candidate}, seed {seed_offset}: {fit_name} seed does not match the frozen offset')
+            raise ValueError(f'{candidate}, seed {seed_offset}: {fit_name} seed does not match the selected offset')
     if run_settings['tree']['random_seed'] != (
         DEFAULT_TRAINING_SETTINGS.sequences.sequence.random_seed + seed_offset
     ):
-        raise ValueError(f'{candidate}, seed {seed_offset}: selector seed does not match the frozen offset')
+        raise ValueError(f'{candidate}, seed {seed_offset}: selector seed does not match the selected offset')
 
     bundle = export / 'bundle'
     files = model_files(bundle)
     if set(files) != set(seed['bundle_md5']):
-        raise ValueError(f'{candidate}, seed {seed_offset}: bundle file set differs from its frozen checksum record')
+        raise ValueError(f'{candidate}, seed {seed_offset}: bundle file set differs from its recorded checksums')
     actual_hashes = {name: _md5(path) for name, path in files.items()}
     if actual_hashes != seed['bundle_md5']:
-        raise ValueError(f'{candidate}, seed {seed_offset}: frozen bundle checksum mismatch')
+        raise ValueError(f'{candidate}, seed {seed_offset}: bundle checksum differs from the test selection')
 
     models = load_models(bundle)
     if not isinstance(models.sequences, RallyLayerModels) or models.confidence is None:
-        raise TypeError('Frozen bundle must contain fitted rally selectors and review ranking')
+        raise TypeError('Test bundle must contain fitted rally selectors and review ranking')
     if models.side_geometry.value != 'video':
-        raise ValueError('Frozen bundle must use video-level side geometry')
+        raise ValueError('Test bundle must use video-level side geometry')
     if preprocessing_record(models.preprocessing) != export_settings.get('preprocessing'):
         raise ValueError(f'{candidate}, seed {seed_offset}: bundle preprocessing differs from its export record')
     for tree in fitted_trees(models):
@@ -220,7 +220,7 @@ def _cached_video(
     if metadata.get('complete') is not True or metadata.get('video') != identity:
         raise ValueError(f'{identity}: cached test result is incomplete or names another video')
     if metadata.get('evaluation_sha256') != evaluation_hash or metadata.get('stream_md5') != _md5(stream_path):
-        raise ValueError(f'{identity}: cached test result differs from the frozen evaluation identity')
+        raise ValueError(f'{identity}: cached test result differs from the recorded evaluation identity')
     if 'review_rows' not in metadata:
         raise ValueError(f'{identity}: cached review rows are missing')
     if not isinstance(metadata['review_rows'], list):
@@ -229,7 +229,7 @@ def _cached_video(
 
 
 def evaluate(
-    freeze: Path,
+    selection: Path,
     candidate: str,
     seed_offset: int,
     paths_file: Path,
@@ -237,21 +237,21 @@ def evaluate(
     *,
     threads: int = 2,
 ) -> dict[str, Any]:
-    """Verify one frozen bundle, then evaluate it on all 46 test fixtures."""
+    """Verify one chosen bundle, then evaluate it on all 46 test fixtures."""
     if not candidate:
-        raise ValueError('candidate must be a non-empty frozen candidate string')
+        raise ValueError('candidate must be a non-empty candidate string from the test selection')
     if seed_offset not in SEED_OFFSETS:
         raise ValueError(f'seed offset must be one of {SEED_OFFSETS}')
     if not 1 <= threads <= 28:
         raise ValueError('threads must be between 1 and 28')
 
-    freeze = freeze.resolve()
+    selection = selection.resolve()
     evaluation_source = source_record()
     if evaluation_source.get('dirty') is not False:
         raise ValueError('Evaluator checkout must be clean before test evaluation')
-    document, finalist, selected, models = _frozen_models(freeze, candidate, seed_offset)
+    document, finalist, selected, models = _load_test_bundle(selection, candidate, seed_offset)
     if document.get('evaluation_source') != evaluation_source:
-        raise ValueError('Frozen evaluator source differs from this checkout; regenerate the shortlist freeze')
+        raise ValueError('The test selection names another evaluator source; record the selection again from this checkout')
     paths = load_paths(paths_file)
     videos = load_test_videos(paths['test_inputs'])
     identities = [video.identity for video in videos]
@@ -271,7 +271,7 @@ def evaluate(
         'schema': 'annotator-input-test/1',
         'source': source,
         'code_md5': code_hashes,
-        'freeze': str(freeze),
+        'selection': str(selection),
         'finalist': finalist,
         'selected_seed': selected,
         'paths': {name: str(path) for name, path in paths.items()},
@@ -295,7 +295,7 @@ def evaluate(
     if output.exists() and any(output.iterdir()) and not receipt_path.exists():
         raise ValueError(f'{output}: non-empty output has no evaluation identity')
     if receipt_path.exists() and read_json(receipt_path) != evaluation_identity:
-        raise ValueError(f'{output}: frozen bundle or test inputs changed; use a fresh output directory')
+        raise ValueError(f'{output}: bundle or test inputs changed; use a fresh output directory')
     write_json(receipt_path, evaluation_identity)
     result_path = output / 'result.json.gz'
     write_json(result_path, {'complete': False, 'evaluation_sha256': evaluation_hash})
@@ -395,15 +395,18 @@ def evaluate(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--freeze', type=Path, required=True, help='Frozen gzip JSON finalist manifest')
-    parser.add_argument('--candidate', required=True, help='Candidate string from the frozen shortlist')
+    parser.add_argument(
+        '--selection', type=Path, required=True,
+        help='Gzip JSON record of the configurations chosen on validation',
+    )
+    parser.add_argument('--candidate', required=True, help='Candidate string from the test selection')
     parser.add_argument('--seed-offset', type=int, choices=SEED_OFFSETS, required=True)
     parser.add_argument('--paths', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--threads', type=int, default=2)
     args = parser.parse_args()
     evaluate(
-        args.freeze, args.candidate, args.seed_offset, args.paths, args.output, threads=args.threads,
+        args.selection, args.candidate, args.seed_offset, args.paths, args.output, threads=args.threads,
     )
 
 

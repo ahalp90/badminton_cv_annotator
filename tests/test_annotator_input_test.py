@@ -1,4 +1,4 @@
-"""Synthetic contracts for frozen ShuttleSet22 evaluation."""
+"""Synthetic contracts for the ShuttleSet22 test evaluation."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from experiments.annotator.tree_simplification import input_stages, input_test
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
 
 
-def _write_frozen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[str, str]]:
+def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[str, str]]:
     export = root / 'export'
     bundle = export / 'bundle'
     bundle.mkdir(parents=True)
@@ -75,8 +75,8 @@ def _write_frozen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
     return export_settings, hashes
 
 
-def _freeze(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict[str, str]]:
-    export_settings, hashes = _write_frozen_export(root, seed_offset)
+def _write_selection(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict[str, str]]:
+    export_settings, hashes = _write_chosen_export(root, seed_offset)
     export = str((root / 'export').resolve())
     seeds = [
         {
@@ -96,9 +96,9 @@ def _freeze(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict[str, str
         'primary_tolerance': 10,
         'finalists': [{'candidate': 'candidate-a', 'objectives': ['validation'], 'seeds': seeds}],
     }
-    freeze_path = root / 'freeze.json.gz'
-    write_json(freeze_path, document)
-    return freeze_path, document, hashes
+    selection_path = root / 'selection.json.gz'
+    write_json(selection_path, document)
+    return selection_path, document, hashes
 
 
 def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_video: str | None = None):
@@ -172,10 +172,10 @@ def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_vi
 
 
 @pytest.mark.parametrize('mismatch', ('fit_policy', 'seed_offsets', 'bundle_hash', 'evaluation_source'))
-def test_rejects_unfrozen_policy_or_bundle_before_test_loading(
+def test_rejects_wrong_policy_or_bundle_before_test_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mismatch: str,
 ) -> None:
-    freeze_path, document, _hashes = _freeze(tmp_path)
+    selection_path, document, _hashes = _write_selection(tmp_path)
     monkeypatch.setattr(input_test, 'source_record', lambda: {'revision': 'synthetic', 'dirty': False})
     if mismatch == 'fit_policy':
         document['fit_policy'] = 'final40'
@@ -187,38 +187,38 @@ def test_rejects_unfrozen_policy_or_bundle_before_test_loading(
         }
     else:
         document['evaluation_source'] = {'revision': 'older-evaluator'}
-    write_json(freeze_path, document)
+    write_json(selection_path, document)
     monkeypatch.setattr(input_test, 'load_test_videos', lambda *_args: pytest.fail('test manifest loaded too early'))
 
     with pytest.raises(ValueError):
-        input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
 
 
-@pytest.mark.parametrize('dirty_source', ('current', 'frozen'))
+@pytest.mark.parametrize('dirty_source', ('current', 'selection'))
 def test_dirty_source_is_rejected_before_test_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dirty_source: str,
 ) -> None:
-    freeze_path, document, _hashes = _freeze(tmp_path)
+    selection_path, document, _hashes = _write_selection(tmp_path)
     monkeypatch.setattr(input_test, 'source_record', lambda: {
         'revision': 'synthetic', 'dirty': dirty_source == 'current',
     })
-    if dirty_source == 'frozen':
+    if dirty_source == 'selection':
         document['evaluation_source']['dirty'] = True
-        write_json(freeze_path, document)
+        write_json(selection_path, document)
     monkeypatch.setattr(input_test, 'load_test_videos', lambda *_args: pytest.fail('test manifest loaded too early'))
-    monkeypatch.setattr(input_test, 'load_models', lambda *_args: pytest.fail('frozen model loaded too early'))
+    monkeypatch.setattr(input_test, 'load_models', lambda *_args: pytest.fail('test model loaded too early'))
 
     with pytest.raises(ValueError, match='clean'):
-        input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
 
 
-def test_accepted_frozen_bundle_runs_46_videos_without_refitting(
+def test_accepted_chosen_bundle_runs_46_videos_without_refitting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    freeze_path, _document, _hashes = _freeze(tmp_path)
+    selection_path, _document, _hashes = _write_selection(tmp_path)
     run_calls, videos, load_calls = _runtime_patches(monkeypatch, tmp_path)
 
-    result = input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+    result = input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
 
     rows = read_json(tmp_path / 'output' / 'review-rows.json.gz')
     assert result['complete'] is True
@@ -230,7 +230,7 @@ def test_accepted_frozen_bundle_runs_46_videos_without_refitting(
     assert result['seed_offset'] == 0
     assert len(load_calls) == 1
 
-    resumed = input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+    resumed = input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
     assert resumed['complete'] is True
     assert len(run_calls) == 46
     assert len(load_calls) == 2
@@ -239,11 +239,11 @@ def test_accepted_frozen_bundle_runs_46_videos_without_refitting(
 def test_changed_same_stat_test_manifest_rejects_resume(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    freeze_path, _document, _hashes = _freeze(tmp_path)
+    selection_path, _document, _hashes = _write_selection(tmp_path)
     run_calls, _videos, _load_calls = _runtime_patches(monkeypatch, tmp_path)
     output = tmp_path / 'output'
 
-    input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
+    input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
     manifest_path = tmp_path / 'test-inputs' / 'manifest.json.gz'
     saved_identity = read_json(output / 'settings.json.gz')
     assert saved_identity['test_manifest_md5'] == input_test._md5(manifest_path)
@@ -256,18 +256,18 @@ def test_changed_same_stat_test_manifest_rejects_resume(
     assert manifest_path.stat().st_mtime_ns == prior_stat.st_mtime_ns
 
     with pytest.raises(ValueError, match='test inputs changed'):
-        input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
+        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
     assert len(run_calls) == 46
 
 
 def test_failed_partial_run_is_never_marked_complete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    freeze_path, _document, _hashes = _freeze(tmp_path)
+    selection_path, _document, _hashes = _write_selection(tmp_path)
     _runtime_patches(monkeypatch, tmp_path, fail_video='test-02')
 
     with pytest.raises(RuntimeError, match='synthetic inference failure'):
-        input_test.evaluate(freeze_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'partial')
+        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'partial')
 
     result = read_json(tmp_path / 'partial' / 'result.json.gz')
     assert result['complete'] is False

@@ -1,4 +1,4 @@
-"""Freeze validation-only review-score thresholds and apply them unchanged."""
+"""Choose review-score thresholds from validation rows and apply them unchanged to test rows."""
 
 from __future__ import annotations
 
@@ -186,13 +186,13 @@ def _validation_tradeoff(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any
     return curve, coverages
 
 
-def freeze_thresholds(rows: Any, *, input_md5: str | None = None) -> dict[str, Any]:
-    """Select coverage-target cutoffs from validation scores only."""
+def choose_review_thresholds(rows: Any, *, input_md5: str | None = None) -> dict[str, Any]:
+    """Choose coverage-target thresholds from validation scores only."""
     clean_rows = _normalise_rows(rows)
     if {row['split'] for row in clean_rows} != {'validation'}:
-        raise ValueError('Thresholds can only be frozen from validation rows')
+        raise ValueError('Thresholds can only be chosen from validation rows')
     pairs = _candidate_rankings(clean_rows)
-    frozen_pairs = []
+    chosen_pairs = []
     for candidate, ranking in pairs:
         pair_rows = [row for row in clean_rows if row['candidate'] == candidate and row['ranking'] == ranking]
         seeds = {row['seed_offset'] for row in pair_rows}
@@ -220,7 +220,7 @@ def freeze_thresholds(rows: Any, *, input_md5: str | None = None) -> dict[str, A
                 )
                 for tolerance in TOLERANCES
             }
-        frozen_pairs.append({
+        chosen_pairs.append({
             'candidate': candidate, 'ranking': ranking, 'thresholds': thresholds,
             'validation_tolerance_10_tradeoff': tradeoff,
         })
@@ -237,41 +237,41 @@ def freeze_thresholds(rows: Any, *, input_md5: str | None = None) -> dict[str, A
         },
         'validation_rows_md5': input_md5,
         'validation_row_count': len(clean_rows),
-        'candidate_rankings': frozen_pairs,
+        'candidate_rankings': chosen_pairs,
     }
 
 
-def _validate_frozen(frozen: Any) -> dict[tuple[str, str], dict[str, Any]]:
-    if not isinstance(frozen, dict) or frozen.get('schema') != SCHEMA:
-        raise ValueError(f'Expected frozen threshold schema {SCHEMA!r}')
-    policy = frozen.get('policy')
+def _validate_thresholds(thresholds: Any) -> dict[tuple[str, str], dict[str, Any]]:
+    if not isinstance(thresholds, dict) or thresholds.get('schema') != SCHEMA:
+        raise ValueError(f'Expected review threshold schema {SCHEMA!r}')
+    policy = thresholds.get('policy')
     if not isinstance(policy, dict) or policy.get('seed_offsets') != list(SEED_OFFSETS):
-        raise ValueError('Frozen thresholds do not name the required five seed offsets')
+        raise ValueError('Thresholds do not name the required five seed offsets')
     if policy.get('threshold_tolerance') != 10:
-        raise ValueError('Frozen thresholds must use tolerance 10 for cutoff selection')
-    entries = frozen.get('candidate_rankings')
+        raise ValueError('Thresholds must be chosen at tolerance 10')
+    entries = thresholds.get('candidate_rankings')
     if not isinstance(entries, list) or not entries:
-        raise ValueError('Frozen thresholds must contain candidate/ranking entries')
+        raise ValueError('Thresholds must contain candidate/ranking entries')
     if any(not isinstance(entry, dict) for entry in entries):
-        raise TypeError('Frozen candidate/ranking entries must be objects')
+        raise TypeError('Threshold candidate/ranking entries must be objects')
     indexed = {}
     for entry in entries:
         pair = (entry.get('candidate'), entry.get('ranking'))
         if not all(isinstance(value, str) and value for value in pair) or pair in indexed:
-            raise ValueError('Frozen candidate/ranking identities must be unique non-empty strings')
-        thresholds = entry.get('thresholds')
+            raise ValueError('Threshold candidate/ranking identities must be unique non-empty strings')
+        pair_thresholds = entry.get('thresholds')
         expected_names = ['unfiltered', *(f'retain_{target:g}' for target in TARGET_COVERAGES)]
-        if not isinstance(thresholds, list) or any(not isinstance(item, dict) for item in thresholds):
-            raise TypeError(f'{pair}: frozen threshold entries must be objects')
-        if [item.get('name') for item in thresholds] != expected_names:
-            raise ValueError(f'{pair}: frozen threshold list is missing')
-        for threshold in thresholds:
+        if not isinstance(pair_thresholds, list) or any(not isinstance(item, dict) for item in pair_thresholds):
+            raise TypeError(f'{pair}: threshold entries must be objects')
+        if [item.get('name') for item in pair_thresholds] != expected_names:
+            raise ValueError(f'{pair}: threshold list is missing')
+        for threshold in pair_thresholds:
             name = threshold['name']
             cutoff = threshold.get('cutoff')
             if cutoff is not None and (
                 isinstance(cutoff, bool) or not isinstance(cutoff, (int, float)) or not math.isfinite(cutoff)
             ):
-                raise ValueError(f'{pair}: invalid frozen cutoff')
+                raise ValueError(f"{pair}: invalid threshold 'cutoff' value")
             if (name == 'unfiltered') != (cutoff is None):
                 raise ValueError(f'{pair}: only the unfiltered threshold may have a null cutoff')
             expected_target = None if name == 'unfiltered' else float(name.removeprefix('retain_'))
@@ -308,28 +308,28 @@ def _tolerance_report(rows: list[dict[str, Any]], cutoff: float | None) -> dict[
 
 def evaluate_thresholds(
     rows: Any,
-    frozen: Any,
+    thresholds: Any,
     *,
     input_md5: str | None = None,
-    frozen_md5: str | None = None,
+    thresholds_md5: str | None = None,
 ) -> dict[str, Any]:
-    """Apply saved numeric cutoffs to test rows without recalibrating them."""
+    """Apply saved thresholds to test rows without recalibrating them."""
     clean_rows = _normalise_rows(rows)
     if {row['split'] for row in clean_rows} != {'test'}:
         raise ValueError('Threshold application requires test rows')
-    frozen_pairs = _validate_frozen(frozen)
+    chosen_pairs = _validate_thresholds(thresholds)
     row_pairs = set(_candidate_rankings(clean_rows))
-    if row_pairs != set(frozen_pairs):
-        unknown = sorted(row_pairs - set(frozen_pairs))
-        missing = sorted(set(frozen_pairs) - row_pairs)
-        raise ValueError(f'Test candidate/ranking set differs from frozen thresholds; unknown={unknown}, missing={missing}')
+    if row_pairs != set(chosen_pairs):
+        unknown = sorted(row_pairs - set(chosen_pairs))
+        missing = sorted(set(chosen_pairs) - row_pairs)
+        raise ValueError(f'Test candidate/ranking set differs from the chosen thresholds; unknown={unknown}, missing={missing}')
     reports = []
-    for candidate, ranking in sorted(frozen_pairs):
+    for candidate, ranking in sorted(chosen_pairs):
         pair_rows = [row for row in clean_rows if row['candidate'] == candidate and row['ranking'] == ranking]
         seeds = {row['seed_offset'] for row in pair_rows}
         if seeds != set(SEED_OFFSETS):
             raise ValueError(f'{candidate}/{ranking}: expected test seed offsets {SEED_OFFSETS}, got {sorted(seeds)}')
-        for threshold in frozen_pairs[(candidate, ranking)]['thresholds']:
+        for threshold in chosen_pairs[(candidate, ranking)]['thresholds']:
             cutoff = threshold['cutoff']
             by_tolerance = {}
             for tolerance in TOLERANCES:
@@ -346,7 +346,7 @@ def evaluate_thresholds(
             })
     return {
         'schema': 'annotator-review-threshold-evaluation/1',
-        'frozen_thresholds_md5': frozen_md5,
+        'thresholds_md5': thresholds_md5,
         'test_rows_md5': input_md5,
         'reports': reports,
     }
@@ -355,21 +355,21 @@ def evaluate_thresholds(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    freeze_parser = commands.add_parser('freeze', help='freeze thresholds from validation review rows')
-    freeze_parser.add_argument('--rows', type=Path, required=True)
-    freeze_parser.add_argument('--output', type=Path, required=True)
-    evaluate_parser = commands.add_parser('evaluate', help='apply frozen thresholds to test review rows')
+    choose_parser = commands.add_parser('choose', help='choose thresholds from validation review rows')
+    choose_parser.add_argument('--rows', type=Path, required=True)
+    choose_parser.add_argument('--output', type=Path, required=True)
+    evaluate_parser = commands.add_parser('evaluate', help='apply chosen thresholds to test review rows')
     evaluate_parser.add_argument('--rows', type=Path, required=True)
-    evaluate_parser.add_argument('--frozen', type=Path, required=True)
+    evaluate_parser.add_argument('--thresholds', type=Path, required=True)
     evaluate_parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    if args.command == 'freeze':
-        frozen = freeze_thresholds(_read_json(args.rows), input_md5=_md5(args.rows))
-        _write_json(args.output, frozen)
+    if args.command == 'choose':
+        thresholds = choose_review_thresholds(_read_json(args.rows), input_md5=_md5(args.rows))
+        _write_json(args.output, thresholds)
     else:
         result = evaluate_thresholds(
-            _read_json(args.rows), _read_json(args.frozen),
-            input_md5=_md5(args.rows), frozen_md5=_md5(args.frozen),
+            _read_json(args.rows), _read_json(args.thresholds),
+            input_md5=_md5(args.rows), thresholds_md5=_md5(args.thresholds),
         )
         _write_json(args.output, result)
 

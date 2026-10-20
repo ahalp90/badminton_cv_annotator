@@ -402,15 +402,15 @@ for the fitted reviewer and selector fallback. Unknown correctness labels remain
 in those rows. No filtering threshold is applied. Repeat each retained candidate
 at offsets 0, 100, 200, 300 and 400, with matching contact and selector seeds.
 
-## Frozen test and review-threshold evaluation
+## Test run and review thresholds
 
 The [completed preprocessing comparison](../reports/input_preprocessing.md)
-reports five-seed validation selection, the frozen 46-video test and optional
+reports five-seed validation selection, the 46-video test run and optional
 review-score operating points. Baseline preprocessing and disabled filtering
 remain the defaults.
 
 Select finalists using validation results before evaluating test videos.
-`input_test` accepts an `annotator-input-finalists/1` gzip JSON freeze with
+`input_test` accepts an `annotator-input-finalists/1` gzip JSON selection with
 `fit_policy: contact32`, `feature_units: raw`, the five ordered `seed_offsets`,
 `primary_tolerance: 10` and the evaluator's `source_record()` as
 `evaluation_source`. Each finalist names its `candidate`, `objectives` and five
@@ -419,11 +419,11 @@ Select finalists using validation results before evaluating test videos.
 
 ```bash
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_test \
-  --freeze finalists.json.gz --candidate CANDIDATE --seed-offset 0 \
+  --selection finalists.json.gz --candidate CANDIDATE --seed-offset 0 \
   --paths PATHS.toml --output RUN/test/seed-0 --threads 4
 ```
 
-The evaluator verifies the frozen bundle and source before loading the 46 test
+The evaluator verifies the chosen bundle and source before loading the 46 test
 fixtures. It uses the saved 32-video fit without refitting. Saved per-video
 results can resume only with the same inputs, bundle and evaluator identity.
 The paths file needs `test_inputs`, `test_courts`, `inpaint_root` and `pose_root`.
@@ -434,18 +434,18 @@ paths file cannot run this evaluation.
 For threshold analysis, combine exported review rows and add `candidate`,
 `seed_offset` and `split` (`validation` or `test`) to each row. Preserve the
 integer `span`, `video`, `tolerance`, `ranking`, `correct` and `score` fields.
-Freeze thresholds from all five validation seeds before viewing test outcomes:
+Choose thresholds from all five validation seeds before viewing test outcomes:
 
 ```bash
-python -m experiments.annotator.tree_simplification.review_thresholds freeze \
+python -m experiments.annotator.tree_simplification.review_thresholds choose \
   --rows validation-review-rows.json.gz --output thresholds.json.gz
 python -m experiments.annotator.tree_simplification.review_thresholds evaluate \
-  --rows test-review-rows.json.gz --frozen thresholds.json.gz \
+  --rows test-review-rows.json.gz --thresholds thresholds.json.gz \
   --output threshold-evaluation.json.gz
 ```
 
 The analysis targets retained coverage of 50%, 70%, 80%, 90% and 95%, plus an
-unfiltered reference. It chooses cutoffs from validation scores at ±10 and
+unfiltered reference. It chooses thresholds from validation scores at ±10 and
 applies each unchanged at both tolerances. Missing scores stay in manual review;
 unknown correctness labels count towards coverage and stay outside error rates.
 Reports include pooled, seed and video summaries. These are optional policy

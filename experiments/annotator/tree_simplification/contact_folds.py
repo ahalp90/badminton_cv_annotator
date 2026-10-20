@@ -42,7 +42,7 @@ SCHEMA = 'tree-simplification-contact-folds/1'
 
 
 def fold_assignments(development: pilot.retrain.Development) -> dict[str, str]:
-    """Require the frozen 32/8 split and preserve the downstream A–D groups."""
+    """Require the fixed 32/8 split and preserve the downstream A–D groups."""
     training = development.videos(pilot.retrain.TRAINING_GROUPS)
     validation = development.videos((pilot.retrain.VALIDATION_GROUP,))
     assignments = {}

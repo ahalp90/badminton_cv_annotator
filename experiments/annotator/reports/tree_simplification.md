@@ -43,7 +43,7 @@ validation population as the first table.
 | **One, 31 leaves** | **400** | **296.0** | **85.53%** | **243.6** | **83.72%** |
 | Two, 31 leaves | 400 | 296.8 | 85.27% | 244.8 | 83.43% |
 
-A second selector adds only 0.8/1.2 mean rallies over the one-selector 400-round setting at ±10/±5, while mean F1 falls by 0.26/0.29 pp. The one-selector option also keeps the annotation model count to two: one contact model and one rally selector. The retained review ranker makes three models in total. The selected contact fit uses 31 leaves, 180 rounds, learning rate 0.06, child weight 5, seed 20260824 and score cutoff 0.9. The selected rally selector uses 31 leaves, 400 rounds, learning rate 0.05, child weight 5, L2 regularisation strength 1 and seed 20260905. The search stopped after the frozen repeats. The exported bundle uses the original seed-zero fit; its seed was not selected by validation performance.
+A second selector adds only 0.8/1.2 mean rallies over the one-selector 400-round setting at ±10/±5, while mean F1 falls by 0.26/0.29 pp. The one-selector option also keeps the annotation model count to two: one contact model and one rally selector. The retained review ranker makes three models in total. The selected contact fit uses 31 leaves, 180 rounds, learning rate 0.06, child weight 5, seed 20260824 and score cutoff 0.9. The selected rally selector uses 31 leaves, 400 rounds, learning rate 0.05, child weight 5, L2 regularisation strength 1 and seed 20260905. The search stopped after the five-seed repeats. The exported bundle uses the original seed-zero fit; its seed was not selected by validation performance.
 
 Training uses four fixed groups. Each video's rally-training inputs use contact predictions from a model trained on the other 24 videos; the final contact model is then fit on all 32. Later selectors train from earlier held-group outputs and confidence features, with group exclusion repeated downstream. Contact labels can still pass indirectly between groups through these inputs. For example, a contact model supplying group B may have trained on group A, even when a later selector fit excludes group A. Internal training scores are therefore not unbiased evaluation estimates. Validation labels do not enter fitting. A separate eight-fold contact-28 sensitivity check changed only the simplified training inputs, kept final contact-32 fitting and validation pools fixed, and had worse initial-seed recovery; contact-24 remains the primary training-input setup.
 
@@ -149,7 +149,7 @@ identifies the source branch and commit for grid-017. See the
 [evidence notes](../tree_simplification/results/README.md) for metric aggregation
 and provenance.
 
-The [experiment instructions](../tree_simplification/README.md) describe frozen
+The [experiment instructions](../tree_simplification/README.md) describe fixed
 inputs, pool construction, target generation and repeated fitting. The selected
 run is `xgb-followup/longer31`, depth 1, under the Carmack run root
 `/scratch/ahalperi/annotator-tree-simplification-20261020`.

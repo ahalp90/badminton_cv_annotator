@@ -20,13 +20,13 @@ videos; they are repeated fits, not independent evaluation populations.
 - `selected-timing.json.gz`: both model orders on all eight validation videos,
   using two CPU threads and checking every output stream.
 - `timing-script.json.gz`: the checksum of the timing script, which ran beside
-  the frozen checkout before being added as `benchmark.py`.
+  the experiment checkout before being added as `benchmark.py`.
 - `selected-profile.json.gz`: a single-video profile locating the expanded
   proposal and feature construction cost. Profiling adds timing overhead.
 
 The evidence records the original source paths on Carmack and in the local
 collection. Large prepared inputs and fitted models remain outside Git. The
-frozen experiment checkout was `ddd2a7f2`; production export uses `e2b948d2`.
+experiment checkout was `ddd2a7f2`; production export uses `e2b948d2`.
 The selection retains the original seed-zero fit rather than choosing a seed
 from its validation score.
 

@@ -226,7 +226,7 @@ def _export_inputs(run: Path, targets: Path) -> tuple[dict[str, Any], dict[str, 
     source = read_json(prepared_root / 'preparation.json.gz')['source']
     contact_source = read_json(pilot_root / 'contact-stage.json.gz')['source']
     if contact_source != source or result['source'] != source:
-        raise ValueError('Preparation, contact and selector sources differ; refit from one frozen checkout')
+        raise ValueError('Preparation, contact and selector sources differ; refit from one clean checkout')
     if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
         raise ValueError('Five-frame target manifest differs from the fitted rally run')
     return settings, inputs, prepared_root, pilot_root, depth

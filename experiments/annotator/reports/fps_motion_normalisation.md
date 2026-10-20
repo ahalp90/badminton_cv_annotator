@@ -81,8 +81,8 @@ The production model therefore stays unchanged: two annotation models plus the
 optional review ranker. No normalised production bundle is exported. The next
 session will run a broader staged input/preprocessing search, starting from the
 selected raw stack. It will select validation winners for attributed F1 and
-fully correct rallies, then evaluate the frozen configurations on ShuttleSet22
-test at five seeds. Filtering thresholds will be selected on validation and
+fully correct rallies, then evaluate the configurations chosen on validation on
+the ShuttleSet22 test at five seeds. Filtering thresholds will be selected on validation and
 assessed unchanged on test. This experiment did not launch that search.
 
 ## Evidence and reproduction
@@ -91,7 +91,7 @@ The [evidence record](../tree_simplification/results/fps-normalisation-evidence.
 contains per-seed counts, paired summaries and per-video changes. The
 [experiment commands](../tree_simplification/README.md#fps-motion-unit-experiment)
 describe the separate preparation and fitting paths. Implementation is recorded
-in feature-branch commit `a0d8ddf7`; remote runs preserve their frozen source
+in feature-branch commit `a0d8ddf7`; remote runs record their source
 checksums. Existing preparation and model receipts prevent incompatible reuse.
 
 All ten experimental runs completed model fitting and replay. Each rebuilt all
