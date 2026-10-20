@@ -205,8 +205,9 @@ def test_specialists_exclude_the_predicted_group_at_every_rally_depth(
 
 
 @pytest.mark.parametrize('first_depth', [1, 3])
+@pytest.mark.parametrize('span_weight', [None, 371.86228729719033])
 def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_evaluation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_depth: int,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_depth: int, span_weight: float | None,
 ) -> None:
     recorded = RecordingFits(monkeypatch)
     training = training_pools(videos_per_group=8)
@@ -254,12 +255,26 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
         'train', '--pools', str(pool_dir), '--output', str(output),
         '--backend', 'hist_gradient_boosting', '--device', 'cpu', '--threads', '1',
     ]
+    if span_weight is not None:
+        command.extend(('--span-weight', str(span_weight)))
     for depth in dict.fromkeys((first_depth, 3)):
         monkeypatch.setattr(train.sys, 'argv', [*command, '--layers', str(depth)])
         train.main()
-    assert train.read_json(output / 'settings.json.gz')['span_weight'] == 1.0
+    expected_weight = 1.0 if span_weight is None else span_weight
+    assert train.read_json(output / 'settings.json.gz')['span_weight'] == expected_weight
+    assert train.read_json(output / 'fits/ABCD/layer-1.json.gz')['span_weight'] == expected_weight
     assert evaluations == [1, 2, 3]
     assert len(recorded.models) == 17
     monkeypatch.setattr(train.sys, 'argv', [*command, '--layers', '3', '--leaves', '31'])
     with pytest.raises(ValueError, match='Training configuration changed'):
         train.main()
+
+
+@pytest.mark.parametrize('span_weight', ['0', '-1', 'nan', 'inf'])
+def test_cli_rejects_invalid_span_weight(monkeypatch: pytest.MonkeyPatch, span_weight: str) -> None:
+    monkeypatch.setattr(train.sys, 'argv', [
+        'train', '--pools', 'unused', '--output', 'unused', '--span-weight', span_weight,
+    ])
+    with pytest.raises(SystemExit) as error:
+        train.main()
+    assert error.value.code == 2

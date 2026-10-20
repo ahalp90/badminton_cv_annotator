@@ -211,9 +211,12 @@ def main() -> None:
     parser.add_argument('--legacy-pool', action='store_true')
     parser.add_argument('--specialists', nargs='+', choices=('serve', 'insertion'), default=[])
     parser.add_argument('--five-frame-targets', type=Path, help='Use tightest-available targets from these sidecars')
+    parser.add_argument('--span-weight', type=float, help='Keep a matched comparison’s fixed training span weight')
     args = parser.parse_args()
     if not 1 <= args.threads <= 28:
         parser.error('--threads must be between 1 and 28')
+    if args.span_weight is not None and (not np.isfinite(args.span_weight) or args.span_weight <= 0):
+        parser.error('--span-weight must be finite and positive')
     if args.backend == TreeBackend.HIST_GRADIENT_BOOSTING and args.device != 'cpu':
         parser.error('HGB requires --device cpu')
     roles = tuple(sorted(set(args.specialists)))
@@ -270,6 +273,8 @@ def main() -> None:
         sum(counts[identity]['legacy_judged_rows'] for identity in training)
         / sum(counts[identity]['legacy_judged_spans'] for identity in training)
     )
+    if args.span_weight is not None:
+        span_weight = args.span_weight
     settings = {
         'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
         'layers': args.layers, 'legacy_pool': args.legacy_pool, 'span_weight': span_weight,

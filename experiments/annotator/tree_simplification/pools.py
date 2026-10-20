@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import multiprocessing
+import shutil
 import sys
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,6 +156,18 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
         return summary
 
 
+def _reuse_validation_pool(source: Path, artifact: Path, video: str, group: str) -> None:
+    metadata = pilot.read_json(source.with_suffix('.json.gz'))
+    if (metadata['video'], metadata['group'], metadata['split']) != (video, group, 'validation'):
+        raise ValueError(f'{video}: reused validation metadata differs')
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    pairs = ((source, artifact), (source.with_suffix('.json.gz'), artifact.with_suffix('.json.gz')))
+    for source_path, destination in pairs:
+        temporary = destination.with_name(destination.name + '.tmp')
+        shutil.copyfile(source_path, temporary)
+        temporary.replace(destination)
+
+
 def prepare_pools(
     prepared_root: Path,
     pilot_output: Path,
@@ -164,6 +177,9 @@ def prepare_pools(
     only: str | None = None,
     max_edits: int = 3,
     deletion_candidates: int = 6,
+    contact_paths: Mapping[str, Path] | None = None,
+    contact_folds: Mapping[str, Sequence[str]] | None = None,
+    validation_source: Path | None = None,
 ) -> list[dict[str, object]]:
     """Build selected training and validation pools from a completed pilot."""
     if not 1 <= workers <= 28:
@@ -182,6 +198,19 @@ def prepare_pools(
         raise ValueError('Pilot settings and prepared evidence use different preprocessing')
 
     contacts = pilot_output / 'contacts'
+    if contact_paths is not None:
+        training_ids = {identity for identity, group in preparation['groups'].items() if group != 'V'}
+        if set(contact_paths) != training_ids:
+            raise ValueError('Explicit contact paths must name every training video exactly once')
+    if validation_source is not None:
+        validation_source = validation_source.resolve()
+        original = pilot.read_json(validation_source / 'pools.json.gz')
+        expected = {
+            'schema': SCHEMA, 'prepared': str(prepared_root), 'pilot': str(pilot_output),
+            'settings': settings, 'max_edits': max_edits, 'deletion_candidates': deletion_candidates,
+        }
+        if original != expected:
+            raise ValueError('Reused validation pools use different preparation or proposal settings')
     records = []
     for prepared_path in sorted((prepared_root / 'videos').glob('*.joblib')):
         record = pilot.read_json(prepared_path.with_suffix('.json.gz'))
@@ -194,6 +223,8 @@ def prepare_pools(
             raise ValueError(f'{video}: unsupported prepared split {record["split"]!r}')
         contact_name = f'held_{record["group"]}' if record['split'] == 'train' else 'v_32'
         contact_path = contacts / f'{contact_name}.joblib'
+        if contact_paths is not None and record['split'] == 'train':
+            contact_path = contact_paths[video].resolve()
         if not contact_path.is_file():
             raise FileNotFoundError(f'Missing pilot contact model: {contact_path}')
         records.append((video, record, prepared_path, contact_path))
@@ -210,6 +241,12 @@ def prepare_pools(
         'max_edits': max_edits,
         'deletion_candidates': deletion_candidates,
     }
+    if contact_paths is not None:
+        manifest['contact_paths'] = {video: str(path.resolve()) for video, path in contact_paths.items()}
+    if contact_folds is not None:
+        manifest['contact_folds'] = {fold: list(videos) for fold, videos in contact_folds.items()}
+    if validation_source is not None:
+        manifest['reused_validation'] = {'source': str(validation_source), 'pools_manifest': original}
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / 'pools.json.gz'
     if manifest_path.exists() and pilot.read_json(manifest_path) != manifest:
@@ -221,6 +258,10 @@ def prepare_pools(
     for video, record, prepared_path, contact_path in records:
         artifact = output / 'videos' / f'{video}.joblib'
         if artifact.is_file() and artifact.with_suffix('.json.gz').is_file():
+            continue
+        if validation_source is not None and record['split'] == 'validation':
+            source = validation_source / 'videos' / artifact.name
+            _reuse_validation_pool(source, artifact, video, record['group'])
             continue
         jobs.append(PoolJob(
             video, record['group'], record['split'], prepared_path, contact_path, output,
