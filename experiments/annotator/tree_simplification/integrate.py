@@ -127,6 +127,7 @@ def validate(
     per_video, rankings, rows = {}, {}, []
     if not isinstance(old.sequences, SequenceModels):
         raise TypeError('The matched pilot must contain the legacy reference stack')
+    (output / 'streams').mkdir(exist_ok=True)
     for path in sorted((prepared_root / 'videos').glob('*.joblib')):
         if read_json(path.with_suffix('.json.gz'))['split'] != 'validation':
             continue
