@@ -12,23 +12,27 @@ def read_json(path: Path) -> dict[str, Any]:
         return json.load(stream)
 
 
-def configuration_records(root: Path) -> dict[str, dict[str, Any]]:
-    """Return the latest visible state for each search configuration."""
-    aggregate_path = root / 'status.json.gz'
-    aggregate = read_json(aggregate_path) if aggregate_path.exists() else {}
-    completed = {record['name']: record for record in aggregate.get('completed', ())}
+def status_records(root: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Read per-configuration records and search-level completion aggregates."""
     records = {}
+    aggregates = {}
     for path in sorted(root.rglob('status.json.gz')):
-        if path == aggregate_path:
+        record = read_json(path)
+        relative_parent = path.parent.relative_to(root)
+        name = '.' if relative_parent == Path('.') else str(relative_parent)
+        if 'completed' in record and 'planned' in record:
+            aggregates[name] = record
             continue
-        name = str(path.parent.relative_to(root))
-        current = read_json(path)
-        # A running per-configuration record is newer than the prior search's
-        # aggregate; once it exits, the aggregate carries the latest result.
-        records[name] = current if current.get('state') == 'running' else completed.get(path.parent.name, current)
-    for record in completed.values():
-        records.setdefault(record['name'], record)
-    return records
+        records[name] = record
+    for aggregate_name, aggregate in aggregates.items():
+        aggregate_root = root if aggregate_name == '.' else root / aggregate_name
+        for record in aggregate['completed']:
+            name = str((aggregate_root / record['name']).relative_to(root))
+            current = records.get(name)
+            # A live config record takes precedence over an older aggregate.
+            if current is None or current.get('state') != 'running':
+                records[name] = record
+    return records, aggregates
 
 
 def configuration_state(record: dict[str, Any], result: dict[str, Any] | None) -> str:
@@ -42,6 +46,17 @@ def configuration_state(record: dict[str, Any], result: dict[str, Any] | None) -
     if record.get('resumed_complete') or (result is not None and result.get('complete', True)):
         return 'complete (exit 0)'
     return 'exit 0; result incomplete'
+
+
+def aggregate_state(record: dict[str, Any]) -> str:
+    returned = len(record['completed'])
+    planned = int(record['planned'])
+    if returned < planned:
+        return f'running ({returned}/{planned} configs returned)'
+    failures = sum(int(item['exit_code']) != 0 for item in record['completed'])
+    if failures:
+        return f'finished ({returned}/{planned}; {failures} failed)'
+    return f'finished ({returned}/{planned}; all exit 0)'
 
 
 def main() -> None:
@@ -71,8 +86,14 @@ def main() -> None:
                 f'| {scores["fully_correct_rallies_percent"]:.2f}% | {100 * scores["attributed_f1"]:.2f}% '
                 f'| {result_state} |'
             )
+    records, aggregates = status_records(args.root)
+    if aggregates:
+        print('\nSearch status:')
+        for name, record in sorted(aggregates.items()):
+            label = args.root.name if name == '.' else name
+            print(f'{label}: {aggregate_state(record)}')
     print('\nConfiguration status:')
-    for name, record in sorted(configuration_records(args.root).items()):
+    for name, record in sorted(records.items()):
         print(f'{name}: {configuration_state(record, results.get(Path(name).name))}')
     print('\nLatest progress:')
     for path in sorted(args.root.rglob('progress.json.gz')):
