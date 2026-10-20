@@ -100,6 +100,16 @@ a restart; failed configurations resume their completed fits. The search exits
 unsuccessfully if any configuration fails. `train --help` exposes individual
 settings for a focused follow-up.
 
+For a compact progress and results table, run:
+
+```bash
+python -m experiments.annotator.tree_simplification.status RUN
+```
+
+This reads only small JSON records, so it also works on an incremental local
+copy that excludes the model and prepared-input files. Add `--tolerance 5` for
+the stricter contact-matching window.
+
 Training keeps the historical one-level contact cross-fitting procedure:
 each training video's contact model excludes its group. Rally layers recursively
 exclude the predicted group when generating earlier-layer training scores.
