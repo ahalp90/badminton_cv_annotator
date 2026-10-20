@@ -163,7 +163,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         {0: np.asarray([0, 1]), 1: np.asarray([2, 3])},
         video,
     )
-    original = targets.whole_rally_correctness
+    original = targets.rally_targets.whole_rally_correctness
     observed_rallies = []
 
     def observe(sequence, labels, fps, *, tolerance_at_30_fps):
@@ -174,10 +174,10 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     reference = np.empty(len(pool.sequences), dtype=np.int8)
     for row, sequence in enumerate(pool.sequences):
         position = next(index for index, initial in enumerate(video.initial) if initial.span_id == sequence.span_id)
-        finished = targets.finish_in_initial_context(video, position, sequence, stream_frames)
+        finished = targets.rally_targets.finish_in_initial_context(video, position, sequence, stream_frames)
         reference[row] = original(finished, video.rallies, video.fps, tolerance_at_30_fps=5)
 
-    monkeypatch.setattr(targets, 'whole_rally_correctness', observe)
+    monkeypatch.setattr(targets.rally_targets, 'whole_rally_correctness', observe)
     actual = raw_five_targets(pool)
 
     np.testing.assert_array_equal(actual, reference)

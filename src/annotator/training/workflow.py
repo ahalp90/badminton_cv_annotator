@@ -10,12 +10,13 @@ import argparse
 import csv
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.features import ContactFeatures
@@ -40,7 +41,6 @@ from annotator.sequence.contacts import (
     scale_frames,
 )
 from annotator.sequence.refine import build_option_pool
-from annotator.sequence.sides import alternate_sides
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.confidence import ConfidenceFitConfig, fit_confidence_model
 from annotator.training.contact import (
@@ -48,14 +48,20 @@ from annotator.training.contact import (
     ContactTrainingVideo,
     fit_contact_model,
 )
+from annotator.training.rally_layers import (
+    RallyFitConfig,
+    fit_rally_models,
+    fit_rally_review_model,
+)
 from annotator.training.sequences import (
     LabelledRally,
     SequenceFitConfig,
     SequenceTrainingVideo,
     fit_sequence_models,
     match_contacts,
-    overlapping_rallies,
+    whole_rally_correctness,
 )
+from annotator.training.trees import TreeBackend
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
@@ -117,6 +123,7 @@ class TrainingSettings:
     sequences: SequenceFitConfig = field(default_factory=SequenceFitConfig)
     confidence: ConfidenceFitConfig = field(default_factory=ConfidenceFitConfig)
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
+    rally_layers: RallyFitConfig | None = None
 
 
 DEFAULT_TRAINING_SETTINGS = TrainingSettings()
@@ -266,38 +273,6 @@ def sequence_training_video(
     return SequenceTrainingVideo(entry.identity, entry.group, evidence.fps, initial, events, pool, rallies, len(evidence.track))
 
 
-def whole_rally_correctness(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance_at_30_fps: int = EVALUATION_TOLERANCE_AT_30_FPS,
-) -> int:
-    """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
-
-    Missing contacts, merged/partial rallies, extra events and known side
-    contradictions are wrong even when another human side label is unavailable.
-    """
-    overlaps = overlapping_rallies(sequence, rallies)
-    if not overlaps:
-        return -1
-    if len(overlaps) > 1:
-        return 0
-    rally = overlaps[0]
-    if not all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames):
-        return 0
-    tolerance = scale_frames(tolerance_at_30_fps, fps)
-    matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
-    if len(matches) < len(rally.frames):
-        return 0
-    revised, _events = alternate_sides((sequence,), sequence.events)
-    if any(rally.sides[label] is not None and revised[0].events[prediction].side != rally.sides[label]
-           for label, prediction, _offset in matches):
-        return 0
-    if len(sequence.events) > len(rally.frames):
-        return 0
-    if any(side is None for side in rally.sides):
-        return -1
-    return 1
-
-
 def fit_from_manifest(
     manifest: TrainingManifest, output: Path, side_geometry: SideGeometry = SideGeometry.VIDEO,
     settings: TrainingSettings = DEFAULT_TRAINING_SETTINGS,
@@ -344,6 +319,13 @@ def fit_from_manifest(
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
     del evidence, features
+    if settings.rally_layers is not None:
+        layer_fit = fit_rally_models(sequence_inputs, settings.rally_layers)
+        review_model = fit_rally_review_model(sequence_inputs, layer_fit.cross_fitted, settings.confidence)
+        models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
+                                 settings.preprocessing, side_geometry)
+        save_models(models, output)
+        return models
     try:
         sequence_fit = fit_sequence_models(sequence_inputs, settings.sequences)
     except ValueError as error:
@@ -381,7 +363,9 @@ def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[Contac
     matches = match_contacts(
         labels, [event.frame for event in events], scale_frames(EVALUATION_TOLERANCE_AT_30_FPS, fps),
     )
-    correctness = [whole_rally_correctness(sequence, rallies, fps) for sequence in sequences]
+    correctness = [whole_rally_correctness(
+        sequence, rallies, fps, tolerance_at_30_fps=EVALUATION_TOLERANCE_AT_30_FPS,
+    ) for sequence in sequences]
     return {
         'labelled_contacts': len(labels), 'predicted_contacts': len(events), 'matched_contacts': len(matches),
         'contact_precision': len(matches) / len(events) if events else 0.0,
@@ -430,6 +414,9 @@ def argument_parser() -> argparse.ArgumentParser:
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
     fit.add_argument('--side-geometry', choices=list(SideGeometry), default=SideGeometry.VIDEO, type=SideGeometry)
+    fit.add_argument('--rally-layers', type=int, choices=(1, 2, 3), help='Fit an XGBoost rally-layer bundle')
+    fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
+    fit.add_argument('--threads', type=int, default=2)
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
     evaluate.add_argument('--manifest', required=True, type=Path)
     evaluate.add_argument('--models', required=True, type=Path)
@@ -445,7 +432,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         manifest = load_manifest(arguments.manifest)
         if arguments.command == 'fit':
-            fit_from_manifest(manifest, arguments.output, arguments.side_geometry)
+            if arguments.threads < 1:
+                raise ValueError('--threads must be positive')
+            settings = DEFAULT_TRAINING_SETTINGS
+            if arguments.rally_layers is not None:
+                backend = {'backend': TreeBackend.XGBOOST, 'device': arguments.device}
+                layers = RallyFitConfig(depth=arguments.rally_layers)
+                settings = replace(
+                    settings, contact=replace(settings.contact, **backend),
+                    confidence=replace(settings.confidence, **backend),
+                    rally_layers=replace(layers, tree=replace(layers.tree, **backend)),
+                )
+            elif arguments.device != 'cpu':
+                raise ValueError('--device cuda requires --rally-layers')
+            with threadpool_limits(limits=arguments.threads):
+                fit_from_manifest(manifest, arguments.output, arguments.side_geometry, settings)
             print(f'Saved annotator models to {arguments.output}')
         else:
             models = load_models(arguments.models)

@@ -471,3 +471,35 @@ def fit_sequence_models(
                 insertion_models[video.identity] = models.insertion
     models = fit_choosers(training_videos, targets, all_groups, cache, config)
     return SequenceModelFit(models, predictions, targets, insertion_models)
+
+
+def whole_rally_correctness(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance_at_30_fps: int = 10,
+) -> int:
+    """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
+
+    Missing contacts, merged/partial rallies, extra events and known side
+    contradictions are wrong even when another human side label is unavailable.
+    """
+    overlaps = overlapping_rallies(sequence, rallies)
+    if not overlaps:
+        return -1
+    if len(overlaps) > 1:
+        return 0
+    rally = overlaps[0]
+    if not all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames):
+        return 0
+    tolerance = scale_frames(tolerance_at_30_fps, fps)
+    matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
+    if len(matches) < len(rally.frames):
+        return 0
+    revised, _events = alternate_sides((sequence,), sequence.events)
+    if any(rally.sides[label] is not None and revised[0].events[prediction].side != rally.sides[label]
+           for label, prediction, _offset in matches):
+        return 0
+    if len(sequence.events) > len(rally.frames):
+        return 0
+    if any(side is None for side in rally.sides):
+        return -1
+    return 1

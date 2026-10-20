@@ -15,6 +15,7 @@ from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import ServeEditInputs
 from annotator.sequence.refine import OptionPool
+from annotator.training import rally_layers as production_training
 from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import ExpandedPool
@@ -151,6 +152,47 @@ def test_real_hgb_prefixes_receive_one_context_block_per_previous_layer(tmp_path
     assert [model.n_features_in_ for model in models] == [2, 10, 18]
     assert len(scores) == 3
     assert all(row.shape == (2,) and np.isfinite(row).all() for row in scores)
+
+
+def test_production_review_predictions_exclude_the_outer_group_at_every_layer(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = {}
+    groups_by_pool = {}
+    for identity, pool in training_pools().items():
+        runtime = pool.runtime
+        groups_by_pool[id(runtime)] = pool.original.group
+        pools[identity] = production_training.RallyTrainingPool(identity, pool.original.group, runtime, pool.targets)
+    models = []
+
+    def fit(options, _targets, histories, _config, *, span_weight):
+        assert span_weight == 2.0
+        groups = frozenset(groups_by_pool[id(pool)] for pool in options)
+        ancestors = set(groups)
+        depth = len(histories[0]) + 1
+        for pool, history in zip(options, histories, strict=True):
+            own = groups_by_pool[id(pool)]
+            for scores in history:
+                producer = models[int(scores[0]) - 1]
+                assert producer.groups == groups - {own}
+                assert own not in producer.ancestors
+                assert producer.ancestors <= groups - {own}
+                ancestors.update(producer.ancestors)
+        model = RecordedModel(groups, frozenset(ancestors), depth, len(models) + 1)
+        models.append(model)
+        return model
+
+    def score(stack, pool):
+        return tuple(np.full(len(pool.sequences), model.serial, dtype=float) for model in stack)
+
+    monkeypatch.setattr(production_training, 'fit_layer', fit)
+    monkeypatch.setattr(production_training, 'score_layers', score)
+    trainer = production_training.RallyTrainer(pools, TreeFitConfig(), span_weight=2.0)
+    final = trainer.fit(tuple('ABCD'), 2)
+    for identity, pool in pools.items():
+        others = tuple(group for group in 'ABCD' if group != pool.group)
+        held = trainer.held_scores(others, 2, identity)
+        assert all(pool.group not in models[int(scores[0]) - 1].ancestors for scores in held)
+    assert len(models) == 16
+    assert trainer.fit(tuple('ABCD'), 2) is final
 
 
 def test_specialists_exclude_the_predicted_group_at_every_rally_depth(

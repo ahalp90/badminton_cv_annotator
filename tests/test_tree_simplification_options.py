@@ -10,6 +10,7 @@ from annotator.sequence.candidates import ServeCandidate
 from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.edits import apply_choices, option_pool, sequence_edits
 from annotator.sequence.features import PHYSICAL_FEATURE_NAMES, ServeEditInputs
+from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.sequence.refine import OptionPool
 from annotator.sequence.sides import alternate_sides
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
@@ -63,6 +64,20 @@ def test_multiple_additions_and_deletions_preserve_all_legacy_choices() -> None:
     restricted = expand_pool(video, max_edits=0, deletion_candidates=0)
     restricted_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in restricted.sequences}
     assert {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options} <= restricted_keys
+
+
+def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
+    video = example_video()
+    context = RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
+    runtime = build_rally_options(context)
+    labelled = expand_pool(video)
+    unlabelled = expand_pool(replace(video, rallies=()))
+    assert runtime.sequences == labelled.sequences == unlabelled.sequences
+    np.testing.assert_array_equal(runtime.matrix, labelled.matrix)
+    np.testing.assert_array_equal(runtime.matrix, unlabelled.matrix)
+    for span_id, rows in runtime.span_rows.items():
+        np.testing.assert_array_equal(rows, labelled.span_rows[span_id])
+    assert labelled.runtime.matrix is labelled.matrix
 
 
 def test_new_combinations_obey_spacing_bounds_and_do_not_resurrect_deletions() -> None:

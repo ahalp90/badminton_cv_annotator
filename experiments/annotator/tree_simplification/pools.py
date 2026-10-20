@@ -26,13 +26,13 @@ from threadpoolctl import threadpool_limits
 
 from annotator.contacts.model import ContactModelConfig
 from annotator.sequence.contacts import ContactSequence
+from annotator.training import rally_targets
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import (
     ExpandedPool,
     expand_pool,
-    sequence_key,
 )
 
 SCHEMA = 'tree-simplification-expanded-pools/1'
@@ -62,16 +62,7 @@ def _span_rows(sequences: Sequence[ContactSequence], span_ids: Sequence[int]) ->
 
 def legacy_rows(expanded: ExpandedPool) -> np.ndarray:
     """Locate legacy choices so features and alternate targets use identical rows."""
-    legacy_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
-    for sequence in expanded.original.initial:
-        legacy_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
-    for option in expanded.original.pool.options:
-        legacy_keys.setdefault(option.span_id, set()).add(sequence_key(option.sequence))
-
-    return np.asarray([
-        row for row, sequence in enumerate(expanded.sequences)
-        if sequence_key(sequence) in legacy_keys[sequence.span_id]
-    ], dtype=np.int64)
+    return rally_targets.legacy_rows(expanded.runtime)
 
 
 def legacy_pool(expanded: ExpandedPool, *, selected: np.ndarray | None = None) -> ExpandedPool:

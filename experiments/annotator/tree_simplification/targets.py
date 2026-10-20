@@ -26,12 +26,9 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.sequence.boundaries import BOUNDARY_PADDING_AT_30_FPS
-from annotator.sequence.contacts import scale_frames
-from annotator.training.workflow import whole_rally_correctness
+from annotator.training import rally_targets
 from experiments.annotator.tree_simplification.options import (
     ExpandedPool,
-    finish_in_initial_context,
 )
 
 SCHEMA = 'tree-simplification-five-frame-targets/1'
@@ -49,42 +46,12 @@ class TargetJob:
 
 
 def raw_five_targets(pool: ExpandedPool) -> np.ndarray:
-    """Return canonical whole-rally labels at five frames per 30 fps, one per row."""
-    video = pool.original
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
-    position_by_span = {sequence.span_id: position for position, sequence in enumerate(video.initial)}
-    targets = np.empty(len(pool.sequences), dtype=np.int8)
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
-    for span_id, rows in pool.span_rows.items():
-        span_sequences = tuple(pool.sequences[int(row)] for row in rows)
-        label_start = min(sequence.start_frame for sequence in span_sequences) - padding
-        label_end = max(sequence.end_frame for sequence in span_sequences) + padding + 1
-        rallies = tuple(
-            rally for rally in video.rallies
-            if any(label_start <= frame < label_end for frame in rally.frames)
-        )
-        for row in rows:
-            sequence = pool.sequences[int(row)]
-            finished = finish_in_initial_context(
-                video, position_by_span[span_id], sequence, stream_frames,
-            )
-            targets[row] = whole_rally_correctness(
-                finished, rallies, video.fps, tolerance_at_30_fps=5,
-            )
-    return targets
+    """Return canonical five-frame whole-rally targets aligned to pool rows."""
+    return rally_targets.option_targets(pool.original, pool.runtime, tolerance_at_30_fps=5)
 
 
 def tightest_targets(pool: ExpandedPool, five: np.ndarray) -> np.ndarray:
-    """Use five-frame labels per span when they retain a known positive option."""
-    if pool.targets.shape != (len(pool.sequences),) or five.shape != pool.targets.shape:
-        raise ValueError('five-frame targets must align with every expanded pool row')
-
-    targets = pool.targets.copy()
-    for rows in pool.span_rows.values():
-        included = rows[pool.targets[rows] >= 0]
-        if np.any(five[included] == 1):
-            targets[included] = five[included]
-    return targets
+    return rally_targets.tightest_targets(pool.runtime, pool.targets, five)
 
 
 def _metadata_path(array_path: Path) -> Path:

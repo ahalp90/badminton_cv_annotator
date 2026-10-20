@@ -28,7 +28,15 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
+from annotator.hybrid import predict_contact_features
+from annotator.models import (
+    AnnotatorModels,
+    SideGeometry,
+    fitted_trees,
+    load_models,
+    save_models,
+)
+from annotator.sequence.rally_model import RallyLayerModels
 from annotator.sequence.refine import finish_sequences
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.trees import TreeBackend
@@ -93,7 +101,7 @@ def evaluate(prepared_root: Path, models: AnnotatorModels, output: Path) -> dict
     if preparation['preprocessing'] != preprocessing or models.side_geometry != SideGeometry.VIDEO:
         raise ValueError('Bundle preprocessing or side geometry differs from prepared evidence')
     (output / 'validation_streams').mkdir(parents=True, exist_ok=True)
-    for tree in (models.contact, models.confidence, *vars(models.sequences).values()):
+    for tree in fitted_trees(models):
         if type(tree).__module__.startswith('xgboost'):
             tree.set_params(device='cpu')
     per_video = {}
@@ -103,11 +111,14 @@ def evaluate(prepared_root: Path, models: AnnotatorModels, output: Path) -> dict
             continue
         prepared: PreparedVideo = joblib.load(path)
         video = prepared.video
-        pool = training_pool(prepared, models.contact, settings)
-        refined = finish_sequences(
-            pool.initial, pool.events, pool.pool, models.sequences,
-            fps=video.fps, frame_count=len(prepared.evidence.track),
-        )
+        if isinstance(models.sequences, RallyLayerModels):
+            refined = predict_contact_features(prepared.evidence, prepared.features, models).refined
+        else:
+            pool = training_pool(prepared, models.contact, settings)
+            refined = finish_sequences(
+                pool.initial, pool.events, pool.pool, models.sequences,
+                fps=video.fps, frame_count=len(prepared.evidence.track),
+            )
         stream = retrain.stream_payload(refined.sequences, refined.events)
         write_json(output / 'validation_streams' / f'{video.identity}.json.gz', stream)
         per_video[video.identity] = score_stream(video, stream)
@@ -211,7 +222,9 @@ def main() -> None:
     source = source_record()
     settings = settings_for(TreeBackend(args.backend), args.device, args.min_child_weight, seed_offset=args.seed_offset)
     args.output.mkdir(parents=True, exist_ok=True)
-    config = {'settings': asdict(settings), 'prepared': str(args.prepared.resolve())}
+    legacy_settings = asdict(settings)
+    legacy_settings.pop('rally_layers')
+    config = {'settings': legacy_settings, 'prepared': str(args.prepared.resolve())}
     config = json.loads(json.dumps(config, default=sorted))
     config_path = args.output / 'settings.json.gz'
     if config_path.exists() and read_json(config_path) != config:

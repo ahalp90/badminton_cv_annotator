@@ -99,7 +99,7 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
         captured.update(matrix=matrix, labels=labels, **kwargs)
         return captured
 
-    monkeypatch.setattr(layers, 'fit_binary_tree', fit)
+    monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
     model = layers.fit_layer(
         [pool, sparse, unjudged], [(prior,), (prior,), (prior,)], TreeFitConfig(max_iter=3), span_weight=1.5,
     )
@@ -129,7 +129,7 @@ def test_fixed_span_weight_is_identical_for_legacy_and_expanded_pools(monkeypatc
     def fit(_matrix: np.ndarray, _labels: np.ndarray, **kwargs: Any) -> np.ndarray:
         return kwargs['sample_weight']
 
-    monkeypatch.setattr(layers, 'fit_binary_tree', fit)
+    monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
     for pool in (legacy, expanded):
         judged = pool.targets >= 0
         passed = layers.fit_layer([pool], [()], span_weight=span_weight)

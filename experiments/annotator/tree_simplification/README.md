@@ -246,3 +246,42 @@ Train the selected simplified prefixes with `--seed 20261005` for offset 100 or
 retain the normal per-seed span-weight calculation. Compare paired recovery and
 attributed F1 at both tolerances for every seed. These repeats measure training
 stability on the existing selection validation set.
+
+## Production export and review ranking
+
+Export a completed expanded, tight-target general-layer run without refitting
+its contact or final selector models:
+
+```bash
+python -m experiments.annotator.tree_simplification.integrate \
+  --run RUN/tightest-expanded15 --layers 2 \
+  --five-frame-targets RUN/targets-five \
+  --output RUN/production-expanded15 --threads 2
+```
+
+This development export requires the 32 training videos and checks the saved
+pool and target manifests. It copies selector-fit checkpoints into the export
+directory, fits any missing held-group selectors and trains a compact review
+ranker on their finished sequences. Validation labels never enter fitting.
+Existing indirect contact-label paths within training remain unchanged.
+
+The export reconstructs one training pool and its wide targets exactly. It then
+reconstructs every validation pool through the production inference path and
+requires all eight output streams to match the selected experiment. The bundle
+is saved and loaded before replay, exercising its metadata checks. Legacy
+reference streams must also match their pilot. Model inference runs on CPU.
+
+The result reports annotation recovery/F1 and review ranking separately at ±5
+and ±10. Selector-only and fitted review scores rank identical annotations.
+Ranking measures include correct-rally AUROC, wrong-rally average precision
+and wrong rallies found in the first 10%, 25% and 50% of the review queue.
+Unjudgeable rallies are excluded. Legacy rankings use the legacy stack's own
+annotations and correctness labels, so they are context rather than a matched
+ranker comparison. Scores are not calibrated acceptance probabilities.
+
+Outputs include `bundle/`, `result.json.gz`, per-video streams and review rows.
+Completion is recorded only after all parity checks pass. Retain separate
+export directories for different settings; the saved input receipt prevents
+resuming with a different source run or depth. The experiment remains a
+development comparison on the existing validation set, not an untouched-test
+result or an automatic change to production defaults.

@@ -34,6 +34,9 @@ def example_pool() -> ExpandedPool:
     original = SimpleNamespace(
         identity='fixture',
         group='A',
+        fps=30.0,
+        events=(first, second, other),
+        frame_count=50,
         initial=initial,
         pool=SimpleNamespace(options=legacy_options),
     )

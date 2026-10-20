@@ -192,6 +192,7 @@ def test_changed_seed_is_rejected_before_reusing_fitted_outputs(tmp_path: Path, 
     pilot.main()
     saved = read_json(output / 'settings.json.gz')
     expected = {'settings': asdict(DEFAULT_TRAINING_SETTINGS), 'prepared': str(prepared.resolve())}
+    expected['settings'].pop('rally_layers')
     assert saved == json.loads(json.dumps(expected, default=sorted))
     (output / 'bundle').mkdir()
     load_models = Mock(return_value=fitted_models())

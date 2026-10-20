@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from sklearn.dummy import DummyClassifier
 
 from annotator import hybrid
 from annotator.contacts.features import ContactFeatures, contact_feature_dtype
@@ -18,9 +19,12 @@ from annotator.courts.scenes import SceneCourt
 from annotator.hybrid import ContactEvidence, sequence_inputs
 from annotator.models import SideGeometry
 from annotator.sequence.contacts import initial_sequences
+from annotator.sequence.rally_model import RallyLayerModels, RallyLayerPrediction
+from annotator.sequence.rally_options import FEATURE_NAMES
 from annotator.sequence.refine import build_option_pool
 from annotator.training.workflow import Split, VideoInput, sequence_training_video
 from annotator.types import StickyResult
+from experiments.annotator.tree_simplification.options import expand_pool
 
 
 def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
@@ -139,3 +143,14 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
         else:
             assert 1 in pool.physical
             assert pool.serve_inputs.rows_by_key
+
+    layers = tuple(DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES) + 8 * depth)), [0, 1])
+                   for depth in range(2))
+    layered_models = replace(models, sequences=RallyLayerModels(layers), confidence=None)
+    layered = hybrid.predict_contact_features(evidence, features, layered_models)
+    assert isinstance(layered.refined, RallyLayerPrediction)
+    expected_pool = expand_pool(training)
+    assert layered.refined.pool.sequences == expected_pool.sequences
+    np.testing.assert_array_equal(layered.refined.pool.matrix, expected_pool.matrix)
+    assert layered.confidence.features.span_ids == tuple(sequence.span_id for sequence in layered.refined.sequences)
+    assert len(layered.confidence.scores) == len(layered.refined.sequences)
