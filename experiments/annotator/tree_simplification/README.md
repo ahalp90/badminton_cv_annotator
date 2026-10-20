@@ -227,3 +227,22 @@ these new pools because their candidate rows can differ. Report changed initial
 contacts, candidate counts and judged-span support with validation recovery/F1.
 The inherited indirect training-label paths remain; internal predictions are
 training features. The eight separate validation videos stay excluded from fits.
+
+## Paired seed repeats
+
+Use `pilot --seed-offset 100` and `--seed-offset 200` for two additional
+complete-system repeats. The offsets change contact, serve, rally and confidence
+seeds together. Zero preserves the original settings. A non-zero offset requires
+fitting a new pilot and cannot be combined with `--reference-bundle`.
+
+For each offset, reuse prepared vision evidence and run the pilot in a fresh
+output directory. Rebuild all 40 pools from that pilot, then regenerate its
+tighter targets. Each old-stack and simplified comparison must share that seed's
+contact models, including final contact32 validation predictions. Reusing
+seed-zero pools would omit contact sampling variation.
+
+Train the selected simplified prefixes with `--seed 20261005` for offset 100 or
+`--seed 20261105` for offset 200. Keep its architecture and hyperparameters fixed;
+retain the normal per-seed span-weight calculation. Compare paired recovery and
+attributed F1 at both tolerances for every seed. These repeats measure training
+stability on the existing selection validation set.

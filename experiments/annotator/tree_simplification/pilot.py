@@ -49,14 +49,21 @@ from experiments.annotator.tree_hp_tune.run import development_for, pooled_score
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 
-def settings_for(backend: TreeBackend, device: str, min_child_weight: float) -> TrainingSettings:
+def settings_for(
+    backend: TreeBackend, device: str, min_child_weight: float, *, seed_offset: int = 0,
+) -> TrainingSettings:
     base = DEFAULT_TRAINING_SETTINGS
     options = {'backend': backend, 'device': device, 'min_child_weight': min_child_weight}
     return replace(
-        base, contact=replace(base.contact, **options), confidence=replace(base.confidence, **options),
+        base,
+        contact=replace(base.contact, **options, random_seed=base.contact.random_seed + seed_offset),
+        confidence=replace(base.confidence, **options, random_seed=base.confidence.random_seed + seed_offset),
         sequences=replace(
-            base.sequences, serve=replace(base.sequences.serve, **options),
-            sequence=replace(base.sequences.sequence, **options),
+            base.sequences,
+            serve=replace(base.sequences.serve, **options, random_seed=base.sequences.serve.random_seed + seed_offset),
+            sequence=replace(
+                base.sequences.sequence, **options, random_seed=base.sequences.sequence.random_seed + seed_offset,
+            ),
         ),
     )
 
@@ -191,15 +198,18 @@ def main() -> None:
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cpu')
     parser.add_argument('--min-child-weight', type=float, default=5.0)
     parser.add_argument('--threads', type=int, default=4)
+    parser.add_argument('--seed-offset', type=int, default=0)
     parser.add_argument('--reference-bundle', type=Path)
     parser.add_argument('--expected-validation', type=Path)
     args = parser.parse_args()
     if not 1 <= args.threads <= 28:
         parser.error('--threads must be between 1 and 28')
+    if args.reference_bundle is not None and args.seed_offset != 0:
+        parser.error('--seed-offset requires fitting models and cannot be combined with --reference-bundle')
     if args.reference_bundle is not None and not args.reference_bundle.is_dir():
         parser.error('--reference-bundle must name an existing bundle')
     source = source_record()
-    settings = settings_for(TreeBackend(args.backend), args.device, args.min_child_weight)
+    settings = settings_for(TreeBackend(args.backend), args.device, args.min_child_weight, seed_offset=args.seed_offset)
     args.output.mkdir(parents=True, exist_ok=True)
     config = {'settings': asdict(settings), 'prepared': str(args.prepared.resolve())}
     config = json.loads(json.dumps(config, default=sorted))
