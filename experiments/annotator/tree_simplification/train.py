@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +25,14 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.training.sequences import TreeFitConfig
+from annotator.training.sequences import (
+    SequenceFitConfig,
+    SequenceTargets,
+    TreeFitConfig,
+    sequence_targets,
+)
 from annotator.training.trees import TreeBackend
+from dataset_builder.vision import load_npy_xz
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,
@@ -45,13 +51,28 @@ from experiments.annotator.tree_simplification.layers import (
 )
 from experiments.annotator.tree_simplification.options import ExpandedPool
 from experiments.annotator.tree_simplification.pilot import progress
-from experiments.annotator.tree_simplification.pools import edit_kind, legacy_pool
+from experiments.annotator.tree_simplification.pools import (
+    edit_kind,
+    legacy_pool,
+    legacy_rows,
+)
+from experiments.annotator.tree_simplification.specialists import (
+    SpecialisedLayer,
+    SpecialistModels,
+    augment_pool,
+    fit_specialists,
+)
+from experiments.annotator.tree_simplification.targets import tightest_targets
 
 
 def score_layers(models: tuple[Any, ...], pool: ExpandedPool) -> tuple[np.ndarray, ...]:
     scores = []
+    features = augment_pool(pool, models[0].specialists) if models and isinstance(models[0], SpecialisedLayer) else pool
     for model in models:
-        scores.append(predict_layer(model, pool, scores))
+        if isinstance(model, SpecialisedLayer):
+            scores.append(predict_layer(model.estimator, features, scores))
+        else:
+            scores.append(predict_layer(model, features, scores))
     return tuple(scores)
 
 
@@ -68,8 +89,40 @@ class LayerTrainer:
     config: TreeFitConfig
     output: Path
     span_weight: float
+    roles: tuple[str, ...] = ()
     stacks: dict[tuple[tuple[str, ...], int], tuple[Any, ...]] = field(default_factory=dict)
     scores: dict[tuple[tuple[str, ...], int, str], tuple[np.ndarray, ...]] = field(default_factory=dict)
+    local_models: dict[tuple[str, ...], SpecialistModels] = field(default_factory=dict)
+    local_targets: dict[str, SequenceTargets] = field(default_factory=dict)
+
+    def specialist_config(self) -> SequenceFitConfig:
+        serve = replace(
+            SequenceFitConfig().serve, backend=self.config.backend, device=self.config.device,
+            min_child_weight=self.config.min_child_weight,
+        )
+        return SequenceFitConfig(serve=serve, sequence=self.config)
+
+    def specialists(self, groups: tuple[str, ...]) -> SpecialistModels:
+        if groups not in self.local_models:
+            destination = self.output / 'specialists' / ''.join(groups) / 'models.joblib'
+            record_path = destination.with_suffix('.json.gz')
+            if destination.exists() and record_path.exists():
+                models = joblib.load(destination)
+            else:
+                videos = [pool.original for pool in self.pools.values() if pool.original.group in groups]
+                progress(self.output, 'specialist-fit', groups=groups, roles=self.roles, videos=len(videos))
+                started = time.perf_counter()
+                for video in videos:
+                    if video.identity not in self.local_targets:
+                        self.local_targets[video.identity] = sequence_targets(video)
+                models = fit_specialists(videos, self.specialist_config(), self.roles, targets=self.local_targets)
+                dump_atomically(models, destination)
+                write_json(record_path, {
+                    'groups': groups, 'roles': self.roles, 'training_videos': [video.identity for video in videos],
+                    'fit_wall_s': time.perf_counter() - started,
+                })
+            self.local_models[groups] = models
+        return self.local_models[groups]
 
     def held_scores(self, groups: tuple[str, ...], depth: int, identity: str) -> tuple[np.ndarray, ...]:
         key = groups, depth, identity
@@ -97,7 +150,14 @@ class LayerTrainer:
             ) for pool in selected]
             progress(self.output, 'rally-fit', groups=groups, layer=depth, videos=len(selected))
             started = time.perf_counter()
-            model = fit_layer(selected, histories, self.config, span_weight=self.span_weight)
+            features = selected
+            if self.roles:
+                features = [augment_pool(pool, self.specialists(
+                    tuple(group for group in groups if group != pool.original.group),
+                )) for pool in selected]
+            model = fit_layer(features, histories, self.config, span_weight=self.span_weight)
+            if self.roles:
+                model = SpecialisedLayer(model, self.specialists(groups))
             dump_atomically(model, destination)
             write_json(record_path, {
                 'groups': groups, 'layer': depth, 'training_videos': [pool.original.identity for pool in selected],
@@ -149,17 +209,27 @@ def main() -> None:
     parser.add_argument('--layers', type=int, choices=(1, 2, 3), default=3)
     parser.add_argument('--threads', type=int, default=2)
     parser.add_argument('--legacy-pool', action='store_true')
+    parser.add_argument('--specialists', nargs='+', choices=('serve', 'insertion'), default=[])
+    parser.add_argument('--five-frame-targets', type=Path, help='Use tightest-available targets from these sidecars')
     args = parser.parse_args()
     if not 1 <= args.threads <= 28:
         parser.error('--threads must be between 1 and 28')
     if args.backend == TreeBackend.HIST_GRADIENT_BOOSTING and args.device != 'cpu':
         parser.error('HGB requires --device cpu')
+    roles = tuple(sorted(set(args.specialists)))
+    if roles and not args.legacy_pool:
+        parser.error('Specialist comparisons currently require --legacy-pool')
     config = TreeFitConfig(
         max_iter=args.rounds, max_leaf_nodes=args.leaves, learning_rate=args.learning_rate,
         l2_regularization=args.l2, random_seed=args.seed, backend=TreeBackend(args.backend),
         device=args.device, min_child_weight=args.min_child_weight,
     )
     manifest = read_json(args.pools / 'pools.json.gz')
+    target_manifest = None
+    if args.five_frame_targets:
+        target_manifest = read_json(args.five_frame_targets / 'targets.json.gz')
+        if target_manifest['pools'] != str(args.pools.resolve()) or target_manifest['pools_manifest'] != manifest:
+            raise ValueError('Five-frame targets were prepared from different option pools')
     args.output.mkdir(parents=True, exist_ok=True)
     source = source_record()
     started = time.perf_counter()
@@ -173,15 +243,25 @@ def main() -> None:
         metadata = read_json(path.with_suffix('.json.gz'))
         if metadata['split'] != video.split or pool.original.group != prepared['groups'][identity]:
             raise ValueError(f'{identity}: prepared split or group differs')
-        legacy = legacy_pool(pool)
+        selected = legacy_rows(pool)
+        legacy = legacy_pool(pool, selected=selected)
         counts[identity] = {
             'split': video.split, 'legacy_options': len(legacy.targets), 'expanded_options': len(pool.targets),
             'legacy_judged_rows': int((legacy.targets >= 0).sum()),
             'expanded_judged_rows': int((pool.targets >= 0).sum()),
             'legacy_judged_spans': sum(bool(np.any(legacy.targets[rows] >= 0)) for rows in legacy.span_rows.values()),
         }
+        five = None
+        if args.five_frame_targets:
+            five = load_npy_xz(args.five_frame_targets / 'videos' / f'{identity}.npy.xz')
+            if five.shape != pool.targets.shape:
+                raise ValueError(f'{identity}: five-frame targets do not align with the expanded pool')
         if args.legacy_pool:
             pool = legacy
+            if five is not None:
+                five = five[selected]
+        if five is not None:
+            pool = replace(pool, targets=tightest_targets(pool, five))
         (training if video.split == 'train' else validation)[identity] = pool
     if len(training) != 32 or len(validation) != 8:
         raise ValueError('Comparison requires the original 32 training and 8 validation videos')
@@ -194,26 +274,40 @@ def main() -> None:
         'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
         'layers': args.layers, 'legacy_pool': args.legacy_pool, 'span_weight': span_weight,
     }
+    trainer = LayerTrainer(training, config, args.output, span_weight, roles=roles)
+    if roles:
+        settings['specialists'] = {'roles': roles, 'config': asdict(trainer.specialist_config())}
+    if target_manifest is not None:
+        settings['target_policy'] = {'name': 'tightest-available', 'manifest': target_manifest}
     settings = json.loads(json.dumps(settings, default=sorted))
     settings_path = args.output / 'settings.json.gz'
-    if settings_path.exists() and read_json(settings_path) != settings:
-        raise ValueError('Training configuration changed; use a fresh output directory')
+    if settings_path.exists():
+        saved = read_json(settings_path)
+        previous_depth = saved.pop('layers')
+        requested = {key: value for key, value in settings.items() if key != 'layers'}
+        if saved != requested or previous_depth > args.layers:
+            raise ValueError('Training configuration changed; use a fresh output directory')
     write_json(settings_path, settings)
     write_json(args.output / 'pool-counts.json.gz', counts)
     groups = tuple(sorted({pool.original.group for pool in training.values()}))
-    trainer = LayerTrainer(training, config, args.output, span_weight)
     results = {}
     with threadpool_limits(limits=args.threads):
         for depth in range(1, args.layers + 1):
             models = trainer.fit(groups, depth)
             destination = args.output / f'layers-{depth}'
-            result = evaluate(models, validation, videos, destination)
-            dump_atomically(models, destination / 'rally-models.joblib')
+            result_path = destination / 'validation.json.gz'
+            if result_path.exists():
+                result = read_json(result_path)
+            else:
+                result = evaluate(models, validation, videos, destination)
+            if not (destination / 'rally-models.joblib').exists():
+                dump_atomically(models, destination / 'rally-models.joblib')
             results[str(depth)] = result['totals']
-            progress(args.output, 'validated', layers=depth, total_models=depth + 1, totals=result['totals'])
+            progress(args.output, 'validated', layers=depth, total_models=depth + 1 + len(roles), totals=result['totals'])
             write_json(args.output / 'result.json.gz', {
                 'source': source, 'settings': settings, 'layers': results, 'complete': depth == args.layers,
                 'wall_s': time.perf_counter() - started, 'threads': args.threads,
+                'non_rally_models': 1 + len(roles),
             })
 
 

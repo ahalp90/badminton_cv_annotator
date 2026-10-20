@@ -21,7 +21,15 @@ from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from annotator.training.trees import TreeBackend
 
 
-def configurations(backend: TreeBackend) -> list[dict[str, Any]]:
+def configurations(backend: TreeBackend, structures: bool = False) -> list[dict[str, Any]]:
+    if structures:
+        return [
+            {'name': name, 'leaves': 15, 'layers': 2, 'min_child_weight': 5.0, 'legacy_pool': True,
+             'specialists': roles}
+            for name, roles in (
+                ('serve', ['serve']), ('insertion', ['insertion']), ('both', ['serve', 'insertion']),
+            )
+        ]
     runs = [{'name': 'legacy-pool', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': True}]
     runs.extend([
         {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': False}
@@ -48,6 +56,8 @@ def run_configuration(
     ]
     if run['legacy_pool']:
         command.append('--legacy-pool')
+    if run.get('specialists'):
+        command.extend(['--specialists', *run['specialists']])
     environment = {**os.environ, 'OMP_NUM_THREADS': str(threads), 'OPENBLAS_NUM_THREADS': str(threads),
                    'MKL_NUM_THREADS': str(threads)}
     started = time.perf_counter()
@@ -69,13 +79,14 @@ def main() -> None:
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     parser.add_argument('--jobs', type=int, default=4)
     parser.add_argument('--threads', type=int, default=2)
+    parser.add_argument('--structures', action='store_true', help='Compare local edit specialists on legacy options')
     args = parser.parse_args()
     if args.jobs < 1 or args.threads < 1 or args.jobs * args.threads > 28:
         parser.error('jobs and threads must be positive and use at most 28 CPU cores together')
     backend = TreeBackend(args.backend)
     if backend == TreeBackend.HIST_GRADIENT_BOOSTING and args.device != 'cpu':
         parser.error('HGB requires --device cpu')
-    runs = configurations(backend)
+    runs = configurations(backend, args.structures)
     args.output.mkdir(parents=True, exist_ok=True)
     plan = {
         'pools': str(args.pools.resolve()), 'pool_settings': read_json(args.pools / 'pools.json.gz'),

@@ -33,7 +33,7 @@ def test_status_marks_partial_results_and_reports_config_exit_and_running(
     write_json(failed / 'result.json.gz', result(False, 1))
     write_json(failed / 'status.json.gz', {'name': 'failed', 'exit_code': 1})
     write_json(failed / 'progress.json.gz', {'stage': 'fit_layers', 'totals': {}})
-    write_json(completed / 'result.json.gz', result(True, 2))
+    write_json(completed / 'result.json.gz', {**result(True, 2), 'non_rally_models': 3})
     write_json(completed / 'status.json.gz', {'name': 'completed', 'exit_code': 0})
     write_json(tmp_path / 'status.json.gz', {
         'planned': 2,
@@ -49,7 +49,7 @@ def test_status_marks_partial_results_and_reports_config_exit_and_running(
     output = capsys.readouterr().out
     assert 'Validation, tolerance 10 frames at 30 fps' in output
     assert '| failed | 1 | 1/2 | 50.00% | 50.00% | partial |' in output
-    assert '| completed | 1 | 2/2 | 100.00% | 50.00% | complete |' in output
+    assert '| completed | 3 | 2/2 | 100.00% | 50.00% | complete |' in output
     assert 'failed: failed (exit 1)' in output
     assert output.count('failed (exit 1)') == 1
     assert 'completed: complete (exit 0)' in output

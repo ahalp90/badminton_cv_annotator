@@ -12,7 +12,7 @@ from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import ServeEditInputs
 from annotator.sequence.refine import OptionPool
 from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
-from experiments.annotator.tree_simplification import layers
+from experiments.annotator.tree_simplification import layers, margins
 from experiments.annotator.tree_simplification.options import ExpandedPool
 
 
@@ -35,6 +35,18 @@ def example_pool() -> ExpandedPool:
         sequences, np.asarray([[0, 1], [1, 1], [0, 0], [2, 1]], dtype=np.float32),
         np.asarray([0, 1, -1, 0], dtype=np.int8), {0: np.asarray([0, 1, 2]), 1: np.asarray([3])}, original,
     )
+
+
+def test_final_margin_uses_initial_keep_without_changing_scores() -> None:
+    pool = example_pool()
+    scores = np.asarray([0.50, 0.54, 0.2, 0.1])
+    assert margins.gated_rows(pool, scores, 0.0) == layers.choose_rows(pool, scores)
+    assert margins.gated_rows(pool, scores, 0.05) == {0: 0, 1: 3}
+    np.testing.assert_array_equal(scores, [0.50, 0.54, 0.2, 0.1])
+    scores[1] = 0.56
+    assert margins.gated_rows(pool, scores, 0.05) == {0: 1, 1: 3}
+    scores[1] = scores[0]
+    assert margins.gated_rows(pool, scores, 0.0) == {0: 0, 1: 3}
 
 
 def test_each_prior_layer_has_its_own_choice_context_and_stable_ties() -> None:

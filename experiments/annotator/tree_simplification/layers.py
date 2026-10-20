@@ -113,7 +113,14 @@ def finish_selected(
     pool: ExpandedPool, scores: np.ndarray,
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Finish all selected spans together using the production boundary/side rules."""
-    choices = {span_id: pool.sequences[row] for span_id, row in choose_rows(pool, scores).items()}
+    return finish_rows(pool, choose_rows(pool, scores))
+
+
+def finish_rows(
+    pool: ExpandedPool, rows: dict[int, int],
+) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
+    """Apply the chosen rows together before canonical boundary and side finishing."""
+    choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     video = pool.original
     sequences, events = apply_choices(video.initial, video.events, choices)
     extended = extend_boundaries(sequences, events, video.fps, frame_count=video.frame_count)

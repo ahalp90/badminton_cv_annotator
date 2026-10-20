@@ -75,7 +75,7 @@ def main() -> None:
         if 'layers' not in result and len(result.get('per_video', {})) != 8:
             continue
         rows = (
-            [(int(depth) + 1, totals) for depth, totals in result['layers'].items()]
+            [(int(depth) + result.get('non_rally_models', 1), totals) for depth, totals in result['layers'].items()]
             if 'layers' in result else [(8, result['totals'])]
         )
         for count, totals in rows:

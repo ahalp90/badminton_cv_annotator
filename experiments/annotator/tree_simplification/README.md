@@ -122,3 +122,69 @@ as in the previous stack. Internal fits are therefore not independent estimates
 of generalisation. The eight validation videos are excluded from every fit and
 provide the comparison scores. Initial results use one seed; close differences
 need repeat fits before choosing a final configuration.
+
+## Specialised layer comparisons
+
+The structural screen tests a physical serve-repair specialist, an insertion
+specialist, and both, each feeding one then two whole-rally selectors. The specialist
+labels are the existing local useful-edit targets: a contact repair can be
+positive even when another error keeps the rally globally wrong. The selector
+keeps the original whole-rally target, span weights and tree settings.
+
+```bash
+python -m experiments.annotator.tree_simplification.search \
+  --pools RUN/pools --output RUN/structures --backend xgboost --device cuda \
+  --structures --jobs 3 --threads 2
+```
+
+These arms use legacy options so they can be compared directly with the
+existing legacy-pool general-layer control. Specialist scores map to the same
+resulting sequence; duplicate edit routes use the largest finite score.
+Absent edit types remain NaN. Each selector receives four extra features:
+serve/insertion scores for the option and the best of each within its span.
+Specialists exclude the predicted training group at every recursive rally fit.
+The final specialists use all 32 training videos. No validation labels enter
+specialist fitting or feature construction.
+
+One specialist plus one selector gives three total models including contact;
+both specialists plus one selector gives four. An extra correction selector
+adds one model. To extend a promising arm, rerun `train` with the same settings
+and output directory but a larger `--layers` value. Completed prefixes and
+validation records are reused. Other setting changes require a new directory.
+
+The 0.05 legacy switching margin and tighter contact timing are separate
+questions from whether specialised supervision is useful. Compare both five-
+and ten-frame validation tolerances before interpreting near-parity results.
+
+Prepare the tighter target without rebuilding options or features:
+
+```bash
+python -m experiments.annotator.tree_simplification.targets \
+  --pools RUN/pools --output RUN/targets-five --workers 4
+python -m experiments.annotator.tree_simplification.train \
+  --pools RUN/pools --output RUN/tightest-legacy --legacy-pool --layers 1 \
+  --five-frame-targets RUN/targets-five --threads 2
+```
+
+Within the selected legacy options, a span uses five-frame labels if any judged
+option is correct at that tolerance. Otherwise it retains ten-frame labels.
+Original unknown labels remain excluded. This changes the target, with the
+candidate rows, features and span-weight anchor held fixed.
+
+Replay a fixed final-choice margin on an existing completed configuration:
+
+```bash
+python -m experiments.annotator.tree_simplification.margins \
+  --run RUN/search/legacy-pool --output RUN/margins/legacy-pool --threads 2
+```
+
+This compares the final model's best option with its score for the initial
+sequence. It evaluates margins zero and 0.05 without changing intermediate
+layer histories or fitting models. Zero must reproduce every saved validation
+count before either replay is reported. The fixed margin is a diagnostic, not
+a calibration claim or a threshold tuned on validation.
+
+The old eight-model reference includes a confidence-ranking model that does
+not change the scored contact stream. These structural comparisons concern
+rally recovery; production confidence ranking still needs assessment before
+replacing the deployed stack.

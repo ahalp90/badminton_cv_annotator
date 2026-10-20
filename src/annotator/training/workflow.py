@@ -268,6 +268,7 @@ def sequence_training_video(
 
 def whole_rally_correctness(
     sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance_at_30_fps: int = EVALUATION_TOLERANCE_AT_30_FPS,
 ) -> int:
     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
 
@@ -282,7 +283,7 @@ def whole_rally_correctness(
     rally = overlaps[0]
     if not all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames):
         return 0
-    tolerance = scale_frames(EVALUATION_TOLERANCE_AT_30_FPS, fps)
+    tolerance = scale_frames(tolerance_at_30_fps, fps)
     matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
     if len(matches) < len(rally.frames):
         return 0

@@ -59,18 +59,24 @@ def _span_rows(sequences: Sequence[ContactSequence], span_ids: Sequence[int]) ->
     return {span_id: np.asarray(indices, dtype=np.int64) for span_id, indices in rows.items()}
 
 
-def legacy_pool(expanded: ExpandedPool) -> ExpandedPool:
-    """Select initial and legacy choices, preserving expanded feature and target rows."""
+def legacy_rows(expanded: ExpandedPool) -> np.ndarray:
+    """Locate legacy choices so features and alternate targets use identical rows."""
     legacy_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
     for sequence in expanded.original.initial:
         legacy_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
     for option in expanded.original.pool.options:
         legacy_keys.setdefault(option.span_id, set()).add(sequence_key(option.sequence))
 
-    selected = np.asarray([
+    return np.asarray([
         row for row, sequence in enumerate(expanded.sequences)
         if sequence_key(sequence) in legacy_keys[sequence.span_id]
     ], dtype=np.int64)
+
+
+def legacy_pool(expanded: ExpandedPool, *, selected: np.ndarray | None = None) -> ExpandedPool:
+    """Select initial and legacy choices, preserving expanded feature and target rows."""
+    if selected is None:
+        selected = legacy_rows(expanded)
     sequences = tuple(expanded.sequences[row] for row in selected)
     return ExpandedPool(
         sequences,

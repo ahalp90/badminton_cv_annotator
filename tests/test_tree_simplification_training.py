@@ -1,7 +1,7 @@
 """Recursive rally-group exclusion, stack reuse and validation isolation."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import combinations
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +18,7 @@ from annotator.sequence.refine import OptionPool
 from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.specialists import SpecialistModels
 
 
 def make_pool(identity: str, group: str) -> ExpandedPool:
@@ -152,8 +153,60 @@ def test_real_hgb_prefixes_receive_one_context_block_per_previous_layer(tmp_path
     assert all(row.shape == (2,) and np.isfinite(row).all() for row in scores)
 
 
-def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_evaluation(
+def test_specialists_exclude_the_predicted_group_at_every_rally_depth(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded = RecordingFits(monkeypatch)
+    specialist_fits = []
+
+    def group_code(groups: frozenset[str]) -> int:
+        return sum(1 << 'ABCD'.index(group) for group in groups)
+
+    def fit_specialists(
+        videos: Sequence[SequenceTrainingVideo], _config: Any, roles: tuple[str, ...], *, targets: Any,
+    ) -> SpecialistModels:
+        assert roles == ('serve',)
+        assert all(video.identity.startswith('train-') for video in videos)
+        assert all(targets[video.identity] == video.identity for video in videos)
+        groups = frozenset(video.group for video in videos)
+        specialist_fits.append(groups)
+        return SpecialistModels(serve=groups, insertion=None)
+
+    def augment(pool: ExpandedPool, models: SpecialistModels) -> ExpandedPool:
+        code = np.full(len(pool.targets), group_code(models.serve))
+        return replace(pool, matrix=np.column_stack((pool.matrix, code)))
+
+    def fit(pools: Sequence[ExpandedPool], histories: Any, config: TreeFitConfig, *, span_weight: float) -> RecordedModel:
+        groups = frozenset(pool.original.group for pool in pools)
+        for pool in pools:
+            assert np.all(pool.matrix[:, -1] == group_code(groups - {pool.original.group}))
+        return recorded.fit(pools, histories, config, span_weight=span_weight)
+
+    def predict(model: RecordedModel, pool: ExpandedPool, history: Any) -> np.ndarray:
+        assert np.all(pool.matrix[:, -1] == group_code(model.groups))
+        return recorded.predict(model, pool, history)
+
+    monkeypatch.setattr(train, 'fit_specialists', fit_specialists)
+    monkeypatch.setattr(train, 'sequence_targets', lambda video: video.identity)
+    monkeypatch.setattr(train, 'augment_pool', augment)
+    monkeypatch.setattr(train, 'fit_layer', fit)
+    monkeypatch.setattr(train, 'predict_layer', predict)
+    pools, groups = training_pools(), tuple('ABCD')
+    trainer = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0, roles=('serve',))
+    models = trainer.fit(groups, 2)
+    expected = {frozenset(subset) for size in (2, 3, 4) for subset in combinations(groups, size)}
+    assert len(specialist_fits) == len(set(specialist_fits)) == 11
+    assert set(specialist_fits) == expected
+    assert len(recorded.models) == 6
+    train.score_layers(models, make_pool('validation', 'V'))
+    resumed = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0, roles=('serve',))
+    assert resumed.fit(groups, 2) == models
+    assert len(specialist_fits) == 11
+
+
+@pytest.mark.parametrize('first_depth', [1, 3])
+def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_evaluation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_depth: int,
 ) -> None:
     recorded = RecordingFits(monkeypatch)
     training = training_pools(videos_per_group=8)
@@ -187,18 +240,26 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
         assert all(pool is validation[identity] for identity, pool in selected.items())
         evaluations.append(len(models))
         assert len(train.score_layers(models, selected['validation-0'])) == len(models)
-        return {'totals': {'fixture': len(models)}}
+        result = {'totals': {'fixture': len(models)}}
+        _args[-1].mkdir(parents=True, exist_ok=True)
+        train.write_json(_args[-1] / 'validation.json.gz', result)
+        return result
 
     monkeypatch.setattr(train, 'read_json', read)
     monkeypatch.setattr(train.joblib, 'load', load)
     monkeypatch.setattr(train, 'load_original_videos', lambda _path: videos)
     monkeypatch.setattr(train, 'source_record', lambda: {'revision': 'fixture'})
     monkeypatch.setattr(train, 'evaluate', evaluate)
-    monkeypatch.setattr(train.sys, 'argv', [
+    command = [
         'train', '--pools', str(pool_dir), '--output', str(output),
-        '--backend', 'hist_gradient_boosting', '--device', 'cpu', '--layers', '3', '--threads', '1',
-    ])
-    train.main()
+        '--backend', 'hist_gradient_boosting', '--device', 'cpu', '--threads', '1',
+    ]
+    for depth in dict.fromkeys((first_depth, 3)):
+        monkeypatch.setattr(train.sys, 'argv', [*command, '--layers', str(depth)])
+        train.main()
     assert train.read_json(output / 'settings.json.gz')['span_weight'] == 1.0
     assert evaluations == [1, 2, 3]
     assert len(recorded.models) == 17
+    monkeypatch.setattr(train.sys, 'argv', [*command, '--layers', '3', '--leaves', '31'])
+    with pytest.raises(ValueError, match='Training configuration changed'):
+        train.main()
