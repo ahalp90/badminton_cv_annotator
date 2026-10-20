@@ -94,6 +94,32 @@ The index pins the source and manifest identity, canonical metadata, stage
 configuration, interpreter and model identities, outcomes, reasons, output
 integrity, annotations, masks, and primitive projections.
 
+## Optional review-policy sidecar
+
+The policy command is opt-in and does not run during `run` or `replay`. Select
+thresholds only after validation analysis: `review_score` is uncalibrated, and
+the repository does not recommend numeric thresholds. Scores below the low
+threshold are labelled `filter`; scores at or above the high threshold are
+labelled `accept`. Scores between them, and rallies with no score, are labelled
+`review`. Equal thresholds leave no scored rally in the review band. The labels
+do not remove or rewrite rally records or annotations.
+
+After setting `LOW_FILTER_THRESHOLD` and `HIGH_ACCEPT_THRESHOLD` to values
+chosen from validation, write a separate sidecar with:
+
+```bash
+PYTHONPATH=src python -m dataset_builder review-policy \
+  --run-dir /path/to/run \
+  --output /path/to/review_policy.json.gz \
+  --low-filter-threshold "$LOW_FILTER_THRESHOLD" \
+  --high-accept-threshold "$HIGH_ACCEPT_THRESHOLD"
+```
+
+The sidecar contains one decision per rally-record key and a checksum linking
+it to `rally_records.json.gz`. Consumers must verify that checksum before joining
+decisions to records: a replay can reuse rally keys for changed annotations.
+Choose a new output path; the command rejects paths that already exist.
+
 ## Annotation replay
 
 After Issue #96 finalizes the 2.5 annotation configuration, rerun annotation
