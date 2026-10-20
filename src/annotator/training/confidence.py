@@ -1,14 +1,15 @@
 """Fit the review-ranking tree from held-group annotation predictions."""
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
 
 from annotator.sequence.confidence import (
     GAP_FEATURE_NAMES,
     ConfidenceFeatures,
 )
+from annotator.training.trees import TreeBackend, fit_binary_tree
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,9 @@ class ConfidenceFitConfig:
     min_samples_leaf: int = 20
     l2_regularization: float = 1.0
     random_seed: int = 20260905
+    backend: TreeBackend = TreeBackend.HIST_GRADIENT_BOOSTING
+    device: str = 'cpu'
+    min_child_weight: float = 5.0
 
 
 DEFAULT_CONFIDENCE_FIT_CONFIG = ConfidenceFitConfig()
@@ -30,7 +34,7 @@ def fit_confidence_model(
     features: ConfidenceFeatures,
     correctness: np.ndarray,
     config: ConfidenceFitConfig = DEFAULT_CONFIDENCE_FIT_CONFIG,
-) -> HistGradientBoostingClassifier:
+) -> Any:
     """Fit the ranking, excluding sections that cannot be judged.
 
     Training rows must come from held-group sequence predictions: the sequence
@@ -55,15 +59,14 @@ def fit_confidence_model(
     judged_labels = labels[judged].astype(np.int64)
     if set(judged_labels.tolist()) != {0, 1}:
         raise ValueError("confidence training needs both correct and wrong judged sections")
-    model = HistGradientBoostingClassifier(
+    return fit_binary_tree(
+        features.gap[judged], judged_labels,
         max_iter=config.max_iter,
         max_leaf_nodes=config.max_leaf_nodes,
         learning_rate=config.learning_rate,
         min_samples_leaf=config.min_samples_leaf,
         l2_regularization=config.l2_regularization,
-        random_state=config.random_seed,
-        class_weight=None,
-        early_stopping=False,
+        random_seed=config.random_seed,
+        balanced=False,
+        backend=config.backend, device=config.device, min_child_weight=config.min_child_weight,
     )
-    model.fit(features.gap[judged], judged_labels)
-    return model
