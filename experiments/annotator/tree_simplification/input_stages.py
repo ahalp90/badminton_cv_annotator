@@ -62,6 +62,8 @@ def _prepared_inputs(prepared_root: Path) -> dict[str, Any]:
     """Load and validate the saved raw preprocessing identity."""
     pilot.require_raw_features(prepared_root)
     manifest = read_json(prepared_root / 'preparation.json.gz')
+    if manifest['source'] != source_record():
+        raise ValueError('Prepared source differs from this checkout; use a fresh prepared directory')
     inputs = manifest['inputs']
     preprocessing_from_record(inputs['preprocessing'])
     if len(inputs['groups']) != 40:
@@ -221,6 +223,10 @@ def _export_inputs(run: Path, targets: Path) -> tuple[dict[str, Any], dict[str, 
         'settings': pools['settings'], 'prepared': str(prepared_root),
     }:
         raise ValueError('Contact-stage settings differ from the fitted pool manifest')
+    source = read_json(prepared_root / 'preparation.json.gz')['source']
+    contact_source = read_json(pilot_root / 'contact-stage.json.gz')['source']
+    if contact_source != source or result['source'] != source:
+        raise ValueError('Preparation, contact and selector sources differ; refit from one frozen checkout')
     if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
         raise ValueError('Five-frame target manifest differs from the fitted rally run')
     return settings, inputs, prepared_root, pilot_root, depth

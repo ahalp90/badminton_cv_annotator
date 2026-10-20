@@ -171,8 +171,12 @@ def main() -> None:
         manifest_record['candidate'] = candidate
     if manifest.exists():
         saved = read_json(manifest)
-        if saved['inputs'] != identity or saved.get('candidate') != candidate:
-            raise ValueError('Prepared inputs or preprocessing changed; choose a fresh output directory')
+        if (
+            saved['inputs'] != identity
+            or saved.get('candidate') != candidate
+            or saved['source'] != manifest_record['source']
+        ):
+            raise ValueError('Prepared inputs, preprocessing or source changed; choose a fresh output directory')
     if not manifest.exists():
         write_json(manifest, manifest_record)
     selected = [video for video in videos if args.only is None or video.identity == args.only]

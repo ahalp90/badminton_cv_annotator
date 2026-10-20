@@ -84,6 +84,47 @@ def test_prepare_resume_rejects_preprocessing_identity_mismatch(tmp_path: Path) 
         prepare.prepare_video(SimpleNamespace(identity=identity), 'A', {}, tmp_path, requested)
 
 
+def test_prepared_source_must_match_before_contact_fitting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    write_json(tmp_path / 'preparation.json.gz', {'source': {'revision': 'old'}, 'inputs': {}})
+    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'new'})
+
+    with pytest.raises(ValueError, match='Prepared source differs'):
+        input_stages.fit_contacts(tmp_path, tmp_path / 'fit')
+
+
+@pytest.mark.parametrize('changed_stage', ['contact', 'selector'])
+def test_export_rejects_mixed_stage_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_stage: str,
+) -> None:
+    prepared = tmp_path / 'prepared'
+    contact = tmp_path / 'contact'
+    run = tmp_path / 'selector'
+    for path in (prepared, contact, run):
+        path.mkdir()
+    source = {'revision': 'current'}
+    inputs = {
+        'groups': {f'video-{index}': 'V' if index < 8 else 'A' for index in range(40)},
+        'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
+    }
+    pool_settings = {
+        'prepared': str(prepared), 'pilot': str(contact),
+        'settings': {'preprocessing': inputs['preprocessing']},
+    }
+    write_json(prepared / 'preparation.json.gz', {'source': source, 'inputs': inputs})
+    write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
+    write_json(contact / 'contact-stage.json.gz', {
+        'source': {'revision': 'old'} if changed_stage == 'contact' else source,
+    })
+    write_json(run / 'settings.json.gz', {'layers': 1, 'target_policy': {}, 'pool_settings': pool_settings})
+    write_json(run / 'result.json.gz', {
+        'complete': True, 'source': {'revision': 'old'} if changed_stage == 'selector' else source,
+    })
+    monkeypatch.setattr(input_stages, 'source_record', lambda: source)
+
+    with pytest.raises(ValueError, match='sources differ'):
+        input_stages._export_inputs(run, tmp_path / 'targets')
+
+
 def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Development:
         def __init__(self) -> None:
