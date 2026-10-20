@@ -89,7 +89,7 @@ def main() -> None:
         'preprocessing': asdict(BaseAnnotatorConfig()),
         'groups': development.group_by_video,
     }
-    identity = json.loads(json.dumps(identity))
+    identity = json.loads(json.dumps(identity, default=sorted))
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = args.output / 'preparation.json.gz'
     if manifest.exists() and read_json(manifest)['inputs'] != identity:

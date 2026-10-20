@@ -40,6 +40,7 @@ from annotator.training.sequences import (
 from annotator.training.workflow import (
     DEFAULT_TRAINING_SETTINGS,
     Split,
+    TrainingSettings,
     VideoInput,
     evaluation_counts,
     load_labels,
@@ -429,13 +430,14 @@ def stream_from_payload(payload: dict[str, Any]) -> tuple[tuple[ContactSequence,
     return sequences, tuple(event_from_row(row) for row in payload['events'])
 
 
-def fit_downstream(videos: Sequence[SequenceTrainingVideo]) -> tuple[SequenceModelFit, Any, np.ndarray]:
+def fit_downstream(
+    videos: Sequence[SequenceTrainingVideo], settings: TrainingSettings = DEFAULT_TRAINING_SETTINGS,
+) -> tuple[SequenceModelFit, Any, np.ndarray]:
     """Fit the sequence stack, then confidence on its held-group output.
 
     Confidence rows follow ``fit_from_manifest``: held-group predictions, their
     matching held-group insertion model, and whole-rally correctness labels.
     """
-    settings = DEFAULT_TRAINING_SETTINGS
     sequence_fit = fit_sequence_models(videos, settings.sequences)
     base_rows, gap_rows, correctness = [], [], []
     for video in videos:

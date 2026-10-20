@@ -3,6 +3,7 @@
 import json
 from dataclasses import dataclass, field
 from enum import StrEnum
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,9 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
         'contact_features': list(CONTACT_FEATURE_NAMES),
         'side_geometry': models.side_geometry.value,
     }
+    trees = (models.contact, models.confidence, *vars(models.sequences).values())
+    if any(type(tree).__module__.startswith('xgboost') for tree in trees):
+        metadata['xgboost'] = version('xgboost')
     (directory / METADATA_FILENAME).write_text(json.dumps(metadata, indent=2) + '\n')
 
 
@@ -85,6 +89,8 @@ def load_models(directory: Path) -> AnnotatorModels:
         )
     if tuple(metadata['contact_features']) != CONTACT_FEATURE_NAMES:
         raise ValueError('Annotator model feature order differs from the current feature builder; refit the bundle.')
+    if 'xgboost' in metadata and metadata['xgboost'] != version('xgboost'):
+        raise ValueError('Annotator XGBoost version differs from the installed runtime; use the fitting environment.')
     models = joblib.load(directory / MODEL_FILENAME)
     if not isinstance(models, AnnotatorModels):
         raise TypeError('Model bundle does not contain a complete AnnotatorModels value')
