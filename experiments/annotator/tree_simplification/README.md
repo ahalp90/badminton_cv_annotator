@@ -64,7 +64,11 @@ contact additions or deletions. Proposals and features use detector evidence.
 Targets measure whole-rally correctness with neighbouring spans at their
 initial choices. Evaluation applies all selected changes together using the
 production boundary and player-side rules. Training gives each judged span
-equal relative weight, then scales row weights to mean one.
+the same total weight. That total is the average number of judged legacy options
+per judged training span, calculated once from all 32 training videos. Every
+pool arm, subset and layer uses this same value, so adding options does not
+change the total training weight or the scale of weight-based regularisation.
+HGB's minimum rows per leaf still counts options rather than weighted spans.
 
 Build the pools once from a pilot's five fitted contact models:
 
@@ -88,8 +92,8 @@ python -m experiments.annotator.tree_simplification.search \
 
 The search compares 7, 15 and 31 leaves and evaluates all three stack depths.
 XGBoost also gets a stronger minimum-child-weight setting. One additional
-single-rally-layer run uses only the old options, with the same features and
-targets, to distinguish pool expansion from the effect of fewer models.
+configuration uses only the old options at all three depths, with the same
+features and targets, to distinguish pool expansion from the effect of fewer models.
 Use HGB with `--backend hist_gradient_boosting --device cpu`. The contact
 models remain fixed to the selected pilot; changing the rally backend alone
 does not change the contact backend.

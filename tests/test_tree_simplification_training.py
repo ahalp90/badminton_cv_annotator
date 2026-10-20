@@ -64,7 +64,9 @@ class RecordingFits:
 
     def fit(
         self, pools: Sequence[ExpandedPool], histories: Sequence[Sequence[np.ndarray]], config: TreeFitConfig,
+        *, span_weight: float,
     ) -> RecordedModel:
+        assert span_weight > 0
         assert all(pool.original.identity.startswith('train-') for pool in pools)
         groups = frozenset(pool.original.group for pool in pools)
         depth = len(histories[0]) + 1
@@ -96,7 +98,7 @@ def test_depth_three_excludes_held_groups_through_all_ancestors_and_reuses_subse
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     recorded = RecordingFits(monkeypatch)
-    trainer = train.LayerTrainer(training_pools(), TreeFitConfig(), tmp_path)
+    trainer = train.LayerTrainer(training_pools(), TreeFitConfig(), tmp_path, span_weight=2.0)
     groups = tuple('ABCD')
     models = trainer.fit(groups, 3)
     assert len(recorded.models) == 17
@@ -123,15 +125,15 @@ def test_resume_loads_complete_models_and_refits_only_an_incomplete_checkpoint(
 ) -> None:
     recorded = RecordingFits(monkeypatch)
     pools, groups = training_pools(), tuple('ABCD')
-    original = train.LayerTrainer(pools, TreeFitConfig(), tmp_path).fit(groups, 3)
-    resumed = train.LayerTrainer(pools, TreeFitConfig(), tmp_path)
+    original = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0).fit(groups, 3)
+    resumed = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0)
     assert resumed.fit(groups, 3) == original
     assert len(recorded.models) == 17
     resumed.held_scores(tuple('ABC'), 2, 'train-D-0')
     assert len(recorded.models) == 17
     # A model without its completion record must be fitted again.
     (tmp_path / 'fits/ABCD/layer-3.json.gz').unlink()
-    repaired = train.LayerTrainer(pools, TreeFitConfig(), tmp_path).fit(groups, 3)
+    repaired = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0).fit(groups, 3)
     assert repaired[:2] == original[:2]
     assert repaired[2].serial == 18
     assert repaired[2].groups == frozenset(groups)
@@ -141,7 +143,7 @@ def test_resume_loads_complete_models_and_refits_only_an_incomplete_checkpoint(
 
 def test_real_hgb_prefixes_receive_one_context_block_per_previous_layer(tmp_path: Path) -> None:
     pools = training_pools(videos_per_group=1)
-    trainer = train.LayerTrainer(pools, TreeFitConfig(max_iter=3, min_samples_leaf=1), tmp_path)
+    trainer = train.LayerTrainer(pools, TreeFitConfig(max_iter=3, min_samples_leaf=1), tmp_path, span_weight=2.0)
     with threadpool_limits(limits=1):
         models = trainer.fit(tuple('ABCD'), 3)
         scores = train.score_layers(models, make_pool('validation', 'A'))
@@ -197,5 +199,6 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
         '--backend', 'hist_gradient_boosting', '--device', 'cpu', '--layers', '3', '--threads', '1',
     ])
     train.main()
+    assert train.read_json(output / 'settings.json.gz')['span_weight'] == 1.0
     assert evaluations == [1, 2, 3]
     assert len(recorded.models) == 17

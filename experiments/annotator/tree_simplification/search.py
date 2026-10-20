@@ -28,7 +28,7 @@ def configurations(backend: TreeBackend) -> list[dict[str, Any]]:
     ]
     if backend == TreeBackend.XGBOOST:
         runs.append({'name': 'child-10', 'leaves': 15, 'layers': 3, 'min_child_weight': 10.0, 'legacy_pool': False})
-    runs.append({'name': 'legacy-pool', 'leaves': 15, 'layers': 1, 'min_child_weight': 5.0, 'legacy_pool': True})
+    runs.append({'name': 'legacy-pool', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': True})
     return runs
 
 

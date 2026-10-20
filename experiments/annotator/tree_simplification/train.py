@@ -67,6 +67,7 @@ class LayerTrainer:
     pools: dict[str, ExpandedPool]
     config: TreeFitConfig
     output: Path
+    span_weight: float
     stacks: dict[tuple[tuple[str, ...], int], tuple[Any, ...]] = field(default_factory=dict)
     scores: dict[tuple[tuple[str, ...], int, str], tuple[np.ndarray, ...]] = field(default_factory=dict)
 
@@ -96,11 +97,12 @@ class LayerTrainer:
             ) for pool in selected]
             progress(self.output, 'rally-fit', groups=groups, layer=depth, videos=len(selected))
             started = time.perf_counter()
-            model = fit_layer(selected, histories, self.config)
+            model = fit_layer(selected, histories, self.config, span_weight=self.span_weight)
             dump_atomically(model, destination)
             write_json(record_path, {
                 'groups': groups, 'layer': depth, 'training_videos': [pool.original.identity for pool in selected],
                 'rows': sum(int((pool.targets >= 0).sum()) for pool in selected),
+                'span_weight': self.span_weight,
                 'fit_wall_s': time.perf_counter() - started,
             })
         self.stacks[key] = (*prefix, model)
@@ -158,34 +160,48 @@ def main() -> None:
         device=args.device, min_child_weight=args.min_child_weight,
     )
     manifest = read_json(args.pools / 'pools.json.gz')
-    settings = {
-        'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
-        'layers': args.layers, 'legacy_pool': args.legacy_pool,
-    }
-    settings = json.loads(json.dumps(settings, default=sorted))
     args.output.mkdir(parents=True, exist_ok=True)
-    settings_path = args.output / 'settings.json.gz'
-    if settings_path.exists() and read_json(settings_path) != settings:
-        raise ValueError('Training configuration changed; use a fresh output directory')
-    write_json(settings_path, settings)
     source = source_record()
     started = time.perf_counter()
     prepared = read_json(Path(manifest['prepared']) / 'preparation.json.gz')['inputs']
     videos = {video.identity: video for video in load_original_videos(Path(prepared['paths']['shots_master']))}
     training, validation = {}, {}
+    counts = {}
     for identity, video in videos.items():
         path = args.pools / 'videos' / f'{identity}.joblib'
         pool: ExpandedPool = joblib.load(path)
         metadata = read_json(path.with_suffix('.json.gz'))
         if metadata['split'] != video.split or pool.original.group != prepared['groups'][identity]:
             raise ValueError(f'{identity}: prepared split or group differs')
+        legacy = legacy_pool(pool)
+        counts[identity] = {
+            'split': video.split, 'legacy_options': len(legacy.targets), 'expanded_options': len(pool.targets),
+            'legacy_judged_rows': int((legacy.targets >= 0).sum()),
+            'expanded_judged_rows': int((pool.targets >= 0).sum()),
+            'legacy_judged_spans': sum(bool(np.any(legacy.targets[rows] >= 0)) for rows in legacy.span_rows.values()),
+        }
         if args.legacy_pool:
-            pool = legacy_pool(pool)
+            pool = legacy
         (training if video.split == 'train' else validation)[identity] = pool
     if len(training) != 32 or len(validation) != 8:
         raise ValueError('Comparison requires the original 32 training and 8 validation videos')
+    # Anchor every arm/subset to the same full-training legacy pool scale.
+    span_weight = (
+        sum(counts[identity]['legacy_judged_rows'] for identity in training)
+        / sum(counts[identity]['legacy_judged_spans'] for identity in training)
+    )
+    settings = {
+        'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
+        'layers': args.layers, 'legacy_pool': args.legacy_pool, 'span_weight': span_weight,
+    }
+    settings = json.loads(json.dumps(settings, default=sorted))
+    settings_path = args.output / 'settings.json.gz'
+    if settings_path.exists() and read_json(settings_path) != settings:
+        raise ValueError('Training configuration changed; use a fresh output directory')
+    write_json(settings_path, settings)
+    write_json(args.output / 'pool-counts.json.gz', counts)
     groups = tuple(sorted({pool.original.group for pool in training.values()}))
-    trainer = LayerTrainer(training, config, args.output)
+    trainer = LayerTrainer(training, config, args.output, span_weight)
     results = {}
     with threadpool_limits(limits=args.threads):
         for depth in range(1, args.layers + 1):

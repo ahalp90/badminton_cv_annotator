@@ -72,15 +72,18 @@ def judged_weights(pool: ExpandedPool) -> np.ndarray:
 
 def fit_layer(
     pools: Sequence[ExpandedPool], histories: Sequence[Sequence[np.ndarray]],
-    config: TreeFitConfig = DEFAULT_LAYER_CONFIG,
+    config: TreeFitConfig = DEFAULT_LAYER_CONFIG, *, span_weight: float,
 ) -> Any:
     """Fit one layer from caller-supplied pools and aligned earlier-layer scores.
 
     The caller owns data splits and must supply held-out predictions for earlier
     layers. Every span contributes equal total weight regardless of pool size.
     Unknown targets are excluded; class balancing would change the span totals.
-    Weights have global mean one to retain conventional tree regularisation scale.
+    The caller fixes ``span_weight`` once from training data and reuses it across
+    every arm, subset and layer, keeping the regularisation scale comparable.
     """
+    if not np.isfinite(span_weight) or span_weight <= 0:
+        raise ValueError('span_weight must be finite and positive')
     matrices, labels, weights = [], [], []
     for pool, history in zip(pools, histories, strict=True):
         judged = pool.targets >= 0
@@ -92,8 +95,7 @@ def fit_layer(
     targets = np.concatenate(labels)
     if set(targets.tolist()) != {0, 1}:
         raise ValueError('layer training needs both correct and incorrect judged options')
-    sample_weight = np.concatenate(weights)
-    sample_weight /= sample_weight.mean()
+    sample_weight = np.concatenate(weights) * span_weight
     return fit_binary_tree(
         np.concatenate(matrices), targets, sample_weight=sample_weight, balanced=False,
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,

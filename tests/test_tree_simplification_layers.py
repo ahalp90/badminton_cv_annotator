@@ -75,12 +75,14 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
         return captured
 
     monkeypatch.setattr(layers, 'fit_binary_tree', fit)
-    model = layers.fit_layer([pool, sparse, unjudged], [(prior,), (prior,), (prior,)], TreeFitConfig(max_iter=3))
+    model = layers.fit_layer(
+        [pool, sparse, unjudged], [(prior,), (prior,), (prior,)], TreeFitConfig(max_iter=3), span_weight=1.5,
+    )
     assert model is captured
     np.testing.assert_array_equal(captured['labels'], [0, 1, 0, 1])
     fitted_weights = captured['sample_weight']
-    np.testing.assert_allclose(fitted_weights, [2 / 3, 2 / 3, 4 / 3, 4 / 3])
-    assert fitted_weights.mean() == pytest.approx(1.0)
+    np.testing.assert_allclose(fitted_weights, [0.75, 0.75, 1.5, 1.5])
+    assert fitted_weights[:2].sum() == pytest.approx(1.5)
     assert fitted_weights[:2].sum() == pytest.approx(fitted_weights[2])
     assert fitted_weights[2] == pytest.approx(fitted_weights[3])
     np.testing.assert_array_equal(captured['matrix'], layers.layer_features(pool, (prior,))[[0, 1, 3, 0]])
@@ -88,11 +90,42 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     assert captured['max_iter'] == 3
 
 
+def test_fixed_span_weight_is_identical_for_legacy_and_expanded_pools(monkeypatch: pytest.MonkeyPatch) -> None:
+    legacy = example_pool()
+    expanded = replace(
+        legacy,
+        sequences=(*legacy.sequences, *legacy.sequences[:2], *legacy.sequences[:2]),
+        matrix=np.vstack((legacy.matrix, legacy.matrix[:2], legacy.matrix[:2])),
+        targets=np.concatenate((legacy.targets, legacy.targets[:2], legacy.targets[:2])),
+        span_rows={0: np.asarray([0, 1, 2, 4, 5, 6, 7]), 1: np.asarray([3])},
+    )
+    span_weight = float((legacy.targets >= 0).sum()) / len(legacy.span_rows)
+
+    def fit(_matrix: np.ndarray, _labels: np.ndarray, **kwargs: Any) -> np.ndarray:
+        return kwargs['sample_weight']
+
+    monkeypatch.setattr(layers, 'fit_binary_tree', fit)
+    for pool in (legacy, expanded):
+        judged = pool.targets >= 0
+        passed = layers.fit_layer([pool], [()], span_weight=span_weight)
+        full_weights = np.zeros(len(pool.targets))
+        full_weights[judged] = passed
+        assert len(passed) == int(judged.sum())
+        for rows in pool.span_rows.values():
+            assert full_weights[rows].sum() == pytest.approx(span_weight)
+
+
+@pytest.mark.parametrize('span_weight', [0.0, -1.0, np.nan, np.inf])
+def test_invalid_fixed_span_weight_fails_loudly(span_weight: float) -> None:
+    with pytest.raises(ValueError, match='finite and positive'):
+        layers.fit_layer([example_pool()], [()], span_weight=span_weight)
+
+
 def test_fitted_layer_predicts_all_options_and_can_change_earlier_choices() -> None:
     pool = example_pool()
     prior = np.asarray([0.9, 0.1, 0.8, 0.6])
     with threadpool_limits(limits=1):
-        model = layers.fit_layer([pool], [(prior,)], TreeFitConfig(max_iter=15, min_samples_leaf=1))
+        model = layers.fit_layer([pool], [(prior,)], TreeFitConfig(max_iter=15, min_samples_leaf=1), span_weight=1.5)
         scores = layers.predict_layer(model, pool, (prior,))
     assert scores.shape == (4,)
     assert np.isfinite(scores).all()
