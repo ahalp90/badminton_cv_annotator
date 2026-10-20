@@ -79,6 +79,7 @@ def fit_layer(
     The caller owns data splits and must supply held-out predictions for earlier
     layers. Every span contributes equal total weight regardless of pool size.
     Unknown targets are excluded; class balancing would change the span totals.
+    Weights have global mean one to retain conventional tree regularisation scale.
     """
     matrices, labels, weights = [], [], []
     for pool, history in zip(pools, histories, strict=True):
@@ -91,8 +92,10 @@ def fit_layer(
     targets = np.concatenate(labels)
     if set(targets.tolist()) != {0, 1}:
         raise ValueError('layer training needs both correct and incorrect judged options')
+    sample_weight = np.concatenate(weights)
+    sample_weight /= sample_weight.mean()
     return fit_binary_tree(
-        np.concatenate(matrices), targets, sample_weight=np.concatenate(weights), balanced=False,
+        np.concatenate(matrices), targets, sample_weight=sample_weight, balanced=False,
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
         min_samples_leaf=config.min_samples_leaf, l2_regularization=config.l2_regularization,
         random_seed=config.random_seed, backend=config.backend, device=config.device,

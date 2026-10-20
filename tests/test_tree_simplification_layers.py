@@ -64,6 +64,7 @@ def test_each_prior_layer_has_its_own_choice_context_and_stable_ties() -> None:
 def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pytest.MonkeyPatch) -> None:
     pool = example_pool()
     unjudged = replace(pool, targets=np.full(4, -1, dtype=np.int8))
+    sparse = replace(pool, targets=np.asarray([1, -1, -1, -1], dtype=np.int8))
     np.testing.assert_array_equal(layers.judged_weights(pool), [0.5, 0.5, 0, 1])
     np.testing.assert_array_equal(layers.judged_weights(unjudged), np.zeros(4))
     prior = np.asarray([0.5, 0.8, 0.7, 0.6])
@@ -74,11 +75,15 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
         return captured
 
     monkeypatch.setattr(layers, 'fit_binary_tree', fit)
-    model = layers.fit_layer([pool, unjudged], [(prior,), (prior,)], TreeFitConfig(max_iter=3))
+    model = layers.fit_layer([pool, sparse, unjudged], [(prior,), (prior,), (prior,)], TreeFitConfig(max_iter=3))
     assert model is captured
-    np.testing.assert_array_equal(captured['labels'], [0, 1, 0])
-    np.testing.assert_array_equal(captured['sample_weight'], [0.5, 0.5, 1])
-    np.testing.assert_array_equal(captured['matrix'], layers.layer_features(pool, (prior,))[[0, 1, 3]])
+    np.testing.assert_array_equal(captured['labels'], [0, 1, 0, 1])
+    fitted_weights = captured['sample_weight']
+    np.testing.assert_allclose(fitted_weights, [2 / 3, 2 / 3, 4 / 3, 4 / 3])
+    assert fitted_weights.mean() == pytest.approx(1.0)
+    assert fitted_weights[:2].sum() == pytest.approx(fitted_weights[2])
+    assert fitted_weights[2] == pytest.approx(fitted_weights[3])
+    np.testing.assert_array_equal(captured['matrix'], layers.layer_features(pool, (prior,))[[0, 1, 3, 0]])
     assert captured['balanced'] is False
     assert captured['max_iter'] == 3
 
