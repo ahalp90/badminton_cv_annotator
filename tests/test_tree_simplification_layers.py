@@ -1,6 +1,7 @@
 """Layer context, per-rally weighting and jointly finished selections."""
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -47,6 +48,18 @@ def test_final_margin_uses_initial_keep_without_changing_scores() -> None:
     assert margins.gated_rows(pool, scores, 0.05) == {0: 1, 1: 3}
     scores[1] = scores[0]
     assert margins.gated_rows(pool, scores, 0.0) == {0: 0, 1: 3}
+
+
+def test_margin_replay_rejects_an_incomplete_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr('sys.argv', ['margins', '--run', str(tmp_path), '--output', str(tmp_path / 'replay')])
+    monkeypatch.setattr(margins, 'read_json', lambda path: {'complete': False} if path.name == 'result.json.gz' else {})
+    with pytest.raises(SystemExit) as error:
+        margins.main()
+    assert error.value.code == 2
+    assert '--run must name a completed configuration' in capsys.readouterr().err
+    assert not (tmp_path / 'replay').exists()
 
 
 def test_each_prior_layer_has_its_own_choice_context_and_stable_ties() -> None:

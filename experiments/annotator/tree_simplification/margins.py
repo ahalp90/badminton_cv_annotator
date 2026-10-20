@@ -52,6 +52,8 @@ def main() -> None:
         parser.error('--threads must be between 1 and 28')
     settings = read_json(args.run / 'settings.json.gz')
     source_result = read_json(args.run / 'result.json.gz')
+    if not source_result['complete']:
+        parser.error('--run must name a completed configuration')
     pools_path = Path(settings['pools'])
     preparation = read_json(Path(settings['pool_settings']['prepared']) / 'preparation.json.gz')
     videos = [video for video in load_original_videos(Path(preparation['inputs']['paths']['shots_master']))
