@@ -2,6 +2,7 @@
 
 import json
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -122,7 +123,8 @@ def test_final_job_scores_all_46_and_resumes_saved_streams(
     videos = [SimpleNamespace(identity=f'test-{index}') for index in range(46)]
     trial = final.trial_root(tmp_path, candidate['id'], 100)
     trial.mkdir(parents=True)
-    final.grid.write_json(trial / 'contact-fit.json.gz', {'seed_offset': 100})
+    contact_settings = final.repeats.settings_record(final.repeats.seeded_settings(100))['contact']
+    final.grid.write_json(trial / 'contact-fit.json.gz', {'seed_offset': 100, 'contact_settings': contact_settings})
     calls = []
     thread_limits = []
 
@@ -153,6 +155,10 @@ def test_final_job_scores_all_46_and_resumes_saved_streams(
     final.final_job(tmp_path, candidate, 100, paths, threads)
     assert len(calls) == 46
     assert thread_limits == [threads, threads]
+    contact_settings['random_seed'] += 1
+    final.grid.write_json(trial / 'contact-fit.json.gz', {'contact_settings': contact_settings})
+    with pytest.raises(ValueError, match='final contact training settings changed'):
+        final.final_job(tmp_path, candidate, 100, paths, threads)
 
 
 def test_summary_compares_paired_means_without_choosing_on_test(tmp_path: Path) -> None:
@@ -168,6 +174,7 @@ def test_summary_compares_paired_means_without_choosing_on_test(tmp_path: Path) 
             trial.mkdir(parents=True)
             final.grid.write_json(trial / 'result.json.gz', {
                 'id': candidate['id'], 'label': candidate['label'], 'seed_offset': offset,
+                'contact_fit': {'contact_settings': final.repeats.settings_record(final.repeats.seeded_settings(offset))['contact']},
                 'per_video': {identity: {} for identity in plan['test_videos']},
                 'totals': {'10': {'attributed_f1': score}, '5': {'attributed_f1': score}},
             })
@@ -194,16 +201,37 @@ def test_frozen_plan_pins_test_inputs_and_bundles(tmp_path: Path, monkeypatch: p
             (Path(bundle['bundle']) / filename).write_bytes(b'frozen-bundle')
     videos = [SimpleNamespace(identity=f'test-{index}', dataset='ShuttleSet22', split='test') for index in range(46)]
     monkeypatch.setattr(final, 'frozen_selection', lambda _root: (selected, candidates))
+    saved_prediction = final.repeats.ORIGINAL_SETTINGS.contact_prediction
+    monkeypatch.setattr(final.grid, 'load_models', lambda _path: SimpleNamespace(contact_settings=saved_prediction))
     monkeypatch.setattr(final.repeats, 'verify_snapshot', lambda *_args: ({'inputs': 'original40'}, [], paths))
     monkeypatch.setattr(final, 'load_test_videos', lambda _path: videos)
     monkeypatch.setattr(final.grid, 'input_paths', lambda *_args: {'test_manifest': test_manifest})
+    frozen_settings = {str(offset): final.repeats.settings_record(final.repeats.seeded_settings(offset))
+                       for offset in final.repeats.SEED_OFFSETS}
+    final.grid.write_json(tmp_path / 'repeats/plan.json.gz', {'seed_settings': frozen_settings})
     plan, _ = final.freeze_plan(tmp_path, tmp_path, None)
     assert len(plan['bundles']) == 10
     assert all('md5' in identity for identity in plan['bundles'].values())
     assert final.freeze_plan(tmp_path, tmp_path, None)[0] == plan
     legacy_plan = {**plan, 'script_md5': 'old', 'repeat_helper_md5': 'old'}
+    legacy_plan.pop('seed_settings')
+    legacy_plan.pop('contact_prediction')
     final.grid.write_json(tmp_path / 'final_test/plan.json.gz', legacy_plan)
+    before = (tmp_path / 'final_test/plan.json.gz').read_bytes()
     assert final.freeze_plan(tmp_path, tmp_path, None)[0] == plan
+    assert (tmp_path / 'final_test/plan.json.gz').read_bytes() == before
+    original = final.repeats.ORIGINAL_SETTINGS
+    monkeypatch.setattr(final.repeats, 'ORIGINAL_SETTINGS', replace(
+        original, contact=replace(original.contact, random_seed=original.contact.random_seed + 1),
+    ))
+    with pytest.raises(ValueError, match='training settings changed'):
+        final.freeze_plan(tmp_path, tmp_path, None)
+    monkeypatch.setattr(final.repeats, 'ORIGINAL_SETTINGS', replace(
+        original, contact_prediction=replace(original.contact_prediction, score_cutoff=0.5),
+    ))
+    with pytest.raises(ValueError, match='contact prediction settings changed'):
+        final.freeze_plan(tmp_path, tmp_path, None)
+    monkeypatch.setattr(final.repeats, 'ORIGINAL_SETTINGS', original)
     bundle_path = Path(selected['bundles'][0]['bundle']) / 'models.joblib'
     bundle_path.write_bytes(b'changed-bundle')
     with pytest.raises(ValueError, match='frozen final test plan changed'):
@@ -214,3 +242,18 @@ def test_frozen_plan_pins_test_inputs_and_bundles(tmp_path: Path, monkeypatch: p
     test_manifest.write_bytes(b'changed test input')
     with pytest.raises(ValueError, match='frozen final test plan changed'):
         final.freeze_plan(tmp_path, tmp_path, None)
+
+
+def test_legacy_final_contact_fit_seed_is_checked(tmp_path: Path) -> None:
+    candidate = {'id': 'shipped', 'label': 'shipped'}
+    plan = {'candidates': [candidate], 'test_videos': ['test']}
+    path = final.trial_root(tmp_path, 'shipped', 0) / 'result.json.gz'
+    path.parent.mkdir(parents=True)
+    row = {**candidate, 'seed_offset': 0, 'per_video': {'test': {}},
+           'contact_fit': {'contact_settings': final.repeats.settings_record(final.repeats.seeded_settings(0))['contact']}}
+    final.grid.write_json(path, row)
+    assert final.completed(tmp_path, plan) == [row]
+    row['contact_fit']['contact_settings']['random_seed'] += 100
+    final.grid.write_json(path, row)
+    with pytest.raises(ValueError, match='final contact training settings changed'):
+        final.completed(tmp_path, plan)

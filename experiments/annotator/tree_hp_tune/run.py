@@ -12,6 +12,7 @@ import sys
 import time
 import traceback
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,47 @@ from experiments.annotator.old_court_regression import retrain
 
 GROUPS_FILE = REPOSITORY / 'scratch/contact_det_full_ds_fit/records/training_video_score_groups.json'
 MAX_CORES = 26
+
+
+def settings_record(settings: Any) -> dict[str, Any]:
+    return {name: asdict(getattr(settings, name)) for name in ('contact', 'sequences', 'confidence', 'contact_prediction')}
+
+
+def check_fit_settings(record: dict[str, Any], settings: Any, bundle: Path) -> None:
+    """Recover omitted prediction settings from the fitted bundle itself."""
+    recorded = dict(record)
+    if 'contact_prediction' not in recorded:
+        recorded['contact_prediction'] = asdict(load_models(bundle).contact_settings)
+    if recorded != settings_record(settings):
+        raise ValueError(f'{bundle}: training settings changed')
+
+
+def keep_grid_identity(output: Path, snapshot: dict[str, Any]) -> None:
+    """Use a frozen repeat plan for legacy grids that did not save fit settings."""
+    path = output / 'snapshot.json.gz'
+    current = settings_record(DEFAULT_TRAINING_SETTINGS)
+    snapshot['settings'] = current
+    if path.exists():
+        saved = read_json(path)
+        recorded = saved.get('settings')
+        if recorded is None:
+            plan_path = output.parent / 'repeats' / 'plan.json.gz'
+            if not plan_path.exists():
+                raise ValueError('legacy grid training settings are unknown; use a fresh output directory')
+            recorded = read_json(plan_path)['seed_settings']['0']
+            # Retain the historical snapshot; the repeat plan is the available evidence.
+            snapshot.pop('settings')
+        if 'contact_prediction' not in recorded:
+            bundles = list((output / 'trials').glob('*/bundle_v32'))
+            if not bundles:
+                raise ValueError('legacy grid contact prediction settings are unknown; use a fresh output directory')
+            for bundle in bundles:
+                check_fit_settings(recorded, DEFAULT_TRAINING_SETTINGS, bundle)
+            if 'settings' in snapshot:
+                snapshot['settings'] = recorded
+        elif recorded != current:
+            raise ValueError('grid training settings changed; use a fresh output directory')
+    keep_run_identity(path, snapshot)
 
 
 def development_for(videos: tuple[SearchVideo, ...], groups_file: Path = GROUPS_FILE) -> retrain.Development:
@@ -124,6 +166,7 @@ def progress(root: Path, stage: str, started: float, **details: Any) -> None:
 
 
 def fit_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, threads: int) -> dict[str, Any]:
+    source = source_record()
     started, cpu_started = time.perf_counter(), time.process_time()
     identity = candidate_id(spec)
     root = output / 'trials' / identity
@@ -204,7 +247,8 @@ def fit_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, threads
             write_json(root / 'training_streams' / f'{video_id}.json.gz', stream)
             per_video[video_id] = score_stream(by_id[video_id], stream)
         result = {
-            'source': source_record(),
+            'source': source,
+            'settings': settings_record(DEFAULT_TRAINING_SETTINGS),
             'id': identity, 'label': spec.label, 'per_video': per_video, 'totals': pooled_scores(per_video),
             'contact_fits': fit_records, 'confidence_rows': len(labels), 'timings': timings,
             'wall_s': time.perf_counter() - started, 'cpu_s': time.process_time() - cpu_started,
@@ -216,12 +260,15 @@ def fit_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, threads
 
 
 def validate_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, threads: int) -> dict[str, Any]:
+    source = source_record()
     started, cpu_started = time.perf_counter(), time.process_time()
     identity = candidate_id(spec)
     root = output / 'trials' / identity
     (root / 'validation_streams').mkdir(parents=True, exist_ok=True)
     with threadpool_limits(limits=threads):
         models = load_models(root / 'bundle_v32')
+        if models.contact_settings != DEFAULT_TRAINING_SETTINGS.contact_prediction:
+            raise ValueError('contact prediction settings changed')
         per_video = {}
         for video in load_original_videos(paths['shots_master']):
             if video.split != 'validation':
@@ -234,7 +281,8 @@ def validate_trial(spec: CandidateSpec, paths: dict[str, Path], output: Path, th
         if len(per_video) != 8:
             raise ValueError('validation must contain exactly eight original videos')
         result = {
-            'source': source_record(),
+            'source': source,
+            'settings': settings_record(DEFAULT_TRAINING_SETTINGS),
             'id': identity, 'label': spec.label, 'per_video': per_video, 'totals': pooled_scores(per_video),
             'wall_s': time.perf_counter() - started, 'cpu_s': time.process_time() - cpu_started,
             'peak_rss_kib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
@@ -251,6 +299,8 @@ def completed(output: Path, specs: list[CandidateSpec], filename: str) -> list[d
             row = read_json(path)
             if row['id'] != candidate_id(spec) or row['label'] != spec.label:
                 raise ValueError(f'{path}: result identity differs')
+            if 'settings' in row:
+                check_fit_settings(row['settings'], DEFAULT_TRAINING_SETTINGS, path.parent / 'bundle_v32')
             results.append(row)
     return sorted(results, key=rank_key, reverse=True)
 
@@ -318,9 +368,8 @@ def main() -> None:
     files = input_paths(paths, videos, False)
     files['training_groups'] = GROUPS_FILE
     snapshot = {'source': source, 'inputs': file_manifest(files), 'candidates': document}
-    snapshot_path = args.output / 'snapshot.json.gz'
     args.output.mkdir(parents=True, exist_ok=True)
-    keep_run_identity(snapshot_path, snapshot)
+    keep_grid_identity(args.output, snapshot)
     chosen = [spec for spec in specs if args.only is None or spec.label == args.only]
     if not chosen:
         raise ValueError(f'unknown pilot label: {args.only}')

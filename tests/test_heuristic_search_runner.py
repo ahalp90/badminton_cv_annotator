@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from collections import deque
 from concurrent.futures import Executor, Future
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
 
@@ -176,7 +178,9 @@ def test_failed_inference_keeps_labels_in_summary_and_is_not_retried(
 
     monkeypatch.setattr(search, 'load_video_inputs', load)
     monkeypatch.setattr(search, 'run_configuration', fail)
+    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'worker-start'})
     search.initialise_worker({}, tmp_path, False)
+    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'later-commit'})
     assert search.run_one_job(search.SearchJob(video, spec))
     other = _spec('other settings', 4)
     assert search.run_one_job(search.SearchJob(video, other))
@@ -192,6 +196,7 @@ def test_failed_inference_keeps_labels_in_summary_and_is_not_retried(
     attempt = search.latest_attempt(tmp_path, video.identity, other)
     assert attempt is not None
     record = attempt['fixtures'][video.identity]
+    assert record['source'] == {'revision': 'worker-start'}
     assert record['input_cache_hit']
     assert record['failure']['type'] == 'RuntimeError'
     assert record['inference_seconds'] >= 0
@@ -231,7 +236,9 @@ def test_cache_failure_propagates_without_becoming_an_empty_prediction(
 
     monkeypatch.setattr(search, 'load_video_inputs', lambda *_args: object())
     monkeypatch.setattr(search, 'run_configuration', fail)
+    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'worker-start'})
     search.initialise_worker({}, tmp_path, False)
+    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'later-commit'})
     with pytest.raises(search.StickyCacheError, match='cache read failed'):
         search.run_one_job(job)
     assert search.latest_attempt(tmp_path, job.video.identity, job.spec) is None
@@ -247,7 +254,7 @@ def test_resume_allows_source_edits_but_preserves_inputs_and_settings(tmp_path: 
     identity = {'source': source, 'input_files': search.file_manifest({'track': array}), 'candidates': ['fixed']}
     run_path = tmp_path / 'run.json.gz'
     search.keep_run_identity(run_path, identity)
-    current_source = {**source, 'revision': 'second', 'files_md5': {'groups.json.gz': 'fixed'}}
+    current_source = {**source, 'revision': 'second', 'dirty': True, 'files_md5': {'groups.json.gz': 'fixed'}}
     search.keep_run_identity(run_path, {**identity, 'source': current_source})
     assert search.read_json(run_path) == identity
     assert source['files_md5']['src/model.py'] == 'old'
@@ -288,3 +295,20 @@ def test_active_status_includes_real_subjob_progress(tmp_path: Path) -> None:
     assert active['completed'] == 3
     assert active['total'] == 10
     assert active['progress'] == event
+
+
+def test_coordinator_starts_before_worker_initialisation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delattr(search, '_WORKER', raising=False)
+    monkeypatch.setattr(search, 'load_paths', lambda _path: {'shots_master': tmp_path})
+    monkeypatch.setattr(search, 'load_candidates', lambda _path: ({'stage': 'grid'}, [_spec('shipped', 3)]))
+    monkeypatch.setattr(search, 'load_original_videos', lambda _path: (_video(),))
+    monkeypatch.setattr(search, 'input_paths', lambda *_args: {})
+    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'parent-start'})
+    monkeypatch.setattr(search, 'ProcessPoolExecutor', lambda **_kwargs: nullcontext(object()))
+    monkeypatch.setattr(search, 'schedule_jobs', lambda *_args: {'worker_targets': []})
+    monkeypatch.setattr(search, 'summarise', lambda *_args: [])
+    args = argparse.Namespace(paths=tmp_path, candidates=tmp_path, split='train', only=None,
+                              full=False, output=tmp_path, workers=1, workers_file=None)
+    search.run_locked(args)
+    assert search.read_json(tmp_path / 'run.json.gz')['source'] == {'revision': 'parent-start'}
+    assert not hasattr(search, '_WORKER')
