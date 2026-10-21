@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -284,8 +285,13 @@ def test_live_semantic_failure_invalidates_stage_and_dependants(tmp_path: Path) 
     assert manifest.stages == ()
 
 
-def test_resolved_interpreter_captures_absolute_path_and_version() -> None:
-    identity = resolve_interpreter("python")
+def test_resolved_interpreter_captures_absolute_path_and_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Look up the running interpreter by bare name, so the result does not depend on the
+    # developer's PATH (Ubuntu ships python3 but no python).
+    running = Path(sys.executable)
+    monkeypatch.setenv("PATH", os.fspath(running.parent))
+
+    identity = resolve_interpreter(running.name)
 
     assert Path(identity.path).is_absolute()
     assert identity.version.startswith("Python ")
