@@ -74,7 +74,7 @@ Build the pools once from a pilot's five fitted contact models:
 
 ```bash
 python -m experiments.annotator.tree_simplification.pools \
-  --prepared RUN/prepared --pilot RUN/xgb-pilot --output RUN/pools --workers 14
+  --prepared RUN/prepared --contact-run RUN/xgb-pilot --output RUN/pools --workers 14
 ```
 
 Use `--only sset_01` for a pool-building smoke test. Each video records target
@@ -138,7 +138,7 @@ python -m experiments.annotator.tree_simplification.search \
 ```
 
 These arms use legacy options so they can be compared directly with the
-existing legacy-pool general-layer control. Specialist scores map to the same
+existing original-options general-layer control. Specialist scores map to the same
 resulting sequence; duplicate edit routes use the largest finite score.
 Absent edit types remain NaN. Each selector receives four extra features:
 serve/insertion scores for the option and the best of each within its span.
@@ -162,7 +162,7 @@ Prepare the tighter target without rebuilding options or features:
 python -m experiments.annotator.tree_simplification.targets \
   --pools RUN/pools --output RUN/targets-five --workers 4
 python -m experiments.annotator.tree_simplification.train \
-  --pools RUN/pools --output RUN/tightest-legacy --legacy-pool --layers 1 \
+  --pools RUN/pools --output RUN/five-frame-preferred-original-options --original-options --layers 1 \
   --five-frame-targets RUN/targets-five --threads 2
 ```
 
@@ -175,7 +175,7 @@ Replay a fixed final-choice margin on an existing completed configuration:
 
 ```bash
 python -m experiments.annotator.tree_simplification.margins \
-  --run RUN/search/legacy-pool --output RUN/margins/legacy-pool --threads 2
+  --run RUN/search/original-options --output RUN/margins/original-options --threads 2
 ```
 
 This compares the final model's best option with its score for the initial
@@ -198,8 +198,8 @@ this is a change to contact training inputs and the candidate pools they induce.
 
 ```bash
 python -m experiments.annotator.tree_simplification.contact_folds \
-  --prepared RUN/prepared --pilot RUN/xgb-5 \
-  --original-pools RUN/pools-xgb-5 --output RUN/contact-oof28 \
+  --prepared RUN/prepared --contact-run RUN/xgb-5 \
+  --original-pools RUN/pools-xgb-5 --output RUN/contact-fit-28-videos \
   --threads 2 --workers 4
 ```
 
@@ -215,10 +215,10 @@ Run the matched downstream configuration with the original arm's exact saved
 
 ```bash
 python -m experiments.annotator.tree_simplification.targets \
-  --pools RUN/contact-oof28/pools --output RUN/contact-oof28/targets-five --workers 4
+  --pools RUN/contact-fit-28-videos/pools --output RUN/contact-fit-28-videos/targets-five --workers 4
 python -m experiments.annotator.tree_simplification.train \
-  --pools RUN/contact-oof28/pools --output RUN/contact-oof28/selected \
-  --five-frame-targets RUN/contact-oof28/targets-five --layers 1 --threads 2 \
+  --pools RUN/contact-fit-28-videos/pools --output RUN/contact-fit-28-videos/selected \
+  --five-frame-targets RUN/contact-fit-28-videos/targets-five --layers 1 --threads 2 \
   --span-weight 371.86228729719033
 ```
 
@@ -256,7 +256,7 @@ its contact or final selector models:
 python -m experiments.annotator.tree_simplification.integrate \
   --run RUN/xgb-followup/longer31 --layers 1 \
   --five-frame-targets RUN/targets-five \
-  --output RUN/production-expanded31-400 --threads 2
+  --output RUN/production-31-leaves-400-rounds --threads 2
 ```
 
 This development export requires the 32 training videos and checks the saved
@@ -298,10 +298,10 @@ Use a fresh output directory.
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.benchmark \
   --prepared RUN/prepared \
   --old-bundle RUN/xgb-5/bundle \
-  --new-bundle RUN/production-expanded31-400/bundle \
+  --new-bundle RUN/production-31-leaves-400-rounds/bundle \
   --old-streams RUN/xgb-5/validation_streams \
-  --new-streams RUN/production-expanded31-400/streams \
-  --output RUN/timing-expanded31-400
+  --new-streams RUN/production-31-leaves-400-rounds/streams \
+  --output RUN/timing-31-leaves-400-rounds
 ```
 
 The timed stage includes contact prediction, fresh proposal construction,
@@ -386,7 +386,7 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stage
 ```
 
 This contact stage fits the four held-group models on 24 videos each and the
-final contact model on 32 videos. Use its output as `pools --pilot`, then run
+final contact model on 32 videos. Use its output as `pools --contact-run`, then run
 `targets` and `train` with the selected raw selector settings. Export the
 selector and fitted review model with validation replay:
 
@@ -411,7 +411,7 @@ remain the defaults.
 
 Select finalists using validation results before evaluating test videos.
 `input_test` accepts an `annotator-input-finalists/1` gzip JSON selection with
-`fit_policy: contact32`, `feature_units: raw`, the five ordered `seed_offsets`,
+`fit_policy: contact-fit-32-videos`, `feature_units: raw`, the five ordered `seed_offsets`,
 `primary_tolerance: 10` and the evaluator's `source_record()` as
 `evaluation_source`. Each finalist names its `candidate`, `objectives` and five
 `seeds`. Each seed records its `offset`, absolute `export` directory, full export

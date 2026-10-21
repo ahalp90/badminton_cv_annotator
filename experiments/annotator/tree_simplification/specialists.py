@@ -1,4 +1,4 @@
-"""Fit legacy serve/insertion specialists and expose their scores to rally layers."""
+"""Fit eight-model-stack serve/insertion specialists and expose their scores to rally layers."""
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -14,14 +14,17 @@ from annotator.training.sequences import (
     fit_tree,
     sequence_targets,
 )
-from experiments.annotator.tree_simplification.options import ExpandedPool, sequence_key
+from experiments.annotator.tree_simplification.options import (
+    LabelledOptions,
+    sequence_key,
+)
 
 SPECIALIST_ROLES = frozenset(('serve', 'insertion'))
 
 
 @dataclass(frozen=True)
 class SpecialistModels:
-    """Optional legacy serve and insertion models used as layer features."""
+    """Optional eight-model-stack serve and insertion models used as layer features."""
 
     serve: Any | None = None
     insertion: Any | None = None
@@ -39,7 +42,7 @@ def fit_specialists(
     videos: Sequence[SequenceTrainingVideo], config: SequenceFitConfig, roles: tuple[str, ...], *,
     targets: Mapping[str, SequenceTargets] | None = None,
 ) -> SpecialistModels:
-    """Fit requested legacy specialists on the same labels as the production stack."""
+    """Fit requested eight-model-stack specialists on the same labels as the production stack."""
     unknown_roles = set(roles) - SPECIALIST_ROLES
     if unknown_roles:
         raise ValueError(f'unknown specialist roles: {sorted(unknown_roles)}')
@@ -80,12 +83,12 @@ def _merge_finite_max(scores: dict[Any, float], key: Any, score: float) -> None:
         scores[key] = max(scores.get(key, -np.inf), score)
 
 
-def _serve_scores_by_sequence(pool: ExpandedPool, model: Any) -> dict[tuple[int, tuple[int, int, tuple[int, ...]]], float]:
-    legacy = pool.original.pool
-    row_scores = positive_probabilities(model, legacy.serve_inputs.matrix)
-    scores_by_key = {key: row_scores[row] for key, row in legacy.serve_inputs.rows_by_key.items()}
+def _serve_scores_by_sequence(pool: LabelledOptions, model: Any) -> dict[tuple[int, tuple[int, int, tuple[int, ...]]], float]:
+    original = pool.original.pool
+    row_scores = positive_probabilities(model, original.serve_inputs.matrix)
+    scores_by_key = {key: row_scores[row] for key, row in original.serve_inputs.rows_by_key.items()}
     scores_by_sequence: dict[tuple[int, tuple[int, int, tuple[int, ...]]], float] = {}
-    for option in legacy.options:
+    for option in original.options:
         key = serve_edit_key(option)
         if key is not None:
             _merge_finite_max(
@@ -97,14 +100,14 @@ def _serve_scores_by_sequence(pool: ExpandedPool, model: Any) -> dict[tuple[int,
 
 
 def _insertion_scores_by_sequence(
-    pool: ExpandedPool, model: Any,
+    pool: LabelledOptions, model: Any,
 ) -> dict[tuple[int, tuple[int, int, tuple[int, ...]]], float]:
-    legacy = pool.original.pool
-    added = legacy.has_added_contact
-    row_scores = np.full(len(legacy.options), np.nan, dtype=np.float64)
-    row_scores[added] = positive_probabilities(model, legacy.insertion_features[added])
+    original = pool.original.pool
+    added = original.has_added_contact
+    row_scores = np.full(len(original.options), np.nan, dtype=np.float64)
+    row_scores[added] = positive_probabilities(model, original.insertion_features[added])
     scores_by_sequence: dict[tuple[int, tuple[int, int, tuple[int, ...]]], float] = {}
-    for option, score in zip(legacy.options, row_scores, strict=True):
+    for option, score in zip(original.options, row_scores, strict=True):
         if option.added_contact is not None:
             _merge_finite_max(
                 scores_by_sequence,
@@ -114,8 +117,8 @@ def _insertion_scores_by_sequence(
     return scores_by_sequence
 
 
-def _expanded_scores(
-    pool: ExpandedPool,
+def _option_scores(
+    pool: LabelledOptions,
     scores_by_sequence: dict[tuple[int, tuple[int, int, tuple[int, ...]]], float],
 ) -> np.ndarray:
     return np.asarray([
@@ -124,7 +127,7 @@ def _expanded_scores(
     ], dtype=np.float32)
 
 
-def _span_best(pool: ExpandedPool, scores: np.ndarray) -> np.ndarray:
+def _span_best(pool: LabelledOptions, scores: np.ndarray) -> np.ndarray:
     best = np.full(len(pool.sequences), np.nan, dtype=np.float32)
     for rows in pool.span_rows.values():
         finite = scores[rows][np.isfinite(scores[rows])]
@@ -133,14 +136,14 @@ def _span_best(pool: ExpandedPool, scores: np.ndarray) -> np.ndarray:
     return best
 
 
-def augment_pool(pool: ExpandedPool, models: SpecialistModels) -> ExpandedPool:
-    """Append legacy specialist scores without consulting expanded-pool labels."""
+def augment_pool(pool: LabelledOptions, models: SpecialistModels) -> LabelledOptions:
+    """Append eight-model-stack specialist scores without consulting option labels."""
     empty = {}
     serve_by_sequence = empty if models.serve is None else _serve_scores_by_sequence(pool, models.serve)
     insertion_by_sequence = empty if models.insertion is None else _insertion_scores_by_sequence(
         pool, models.insertion,
     )
-    serve = _expanded_scores(pool, serve_by_sequence)
-    insertion = _expanded_scores(pool, insertion_by_sequence)
+    serve = _option_scores(pool, serve_by_sequence)
+    insertion = _option_scores(pool, insertion_by_sequence)
     specialist_columns = np.column_stack((serve, insertion, _span_best(pool, serve), _span_best(pool, insertion)))
     return replace(pool, matrix=np.column_stack((pool.matrix, specialist_columns)))

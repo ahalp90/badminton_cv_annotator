@@ -142,7 +142,7 @@ Historical published test summaries were incidentally visible while locating the
 
 The [baseline evidence](../tree_simplification/results/five-seed-evidence.json.gz)
 retains all five old-XGBoost and 7/15-leaf repeats, plus the complete six-setting
-initial-seed screen. The [31-leaf evidence](../tree_simplification/results/retained-setting-evidence.json.gz)
+initial-seed screen. The [31-leaf evidence](../tree_simplification/results/selector-settings-evidence.json.gz)
 retains both round settings and depths across all five seeds, including per-video
 counts and paired differences. The [earlier HGB record](../tree_simplification/results/previous-hgb-validation.json.gz)
 identifies the source branch and commit for grid-017. See the

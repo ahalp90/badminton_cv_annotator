@@ -115,10 +115,10 @@ def refine_rally_layers(
 ) -> RallyLayerPrediction:
     check_events_match_kept_candidates(events, scores)
     initial = initial_sequences(spans, events)
-    legacy = build_option_pool(
+    original = build_option_pool(
         initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
     )
-    context = RallyContext(fps, initial, events, legacy, frame_count)
+    context = RallyContext(fps, initial, events, original, frame_count)
     pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
     return predict_rally_options(models, pool)
 

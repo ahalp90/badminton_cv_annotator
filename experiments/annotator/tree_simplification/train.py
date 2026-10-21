@@ -49,12 +49,12 @@ from experiments.annotator.tree_simplification.layers import (
     fit_layer,
     predict_layer,
 )
-from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.pilot import progress
 from experiments.annotator.tree_simplification.pools import (
     edit_kind,
-    legacy_pool,
-    legacy_rows,
+    original_options,
+    original_rows,
 )
 from experiments.annotator.tree_simplification.specialists import (
     SpecialisedLayer,
@@ -62,10 +62,12 @@ from experiments.annotator.tree_simplification.specialists import (
     augment_pool,
     fit_specialists,
 )
-from experiments.annotator.tree_simplification.targets import tightest_targets
+from experiments.annotator.tree_simplification.targets import (
+    five_frame_preferred_targets,
+)
 
 
-def score_layers(models: tuple[Any, ...], pool: ExpandedPool) -> tuple[np.ndarray, ...]:
+def score_layers(models: tuple[Any, ...], pool: LabelledOptions) -> tuple[np.ndarray, ...]:
     scores = []
     features = augment_pool(pool, models[0].specialists) if models and isinstance(models[0], SpecialisedLayer) else pool
     for model in models:
@@ -85,7 +87,7 @@ class LayerTrainer:
     Only the separate validation videos estimate generalisation here.
     """
 
-    pools: dict[str, ExpandedPool]
+    pools: dict[str, LabelledOptions]
     config: TreeFitConfig
     output: Path
     span_weight: float
@@ -170,7 +172,7 @@ class LayerTrainer:
 
 
 def evaluate(
-    models: tuple[Any, ...], pools: dict[str, ExpandedPool], videos: dict[str, SearchVideo], output: Path,
+    models: tuple[Any, ...], pools: dict[str, LabelledOptions], videos: dict[str, SearchVideo], output: Path,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     (output / 'streams').mkdir(parents=True, exist_ok=True)
@@ -208,9 +210,9 @@ def main() -> None:
     parser.add_argument('--seed', type=int, default=20260905)
     parser.add_argument('--layers', type=int, choices=(1, 2, 3), default=3)
     parser.add_argument('--threads', type=int, default=2)
-    parser.add_argument('--legacy-pool', action='store_true')
+    parser.add_argument('--original-options', action='store_true')
     parser.add_argument('--specialists', nargs='+', choices=('serve', 'insertion'), default=[])
-    parser.add_argument('--five-frame-targets', type=Path, help='Use tightest-available targets from these sidecars')
+    parser.add_argument('--five-frame-targets', type=Path, help='Use five-frame-preferred targets from these sidecars')
     parser.add_argument('--span-weight', type=float, help='Keep a matched comparison’s fixed training span weight')
     args = parser.parse_args()
     if not 1 <= args.threads <= 28:
@@ -220,8 +222,8 @@ def main() -> None:
     if args.backend == TreeBackend.HIST_GRADIENT_BOOSTING and args.device != 'cpu':
         parser.error('HGB requires --device cpu')
     roles = tuple(sorted(set(args.specialists)))
-    if roles and not args.legacy_pool:
-        parser.error('Specialist comparisons currently require --legacy-pool')
+    if roles and not args.original_options:
+        parser.error('Specialist comparisons currently require --original-options')
     config = TreeFitConfig(
         max_iter=args.rounds, max_leaf_nodes=args.leaves, learning_rate=args.learning_rate,
         l2_regularization=args.l2, random_seed=args.seed, backend=TreeBackend(args.backend),
@@ -242,48 +244,50 @@ def main() -> None:
     counts = {}
     for identity, video in videos.items():
         path = args.pools / 'videos' / f'{identity}.joblib'
-        pool: ExpandedPool = joblib.load(path)
+        pool: LabelledOptions = joblib.load(path)
         metadata = read_json(path.with_suffix('.json.gz'))
         if metadata['split'] != video.split or pool.original.group != prepared['groups'][identity]:
             raise ValueError(f'{identity}: prepared split or group differs')
-        selected = legacy_rows(pool)
-        legacy = legacy_pool(pool, selected=selected)
+        selected = original_rows(pool)
+        original = original_options(pool, selected=selected)
         counts[identity] = {
-            'split': video.split, 'legacy_options': len(legacy.targets), 'expanded_options': len(pool.targets),
-            'legacy_judged_rows': int((legacy.targets >= 0).sum()),
-            'expanded_judged_rows': int((pool.targets >= 0).sum()),
-            'legacy_judged_spans': sum(bool(np.any(legacy.targets[rows] >= 0)) for rows in legacy.span_rows.values()),
+            'split': video.split, 'original_options': len(original.targets), 'all_options': len(pool.targets),
+            'original_judged_rows': int((original.targets >= 0).sum()),
+            'all_judged_rows': int((pool.targets >= 0).sum()),
+            'original_judged_spans': sum(
+                bool(np.any(original.targets[rows] >= 0)) for rows in original.span_rows.values()
+            ),
         }
         five = None
         if args.five_frame_targets:
             five = load_npy_xz(args.five_frame_targets / 'videos' / f'{identity}.npy.xz')
             if five.shape != pool.targets.shape:
-                raise ValueError(f'{identity}: five-frame targets do not align with the expanded pool')
-        if args.legacy_pool:
-            pool = legacy
+                raise ValueError(f'{identity}: five-frame targets do not align with the option pool')
+        if args.original_options:
+            pool = original
             if five is not None:
                 five = five[selected]
         if five is not None:
-            pool = replace(pool, targets=tightest_targets(pool, five))
+            pool = replace(pool, targets=five_frame_preferred_targets(pool, five))
         (training if video.split == 'train' else validation)[identity] = pool
     if len(training) != 32 or len(validation) != 8:
         raise ValueError('Comparison requires the original 32 training and 8 validation videos')
-    # Anchor every arm/subset to the same full-training legacy pool scale.
+    # Anchor every arm/subset to the same full-training original-option scale.
     span_weight = (
-        sum(counts[identity]['legacy_judged_rows'] for identity in training)
-        / sum(counts[identity]['legacy_judged_spans'] for identity in training)
+        sum(counts[identity]['original_judged_rows'] for identity in training)
+        / sum(counts[identity]['original_judged_spans'] for identity in training)
     )
     if args.span_weight is not None:
         span_weight = args.span_weight
     settings = {
         'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
-        'layers': args.layers, 'legacy_pool': args.legacy_pool, 'span_weight': span_weight,
+        'layers': args.layers, 'original_options': args.original_options, 'span_weight': span_weight,
     }
     trainer = LayerTrainer(training, config, args.output, span_weight, roles=roles)
     if roles:
         settings['specialists'] = {'roles': roles, 'config': asdict(trainer.specialist_config())}
     if target_manifest is not None:
-        settings['target_policy'] = {'name': 'tightest-available', 'manifest': target_manifest}
+        settings['target_policy'] = {'name': 'five-frame-preferred', 'manifest': target_manifest}
     settings = json.loads(json.dumps(settings, default=sorted))
     settings_path = args.output / 'settings.json.gz'
     if settings_path.exists():

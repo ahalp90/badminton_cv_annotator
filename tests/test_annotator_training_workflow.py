@@ -219,7 +219,7 @@ def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.M
     assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle', '--side-geometry', 'scene']) == 0
     assert fitted[0][1:] == (Path('bundle'), SideGeometry.SCENE, workflow.DEFAULT_TRAINING_SETTINGS)
     assert workflow.main([
-        'fit', '--manifest', str(path), '--output', 'layered', '--rally-layers', '1', '--device', 'cuda',
+        'fit', '--manifest', str(path), '--output', 'layer-bundle', '--rally-layers', '1', '--device', 'cuda',
     ]) == 0
     settings = fitted[1][-1]
     assert settings.rally_layers.depth == 1

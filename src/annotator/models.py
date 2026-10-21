@@ -129,5 +129,5 @@ def load_models(directory: Path) -> AnnotatorModels:
         if metadata['review_ranking'] != ranking:
             raise ValueError('Model bundle and metadata disagree about review ranking')
     elif not isinstance(models.sequences, SequenceModels):
-        raise ValueError('Legacy metadata requires the legacy sequence bundle')
+        raise ValueError('Eight-model metadata requires the eight-model sequence bundle')
     return models

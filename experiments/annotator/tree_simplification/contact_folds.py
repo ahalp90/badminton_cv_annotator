@@ -60,7 +60,7 @@ def fold_assignments(development: pilot.retrain.Development) -> dict[str, str]:
 
 def prepare_contact_folds(
     prepared_root: Path,
-    pilot_output: Path,
+    contact_run_output: Path,
     original_pools: Path,
     output: Path,
     *,
@@ -71,32 +71,33 @@ def prepare_contact_folds(
     """Fit eight contact complements, then rebuild training pools in a fresh family.
 
     Fits and pool preparation run consecutively. Validation pool files are copied
-    exactly; their final contact32 model remains the original pilot's model.
+    exactly; their final contact model, fitted on all 32 training videos, stays the
+    contact run's model.
     """
     if not 1 <= threads <= 28 or not 1 <= workers <= 28:
         raise ValueError('threads and workers must each be between 1 and 28')
-    prepared_root, pilot_output = prepared_root.resolve(), pilot_output.resolve()
+    prepared_root, contact_run_output = prepared_root.resolve(), contact_run_output.resolve()
     original_pools, output = original_pools.resolve(), output.resolve()
-    pilot_settings = pilot.read_json(pilot_output / 'settings.json.gz')
+    contact_run_settings = pilot.read_json(contact_run_output / 'settings.json.gz')
     preparation = pilot.read_json(prepared_root / 'preparation.json.gz')['inputs']
-    if pilot_settings['prepared'] != str(prepared_root):
-        raise ValueError('Pilot settings name a different prepared directory')
-    settings = pilot_settings['settings']
+    if contact_run_settings['prepared'] != str(prepared_root):
+        raise ValueError('Contact-run settings name a different prepared directory')
+    settings = contact_run_settings['settings']
     pool_settings = pilot.read_json(original_pools / 'pools.json.gz')
-    if (pool_settings['prepared'], pool_settings['pilot'], pool_settings['settings']) != (
-        str(prepared_root), str(pilot_output), settings,
+    if (pool_settings['prepared'], pool_settings['contact_run'], pool_settings['settings']) != (
+        str(prepared_root), str(contact_run_output), settings,
     ):
-        raise ValueError('Original pools and pilot settings differ')
+        raise ValueError('Original pools and contact-run settings differ')
     videos = load_original_videos(Path(preparation['paths']['shots_master']))
     development = development_for(videos)
     assignments = fold_assignments(development)
     if preparation['groups'] != development.group_by_video:
         raise ValueError('Prepared videos differ from the fixed development groups')
-    final_contact = pilot_output / 'contacts' / 'v_32.joblib'
+    final_contact = contact_run_output / 'contacts' / 'v_32.joblib'
     if not final_contact.is_file():
         raise FileNotFoundError(final_contact)
     manifest: dict[str, Any] = {
-        'schema': SCHEMA, 'prepared': str(prepared_root), 'pilot': str(pilot_output),
+        'schema': SCHEMA, 'prepared': str(prepared_root), 'contact_run': str(contact_run_output),
         'settings': settings, 'original_pools': str(original_pools), 'pools_manifest': pool_settings,
         'folds': {fold: list(identities) for fold, identities in CONTACT_FOLDS.items()},
         'assignments': assignments, 'final_contact': str(final_contact),
@@ -139,7 +140,7 @@ def prepare_contact_folds(
     del training
     paths = {identity: output / 'contacts' / f'held_{fold}.joblib' for identity, fold in assignments.items()}
     prepare_pools(
-        prepared_root, pilot_output, output / 'pools', workers=workers, only=only,
+        prepared_root, contact_run_output, output / 'pools', workers=workers, only=only,
         max_edits=pool_settings['max_edits'], deletion_candidates=pool_settings['deletion_candidates'],
         contact_paths=paths, contact_folds=CONTACT_FOLDS, validation_source=original_pools,
     )
@@ -149,7 +150,7 @@ def prepare_contact_folds(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepared', type=Path, required=True)
-    parser.add_argument('--pilot', type=Path, required=True)
+    parser.add_argument('--contact-run', type=Path, required=True)
     parser.add_argument('--original-pools', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--threads', type=int, default=2)
@@ -157,7 +158,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument('--only', help='Build one pool after fitting the eight contact folds')
     args = parser.parse_args(argv)
     prepare_contact_folds(
-        args.prepared, args.pilot, args.original_pools, args.output,
+        args.prepared, args.contact_run, args.original_pools, args.output,
         threads=args.threads, workers=args.workers, only=args.only,
     )
     return 0

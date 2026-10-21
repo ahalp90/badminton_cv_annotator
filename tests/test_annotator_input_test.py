@@ -56,7 +56,7 @@ def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
         'schema': 'tree-simplification-raw-export/1',
         'settings': {
             'pool_settings': {
-                'pilot': str(contact_root),
+                'contact_run': str(contact_root),
                 'prepared': str(root / 'prepared'),
                 'settings': contact_settings['settings'],
             },
@@ -90,7 +90,7 @@ def _write_selection(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict
     document = {
         'schema': input_test.SCHEMA,
         'evaluation_source': {'revision': 'synthetic', 'dirty': False},
-        'fit_policy': 'contact32',
+        'fit_policy': 'contact-fit-32-videos',
         'feature_units': 'raw',
         'seed_offsets': list(input_test.SEED_OFFSETS),
         'primary_tolerance': 10,
@@ -226,7 +226,7 @@ def test_accepted_chosen_bundle_runs_46_videos_without_refitting(
     assert len(run_calls) == 46
     assert len(rows) == 46 * 4
     assert all(row['correct'] == -1 for row in rows)
-    assert result['fit_policy'] == 'contact32'
+    assert result['fit_policy'] == 'contact-fit-32-videos'
     assert result['seed_offset'] == 0
     assert len(load_calls) == 1
 

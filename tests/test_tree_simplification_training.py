@@ -18,23 +18,23 @@ from annotator.sequence.refine import OptionPool
 from annotator.training import rally_layers as production_training
 from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
 from experiments.annotator.tree_simplification import train
-from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.specialists import SpecialistModels
 
 
-def make_pool(identity: str, group: str) -> ExpandedPool:
+def make_pool(identity: str, group: str) -> LabelledOptions:
     event = ContactEvent(10, 0.8, Half.TOP)
     initial = ContactSequence(0, 0, 20, (event,))
     deleted = ContactSequence(0, 0, 20, ())
-    legacy = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
-    original = SequenceTrainingVideo(identity, group, 30.0, (initial,), (event,), legacy, (), 30)
-    return ExpandedPool(
+    original_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
+    original = SequenceTrainingVideo(identity, group, 30.0, (initial,), (event,), original_pool, (), 30)
+    return LabelledOptions(
         (initial, deleted), np.asarray([[0, 1], [1, 0]], dtype=np.float32),
         np.asarray([0, 1], dtype=np.int8), {0: np.asarray([0, 1])}, original,
     )
 
 
-def training_pools(videos_per_group: int = 2) -> dict[str, ExpandedPool]:
+def training_pools(videos_per_group: int = 2) -> dict[str, LabelledOptions]:
     pools = {}
     for group in 'ABCD':
         for index in range(videos_per_group):
@@ -65,7 +65,7 @@ class RecordingFits:
         return self.models[int(scores[0]) - 1]
 
     def fit(
-        self, pools: Sequence[ExpandedPool], histories: Sequence[Sequence[np.ndarray]], config: TreeFitConfig,
+        self, pools: Sequence[LabelledOptions], histories: Sequence[Sequence[np.ndarray]], config: TreeFitConfig,
         *, span_weight: float,
     ) -> RecordedModel:
         assert span_weight > 0
@@ -86,7 +86,7 @@ class RecordingFits:
         self.models.append(model)
         return model
 
-    def predict(self, model: RecordedModel, pool: ExpandedPool, history: Sequence[np.ndarray]) -> np.ndarray:
+    def predict(self, model: RecordedModel, pool: LabelledOptions, history: Sequence[np.ndarray]) -> np.ndarray:
         assert len(history) == model.depth - 1
         for previous_depth, scores in enumerate(history, 1):
             producer = self.model_for(scores)
@@ -214,17 +214,17 @@ def test_specialists_exclude_the_predicted_group_at_every_rally_depth(
         specialist_fits.append(groups)
         return SpecialistModels(serve=groups, insertion=None)
 
-    def augment(pool: ExpandedPool, models: SpecialistModels) -> ExpandedPool:
+    def augment(pool: LabelledOptions, models: SpecialistModels) -> LabelledOptions:
         code = np.full(len(pool.targets), group_code(models.serve))
         return replace(pool, matrix=np.column_stack((pool.matrix, code)))
 
-    def fit(pools: Sequence[ExpandedPool], histories: Any, config: TreeFitConfig, *, span_weight: float) -> RecordedModel:
+    def fit(pools: Sequence[LabelledOptions], histories: Any, config: TreeFitConfig, *, span_weight: float) -> RecordedModel:
         groups = frozenset(pool.original.group for pool in pools)
         for pool in pools:
             assert np.all(pool.matrix[:, -1] == group_code(groups - {pool.original.group}))
         return recorded.fit(pools, histories, config, span_weight=span_weight)
 
-    def predict(model: RecordedModel, pool: ExpandedPool, history: Any) -> np.ndarray:
+    def predict(model: RecordedModel, pool: LabelledOptions, history: Any) -> np.ndarray:
         assert np.all(pool.matrix[:, -1] == group_code(model.groups))
         return recorded.predict(model, pool, history)
 
@@ -277,7 +277,7 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
             return pools[path.stem]
         return original_load(path, *args, **kwargs)
 
-    def evaluate(models: tuple[Any, ...], selected: dict[str, ExpandedPool], *_args: Any) -> dict[str, Any]:
+    def evaluate(models: tuple[Any, ...], selected: dict[str, LabelledOptions], *_args: Any) -> dict[str, Any]:
         assert set(selected) == set(validation)
         assert not set(selected) & set(training)
         assert all(pool is validation[identity] for identity, pool in selected.items())

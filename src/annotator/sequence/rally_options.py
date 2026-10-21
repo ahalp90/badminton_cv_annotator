@@ -182,9 +182,9 @@ def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candid
     matrices = []
     span_rows = {}
     stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
-    legacy_by_span: dict[int, list[ContactSequence]] = {}
+    original_by_span: dict[int, list[ContactSequence]] = {}
     for option in video.pool.options:
-        legacy_by_span.setdefault(option.span_id, []).append(option.sequence)
+        original_by_span.setdefault(option.span_id, []).append(option.sequence)
     distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, video.fps)
     previous_end = -1
     for before in video.initial:
@@ -195,7 +195,7 @@ def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candid
             before, candidates, video.events[first:last], previous_end, distance, max_edits, deletion_candidates,
         )
         unique = {sequence_key(before): before}
-        for sequence in (*legacy_by_span.get(before.span_id, ()), *proposals):
+        for sequence in (*original_by_span.get(before.span_id, ()), *proposals):
             unique.setdefault(sequence_key(sequence), sequence)
         original_frames = {event.frame for event in before.events}
         ordered = sorted(unique.values(), key=lambda sequence: (

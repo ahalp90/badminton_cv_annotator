@@ -146,11 +146,11 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
 
     layers = tuple(DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES) + 8 * depth)), [0, 1])
                    for depth in range(2))
-    layered_models = replace(models, sequences=RallyLayerModels(layers), confidence=None)
-    layered = hybrid.predict_contact_features(evidence, features, layered_models)
-    assert isinstance(layered.refined, RallyLayerPrediction)
+    fitted_layers = replace(models, sequences=RallyLayerModels(layers), confidence=None)
+    layer_prediction = hybrid.predict_contact_features(evidence, features, fitted_layers)
+    assert isinstance(layer_prediction.refined, RallyLayerPrediction)
     expected_pool = expand_pool(training)
-    assert layered.refined.pool.sequences == expected_pool.sequences
-    np.testing.assert_array_equal(layered.refined.pool.matrix, expected_pool.matrix)
-    assert layered.confidence.features.span_ids == tuple(sequence.span_id for sequence in layered.refined.sequences)
-    assert len(layered.confidence.scores) == len(layered.refined.sequences)
+    assert layer_prediction.refined.pool.sequences == expected_pool.sequences
+    np.testing.assert_array_equal(layer_prediction.refined.pool.matrix, expected_pool.matrix)
+    assert layer_prediction.confidence.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.refined.sequences)
+    assert len(layer_prediction.confidence.scores) == len(layer_prediction.refined.sequences)

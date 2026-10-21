@@ -1,4 +1,4 @@
-"""Legacy specialist fitting and score alignment for expanded rally pools."""
+"""Eight-model-stack specialist fitting and score alignment for labelled rally-option pools."""
 
 from dataclasses import replace
 from typing import Any
@@ -33,7 +33,10 @@ from annotator.training.sequences import (
 )
 from annotator.training.trees import TreeBackend
 from experiments.annotator.tree_simplification import specialists
-from experiments.annotator.tree_simplification.options import ExpandedPool, sequence_key
+from experiments.annotator.tree_simplification.options import (
+    LabelledOptions,
+    sequence_key,
+)
 
 
 def training_video() -> SequenceTrainingVideo:
@@ -147,11 +150,11 @@ def test_augment_pool_max_merges_duplicate_routes_and_keeps_unmatched_nan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     video = training_video()
-    legacy = video.pool
+    original_pool = video.pool
     route_row = 3  # add serve candidate 75 followed by the useful later contact
-    route = legacy.options[route_row]
+    route = original_pool.options[route_row]
     candidate_key = next(
-        key for key in legacy.serve_inputs.rows_by_key
+        key for key in original_pool.serve_inputs.rows_by_key
         if key == (route.span_id, 100, EditKind.ADD)
     )
     duplicate = SequenceOption(
@@ -159,22 +162,22 @@ def test_augment_pool_max_merges_duplicate_routes_and_keeps_unmatched_nan(
         route.added_contact,
         route.sequence,
     )
-    duplicate_row = len(legacy.options)
+    duplicate_row = len(original_pool.options)
 
-    serve_matrix = legacy.serve_inputs.matrix.copy()
+    serve_matrix = original_pool.serve_inputs.matrix.copy()
     for key, probability in (
         (serve_edit_key(route), 0.2),
         (candidate_key, 0.8),
     ):
         assert key is not None
-        serve_matrix[legacy.serve_inputs.rows_by_key[key], 0] = probability
-    insertion_matrix = np.vstack((legacy.insertion_features, legacy.insertion_features[route_row]))
+        serve_matrix[original_pool.serve_inputs.rows_by_key[key], 0] = probability
+    insertion_matrix = np.vstack((original_pool.insertion_features, original_pool.insertion_features[route_row]))
     insertion_matrix[route_row, 1] = 0.2
     insertion_matrix[duplicate_row, 1] = 0.8
     modified_pool = replace(
-        legacy,
-        options=(*legacy.options, duplicate),
-        serve_inputs=replace(legacy.serve_inputs, matrix=serve_matrix),
+        original_pool,
+        options=(*original_pool.options, duplicate),
+        serve_inputs=replace(original_pool.serve_inputs, matrix=serve_matrix),
         insertion_features=insertion_matrix,
     )
     original = replace(video, pool=modified_pool)
@@ -184,7 +187,7 @@ def test_augment_pool_max_merges_duplicate_routes_and_keeps_unmatched_nan(
         route.sequence.end_frame,
         (*route.sequence.events, ContactEvent(190, 0.4, None)),
     )
-    expanded = ExpandedPool(
+    options = LabelledOptions(
         sequences=(route.sequence, unmatched),
         matrix=np.zeros((2, 3), dtype=np.float64),
         targets=np.asarray([0, 1]),
@@ -197,7 +200,7 @@ def test_augment_pool_max_merges_duplicate_routes_and_keeps_unmatched_nan(
 
     monkeypatch.setattr(specialists, 'sequence_targets', forbidden_target_read)
     augmented = specialists.augment_pool(
-        expanded,
+        options,
         specialists.SpecialistModels(ColumnProbability(0), ColumnProbability(1)),
     )
 
@@ -212,7 +215,7 @@ def test_augment_pool_max_merges_duplicate_routes_and_keeps_unmatched_nan(
 def test_missing_specialist_roles_append_nan_columns() -> None:
     video = training_video()
     sequence = video.initial[0]
-    pool = ExpandedPool(
+    pool = LabelledOptions(
         sequences=(sequence,),
         matrix=np.zeros((1, 2), dtype=np.float64),
         targets=np.asarray([0]),

@@ -1,4 +1,4 @@
-"""Five-frame labels and span-local fallback for fixed expanded pools."""
+"""Five-frame labels and span-local fallback for fixed labelled option pools."""
 
 import lzma
 from dataclasses import replace
@@ -15,38 +15,41 @@ from annotator.sequence.features import ServeEditInputs
 from annotator.sequence.refine import OptionPool
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from experiments.annotator.tree_simplification import pilot, targets
-from experiments.annotator.tree_simplification.options import ExpandedPool, sequence_key
-from experiments.annotator.tree_simplification.pools import legacy_pool
+from experiments.annotator.tree_simplification.options import (
+    LabelledOptions,
+    sequence_key,
+)
+from experiments.annotator.tree_simplification.pools import original_options
 from experiments.annotator.tree_simplification.targets import (
     TargetJob,
     _target_job,
+    five_frame_preferred_targets,
     prepare_targets,
     raw_five_targets,
-    tightest_targets,
 )
 
 
 def make_pool(
     sequences: tuple[ContactSequence, ...], targets: tuple[int, ...], *, fps: float = 30.0,
-) -> ExpandedPool:
+) -> LabelledOptions:
     initial = ContactSequence(
         0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
     )
     events = initial.events
     initial_option = SequenceOption(SequenceEdit(EditKind.KEEP, None, None, initial), None, initial)
-    legacy_option_sequence = ContactSequence(
+    original_option_sequence = ContactSequence(
         0, 0, 200, (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT)),
     )
-    legacy_option = SequenceOption(
-        SequenceEdit(EditKind.DELETE, None, 20, legacy_option_sequence), None, legacy_option_sequence,
+    original_option = SequenceOption(
+        SequenceEdit(EditKind.DELETE, None, 20, original_option_sequence), None, original_option_sequence,
     )
     option_pool = OptionPool(
-        (initial_option, legacy_option), {}, ServeEditInputs({}, np.empty((0, 0))),
+        (initial_option, original_option), {}, ServeEditInputs({}, np.empty((0, 0))),
         np.empty((2, 0)), np.empty((2, 0)), {},
     )
     rally = LabelledRally('rally', (20, 60), (Half.TOP, Half.BOT))
     video = SequenceTrainingVideo('video', 'group', fps, (initial,), events, option_pool, (rally,), 210)
-    return ExpandedPool(
+    return LabelledOptions(
         sequences,
         np.zeros((len(sequences), 1), dtype=np.float32),
         np.asarray(targets, dtype=np.int8),
@@ -62,7 +65,7 @@ def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> Non
     )
     pool = make_pool(sequences, (1, 0, -1))
 
-    actual = tightest_targets(pool, np.asarray([0, 1, 1], dtype=np.int8))
+    actual = five_frame_preferred_targets(pool, np.asarray([0, 1, 1], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, (0, 1, -1))
 
@@ -74,7 +77,7 @@ def test_without_known_five_frame_positive_span_keeps_ten_frame_targets() -> Non
     )
     pool = make_pool(sequences, (1, 0))
 
-    actual = tightest_targets(pool, np.asarray([0, 0], dtype=np.int8))
+    actual = five_frame_preferred_targets(pool, np.asarray([0, 0], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, pool.targets)
 
@@ -86,33 +89,33 @@ def test_unknown_ten_frame_row_cannot_supply_five_frame_positive() -> None:
     )
     pool = make_pool(sequences, (0, 0, -1))
 
-    actual = tightest_targets(pool, np.asarray([0, 0, 1], dtype=np.int8))
+    actual = five_frame_preferred_targets(pool, np.asarray([0, 0, 1], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, pool.targets)
 
 
-def test_expanded_only_five_frame_positive_does_not_change_legacy_span_targets() -> None:
+def test_edit_only_five_frame_positive_does_not_change_original_span_targets() -> None:
     initial = ContactSequence(
         0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
     )
-    legacy = ContactSequence(
+    original_sequence = ContactSequence(
         0, 0, 200, (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT)),
     )
-    expanded_only = ContactSequence(
+    edit_only = ContactSequence(
         0, 0, 200,
         (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT), ContactEvent(100, 0.7, Half.TOP)),
     )
-    pool = make_pool((initial, legacy, expanded_only), (0, 0, 0))
+    pool = make_pool((initial, original_sequence, edit_only), (0, 0, 0))
     five = np.asarray([0, 0, 1], dtype=np.int8)
 
-    expanded_targets = tightest_targets(pool, five)
-    legacy = legacy_pool(pool)
-    legacy_five = five[[row for row, sequence in enumerate(pool.sequences)
-                        if sequence_key(sequence) in {sequence_key(initial), sequence_key(legacy.sequences[1])}]]
-    legacy_targets = tightest_targets(legacy, legacy_five)
+    all_option_targets = five_frame_preferred_targets(pool, five)
+    original = original_options(pool)
+    original_five = five[[row for row, sequence in enumerate(pool.sequences)
+                          if sequence_key(sequence) in {sequence_key(initial), sequence_key(original.sequences[1])}]]
+    original_targets = five_frame_preferred_targets(original, original_five)
 
-    assert expanded_targets[2] == 1
-    np.testing.assert_array_equal(legacy_targets, (0, 0))
+    assert all_option_targets[2] == 1
+    np.testing.assert_array_equal(original_targets, (0, 0))
 
 
 @pytest.mark.parametrize(('fps', 'shift', 'expected'), [(30.0, 6, 0), (60.0, 10, 1)])
@@ -156,7 +159,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         LabelledRally('remote', (500,), (None,)),
     )
     video = SequenceTrainingVideo('video', 'group', 30.0, (first, second), events, option_pool, rallies, 220)
-    pool = ExpandedPool(
+    pool = LabelledOptions(
         sequences,
         np.zeros((4, 1), dtype=np.float32),
         np.zeros(4, dtype=np.int8),
@@ -192,7 +195,7 @@ def test_five_frame_row_mismatch_fails() -> None:
     pool = make_pool((sequence, sequence), (0, 0))
 
     with pytest.raises(ValueError, match='align'):
-        tightest_targets(pool, np.asarray([1], dtype=np.int8))
+        five_frame_preferred_targets(pool, np.asarray([1], dtype=np.int8))
 
 
 def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
@@ -221,7 +224,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
     assert saved.shape == (1,)
     assert pilot.read_json(metadata_path)['rows'] == 1
 
-    def forbidden_recompute(_pool: ExpandedPool) -> np.ndarray:
+    def forbidden_recompute(_pool: LabelledOptions) -> np.ndarray:
         raise AssertionError('matching completed sidecars should be resumed')
 
     monkeypatch.setattr(targets, 'raw_five_targets', forbidden_recompute)

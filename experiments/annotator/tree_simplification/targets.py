@@ -1,4 +1,4 @@
-"""Prepare a five-frame target view aligned to fixed expanded rally pools."""
+"""Prepare a five-frame target view aligned to fixed labelled rally-option pools."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.training import rally_targets
 from experiments.annotator.tree_simplification.options import (
-    ExpandedPool,
+    LabelledOptions,
 )
 
 SCHEMA = 'tree-simplification-five-frame-targets/1'
@@ -45,13 +45,13 @@ class TargetJob:
     output: Path
 
 
-def raw_five_targets(pool: ExpandedPool) -> np.ndarray:
+def raw_five_targets(pool: LabelledOptions) -> np.ndarray:
     """Return canonical five-frame whole-rally targets aligned to pool rows."""
     return rally_targets.option_targets(pool.original, pool.runtime, tolerance_at_30_fps=5)
 
 
-def tightest_targets(pool: ExpandedPool, five: np.ndarray) -> np.ndarray:
-    return rally_targets.tightest_targets(pool.runtime, pool.targets, five)
+def five_frame_preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
+    return rally_targets.five_frame_preferred_targets(pool.runtime, pool.targets, five)
 
 
 def _metadata_path(array_path: Path) -> Path:
@@ -98,12 +98,12 @@ def _target_job(job: TargetJob) -> dict[str, Any] | None:
 
     with threadpool_limits(limits=1):
         started = time.perf_counter()
-        pool: ExpandedPool = joblib.load(job.pool_path)
+        pool: LabelledOptions = joblib.load(job.pool_path)
         if pool.original.identity != job.identity or pool.original.group != job.group:
-            raise ValueError(f'{job.identity}: expanded pool identity or group differs from its record')
+            raise ValueError(f'{job.identity}: option pool identity or group differs from its record')
         targets = raw_five_targets(pool)
         if targets.shape != pool.targets.shape:
-            raise ValueError(f'{job.identity}: five-frame target rows do not align to its expanded pool')
+            raise ValueError(f'{job.identity}: five-frame target rows do not align to its option pool')
         positive_spans = sum(
             bool(np.any(targets[rows] == 1)) for rows in pool.span_rows.values()
         )
@@ -139,7 +139,7 @@ def prepare_targets(
     if only is not None and only not in records:
         raise ValueError(f'--only does not name a prepared pool: {only}')
     if not records:
-        raise ValueError('No expanded pools were found')
+        raise ValueError('No option pools were found')
 
     manifest = {
         'schema': SCHEMA,
@@ -157,7 +157,7 @@ def prepare_targets(
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / 'targets.json.gz'
     if manifest_path.is_file() and pilot.read_json(manifest_path) != manifest:
-        raise ValueError('Expanded pool manifest changed; use a fresh target output directory')
+        raise ValueError('Option pool manifest changed; use a fresh target output directory')
     if not manifest_path.is_file():
         pilot.write_json(manifest_path, manifest)
 

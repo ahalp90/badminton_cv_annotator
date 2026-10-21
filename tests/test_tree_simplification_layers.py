@@ -14,10 +14,10 @@ from annotator.sequence.features import ServeEditInputs
 from annotator.sequence.refine import OptionPool
 from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
 from experiments.annotator.tree_simplification import layers, margins
-from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
-def example_pool() -> ExpandedPool:
+def example_pool() -> LabelledOptions:
     first = ContactEvent(20, 0.8, Half.TOP)
     last = ContactEvent(40, 0.7, Half.TOP)
     added = ContactEvent(30, 0.6, Half.BOT)
@@ -28,11 +28,11 @@ def example_pool() -> ExpandedPool:
         initial[0], replace(initial[0], events=(first, added, last)),
         replace(initial[0], events=(last,)), initial[1],
     )
-    legacy = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
+    original_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
     original = SequenceTrainingVideo(
-        'fixture', 'group', 30.0, initial, (first, last, neighbour, outside), legacy, (), 110,
+        'fixture', 'group', 30.0, initial, (first, last, neighbour, outside), original_pool, (), 110,
     )
-    return ExpandedPool(
+    return LabelledOptions(
         sequences, np.asarray([[0, 1], [1, 1], [0, 0], [2, 1]], dtype=np.float32),
         np.asarray([0, 1, -1, 0], dtype=np.int8), {0: np.asarray([0, 1, 2]), 1: np.asarray([3])}, original,
     )
@@ -115,22 +115,22 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     assert captured['max_iter'] == 3
 
 
-def test_fixed_span_weight_is_identical_for_legacy_and_expanded_pools(monkeypatch: pytest.MonkeyPatch) -> None:
-    legacy = example_pool()
-    expanded = replace(
-        legacy,
-        sequences=(*legacy.sequences, *legacy.sequences[:2], *legacy.sequences[:2]),
-        matrix=np.vstack((legacy.matrix, legacy.matrix[:2], legacy.matrix[:2])),
-        targets=np.concatenate((legacy.targets, legacy.targets[:2], legacy.targets[:2])),
+def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = example_pool()
+    all_options = replace(
+        original,
+        sequences=(*original.sequences, *original.sequences[:2], *original.sequences[:2]),
+        matrix=np.vstack((original.matrix, original.matrix[:2], original.matrix[:2])),
+        targets=np.concatenate((original.targets, original.targets[:2], original.targets[:2])),
         span_rows={0: np.asarray([0, 1, 2, 4, 5, 6, 7]), 1: np.asarray([3])},
     )
-    span_weight = float((legacy.targets >= 0).sum()) / len(legacy.span_rows)
+    span_weight = float((original.targets >= 0).sum()) / len(original.span_rows)
 
     def fit(_matrix: np.ndarray, _labels: np.ndarray, **kwargs: Any) -> np.ndarray:
         return kwargs['sample_weight']
 
     monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
-    for pool in (legacy, expanded):
+    for pool in (original, all_options):
         judged = pool.targets >= 0
         passed = layers.fit_layer([pool], [()], span_weight=span_weight)
         full_weights = np.zeros(len(pool.targets))

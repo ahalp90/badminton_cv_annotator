@@ -48,10 +48,10 @@ def option_targets(video: SequenceTrainingVideo, pool: RallyOptions, tolerance_a
     return targets
 
 
-def tightest_targets(pool: RallyOptions, wide: np.ndarray, five: np.ndarray) -> np.ndarray:
+def five_frame_preferred_targets(pool: RallyOptions, wide: np.ndarray, five: np.ndarray) -> np.ndarray:
     """Prefer five-frame labels only when a judged span retains a positive option."""
     if wide.shape != (len(pool.sequences),) or five.shape != wide.shape:
-        raise ValueError('five-frame targets must align with every expanded pool row')
+        raise ValueError('five-frame targets must align with every option row')
     targets = wide.copy()
     for rows in pool.span_rows.values():
         included = rows[wide[rows] >= 0]
@@ -60,14 +60,14 @@ def tightest_targets(pool: RallyOptions, wide: np.ndarray, five: np.ndarray) -> 
     return targets
 
 
-def legacy_rows(pool: RallyOptions) -> np.ndarray:
+def original_option_rows(pool: RallyOptions) -> np.ndarray:
     """Locate the original options to anchor training weight across pool sizes."""
-    legacy_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
+    original_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
     for sequence in pool.original.initial:
-        legacy_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
+        original_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
     for option in pool.original.pool.options:
-        legacy_keys.setdefault(option.span_id, set()).add(sequence_key(option.sequence))
+        original_keys.setdefault(option.span_id, set()).add(sequence_key(option.sequence))
     return np.asarray([
         row for row, sequence in enumerate(pool.sequences)
-        if sequence_key(sequence) in legacy_keys[sequence.span_id]
+        if sequence_key(sequence) in original_keys[sequence.span_id]
     ], dtype=np.int64)

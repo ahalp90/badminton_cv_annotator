@@ -1,4 +1,4 @@
-"""Expanded proposal coverage, raw evidence and finished-rally targets."""
+"""Full option-list coverage, raw evidence and finished-rally targets."""
 
 from dataclasses import replace
 
@@ -51,15 +51,15 @@ def example_video() -> SequenceTrainingVideo:
     return SequenceTrainingVideo('fixture', 'group', 30.0, initial, events, pool, rallies, 430)
 
 
-def test_multiple_additions_and_deletions_preserve_all_legacy_choices() -> None:
+def test_multiple_additions_and_deletions_preserve_all_original_choices() -> None:
     video = example_video()
-    expanded = expand_pool(video)
-    middle = [expanded.sequences[row] for row in expanded.span_rows[1]]
+    options = expand_pool(video)
+    middle = [options.sequences[row] for row in options.span_rows[1]]
     frame_lists = {tuple(event.frame for event in sequence.events) for sequence in middle}
     assert (90, 105, 120, 135, 150, 180) in frame_lists
     assert (150, 180) in frame_lists
     assert (52, 60, 150, 180) in frame_lists
-    keys = {(sequence.span_id, sequence_key(sequence)) for sequence in expanded.sequences}
+    keys = {(sequence.span_id, sequence_key(sequence)) for sequence in options.sequences}
     assert {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options} <= keys
     restricted = expand_pool(video, max_edits=0, deletion_candidates=0)
     restricted_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in restricted.sequences}
@@ -82,17 +82,17 @@ def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
 
 def test_new_combinations_obey_spacing_bounds_and_do_not_resurrect_deletions() -> None:
     video = example_video()
-    expanded = expand_pool(video)
-    legacy = {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options}
-    for sequence in expanded.sequences:
-        if (sequence.span_id, sequence_key(sequence)) in legacy:
+    options = expand_pool(video)
+    original_keys = {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options}
+    for sequence in options.sequences:
+        if (sequence.span_id, sequence_key(sequence)) in original_keys:
             continue
         frames = tuple(event.frame for event in sequence.events)
         previous_end = video.initial[sequence.span_id - 1].end_frame if sequence.span_id else -1
         assert sequence.start_frame >= previous_end
         assert all(sequence.start_frame <= frame < sequence.end_frame for frame in frames)
         assert np.all(np.diff(frames) > 6)
-    repaired = next(sequence for sequence in expanded.sequences
+    repaired = next(sequence for sequence in options.sequences
                     if tuple(event.frame for event in sequence.events) == (52, 60, 150, 180))
     assert repaired.start_frame == 52
     assert not {90, 120} & {event.frame for event in repaired.events}
@@ -129,9 +129,9 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
 
 def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_spans() -> None:
     video = example_video()
-    expanded = expand_pool(video)
+    options = expand_pool(video)
     stream_frames = np.asarray([event.frame for event in video.events])
-    for after in expanded.sequences:
+    for after in options.sequences:
         chosen = {sequence.span_id: sequence for sequence in video.initial}
         chosen[after.span_id] = after
         raw, events = apply_choices(video.initial, video.events, chosen)

@@ -24,19 +24,19 @@ from annotator.training.trees import TreeBackend
 def configurations(backend: TreeBackend, structures: bool = False) -> list[dict[str, Any]]:
     if structures:
         return [
-            {'name': name, 'leaves': 15, 'layers': 2, 'min_child_weight': 5.0, 'legacy_pool': True,
+            {'name': name, 'leaves': 15, 'layers': 2, 'min_child_weight': 5.0, 'original_options': True,
              'specialists': roles}
             for name, roles in (
                 ('serve', ['serve']), ('insertion', ['insertion']), ('both', ['serve', 'insertion']),
             )
         ]
-    runs = [{'name': 'legacy-pool', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': True}]
+    runs = [{'name': 'original-options', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'original_options': True}]
     runs.extend([
-        {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'legacy_pool': False}
+        {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'original_options': False}
         for leaves in (15, 7, 31)
     ])
     if backend == TreeBackend.XGBOOST:
-        runs.append({'name': 'child-10', 'leaves': 15, 'layers': 3, 'min_child_weight': 10.0, 'legacy_pool': False})
+        runs.append({'name': 'minimum-child-weight-10', 'leaves': 15, 'layers': 3, 'min_child_weight': 10.0, 'original_options': False})
     return runs
 
 
@@ -54,8 +54,8 @@ def run_configuration(
         '--threads', str(threads), '--leaves', str(run['leaves']), '--layers', str(run['layers']),
         '--min-child-weight', str(run['min_child_weight']),
     ]
-    if run['legacy_pool']:
-        command.append('--legacy-pool')
+    if run['original_options']:
+        command.append('--original-options')
     if run.get('specialists'):
         command.extend(['--specialists', *run['specialists']])
     environment = {**os.environ, 'OMP_NUM_THREADS': str(threads), 'OPENBLAS_NUM_THREADS': str(threads),
@@ -79,7 +79,7 @@ def main() -> None:
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     parser.add_argument('--jobs', type=int, default=4)
     parser.add_argument('--threads', type=int, default=2)
-    parser.add_argument('--structures', action='store_true', help='Compare local edit specialists on legacy options')
+    parser.add_argument('--structures', action='store_true', help='Compare local edit specialists on the original options')
     args = parser.parse_args()
     if args.jobs < 1 or args.threads < 1 or args.jobs * args.threads > 28:
         parser.error('jobs and threads must be positive and use at most 28 CPU cores together')

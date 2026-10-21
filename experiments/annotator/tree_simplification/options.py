@@ -1,7 +1,8 @@
 """Training targets for the production rally proposals.
 
-This module retains the saved experiment pool class and import paths. Runtime
-proposals use detector evidence; target labels live only in this training view.
+This module holds the experiment class that pairs each option with its target
+label. Runtime proposals use detector evidence; target labels live only in this
+training view.
 """
 
 from dataclasses import dataclass
@@ -20,11 +21,11 @@ from annotator.sequence.rally_options import (
 from annotator.training.rally_targets import finish_in_initial_context, option_targets
 from annotator.training.sequences import SequenceTrainingVideo
 
-__all__ = ['FEATURE_NAMES', 'ExpandedPool', 'expand_pool', 'feature_names', 'finish_in_initial_context', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'feature_names', 'finish_in_initial_context', 'sequence_key']
 
 
 @dataclass(frozen=True)
-class ExpandedPool:
+class LabelledOptions:
     sequences: tuple[ContactSequence, ...]
     matrix: np.ndarray
     targets: np.ndarray
@@ -41,8 +42,8 @@ def rally_context(video: SequenceTrainingVideo) -> RallyContext:
     return RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
 
 
-def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> ExpandedPool:
+def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> LabelledOptions:
     """Build label-free options, then judge them with initial neighbouring spans."""
     options = build_rally_options(rally_context(video), max_edits, deletion_candidates)
     targets = option_targets(video, options)
-    return ExpandedPool(options.sequences, options.matrix, targets, options.span_rows, video)
+    return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video)

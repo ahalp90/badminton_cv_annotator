@@ -47,17 +47,19 @@ from experiments.annotator.old_court_regression.retrain import (
     stream_payload,
 )
 from experiments.annotator.tree_hp_tune.run import pooled_scores
-from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.pilot import (
     load_prepared,
     progress,
     require_raw_features,
 )
-from experiments.annotator.tree_simplification.targets import tightest_targets
+from experiments.annotator.tree_simplification.targets import (
+    five_frame_preferred_targets,
+)
 from experiments.annotator.tree_simplification.train import LayerTrainer
 
 
-def verify_pool(actual: RallyOptions, expected: ExpandedPool) -> None:
+def verify_pool(actual: RallyOptions, expected: LabelledOptions) -> None:
     if actual.sequences != expected.sequences or tuple(actual.span_rows) != tuple(expected.span_rows):
         raise ValueError('Production proposal sequences or span order differ from the saved experiment')
     np.testing.assert_array_equal(actual.matrix, expected.matrix)
@@ -79,7 +81,7 @@ def ranking_metrics(labels: np.ndarray, scores: np.ndarray) -> dict[str, Any]:
     return result
 
 
-def load_training(settings: dict, targets_root: Path) -> dict[str, ExpandedPool]:
+def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptions]:
     root = Path(settings['pools'])
     if read_json(root / 'pools.json.gz') != settings['pool_settings']:
         raise ValueError('Saved option-pool manifest differs from the fitted run')
@@ -92,7 +94,7 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, ExpandedPool]
             continue
         pool = joblib.load(path)
         five = load_npy_xz(targets_root / 'videos' / f'{pool.original.identity}.npy.xz')
-        pools[pool.original.identity] = replace(pool, targets=tightest_targets(pool, five))
+        pools[pool.original.identity] = replace(pool, targets=five_frame_preferred_targets(pool, five))
     if len(pools) != 32:
         raise ValueError('Development export requires all 32 training videos')
     return pools
@@ -130,7 +132,7 @@ def validate(
     pools_root = Path(settings['pools'])
     per_video, rankings, rows = {}, {}, []
     if not isinstance(old.sequences, SequenceModels):
-        raise TypeError('The matched pilot must contain the legacy reference stack')
+        raise TypeError('The contact run must contain the old eight-model reference stack')
     (output / 'streams').mkdir(exist_ok=True)
     for path in sorted((prepared_root / 'videos').glob('*.joblib')):
         if read_json(path.with_suffix('.json.gz'))['split'] != 'validation':
@@ -138,28 +140,28 @@ def validate(
         prepared = load_prepared(prepared_root, path.stem)
         video = prepared.video
         prediction = predict_contact_features(prepared.evidence, prepared.features, models)
-        layered = cast(RallyLayerPrediction, prediction.refined)
-        saved: ExpandedPool = joblib.load(pools_root / 'videos' / path.name)
-        verify_pool(layered.pool, saved)
-        stream = stream_payload(layered.sequences, layered.events)
+        layer_prediction = cast(RallyLayerPrediction, prediction.refined)
+        saved: LabelledOptions = joblib.load(pools_root / 'videos' / path.name)
+        verify_pool(layer_prediction.pool, saved)
+        stream = stream_payload(layer_prediction.sequences, layer_prediction.events)
         if stream != read_json(run / f'layers-{depth}' / 'streams' / f'{video.identity}.json.gz'):
             raise ValueError(f'{video.identity}: production stream differs from the saved experiment')
         write_json(output / 'streams' / f'{video.identity}.json.gz', stream)
         per_video[video.identity] = score_stream(video, stream)
-        selector = score_layer_confidence(layered, None)
-        context = layered.pool.original
-        legacy = finish_sequences(context.initial, context.events, context.pool, old.sequences,
-                                  fps=video.fps, frame_count=context.frame_count)
-        old_review = score_rally_confidence(legacy, old.confidence, old.sequences.insertion, video.fps)
-        legacy_stream = stream_payload(legacy.sequences, legacy.events)
-        pilot = Path(settings['pool_settings']['pilot'])
-        if legacy_stream != read_json(pilot / 'validation_streams' / f'{video.identity}.json.gz'):
-            raise ValueError(f'{video.identity}: matched legacy stream differs')
+        selector = score_layer_confidence(layer_prediction, None)
+        context = layer_prediction.pool.original
+        old_stack = finish_sequences(context.initial, context.events, context.pool, old.sequences,
+                                     fps=video.fps, frame_count=context.frame_count)
+        old_review = score_rally_confidence(old_stack, old.confidence, old.sequences.insertion, video.fps)
+        old_stack_stream = stream_payload(old_stack.sequences, old_stack.events)
+        contact_run = Path(settings['pool_settings']['contact_run'])
+        if old_stack_stream != read_json(contact_run / 'validation_streams' / f'{video.identity}.json.gz'):
+            raise ValueError(f'{video.identity}: old eight-model stack stream differs from the contact run')
         rankings[video.identity] = {}
         for tolerance in (5, 10):
             for name, sequences, review in (
-                ('selector', layered.sequences, selector), ('fitted', layered.sequences, prediction.confidence),
-                ('legacy', legacy.sequences, old_review),
+                ('selector', layer_prediction.sequences, selector), ('fitted', layer_prediction.sequences, prediction.confidence),
+                ('old-eight-model-stack', old_stack.sequences, old_review),
             ):
                 by_span = {sequence.span_id: sequence for sequence in sequences}
                 labels = np.asarray([whole_rally_correctness(
@@ -173,7 +175,7 @@ def validate(
     if len(per_video) != 8:
         raise ValueError('Production replay requires all eight validation videos')
     pooled = {}
-    for name in ('selector', 'fitted', 'legacy'):
+    for name in ('selector', 'fitted', 'old-eight-model-stack'):
         for tolerance in (5, 10):
             selected = [row for row in rows if row['ranking'] == name and row['tolerance'] == tolerance]
             pooled[f'{name}-{tolerance}'] = ranking_metrics(
@@ -198,8 +200,8 @@ def main() -> None:
     require_raw_features(Path(settings['pool_settings']['prepared']))
     if not result['complete'] or args.layers > settings['layers']:
         parser.error('--run must contain the completed requested depth')
-    if settings.get('specialists') or settings['legacy_pool'] or 'target_policy' not in settings:
-        parser.error('Export requires an expanded general-layer stack with tighter targets')
+    if settings.get('specialists') or settings['original_options'] or 'target_policy' not in settings:
+        parser.error('Export requires a general-layer stack on all options with five-frame-preferred targets')
     args.output.mkdir(parents=True, exist_ok=True)
     receipt = {'run': str(args.run.resolve()), 'layers': args.layers, 'settings': settings}
     path = args.output / 'settings.json.gz'
@@ -207,7 +209,7 @@ def main() -> None:
         raise ValueError('Export inputs changed; use a fresh output directory')
     write_json(path, receipt)
     with threadpool_limits(limits=args.threads):
-        old = load_models(Path(settings['pool_settings']['pilot']) / 'bundle')
+        old = load_models(Path(settings['pool_settings']['contact_run']) / 'bundle')
         for tree in fitted_trees(old):
             if type(tree).__module__.startswith('xgboost'):
                 tree.set_params(device='cpu')

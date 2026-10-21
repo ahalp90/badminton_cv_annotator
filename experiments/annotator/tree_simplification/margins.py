@@ -25,14 +25,14 @@ from experiments.annotator.heuristic_only_tune.data import (
 from experiments.annotator.old_court_regression.retrain import stream_payload
 from experiments.annotator.tree_hp_tune.run import pooled_scores
 from experiments.annotator.tree_simplification.layers import choose_rows, finish_rows
-from experiments.annotator.tree_simplification.options import ExpandedPool
-from experiments.annotator.tree_simplification.pools import legacy_pool
+from experiments.annotator.tree_simplification.options import LabelledOptions
+from experiments.annotator.tree_simplification.pools import original_options
 from experiments.annotator.tree_simplification.train import score_layers
 
 MARGINS = (0.0, 0.05)
 
 
-def gated_rows(pool: ExpandedPool, scores: np.ndarray, margin: float) -> dict[int, int]:
+def gated_rows(pool: LabelledOptions, scores: np.ndarray, margin: float) -> dict[int, int]:
     """Compare the best option and initial keep using the same final model."""
     chosen = choose_rows(pool, scores)
     for span_id, rows in pool.span_rows.items():
@@ -68,8 +68,8 @@ def main() -> None:
             per_video: dict[float, dict[str, Any]] = {margin: {} for margin in MARGINS}
             for video in videos:
                 pool = joblib.load(pools_path / 'videos' / f'{video.identity}.joblib')
-                if settings['legacy_pool']:
-                    pool = legacy_pool(pool)
+                if settings['original_options']:
+                    pool = original_options(pool)
                 scores = score_layers(models, pool)[-1]
                 for margin in MARGINS:
                     sequences, events = finish_rows(pool, gated_rows(pool, scores, margin))

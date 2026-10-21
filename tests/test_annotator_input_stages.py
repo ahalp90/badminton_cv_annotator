@@ -107,7 +107,7 @@ def test_export_rejects_mixed_stage_sources(
         'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
     }
     pool_settings = {
-        'prepared': str(prepared), 'pilot': str(contact),
+        'prepared': str(prepared), 'contact_run': str(contact),
         'settings': {'preprocessing': inputs['preprocessing']},
     }
     write_json(prepared / 'preparation.json.gz', {'source': source, 'inputs': inputs})
@@ -197,14 +197,14 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     run = tmp_path / 'run'
     targets = tmp_path / 'targets'
     prepared_root = tmp_path / 'prepared'
-    pilot_root = tmp_path / 'contact-stage'
+    contact_run_root = tmp_path / 'contact-stage'
     pools_root = tmp_path / 'pools'
     identities = tuple(f'validation-{index}' for index in range(8))
     inputs = {'groups': {identity: 'V' for identity in identities},
               'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
     pool_settings = {
         'prepared': str(prepared_root),
-        'pilot': str(pilot_root),
+        'contact_run': str(contact_run_root),
         'max_edits': 3,
         'deletion_candidates': 6,
         'settings': {
@@ -216,7 +216,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         'layers': 1,
         'pools': str(pools_root),
         'pool_settings': pool_settings,
-        'legacy_pool': False,
+        'original_options': False,
         'target_policy': {'manifest': {'targets': 'fixed'}},
     }
     expected_stream = {'events': [], 'sequences': []}
@@ -233,14 +233,14 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         for identity in identities
     }
     sequence = SimpleNamespace(span_id=4)
-    layered = RallyLayerPrediction(
+    layer_prediction = RallyLayerPrediction(
         sequences=(sequence,), events=(), pool=object(), scores=(np.asarray([0.8]),), chosen={4: 0},
     )
     confidence = LayerConfidence(LayerReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
-    prediction = SimpleNamespace(refined=layered, confidence=confidence)
+    prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
-        lambda *_args: (settings, inputs, prepared_root, pilot_root, 1),
+        lambda *_args: (settings, inputs, prepared_root, contact_run_root, 1),
     )
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
     monkeypatch.setattr(input_stages.integrate, 'fit_review', lambda *_args: object())

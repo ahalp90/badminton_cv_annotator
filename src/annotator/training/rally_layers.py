@@ -26,9 +26,9 @@ from annotator.sequence.rally_options import (
 )
 from annotator.training.confidence import ConfidenceFitConfig
 from annotator.training.rally_targets import (
-    legacy_rows,
+    five_frame_preferred_targets,
     option_targets,
-    tightest_targets,
+    original_option_rows,
 )
 from annotator.training.sequences import (
     SequenceTrainingVideo,
@@ -141,21 +141,21 @@ def prepare_training_pools(
     videos: Sequence[SequenceTrainingVideo], config: RallyFitConfig,
 ) -> tuple[dict[str, RallyTrainingPool], float]:
     pools = {}
-    judged_legacy_rows = judged_legacy_spans = 0
+    judged_original_rows = judged_original_spans = 0
     for video in videos:
         context = RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
         pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
         wide = option_targets(video, pool)
         five = option_targets(video, pool, tolerance_at_30_fps=5)
-        legacy = legacy_rows(pool)
-        included = legacy[wide[legacy] >= 0]
-        judged_legacy_rows += len(included)
-        judged_legacy_spans += len({pool.sequences[row].span_id for row in included})
-        targets = tightest_targets(pool, wide, five)
+        original = original_option_rows(pool)
+        included = original[wide[original] >= 0]
+        judged_original_rows += len(included)
+        judged_original_spans += len({pool.sequences[row].span_id for row in included})
+        targets = five_frame_preferred_targets(pool, wide, five)
         pools[video.identity] = RallyTrainingPool(video.identity, video.group, pool, targets)
-    if not judged_legacy_spans:
-        raise ValueError('rally training needs judged legacy spans to anchor option weights')
-    return pools, judged_legacy_rows / judged_legacy_spans
+    if not judged_original_spans:
+        raise ValueError('rally training needs judged original-option spans to anchor option weights')
+    return pools, judged_original_rows / judged_original_spans
 
 
 def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitConfig) -> RallyModelFit:

@@ -66,8 +66,8 @@ def _validate_selection(document: dict[str, Any]) -> list[dict[str, Any]]:
     evaluation_source = document.get('evaluation_source')
     if not isinstance(evaluation_source, dict) or evaluation_source.get('dirty') is not False:
         raise ValueError('The test selection must record a clean evaluator checkout')
-    if document.get('fit_policy') != 'contact32' or document.get('feature_units') != 'raw':
-        raise ValueError('The test selection must use contact32 fits and raw feature units')
+    if document.get('fit_policy') != 'contact-fit-32-videos' or document.get('feature_units') != 'raw':
+        raise ValueError('The test selection must use contact models fitted on all 32 training videos and raw feature units')
     if document.get('seed_offsets') != list(SEED_OFFSETS):
         raise ValueError('The test selection must name the five required seed offsets in order')
     if document.get('primary_tolerance') != 10:
@@ -139,7 +139,7 @@ def _load_test_bundle(
 
     run_settings = export_settings['settings']
     pool_settings = run_settings['pool_settings']
-    contact_stage_root = Path(pool_settings['pilot'])
+    contact_stage_root = Path(pool_settings['contact_run'])
     contact_stage = read_json(contact_stage_root / 'contact-stage.json.gz')
     required_fits = {'held_A', 'held_B', 'held_C', 'held_D', 'v_32'}
     if contact_stage.get('schema') != 'tree-simplification-contacts/1':

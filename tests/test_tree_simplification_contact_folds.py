@@ -27,7 +27,7 @@ def development() -> pilot.retrain.Development:
 
 
 def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
-    prepared, original, reference = tmp_path / 'prepared', tmp_path / 'original', tmp_path / 'pilot'
+    prepared, original, reference = tmp_path / 'prepared', tmp_path / 'original', tmp_path / 'contact-run'
     for directory in (prepared, original, reference):
         directory.mkdir()
     groups = development().group_by_video
@@ -44,7 +44,7 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
     for name in ('held_A', 'held_B', 'held_C', 'held_D', 'v_32'):
         joblib.dump({'original': name}, reference / 'contacts' / f'{name}.joblib')
     manifest = {
-        'schema': pools.SCHEMA, 'prepared': str(prepared), 'pilot': str(reference), 'settings': settings,
+        'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
         'max_edits': 3, 'deletion_candidates': 6,
     }
     pilot.write_json(original / 'pools.json.gz', manifest)

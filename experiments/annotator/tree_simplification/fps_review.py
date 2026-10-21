@@ -42,8 +42,8 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
     prepared_root = Path(pool_settings['prepared'])
     current_units = preparation_receipt(prepared_root)
     preparation = current_units['preparation']
-    pilot_root = Path(pool_settings['pilot'])
-    units = pilot.read_json(pilot_root / 'motion-units.json.gz')
+    contact_run_root = Path(pool_settings['contact_run'])
+    units = pilot.read_json(contact_run_root / 'motion-units.json.gz')
     if units != current_units:
         raise ValueError('Contact fit and replay use different preparation semantics')
     output.mkdir(parents=True, exist_ok=True)
@@ -57,7 +57,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
     if len(layers) != 1:
         raise ValueError('Expected exactly one rally selector')
     models = AnnotatorModels(
-        joblib.load(pilot_root / 'contacts' / 'v_32.joblib'),
+        joblib.load(contact_run_root / 'contacts' / 'v_32.joblib'),
         RallyLayerModels(layers, pool_settings['max_edits'], pool_settings['deletion_candidates']),
         review, ContactModelConfig(**pool_settings['settings']['contact_prediction']),
         BaseAnnotatorConfig(), SideGeometry.VIDEO,
@@ -73,19 +73,19 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         if prepared.video.split != 'validation':
             raise ValueError('Replay video is not validation')
         prediction = predict_contact_features(prepared.evidence, prepared.features, models)
-        layered = prediction.refined
-        if not isinstance(layered, RallyLayerPrediction):
+        layer_prediction = prediction.refined
+        if not isinstance(layer_prediction, RallyLayerPrediction):
             raise TypeError('Expected a rally-layer prediction')
         saved = joblib.load(Path(settings['pools']) / 'videos' / f'{identity}.joblib')
-        integrate.verify_pool(layered.pool, saved)
-        stream = stream_payload(layered.sequences, layered.events)
+        integrate.verify_pool(layer_prediction.pool, saved)
+        stream = stream_payload(layer_prediction.sequences, layer_prediction.events)
         if stream != pilot.read_json(run / 'layers-1' / 'streams' / f'{identity}.json.gz'):
             raise ValueError(f'{identity}: replay stream differs')
         pilot.write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(prepared.video, stream)
-        selector = score_layer_confidence(layered, None)
+        selector = score_layer_confidence(layer_prediction, None)
         rankings[identity] = {}
-        by_span = {sequence.span_id: sequence for sequence in layered.sequences}
+        by_span = {sequence.span_id: sequence for sequence in layer_prediction.sequences}
         for tolerance in (5, 10):
             for name, confidence in (('selector', selector), ('fitted', prediction.confidence)):
                 labels = np.asarray([

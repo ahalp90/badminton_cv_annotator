@@ -175,7 +175,7 @@ def prepare(source: Path, output: Path, workers: int, only: str | None = None, *
 
 
 def fit_contacts(prepared_root: Path, output: Path, seed_offset: int, threads: int) -> None:
-    """Fit the same four held-group models and final contact32 as the raw pilot."""
+    """Fit the same four held-group models and final 32-video contact model as the raw pilot."""
     prepared_root = prepared_root.resolve()
     units = preparation_receipt(prepared_root)
     preparation = units['preparation']

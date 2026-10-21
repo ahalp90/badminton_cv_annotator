@@ -120,13 +120,13 @@ def predict_contact_features(
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     report("refining rally sequences")
     if isinstance(models.sequences, RallyLayerModels):
-        layered = refine_rally_layers(
+        layer_prediction = refine_rally_layers(
             evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
             fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
         )
         report("scoring rally confidence")
-        review = score_layer_confidence(layered, models.confidence)
-        return HybridPrediction(features, contacts, layered, review)
+        review = score_layer_confidence(layer_prediction, models.confidence)
+        return HybridPrediction(features, contacts, layer_prediction, review)
     refined = refine_contact_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),

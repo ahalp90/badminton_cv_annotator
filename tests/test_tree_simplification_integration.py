@@ -25,8 +25,10 @@ def test_export_resets_historical_pilot_device_before_replay(tmp_path, monkeypat
     tree = XGBClassifier(n_estimators=2, n_jobs=1, device='cpu').fit(matrix, [0, 0, 1, 1])
     expected = tree.predict_proba(matrix)
     historical = deepcopy(tree).set_params(device='cuda')
-    pilot = tmp_path / 'pilot'
-    save_models(AnnotatorModels(historical, SequenceModels(*(historical,) * 6), historical), pilot / 'bundle')
+    contact_run = tmp_path / 'contact-run'
+    save_models(
+        AnnotatorModels(historical, SequenceModels(*(historical,) * 6), historical), contact_run / 'bundle',
+    )
     run, output = tmp_path / 'run', tmp_path / 'export'
     prepared = tmp_path / 'prepared'
     prepared.mkdir()
@@ -35,9 +37,9 @@ def test_export_resets_historical_pilot_device_before_replay(tmp_path, monkeypat
     joblib.dump((tree,), run / 'layers-1/rally-models.joblib')
     integrate.write_json(run / 'result.json.gz', {'complete': True})
     integrate.write_json(run / 'settings.json.gz', {
-        'layers': 1, 'legacy_pool': False, 'target_policy': {},
+        'layers': 1, 'original_options': False, 'target_policy': {},
         'pool_settings': {
-            'pilot': str(pilot), 'prepared': str(prepared), 'max_edits': 3, 'deletion_candidates': 6,
+            'contact_run': str(contact_run), 'prepared': str(prepared), 'max_edits': 3, 'deletion_candidates': 6,
             'settings': {'confidence': {}},
         },
     })
@@ -65,16 +67,18 @@ def test_export_resets_historical_pilot_device_before_replay(tmp_path, monkeypat
 
 
 def test_validation_creates_and_saves_streams_in_fresh_export(tmp_path, monkeypatch) -> None:
-    prepared, pools, pilot, run, output = (tmp_path / name for name in ('prepared', 'pools', 'pilot', 'run', 'output'))
-    for directory in (prepared / 'videos', pools / 'videos', pilot / 'validation_streams',
+    prepared, pools, contact_run, run, output = (
+        tmp_path / name for name in ('prepared', 'pools', 'contact-run', 'run', 'output')
+    )
+    for directory in (prepared / 'videos', pools / 'videos', contact_run / 'validation_streams',
                       run / 'layers-1/streams', output):
         directory.mkdir(parents=True)
-    legacy = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))),
-                        np.empty((0, 0)), np.empty((0, 0)), {})
+    original_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))),
+                               np.empty((0, 0)), np.empty((0, 0)), {})
     videos = {}
     for index in range(8):
         identity = f'validation-{index}'
-        video = SequenceTrainingVideo(identity, 'V', 30.0, (), (), legacy, (), 100)
+        video = SequenceTrainingVideo(identity, 'V', 30.0, (), (), original_pool, (), 100)
         videos[identity] = SimpleNamespace(video=video, evidence=None, features=None)
         (prepared / 'videos' / f'{identity}.joblib').touch()
         integrate.write_json(prepared / 'videos' / f'{identity}.json.gz', {'split': 'validation'})
@@ -82,7 +86,7 @@ def test_validation_creates_and_saves_streams_in_fresh_export(tmp_path, monkeypa
         joblib.dump(pool, pools / 'videos' / f'{identity}.joblib')
         stream = integrate.stream_payload((), ())
         integrate.write_json(run / 'layers-1/streams' / f'{identity}.json.gz', stream)
-        integrate.write_json(pilot / 'validation_streams' / f'{identity}.json.gz', stream)
+        integrate.write_json(contact_run / 'validation_streams' / f'{identity}.json.gz', stream)
     layers = RallyLayerModels((None,))
     prediction = predict_rally_options(layers, pool.runtime)
     hybrid = SimpleNamespace(refined=prediction, confidence=score_layer_confidence(prediction, None))
@@ -90,7 +94,7 @@ def test_validation_creates_and_saves_streams_in_fresh_export(tmp_path, monkeypa
     monkeypatch.setattr(integrate, 'predict_contact_features', lambda *args: hybrid)
     monkeypatch.setattr(integrate, 'score_stream', lambda *args: {})
     monkeypatch.setattr(integrate, 'pooled_scores', lambda rows: {})
-    settings = {'pools': str(pools), 'pool_settings': {'prepared': str(prepared), 'pilot': str(pilot)}}
+    settings = {'pools': str(pools), 'pool_settings': {'prepared': str(prepared), 'contact_run': str(contact_run)}}
     old = AnnotatorModels(None, SequenceModels(*(None,) * 6), None)
     models = AnnotatorModels(None, layers, None)
     result = integrate.validate(run, 1, settings, old, models, output)

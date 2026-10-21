@@ -7,7 +7,7 @@ videos; they are repeated fits, not independent evaluation populations.
 
 - `five-seed-evidence.json.gz`: matched old XGBoost and 7/15-leaf selectors,
   both depths, plus every outcome from the six-setting initial-seed screen.
-- `retained-setting-evidence.json.gz`: both retained 31-leaf configurations
+- `selector-settings-evidence.json.gz`: both retained 31-leaf configurations
   (200 and 400 rounds), both depths and all five seeds. Counts are retained per
   video, with pooled metrics, paired differences and completion receipts.
 - `previous-hgb-validation.json.gz`: the best earlier HGB grid's validation

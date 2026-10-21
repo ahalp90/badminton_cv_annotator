@@ -9,10 +9,10 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from experiments.annotator.tree_simplification import pools
-from experiments.annotator.tree_simplification.options import ExpandedPool
+from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
-def example_pool() -> ExpandedPool:
+def example_pool() -> LabelledOptions:
     first = ContactEvent(10, 0.9, Half.TOP)
     second = ContactEvent(20, 0.8, Half.BOT)
     addition = ContactEvent(15, 0.7, Half.TOP)
@@ -30,7 +30,7 @@ def example_pool() -> ExpandedPool:
         initial[1],
         replace(initial[1], events=(other_addition, other)),
     )
-    legacy_options = (SimpleNamespace(span_id=0, sequence=sequences[1]),)
+    original_options_list = (SimpleNamespace(span_id=0, sequence=sequences[1]),)
     original = SimpleNamespace(
         identity='fixture',
         group='A',
@@ -38,9 +38,9 @@ def example_pool() -> ExpandedPool:
         events=(first, second, other),
         frame_count=50,
         initial=initial,
-        pool=SimpleNamespace(options=legacy_options),
+        pool=SimpleNamespace(options=original_options_list),
     )
-    return ExpandedPool(
+    return LabelledOptions(
         sequences,
         np.arange(12, dtype=np.float32).reshape(6, 2),
         np.asarray([1, -1, 0, 1, 0, 1], dtype=np.int8),
@@ -49,17 +49,17 @@ def example_pool() -> ExpandedPool:
     )
 
 
-def test_legacy_pool_keeps_original_choices_and_preserves_row_alignment() -> None:
-    expanded = example_pool()
+def test_original_options_keep_choices_and_row_alignment() -> None:
+    options = example_pool()
 
-    legacy = pools.legacy_pool(expanded)
+    original = pools.original_options(options)
 
-    assert legacy.sequences == (expanded.sequences[0], expanded.sequences[1], expanded.sequences[4])
-    np.testing.assert_array_equal(legacy.matrix, expanded.matrix[[0, 1, 4]])
-    np.testing.assert_array_equal(legacy.targets, expanded.targets[[0, 1, 4]])
-    np.testing.assert_array_equal(legacy.span_rows[0], [0, 1])
-    np.testing.assert_array_equal(legacy.span_rows[1], [2])
-    assert legacy.original is expanded.original
+    assert original.sequences == (options.sequences[0], options.sequences[1], options.sequences[4])
+    np.testing.assert_array_equal(original.matrix, options.matrix[[0, 1, 4]])
+    np.testing.assert_array_equal(original.targets, options.targets[[0, 1, 4]])
+    np.testing.assert_array_equal(original.span_rows[0], [0, 1])
+    np.testing.assert_array_equal(original.span_rows[1], [2])
+    assert original.original is options.original
 
 
 def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
@@ -73,8 +73,8 @@ def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
         'mixed': {'-1': 0, '0': 0, '1': 1},
     }
     assert summary['positive_target_span_coverage'] == {
-        'legacy': 1,
-        'expanded': 2,
+        'original_options': 1,
+        'all_options': 2,
         'total_spans': 2,
     }
 
@@ -89,11 +89,11 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
 
     monkeypatch.setattr(pools, 'prepare_pools', prepare)
     assert pools.main([
-        '--prepared', 'prepared', '--pilot', 'pilot', '--output', 'output',
+        '--prepared', 'prepared', '--contact-run', 'contact-run', '--output', 'output',
         '--workers', '2', '--only', 'fixture', '--max-edits', '2',
         '--deletion-candidates', '4',
     ]) == 0
-    assert captured['args'] == (Path('prepared'), Path('pilot'), Path('output'))
+    assert captured['args'] == (Path('prepared'), Path('contact-run'), Path('output'))
     assert captured['kwargs'] == {
         'workers': 2,
         'only': 'fixture',
@@ -106,5 +106,5 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
     assert error.value.code == 0
     help_text = capsys.readouterr().out
     assert '--prepared' in help_text
-    assert '--pilot' in help_text
+    assert '--contact-run' in help_text
     assert '--only' in help_text
