@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Mapping, TypeVar
+from typing import Any
 
 from annotator.review.broadcast_labels import SceneTruth
 
@@ -16,7 +18,6 @@ RUN_SCHEMA_VERSION = 2
 SUPPORTED_RUN_SCHEMA_VERSIONS = (1, RUN_SCHEMA_VERSION)
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
-EnumType = TypeVar("EnumType", bound=StrEnum)
 
 
 class RunOutcome(StrEnum):
@@ -109,7 +110,7 @@ def _string(value: Any, context: str, *, allow_empty: bool = False) -> str:
 
 def _integer(value: Any, context: str, *, minimum: int | None = None) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{context} must be an integer")
+        raise TypeError(f"{context} must be an integer")
     if minimum is not None and value < minimum:
         raise ValueError(f"{context} must be at least {minimum}")
     return value
@@ -117,7 +118,7 @@ def _integer(value: Any, context: str, *, minimum: int | None = None) -> int:
 
 def _number(value: Any, context: str, *, minimum: float | None = None) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{context} must be numeric")
+        raise TypeError(f"{context} must be numeric")
     result = float(value)
     if not math.isfinite(result):
         raise ValueError(f"{context} must be finite")
@@ -136,11 +137,11 @@ def _optional_integer(value: Any, context: str, *, minimum: int = 0) -> int | No
 
 def _boolean(value: Any, context: str) -> bool:
     if not isinstance(value, bool):
-        raise ValueError(f"{context} must be Boolean")
+        raise TypeError(f"{context} must be Boolean")
     return value
 
 
-def _enum(value: Any, enum_type: type[EnumType], context: str) -> EnumType:
+def _enum[EnumType: StrEnum](value: Any, enum_type: type[EnumType], context: str) -> EnumType:
     raw = _string(value, context)
     try:
         return enum_type(raw)
@@ -343,7 +344,7 @@ class SamplingObservation:
         )
         frames = data["sampled_source_frames"]
         if not isinstance(frames, list):
-            raise ValueError("observed_sampling.sampled_source_frames must be a JSON array")
+            raise TypeError("observed_sampling.sampled_source_frames must be a JSON array")
         return cls(
             sampled_source_frames=tuple(
                 _integer(frame, f"observed_sampling.sampled_source_frames[{index}]", minimum=0)
@@ -467,7 +468,7 @@ class PredictionSegment:
         if self.start_frame >= self.end_frame:
             raise ValueError("prediction segment must have start_frame < end_frame")
         if not isinstance(self.scene_label, SceneTruth):
-            raise ValueError("segment.scene_label must be a SceneTruth")
+            raise TypeError("segment.scene_label must be a SceneTruth")
         for name, value, enum_type in (
             ("broadcast_phase", self.broadcast_phase, BroadcastPhase),
             ("view", self.view, CameraView),
@@ -476,7 +477,7 @@ class PredictionSegment:
             ("data_use", self.data_use, DataUse),
         ):
             if not isinstance(value, enum_type):
-                raise ValueError(f"segment.{name} has the wrong enum type")
+                raise TypeError(f"segment.{name} has the wrong enum type")
         confidence = _number(self.confidence, "segment.confidence")
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("segment.confidence must be in [0, 1]")
@@ -509,7 +510,7 @@ class PredictionSegment:
         )
         evidence = data["evidence_frames"]
         if not isinstance(evidence, list):
-            raise ValueError(f"{context}.evidence_frames must be a JSON array")
+            raise TypeError(f"{context}.evidence_frames must be a JSON array")
         return cls(
             start_frame=_integer(data["start_frame"], f"{context}.start_frame", minimum=0),
             end_frame=_integer(data["end_frame"], f"{context}.end_frame", minimum=1),
@@ -553,7 +554,7 @@ def validate_prediction_partition(segments: tuple[PredictionSegment, ...], shard
         raise ValueError(
             f"prediction partition starts at {segments[0].start_frame}, expected {shard.start_frame}"
         )
-    for previous, current in zip(segments, segments[1:]):
+    for previous, current in itertools.pairwise(segments):
         if current.start_frame != previous.end_frame:
             raise ValueError(
                 f"prediction partition has a gap or overlap at [{previous.end_frame}, {current.start_frame})"
@@ -591,7 +592,7 @@ class BenchmarkRunRecord:
         if not RUN_ID_PATTERN.fullmatch(self.run_id):
             raise ValueError("run_id must contain only letters, digits, dots, underscores, and hyphens")
         if not isinstance(self.outcome, RunOutcome):
-            raise ValueError("outcome must be a RunOutcome")
+            raise TypeError("outcome must be a RunOutcome")
         _integer(self.attempt_count, "attempt_count", minimum=0)
         if self.attempt_count > 2:
             raise ValueError("attempt_count cannot exceed the initial request and one correction retry")
@@ -669,7 +670,7 @@ class BenchmarkRunRecord:
         )
         segments = data["segments"]
         if not isinstance(segments, list):
-            raise ValueError("segments must be a JSON array")
+            raise TypeError("segments must be a JSON array")
         attempt_digests = data.get("attempt_response_sha256s")
         if schema_version == RUN_SCHEMA_VERSION and not isinstance(attempt_digests, list):
             raise ValueError("attempt_response_sha256s must be a JSON array")

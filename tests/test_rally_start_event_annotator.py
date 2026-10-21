@@ -300,12 +300,10 @@ def test_gui_dispatch_save_undo_and_frame_clamp_never_change_timeline(
     args, target = _write_inputs(tmp_path)
     pending = events.RallyStartDecision.pending(target.key)
     events.initialize_decision_csv(args.decisions_csv, [pending], [target])
-    timeline = tuple(
-        [
+    timeline = (
             make_interval(METADATA, 0, 10, SceneTruth.REPLAY),
             make_interval(METADATA, 10, 100, SceneTruth.LIVE),
-        ]
-    )
+        )
     prepared = tool.PreparedAudit((target,), (pending,), timeline, METADATA)
     timeline_before = args.timeline_csv.read_bytes()
     trackbar_frames: list[int] = []

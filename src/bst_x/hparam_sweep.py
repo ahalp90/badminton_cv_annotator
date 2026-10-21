@@ -34,7 +34,6 @@ from pathlib import Path
 
 import yaml
 
-
 # ==========================================================================
 # Paths
 # ==========================================================================
@@ -164,7 +163,7 @@ def evaluate_requires(clause: str, cell_verdicts: dict) -> bool:
     try:
         return bool(eval(clause, {'__builtins__': {}}, namespace))
     except Exception as exc:
-        raise ValueError(f'Failed to evaluate requires {clause!r}: {exc}')
+        raise ValueError(f'Failed to evaluate requires {clause!r}: {exc}') from exc
 
 
 def build_tunables(config: dict) -> dict:
@@ -409,8 +408,8 @@ def check_kill(serials_done: int, cum_mean: dict, latest_serial: dict,
     threshold = floor['s1'] if serials_done == 1 else floor['s2_onward']
     if serial_min < threshold:
         return (True,
-                f'min F1 floor: serial {serials_done} min F1 {serial_min:.4f} '
-                f'below threshold {threshold:.2f}.')
+                (f'min F1 floor: serial {serials_done} min F1 {serial_min:.4f} '
+                f'below threshold {threshold:.2f}.'))
 
     tol_map = tunables['pruning']['macro_tolerance']
     tol_key = f's{serials_done}'
@@ -419,9 +418,9 @@ def check_kill(serials_done: int, cum_mean: dict, latest_serial: dict,
         deficit = kill_ref_macro - cum_mean['macro_f1']
         if deficit > tolerance:
             return (True,
-                    f'macro tolerance: cumulative mean macro after S{serials_done} '
+                    (f'macro tolerance: cumulative mean macro after S{serials_done} '
                     f'is {cum_mean["macro_f1"]:.4f}, ref {kill_ref_macro:.4f}, '
-                    f'deficit {deficit*100:.2f}% exceeds tolerance {tolerance*100:.1f}%.')
+                    f'deficit {deficit*100:.2f}% exceeds tolerance {tolerance*100:.1f}%.'))
 
     return (False, '')
 
@@ -468,7 +467,7 @@ def invoke_bst_train(serial_no: int, run_id: str, log_path: Path,
         '--cap-x', str(augmentation['cap_x']),
         '--eps', str(augmentation['eps']),
     ]
-    result = subprocess.run(cmd, env=env)
+    result = subprocess.run(cmd, env=env, check=False)
     return result.returncode
 
 

@@ -56,6 +56,8 @@ from .config import (
     read_candidates,
 )
 
+logger = logging.getLogger(__name__)
+
 BERTSCORE_BATCH_SIZE = 16
 
 # WhisperX fine-pass settings stay local because only the remote-GPU pass reads
@@ -147,7 +149,7 @@ def call_clean_llm(text: str, llm_settings: LLMSettings | None = None) -> dict:
             if llm_settings is None:
                 return _clean_once(text)
             return _clean_once(text, llm_settings)
-        except Exception as error:  # noqa: BLE001 - real code catches SDK errors
+        except Exception as error:
             last_error = error
             if daily_request_quota_exhausted(error):
                 raise DailyRequestQuotaError(
@@ -175,9 +177,9 @@ def _bert_score_device() -> str:
         arch = f'sm_{capability_tuple[0]}{capability_tuple[1]}'
         if arch in torch.cuda.get_arch_list():
             device = 'cuda'
-    logging.warning('BERTScore device=%s capability=%s', device, capability)
+    logger.warning('BERTScore device=%s capability=%s', device, capability)
     if device == 'cpu' and capability != 'unavailable':
-        logging.warning('BERTScore CUDA architecture is unsupported by this torch build; using CPU')
+        logger.warning('BERTScore CUDA architecture is unsupported by this torch build; using CPU')
     return device
 
 

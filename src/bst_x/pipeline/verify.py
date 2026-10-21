@@ -12,10 +12,15 @@ import sys
 from pathlib import Path
 
 from pipeline.config import (
-    CLIPS_OUTPUT_DIR, SHUTTLE_OUTPUT_DIR, EXCLUDED_VIDEOS, REMOVED_SHOTS,
-    PLAYERS, SPLITS,
+    CLIPS_OUTPUT_DIR,
+    EXCLUDED_VIDEOS,
     NOSIDE_FOLDERS,
+    PLAYERS,
+    REMOVED_SHOTS,
+    SHUTTLE_OUTPUT_DIR,
+    SPLITS,
 )
+
 from classifier_shared.taxonomy import Taxonomy, taxonomy_lookup
 
 # Default taxonomy when callers don't pass one. Matches the project's

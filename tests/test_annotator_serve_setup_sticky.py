@@ -175,8 +175,8 @@ def test_dispatch_validates_options_cross_fields(make_setup) -> None:
     setup = make_setup(2.0, n=6)
 
     def options(**overrides: object) -> ServeStartOptions:
-        fields = dict(dist=None, threshold=0.3, mode=ServeStartMode.TRIM, setup=setup,
-                      lookback_frames=4)
+        fields = {'dist': None, 'threshold': 0.3, 'mode': ServeStartMode.TRIM, 'setup': setup,
+                      'lookback_frames': 4}
         fields.update(overrides)
         return ServeStartOptions(**fields)  # type: ignore[arg-type]
 

@@ -68,10 +68,10 @@ def render(image: np.ndarray, corner_rows: list[dict[str, str]], landmark_rows: 
         cv2.polylines(image, [quad.reshape(-1, 1, 2)], True, BOUNDARY, 3, cv2.LINE_AA)
 
     for row in landmark_rows:
-        centre = (int(round(float(row["x_px"]))), int(round(float(row["y_px"]))))
+        centre = (round(float(row["x_px"])), round(float(row["y_px"])))
         cv2.circle(image, centre, 5, LANDMARK, 2, cv2.LINE_AA)
     for row in sorted(corner_rows, key=lambda r: int(r["corner_idx"])):
-        point = (int(round(float(row["x_px"]))), int(round(float(row["y_px"]))))
+        point = (round(float(row["x_px"])), round(float(row["y_px"])))
         if not (0 <= point[0] < image.shape[1] and 0 <= point[1] < image.shape[0]):
             continue  # off-frame corners have nowhere to draw
         colour = BOUNDARY if row["source"] == "click" else EXTRAPOLATED

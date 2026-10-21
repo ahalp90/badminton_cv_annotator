@@ -11,7 +11,6 @@ from annotator.vlm_scene_benchmark.prompts import (
     build_scene_prompt,
 )
 
-
 SHA256 = "a" * 64
 
 

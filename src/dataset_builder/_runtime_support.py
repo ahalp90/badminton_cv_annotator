@@ -441,13 +441,13 @@ class RuntimeSupport:
             raise ValueError("download source dataset differs from the configured dataset")
         videos = payload.get("videos")
         if not isinstance(videos, dict):
-            raise ValueError("download sources manifest has no videos table")
+            raise TypeError("download sources manifest has no videos table")
         self.state.videos.clear()
         self.state.sources.clear()
         selected = set(self.state.selected_ids)
         for basename, raw_entry in videos.items():
             if not isinstance(basename, str) or not isinstance(raw_entry, dict):
-                raise ValueError("download sources manifest contains an invalid video entry")
+                raise TypeError("download sources manifest contains an invalid video entry")
             video_id = str(raw_entry.get("video_id", ""))
             if video_id not in selected:
                 continue
@@ -589,7 +589,7 @@ class RuntimeSupport:
             raise ValueError("commentary pairing identity differs")
         rows = payload["rows"]
         if not isinstance(rows, list):
-            raise ValueError("commentary pairing rows must be a list")
+            raise TypeError("commentary pairing rows must be a list")
         pairing = CanonicalPairing(video_id, self.state.metadata[video_id], tuple(rows))
         outcome = (
             StageOutcome.PROCESSED
@@ -784,7 +784,7 @@ def _load_transcript(path: Path, video_id: str) -> dict[str, object]:
 def _load_chunks(path: Path, video_id: str) -> list[dict[str, object]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
-        raise ValueError(f"commentary chunks must be a list for {video_id}")
+        raise TypeError(f"commentary chunks must be a list for {video_id}")
     chunks = [dict(chunk) for chunk in payload if isinstance(chunk, dict)]
     if len(chunks) != len(payload):
         raise ValueError(f"commentary chunks contain non-objects for {video_id}")
@@ -1034,7 +1034,7 @@ def _dict(value: object) -> dict[str, object]:
 
 def _list(value: object) -> list[object]:
     if not isinstance(value, list):
-        raise ValueError("persisted value must be a list")
+        raise TypeError("persisted value must be a list")
     return value
 
 
@@ -1053,7 +1053,7 @@ def _video_id(value: object, name: str) -> str:
 
 def _integer(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer")
+        raise TypeError(f"{name} must be an integer")
     return value
 
 
@@ -1065,7 +1065,7 @@ def _integer_key(value: str) -> int:
 
 def _boolean(value: object, name: str) -> bool:
     if not isinstance(value, bool):
-        raise ValueError(f"{name} must be boolean")
+        raise TypeError(f"{name} must be boolean")
     return value
 
 
@@ -1075,7 +1075,7 @@ def _optional_boolean(value: object, name: str) -> bool | None:
 
 def _finite_float(value: object, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{name} must be a finite number")
+        raise TypeError(f"{name} must be a finite number")
     result = float(value)
     if not math.isfinite(result):
         raise ValueError(f"{name} must be a finite number")

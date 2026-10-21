@@ -4,27 +4,31 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
-from types import SimpleNamespace
 import threading
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from annotator.vlm_scene_benchmark.contracts import ShardSpec
+from annotator.vlm_scene_benchmark.backends import require_complete_frame_grid
 from annotator.vlm_scene_benchmark.backends.internvideo3 import (
     SPEC as INTERNVIDEO3_SPEC,
+)
+from annotator.vlm_scene_benchmark.backends.internvideo3 import (
     _prepare_chat_inputs,
 )
 from annotator.vlm_scene_benchmark.backends.qwen3_vl import (
     SPEC as QWEN_SPEC,
+)
+from annotator.vlm_scene_benchmark.backends.qwen3_vl import (
     _configure_vllm_environment,
     _engine_config,
     _metadata_frame_indices,
     _resolve_model_snapshot,
     _video_content,
 )
-from annotator.vlm_scene_benchmark.backends import require_complete_frame_grid
+from annotator.vlm_scene_benchmark.contracts import ShardSpec
 from annotator.vlm_scene_benchmark.runtime import (
     GpuMemoryMonitor,
     GpuSnapshot,
@@ -34,7 +38,6 @@ from annotator.vlm_scene_benchmark.runtime import (
     sha256_bytes,
     write_raw_response,
 )
-
 
 SHA256 = "a" * 64
 

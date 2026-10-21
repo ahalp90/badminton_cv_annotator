@@ -68,8 +68,8 @@ class ServeStartConfig(NamedTuple):
     """Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit."""
 
     threshold_bh: float
-    mode: 'ServeStartMode'
-    close: 'ServeStartClose | None' = None
+    mode: ServeStartMode
+    close: ServeStartClose | None = None
     stillness_threshold_bh: float | None = None
 
 

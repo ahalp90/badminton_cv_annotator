@@ -6,7 +6,7 @@ import hashlib
 import json
 import subprocess
 import tarfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -66,7 +66,7 @@ def _install_scanners(monkeypatch: pytest.MonkeyPatch, findings: list[str] | Non
 def test_utc_directory_naming_and_collision_rejection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runs = tmp_path / "runs"
     monkeypatch.setattr(records, "RUNS_DIRECTORY", runs)
-    path = records.utc_run_directory(datetime(2026, 7, 30, 18, 31, 24, tzinfo=timezone.utc))
+    path = records.utc_run_directory(datetime(2026, 7, 30, 18, 31, 24, tzinfo=UTC))
     assert path.name == "20260730-183124"
     path.mkdir(parents=True)
     with pytest.raises(ValueError, match="already exists"):

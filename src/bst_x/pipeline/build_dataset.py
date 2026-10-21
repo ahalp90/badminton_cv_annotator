@@ -20,29 +20,41 @@ import argparse
 import sys
 from pathlib import Path
 
+from pipeline.clip_generator import apply_class_merge, generate_all_clips
 from pipeline.config import (
-    RAW_VIDEO_DIR, CLIPS_OUTPUT_DIR, RESOLUTION_CSV_PATH,
-    SPLITS, EXCLUDED_VIDEOS, REMOVED_SHOTS, CLIP_WINDOW,
+    CLIP_WINDOW,
+    CLIPS_OUTPUT_DIR,
+    EXCLUDED_VIDEOS,
+    RAW_VIDEO_DIR,
+    REMOVED_SHOTS,
+    RESOLUTION_CSV_PATH,
+    SPLITS,
 )
+from pipeline.download_adapter import download_shuttleset_videos
+from pipeline.shuttle_extractor import (
+    DEFAULT_TRACKNET_DIR,
+    extract_all_shuttles,
+    shuttle_csvs_to_npy,
+)
+from pipeline.verify import (
+    _scan_clips,
+    print_dataset_summary,
+    verify_no_excluded,
+    verify_no_removed_shots,
+    verify_shuttle_sync,
+    verify_splits_present,
+    warn_orphan_files,
+)
+from pipeline.verify import (
+    verify_class_merge as verify_merge,
+)
+from pipeline.video_metadata import build_resolution_csv, find_video_files
+
 from classifier_shared.taxonomy import (
     BST_X_TAXONOMIES,
     TAXONOMIES,
     Taxonomy,
     taxonomy_lookup,
-)
-
-from pipeline.download_adapter import download_shuttleset_videos
-from pipeline.video_metadata import build_resolution_csv, find_video_files
-from pipeline.clip_generator import generate_all_clips, apply_class_merge
-from pipeline.verify import (
-    _scan_clips, verify_splits_present, verify_no_excluded,
-    verify_no_removed_shots, verify_class_merge as verify_merge,
-    verify_shuttle_sync, warn_orphan_files, print_dataset_summary,
-)
-from pipeline.shuttle_extractor import (
-    DEFAULT_TRACKNET_DIR,
-    extract_all_shuttles,
-    shuttle_csvs_to_npy,
 )
 
 # Default taxonomy for pipeline operations when not explicitly overridden.

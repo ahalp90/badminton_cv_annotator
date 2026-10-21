@@ -10,11 +10,10 @@ shared with the collator in prepare_train_on_shuttleset.
 """
 
 import warnings
-
-from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
 
 import numpy as np
-from pathlib import Path
+from torch.utils.data import DataLoader, Dataset
 
 
 def pad_class_labels(labels: list[str]) -> list[str]:

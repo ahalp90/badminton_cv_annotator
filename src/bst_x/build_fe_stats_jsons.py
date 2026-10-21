@@ -28,7 +28,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from pipeline.clip_index import build_clip_path_index
 from pipeline.data_access import DataPaths, load_repo_dotenv
 

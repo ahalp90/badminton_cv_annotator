@@ -15,10 +15,8 @@ it too.
 """
 import numpy as np
 import pandas as pd
-
 from pipeline.shuttle_extractor import shuttle_csvs_to_npy
 from preparing_data.prepare_train_on_shuttleset import get_shuttle_result
-
 
 # Real TrackNetV3 CSV column order: Frame, Visibility, X, Y (raw pixel coords).
 # Rows exercise the three cases the converter must handle: ordinary frames,

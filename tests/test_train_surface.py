@@ -21,21 +21,21 @@ Run from repo root::
 
 from __future__ import annotations
 
+import itertools
 import types
 from pathlib import Path
 
+import bst_x_train as bt
 import numpy as np
 import pytest
 import torch
+from bst_x_common import build_bst_x_network
+from frozendict import frozendict
+from preparing_data.shuttleset_dataset import Dataset_npy_collated
 from torch.utils.data import DataLoader
 from torcheval.metrics.functional import multiclass_f1_score
-from frozendict import frozendict
 
-import bst_x_train as bt
 from classifier_shared.taxonomy import Taxonomy
-from bst_x_common import build_bst_x_network
-from preparing_data.shuttleset_dataset import Dataset_npy_collated
-
 
 TAX3 = Taxonomy(
     name='surface3', classes=('a', 'b', 'c'), merge_map=None,
@@ -124,7 +124,7 @@ def test_aux_schedule_factor_ladder():
 
     # Strictly monotone decreasing across the fading interior (cosine shape).
     ladder = [bt.aux_schedule_factor(e, fade_end) for e in range(1, fade_end + 1)]
-    assert all(earlier > later for earlier, later in zip(ladder, ladder[1:]))
+    assert all(earlier > later for earlier, later in itertools.pairwise(ladder))
 
     # fade_end_epoch == 1: the epoch >= fade_end_epoch branch fires for epoch 1,
     # giving 0.0; the aux head is off from the first epoch, never 1.0.
@@ -362,7 +362,7 @@ def test_train_network_returns_model_and_val_at_best(tmp_path):
         class_ls=list(TAX3.classes), taxonomy=TAX3, hyp=test_hyp, tb_dir=tmp_path / 'tb',
     )
     assert isinstance(result, tuple) and len(result) == 2
-    model, val_at_best = result
+    _model, val_at_best = result
     assert (tmp_path / 'w.pt').exists()  # best checkpoint saved
 
     # With 2 epochs over a 3-class val, some epoch beats the macro=0.0 init, so

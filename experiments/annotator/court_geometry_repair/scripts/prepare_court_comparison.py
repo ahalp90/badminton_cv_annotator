@@ -12,15 +12,12 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-
-from annotator.masks import replay as replay_mask
-from annotator.courts.evidence import SceneEvidence
-from annotator.courts.evidence import build_detected_court_evidence
-from annotator.courts.views import HASH_SIZE
-from annotator.courts.views import VIEW_RESOLUTION
-from annotator.courts.views import CourtView
-from annotator.video_metadata import VideoMetadata, probe_video_fps
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
+
+from annotator.courts.evidence import SceneEvidence, build_detected_court_evidence
+from annotator.courts.views import HASH_SIZE, VIEW_RESOLUTION, CourtView
+from annotator.masks import replay as replay_mask
+from annotator.video_metadata import VideoMetadata, probe_video_fps
 from dataset_builder.vision import (
     CourtVision,
     load_court_vision,

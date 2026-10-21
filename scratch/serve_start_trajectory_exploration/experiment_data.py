@@ -7,7 +7,7 @@ import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeAlias, TypedDict
+from typing import Any, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -38,7 +38,7 @@ PRODUCER_EVIDENCE = ASSET_ROOT / "inputs/tracknet_producer_evidence"
 
 Half = point_winner.Half
 OTHER_HALF = point_winner.OTHER_HALF
-GtTables: TypeAlias = tuple[pd.DataFrame, pd.DataFrame, dict[int, Any], pd.DataFrame]
+type GtTables = tuple[pd.DataFrame, pd.DataFrame, dict[int, Any], pd.DataFrame]
 Boundary = tuple[RallyBoundary, int | None]
 TruthKey = tuple[str, int]
 

@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from uuid import uuid4
@@ -283,12 +283,12 @@ def start_or_resume_run(
     run_dir.mkdir(parents=True, exist_ok=True)
     factory = run_id_factory or (lambda: uuid4().hex)
     run_id = factory()
-    current = now or datetime.now(timezone.utc)
+    current = now or datetime.now(UTC)
     if current.tzinfo is None:
         raise ValueError("run creation time must include a timezone")
     manifest = RunManifest(
         run_id=_nonempty(run_id, "run_id"),
-        created_at_utc=current.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        created_at_utc=current.astimezone(UTC).isoformat().replace("+00:00", "Z"),
     )
     write_run_manifest(run_dir, manifest)
     return manifest
@@ -521,7 +521,7 @@ def _non_reuse_reason(
     for name, validator in validators.items():
         try:
             passed = validator(run_dir)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - a raising validator is reported as a failed validation
             return f"semantic validation {name!r} raised {type(exc).__name__}: {exc}"
         if not isinstance(passed, bool):
             return f"semantic validation {name!r} did not return bool"

@@ -62,9 +62,8 @@ $PY $W/make_figures.py --data $OUT --out figures
 
 ### Annotator runs
 
-The committed runs are enough for every step above. Repeating them needs the
-`annotator-experiments` extra for XGBoost. Run the contact refit first, because
-the runner uses its bundles:
+The committed runs are enough for every step above. To repeat them, run the
+contact refit first, because the runner uses its bundles:
 
 ```bash
 RUNS=experiments/annotator/monotrack_benchmark/benchmark_results/annotator_runs

@@ -32,8 +32,9 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 import numpy as np
 
 DEFAULT_OUT_DIR = (
@@ -182,7 +183,7 @@ def main() -> int:
     for i, p in enumerate(files):
         try:
             arr = np.load(p)  # (t, 3)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one unreadable file must not stop the scan
             print(f"  WARNING: could not load {p.name}: {e}")
             continue
         if arr.ndim != 2 or arr.shape[1] != 3:
@@ -254,7 +255,7 @@ def main() -> int:
         print("  histogram (10 buckets, top to bottom of frame):")
         for lo, hi, count in zip(bins[:-1], bins[1:], hist):
             pct = 100 * count / values.size
-            bar = "#" * int(round(pct / 2))
+            bar = "#" * round(pct / 2)
             print(f"    y in [{lo:.1f}, {hi:.1f}): {count:7d}  {pct:5.2f}%  {bar}")
         print()
 

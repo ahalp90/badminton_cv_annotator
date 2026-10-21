@@ -1,5 +1,7 @@
 """Rally-span detection from shuttle motion and optional serve evidence."""
 
+import itertools
+
 import numpy as np
 
 from ..config import (
@@ -297,7 +299,7 @@ def serve_qualified_rally_spans(
         qualifying = [start for start in bursts if gate.qualifies(start)]
         qualifying_counts.append(len(qualifying))
         qualifying_spacings.extend(int(later - earlier)
-                                   for earlier, later in zip(qualifying, qualifying[1:]))
+                                   for earlier, later in itertools.pairwise(qualifying))
 
         if not qualifying:
             # No qualifying burst: the mode owns the region. TRIM keeps the span at the stock

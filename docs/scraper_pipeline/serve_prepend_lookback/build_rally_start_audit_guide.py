@@ -13,42 +13,42 @@ the canonical broadcast timelines or production annotator output.
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
 import csv
 import gzip
 import hashlib
 import io
 import json
 import math
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from annotator.review.broadcast_labels import LabelInterval
-from annotator.review.broadcast_labels import SceneTruth
-from annotator.review.broadcast_labels import VideoMetadata
-from annotator.review.broadcast_labels import interval_index_at
-from annotator.review.broadcast_labels import read_label_csv
-from annotator.review.broadcast_labels import validate_partition
-from annotator.evaluation.fixtures import FIXTURES
-from annotator.evaluation.fixtures import SHARED_FILES
-from annotator.evaluation.fixtures import Fixture
-from annotator.review.rally_starts import CONTRACT_PATH
-from annotator.review.rally_starts import DECISION_COLUMNS as DECISION_COLUMNS
-from annotator.review.rally_starts import DECISION_VALUE_COLUMNS
-from annotator.review.rally_starts import TARGET_COLUMNS
-from annotator.review.rally_starts import RallyStartDecision
-from annotator.review.rally_starts import RallyStartKey
-from annotator.review.rally_starts import RallyStartTarget
-from annotator.review.rally_starts import ReviewStatus
-from annotator.review.rally_starts import ServeVisibility
-from annotator.review.rally_starts import build_decision_seed
-from annotator.review.rally_starts import decision_from_row
-from annotator.review.rally_starts import decision_to_row
-from annotator.review.rally_starts import read_decision_csv
-from annotator.review.rally_starts import target_from_row
-from annotator.review.rally_starts import validate_decision
-from annotator.review.rally_starts import write_decision_csv
-
+from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
+from annotator.review.broadcast_labels import (
+    LabelInterval,
+    SceneTruth,
+    VideoMetadata,
+    interval_index_at,
+    read_label_csv,
+    validate_partition,
+)
+from annotator.review.rally_starts import (
+    CONTRACT_PATH,
+    DECISION_VALUE_COLUMNS,
+    TARGET_COLUMNS,
+    RallyStartDecision,
+    RallyStartKey,
+    RallyStartTarget,
+    ReviewStatus,
+    ServeVisibility,
+    build_decision_seed,
+    decision_from_row,
+    decision_to_row,
+    read_decision_csv,
+    target_from_row,
+    validate_decision,
+    write_decision_csv,
+)
 
 SCRIPT_PATH = Path(__file__).resolve()
 SCRIPT_DIR = SCRIPT_PATH.parent
@@ -89,7 +89,7 @@ def read_review_decisions(path: Path) -> list[dict[str, str]]:
 
 def _parse_int(value: object, field: str, source: str) -> int:
     if isinstance(value, bool):
-        raise ValueError(f"{source}: {field} must be an integer, got {value!r}")
+        raise TypeError(f"{source}: {field} must be an integer, got {value!r}")
     try:
         parsed = float(str(value))
     except ValueError as exc:
@@ -210,7 +210,7 @@ def _build_fixture_rows(
     raw_by_rally, raw_paths = _raw_rows_by_rally(fixture, repo_root)
     committed_rows, committed_path = _target_committed_rows(fixture, repo_root)
     intervals, metadata, timeline_path = _timeline_context(fixture, repo_root)
-    context_frames = int(round(REVIEW_CONTEXT_SECONDS * fixture.fps))
+    context_frames = round(REVIEW_CONTEXT_SECONDS * fixture.fps)
     rows: list[dict[str, object]] = []
 
     for committed in committed_rows:
@@ -336,7 +336,7 @@ def build_audit_rows(repo_root: Path, controls_per_video: int = DEFAULT_CONTROLS
         input_paths.extend(fixture_paths)
     rows = _set_pilot_strata(rows, controls_per_video)
     _validate_rows(rows, controls_per_video)
-    unique_paths = sorted(set(path.resolve() for path in input_paths))
+    unique_paths = sorted({path.resolve() for path in input_paths})
     return rows, unique_paths
 
 
@@ -440,12 +440,14 @@ def _write_csv_gz(path: Path, rows: Sequence[dict[str, object]]) -> None:
     serialised = [{column: _serialise(row[column]) for column in TARGET_COLUMNS} for row in rows]
     temporary = path.with_name(f".tmp.{path.name}")
     try:
-        with temporary.open("wb") as raw_handle:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-                with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text_handle:
-                    writer = csv.DictWriter(text_handle, fieldnames=TARGET_COLUMNS, lineterminator="\n")
-                    writer.writeheader()
-                    writer.writerows(serialised)
+        with (
+            temporary.open("wb") as raw_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+            io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text_handle,
+        ):
+            writer = csv.DictWriter(text_handle, fieldnames=TARGET_COLUMNS, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(serialised)
         reloaded = _read_csv(temporary)
         if reloaded != serialised:
             raise RuntimeError(f"gzip CSV reload changed values: {path}")
@@ -459,9 +461,11 @@ def _write_json_gz(path: Path, value: object) -> None:
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
     temporary = path.with_name(f".{path.name}.tmp")
     try:
-        with temporary.open("wb") as raw_handle:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-                compressed.write(payload)
+        with (
+            temporary.open("wb") as raw_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+        ):
+            compressed.write(payload)
         with gzip.open(temporary, "rt", encoding="utf-8") as handle:
             if json.load(handle) != value:
                 raise RuntimeError(f"gzip JSON reload changed value: {path}")
@@ -472,7 +476,7 @@ def _write_json_gz(path: Path, value: object) -> None:
 
 def _file_records(paths: Iterable[Path], repo_root: Path) -> list[dict[str, object]]:
     records = []
-    for path in sorted(set(path.resolve() for path in paths)):
+    for path in sorted({path.resolve() for path in paths}):
         records.append({
             "path": _relative(path, repo_root),
             "bytes": path.stat().st_size,

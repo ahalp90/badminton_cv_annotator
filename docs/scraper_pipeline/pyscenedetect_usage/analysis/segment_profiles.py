@@ -20,9 +20,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.scoring import GtRally
-from annotator.evaluation.scoring import load_gt_rallies
-
+from annotator.evaluation.scoring import GtRally, load_gt_rallies
 
 PROFILE_STATS = ("content_val", "delta_lum", "delta_edges")
 def read_cuts(cuts_path: Path) -> tuple[int, list[int]]:

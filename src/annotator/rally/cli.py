@@ -227,7 +227,7 @@ def main() -> None:
                 stop_after_segmentation=True,
             )
             spans, contacts = result.spans, result.contacts
-        except Exception as exc:  # log-and-skip per video: one bad track must not sink the batch
+        except Exception as exc:  # noqa: BLE001 - log-and-skip per video: one bad track must not sink the batch
             exception_text = ' '.join(str(exc).split()) or type(exc).__name__
             outcomes_by_path[track_path] = VideoOutcome(
                 video_id, 'skipped', reason=exception_text,

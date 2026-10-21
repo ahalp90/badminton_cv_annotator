@@ -31,11 +31,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
-
 from preparing_data.augmentations import (
     BILATERAL_JOINT_PAIRS,
-    CoupledFlip,
     ConstrainedJitter,
+    CoupledFlip,
     recompute_bones_torch,
 )
 from preparing_data.shuttleset_dataset import (
@@ -43,7 +42,6 @@ from preparing_data.shuttleset_dataset import (
     get_bone_pairs,
     interpolate_joints,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures + helpers
@@ -845,7 +843,7 @@ def test_jitter_n_oob_counts_clips_with_aug_induced_off_screen():
         if size and isinstance(size[0], int) and len(size) == 1 and size[0] == 2:
             return torch.tensor([0.0, 0.0])  # roll fires both; u_y=0 -> dy_lo; u_x=0 -> dx_lo
         return real_rand(*size, **kwargs)
-    import unittest.mock as mock
+    from unittest import mock
     with mock.patch('torch.rand', side_effect=fake_rand):
         _, _, _, _, n_oob = jitter(human_pose, pos, shuttle)
 
@@ -904,7 +902,7 @@ def test_jitter_zeros_shuttle_when_shifted_off_screen():
         return real_rand(*size, **kwargs)
 
     # Patch and trigger.
-    import unittest.mock as mock
+    from unittest import mock
     with mock.patch('torch.rand', side_effect=fake_rand):
         _, _, shuttle_out, _, _ = jitter(human_pose, pos, shuttle)
     # u_y=0 -> dy = dy_lo. Top y starts at 0 -> dy_lo = max(-0.05, -eps - 0) = -0.05 (cap binds)

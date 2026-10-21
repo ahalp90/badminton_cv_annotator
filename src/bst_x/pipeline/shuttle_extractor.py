@@ -12,8 +12,6 @@ Usage:
         [--tracknet-python /path/to/bst-venv/bin/python] [--profile {bst,scrape}]
 """
 import argparse
-from collections.abc import Sequence
-from dataclasses import dataclass
 import math
 import os
 import signal
@@ -21,6 +19,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType
 
@@ -30,12 +30,14 @@ if str(_SRC) not in sys.path:
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from pipeline.config import (  # noqa: E402
+    CLIPS_OUTPUT_DIR,
+    RESOLUTION_CSV_PATH,
+    SHUTTLE_OUTPUT_DIR,
+)
 
 from annotator.shuttle_track import validate_shuttle_track  # noqa: E402
-from pipeline.config import (  # noqa: E402
-    CLIPS_OUTPUT_DIR, SHUTTLE_OUTPUT_DIR, RESOLUTION_CSV_PATH,
-)
-from scraper.config import SCRAPE_TRACKNET_STRIDE, SCRAPE_TRACKNET_LARGE_VIDEO  # noqa: E402
+from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE  # noqa: E402
 
 DEFAULT_TRACKNET_DIR = _SRC / 'shared' / 'tracknetv3'
 _DEFAULT_TRACKNET_SUBPATH = Path('ckpts') / 'TrackNet_best.pt'
@@ -114,7 +116,7 @@ def whole_video_csv_to_shuttle(
         raise ValueError(f'frame_count must be a positive integer, got {frame_count!r}')
     for name, value in (('width', width), ('height', height)):
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f'{name} must be a finite positive number, got {value!r}')
+            raise TypeError(f'{name} must be a finite positive number, got {value!r}')
         if not math.isfinite(float(value)) or float(value) <= 0:
             raise ValueError(f'{name} must be a finite positive number, got {value!r}')
 
@@ -216,7 +218,7 @@ def extract_all_shuttles(
         raise FileNotFoundError(f'TrackNet weights not found: {resolved_model}')
 
     if not isinstance(enable_inpainting, bool):
-        raise ValueError('enable_inpainting must be boolean')
+        raise TypeError('enable_inpainting must be boolean')
     if not enable_inpainting:
         resolved_inpaint = None
     else:

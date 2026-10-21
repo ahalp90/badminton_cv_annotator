@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from annotator.vlm_scene_benchmark.backends import backend_spec
@@ -27,7 +27,6 @@ from annotator.vlm_scene_benchmark.contracts import (
 )
 from annotator.vlm_scene_benchmark.gate_cli import RecordTarget, gate_failures, main
 from annotator.vlm_scene_benchmark.runtime import sha256_bytes
-
 
 SHA256 = "a" * 64
 

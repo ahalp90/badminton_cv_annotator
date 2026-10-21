@@ -193,7 +193,7 @@ def compute_median_class_ranks() -> dict:
     EXP = REPO / 'experiments/bst_x/shuttleset'
     per_run_per_class = {}
     for run_id in PHASE_2_NOSIDES_RUNS:
-        m = yaml.safe_load(open(EXP / run_id / 'manifest.yaml'))
+        m = yaml.safe_load((EXP / run_id / 'manifest.yaml').read_text())
         # Mean across 5 serials per class
         per_class = {}
         for cls in ACTIVE_CLASSES_14:

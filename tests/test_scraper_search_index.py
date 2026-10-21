@@ -39,7 +39,8 @@ def _search_run(term_to_lines: dict[str, list[str]]):
     Rows arrive with every field filled, so enrich_row never fires; a stray
     --dump-json call still gets a benign empty-meta reply.
     """
-    def fake_run(cmd, capture_output=False, text=False, timeout=None):
+    def fake_run(cmd, capture_output=False, text=False, timeout=None, check=True):
+        assert check is False
         if '--dump-json' in cmd:
             return SimpleNamespace(returncode=0, stdout='{}', stderr='')
         term = cmd[1].split(':', 1)[1]  # cmd[1] is 'ytsearchN:<term>'

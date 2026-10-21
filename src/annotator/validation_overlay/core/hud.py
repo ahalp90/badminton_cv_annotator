@@ -15,7 +15,7 @@ BLACK = (0, 0, 0)
 
 
 def _scaled(value: float, scale: float) -> int:
-    return max(1, int(round(value * scale)))
+    return max(1, round(value * scale))
 
 
 def _font_scale_for_cap_height(cap_height: int, thickness: int) -> float:

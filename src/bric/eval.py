@@ -2,18 +2,27 @@
 
 import argparse
 import json
-import torch
-import yaml
 from datetime import datetime
 from pathlib import Path
 
-from torcheval.metrics.functional import multiclass_f1_score, multiclass_accuracy, multiclass_confusion_matrix
+import torch
+import yaml
 from torch.utils.data import DataLoader
+from torcheval.metrics.functional import (
+    multiclass_accuracy,
+    multiclass_confusion_matrix,
+    multiclass_f1_score,
+)
 from tqdm import tqdm
 
 from bric.dataset import ShuttleSetDataset, collate_strokes
 from bric.network import BRICNetwork
-from bric.train import _forward_for_variant, _move_batch, _resolve_taxonomy, _select_device
+from bric.train import (
+    _forward_for_variant,
+    _move_batch,
+    _resolve_taxonomy,
+    _select_device,
+)
 from classifier_shared.eval_plots import plot_confusion_matrix
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

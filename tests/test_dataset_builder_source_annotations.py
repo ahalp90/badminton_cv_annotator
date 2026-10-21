@@ -15,7 +15,6 @@ from dataset_builder.source_annotations import (
     set_number,
 )
 
-
 _COLUMNS = [
     "rally", "ball_round", "time", "frame_num", "roundscore_A", "roundscore_B",
     "player", "type", "flaw",

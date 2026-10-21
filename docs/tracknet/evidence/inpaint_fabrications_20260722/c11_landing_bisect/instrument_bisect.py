@@ -20,13 +20,18 @@ from pathlib import Path
 import numpy as np
 
 import annotator.outcomes.point_winner as pw
-from annotator.outcomes.point_winner import LandingKinematics
-from annotator.rally_segmentation import (
-    ANKLE_L, ANKLE_R, WRIST_L, WRIST_R,
-    compute_speed, court_scale_boxes, rolling_nanmedian,
-)
 from annotator.evaluation.fixtures import PILOT
 from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.outcomes.point_winner import LandingKinematics
+from annotator.rally_segmentation import (
+    ANKLE_L,
+    ANKLE_R,
+    WRIST_L,
+    WRIST_R,
+    compute_speed,
+    court_scale_boxes,
+    rolling_nanmedian,
+)
 from annotator.run_video import run_video
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
@@ -45,7 +50,7 @@ def build_landing_kinematics_pool(
     carry_ratio = np.full(n_frames, np.nan)
     ankle_ratio = np.full(n_frames, np.nan)  # nearer-ANKLE / box-height; mirrors carry_ratio exactly
     for frame in np.flatnonzero(track[:, 2] == 1):
-        x1, y1, x2, y2, cand_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
+        x1, y1, _x2, y2, cand_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
         if len(x1) == 0:
             continue
         frame_scores = scores[frame]

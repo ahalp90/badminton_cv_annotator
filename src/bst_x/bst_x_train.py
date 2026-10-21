@@ -9,62 +9,64 @@
 #   PYTHONPATH=src:src/bst_x \
 #       python -m bst_x_train
 
-import numpy as np
-import torch
-from torch import Tensor, nn, optim
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter  # TensorBoard logging
-from torcheval.metrics.functional import multiclass_f1_score
-from beartype import beartype
-from jaxtyping import Bool, Float32, Int64, jaxtyped
-
-from transformers import get_cosine_schedule_with_warmup  # from HuggingFace, not a custom module
-from frozendict import frozendict
-
-from pathlib import Path
-from copy import deepcopy
-from dataclasses import dataclass
-from typing import NamedTuple
-from contextlib import redirect_stdout
 import argparse
 import math
-import time
-from datetime import datetime, timedelta
 import sys
+import time
+from contextlib import redirect_stdout
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import NamedTuple
 
-from preparing_data.shuttleset_dataset import prepare_npy_collated_loaders, \
-                                              pad_class_labels
-from preparing_data.augmentations import CoupledFlip, ConstrainedJitter
-from result_utils import show_f1_results, plot_confusion_matrix
-from pipeline.config import (
-    CLIP_WINDOW,
-    COCO_N_JOINTS,
-    derive_npy_collated_dir_basename,
-)
-from classifier_shared.taxonomy import Taxonomy, taxonomy_lookup
-from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
-from run_tracker import track_run, track_serial
+import numpy as np
+import torch
+from beartype import beartype
 from bst_x_common import (
     Tee,
-    write_prediction_npz,
     build_bst_x_network,
     compute_data_provenance,
     dump_topk_predictions,
     flatten_pose_features,
     to_device,
+    write_prediction_npz,
 )
+from bst_x_reporting import (
+    _log_epoch_tb,
+    _print_taxonomy_block,
+    _write_hparams_summary,
+    print_head_tail,
+)
+from frozendict import frozendict
+from jaxtyping import Bool, Float32, Int64, jaxtyped
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
     accumulate_class_counts,
     per_class_f1_from_counts,
 )
-from bst_x_reporting import (
-    _log_epoch_tb,
-    _write_hparams_summary,
-    _print_taxonomy_block,
-    print_head_tail,
+from pipeline.config import (
+    CLIP_WINDOW,
+    COCO_N_JOINTS,
+    derive_npy_collated_dir_basename,
+)
+from pipeline.data_access import load_repo_dotenv, resolve_collated_data_root
+from preparing_data.augmentations import ConstrainedJitter, CoupledFlip
+from preparing_data.shuttleset_dataset import (
+    pad_class_labels,
+    prepare_npy_collated_loaders,
+)
+from result_utils import plot_confusion_matrix, show_f1_results
+from run_tracker import track_run, track_serial
+from torch import Tensor, nn, optim
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter  # TensorBoard logging
+from torcheval.metrics.functional import multiclass_f1_score
+from transformers import (
+    get_cosine_schedule_with_warmup,  # from HuggingFace, not a custom module
 )
 
+from classifier_shared.taxonomy import Taxonomy, taxonomy_lookup
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CLIPS_CSV = REPO_ROOT / 'notebooks' / 'clips_master.csv'
@@ -960,7 +962,7 @@ class Task:
             'macro_f1':     float(macro_f1.item()),
             'min_f1':       float(min_f1.item()),
             'accuracy':     float(acc),
-            'num_strokes':  int(len(pred)),
+            'num_strokes':  len(pred),
             'per_class_f1': per_class_f1,
         }
 

@@ -2,9 +2,10 @@
 import json
 import os
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-import matplotlib.pyplot as plt
 
 DATA_PATH = '/tmp/nosides_tb_extract.json'
 EXP_DIR = 'experiments/bst_x/shuttleset'
@@ -141,7 +142,7 @@ def value_at_epoch(serial: dict, key: str, epoch: int) -> float:
 def load_test_means(run_id: str) -> dict:
     """Pull mean test metrics from manifest."""
     mp = os.path.join(EXP_DIR, run_id, 'manifest.yaml')
-    m = yaml.safe_load(open(mp))
+    m = yaml.safe_load(Path(mp).read_text())
     serials = m['serials']
     return {
         'test_macro': sum(s['metrics']['macro_f1'] for s in serials) / len(serials),

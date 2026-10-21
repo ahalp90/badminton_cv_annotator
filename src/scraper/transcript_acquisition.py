@@ -26,11 +26,11 @@ from pathlib import Path
 from .config import (
     MAX_SLEEP_INTERVAL_S,
     SLEEP_INTERVAL_S,
-    TRANSCRIPT_BLOCK_MIN_ATTEMPTS,
-    TRANSCRIPT_FAIL_FRACTION_BLOCK,
     SUB_FORMAT,
     SUB_LANGS,
     SUBTITLE_TIMEOUT_S,
+    TRANSCRIPT_BLOCK_MIN_ATTEMPTS,
+    TRANSCRIPT_FAIL_FRACTION_BLOCK,
     TRANSCRIPTS_DIR,
     WHISPERX_COARSE_MODEL,
     YTDLP_BIN,
@@ -76,7 +76,7 @@ def pull_subtitles(video_id: str, url: str, work_dir: str) -> Path | None:
     ]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S
+            cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S, check=False
         )
     except subprocess.TimeoutExpired:
         print(f'  TIMEOUT subs {video_id}')
@@ -178,7 +178,7 @@ def _download_audio(video_id: str, url: str, work_dir: str) -> Path | None:
     time.sleep(random.uniform(SLEEP_INTERVAL_S, MAX_SLEEP_INTERVAL_S))
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S
+            cmd, capture_output=True, text=True, timeout=SUBTITLE_TIMEOUT_S, check=False
         )
     except subprocess.TimeoutExpired:
         print(f'  TIMEOUT audio {video_id}')

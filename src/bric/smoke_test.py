@@ -149,7 +149,7 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 banner('5. R(2+1)D-18 forward pass')
 try:
-    from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights
+    from torchvision.models.video import R2Plus1D_18_Weights, r2plus1d_18
     info('torchvision.models.video imported')
 except ImportError as e:
     fail('torchvision not installed. Run: uv sync --extra bric', e)

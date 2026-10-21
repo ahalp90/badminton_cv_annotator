@@ -4,37 +4,38 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
 import gzip
 import hashlib
-from io import StringIO
 import json
 import math
-from pathlib import Path
 import subprocess
+from dataclasses import dataclass
+from io import StringIO
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from annotator.outcomes import point_winner
 from annotator import rally_segmentation
-from annotator.evaluation.fixtures import FIXTURES
-from annotator.evaluation.fixtures import REPO_ROOT
-from annotator.evaluation.fixtures import SHARED_FILES
-from annotator.evaluation.fixtures import Fixture
-from annotator.evaluation.fixtures import verify_file
-from annotator.evaluation.scoring import RallyBoundary
-from annotator.evaluation.scoring import classify_all
-from annotator.evaluation.scoring import load_gt_rallies
 from annotator.config import BaseAnnotatorConfig
-from annotator.courts.evidence import DETECTOR_RESOLUTION
-from annotator.courts.evidence import build_net_band
-from annotator.courts.evidence import detected_court_info
+from annotator.courts.evidence import (
+    DETECTOR_RESOLUTION,
+    build_net_band,
+    detected_court_info,
+)
+from annotator.evaluation.fixtures import (
+    FIXTURES,
+    REPO_ROOT,
+    SHARED_FILES,
+    Fixture,
+    verify_file,
+)
+from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
+from annotator.outcomes import point_winner
 from annotator.resolve import resolve
 from annotator.types import WRIST_L, WRIST_R, StickyResult
 from shared.court import HOMOGRAPHY_RESOLUTION
-
 
 REFERENCE_TAG = "shuttleset-annotator-heuristic-reference-v1"
 REFERENCE_RUN = "measurement/current_annotator_8config_288p"
@@ -460,9 +461,11 @@ def nullable_float(value: float) -> float | None:
 
 def write_gzip_text(path: Path, content: str) -> None:
     """Write deterministic UTF-8 gzip content."""
-    with path.open("wb") as raw:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
-            compressed.write(content.encode("utf-8"))
+    with (
+        path.open("wb") as raw,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed,
+    ):
+        compressed.write(content.encode("utf-8"))
 
 
 def write_contact_rows(path: Path, rows: list[dict[str, Any]]) -> None:

@@ -25,6 +25,7 @@ Run as `python -m annotator.masks.composition --video-id ... --video <288p>
 --keep-vote <court_view.npy>` with PYTHONPATH=src, in the detect venv.
 """
 import argparse
+import itertools
 import logging
 from pathlib import Path
 from typing import NamedTuple
@@ -119,7 +120,7 @@ def build_composition_mask(
     boundaries = np.unique(np.concatenate([[0], cut_frames.astype(int), [n_frames]]))
     mask = np.zeros(n_frames, dtype=bool)
     segments: list[CompositionSegment] = []
-    for start, end in zip(boundaries[:-1], boundaries[1:]):
+    for start, end in itertools.pairwise(boundaries):
         start, end = int(start), int(end)
         keep_fraction = float(keep_vote[start:end].mean())
         is_dead = keep_fraction < vote

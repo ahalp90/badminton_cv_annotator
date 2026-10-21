@@ -31,7 +31,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Mapping
-from dataclasses import is_dataclass, asdict
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -212,7 +212,7 @@ def _write_manifest(run_dir: Path, manifest: dict) -> None:
     os.replace(tmp, target)
 
 
-def _track_metrics(aim_run: 'aim.Run', metrics: dict) -> None:
+def _track_metrics(aim_run: aim.Run, metrics: dict) -> None:
     """Track a flat-or-one-level-nested metrics dict into an Aim run.
 
     Numeric leaves become single-point series. A nested dict expands to one
@@ -273,7 +273,7 @@ def _set_run_created_at(repo: Any, run_hash: str, when: datetime) -> None:
         if run_model:
             run_model.created_at = when
             session.commit()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - experiment tracking is best-effort
         print(f'[run_tracker] set created_at failed (ignored): {e}', file=sys.stderr)
 
 
@@ -350,6 +350,6 @@ def mirror_to_aim(
         if when:
             _set_run_created_at(run_repo, run_hash, when)
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - experiment tracking is best-effort
         print(f'[run_tracker] aim mirror failed (ignored): {e}', file=sys.stderr)
         return False

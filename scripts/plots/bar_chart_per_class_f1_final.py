@@ -8,8 +8,8 @@ on the cleaned keypoint extraction in this taxonomy.
 """
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -106,9 +106,9 @@ def main():
         xytext=(ws_idx + 2.2, ws_best + 0.18),
         ha="left", va="bottom",
         fontsize=10, fontweight="bold", color=COLOUR_CALLOUT,
-        arrowprops=dict(arrowstyle="->", color=COLOUR_CALLOUT, linewidth=1.4),
-        bbox=dict(boxstyle="round,pad=0.4", facecolor="white",
-                  edgecolor=COLOUR_CALLOUT, alpha=0.95),
+        arrowprops={"arrowstyle": "->", "color": COLOUR_CALLOUT, "linewidth": 1.4},
+        bbox={"boxstyle": "round,pad=0.4", "facecolor": "white",
+                  "edgecolor": COLOUR_CALLOUT, "alpha": 0.95},
     )
 
     ax.set_xticks(x)

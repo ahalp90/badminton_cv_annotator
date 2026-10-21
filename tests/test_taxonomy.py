@@ -30,6 +30,11 @@ import numpy as np
 import pytest
 import torch
 import yaml
+from bst_x_common import build_bst_x_network
+from pipeline.config import (
+    collation_id_from_manifest,
+    derive_npy_collated_dir_basename,
+)
 from torch import nn
 
 from classifier_shared.taxonomy import (
@@ -39,22 +44,16 @@ from classifier_shared.taxonomy import (
     TAXONOMY_BST_12,
     TAXONOMY_BST_24,
     TAXONOMY_BST_25,
-    TAXONOMY_SHUTTLESET_18,
     TAXONOMY_RAW_35,
+    TAXONOMY_SHUTTLESET_18,
     TAXONOMY_UNE_MERGE_V1_NOSIDES,
     TAXONOMY_UNE_V1_14,
     TAXONOMY_UNE_V1_15,
     Taxonomy,
-    _sided_classes,  # noqa: F401  # private helper, tested below
+    _sided_classes,  # private helper, tested below
     derive_class_index,
     taxonomy_lookup,
 )
-from pipeline.config import (
-    collation_id_from_manifest,
-    derive_npy_collated_dir_basename,
-)
-from bst_x_common import build_bst_x_network
-
 
 REAL_TAXONOMY_OBJECTS = [
     TAXONOMY_BST_25, TAXONOMY_BST_24, TAXONOMY_BST_12,
@@ -456,18 +455,18 @@ def test_class_weights_uniform_when_empty():
 
 @pytest.mark.parametrize('kwargs,expected', [
     (
-        dict(seq_len=100,
-             split_column='split_v2', collation_id='taxon_pinned_w_preds'),
+        {'seq_len': 100,
+             'split_column': 'split_v2', 'collation_id': 'taxon_pinned_w_preds'},
         'npy_v2_taxon_pinned_w_preds',
     ),
     (
-        dict(seq_len=100,
-             split_column='split_bst_baseline', collation_id='taxon_pinned_w_preds'),
+        {'seq_len': 100,
+             'split_column': 'split_bst_baseline', 'collation_id': 'taxon_pinned_w_preds'},
         'npy_bst_baseline_taxon_pinned_w_preds',
     ),
     (
-        dict(seq_len=30,
-             split_column='split_v2', collation_id='wipe_drop'),
+        {'seq_len': 30,
+             'split_column': 'split_v2', 'collation_id': 'wipe_drop'},
         'npy_seq30_v2_wipe_drop',
     ),
 ])
@@ -479,7 +478,7 @@ def test_derive_npy_collated_dir_basename_folds_split(kwargs, expected):
 def test_bst_24_split_variants_get_distinct_basenames():
     """The collision this fold fixes: the same taxonomy + collation_id on the
     two splits must not resolve to the same dir."""
-    common = dict(seq_len=100, collation_id='taxon_pinned_w_preds')
+    common = {'seq_len': 100, 'collation_id': 'taxon_pinned_w_preds'}
     v2 = derive_npy_collated_dir_basename(split_column='split_v2', **common)
     baseline = derive_npy_collated_dir_basename(split_column='split_bst_baseline', **common)
     assert v2 != baseline

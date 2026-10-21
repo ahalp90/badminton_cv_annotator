@@ -21,7 +21,7 @@ import tempfile
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
@@ -269,7 +269,7 @@ class VideoMetadata(NamedTuple):
 
 def utc_now() -> str:
     """Return an RFC 3339 UTC timestamp."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _md5_bytes(data: bytes) -> str:
@@ -305,9 +305,9 @@ def _json_ready(value: object, *, top_level: bool = False) -> object:
             else:
                 items.sort(key=lambda pair: pair[0])
         return dict(items)
-    if isinstance(value, frozenset) or isinstance(value, set):
+    if isinstance(value, (frozenset, set)):
         return [_json_ready(item) for item in sorted(value)]
-    if isinstance(value, tuple) or isinstance(value, list):
+    if isinstance(value, (tuple, list)):
         return [_json_ready(item) for item in value]
     if isinstance(value, (str, int, float, bool)) or value is None:
         if isinstance(value, float) and not math.isfinite(value):
@@ -388,7 +388,7 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
         except json.JSONDecodeError as error:
             raise ValueError("input manifest is not valid JSON") from error
     if not isinstance(payload, dict):
-        raise ValueError("input manifest must be a JSON object")
+        raise TypeError("input manifest must be a JSON object")
     expected = {"schema_version", "videos", "track_overrides", "inpaint_codes", "deeplsd_weights", "producers"}
     if set(payload) != expected:
         missing = sorted(expected.difference(payload))
@@ -519,9 +519,9 @@ def probe_video(video_path: Path) -> VideoMetadata:
         if not capture.isOpened():
             raise ValueError(f"could not open video {video_path}")
         fps = float(capture.get(cv2.CAP_PROP_FPS))
-        n_frames = int(round(float(capture.get(cv2.CAP_PROP_FRAME_COUNT))))
-        width = int(round(float(capture.get(cv2.CAP_PROP_FRAME_WIDTH))))
-        height = int(round(float(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+        n_frames = round(float(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
+        width = round(float(capture.get(cv2.CAP_PROP_FRAME_WIDTH)))
+        height = round(float(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     finally:
         capture.release()
     return VideoMetadata(fps, n_frames, width, height)
@@ -993,7 +993,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         state.status = "failed"
         _write_terminal_configuration_manifest(state, driver, _artifact_record(driver.output_root, failure_path))
         return
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "court_evidence", error)
         state.failure_path = failure_path
@@ -1041,7 +1041,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", capture.definitive_exclusion_mask)
         _write_annotations(state.directory, result)
         _write_landing_horizons(state.directory, capture.landing_horizon_rows)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "inference", error)
         state.failure_path = failure_path
@@ -1131,9 +1131,7 @@ def _run_manifest(
     dead_mask_mode = next(iter(resolved_dead_mask_modes))
     successful_inference = sum(state.status in {"inference_only", "succeeded"} for state in states)
     succeeded = sum(state.status == "succeeded" for state in states)
-    if setup_failure is not None:
-        status = "failed"
-    elif successful_inference == 0:
+    if setup_failure is not None or successful_inference == 0:
         status = "failed"
     elif succeeded != len(states):
         status = "partial_failure"
@@ -1274,7 +1272,7 @@ def _setup(driver: RunDriver) -> None:
         try:
             cases[fixed.case_id] = _load_case(fixed, manifest, fixture)
             _write_raw_cuts(cases[fixed.case_id], driver.output_root)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
             case = CaseData(
                 fixed,
                 fixture,
@@ -1316,7 +1314,7 @@ def _score_configurations(driver: RunDriver) -> None:
         raise ValueError("scoring state is incomplete")
     try:
         verify_eligible_gt_files()
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         path = driver.output_root / "scoring_failure.json.gz"
         _write_failure(path, "scoring", None, None, "gt_verification", error)
         driver.scoring_failure_path = path
@@ -1347,7 +1345,7 @@ def _score_configurations(driver: RunDriver) -> None:
             )
             state.status = "succeeded"
             _write_terminal_configuration_manifest(state, driver)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
             path = state.directory / "failure.json.gz"
             _write_failure(path, "configuration", state.fixed.case_id, state.parent, "scoring", error)
             state.failure_path = path
@@ -1395,7 +1393,7 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
     try:
         _write_initial_run_files(driver)
         _setup(driver)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         path = resolved_output / "setup_failure.json.gz"
         _write_failure(path, "setup", None, None, "setup", error)
         driver.setup_failure_path = path
@@ -1410,7 +1408,7 @@ def run_annotator_measurement(manifest_path: Path, output_root: Path, device: st
             exit_code = 3
     try:
         _write_json(resolved_output / "manifest.json.gz", _run_manifest(driver, exit_code, setup_failure))
-    except Exception as error:
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
         print(f"could not write terminal run manifest: {error}", file=sys.stderr)
         return 1
     return exit_code
@@ -1463,7 +1461,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     court_program = CourtProgram(args.court_python, args.deeplsd_source, args.template_device, args.reuse_courts)
     try:
         return _run_cli_measurement(args.manifest, args.device, command, court_program, args.annotator_models)
-    except (OSError, ValueError) as error:
+    except (OSError, TypeError, ValueError) as error:
         build_parser().error(str(error))
 
 

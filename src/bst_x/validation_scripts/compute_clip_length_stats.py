@@ -16,9 +16,9 @@ sys.path.insert(0, str(BST_X_ROOT))
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from pipeline.config import REMOVED_SHOTS, SPLITS  # noqa: E402
 
 from classifier_shared.dataset import CLIP_WINDOW, compute_clip_bounds  # noqa: E402
-from pipeline.config import REMOVED_SHOTS, SPLITS  # noqa: E402
 
 
 def estimate_fps(set_info_dir: Path, video_name: str, n_sets: int) -> int:

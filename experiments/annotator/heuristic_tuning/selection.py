@@ -134,13 +134,9 @@ def contact_meets_floors(
     """
     precision = row["precision_raw_5"]
     recall = row["recall_5"]
-    if minimum_precision is not None and (
-        precision is None or precision < minimum_precision
-    ):
-        return False
-    if minimum_recall is not None and (recall is None or recall < minimum_recall):
-        return False
-    return True
+    precision_fails = minimum_precision is not None and (precision is None or precision < minimum_precision)
+    recall_fails = minimum_recall is not None and (recall is None or recall < minimum_recall)
+    return not (precision_fails or recall_fails)
 
 
 def contact_live_key_raw_f1(row: ScoreRow) -> SortKey:

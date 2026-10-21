@@ -65,6 +65,7 @@ sys.path.insert(0, str(SRC_ROOT))
 sys.path.insert(0, str(SRC_ROOT / 'bst_x'))
 
 from bst_x_infer import Task  # noqa: E402
+
 from classifier_shared.taxonomy import taxonomy_lookup  # noqa: E402
 
 

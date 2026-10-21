@@ -137,7 +137,7 @@ def test_selection_rejects_invalid_inputs_and_status_updates(tmp_path: Path) -> 
         resolve_visual_selection([_candidate("same"), _candidate("same")], max_videos=1)
     with pytest.raises(ValueError, match="non-negative integer"):
         resolve_visual_selection([], max_videos=-1)
-    with pytest.raises(ValueError, match="not one string"):
+    with pytest.raises(TypeError, match="not one string"):
         resolve_visual_selection(
             [_candidate("known")],
             max_videos=1,

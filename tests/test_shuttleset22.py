@@ -1,18 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import gzip
-from fractions import Fraction
 import json
-from pathlib import Path
 import subprocess
+from dataclasses import replace
+from fractions import Fraction
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
-from annotator.video_metadata import VideoMetadata
-from dataset_builder.vision import CourtDetectorSettings, load_npy_xz, pose_artifact_paths, save_npy_xz
 import shuttleset22
+from annotator.video_metadata import VideoMetadata
+from dataset_builder.vision import (
+    CourtDetectorSettings,
+    load_npy_xz,
+    pose_artifact_paths,
+    save_npy_xz,
+)
 
 
 def test_real_source_list_records_downloads_overlaps_and_missing_sources() -> None:

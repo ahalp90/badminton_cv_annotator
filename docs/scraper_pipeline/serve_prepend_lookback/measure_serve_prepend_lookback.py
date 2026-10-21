@@ -21,41 +21,43 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import replace
-from datetime import datetime, timezone
 import gzip
 import hashlib
 import io
 import json
 import lzma
 import math
-from pathlib import Path
 import subprocess
-from typing import Any, NamedTuple, Sequence
+from collections.abc import Sequence
+from dataclasses import replace
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.review.broadcast_labels import VideoMetadata
-from experiments.annotator.heuristic_tuning import serve_prepend_measurement as candidate_measurement
-from annotator.evaluation.fixtures import FIXTURES
-from annotator.evaluation.fixtures import SSET_01
-from annotator.evaluation.fixtures import SSET_15
-from annotator.evaluation.fixtures import SSET_21
-from annotator.evaluation.fixtures import Fixture
-from annotator.evaluation.fixtures import fixtures_root
-from annotator.evaluation.gt_scoring import build_run_video_inputs
-from annotator.evaluation.gt_scoring import canonical_tolerance
-from annotator.evaluation.scoring import RallyBoundary
-from annotator.evaluation.scoring import classify_all
-from annotator.evaluation.scoring import greedy_match
-from annotator.evaluation.scoring import load_gt_rallies
+from annotator.evaluation.fixtures import (
+    FIXTURES,
+    SSET_01,
+    SSET_15,
+    SSET_21,
+    Fixture,
+    fixtures_root,
+)
+from annotator.evaluation.gt_scoring import build_run_video_inputs, canonical_tolerance
+from annotator.evaluation.scoring import (
+    RallyBoundary,
+    classify_all,
+    greedy_match,
+    load_gt_rallies,
+)
 from annotator.fps_constants import scale_for_fps
-from annotator.masks.inpaint import DEGRADED
-from annotator.masks.inpaint import FABRICATED
-from annotator.masks.inpaint import NO_FLAG
-from annotator.masks.inpaint import SUSPECT_FLAT
+from annotator.masks.inpaint import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
+from annotator.review.broadcast_labels import VideoMetadata
 from annotator.run_video import RunCapture, run_video
-
+from experiments.annotator.heuristic_tuning import (
+    serve_prepend_measurement as candidate_measurement,
+)
 
 WINDOW_SECONDS = 1.0
 CLEAN_RUN_BASE30_FRAMES = 5
@@ -333,7 +335,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             if first_accepted_frame is not None else "gt_serve_fallback"
         )
         lookback_start = max(0, lookback_anchor - constants.serve_start_lookback_frames)
-        window_half = int(round(WINDOW_SECONDS * fixture.fps))
+        window_half = round(WINDOW_SECONDS * fixture.fps)
         window_start = max(0, serve_frame - window_half)
         window_end = min(len(track), serve_frame + window_half + 1)
         window = _segment_stats(
@@ -678,17 +680,19 @@ def _write_schema_csv_gz(
                 f"CSV row {index} keys differ: "
                 f"missing={sorted(expected - set(row))}, extra={sorted(set(row) - expected)}"
             )
-    with path.open("wb") as raw_handle:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-            with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=list(fieldnames),
-                    extrasaction="raise",
-                    lineterminator="\n",
-                )
-                writer.writeheader()
-                writer.writerows(rows)
+    with (
+        path.open("wb") as raw_handle,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+        io.TextIOWrapper(compressed, encoding="utf-8", newline="") as handle,
+    ):
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=list(fieldnames),
+            extrasaction="raise",
+            lineterminator="\n",
+        )
+        writer.writeheader()
+        writer.writerows(rows)
     with gzip.open(path, "rt", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != list(fieldnames) or sum(1 for _ in reader) != len(rows):
@@ -697,9 +701,11 @@ def _write_schema_csv_gz(
 
 def _write_json_gz(value: object, path: Path) -> None:
     payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
-    with path.open("wb") as raw_handle:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-            compressed.write(payload)
+    with (
+        path.open("wb") as raw_handle,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+    ):
+        compressed.write(payload)
     with gzip.open(path, "rt", encoding="utf-8") as handle:
         if json.load(handle) != value:
             raise RuntimeError(f"gzip JSON reload changed value for {path}")
@@ -717,7 +723,7 @@ def _write_array_lzma(array: np.ndarray, path: Path) -> None:
 
 
 def _default_output_root() -> Path:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     return Path(__file__).resolve().parent / "data" / f"serve_prepend_lookback_{stamp}"
 
 
@@ -742,8 +748,8 @@ def _build_candidate_report(summary: dict[str, Any]) -> str:
         "",
         f"Generated: {summary['generated_at_utc']}",
         "",
-        f"Fixture profile: `{summary['fixture_profile']['name']}` from source commit "
-        f"`{summary['fixture_profile']['source_commit'] or 'unrecorded'}`.",
+        (f"Fixture profile: `{summary['fixture_profile']['name']}` from source commit "
+        f"`{summary['fixture_profile']['source_commit'] or 'unrecorded'}`."),
         "",
         "This is a recording-only measurement. It does not change production output.",
         "",
@@ -878,7 +884,7 @@ def main() -> None:
 
     summary = {
         "schema_version": 2,
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "measurement_code": {
             "path": str(Path(__file__).resolve()),
             "sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

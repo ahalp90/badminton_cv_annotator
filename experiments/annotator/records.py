@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Sequence
+from collections.abc import Sequence
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from annotator.artifact_io import (
     encode_json_object,
@@ -21,7 +22,6 @@ from annotator.artifact_io import (
     resolve_artifact_path,
     write_json_object,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIRECTORY = REPO_ROOT / "experiments" / "annotator" / "runs"
@@ -38,10 +38,10 @@ SCRATCH_STAGING_PATTERN = re.compile(
 
 def utc_run_directory(now: datetime | None = None) -> Path:
     """Return a new UTC-named directory below the annotator runs directory."""
-    current = now or datetime.now(timezone.utc)
+    current = now or datetime.now(UTC)
     if current.tzinfo is None:
         raise ValueError("run timestamp must include a timezone")
-    return RUNS_DIRECTORY / current.astimezone(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return RUNS_DIRECTORY / current.astimezone(UTC).strftime("%Y%m%d-%H%M%S")
 
 
 def count_compressed_npy(run_root: Path) -> dict[str, int]:
@@ -83,7 +83,7 @@ def build_summary(run_root: Path) -> dict[str, Any]:
     configurations: list[dict[str, Any]] = []
     for record in root_manifest.get("configurations", []):
         if not isinstance(record, dict) or not isinstance(record.get("manifest"), dict):
-            raise ValueError("successful run manifest has an invalid configuration record")
+            raise TypeError("successful run manifest has an invalid configuration record")
         manifest_path = _regular_run_file(run_root, str(record["manifest"]["path"]))
         leaf = _read_json(manifest_path)
         metrics_relative = (manifest_path.parent / "metrics.json.gz").relative_to(run_root).as_posix()
@@ -122,7 +122,7 @@ def _metric(metrics: dict[str, Any], group: str, key: str) -> Any:
     return value.get(key, "-") if isinstance(value, dict) else "-"
 
 
-def _number(value: float | int | str | None) -> str:
+def _number(value: float | str | None) -> str:
     return "-" if value is None or value == "-" else f"{float(value):.3f}"
 
 
@@ -147,15 +147,15 @@ def format_report(summary: dict[str, Any]) -> str:
         f"# Annotator run {summary['run_id']}",
         "",
         f"Outcome: {summary['status']}; elapsed: {float(summary['elapsed_seconds']):.1f} seconds.",
-        f"Device: requested {summary['device']['requested']}, resolved {summary['device']['resolved']}.  "
-        f"Source commit: {summary['source_commit']}.",
+        (f"Device: requested {summary['device']['requested']}, resolved {summary['device']['resolved']}.  "
+        f"Source commit: {summary['source_commit']}."),
         "",
         *rows,
         "",
-        "Live court_detector detection is the operational default. Static homography is the controlled "
-        "reference and manual fixed-camera fallback.",
-        f"Compressed masks and arrays: {compressed['file_count']} NPY.XZ files "
-        f"({human_bytes(compressed['total_bytes'])}). Git will preserve them with the run.",
+        ("Live court_detector detection is the operational default. Static homography is the controlled "
+        "reference and manual fixed-camera fallback."),
+        (f"Compressed masks and arrays: {compressed['file_count']} NPY.XZ files "
+        f"({human_bytes(compressed['total_bytes'])}). Git will preserve them with the run."),
     ])
 
 
@@ -250,7 +250,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _backup(run_root: Path) -> Path:
     BACKUPS_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    clean_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    clean_id = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     archive = BACKUPS_DIRECTORY / f"{run_root.name}_cleaned_{clean_id}.tar.gz"
     with tarfile.open(archive, "w:gz") as handle:
         for path in _candidate_files(run_root):
@@ -277,9 +277,11 @@ def _build_scan_mirror(run_root: Path, files: list[Path], mirror_root: Path) -> 
             raise ValueError(f"compressed and plain scan candidates collide: {relative}")
         mirrored.parent.mkdir(parents=True, exist_ok=True)
         if compressed_text:
-            with open_text_artifact(source, newline="") as input_handle:
-                with mirrored.open("w", encoding="utf-8", newline="") as output_handle:
-                    shutil.copyfileobj(input_handle, output_handle)
+            with (
+                open_text_artifact(source, newline="") as input_handle,
+                mirrored.open("w", encoding="utf-8", newline="") as output_handle,
+            ):
+                shutil.copyfileobj(input_handle, output_handle)
         else:
             shutil.copyfile(source, mirrored)
         sources_by_mirror[mirrored] = source
@@ -314,14 +316,14 @@ def _scanner_findings(run_root: Path, files: list[Path], tokens: set[str]) -> se
     if leak_data is None:
         leak_data = []
     if not isinstance(leak_data, list):
-        raise RuntimeError("betterleaks returned an unreadable result")
+        raise TypeError("betterleaks returned an unreadable result")
     if (leaks.returncode == 0) != (not leak_data):
         raise RuntimeError("betterleaks exit code and report disagree")
     candidate_set = set(files)
     findings: set[Path] = set()
     for item in leak_data:
         if not isinstance(item, dict) or not isinstance(item.get("File"), str):
-            raise RuntimeError("betterleaks returned an unreadable finding")
+            raise TypeError("betterleaks returned an unreadable finding")
         candidate = (run_root / item["File"]).resolve()
         if candidate not in candidate_set:
             raise RuntimeError("betterleaks returned a path outside the scan candidates")

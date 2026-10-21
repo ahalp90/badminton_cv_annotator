@@ -214,7 +214,7 @@ def _validate_presence(
     midpoint = n_frames // 2
     halves = ((0, midpoint), (midpoint, n_frames))
     for kind, groups in (("varying", varying), ("flat", flat)):
-        for key, starts in groups.items():
+        for starts in groups.values():
             present = []
             for half_start, half_end in halves:
                 present.append(any(
@@ -278,7 +278,7 @@ def build_mask(
             _empty_info(window, halo_frames, reason),
         )
 
-    starts_by_pattern, _episodes, varying, flat, info = candidate_attractors(
+    _starts_by_pattern, _episodes, varying, flat, info = candidate_attractors(
         track,
         window,
         halo_frames,

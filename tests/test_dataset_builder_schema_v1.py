@@ -28,7 +28,6 @@ from dataset_builder.schema_v1 import (
     write_table,
 )
 
-
 _EXPECTED_COLUMN_NAMES: dict[str, tuple[str, ...]] = {
     "rallies": (
         "run_id", "source_dataset", "video_id", "rally_origin", "rally_id",

@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections import namedtuple
 
 import numpy as np
-
 from pipeline.config import COCO_N_JOINTS
 from preparing_data.raw_extract import extract_raw_frame
 

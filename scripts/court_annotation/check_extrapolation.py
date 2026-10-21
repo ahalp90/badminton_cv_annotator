@@ -36,7 +36,7 @@ from court_annotation import court_landmarks as court  # noqa: E402
 
 def frame_errors(
     corner_rows: pd.DataFrame, landmark_rows: pd.DataFrame
-) -> tuple[dict[str, float], list[str], "court.FitCheck"]:
+) -> tuple[dict[str, float], list[str], court.FitCheck]:
     """Fit from one frame's landmarks and compare against its clicked corners.
 
     Clicked corners whose own crossing sits in the landmark set (the annotation
@@ -58,7 +58,7 @@ def frame_errors(
     # The corners CSV stores both px and normalised coords, so the frame width
     # the gate needs falls out of their ratio.
     first = corner_rows.iloc[0]
-    frame_width = int(round(float(first["x_px"]) / float(first["x_norm"]))) if float(first["x_norm"]) else 1920
+    frame_width = round(float(first["x_px"]) / float(first["x_norm"])) if float(first["x_norm"]) else 1920
     verdict = court.check_fit(residuals, frame_width)
 
     landmark_names = set(landmark_rows["landmark"].astype(str))

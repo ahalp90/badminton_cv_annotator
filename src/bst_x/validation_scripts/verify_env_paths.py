@@ -20,7 +20,6 @@ from pathlib import Path
 
 from pipeline.data_access import load_repo_dotenv
 
-
 EXPECTED_CLIP_COUNT = 32203
 
 

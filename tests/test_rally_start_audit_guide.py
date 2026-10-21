@@ -157,9 +157,9 @@ def test_review_decisions_reject_malformed_row_width(
     malformed_path = tmp_path / f"malformed-{width_change}.csv.gz"
     with gzip.open(malformed_path, "wt", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\n")
-        writer.writerow(guide.DECISION_COLUMNS)
+        writer.writerow(events.DECISION_COLUMNS)
         for row_number, row in enumerate(decisions):
-            values = [row[column] for column in guide.DECISION_COLUMNS]
+            values = [row[column] for column in events.DECISION_COLUMNS]
             if row_number == 0:
                 values = values[:-1] if width_change < 0 else [*values, "unexpected"]
             writer.writerow(values)

@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from experiments.annotator.heuristic_tuning import sweep
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.gt_scoring import RunVideoInputs
-from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
 from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
 from annotator.resolve import resolve
 from annotator.types import ContactCandidate, SpanOpen
+from experiments.annotator.heuristic_tuning import sweep
+from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
 
 
 def _row(spec: sweep.CandidateSpec, *, covered: int = 100) -> dict[str, object]:
@@ -309,21 +309,21 @@ def _valid_winner() -> dict[str, object]:
             "boundary": {"overrides_base30": {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}, "strategies": {}}}
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda doc: doc.update({"extra": 1}),
-    lambda doc: doc["meta"].update({"extra": 1}),
-    lambda doc: doc["meta"].pop("fixture"),
-    lambda doc: doc["boundary"].update({"overrides_base30": 1}),
-    lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": True}),
-    lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": float("inf")}),
-    lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": 123}),
+@pytest.mark.parametrize(("mutate", "error"), [
+    (lambda doc: doc.update({"extra": 1}), ValueError),
+    (lambda doc: doc["meta"].update({"extra": 1}), ValueError),
+    (lambda doc: doc["meta"].pop("fixture"), ValueError),
+    (lambda doc: doc["boundary"].update({"overrides_base30": 1}), TypeError),
+    (lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": True}), ValueError),
+    (lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": float("inf")}), ValueError),
+    (lambda doc: doc["boundary"]["overrides_base30"].update({"rest_speed": 123}), ValueError),
 ])
-def test_loader_rejects_malformed_winner_documents(tmp_path, mutate) -> None:
+def test_loader_rejects_malformed_winner_documents(tmp_path, mutate, error) -> None:
     document = _valid_winner()
     mutate(document)
     path = tmp_path / "config_winner.json"
     path.write_text(json.dumps(document), encoding="utf-8")
-    with pytest.raises(ValueError):
+    with pytest.raises(error):
         sweep.load_boundary_winner(path, "sset_01")
     with pytest.raises(argparse.ArgumentTypeError):
         sweep._fixture("no-such-fixture")

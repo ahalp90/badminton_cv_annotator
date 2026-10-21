@@ -114,8 +114,9 @@ class _FFV1Pipeline:
 
     def start(self) -> None:
         """Start both FFmpeg processes and connect their binary pipe."""
-        self.producer_stderr = tempfile.TemporaryFile(mode="w+b")
-        self.decoder_stderr = tempfile.TemporaryFile(mode="w+b")
+        # close() owns and closes both files once the processes are reaped.
+        self.producer_stderr = tempfile.TemporaryFile(mode="w+b")  # noqa: SIM115
+        self.decoder_stderr = tempfile.TemporaryFile(mode="w+b")  # noqa: SIM115
         try:
             self.producer = subprocess.Popen(
                 self.producer_command,

@@ -11,18 +11,17 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch import Tensor, nn
 from beartype import beartype
 from jaxtyping import Float32, jaxtyped
-
-from classifier_shared.taxonomy import Taxonomy
+from model.bst import BST_CG_AP
 from preparing_data.shuttleset_dataset import (
-    Dataset_npy_collated,
     POSE_BONE_MULTIPLIER,
+    Dataset_npy_collated,
     get_bone_pairs,
 )
-from model.bst import BST_CG_AP
+from torch import Tensor, nn
 
+from classifier_shared.taxonomy import Taxonomy
 
 # BST variant name -> constructor (defined in bst.py).
 # Both bst_x_train and bst_x_infer dispatch through this single mapping.

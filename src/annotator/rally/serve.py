@@ -102,7 +102,7 @@ def serve_setup_still(
         raise ValueError('window_frames must be a positive integer')
     t = len(inputs.count)
     if isinstance(claimed_serve_frame, bool) or not isinstance(claimed_serve_frame, (int, np.integer)):
-        raise ValueError('claimed_serve_frame must be an integer in range [0, t)')
+        raise TypeError('claimed_serve_frame must be an integer in range [0, t)')
     if not 0 <= claimed_serve_frame < t:
         raise ValueError('claimed_serve_frame must be in range [0, t)')
     if not np.isfinite(threshold_bh) or threshold_bh < 0:

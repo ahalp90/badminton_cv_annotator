@@ -163,8 +163,8 @@ def main():
     ax_best.text(0.985, 0.03, FOOTNOTE, transform=ax_best.transAxes,
                  fontsize=8, ha="right", va="bottom",
                  style="italic", color="dimgrey",
-                 bbox=dict(boxstyle="round,pad=0.5", facecolor="white",
-                           edgecolor="lightgrey", alpha=0.95))
+                 bbox={"boxstyle": "round,pad=0.5", "facecolor": "white",
+                           "edgecolor": "lightgrey", "alpha": 0.95})
 
     fig.subplots_adjust(left=0.07, right=0.97, top=0.94, bottom=0.22, hspace=0.12)
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)

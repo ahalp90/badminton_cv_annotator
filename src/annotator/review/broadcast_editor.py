@@ -327,7 +327,7 @@ def video_metadata(capture: cv2.VideoCapture, video_id: str) -> VideoMetadata:
     frame_count_raw = float(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     if not math.isfinite(frame_count_raw) or frame_count_raw <= 0:
         raise ValueError(f"video frame count is invalid: {frame_count_raw!r}")
-    frame_count = int(round(frame_count_raw))
+    frame_count = round(frame_count_raw)
     if not math.isclose(frame_count_raw, frame_count, abs_tol=1e-6):
         raise ValueError(f"video frame count is not integral: {frame_count_raw!r}")
     return VideoMetadata(video_id, fps, frame_count)
@@ -379,7 +379,7 @@ def commit_label(
 
 def _timeline_x(frame: int, width: int, start: int, end: int) -> int:
     fraction = (frame - start) / (end - start)
-    return int(round(np.clip(fraction, 0.0, 1.0) * (width - 1)))
+    return round(np.clip(fraction, 0.0, 1.0) * (width - 1))
 
 
 def draw_timeline(
@@ -644,7 +644,7 @@ def _run_gui(
                 elif key in (ord("h"), ord("H")):
                     _print_help(scene_mode=bool(scenes))
                     message_state["text"] = "controls printed in terminal"
-            except (ValueError, IndexError) as exc:
+            except (TypeError, ValueError, IndexError) as exc:
                 message_state["text"] = f"error: {exc}"
             target = min(max(target, session.covered_start), session.covered_end - 1)
             cv2.setTrackbarPos("frame", WINDOW_NAME, target)

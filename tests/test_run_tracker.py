@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import pytest
 import yaml
-
 from bst_x_train import Hyp
 from run_tracker import track_run
 

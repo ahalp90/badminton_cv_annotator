@@ -35,7 +35,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 DEFAULT_OUT_DIR = (
     Path(__file__).resolve().parent / "zeroed_frames_analysis_outputs"
 )
@@ -188,7 +187,7 @@ def main() -> int:
             continue
         try:
             arr = np.load(p)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one unreadable file must not stop the scan
             print(f"  WARNING: could not load {p.name}: {e}")
             continue
         if arr.ndim != 2 or arr.shape[1] != 3:
@@ -267,9 +266,9 @@ def main() -> int:
         "",
         "## Whole-clip shuttle miss rate",
         "",
-        "Per-clip metric: `(visibility == 0).sum() / len(visibility)`. "
+        ("Per-clip metric: `(visibility == 0).sum() / len(visibility)`. "
         "Per class: median, 1 SD, 2 SD across that class's clips. Sorted "
-        "by median descending.",
+        "by median descending."),
         "",
         "| Class | n_clips | median | mean | sd1 | sd2 | min | max |",
         "|---|---|---|---|---|---|---|---|",
@@ -284,18 +283,18 @@ def main() -> int:
 
     md += [
         "",
-        f"## Share of missing frames in central window "
-        f"[{args.edge_trim}, len - {args.edge_trim})",
+        (f"## Share of missing frames in central window "
+        f"[{args.edge_trim}, len - {args.edge_trim})"),
         "",
-        f"Per-clip metric: `(visibility[{args.edge_trim}:-{args.edge_trim}] "
+        (f"Per-clip metric: `(visibility[{args.edge_trim}:-{args.edge_trim}] "
         f"== 0).sum() / (visibility == 0).sum()`. Per class: median, 1 SD, "
         "2 SD across that class's clips. Excludes clips shorter than "
         f"{2 * args.edge_trim} frames (no central window) and clips with "
         "zero missing frames (ratio undefined). Same class ordering as the "
-        "miss-rate table.",
+        "miss-rate table."),
         "",
-        "| Class | n_clips | median | mean | sd1 | sd2 | min | max | "
-        "excl_short | excl_nomiss |",
+        ("| Class | n_clips | median | mean | sd1 | sd2 | min | max | "
+        "excl_short | excl_nomiss |"),
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cls in by_class:

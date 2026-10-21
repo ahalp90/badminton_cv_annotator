@@ -1040,7 +1040,7 @@ def draw_court_key(
     ox, oy = origin
 
     def to_px(court_x: float, court_y: float) -> tuple[int, int]:
-        return (int(round(ox + court_x * scale)), int(round(oy + court_y * scale)))
+        return (round(ox + court_x * scale), round(oy + court_y * scale))
 
     pad = 12
     right_bottom = to_px(court.COURT_WIDTH_M, court.COURT_LENGTH_M)
@@ -1131,17 +1131,17 @@ def draw_overlay(
     for slot, clicked in enumerate(session.slots):
         if clicked is None:
             continue
-        centre = (int(round(clicked[0])), int(round(clicked[1])))
+        centre = (round(clicked[0]), round(clicked[1]))
         cv2.circle(canvas, centre, 4, CORNER_COLOUR, -1, cv2.LINE_AA)
         cv2.putText(canvas, court.CORNER_NAMES[slot], (centre[0] + 6, centre[1] - 6),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, CORNER_COLOUR, 1, cv2.LINE_AA)
     for index, (_name, x_px, y_px) in enumerate(session.landmarks):
-        centre = (int(round(x_px)), int(round(y_px)))
+        centre = (round(x_px), round(y_px))
         cv2.circle(canvas, centre, 3, LANDMARK_COLOUR, -1, cv2.LINE_AA)
         cv2.putText(canvas, str(index), (centre[0] + 5, centre[1] + 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, LANDMARK_COLOUR, 1, cv2.LINE_AA)
     if session.pending_point is not None:
-        px, py = (int(round(value)) for value in session.pending_point)
+        px, py = (round(value) for value in session.pending_point)
         cv2.drawMarker(canvas, (px, py), CORNER_COLOUR, cv2.MARKER_CROSS, 14, 1, cv2.LINE_AA)
     if factor is None:
         factor = hud_factor(canvas.shape[1])

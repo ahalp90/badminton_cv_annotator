@@ -339,7 +339,7 @@ def _retimed_chunks_by_id(
         return {}
     duration = status.get("local_duration_s")
     if isinstance(duration, bool) or not isinstance(duration, (int, float)):
-        raise ValueError(
+        raise TypeError(
             f"{video_id} has a retimed sidecar but no numeric local_duration_s in its status row"
         )
     rows, _sha256 = load_retimed_chunks_for_video(root, video_id, chunks, float(duration))
@@ -365,7 +365,7 @@ def _load_replay_mask(replay_mask_root: Path, video_id: str, frame_count: int | 
 def _load_status(path: Path) -> dict[str, Mapping[str, object]]:
     payload = _read_json(path)
     if not isinstance(payload, Mapping) or not isinstance(payload.get("records"), list):
-        raise ValueError(f"commentary status must contain a records list: {path}")
+        raise TypeError(f"commentary status must contain a records list: {path}")
     status_by_id: dict[str, Mapping[str, object]] = {}
     for row in payload["records"]:
         if not isinstance(row, Mapping) or "video_id" not in row:
@@ -388,7 +388,7 @@ def _timestamp_precision(status: Mapping[str, object], video_id: str) -> str:
 def _load_transcript(path: Path, video_id: str) -> list[Mapping[str, object]]:
     payload = _read_json(path)
     if not isinstance(payload, Mapping) or not isinstance(payload.get("segments"), list):
-        raise ValueError(f"{video_id} transcript must contain a segments list")
+        raise TypeError(f"{video_id} transcript must contain a segments list")
     return [_timed_row(segment, f"{video_id} transcript segment") for segment in payload["segments"]]
 
 
@@ -399,7 +399,7 @@ def _load_chunks(
         return []
     payload = _read_json(root / CLEANED_CHUNKS_DIRECTORY / f"{video_id}.json")
     if not isinstance(payload, list):
-        raise ValueError(f"{video_id} cleaned chunks must be a list")
+        raise TypeError(f"{video_id} cleaned chunks must be a list")
     chunks = [_timed_row(chunk, f"{video_id} cleaned chunk") for chunk in payload]
     for chunk in chunks:
         if "chunk_id" not in chunk or "text_clean" not in chunk:
@@ -417,7 +417,7 @@ def _optional_float(value: object) -> float | None:
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"bert_f1 must be a number: {value!r}")
+        raise TypeError(f"bert_f1 must be a number: {value!r}")
     return float(value)
 
 
@@ -425,7 +425,7 @@ def _optional_bool(value: object) -> bool | None:
     if value is None:
         return None
     if not isinstance(value, bool):
-        raise ValueError(f"clean_pass must be boolean: {value!r}")
+        raise TypeError(f"clean_pass must be boolean: {value!r}")
     return value
 
 

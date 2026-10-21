@@ -178,7 +178,7 @@ def video_metadata(capture: cv2.VideoCapture, video_id: str) -> VideoMetadata:
     frame_count_raw = float(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     if not math.isfinite(frame_count_raw) or frame_count_raw <= 0:
         raise ValueError(f"video frame count is invalid: {frame_count_raw!r}")
-    frame_count = int(round(frame_count_raw))
+    frame_count = round(frame_count_raw)
     if not math.isclose(frame_count_raw, frame_count, abs_tol=1e-6):
         raise ValueError(f"video frame count is not integral: {frame_count_raw!r}")
     return VideoMetadata(video_id, fps, frame_count)
@@ -271,7 +271,7 @@ def validate_complete_decisions(prepared: PreparedAudit) -> None:
 
 def _timeline_x(frame: int, width: int, start: int, end: int) -> int:
     fraction = (frame - start) / (end - start)
-    return int(round(np.clip(fraction, 0.0, 1.0) * (width - 1)))
+    return round(np.clip(fraction, 0.0, 1.0) * (width - 1))
 
 
 def _draw_marker(
@@ -352,12 +352,12 @@ def status_lines(
     confidence = "-" if draft.confidence is None else draft.confidence.value
     key = target.key
     lines = (
-        f"{session.row_index + 1}/{len(session.targets)} {key.video_id} {key.set_id} R{key.rally} "
-        f"win {target.review_start_frame}-{target.review_end_frame - 1}",
+        (f"{session.row_index + 1}/{len(session.targets)} {key.video_id} {key.set_id} R{key.rally} "
+        f"win {target.review_start_frame}-{target.review_end_frame - 1}"),
         f"frame {frame} GT {target.gt_first_frame} live {target.live_transition_frame} {truth}",
-        f"{visibility} c:{_marker_text(draft.visible_serve_frame)} "
+        (f"{visibility} c:{_marker_text(draft.visible_serve_frame)} "
         f"ret:{_marker_text(draft.broadcast_return_frame)} "
-        f"first:{_marker_text(draft.first_visible_rally_frame)}",
+        f"first:{_marker_text(draft.first_visible_rally_frame)}"),
         f"{confidence} note:{'yes' if draft.review_note.strip() else 'no'} | {message}",
     )
     return (
@@ -572,7 +572,7 @@ class _AuditGui:
                 try:
                     if self.handle(action):
                         break
-                except (EOFError, OSError, RuntimeError, ValueError) as exc:
+                except (EOFError, OSError, RuntimeError, TypeError, ValueError) as exc:
                     self.message = f"error: {exc}"
                     print(self.message)
                 self.redraw()

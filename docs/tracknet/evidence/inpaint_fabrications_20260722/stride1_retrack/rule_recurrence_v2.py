@@ -14,9 +14,14 @@ frames sitting on them, but at reduced confidence, since a real shuttle may
 legitimately pass through such a pixel for a frame or two.
 """
 import numpy as np
-
-from rule_recurrence import (BASE, CLEAN, DEGRADED, INVENTED, NO_DETECTION,
-                             pattern_episodes)
+from rule_recurrence import (
+    BASE,
+    CLEAN,
+    DEGRADED,
+    INVENTED,
+    NO_DETECTION,
+    pattern_episodes,
+)
 
 
 def adaptive_threshold(episodes, floor=2):

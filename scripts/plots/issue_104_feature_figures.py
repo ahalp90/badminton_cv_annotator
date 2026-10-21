@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
 import gzip
 import json
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-
 
 BLUE = "#2878B5"
 ORANGE = "#E1812C"
@@ -31,13 +30,13 @@ FEATURES = (
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise ValueError(f"{name} must be an object")
+        raise TypeError(f"{name} must be an object")
     return value
 
 
 def _sequence(value: object, name: str) -> Sequence[Any]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        raise ValueError(f"{name} must be an array")
+        raise TypeError(f"{name} must be an array")
     return value
 
 

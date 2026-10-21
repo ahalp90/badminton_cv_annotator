@@ -259,7 +259,7 @@ def _worker(
     """Pool worker — wraps process_one_vid with crash isolation."""
     try:
         process_one_vid(vid, master, fps_by_vid, force=force)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - one bad video must not stop the pool
         print(f'vid={vid}: ERROR {type(e).__name__}: {e}', flush=True)
 
 

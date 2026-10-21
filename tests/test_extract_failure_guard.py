@@ -24,12 +24,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
-import preparing_data.raw_extract as raw_extract
 from pipeline.config import COCO_N_JOINTS
+from preparing_data import raw_extract
 from preparing_data.extract_failures import FAILED_CLIPS_LOG
 from preparing_data.heuristics.base import RAW_SUFFIXES
-from preparing_data.prepare_train_on_shuttleset import prepare_dataset_npy_from_raw_video
+from preparing_data.prepare_train_on_shuttleset import (
+    prepare_dataset_npy_from_raw_video,
+)
 
 _J = COCO_N_JOINTS  # 17, the COCO keypoint count the real adapter emits
 

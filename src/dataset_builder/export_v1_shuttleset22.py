@@ -294,7 +294,7 @@ def metadata_from_receipt(
 
 def _mapping(value: object, name: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
-        raise ValueError(f"{name} must be an object")
+        raise TypeError(f"{name} must be an object")
     return value
 
 

@@ -35,8 +35,8 @@ want module-level ``import current`` to stay light for local smoke tests.
 from __future__ import annotations
 
 import numpy as np
-
 from pipeline.config import COCO_N_JOINTS
+
 from .base import (
     DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
@@ -56,7 +56,7 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
     """
     # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
     # load (its rtmlib import is itself lazy).
-    from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
+    from preparing_data.prepare_train_on_shuttleset import (
         check_pos_in_court,
         normalize_joints,
     )

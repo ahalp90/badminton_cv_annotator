@@ -56,7 +56,7 @@ class SelectionDecision:
             if not isinstance(value, str) or not value:
                 raise ValueError(f"selection {name} must be a non-empty string")
         if not isinstance(self.visual_selected, bool):
-            raise ValueError("selection visual_selected must be boolean")
+            raise TypeError("selection visual_selected must be boolean")
         if (
             isinstance(self.source_order, bool)
             or not isinstance(self.source_order, int)
@@ -273,7 +273,7 @@ def _validate_decisions(
 
 def _video_id_set(values: Collection[str], name: str) -> set[str]:
     if isinstance(values, str):
-        raise ValueError(f"{name} must be a collection, not one string")
+        raise TypeError(f"{name} must be a collection, not one string")
     normalized = {_nonempty(value, name) for value in values}
     if len(normalized) != len(values):
         raise ValueError(f"{name} contains duplicate values")

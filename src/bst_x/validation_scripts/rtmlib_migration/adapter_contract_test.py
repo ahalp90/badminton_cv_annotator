@@ -35,8 +35,8 @@ import sys
 
 import numpy as np
 from _common import ANKLES, HEAD, KNEES, find_clip
-
 from pipeline.config import COCO_N_JOINTS
+
 from shared.rtmlib_pose import (
     DET_SCORE_THR,
     FrameDetections,

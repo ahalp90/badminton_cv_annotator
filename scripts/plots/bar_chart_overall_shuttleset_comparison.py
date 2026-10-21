@@ -11,15 +11,15 @@ Internal bests pulled live from manifests:
 BRIC: deployed registry entry rgb_shuttle (tcn) outgoing_only, seed 42.
 TemPose-TF and Chang's BST: best serial + serial mean (their 25-class runs).
 """
-from pathlib import Path
 import json
+from pathlib import Path
 
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
+import numpy as np
 import yaml
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXP = REPO_ROOT / "experiments/bst_x/shuttleset"

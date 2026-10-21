@@ -7,14 +7,14 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, TypeAlias
+from typing import Any
 
 from frozendict import frozendict
 
-JsonScalar: TypeAlias = None | bool | int | float | str
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
-FrozenJsonValue: TypeAlias = JsonScalar | tuple["FrozenJsonValue", ...] | frozendict[str, "FrozenJsonValue"]
-FrozenJsonObject: TypeAlias = frozendict[str, FrozenJsonValue]
+type JsonScalar = None | bool | int | float | str
+type JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+type FrozenJsonValue = JsonScalar | tuple["FrozenJsonValue", ...] | frozendict[str, "FrozenJsonValue"]
+type FrozenJsonObject = frozendict[str, FrozenJsonValue]
 
 RUN_MANIFEST_SCHEMA = "dataset-builder-run/0.1"
 _MD5_PATTERN = re.compile(r"[0-9a-f]{32}\Z")
@@ -169,7 +169,7 @@ class SemanticValidation:
         if not self.name:
             raise ValueError("semantic validation name must be non-empty")
         if not isinstance(self.passed, bool):
-            raise ValueError(f"semantic validation passed must be bool: {self.passed!r}")
+            raise TypeError(f"semantic validation passed must be bool: {self.passed!r}")
         if self.detail is not None and not self.detail:
             raise ValueError("semantic validation detail must be non-empty when present")
 
@@ -185,7 +185,7 @@ class SemanticValidation:
             detail = _string(detail, "semantic_validation.detail")
         passed = record["passed"]
         if not isinstance(passed, bool):
-            raise ValueError(f"semantic_validation.passed must be bool, got {passed!r}")
+            raise TypeError(f"semantic_validation.passed must be bool, got {passed!r}")
         return cls(
             name=_string(record["name"], "semantic_validation.name"),
             passed=passed,
@@ -213,7 +213,7 @@ class StageRecord:
         if not self.name:
             raise ValueError("stage name must be non-empty")
         if not isinstance(self.outcome, StageOutcome):
-            raise ValueError(f"stage outcome must be StageOutcome, got {self.outcome!r}")
+            raise TypeError(f"stage outcome must be StageOutcome, got {self.outcome!r}")
         object.__setattr__(self, "configuration", freeze_json_object(self.configuration))
         _require_unique_strings(self.dependencies, "stage dependencies")
         if any(not dependency for dependency in self.dependencies):
@@ -340,7 +340,7 @@ class RunManifest:
         _require_exact_keys(record, {"schema", "run_id", "created_at_utc", "stages"}, "run manifest")
         stages = record["stages"]
         if not isinstance(stages, list):
-            raise ValueError(f"run manifest stages must be a list, got {type(stages).__name__}")
+            raise TypeError(f"run manifest stages must be a list, got {type(stages).__name__}")
         return cls(
             schema=_string(record["schema"], "run_manifest.schema"),
             run_id=_string(record["run_id"], "run_manifest.run_id"),
@@ -446,31 +446,31 @@ def _string(value: object, name: str) -> str:
 
 def _integer(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"{name} must be an integer, got {value!r}")
+        raise TypeError(f"{name} must be an integer, got {value!r}")
     return value
 
 
 def _number(value: object, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{name} must be a number, got {value!r}")
+        raise TypeError(f"{name} must be a number, got {value!r}")
     return float(value)
 
 
 def _strings(payload: object, name: str) -> tuple[str, ...]:
     if not isinstance(payload, list):
-        raise ValueError(f"{name} must be a list")
+        raise TypeError(f"{name} must be a list")
     return tuple(_string(value, f"{name}[]") for value in payload)
 
 
 def _artifacts(payload: object, name: str) -> tuple[ArtifactIntegrity, ...]:
     if not isinstance(payload, list):
-        raise ValueError(f"{name} must be a list")
+        raise TypeError(f"{name} must be a list")
     return tuple(ArtifactIntegrity.from_dict(value) for value in payload)
 
 
 def _validations(payload: object) -> tuple[SemanticValidation, ...]:
     if not isinstance(payload, list):
-        raise ValueError("stage.semantic_validation must be a list")
+        raise TypeError("stage.semantic_validation must be a list")
     return tuple(SemanticValidation.from_dict(value) for value in payload)
 
 

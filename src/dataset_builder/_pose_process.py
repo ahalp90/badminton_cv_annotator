@@ -7,9 +7,9 @@ import shutil
 import signal
 import subprocess
 import time
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import FrameType
-from typing import Mapping, Sequence
 
 import numpy as np
 

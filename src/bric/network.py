@@ -7,7 +7,7 @@ encoder shapes.
 from __future__ import annotations
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torchvision.models.video import R2Plus1D_18_Weights, r2plus1d_18
 
 from classifier_shared.taxonomy import DEFAULT_TAXONOMY, TAXONOMIES, Taxonomy

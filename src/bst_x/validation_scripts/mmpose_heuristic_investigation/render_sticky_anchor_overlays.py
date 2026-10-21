@@ -48,8 +48,8 @@ sys.path.insert(0, str(REPO_ROOT / "src" / "bst_x"))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.config import HOMOGRAPHY_RESOLUTION  # noqa: E402
-from shared.court import get_court_info  # noqa: E402
 
+from shared.court import get_court_info  # noqa: E402
 
 COLOURS = {
     "top":     (0, 220, 80, 255),     # green: sticky_anchor Top pick

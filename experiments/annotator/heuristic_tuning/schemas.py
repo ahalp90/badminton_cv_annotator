@@ -6,9 +6,10 @@ runner decides frontier membership; this module only supplies its fixed header.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import Enum
 from numbers import Real
-from typing import Any, Mapping
+from typing import Any
 
 from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
 

@@ -141,8 +141,8 @@ def main() -> None:
            f'({p_all*100:.0f}% noise p)')
     ax.text(0.02, 0.04, txt, transform=ax.transAxes, va='bottom', ha='left',
             fontsize=9, color=GREY,
-            bbox=dict(boxstyle='round,pad=0.4', facecolor='white',
-                      edgecolor=GREY, alpha=0.9))
+            bbox={'boxstyle': 'round,pad=0.4', 'facecolor': 'white',
+                      'edgecolor': GREY, 'alpha': 0.9})
 
     ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
     fig.tight_layout()

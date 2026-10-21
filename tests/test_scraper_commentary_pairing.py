@@ -464,36 +464,36 @@ def test_missing_manifest_fails_for_video_with_fps(tmp_path, monkeypatch):
     ('manifest_text', 'video_names', 'error_type'),
     [
         (
-            'dataset = "scraped"\n\n'
+            ('dataset = "scraped"\n\n'
             '[videos."other.mp4"]\n'
             'video_id = "other"\n'
-            'commentary_eligible = true\n',
+            'commentary_eligible = true\n'),
             ['v.mp4'],
             ValueError,
         ),
         (
-            'dataset = "scraped"\n\n'
+            ('dataset = "scraped"\n\n'
             '[videos."v.mp4"]\n'
             'video_id = "v"\n'
             'commentary_eligible = true\n\n'
             '[videos."v.mkv"]\n'
             'video_id = "v"\n'
-            'commentary_eligible = true\n',
+            'commentary_eligible = true\n'),
             ['v.mp4', 'v.mkv'],
             ValueError,
         ),
         (
-            'dataset = "scraped"\n\n'
+            ('dataset = "scraped"\n\n'
             '[videos."v.mp4"]\n'
-            'video_id = "v"\n',
+            'video_id = "v"\n'),
             ['v.mp4'],
             ValueError,
         ),
         (
-            'dataset = "scraped"\n\n'
+            ('dataset = "scraped"\n\n'
             '[videos."v.mp4"]\n'
             'video_id = "v"\n'
-            'commentary_eligible = "true"\n',
+            'commentary_eligible = "true"\n'),
             ['v.mp4'],
             TypeError,
         ),

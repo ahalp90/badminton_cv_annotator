@@ -17,4 +17,4 @@ REGISTRY = {
     "sticky_anchor": sticky_anchor.apply,
 }
 
-__all__ = ["REGISTRY", "RAW_SUFFIXES", "ClipContext", "HeuristicOutput", "RawClip"]
+__all__ = ["RAW_SUFFIXES", "REGISTRY", "ClipContext", "HeuristicOutput", "RawClip"]

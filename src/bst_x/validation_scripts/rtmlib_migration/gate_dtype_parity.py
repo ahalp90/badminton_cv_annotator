@@ -44,6 +44,7 @@ SKIP = 2
 def _court_setup():
     import pandas as pd
     from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
+
     from shared.court import get_court_info
 
     res_df = pd.read_csv(RESOLUTION_CSV_PATH).set_index("id")

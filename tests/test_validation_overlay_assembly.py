@@ -9,10 +9,18 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator.validation_overlay.core.cli import compose_frames, make_render_plan, render
+from annotator.validation_overlay.core.cli import (
+    compose_frames,
+    make_render_plan,
+    render,
+)
 from annotator.validation_overlay.core.decode import iter_span_frames
 from annotator.validation_overlay.core.timeline import Segment
-from annotator.validation_overlay.overlays.shuttle_track import BOX_COLOUR, load_track, make_draw
+from annotator.validation_overlay.overlays.shuttle_track import (
+    BOX_COLOUR,
+    load_track,
+    make_draw,
+)
 from annotator.video_metadata import probe_video_metadata
 
 

@@ -147,8 +147,8 @@ def add_rally_clip_bounds(
         duplicates = contacts.loc[contacts.duplicated(key_cols, keep=False), key_cols]
         raise ValueError(f'duplicate rally contact keys:\n{duplicates.head(20)}')
 
-    lead_frames = int(round(RALLY_CLIP_LEAD_SECONDS * fps))
-    tail_frames = int(round(RALLY_CLIP_TAIL_SECONDS * fps))
+    lead_frames = round(RALLY_CLIP_LEAD_SECONDS * fps)
+    tail_frames = round(RALLY_CLIP_TAIL_SECONDS * fps)
     rows = []
     for (set_num, rally), group in contacts.groupby(['set', 'rally'], sort=True):
         ordered = group.sort_values('ball_round', kind='stable')
@@ -225,10 +225,8 @@ def collect_all_shots() -> tuple[pd.DataFrame, dict[int, int]]:
             print(f'  WARNING: vid={vid} ({v_info["video"]}) returned no shots')
             continue
         shots = compute_temporal_bounds(folder_path, shots).copy()
-        # compute_clip_bounds takes a row Series; vectorise via apply.
-        bounds = shots.apply(
-            lambda r: compute_clip_bounds(r, CLIP_WINDOW, fps), axis=1
-        )
+        # compute_clip_bounds takes one row Series at a time.
+        bounds = [compute_clip_bounds(row, CLIP_WINDOW, fps) for _, row in shots.iterrows()]
         shots['shuttle_start_f'] = [int(b[0]) for b in bounds]
         shots['shuttle_end_f'] = [int(b[1]) for b in bounds]
         shots['frame_num'] = shots['frame_num'].astype(int)

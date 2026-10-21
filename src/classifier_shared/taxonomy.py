@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 
-
 # ---------------------------------------------------------------------------
 # English <-> Chinese stroke name mappings (CSV I/O only; pipeline runs in English)
 # ---------------------------------------------------------------------------

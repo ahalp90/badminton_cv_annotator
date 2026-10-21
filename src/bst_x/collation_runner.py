@@ -58,7 +58,7 @@ def invoke_bst_train(*, serial_no: int, run_id: str, log_path: Path, cell: dict)
     # fall back to the bst_x_train Hyp default.
     if cell.get('weight_decay') is not None:
         cmd += ['--weight-decay', str(cell['weight_decay'])]
-    return subprocess.run(cmd, env=env).returncode
+    return subprocess.run(cmd, env=env, check=False).returncode
 
 
 def main():

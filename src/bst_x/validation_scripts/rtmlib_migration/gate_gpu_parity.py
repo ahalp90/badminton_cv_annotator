@@ -99,15 +99,15 @@ def _gate_clip(ext, stem, setup) -> dict | None:
     # --- deployed axis (G6) ---
     parity = deployed_parity(frames, stem, setup)
 
-    return dict(
-        stem=stem, dF=Frt - Fmm, kp_med=kp_med, kp_cp90=kp_cp90,
-        rt_ndet=rt_ndet, mm_ndet=float(mm.ndet.mean()),
-        fmatch=parity.fmatch, both=parity.nb, pos_med=parity.pos_med, jnt_med=parity.jnt_med,
-        rt_only_fail=parity.rt_only_fail, mm_only_fail=parity.mm_only_fail,
-        rt_failrate=float(parity.out_failed.mean()), mm_failrate=float(parity.ref_failed.mean()),
-        rt_lt2=int((parity.raw_arr.ndet < 2).sum()), mm_lt2=int((mm.ndet < 2).sum()),
-        secs=time.time() - t0,
-    )
+    return {
+        "stem": stem, "dF": Frt - Fmm, "kp_med": kp_med, "kp_cp90": kp_cp90,
+        "rt_ndet": rt_ndet, "mm_ndet": float(mm.ndet.mean()),
+        "fmatch": parity.fmatch, "both": parity.nb, "pos_med": parity.pos_med, "jnt_med": parity.jnt_med,
+        "rt_only_fail": parity.rt_only_fail, "mm_only_fail": parity.mm_only_fail,
+        "rt_failrate": float(parity.out_failed.mean()), "mm_failrate": float(parity.ref_failed.mean()),
+        "rt_lt2": int((parity.raw_arr.ndet < 2).sum()), "mm_lt2": int((mm.ndet < 2).sum()),
+        "secs": time.time() - t0,
+    }
 
 
 def _verdict(row: dict) -> bool:

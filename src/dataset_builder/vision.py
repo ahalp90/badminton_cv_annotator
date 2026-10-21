@@ -714,7 +714,7 @@ def _court_info_from_payload(payload: object, name: str) -> dict[str, object]:
 
 def _raw_cuts_from_payload(payload: object) -> tuple[tuple[int, int], ...]:
     if not isinstance(payload, list):
-        raise ValueError("court raw_cuts must be a list")
+        raise TypeError("court raw_cuts must be a list")
     intervals: list[tuple[int, int]] = []
     for item in payload:
         if not isinstance(item, list) or len(item) != 2:
@@ -750,7 +750,7 @@ def _float_array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarr
 
 def _finite_float(payload: object, name: str) -> float:
     if isinstance(payload, bool) or not isinstance(payload, (int, float)):
-        raise ValueError(f"{name} must be a finite number")
+        raise TypeError(f"{name} must be a finite number")
     value = float(payload)
     if not math.isfinite(value):
         raise ValueError(f"{name} must be a finite number")

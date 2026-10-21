@@ -524,7 +524,7 @@ def _install_synthetic_runner(
         "detect_case_courts",
         lambda case, settings, *_args: _fake_court_result(case, DETECTED_PARENT),
     )
-    monkeypatch.setattr(runner, "verify_eligible_gt_files", lambda: {})
+    monkeypatch.setattr(runner, "verify_eligible_gt_files", dict)
 
     inference_fail_seen = False
 

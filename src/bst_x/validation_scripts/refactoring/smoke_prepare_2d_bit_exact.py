@@ -127,12 +127,13 @@ def main() -> int:
     print()
 
     # The active homography uses ShuttleSet's set_info + my_raw_video_resolution.
-    import pandas as pd  # noqa: PLC0415
-    from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR  # noqa: PLC0415
-    from shared.court import build_all_court_info  # noqa: PLC0415
-    from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
+    import pandas as pd
+    from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
+    from preparing_data.prepare_train_on_shuttleset import (
         prepare_dataset_npy_from_raw_video,
     )
+
+    from shared.court import build_all_court_info
 
     res_df = pd.read_csv(RESOLUTION_CSV_PATH).set_index("id")
     all_court_info = build_all_court_info(SET_INFO_DIR, res_df)

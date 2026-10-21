@@ -513,7 +513,7 @@ def _object(payload: object, name: str) -> Mapping[str, object]:
 
 def _list(payload: object, name: str) -> list[object]:
     if not isinstance(payload, list):
-        raise ValueError(f"{name} must be a list")
+        raise TypeError(f"{name} must be a list")
     return payload
 
 
@@ -531,13 +531,13 @@ def _frame_in_rally(payload: object, rally: tuple[int, int], name: str) -> int:
 
 def _integer(payload: object, name: str) -> int:
     if isinstance(payload, bool) or not isinstance(payload, int):
-        raise ValueError(f"{name} must be an integer")
+        raise TypeError(f"{name} must be an integer")
     return payload
 
 
 def _number(payload: object, name: str) -> float:
     if isinstance(payload, bool) or not isinstance(payload, (int, float)):
-        raise ValueError(f"{name} must be a finite number")
+        raise TypeError(f"{name} must be a finite number")
     value = float(payload)
     if not math.isfinite(value):
         raise ValueError(f"{name} must be a finite number")
@@ -560,7 +560,7 @@ def _optional_string(payload: object, name: str) -> str | None:
 
 def _text(payload: object, name: str) -> str:
     if not isinstance(payload, str):
-        raise ValueError(f"{name} must be a string")
+        raise TypeError(f"{name} must be a string")
     return payload
 
 
@@ -570,7 +570,7 @@ def _optional_text(payload: object, name: str) -> str | None:
 
 def _boolean(payload: object, name: str) -> bool:
     if not isinstance(payload, bool):
-        raise ValueError(f"{name} must be boolean")
+        raise TypeError(f"{name} must be boolean")
     return payload
 
 

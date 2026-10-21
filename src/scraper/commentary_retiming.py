@@ -11,15 +11,15 @@ carries the re-timed rows plus the coarse times and a match score.
 from __future__ import annotations
 
 import argparse
+import json
+import math
+import re
+import statistics
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from enum import StrEnum
-import json
-import math
 from pathlib import Path
-import re
-import statistics
 
 ALIGNED_SOURCE = 'whisperx_aligned'
 # A coarse time can miss by a full 30 s Whisper window plus the LLM's own slack.

@@ -14,10 +14,8 @@
 #   forward()         runs when you call model(x)
 
 import torch
-from torch import nn, Tensor
 from beartype import beartype
 from jaxtyping import Bool, Float32, Int64, jaxtyped
-from positional_encodings.torch_encodings import PositionalEncoding1D
 
 # Building blocks defined in tempose.py:
 #   TCN                temporal convolution network (dilated 1D convs over time)
@@ -25,7 +23,9 @@ from positional_encodings.torch_encodings import PositionalEncoding1D
 #   MLP_Head           LayerNorm -> MLP (final classification layer)
 #   FeedForward        MLP + Dropout (used inside transformer layers)
 #   TransformerEncoder stack of self-attention TransformerLayers
-from model.tempose import TCN, FeedForward, MLP, MLP_Head, TransformerEncoder
+from model.tempose import MLP, TCN, FeedForward, MLP_Head, TransformerEncoder
+from positional_encodings.torch_encodings import PositionalEncoding1D
+from torch import Tensor, nn
 
 
 class MultiHeadCrossAttention(nn.Module):
@@ -81,7 +81,7 @@ class MultiHeadCrossAttention(nn.Module):
         q = q.view(b, t, self.n_head, -1).transpose(1, 2)
         # chunk(2) splits the packed projection back into K and V
         kv = kv.view(b, t, self.n_head, -1).chunk(2, dim=-1)
-        k, v = map(lambda ts: ts.transpose(1, 2), kv)
+        k, v = (ts.transpose(1, 2) for ts in kv)
         # q, k, v: (b, h, t, d_head)
 
         dots: Tensor = (q @ k.transpose(-1, -2)) * self.scale

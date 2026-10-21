@@ -113,13 +113,13 @@ def _gate_clip(ext, stem, category, setup) -> dict | None:
     mm_ndet = np.load(RAW / f"{stem}_raw_ndet.npy")
     Frt, Fmm = len(parity.out_failed), len(parity.ref_failed)
 
-    return dict(
-        stem=stem, category=category, Frt=Frt, Fmm=Fmm, dF=Frt - Fmm,
-        fmatch=parity.fmatch, both=parity.nb, pos_med=parity.pos_med, jnt_med=parity.jnt_med,
-        rt_only_fail=parity.rt_only_fail, mm_only_fail=parity.mm_only_fail,
-        rt_lt2=int((parity.raw_arr.ndet < 2).sum()), mm_lt2=int((mm_ndet < 2).sum()),
-        secs=time.time() - t0,
-    )
+    return {
+        "stem": stem, "category": category, "Frt": Frt, "Fmm": Fmm, "dF": Frt - Fmm,
+        "fmatch": parity.fmatch, "both": parity.nb, "pos_med": parity.pos_med, "jnt_med": parity.jnt_med,
+        "rt_only_fail": parity.rt_only_fail, "mm_only_fail": parity.mm_only_fail,
+        "rt_lt2": int((parity.raw_arr.ndet < 2).sum()), "mm_lt2": int((mm_ndet < 2).sum()),
+        "secs": time.time() - t0,
+    }
 
 
 def _verdict(result: dict) -> bool:

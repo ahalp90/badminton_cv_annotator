@@ -16,17 +16,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import bst_x_infer
 import numpy as np
 import pytest
 import torch
 import yaml
-
-import bst_x_infer
 from bst_x_common import build_bst_x_network, dump_topk_predictions
-from classifier_shared.taxonomy import taxonomy_lookup
 from preparing_data.shuttleset_dataset import Dataset_npy_collated
 from torch.utils.data import DataLoader
 
+from classifier_shared.taxonomy import taxonomy_lookup
 
 # The npz schema both dump paths (bst_x_train end-of-serial, bst_x_infer --fe) emit.
 NPZ_FIELDS = {
