@@ -42,7 +42,7 @@ rule settings tuned on the same 32 videos.
 - **Our annotator can also find the rallies itself.** MonoTrack's released code
   needs each rally cut out beforehand. Working from the whole video, ours gets
   54.8% of rallies fully correct, and 88.0% have the right start and end. Its
-  confidence score can pick out a cleaner subset: at a cut-off of 0.335, it
+  confidence score can pick out a cleaner subset: at a threshold of 0.335, it
   keeps 2,224 of about 3,663 found rallies, and 68.1% of those are fully correct:
   1,513 rallies, or 45.5% of all labelled rallies (Figure 6).
 - **Both court detectors place the court close enough that swapping courts
@@ -177,22 +177,22 @@ account for most of the drop:
 ### Keeping only the confident rallies
 
 Each found rally gets a confidence score from one of the trees. The score was
-trained to predict whether the rally is fully correct. Raising the cut-off keeps
-fewer rallies, and more of those kept are right (Figure 6). No single cut-off
-suits every use, so Figure 6's right panel shows the whole trade-off. Each
-point on that curve is one cut-off. Moving left along it hands over fewer
+trained to predict whether the rally is fully correct. Raising the threshold
+keeps fewer rallies, and more of those kept are right (Figure 6). No single
+threshold suits every use, so Figure 6's right panel shows the whole trade-off.
+Each point on that curve is one threshold. Moving left along it hands over fewer
 rallies, and more of those are right.
 
-Figure 6 and Table 3 mark three cut-offs:
+Figure 6 and Table 3 mark three thresholds:
 
 - **0.335, keeps half.** On the 8 validation videos, it keeps half of the
   found rallies.
 - **0.385, the best balance.** On the validation videos, it gives the highest
   F1 for picking out fully correct rallies.
-- **0.75, for boundaries.** On the validation videos, it is the lowest cut-off
+- **0.75, for boundaries.** On the validation videos, it is the lowest threshold
   at which 99% of kept rallies have the right start and end.
 
-Table 3. Test results at each cut-off, five-seed means. Each seed finds about
+Table 3. Test results at each threshold, five-seed means. Each seed finds about
 3,663 rallies, more than the 3,327 labelled ones: about 645 of them match no
 labelled rally, and about 89 cover only part of one or join two. The two share
 columns are shares of the kept rallies. The next column counts the kept rallies
@@ -200,7 +200,7 @@ with the right start and end, whether or not their hits are right. The last
 column counts the kept rallies that are fully correct, with their share of all
 3,327 labelled rallies.
 
-| Cut-off | Rallies kept (of 3,663 found) | Share fully correct | Share with the right start and end | Kept rallies with the right start and end | Fully correct rallies handed over |
+| Threshold | Rallies kept (of 3,663 found) | Share fully correct | Share with the right start and end | Kept rallies with the right start and end | Fully correct rallies handed over |
 |---|---:|---:|---:|---:|---:|
 | 0.335 | 2,224 | 68.1% | 96.4% | 2,144 | 1,513 (45.5%) |
 | 0.385 | 1,992 | 69.9% | 97.0% | 1,932 | 1,391 (41.8%) |
@@ -216,7 +216,7 @@ end. At 0.335, 2,144 of the 2,224 kept rallies have the right start and end,
 and 1,513 are fully correct. That leaves about 630 rallies with the right
 start and end that need only their hits corrected.
 
-If only the start and end matter, the 0.75 cut-off, chosen on validation,
+If only the start and end matter, the 0.75 threshold, chosen on validation,
 keeps 557 test rallies, and 99.1% of them have the right start and end. On
 test, that share first reaches 99% at 0.71, keeping 774 rallies, but that value is read off
 the test set itself. The validation videos are harder for the annotator: 44.3%
@@ -224,10 +224,10 @@ of their rallies come out fully correct, against 54.8% on test. At 0.75 each
 seed keeps only about 105 validation rallies, so that choice rests on few
 rallies.
 
-![Confidence cut-off against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v5/fig6_confidence.png)
+![Confidence threshold against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v5/fig6_confidence.png)
 
-Figure 6. Left: on the test videos, what each cut-off keeps. Right: the share of
-kept rallies that are fully correct, against the fully correct rallies handed
+Figure 6. Left: on the test videos, what each threshold keeps. Right: the share
+of kept rallies that are fully correct, against the fully correct rallies handed
 over as a share of all labelled rallies, for test and validation. Lines are the
 mean of five seeds; shading spans the lowest to highest seed.
 
@@ -498,12 +498,12 @@ means.
 | All rescaled to 30 fps | 85.09% | 293.0 | 83.29% | 242.2 |
 | All but acceleration rescaled | 85.21% | 292.8 | 83.42% | 241.6 |
 
-**Confidence cut-offs.** The three cut-offs in Table 3 were chosen on the same
-8 validation videos. The 0.335 cut-off keeps half of the found rallies, pooled
-over the five seeds. The 0.385 cut-off gives the highest five-seed mean F1 for
-picking fully correct rallies. The 0.75 cut-off is the lowest at which 99% of
-kept rallies, pooled over the five seeds, have the right start and end. The
-last two were searched in steps of 0.005.
+**Confidence thresholds.** The three thresholds in Table 3 were chosen on the
+same 8 validation videos. The 0.335 threshold keeps half of the found rallies,
+pooled over the five seeds. The 0.385 threshold gives the highest five-seed mean
+F1 for picking fully correct rallies. The 0.75 threshold is the lowest at which
+99% of kept rallies, pooled over the five seeds, have the right start and end.
+The last two were searched in steps of 0.005.
 
 ## Appendix C: Our court detector's two modes
 
@@ -620,7 +620,7 @@ At ±5 frames the two systems find hits about equally well (95.0% against
   Refit times: `../tree_simplification/results/input-stage-costs.csv`.
 - MonoTrack training records: `hitnet_retrain/weights/`.
 - Confidence scores: each discovery prediction file holds its found rallies'
-  scores. The validation runs behind the cut-offs are in
+  scores. The validation runs behind the thresholds are in
   `benchmark_results/annotator_runs/validation/`.
 - The scripts that turn these results into this report's numbers, tables and
   figures: [`writeup_scripts/`](writeup_scripts/README.md).

@@ -335,9 +335,9 @@ def confidence_figure(data: Path, out: Path) -> None:
                   color=TEXT)
     left.set_xlim(0, 1)
     left.set_ylim(0, 100)
-    left.set_xlabel('Keep found rallies with confidence at or above this cut-off', color=TEXT)
+    left.set_xlabel('Keep found rallies with confidence at or above this threshold', color=TEXT)
     left.set_ylabel('%', color=TEXT)
-    left.set_title('Test videos: what each cut-off keeps', fontsize=11, color=TEXT, loc='left', pad=16)
+    left.set_title('Test videos: what each threshold keeps', fontsize=11, color=TEXT, loc='left', pad=16)
     left.legend(loc='lower left', frameon=False, fontsize=9)
 
     style_axes(right, 'both')
@@ -359,13 +359,13 @@ def confidence_figure(data: Path, out: Path) -> None:
     right.set_ylim(30, 100)
     right.set_xlabel('Fully correct rallies handed over (% of all labelled rallies)', color=TEXT)
     right.set_ylabel('Share of kept rallies fully correct (%)', color=TEXT)
-    right.set_title('Trade-off: each point is one cut-off', fontsize=11, color=TEXT, loc='left', pad=16)
+    right.set_title('Trade-off: each point is one threshold', fontsize=11, color=TEXT, loc='left', pad=16)
     right.legend(loc='upper right', frameon=False, fontsize=9)
     figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
     figure.text(0.01, 0.075, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} gives the highest F1 for '
                 f'"fully correct"; {cutoff_text(cutoffs["keep_half"])} keeps half of the found rallies; '
-                f'{cutoff_text(cutoffs["boundaries_99"])} is the lowest cut-off where 99% of kept rallies have the right '
+                f'{cutoff_text(cutoffs["boundaries_99"])} is the lowest threshold where 99% of kept rallies have the right '
                 'boundaries.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.045, f'Mean of five training seeds; shading spans lowest to highest seed. Lines stop where fewer '
                 f'than {MIN_KEPT} found rallies are kept. ±10 frames.', fontsize=9, color=MUTED)

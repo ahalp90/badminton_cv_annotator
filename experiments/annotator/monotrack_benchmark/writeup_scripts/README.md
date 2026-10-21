@@ -18,7 +18,7 @@ Run every command from the repository root.
 | [court_metrics.py](court_metrics.py) | Each rally's court error and IoU against ShuttleSet22's reference corners, for our per-rally, MonoTrack's and our per-scene courts. |
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
 | [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. The 32-video discovery runs must match the tracked predictions exactly. |
-| [confidence_cutoffs.py](confidence_cutoffs.py) | Chooses the confidence cut-offs on validation and reads them on test, for the cut-off table. |
+| [confidence_cutoffs.py](confidence_cutoffs.py) | Chooses the confidence thresholds on validation and reads them on test, for the threshold table. |
 | [left_out_rallies.py](left_out_rallies.py) | Counts the rallies with flawed labels for Appendix G. |
 | [flaw_scoring.py](flaw_scoring.py) | Scores discovery mode with the flawed rallies standard, ignored and counted, for Appendix G. |
 | [make_figures.py](make_figures.py) | Figures 1–6 and 10. |
