@@ -17,26 +17,27 @@ contracts.
 """
 import argparse
 import csv
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import json
 import logging
 import tomllib
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
-from frozendict import frozendict
 import numpy as np
+from frozendict import frozendict
 
 from annotator.fps_constants import scale_for_fps
 from annotator.masks.replay import filter_short_exclusion_runs
 from annotator.video_metadata import VideoMetadata
+
 from .config import (
     CHUNKS_DIR,
     MASKS_DIR,
-    PAIRS_CSV,
     PAIR_WINDOW_S,
+    PAIRS_CSV,
     RALLY_SPANS_CSV,
     SCRAPE_DIR,
     SOURCES_MANIFEST_NAME,

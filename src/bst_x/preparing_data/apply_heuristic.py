@@ -29,14 +29,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
 from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
-from shared.court import build_all_court_info
 from pipeline.data_access import load_repo_dotenv
-
 from preparing_data.heuristics import RAW_SUFFIXES, REGISTRY, ClipContext, RawClip
 from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
+from tqdm import tqdm
+
+from shared.court import build_all_court_info
 
 # Pull BST_X_RTMPOSE_NPY_DIR from the repo-root .env so the output-dir
 # collision guard works without a prior shell export. Fires at module import,

@@ -68,13 +68,13 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 from bric.perception.players import DEFAULT_YOLO_WEIGHTS  # noqa: E402
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 from shared.court import (  # noqa: E402
     convert_homogeneous,
     load_all_court_info,
     project,
     scale_pos_by_resolution,
 )
-from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 
 SHOTS_MASTER_PATH = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 RAW_VIDEO_DIR = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'raw_video'
@@ -202,10 +202,7 @@ def pick_striker_detection(
         eps = 0.02
         on_court_with_y: list[tuple[dict, float]] = []
         for d in detections:
-            try:
-                x_n, y_n = _project_foot_to_court(d['bbox'], frame_w, frame_h, court_info)
-            except Exception:
-                continue
+            x_n, y_n = _project_foot_to_court(d['bbox'], frame_w, frame_h, court_info)
             if (-eps <= x_n <= 1 + eps) and (-eps <= y_n <= 1 + eps):
                 on_court_with_y.append((d, y_n))
         want_top = striker_side.lower() == 'top'
@@ -237,8 +234,8 @@ def expand_and_squarify(
     h = (y2 - y1) * (1 + 2 * pad_pct)
     side = max(w, h)
     half = side / 2
-    x1n, y1n = int(round(cx - half)), int(round(cy - half))
-    x2n, y2n = int(round(cx + half)), int(round(cy + half))
+    x1n, y1n = round(cx - half), round(cy - half)
+    x2n, y2n = round(cx + half), round(cy + half)
     # Clamp; this can degrade aspect ratio at frame edges but that's
     # rare and preferable to OOB indexing.
     x1n = max(0, x1n)
@@ -513,7 +510,7 @@ def _worker(
     """Pool worker target — wraps process_one_vid for multiprocessing.Pool."""
     try:
         process_one_vid(vid, master, court_info_by_vid, force=force)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - one bad video must not stop the pool
         # Don't let one bad vid kill the whole pool; surface and move on.
         print(f'vid={vid}: ERROR {type(e).__name__}: {e}', flush=True)
 

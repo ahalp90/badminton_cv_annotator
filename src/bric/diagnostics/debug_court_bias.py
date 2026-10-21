@@ -24,6 +24,7 @@ import pandas as pd
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / 'src'))
 
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 from shared.court import (  # noqa: E402
     HOMOGRAPHY_RESOLUTION,
     convert_homogeneous,
@@ -31,7 +32,6 @@ from shared.court import (  # noqa: E402
     project,
     scale_pos_by_resolution,
 )
-from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 
 _SHOTS_MASTER = _REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 _SET_DIR      = _REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'set'

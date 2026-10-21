@@ -13,17 +13,17 @@ import json
 import math
 import os
 import sys
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from itertools import product
 from numbers import Real
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any
 
 import numpy as np
 
 from annotator.config import BaseAnnotatorConfig
-from experiments.annotator.heuristic_tuning import selection
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SHARED_FILES,
@@ -32,13 +32,6 @@ from annotator.evaluation.fixtures import (
     verify_file,
 )
 from annotator.evaluation.gt_scoring import RunVideoInputs, build_run_video_inputs
-from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
-from experiments.annotator.heuristic_tuning.schemas import WINNER_JSON_BOUNDARY_KEY
-from experiments.annotator.heuristic_tuning.schemas import WINNER_JSON_META_KEY
-from experiments.annotator.heuristic_tuning.schemas import WINNER_SPEC_OVERRIDES_KEY
-from experiments.annotator.heuristic_tuning.schemas import WINNER_SPEC_STRATEGIES_KEY
-from experiments.annotator.heuristic_tuning.schemas import winner_document
-from experiments.annotator.heuristic_tuning.schemas import winner_spec
 from annotator.evaluation.scoring import (
     CONTACT_TOLERANCES_BASE30,
     RallyBoundary,
@@ -48,12 +41,21 @@ from annotator.evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
-from annotator.fps_constants import scale_for_fps
+from annotator.fps_constants import ScalingKind, scale_for_fps
 from annotator.rally_segmentation import ServeStartClose, ServeStartMode
 from annotator.resolve import _OVERRIDABLE_BASE30_ROWS
 from annotator.run_video import run_video
-from annotator.fps_constants import ScalingKind
 from annotator.types import ServeStartConfig, SpanOpen
+from experiments.annotator.heuristic_tuning import selection
+from experiments.annotator.heuristic_tuning.schemas import (
+    CSV_COLUMNS_BY_FILENAME,
+    WINNER_JSON_BOUNDARY_KEY,
+    WINNER_JSON_META_KEY,
+    WINNER_SPEC_OVERRIDES_KEY,
+    WINNER_SPEC_STRATEGIES_KEY,
+    winner_document,
+    winner_spec,
+)
 
 LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
@@ -176,7 +178,7 @@ def _run_candidates(
     def one(index: int, spec: CandidateSpec) -> dict[str, Any] | None:
         try:
             return candidate_runner(fixture_inputs=fixture_inputs, candidate_spec=spec)
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - one failed grid point must not stop the sweep
             print(f"{phase} grid index {index} failed for {serialise_spec(spec)!r}: {error}", file=sys.stderr)
             return None
 
@@ -196,7 +198,7 @@ def _run_candidates(
             for index, (spec, future) in enumerate(zip(specs, futures)):
                 try:
                     completed.append(future.result())
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001 - one failed grid point must not stop the sweep
                     print(f"{phase} grid index {index} failed for {serialise_spec(spec)!r}: {error}", file=sys.stderr)
                     completed.append(None)
     else:
@@ -620,7 +622,7 @@ def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
         raise ValueError(f"invalid boundary winner document: {error}") from error
     if not isinstance(document, dict):
-        raise ValueError("invalid boundary winner document: offending key 'document' is not a dict")
+        raise TypeError("invalid boundary winner document: offending key 'document' is not a dict")
     if WINNER_JSON_META_KEY not in document or not isinstance(document[WINNER_JSON_META_KEY], dict):
         raise ValueError("invalid boundary winner document: offending key 'meta' is not a dict")
     if WINNER_JSON_BOUNDARY_KEY not in document or not isinstance(document[WINNER_JSON_BOUNDARY_KEY], dict):
@@ -630,9 +632,9 @@ def load_boundary_winner(path: Path, fixture_name: str) -> CandidateSpec:
     if set(phase) != {WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY}:
         raise ValueError("boundary winner phase has unknown or missing spec keys")
     if not isinstance(phase.get(WINNER_SPEC_OVERRIDES_KEY), dict):
-        raise ValueError("invalid boundary winner document: offending key 'overrides_base30' is not a dict")
+        raise TypeError("invalid boundary winner document: offending key 'overrides_base30' is not a dict")
     if not isinstance(phase.get(WINNER_SPEC_STRATEGIES_KEY), dict):
-        raise ValueError("invalid boundary winner document: offending key 'strategies' is not a dict")
+        raise TypeError("invalid boundary winner document: offending key 'strategies' is not a dict")
     overrides = phase[WINNER_SPEC_OVERRIDES_KEY]
     strategies = phase[WINNER_SPEC_STRATEGIES_KEY]
     if set(document) != {WINNER_JSON_META_KEY, WINNER_JSON_BOUNDARY_KEY}:
@@ -703,11 +705,11 @@ def main() -> int:
         inputs = build_run_video_inputs(args.fixture)
         if args.mask_npy is not None:
             inputs = _replace_mask(inputs, args.mask_npy)
-    except (ValueError, OSError, RuntimeError) as error:
+    except (TypeError, ValueError, OSError, RuntimeError) as error:
         parser.error(str(error))
     try:
         return run_sweep(fixture=args.fixture, out_dir=args.out_dir, phase=args.phase, boundary_spec=boundary_spec, fixture_inputs=inputs, workers=args.workers)
-    except Exception as error:
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1
 

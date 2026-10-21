@@ -20,12 +20,12 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
 import yaml
+from torch import nn
 from torch.optim import AdamW
-from torcheval.metrics.functional import multiclass_f1_score
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader, Subset
+from torcheval.metrics.functional import multiclass_f1_score
 from tqdm import tqdm
 
 from bric.dataset import ShuttleSetDataset, collate_strokes

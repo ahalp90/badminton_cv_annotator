@@ -101,10 +101,10 @@ def main() -> int:
         a = list(ext.iter_video(mp4))
         b = list(ext.iter_video(mp4))
         kp = _kp_selfvar(a, b)
-        rows.append(dict(
-            stem=stem, eps_kp_med=float(np.median(kp)), eps_kp_p90=float(np.percentile(kp, 90)),
-            eps_kp_max=float(kp.max()), eps_fail=_fail_selfvar(a, b, stem, setup),
-        ))
+        rows.append({
+            "stem": stem, "eps_kp_med": float(np.median(kp)), "eps_kp_p90": float(np.percentile(kp, 90)),
+            "eps_kp_max": float(kp.max()), "eps_fail": _fail_selfvar(a, b, stem, setup),
+        })
 
     if not rows:
         print("FAIL: no clips evaluated")

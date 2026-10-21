@@ -44,16 +44,16 @@ def best_serial_no(d: dict, mdir: Path) -> int | None:
     return None
 
 
+def colmean(serials, key):
+    vals = [s["metrics"][key] for s in serials if s.get("metrics") and key in s["metrics"]]
+    return round(stats.mean(vals), 4) if vals else None
+
+
 rows = []
 for p in sorted(glob.glob(str(EXP / "*/manifest.yaml"))):
-    d = yaml.safe_load(open(p))
+    d = yaml.safe_load(Path(p).read_text())
     cfg = d.get("config", {}) or {}
     serials = d.get("serials", []) or []
-
-    def colmean(key):
-        vals = [s["metrics"][key] for s in serials if s.get("metrics") and key in s["metrics"]]
-        return round(stats.mean(vals), 4) if vals else None
-
     bs_no = best_serial_no(d, Path(p).parent)
     bsm = next((s["metrics"] for s in serials if s["serial_no"] == bs_no), {})
     raw_tax = cfg.get("taxonomy", "?")
@@ -64,7 +64,7 @@ for p in sorted(glob.glob(str(EXP / "*/manifest.yaml"))):
         "canon_tax": TAX_ALIAS.get(raw_tax, raw_tax),
         "split": cfg.get("split_column", DEFAULT_SPLIT),
         "drop_unknown": cfg.get("drop_unknown"),
-        "mean": {k: colmean(k) for k in ("macro_f1", "min_f1", "accuracy", "top2_accuracy")},
+        "mean": {k: colmean(serials, k) for k in ("macro_f1", "min_f1", "accuracy", "top2_accuracy")},
         "best": {k: (round(bsm[k], 4) if bsm else None)
                  for k in ("macro_f1", "min_f1", "accuracy", "top2_accuracy")},
     })

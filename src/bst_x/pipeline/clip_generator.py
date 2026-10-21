@@ -10,17 +10,21 @@ Usage:
 """
 import argparse
 import shutil
-
-from moviepy import VideoFileClip
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
+from moviepy import VideoFileClip
 from pipeline.config import (
-    SET_INFO_DIR, RAW_VIDEO_DIR, CLIPS_OUTPUT_DIR,
-    SPLITS,
-    REMOVED_SHOTS, CLIP_WINDOW, PLAYERS,
+    CLIP_WINDOW,
+    CLIPS_OUTPUT_DIR,
     NOSIDE_FOLDERS,
+    PLAYERS,
+    RAW_VIDEO_DIR,
+    REMOVED_SHOTS,
+    SET_INFO_DIR,
+    SPLITS,
 )
+from pipeline.video_metadata import find_video_files
 
 from classifier_shared.dataset import compute_clip_bounds, compute_temporal_bounds
 from classifier_shared.player_mapping import collect_shots
@@ -30,7 +34,6 @@ from classifier_shared.taxonomy import (
     Taxonomy,
     taxonomy_lookup,
 )
-from pipeline.video_metadata import find_video_files
 
 # Default taxonomy when callers don't pass one. Matches the project's
 # working baseline; override via the function arg for one-off runs.

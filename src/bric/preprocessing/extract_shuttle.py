@@ -240,7 +240,7 @@ def process_one_vid(vid: int, master: pd.DataFrame, force: bool = False) -> None
             try:
                 csv_path = extract_shuttle(clip_path, save_dir=Path(tmpdir))
                 df = pd.read_csv(csv_path)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - one bad clip must not stop the batch
                 print(f'  {clip_path.name}: TrackNet failed: {type(e).__name__}: {e}',
                       flush=True)
                 n_failed += 1
@@ -288,7 +288,7 @@ def process_one_vid(vid: int, master: pd.DataFrame, force: bool = False) -> None
 def _worker(vid: int, master: pd.DataFrame, force: bool) -> None:
     try:
         process_one_vid(vid, master, force=force)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - one bad video must not stop the pool
         print(f'vid={vid}: ERROR {type(e).__name__}: {e}', flush=True)
 
 

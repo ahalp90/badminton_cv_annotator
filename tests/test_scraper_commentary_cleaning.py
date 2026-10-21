@@ -7,6 +7,7 @@ the module here (the test venv has no whisperx) must not fail.
 import json
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
@@ -366,7 +367,7 @@ def test_call_clean_llm_does_not_retry_exhausted_daily_quota(
 
     class DailyQuotaError(RuntimeError):
         code = 429
-        details = {
+        details: ClassVar[dict[str, object]] = {
             'error': {
                 'details': [{
                     'violations': [{

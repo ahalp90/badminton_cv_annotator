@@ -44,15 +44,16 @@ videos_len.npy, and labels.npy.
 """
 
 import os
+from pathlib import Path
+
 import pytest
 import torch
-from pathlib import Path
 from torch.utils.data import DataLoader
 
+from src.bst_x.model.bst import BST_CG_AP
 from src.bst_x.preparing_data.shuttleset_dataset import (
     Dataset_npy_collated,
 )
-from src.bst_x.model.bst import BST_CG_AP
 from src.classifier_shared.taxonomy import TAXONOMIES, taxonomy_lookup  # noqa: F401
 
 BST_X_DATA_DIR = os.environ.get("BST_X_DATA_DIR")
@@ -115,7 +116,7 @@ def test_pipeline_dataloader_to_model_forward_pass():
 
     # Step 5: Batch via DataLoader
     loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)
-    (human_pose, pos, shuttle), video_len, labels = next(iter(loader))
+    (human_pose, pos, shuttle), video_len, _labels = next(iter(loader))
     assert human_pose.ndim == 5, (
         f"Expected human_pose to have 5 dims (batch, frames, players, joints, xy), "
         f"got shape {human_pose.shape} — preprocessing output may be malformed."

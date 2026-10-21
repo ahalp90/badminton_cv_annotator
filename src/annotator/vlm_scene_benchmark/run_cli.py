@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import socket
 from collections.abc import Sequence
 from dataclasses import replace
@@ -43,7 +44,7 @@ def _absolute_observation(
                 f"backend sampled input frame {local_frame} outside [0, {len(frame_map)})"
             )
         absolute_frames.append(frame_map[local_frame])
-    gaps = [right - left for left, right in zip(absolute_frames, absolute_frames[1:])]
+    gaps = [right - left for left, right in itertools.pairwise(absolute_frames)]
     complete = evidence.sampled_input_frames == tuple(range(manifest.model_video.frame_count))
     uniform = len(gaps) < 2 or max(gaps) - min(gaps) <= 1
     return SamplingObservation(
@@ -159,7 +160,7 @@ def run_benchmark(
                 manifest.sampled_source_frames,
             )
             first_attempt_valid_prediction = True
-        except ValueError as first_error:
+        except (TypeError, ValueError) as first_error:
             correction = build_correction_prompt(
                 initial_prompt,
                 str(first_error),
@@ -179,7 +180,7 @@ def run_benchmark(
                 manifest.shard,
                 manifest.sampled_source_frames,
             )
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - the failure is recorded in the run evidence
         failure_reason = f"{type(error).__name__}: {error}"
     finally:
         monitor.stop()

@@ -25,13 +25,11 @@ from __future__ import annotations
 import pytest
 import torch
 import torch.nn.functional as F
-
 from loss.adaptive_focal import (
     AdaptiveFocalLoss,
     accumulate_class_counts,
     per_class_f1_from_counts,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures + helpers

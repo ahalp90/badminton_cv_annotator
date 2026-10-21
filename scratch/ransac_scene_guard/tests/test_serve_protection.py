@@ -2,7 +2,6 @@ from __future__ import annotations
 
 # Import the standalone experiments after adding their folder to sys.path.
 # ruff: noqa: E402
-
 import gzip
 import sys
 from pathlib import Path

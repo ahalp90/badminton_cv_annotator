@@ -115,9 +115,11 @@ def test_environment_and_registry_fail_before_runner(tmp_path):
         with pytest.raises(RuntimeError, match="ANNOTATOR_FIXTURES_ROOT"):
             run_cli.run_manifest(registry=(SSET_01,), runner=lambda _: pytest.fail("not called"))
 
-        with fixture_root(tmp_path):
-            with pytest.raises(ValueError, match="malformed"):
-                run_cli.run_manifest(registry=(object(),), runner=lambda _: pytest.fail("not called"))
+        with (
+            fixture_root(tmp_path),
+            pytest.raises(ValueError, match="malformed"),
+        ):
+            run_cli.run_manifest(registry=(object(),), runner=lambda _: pytest.fail("not called"))
     finally:
         if prior is not None:
             os.environ["ANNOTATOR_FIXTURES_ROOT"] = prior

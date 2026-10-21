@@ -44,8 +44,9 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
@@ -77,7 +78,7 @@ def parse_per_stroke_miss_rates(txt_path: Path) -> dict[str, float]:
             in_section = True
             continue
         if in_section:
-            if line.startswith("---") or line.startswith("==="):
+            if line.startswith(("---", "===")):
                 break
             if not line.strip() or line.lstrip().startswith("Stroke Type"):
                 continue
@@ -127,9 +128,7 @@ def join_metrics(
     pooled: dict[str, list[float]] = {}
     for label, vals in per_class.items():
         stroke, side = _strip_side(label)
-        if side is None:
-            pooled.setdefault(stroke, []).extend(vals)
-        elif collapse_sides:
+        if side is None or collapse_sides:
             pooled.setdefault(stroke, []).extend(vals)
         else:
             pooled.setdefault(label, []).extend(vals)
@@ -336,8 +335,8 @@ def main() -> int:
         f"- Pearson r: **{pearson:+.3f}**",
         f"- Spearman r: **{spearman:+.3f}**",
         "",
-        "Negative correlation = high shuttle miss matches low "
-        f"{args.metric} (the predicted direction).",
+        ("Negative correlation = high shuttle miss matches low "
+        f"{args.metric} (the predicted direction)."),
         "",
         "## Per-class table (sorted by miss rate, descending)",
         "",

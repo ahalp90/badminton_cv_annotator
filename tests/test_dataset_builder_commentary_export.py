@@ -10,7 +10,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from dataset_builder.commentary_export import LAG_SECONDS, commentary_tables, empty_table
+from dataset_builder.commentary_export import (
+    LAG_SECONDS,
+    commentary_tables,
+    empty_table,
+)
 from dataset_builder.schema_v1 import (
     COMMENTARY_CHUNKS,
     COMMENTARY_RALLY_LINKS,
@@ -21,7 +25,6 @@ from dataset_builder.schema_v1 import (
 )
 from dataset_builder.vision import save_npy_xz
 from scraper.commentary_retiming import AlignStatus
-
 
 RUN_ID = "run1"
 SOURCE_DATASET = "ShuttleSet"

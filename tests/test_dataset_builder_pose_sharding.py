@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-from fractions import Fraction
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from dataclasses import replace
+from fractions import Fraction
+from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -274,13 +274,15 @@ def test_sigterm_cleans_pose_process_group_and_temporary_tree(tmp_path: Path) ->
     terminator = threading.Thread(target=terminate_after_child_starts, daemon=True)
     terminator.start()
     try:
-        with pytest.raises(SystemExit) as termination:
-            with tempfile.TemporaryDirectory(prefix=".rtmlib-sharded-", dir=pose_root):
-                run_isolated_pose_process(
-                    [sys.executable, os.fspath(child_script), os.fspath(pid_file)],
-                    cwd=tmp_path,
-                    env=os.environ.copy(),
-                )
+        with (
+            pytest.raises(SystemExit) as termination,
+            tempfile.TemporaryDirectory(prefix=".rtmlib-sharded-", dir=pose_root),
+        ):
+            run_isolated_pose_process(
+                [sys.executable, os.fspath(child_script), os.fspath(pid_file)],
+                cwd=tmp_path,
+                env=os.environ.copy(),
+            )
     finally:
         terminator.join(timeout=12.0)
 
@@ -343,13 +345,15 @@ def test_sigterm_between_popen_return_and_assignment_cleans_pose_group(
         return child
 
     monkeypatch.setattr(pose_process_module.subprocess, "Popen", interposed_popen)
-    with pytest.raises(SystemExit) as termination:
-        with tempfile.TemporaryDirectory(prefix=".rtmlib-sharded-", dir=pose_root):
-            run_isolated_pose_process(
-                [sys.executable, os.fspath(child_script), os.fspath(pid_file)],
-                cwd=tmp_path,
-                env=os.environ.copy(),
-            )
+    with (
+        pytest.raises(SystemExit) as termination,
+        tempfile.TemporaryDirectory(prefix=".rtmlib-sharded-", dir=pose_root),
+    ):
+        run_isolated_pose_process(
+            [sys.executable, os.fspath(child_script), os.fspath(pid_file)],
+            cwd=tmp_path,
+            env=os.environ.copy(),
+        )
 
     assert marker_ready.is_set()
     assert termination.value.code == 128 + signal.SIGTERM

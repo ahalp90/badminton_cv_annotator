@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from typing import TypeAlias
 
 import numpy as np
 
@@ -25,8 +24,8 @@ from scratch.contact_det_full_ds_fit.scripts.rally_start_model import (
     scale_base30_frames,
 )
 
-SectionIdentity: TypeAlias = tuple[str, int]
-OptionIdentity: TypeAlias = tuple[str, int, str, int | None, int | None]
+type SectionIdentity = tuple[str, int]
+type OptionIdentity = tuple[str, int, str, int | None, int | None]
 
 
 def option_identity(option: CombinedAction) -> OptionIdentity:

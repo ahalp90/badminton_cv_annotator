@@ -110,9 +110,9 @@ def test_serve_setup_still_rejects_invalid_window(make_inputs, window: object) -
         serve_setup_still(make_inputs(), 2, window, 1.0, (Slot.TOP,))  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize('frame', [-1, 4, 1.5, True])
-def test_serve_setup_still_rejects_invalid_claimed_frame(make_inputs, frame: object) -> None:
-    with pytest.raises(ValueError):
+@pytest.mark.parametrize(('frame', 'error'), [(-1, ValueError), (4, ValueError), (1.5, TypeError), (True, TypeError)])
+def test_serve_setup_still_rejects_invalid_claimed_frame(make_inputs, frame: object, error: type[Exception]) -> None:
+    with pytest.raises(error):
         serve_setup_still(make_inputs(), frame, 2, 1.0, (Slot.TOP,))  # type: ignore[arg-type]
 
 

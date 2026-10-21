@@ -71,8 +71,8 @@ sys.path.insert(0, str(REPO_ROOT / "src" / "bst_x"))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from pipeline.config import HOMOGRAPHY_RESOLUTION  # noqa: E402
-from shared.court import get_court_info  # noqa: E402
 
+from shared.court import get_court_info  # noqa: E402
 
 # One palette for both stories: bbox colour conveys rank-and-court status,
 # anchor picks are distinguished by thickness + tag + pink keypoints (not by

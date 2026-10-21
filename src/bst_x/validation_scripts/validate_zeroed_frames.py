@@ -42,12 +42,12 @@ from pathlib import Path
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
+import matplotlib
 import numpy as np
 import pandas as pd
 
-import matplotlib
 matplotlib.use("Agg")  # headless backend for HPC (no X11 display)
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 BST_REFACTOR_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = BST_REFACTOR_ROOT.parent
@@ -60,7 +60,6 @@ from classifier_shared.taxonomy import (  # noqa: E402
     Taxonomy,
     taxonomy_lookup,
 )
-
 
 # ---------------------------------------------------------------------------
 # Data record
@@ -880,7 +879,7 @@ def plot_fail_rate_histogram(
     n_excluded = len(records) - len(filtered)
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    counts, bin_edges, patches = ax.hist(
+    counts, bin_edges, _patches = ax.hist(
         rates, bins=20, range=(0.0, 1.0), edgecolor="black", alpha=0.75,
     )
     ax.set_yscale("log")
@@ -908,7 +907,7 @@ def plot_fail_rate_histogram(
     ax.text(0.97, 0.95, stats_text, transform=ax.transAxes,
             verticalalignment="top", horizontalalignment="right",
             fontsize=9, family="monospace",
-            bbox=dict(boxstyle="round,pad=0.4", facecolor="wheat", alpha=0.5))
+            bbox={"boxstyle": "round,pad=0.4", "facecolor": "wheat", "alpha": 0.5})
 
     ax.legend()
     ax.set_xlabel(
@@ -1457,7 +1456,7 @@ def main():
         if hz_data:
             # Pick the most informative metric: combined if shuttle data
             # was loaded, otherwise MMPose-only.
-            if "either" in hz_data and hz_data["either"]:
+            if hz_data.get("either"):
                 hm_data = hz_data["either"]
                 hm_label = "Combined (MMPose OR shuttle)"
             else:
@@ -1495,9 +1494,10 @@ def main():
             f.write("# Clips where the hit-frame index exceeded the clip length.\n")
             f.write("# These were skipped in the hit-frame profile plot.\n")
             f.write(f"# clip_name  rel_path  hit_idx  total_frames\n\n")
-            for clip_name, rel_path, hit_idx, total_frames in sorted(oob_clips):
-                f.write(f"{clip_name}  {rel_path}  "
-                        f"hit_idx={hit_idx}  total_frames={total_frames}\n")
+            f.writelines(
+                f"{clip_name}  {rel_path}  hit_idx={hit_idx}  total_frames={total_frames}\n"
+                for clip_name, rel_path, hit_idx, total_frames in sorted(oob_clips)
+            )
         print(f"Saved: {oob_path}")
 
 

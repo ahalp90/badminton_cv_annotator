@@ -21,10 +21,10 @@ Full explanation + equations at: ``docs/architecture_notes/class_f1_focal_design
 """
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from beartype import beartype
 from jaxtyping import Float32, Int64, jaxtyped
+from torch import nn
 
 
 class AdaptiveFocalLoss(nn.Module):

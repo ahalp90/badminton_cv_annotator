@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from fractions import Fraction
-from pathlib import Path
 import shutil
 import subprocess
+from fractions import Fraction
+from pathlib import Path
 
 import cv2
 import numpy as np

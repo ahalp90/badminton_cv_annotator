@@ -39,7 +39,6 @@ import numpy as np
 import pandas as pd
 import yaml
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 SRC_ROOT = SCRIPT_DIR.parents[2]
 BST_X = SRC_ROOT / 'bst_x'
@@ -134,22 +133,21 @@ def main() -> None:
     txt_path = args.out_dir / f'zeroed_frames_class_audit{suffix}.txt'
     csv_path = args.out_dir / f'zeroed_frames_class_audit{suffix}.csv'
 
-    with txt_path.open('w') as txt_f:
-        with redirect_stdout(_Tee(sys.__stdout__, txt_f)):
-            rows = _emit_report(
-                flat_dir=flat_dir,
-                taxonomy=taxonomy,
-                split_column=args.split_column,
-                run_dir=run_dir,
-                missing=missing,
-                skipped_label=skipped_label,
-                ordered=ordered,
-                rates_by_class=rates_by_class,
-                f1_by_class=f1_by_class,
-                bot_n=bot_n,
-                bottom_n_arg=args.bottom_n,
-                bin_pct=args.bin_pct,
-            )
+    with txt_path.open('w') as txt_f, redirect_stdout(_Tee(sys.__stdout__, txt_f)):
+        rows = _emit_report(
+            flat_dir=flat_dir,
+            taxonomy=taxonomy,
+            split_column=args.split_column,
+            run_dir=run_dir,
+            missing=missing,
+            skipped_label=skipped_label,
+            ordered=ordered,
+            rates_by_class=rates_by_class,
+            f1_by_class=f1_by_class,
+            bot_n=bot_n,
+            bottom_n_arg=args.bottom_n,
+            bin_pct=args.bin_pct,
+        )
 
     pd.DataFrame(rows).to_csv(csv_path, index=False)
     print(f'\nwrote {txt_path}')
@@ -213,7 +211,7 @@ def _emit_report(
         )
         row: dict = {
             'class': label,
-            'n_clips': int(len(rates)),
+            'n_clips': len(rates),
             'mean_drop_pct': round(float(rates.mean() * 100), 2),
         }
         for key, p in zip(bin_keys, bin_pcts):

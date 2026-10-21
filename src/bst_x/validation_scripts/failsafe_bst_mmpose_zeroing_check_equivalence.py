@@ -48,9 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-
 from preparing_data.apply_heuristic import run as run_apply_heuristic
-
 
 FLOAT_ATOL = 1e-5
 

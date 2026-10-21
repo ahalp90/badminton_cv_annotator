@@ -26,7 +26,6 @@ Codes renumbered 2026-07-22: no-detection folds into 0; fabricated/suspect/
 degraded are 1/2/3 (was 0-4 with no_detection=2).
 """
 import numpy as np
-
 from rule_recurrence import BASE, pattern_episodes
 from rule_recurrence_v2 import adaptive_threshold
 
@@ -88,8 +87,8 @@ def build_mask(track, window=16):
     # blank frames stay unflagged even under a halo: the guard has nothing to
     # say there, and the track's own visibility column already records them
     codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = NO_FLAG
-    return codes, dict(threshold=threshold, margin=margin,
-                       n_varying=len(varying), n_flat=len(flat))
+    return codes, {'threshold': threshold, 'margin': margin,
+                       'n_varying': len(varying), 'n_flat': len(flat)}
 
 
 def split_half_check(track, window=16):

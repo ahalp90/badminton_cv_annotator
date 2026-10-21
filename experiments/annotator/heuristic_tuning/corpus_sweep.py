@@ -24,8 +24,6 @@ from uuid import uuid4
 
 import numpy as np
 
-from experiments.annotator.heuristic_tuning import selection
-from experiments.annotator.heuristic_tuning import sweep
 from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
 from annotator.evaluation.gt_scoring import (
     RunVideoInputs,
@@ -36,6 +34,7 @@ from annotator.evaluation.gt_scoring import (
 )
 from annotator.evaluation.scoring import load_gt_rallies, safe_f1
 from annotator.run_video import run_video
+from experiments.annotator.heuristic_tuning import selection, sweep
 
 RUN_SCHEMA = "annotator-corpus-sweep/1"
 ATTEMPT_SCHEMA = "annotator-corpus-sweep-attempt/1"
@@ -856,13 +855,13 @@ def _canonical_json(value: object) -> str:
 
 def _spec_from_payload(payload: object, label: str) -> sweep.CandidateSpec:
     if not isinstance(payload, Mapping):
-        raise ValueError("candidate spec payload must be an object")
+        raise TypeError("candidate spec payload must be an object")
     if set(payload) != {"overrides_base30", "strategies"}:
         raise ValueError("candidate spec payload fields differ")
     overrides = payload["overrides_base30"]
     strategies = payload["strategies"]
     if not isinstance(overrides, Mapping) or not isinstance(strategies, Mapping):
-        raise ValueError("candidate spec mappings are malformed")
+        raise TypeError("candidate spec mappings are malformed")
     spec = sweep.CandidateSpec(
         label,
         {str(key): float(value) for key, value in overrides.items()},
@@ -878,7 +877,7 @@ def _load_json(path: Path) -> dict[str, Any]:
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid corpus sweep JSON {path}: {error}") from error
     if not isinstance(payload, dict):
-        raise ValueError(f"corpus sweep JSON must contain an object: {path}")
+        raise TypeError(f"corpus sweep JSON must contain an object: {path}")
     return payload
 
 

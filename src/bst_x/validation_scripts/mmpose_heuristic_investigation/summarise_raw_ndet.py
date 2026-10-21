@@ -64,7 +64,7 @@ def main() -> int:
 
         row = {
             "stem": stem,
-            "F": int(len(ndet)),
+            "F": len(ndet),
             "n_max": int(ndet.max()),
             "n_mean": float(ndet.mean()),
             "n_median": float(np.median(ndet)),

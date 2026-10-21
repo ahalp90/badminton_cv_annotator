@@ -29,7 +29,6 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-
 # run_id legitimately differs by side (one --run-id per invocation); skip it.
 NPZ_RUN_ID_DIFFERENT_BY_SIDE = {"run_id"}
 

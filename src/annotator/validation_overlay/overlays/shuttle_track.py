@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -54,15 +55,15 @@ def _clip_endpoint(value: int, upper_bound: int) -> int:
 
 def make_draw(track: np.ndarray, mark_label: str, style: HudStyle) -> DrawFn:
     """Bind validated track data to the core draw contract."""
-    half_edge = max(1, int(round(25.0 * style.scale)))
-    line_width = max(1, int(round(7.0 * style.scale)))
+    half_edge = max(1, round(25.0 * style.scale))
+    line_width = max(1, round(7.0 * style.scale))
 
     def draw(image: np.ndarray, source_idx: int, in_target_span: bool) -> list[str]:
         del in_target_span
         x, y, visibility = track[source_idx]
         if visibility == 1.0:
-            centre_x = int(round(float(x) * style.output_width))
-            centre_y = int(round(float(y) * style.output_height))
+            centre_x = round(float(x) * style.output_width)
+            centre_y = round(float(y) * style.output_height)
             top_left = (
                 _clip_endpoint(centre_x - half_edge, style.output_width),
                 _clip_endpoint(centre_y - half_edge, style.output_height),
@@ -110,7 +111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             verify=args.verify,
         )
         result = render(plan, make_draw(track, args.label, plan.hud_style))
-    except Exception as exc:  # CLI boundary: turn hard validation/render errors into status 1.
+    except (EOFError, KeyError, OSError, RuntimeError, TypeError, ValueError, zipfile.BadZipFile) as exc:  # CLI boundary: expected errors exit with status 1.
         print(f"validation overlay failed: {exc}", file=sys.stderr)
         return 1
     print(f"wrote {result.output} ({result.output_frames} frames)")

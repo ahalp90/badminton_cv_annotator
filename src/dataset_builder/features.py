@@ -10,6 +10,7 @@ reliable enough to export.
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Sequence
 from enum import IntEnum
@@ -291,7 +292,7 @@ def movement_inefficiency(
     ):
         raise ValueError("contact frames must be strictly increasing and in range")
     result = np.full((max(0, len(contacts) - 1), 2), np.nan, dtype=float)
-    for interval, (start, end) in enumerate(zip(contacts, contacts[1:])):
+    for interval, (start, end) in enumerate(itertools.pairwise(contacts)):
         for slot in range(2):
             path = positions[start : end + 1, slot]
             if not np.isfinite(path).all():

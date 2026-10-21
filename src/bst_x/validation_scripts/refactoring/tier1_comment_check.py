@@ -77,7 +77,7 @@ def help_doc_changed(basename: str, before_src: str, after_src: str) -> bool:
 
 def check_file(path: str, ref: str) -> int:
     before_src = subprocess.run(
-        ["git", "show", f"{ref}:{path}"], capture_output=True, text=True
+        ["git", "show", f"{ref}:{path}"], capture_output=True, text=True, check=True
     ).stdout
     with open(path, encoding="utf-8") as fh:
         after_src = fh.read()

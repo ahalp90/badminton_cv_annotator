@@ -111,7 +111,7 @@ def main() -> int:
             parser.error(f'no match.csv under --set-dir: {args.set_dir}')
         if not args.video_metadata_csv.is_file():
             parser.error(f'--video-metadata-csv not found: {args.video_metadata_csv}')
-        from hit_frame_lookup import build_hit_frame_lookup  # noqa: E402
+        from hit_frame_lookup import build_hit_frame_lookup
         print(f'Building hit-frame lookup from {args.set_dir} ...')
         hit_lookup = build_hit_frame_lookup(args.set_dir, args.video_metadata_csv)
         print(f'  {len(hit_lookup):,} clip hit-frame indices computed')
@@ -137,10 +137,9 @@ def main() -> int:
         clip_stem = row.clip_stem
         split = getattr(row, args.split_column)
 
-        if args.exclude_unknown:
-            if derive_class_index(taxonomy, row.raw_type_en, row.player_side) is None:
-                excluded_unknown += 1
-                continue
+        if args.exclude_unknown and derive_class_index(taxonomy, row.raw_type_en, row.player_side) is None:
+            excluded_unknown += 1
+            continue
 
         fpath = args.flat_dir / f'{clip_stem}_failed.npy'
         if not fpath.exists():

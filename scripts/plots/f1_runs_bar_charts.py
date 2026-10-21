@@ -16,12 +16,12 @@ literal (bst_25: best macro 0.821 / min 0.611, serial mean 0.8097 / 0.5762).
 """
 from pathlib import Path
 
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
+import numpy as np
 import yaml
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 BASE = Path(
     "/home/ariel/Documents/COSC594/badminton_cv_annotator/"
@@ -212,8 +212,8 @@ def draw_figure(entries: list[dict], outpath: Path, suptitle: str, subtitle: str
                  fontsize=7.5, fontweight="bold", color="#333333")
         fig.text(0.012, 0.884, BASELINE_CONFIG, ha="left", va="top",
                  family="monospace", fontsize=6.5, linespacing=1.3, color="#222222",
-                 bbox=dict(boxstyle="round,pad=0.5", facecolor="#f7f7f7",
-                           edgecolor="#b0b0b0", linewidth=0.7))
+                 bbox={"boxstyle": "round,pad=0.5", "facecolor": "#f7f7f7",
+                           "edgecolor": "#b0b0b0", "linewidth": 0.7})
         legend_y = 0.792
     fig.legend(handles=handles, loc="upper left", bbox_to_anchor=(0.012, legend_y),
                ncol=len(handles), frameon=True, fontsize=8)

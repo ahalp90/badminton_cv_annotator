@@ -78,16 +78,18 @@ def atomic_gzip_text_writer(path: Path, *, newline: str | None = None) -> Iterat
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = _temporary_path(destination)
     try:
-        with temporary.open("wb") as raw_handle:
-            with gzip.GzipFile(
+        with (
+            temporary.open("wb") as raw_handle,
+            gzip.GzipFile(
                 filename="",
                 mode="wb",
                 compresslevel=9,
                 fileobj=raw_handle,
                 mtime=0,
-            ) as gzip_handle:
-                with io.TextIOWrapper(gzip_handle, encoding="utf-8", newline=newline) as text_handle:
-                    yield text_handle
+            ) as gzip_handle,
+            io.TextIOWrapper(gzip_handle, encoding="utf-8", newline=newline) as text_handle,
+        ):
+            yield text_handle
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)

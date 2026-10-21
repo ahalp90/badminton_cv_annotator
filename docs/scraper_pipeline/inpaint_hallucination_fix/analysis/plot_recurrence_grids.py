@@ -48,12 +48,10 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+from compressed_io import read_npy_xz, write_json_gz
 from matplotlib.lines import Line2D
 from scipy.cluster.hierarchy import fclusterdata
 from sklearn.metrics import silhouette_score
-
-from compressed_io import read_npy_xz, write_json_gz
-
 
 FRAME_WIDTH = 512
 FRAME_HEIGHT = 288

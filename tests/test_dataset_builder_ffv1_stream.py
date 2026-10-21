@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from fractions import Fraction
 import io
-from pathlib import Path
 import shutil
 import subprocess
+from fractions import Fraction
+from pathlib import Path
 from typing import BinaryIO
 
 import cv2

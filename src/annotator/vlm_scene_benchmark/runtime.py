@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import re
 import subprocess
@@ -11,7 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from .contracts import PredictionSegment, ShardSpec, validate_prediction_partition
 
@@ -224,7 +225,7 @@ def _frame_code_segments(
     sampled_source_frames: Sequence[int] | None,
 ) -> tuple[PredictionSegment, ...]:
     if not isinstance(raw_frames, list):
-        raise ValueError("prediction response frames must be a JSON array")
+        raise TypeError("prediction response frames must be a JSON array")
     if sampled_source_frames is None:
         raise ValueError("sampled source frames are required for a frame-code response")
     frame_grid = tuple(sampled_source_frames)
@@ -234,7 +235,7 @@ def _frame_code_segments(
         )
     if not frame_grid or frame_grid[0] != shard.start_frame:
         raise ValueError("sampled source frames must begin at the shard start")
-    if any(right <= left for left, right in zip(frame_grid, frame_grid[1:])):
+    if any(right <= left for left, right in itertools.pairwise(frame_grid)):
         raise ValueError("sampled source frames must be strictly increasing")
     if frame_grid[-1] >= shard.end_frame:
         raise ValueError("sampled source frames must end inside the shard")
@@ -289,7 +290,7 @@ def parse_prediction_response(
             ) from error
         value = {"frames": frame_codes}
     if not isinstance(value, dict):
-        raise ValueError("prediction response must be a JSON object")
+        raise TypeError("prediction response must be a JSON object")
     if set(value) == {"frames"}:
         segments = _frame_code_segments(value["frames"], shard, sampled_source_frames)
     elif set(value) == {"segments"}:
@@ -392,7 +393,7 @@ class GpuMemoryMonitor:
                     f"{GPU_MONITOR_STOP_TIMEOUT_SECONDS:g} seconds"
                 )
 
-    def __enter__(self) -> GpuMemoryMonitor:
+    def __enter__(self) -> Self:
         self.start()
         return self
 

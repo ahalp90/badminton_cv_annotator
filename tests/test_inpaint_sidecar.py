@@ -10,11 +10,10 @@ import importlib.util
 import json
 import os
 import tomllib
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pytest
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TRACKNET_DIR = REPO_ROOT / 'src' / 'shared' / 'tracknetv3'
@@ -183,7 +182,7 @@ def test_applied_header_and_format_are_exact_except_runtime_metadata(
     class FixedDateTime:
         @classmethod
         def now(cls, _timezone: timezone) -> datetime:
-            return datetime(2026, 7, 22, 11, 0, tzinfo=timezone.utc)
+            return datetime(2026, 7, 22, 11, 0, tzinfo=UTC)
 
     monkeypatch.setattr(WRITER_MODULE, 'datetime', FixedDateTime)
     sidecar_path, payload, raw_text = _write_sidecar(

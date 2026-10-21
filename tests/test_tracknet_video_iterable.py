@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import importlib.util
-from itertools import zip_longest
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from itertools import zip_longest
+from pathlib import Path
 from types import ModuleType
 
 import numpy as np
@@ -15,7 +15,6 @@ import pytest
 
 from annotator.video_metadata import probe_video_metadata
 from dataset_builder.tracknet_input import TrackNetInputMode, create_tracknet_input
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"

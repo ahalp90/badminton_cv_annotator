@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.rally_segmentation as rally_segmentation
 import annotator.run_video as run_video_module
+from annotator import rally_segmentation
 from annotator.config import BaseAnnotatorConfig
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.fps_constants import scale_for_fps
@@ -504,7 +504,7 @@ def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
 def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(monkeypatch):
     inputs = _synthetic_inputs()
     contacts = {0: [12, 14, 16], 1: [30, 32, 34, 36]}
-    for frame in sum(contacts.values(), []):
+    for frame in [frame for frames in contacts.values() for frame in frames]:
         inputs['track'][frame] = (0.5, 0.4, 1.0)
     codes = np.zeros(len(inputs['track']), dtype=np.uint8)
     codes[contacts[0]] = 3
@@ -526,7 +526,7 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
     assert result.verdict_rows[0].verdict is Verdict.WON
     assert result.verdict_rows[0].verdict_source.value == 'next_server'
     assert result.filtered_by_rally[0] == contacts[0]
-    assert set(result.hit_height_by_frame) == set(sum(contacts.values(), []))
+    assert set(result.hit_height_by_frame) == {frame for frames in contacts.values() for frame in frames}
     assert result.hit_height_failures == []
 
 
@@ -547,7 +547,6 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
                   rejected_intervals, infer_net_fault):
         assert shuttle_hallucination_mask[40]
         rejected_intervals.append((39, 41))
-        return None
 
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', fake_pick)
     track = inputs['track']

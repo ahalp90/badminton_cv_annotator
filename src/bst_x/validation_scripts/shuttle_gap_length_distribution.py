@@ -31,8 +31,9 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 import numpy as np
 
 DEFAULT_OUT_DIR = (
@@ -154,7 +155,7 @@ def main() -> int:
     for i, p in enumerate(files):
         try:
             arr = np.load(p)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one unreadable file must not stop the scan
             print(f"  WARNING: could not load {p.name}: {e}")
             continue
         if arr.ndim != 2 or arr.shape[1] != 3:

@@ -78,7 +78,7 @@ class ShuttleQualitySummary:
     def from_payload(cls, payload: object) -> ShuttleQualitySummary:
         """Load an exact versioned persisted representation."""
         if not isinstance(payload, dict):
-            raise ValueError("shuttle quality payload must be an object")
+            raise TypeError("shuttle quality payload must be an object")
         expected_fields = {
             "schema",
             "frame_count",
@@ -188,11 +188,11 @@ def _code_counts(payload: object, name: str) -> tuple[int, int, int, int]:
 
 def _list(payload: object, name: str) -> list[object]:
     if not isinstance(payload, list):
-        raise ValueError(f"{name} must be a list")
+        raise TypeError(f"{name} must be a list")
     return payload
 
 
 def _integer(payload: object, name: str) -> int:
     if isinstance(payload, bool) or not isinstance(payload, int):
-        raise ValueError(f"{name} must be an integer")
+        raise TypeError(f"{name} must be an integer")
     return payload

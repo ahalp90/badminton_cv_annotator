@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 
 from .contracts import ShardSpec
@@ -25,7 +26,7 @@ def build_scene_prompt(
     """Build the one frozen inference prompt without human labels."""
     if not sampled_source_frames:
         raise ValueError("the scene prompt requires sampled source frames")
-    if any(right <= left for left, right in zip(sampled_source_frames, sampled_source_frames[1:])):
+    if any(right <= left for left, right in itertools.pairwise(sampled_source_frames)):
         raise ValueError("sampled source frames must be strictly increasing")
     if sampled_source_frames[0] < shard.start_frame or sampled_source_frames[-1] >= shard.end_frame:
         raise ValueError("sampled source frames are outside the benchmark shard")

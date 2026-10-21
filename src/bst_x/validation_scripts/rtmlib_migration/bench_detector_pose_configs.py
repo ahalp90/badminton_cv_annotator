@@ -43,8 +43,8 @@ import time
 
 import cv2
 import numpy as np
-
 from _common import find_clip, load_mmpose_raw, matched_kp_l2
+
 from shared.rtmlib_pose import _MODEL_BASE, RtmlibPoseExtractor
 
 DEVICE = os.environ.get("RTMLIB_GATE_DEVICE", "cpu")
@@ -137,12 +137,12 @@ def bench_config(name: str, spec, clips) -> dict:
     tot = det + pose
     l2_all = np.concatenate(l2_all) if l2_all else np.array([np.nan])
     l2_conf = np.concatenate(l2_conf) if l2_conf else np.array([np.nan])
-    return dict(
-        name=name, det=float(np.median(det)), pose=float(np.median(pose)),
-        total=float(np.median(tot)), fps=1e3 / float(np.median(tot)),
-        ppl=float(np.mean(people)), low=low,
-        kp=float(np.median(l2_all)), kpc=float(np.median(l2_conf)),
-    )
+    return {
+        "name": name, "det": float(np.median(det)), "pose": float(np.median(pose)),
+        "total": float(np.median(tot)), "fps": 1e3 / float(np.median(tot)),
+        "ppl": float(np.mean(people)), "low": low,
+        "kp": float(np.median(l2_all)), "kpc": float(np.median(l2_conf)),
+    }
 
 
 def main() -> int:

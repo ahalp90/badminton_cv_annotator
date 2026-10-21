@@ -11,10 +11,9 @@ from pathlib import Path
 
 import cv2
 import pandas as pd
-from scraper.config import VIDEO_EXTENSIONS
-
 from pipeline.config import RAW_VIDEO_DIR, RESOLUTION_CSV_PATH, SET_INFO_DIR
 
+from scraper.config import VIDEO_EXTENSIONS
 
 _YTDLP_FORMAT_STEM = re.compile(r'\.f\d+$')
 

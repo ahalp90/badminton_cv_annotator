@@ -45,8 +45,8 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
-
 from pipeline.config import COCO_N_JOINTS
+
 from shared.court import normalize_position, to_court_coordinate
 
 from .base import (
@@ -390,7 +390,7 @@ def apply(raw: RawClip, ctx: ClipContext, **hyperparams) -> HeuristicOutput:
     """
     # Lazy import: prepare_train_on_shuttleset pulls in torch/pandas at module
     # load (its rtmlib import is itself lazy).
-    from preparing_data.prepare_train_on_shuttleset import (  # noqa: PLC0415
+    from preparing_data.prepare_train_on_shuttleset import (
         normalize_joints,
     )
 

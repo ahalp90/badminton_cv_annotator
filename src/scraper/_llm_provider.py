@@ -1,11 +1,11 @@
 """Small provider boundary for structured commentary LLM calls."""
 
-from dataclasses import dataclass
-from enum import StrEnum
 import json
 import math
 import os
 import re
+from dataclasses import dataclass
+from enum import StrEnum
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 

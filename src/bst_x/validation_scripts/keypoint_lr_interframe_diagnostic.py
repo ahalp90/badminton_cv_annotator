@@ -59,7 +59,6 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-
 # COCO-17 paired anatomical keypoints (left, right). Order is (L_idx, R_idx).
 # Eyes (1,2) and ears (3,4) excluded: face-noise-dominated, dont track body
 # structural L/R confusion well.

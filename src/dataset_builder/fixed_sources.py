@@ -58,13 +58,13 @@ class FixedSourceEntry:
         _validate_source_url(self.source_url)
         _validate_source_basename(self.source_basename)
         if not isinstance(self.source_available, bool):
-            raise ValueError("fixed source source_available must be boolean")
+            raise TypeError("fixed source source_available must be boolean")
         if not isinstance(self.ground_truth, GroundTruthMapping):
-            raise ValueError("fixed source ground_truth must be a GroundTruthMapping")
+            raise TypeError("fixed source ground_truth must be a GroundTruthMapping")
         if self.ground_truth.match_id != self.source_id:
             raise ValueError("fixed source ground truth match_id must equal source_id")
         if not isinstance(self.eligible, bool):
-            raise ValueError("fixed source eligible must be boolean")
+            raise TypeError("fixed source eligible must be boolean")
         self._validate_source_metadata()
         self._validate_eligibility()
 
@@ -108,7 +108,7 @@ class FixedSourceManifest:
         if not _MD5_PATTERN.fullmatch(self.md5):
             raise ValueError("fixed source manifest md5 must be 32 lowercase hexadecimal characters")
         if isinstance(self.size_bytes, bool) or not isinstance(self.size_bytes, int):
-            raise ValueError("fixed source manifest size_bytes must be an integer")
+            raise TypeError("fixed source manifest size_bytes must be an integer")
         if self.size_bytes <= 0:
             raise ValueError("fixed source manifest size_bytes must be positive")
         if self.schema != FIXED_SOURCE_MANIFEST_SCHEMA:
@@ -135,13 +135,13 @@ class ResolvedFixedSource:
 
     def __post_init__(self) -> None:
         if not isinstance(self.entry, FixedSourceEntry):
-            raise ValueError("resolved fixed source entry must be a FixedSourceEntry")
+            raise TypeError("resolved fixed source entry must be a FixedSourceEntry")
         if not isinstance(self.source, ArtifactIntegrity):
-            raise ValueError("resolved fixed source source must be ArtifactIntegrity")
+            raise TypeError("resolved fixed source source must be ArtifactIntegrity")
         if not isinstance(self.metadata, VideoMetadata):
-            raise ValueError("resolved fixed source metadata must be VideoMetadata")
+            raise TypeError("resolved fixed source metadata must be VideoMetadata")
         if not isinstance(self.ground_truth_directory, Path):
-            raise ValueError("resolved fixed source ground_truth_directory must be a Path")
+            raise TypeError("resolved fixed source ground_truth_directory must be a Path")
         if not self.ground_truth_directory.is_absolute():
             raise ValueError("resolved fixed source ground_truth_directory must be absolute")
         if not self.entry.eligible:
@@ -174,7 +174,7 @@ def load_fixed_source_manifest(path: Path) -> FixedSourceManifest:
     _require_exact_keys(root, {"schema", "dataset", "videos"}, "fixed source manifest")
     videos_raw = root["videos"]
     if not isinstance(videos_raw, list):
-        raise ValueError("fixed source manifest videos must be an array")
+        raise TypeError("fixed source manifest videos must be an array")
     videos = tuple(_parse_entry(value, index) for index, value in enumerate(videos_raw))
     return FixedSourceManifest(
         path=resolved_path,
@@ -299,7 +299,7 @@ def load_fixed_acquisition(
     _validate_acquisition_manifest(payload["manifest"], manifest)
     videos = payload["videos"]
     if not isinstance(videos, list):
-        raise ValueError("fixed acquisition videos must be a list")
+        raise TypeError("fixed acquisition videos must be a list")
     entries = select_fixed_source_entries(manifest, requested_video_ids)
     if len(videos) != len(entries):
         raise ValueError("fixed acquisition video count differs from the requested sources")
@@ -447,7 +447,7 @@ def _validate_manifest_uniqueness(videos: Sequence[FixedSourceEntry]) -> None:
 
 def _requested_video_ids(requested: Sequence[str]) -> tuple[str, ...]:
     if isinstance(requested, (str, bytes)):
-        raise ValueError("requested fixed source video IDs must be a sequence of strings")
+        raise TypeError("requested fixed source video IDs must be a sequence of strings")
     video_ids = tuple(requested)
     if not video_ids:
         raise ValueError("requested fixed source video IDs must not be empty")
@@ -605,7 +605,7 @@ def _require_nonempty_string(value: object, name: str) -> None:
 
 def _boolean(value: object, name: str) -> bool:
     if not isinstance(value, bool):
-        raise ValueError(f"{name} must be boolean")
+        raise TypeError(f"{name} must be boolean")
     return value
 
 

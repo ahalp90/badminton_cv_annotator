@@ -115,6 +115,7 @@ def _probe_audio(video_path: Path) -> bool:
             capture_output=True,
             text=True,
             timeout=_FFPROBE_TIMEOUT_S,
+            check=False,
         )
     except subprocess.TimeoutExpired as exc:
         raise _AudioProbeTimeout from exc
@@ -294,7 +295,7 @@ def _download_one(
     accept_silent_video: bool = False,
 ) -> DownloadOutcome:
     """Download and verify one candidate without catching programming errors."""
-    url, video_id, title, output_dir = task
+    url, video_id, _title, output_dir = task
     skip_audio_gate = allow_missing_audio or video_only
     existing = _completed_outputs(output_dir, video_id)
     if len(existing) > 1:
@@ -332,6 +333,7 @@ def _download_one(
             capture_output=True,
             text=True,
             timeout=_YTDLP_TIMEOUT_S,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         print(f'  TIMEOUT video {video_id}: download exceeded 30 minutes')
@@ -579,7 +581,7 @@ def download_all_videos(
         for future in progress_iter(futures, "collecting downloads", unit="videos"):
             try:
                 outcomes.append(future.result())
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - the first unexpected error is re-raised once the pool drains
                 if first_unexpected is None:
                     first_unexpected = exc
 

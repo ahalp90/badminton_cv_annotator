@@ -75,7 +75,7 @@ def _response_failures(record_path: Path, record: BenchmarkRunRecord) -> list[st
         sampled_frames = None if observed is None else observed.sampled_source_frames
         try:
             parse_prediction_response(first_response, record.shard, sampled_frames)
-        except ValueError:
+        except (TypeError, ValueError):
             first_is_valid_prediction = False
         else:
             first_is_valid_prediction = True
@@ -93,7 +93,7 @@ def _response_failures(record_path: Path, record: BenchmarkRunRecord) -> list[st
                 record.shard,
                 sampled_frames,
             )
-        except (OSError, ValueError) as error:
+        except (OSError, TypeError, ValueError) as error:
             failures.append(f"retained model response cannot reconstruct predictions: {error}")
         else:
             if parsed != record.segments:

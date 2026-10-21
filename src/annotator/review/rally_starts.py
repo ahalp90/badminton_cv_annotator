@@ -12,12 +12,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
-from typing import TypeVar
 
 from annotator.review.broadcast_labels import VideoMetadata
 
 CONTRACT_PATH = Path(__file__).resolve()
-EnumT = TypeVar("EnumT", bound=StrEnum)
 EXPECTED_COMMITTED_STATUS = "serve_missed_later_strokes_matched"
 CANONICAL_TIMELINE_SUFFIX = "_broadcast_timeline_labels.csv.gz"
 
@@ -204,7 +202,7 @@ DecisionWriter = Callable[
 
 def _parse_int(value: object, field: str, source: str) -> int:
     if isinstance(value, bool):
-        raise ValueError(f"{source}: {field} must be an integer, got {value!r}")
+        raise TypeError(f"{source}: {field} must be an integer, got {value!r}")
     try:
         parsed = float(str(value))
     except ValueError as exc:
@@ -241,7 +239,7 @@ def _parse_optional_int(value: object, field: str, source: str) -> int | None:
     return _parse_int(value, field, source)
 
 
-def _parse_enum(
+def _parse_enum[EnumT: StrEnum](
     enum_type: type[EnumT],
     value: object,
     field: str,
@@ -253,7 +251,7 @@ def _parse_enum(
         raise ValueError(f"{source}: invalid {field} {value!r}") from exc
 
 
-def _parse_optional_enum(
+def _parse_optional_enum[EnumT: StrEnum](
     enum_type: type[EnumT],
     value: object,
     field: str,
@@ -309,7 +307,7 @@ def target_from_row(row: Mapping[str, object], source: str) -> RallyStartTarget:
             pilot_stratum=str(row.get("pilot_stratum", "")),
             note=str(row.get("note", "")),
         )
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"{source}: {exc}") from exc
 
 
@@ -580,16 +578,18 @@ def _write_candidate(
     os.close(descriptor)
     temporary = Path(temporary_name)
     try:
-        with temporary.open("wb") as raw_handle:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed:
-                with io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text_handle:
-                    writer = csv.DictWriter(
-                        text_handle,
-                        fieldnames=DECISION_COLUMNS,
-                        lineterminator="\n",
-                    )
-                    writer.writeheader()
-                    writer.writerows(decision_to_row(decision) for decision in ordered)
+        with (
+            temporary.open("wb") as raw_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as compressed,
+            io.TextIOWrapper(compressed, encoding="utf-8", newline="") as text_handle,
+        ):
+            writer = csv.DictWriter(
+                text_handle,
+                fieldnames=DECISION_COLUMNS,
+                lineterminator="\n",
+            )
+            writer.writeheader()
+            writer.writerows(decision_to_row(decision) for decision in ordered)
         reloaded = read_decision_csv(temporary, targets)
         if reloaded != ordered:
             raise RuntimeError(f"decision CSV round trip changed values: {destination}")
@@ -736,7 +736,7 @@ class RallyStartAuditSession:
 
     def _require_frame(self, frame: int) -> None:
         if isinstance(frame, bool) or not isinstance(frame, int):
-            raise ValueError(f"frame must be an integer, got {frame!r}")
+            raise TypeError(f"frame must be an integer, got {frame!r}")
         target = self.current_target
         if not target.review_start_frame <= frame < target.review_end_frame:
             raise ValueError(

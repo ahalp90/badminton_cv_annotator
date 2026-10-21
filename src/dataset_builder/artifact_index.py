@@ -260,7 +260,7 @@ def _index_from_payload(payload: object) -> VideoArtifactIndex:
         raise ValueError(f"unsupported video artifact index schema: {payload['schema']!r}")
     stages = payload["stages"]
     if not isinstance(stages, list):
-        raise ValueError("video artifact index stages must be a list")
+        raise TypeError("video artifact index stages must be a list")
     return VideoArtifactIndex(
         run_id=_string(payload["run_id"], "run_id"),
         input_manifest_sha256=_string(payload["input_manifest_sha256"], "input_manifest_sha256"),
@@ -324,7 +324,7 @@ def _source_reference(payload: object) -> SourceReference:
         raise ValueError("video artifact index source reference fields differ")
     commentary_eligible = payload["commentary_eligible"]
     if not isinstance(commentary_eligible, bool):
-        raise ValueError("video artifact index commentary_eligible must be boolean")
+        raise TypeError("video artifact index commentary_eligible must be boolean")
     return SourceReference(
         video_id=_string(payload["video_id"], "source_reference.video_id"),
         basename=_string(payload["basename"], "source_reference.basename"),

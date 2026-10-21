@@ -146,7 +146,7 @@ def test_voronoi_partition_picks_correct_side():
     raw = _build_raw_clip([[(top_bbox, top_kps, 0.9), (bot_bbox, bot_kps, 0.9)]])
     res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
     assert res is not None
-    picks, court_base_pos, _, _, _ = res  # 5th element: in-court candidate count
+    picks, _court_base_pos, _, _, _ = res  # 5th element: in-court candidate count
     assert picks[SLOT_TOP] == 0  # candidate 0 is the upper one
     assert picks[SLOT_BOTTOM] == 1  # candidate 1 is the lower one
 
@@ -342,7 +342,7 @@ def test_update_gate_eps_blocks_off_court_update():
         (bot_offcourt_bbox, _standing_kps_for_bbox(bot_offcourt_bbox), 0.9),
     ]
     raw = _build_raw_clip([frame_0])
-    output, ema_history = _run_clip(
+    _output, ema_history = _run_clip(
         raw, ctx, _identity_normalize_joints,
         _params(
             sanity_ceiling=2.0,

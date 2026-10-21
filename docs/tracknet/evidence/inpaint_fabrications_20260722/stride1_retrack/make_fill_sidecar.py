@@ -187,14 +187,14 @@ if __name__ == '__main__':
                    ('no_detection', NO_DETECTION), ('blended', BLENDED))}
         shares = {k: round(v / len(codes), 4) for k, v in counts.items()}
         manifest['tracks'][stem] = {
-            'eval_mode': mode, 'frames': int(len(codes)),
+            'eval_mode': mode, 'frames': len(codes),
             'sidecar': f'{stem}_fillmask.npy',
             'counts': counts, 'shares': shares, **detail}
         print(f'--- {stem} ({mode}) ---')
         for name in ('clean', 'invented', 'no_detection', 'blended'):
             print(f'  {name:13s} {counts[name]:7d}  {shares[name]:.4f}')
 
-    manifest['cycle_px'] = [[int(round(x * 512)), int(round(y * 288))]
+    manifest['cycle_px'] = [[round(x * 512), round(y * 288)]
                             for x, y in cycle]
     with open(f'{OUT}/fill_sidecar_manifest.json', 'w') as fh:
         json.dump(manifest, fh, indent=2)

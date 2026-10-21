@@ -16,11 +16,9 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
+import hparam_sweep as hs
 import pytest
 import yaml
-
-import hparam_sweep as hs
-
 
 # ==========================================================================
 # Fixtures

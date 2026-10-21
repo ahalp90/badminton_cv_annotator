@@ -69,7 +69,7 @@ def search_term_rows(
     ]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=YTDLP_METADATA_TIMEOUT_S
+            cmd, capture_output=True, text=True, timeout=YTDLP_METADATA_TIMEOUT_S, check=False
         )
     except subprocess.TimeoutExpired:
         print(f"  TIMEOUT term '{term}': search exceeded {YTDLP_METADATA_TIMEOUT_S}s")
@@ -114,7 +114,7 @@ def enrich_row(row: dict) -> bool:
     cmd = [YTDLP_BIN, row['url'], '--dump-json', '--skip-download', *ytdlp_throttle_args()]
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=YTDLP_METADATA_TIMEOUT_S
+            cmd, capture_output=True, text=True, timeout=YTDLP_METADATA_TIMEOUT_S, check=False
         )
     except subprocess.TimeoutExpired:
         print(f"  TIMEOUT enrich {row['video_id']}")

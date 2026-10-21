@@ -5,11 +5,10 @@ import csv
 import tempfile
 from pathlib import Path
 
-from scraper import config as scraper_config
-from scraper.download_scraped_videos import DownloadOutcome, download_all_videos
-
 from pipeline.config import EXCLUDED_VIDEOS, RAW_VIDEO_DIR, SET_INFO_DIR
 
+from scraper import config as scraper_config
+from scraper.download_scraped_videos import DownloadOutcome, download_all_videos
 
 SHUTTLESET_DATASET_LABEL = 'shuttleset'
 

@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib
-
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator, PercentFormatter

@@ -9,7 +9,7 @@ import pytest
 import annotator.run_video as run_video_module
 from annotator.config import SHIPPED_THRESHOLDS, BaseAnnotatorConfig
 from annotator.fps_constants import scale_for_fps
-from annotator.rally.spans import quiet_start_rally_spans, gap_state_rest_mask
+from annotator.rally.spans import gap_state_rest_mask, quiet_start_rally_spans
 from annotator.rally_segmentation import segment_video
 from annotator.resolve import resolve
 from annotator.run_video import build_serve_options, run_video

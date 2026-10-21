@@ -88,7 +88,7 @@ def analyse_cell(cell: dict) -> dict:
         a_mean = serial_mean([densify(serials[s]['alpha'][c]) for s in sids])
 
         v_max, v_max_ep = argmax_valid(v_mean)
-        v_max_s, v_max_ep_s = argmax_valid(smooth(v_mean))  # smoothed peak for plateau logic
+        _v_max_s, v_max_ep_s = argmax_valid(smooth(v_mean))  # smoothed peak for plateau logic
         t_max, _ = argmax_valid(t_mean)
         a_peak, a_peak_ep = argmax_valid(a_mean)
 
@@ -234,9 +234,9 @@ def main() -> None:
               f"{', '.join(s['over_alloc_classes'])}")
 
     md = ['# Per-class arc tables (serial-mean across 5 serials)', '',
-          'Source: parse_arcs.py over the taxon_pinned_w_preds 6-cell batch. '
+          ('Source: parse_arcs.py over the taxon_pinned_w_preds 6-cell batch. '
           'a=alpha (renorm mean 1), v=val F1, t=train F1, gap=t_max-v_max. '
-          'Labels are advisory (FLOOR/memorise/ceiling/mid/healthy).', '']
+          'Labels are advisory (FLOOR/memorise/ceiling/mid/healthy).'), '']
     for label in CELL_ORDER:
         md.append(cell_table(label, summaries[label]))
     (HERE / 'tables.md').write_text('\n'.join(md))

@@ -27,13 +27,13 @@ import pandas as pd
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / 'src'))
 
+from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 from shared.court import (  # noqa: E402
     convert_homogeneous,
     load_all_court_info,
     project,
     scale_pos_by_resolution,
 )
-from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH  # noqa: E402
 
 _SHOTS_MASTER = _REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
 _PLAYERS_DIR  = _REPO_ROOT / 'training' / 'bric' / 'cache' / 'players'
@@ -154,11 +154,7 @@ def main(sample_size: int) -> None:
             if not valid[f]:
                 last_pos = None
                 continue
-            try:
-                pos = project_bbox_to_court(bboxes[f], court_info, img_w, img_h)
-            except Exception:
-                last_pos = None
-                continue
+            pos = project_bbox_to_court(bboxes[f], court_info, img_w, img_h)
             n_pos_checked += 1
             x, y = pos
             if x < -_OUT_OF_COURT or x > (1 + _OUT_OF_COURT) \

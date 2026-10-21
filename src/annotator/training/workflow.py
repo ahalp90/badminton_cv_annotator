@@ -234,7 +234,7 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
             stages / 'court' / identity, video_id=identity, frame_count=metadata.frame_count,
             resolution=(float(metadata.width), float(metadata.height)),
         )
-    except (FileNotFoundError, ValueError) as error:
+    except (FileNotFoundError, TypeError, ValueError) as error:
         raise ValueError(f'{identity}: cannot load current metadata/pose/court/shuttle artefacts: {error}') from error
     inputs = court.evidence.inputs
     if inputs is None:

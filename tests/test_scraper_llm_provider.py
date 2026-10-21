@@ -1,9 +1,10 @@
 """Mocked tests for the commentary LLM provider boundary."""
 
-from io import BytesIO
 import json
 import sys
+from io import BytesIO
 from types import ModuleType, SimpleNamespace
+from typing import Self
 from urllib.error import HTTPError
 
 import pytest
@@ -24,7 +25,7 @@ class FakeResponse:
     def __init__(self, payload: object) -> None:
         self.body = json.dumps(payload).encode("utf-8")
 
-    def __enter__(self) -> "FakeResponse":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:

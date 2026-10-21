@@ -40,11 +40,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
-from classifier_shared.taxonomy import taxonomy_lookup
 from pipeline.config import derive_npy_collated_dir_basename
 from pipeline.data_access import env_path_or_none, load_repo_dotenv
 
+from classifier_shared.taxonomy import taxonomy_lookup
 
 COLLATION_ID = 'taxon_pinned_w_preds'
 POSE_STYLE = 'JnB_bone'  # what bst_x_train reads for these cells

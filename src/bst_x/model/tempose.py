@@ -10,7 +10,7 @@
 # Modified by Jing-Yuan Chang
 
 import torch
-from torch import nn, Tensor
+from torch import Tensor, nn
 
 
 class MLP(nn.Module):
@@ -80,7 +80,7 @@ class MultiHeadAttention(nn.Module):
 
         qkv: Tensor = self.to_qkv(x)
         qkv = qkv.view(bn, t, self.h, -1).chunk(3, dim=-1)
-        q, k, v = map(lambda ts: ts.transpose(1, 2), qkv)
+        q, k, v = (ts.transpose(1, 2) for ts in qkv)
         # q, k, v: (bn, h, t, d_head)
 
         # bst.py's sibling MultiHeadCrossAttention runs this same matmul without .contiguous(); kept here as TemPose-lineage habit, same maths either way.

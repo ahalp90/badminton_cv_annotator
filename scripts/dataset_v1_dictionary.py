@@ -10,9 +10,9 @@ Usage: ``uv run python scripts/dataset_v1_dictionary.py``.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / 'src'))

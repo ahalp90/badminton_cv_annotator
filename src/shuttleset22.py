@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from enum import StrEnum
-from fractions import Fraction
 import gzip
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
+from fractions import Fraction
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -71,12 +71,12 @@ def load_sources(path: Path = DEFAULT_SOURCES) -> tuple[Source, ...]:
         payload = tomllib.load(handle)
     rows = payload.get("videos")
     if not isinstance(rows, list):
-        raise ValueError("source manifest must contain [[videos]] entries")
+        raise TypeError("source manifest must contain [[videos]] entries")
 
     sources: list[Source] = []
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
-            raise ValueError(f"videos[{index}] must be a table")
+            raise TypeError(f"videos[{index}] must be a table")
         match_id = _integer(row.get("id"), f"videos[{index}].id")
         video = _text(row.get("video"), f"videos[{index}].video")
         if Path(video).name != video:
@@ -223,7 +223,7 @@ def download_sources(
                 os.replace(temporary, destination)
             if not destination.is_file():
                 raise FileNotFoundError(f"command did not produce {destination}")
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - one failed match must not stop the batch
             failures += 1
             print(f"{source.match_id:02d}: FAILED: {error}", file=sys.stderr)
     return failures
@@ -383,7 +383,7 @@ def extract_sources(
                 pose_python=pose_python,
                 pose_shards=pose_shards,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - one failed match must not stop the batch
             failures += 1
             print(f"{source.match_id:02d}: FAILED: {error}", file=sys.stderr)
     return failures
@@ -598,7 +598,7 @@ def court_sources(
                 model_identity=model_identity,
                 code_id=code_id,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - one failed match must not stop the batch
             failures += 1
             print(f"{source.match_id:02d}: FAILED: {error}", file=sys.stderr)
     return failures

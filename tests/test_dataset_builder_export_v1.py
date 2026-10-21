@@ -13,7 +13,12 @@ import pytest
 
 from dataset_builder import vision
 from dataset_builder.cli import main
-from dataset_builder.export_v1 import ExportInputs, VideoInputs, build_video_tables, export_dataset_v1
+from dataset_builder.export_v1 import (
+    ExportInputs,
+    VideoInputs,
+    build_video_tables,
+    export_dataset_v1,
+)
 from dataset_builder.features import PlayerFeatureInputs
 from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import RunManifest, StageOutcome
@@ -48,7 +53,6 @@ from tests.test_dataset_builder_records import (
     _write,
 )
 from tests.test_dataset_builder_vision import _court_vision, _pose_arrays
-
 
 RUN_ID = "run-18"
 SOURCE_DATASET = "scraped-professional"

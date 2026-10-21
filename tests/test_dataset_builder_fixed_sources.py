@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 from fractions import Fraction
-import hashlib
 from pathlib import Path
 
 import pytest

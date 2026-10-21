@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-
 from courtkeynet.court_corners import (
     CONSENSUS_FLAG_THRESHOLD_PX,
     consensus_repair,

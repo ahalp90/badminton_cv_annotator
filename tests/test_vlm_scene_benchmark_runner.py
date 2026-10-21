@@ -8,11 +8,14 @@ from pathlib import Path
 import pytest
 
 from annotator.vlm_scene_benchmark.backends import GenerationEvidence
-from annotator.vlm_scene_benchmark.contracts import RunOutcome, ShardSpec, read_run_record
+from annotator.vlm_scene_benchmark.contracts import (
+    RunOutcome,
+    ShardSpec,
+    read_run_record,
+)
 from annotator.vlm_scene_benchmark.prepare import PreparedShardManifest, VideoFileSpec
 from annotator.vlm_scene_benchmark.run_cli import run_benchmark
 from annotator.vlm_scene_benchmark.scoring import deployment_failures
-
 
 SHA256 = "a" * 64
 

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-
 from courtkeynet.court_corners import (
     _geometry_clean,
     _scene_sample_quad,

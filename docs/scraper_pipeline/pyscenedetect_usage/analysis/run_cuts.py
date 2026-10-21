@@ -7,8 +7,14 @@ import csv
 import gzip
 from pathlib import Path
 
-from scenedetect import AdaptiveDetector, ContentDetector, HashDetector, HistogramDetector
-from scenedetect import SceneManager, open_video
+from scenedetect import (
+    AdaptiveDetector,
+    ContentDetector,
+    HashDetector,
+    HistogramDetector,
+    SceneManager,
+    open_video,
+)
 from scenedetect.detectors.content_detector import FlashFilter
 
 from annotator.fps_constants import scale_for_fps

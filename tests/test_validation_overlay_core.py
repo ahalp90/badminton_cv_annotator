@@ -14,7 +14,11 @@ import pytest
 
 import annotator.video_metadata as video_metadata_module
 from annotator.validation_overlay.core.cli import make_render_plan, render
-from annotator.validation_overlay.core.decode import VideoInfo, iter_span_frames, probe_video
+from annotator.validation_overlay.core.decode import (
+    VideoInfo,
+    iter_span_frames,
+    probe_video,
+)
 from annotator.validation_overlay.core.timeline import (
     Segment,
     SegmentPlan,
@@ -23,7 +27,6 @@ from annotator.validation_overlay.core.timeline import (
     build_timeline,
 )
 from annotator.video_metadata import VideoMetadata, probe_video_metadata
-
 
 SOURCE_FPS = Fraction(25)
 SOURCE_WIDTH = 64

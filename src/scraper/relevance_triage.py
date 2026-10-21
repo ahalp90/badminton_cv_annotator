@@ -44,8 +44,8 @@ from .config import (
     LLM_PROVIDER,
     LLM_REQUEST_TIMEOUT_S,
     SHORT_VIDEO_MIN_S,
-    TRIAGE_BLOCK_MIN_FAILURES,
     TRANSCRIPTS_DIR,
+    TRIAGE_BLOCK_MIN_FAILURES,
     TRIAGE_MAX_TOKENS,
     TRIAGE_MODEL,
     ensure_dirs,
@@ -192,7 +192,7 @@ def call_triage_llm(window: dict, llm_settings: LLMSettings | None = None) -> li
             if llm_settings is None:
                 return _call_once(system_prompt, user_prompt)
             return _call_once(system_prompt, user_prompt, llm_settings)
-        except Exception as error:  # noqa: BLE001 - retry SDK + JSON-parse errors alike
+        except Exception as error:
             last_error = error
             if daily_request_quota_exhausted(error):
                 raise DailyRequestQuotaError(

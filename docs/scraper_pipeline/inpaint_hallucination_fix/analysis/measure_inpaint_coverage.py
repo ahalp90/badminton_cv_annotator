@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
-
 from audit_tracks import FIXTURES, FixtureSpec, load_fixture_track, load_sidecar_mask
 from compressed_io import read_npy_xz, write_json_gz
 

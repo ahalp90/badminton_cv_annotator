@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from bisect import bisect_left
+from collections.abc import Sequence
 from pathlib import Path
 from statistics import median
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -56,7 +58,7 @@ def _sampling_coverage_failures(record: BenchmarkRunRecord) -> list[str]:
             failures.append("one sampled frame cannot establish complete shard coverage")
         return failures
 
-    gaps = [right - left for left, right in zip(frames, frames[1:])]
+    gaps = [right - left for left, right in itertools.pairwise(frames)]
     nominal_gap = source_fps / requested_fps
     edge_tolerance = math.ceil(nominal_gap)
     if frames[0] - record.shard.start_frame > edge_tolerance:

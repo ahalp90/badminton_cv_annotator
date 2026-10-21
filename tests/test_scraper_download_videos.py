@@ -559,6 +559,7 @@ def test_probe_audio_pins_full_argv_timeout_and_exact_path(tmp_path: Path, monke
         'capture_output': True,
         'text': True,
         'timeout': 60,
+        'check': False,
     }
 
 

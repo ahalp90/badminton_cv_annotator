@@ -44,7 +44,6 @@ def main(argv: list[str] | None = None) -> int:
     cases = _load_manifest(arguments.manifest)
     # These imports bring in torch and model weights only when the CLI is run.
     import torch
-
     from courtkeynet.court_corners import pick_scene_corners
     from courtkeynet.wrapper import CourtKeyNetDetector
 

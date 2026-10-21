@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -81,10 +81,10 @@ def format_batch_report(
             f'- contacts written: {contact_count}',
         ]),
         '\n'.join(['Video outcomes', *outcome_lines]),
-        '\n'.join([
-            'Rally exclusions',
-            '- not recorded by this CLI; rally-level reasons exist only in the run_video chain',
-        ]),
+        (
+            'Rally exclusions\n'
+            '- not recorded by this CLI; rally-level reasons exist only in the run_video chain'
+        ),
     ])
 
 

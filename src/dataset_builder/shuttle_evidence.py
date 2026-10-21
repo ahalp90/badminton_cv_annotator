@@ -245,7 +245,7 @@ def inpaint_mask_from_record(payload: Mapping[str, object], frame_count: int, vi
 
 def _mask_from_spans(payload: object, frame_count: int) -> np.ndarray:
     if not isinstance(payload, list):
-        raise ValueError("inpaint_selected must be a list of half-open spans")
+        raise TypeError("inpaint_selected must be a list of half-open spans")
     mask = np.zeros(frame_count, dtype=bool)
     previous_stop = 0
     for span in payload:

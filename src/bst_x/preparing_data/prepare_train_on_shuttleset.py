@@ -26,46 +26,30 @@ from __future__ import annotations
 
 import argparse
 import gc
-import numpy as np
-import pandas as pd
+from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
-from tqdm import tqdm
-from beartype import beartype
-from jaxtyping import Float, jaxtyped
 from typing import TYPE_CHECKING
 
-from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
-
+import numpy as np
+import pandas as pd
+from beartype import beartype
+from jaxtyping import Float, jaxtyped
+from pipeline.config import (
+    CLIP_WINDOW,
+    CLIPS_OUTPUT_DIR,
+    COCO_N_JOINTS,
+    RESOLUTION_CSV_PATH,
+    SET_INFO_DIR,
+    SHUTTLE_OUTPUT_DIR,
+    derive_npy_collated_dir_basename,
+)
+from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
 from preparing_data.extract_failures import (
     FAILURE_ABORT_FRACTION,
     failed_clips_log_path,
     log_failed_clip,
 )
-from preparing_data.shuttleset_dataset import (
-    get_bone_pairs,
-    make_seq_len_same,
-    create_bones,
-    interpolate_joints,
-)
-from pipeline.config import (
-    CLIP_WINDOW,
-    CLIPS_OUTPUT_DIR,
-    COCO_N_JOINTS,
-    SET_INFO_DIR,
-    RESOLUTION_CSV_PATH,
-    SHUTTLE_OUTPUT_DIR,
-    derive_npy_collated_dir_basename,
-)
-from classifier_shared.taxonomy import (
-    BST_X_TAXONOMIES,
-    Taxonomy,
-    derive_class_index,
-    taxonomy_lookup,
-)
-from pipeline.data_access import env_path, env_path_or_none, load_repo_dotenv
-# Court helpers live in shared.court; re-export check_pos_in_court so the
-# heuristics (current.py, sticky_anchor.py) keep their existing import path.
-from shared.court import build_all_court_info, check_pos_in_court  # noqa: F401
+
 # Shared doubles-guard head count. No import cycle: base.py pulls in no pipeline
 # code, and the heuristics modules import this module only lazily inside functions.
 from preparing_data.heuristics.base import (
@@ -74,6 +58,24 @@ from preparing_data.heuristics.base import (
     count_standing_in_court,
     is_sitting,
 )
+from preparing_data.shuttleset_dataset import (
+    create_bones,
+    get_bone_pairs,
+    interpolate_joints,
+    make_seq_len_same,
+)
+from tqdm import tqdm
+
+from classifier_shared.taxonomy import (
+    BST_X_TAXONOMIES,
+    Taxonomy,
+    derive_class_index,
+    taxonomy_lookup,
+)
+
+# Court helpers live in shared.court; re-export check_pos_in_court so the
+# heuristics (current.py, sticky_anchor.py) keep their existing import path.
+from shared.court import build_all_court_info, check_pos_in_court
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
     from shared.rtmlib_pose import RtmlibPoseExtractor
@@ -303,7 +305,9 @@ def prepare_dataset_npy_from_raw_video(
     :param joints_center_align: If True, center-align joints within bounding box.
     :param device: onnxruntime device for the rtmlib adapter ("cuda" or "cpu").
     """
-    from shared.rtmlib_pose import RtmlibPoseExtractor  # lazy: keeps the module rtmlib-free at import (see top)
+    from shared.rtmlib_pose import (
+        RtmlibPoseExtractor,  # lazy: keeps the module rtmlib-free at import (see top)
+    )
     pose_extractor = RtmlibPoseExtractor(device=device)
 
     # Flat layout: per-clip files sit alongside each other under save_root_dir.

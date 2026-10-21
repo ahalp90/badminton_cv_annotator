@@ -10,7 +10,6 @@ import pytest
 from annotator.artifact_io import atomic_gzip_text_writer, write_json_object
 from scripts.analyse_first_last_stroke_buffered_search import main
 
-
 STRICT_COLUMNS = (
     "rally_id",
     "tolerance_base30",

@@ -33,81 +33,140 @@ then applies greedy suppression. The three operations are separate helpers and
 Run as `python -m annotator.rally_segmentation --shuttle-dir ...` with
 PYTHONPATH=src.
 """
-from typing import Mapping
+from collections.abc import Mapping
 
 import numpy as np
 
 from .config import (
-    BaseAnnotatorConfig as BaseAnnotatorConfig,
-    CONTACT_FRAMES_CSV as CONTACT_FRAMES_CSV,
-    END_REST_FRAMES as END_REST_FRAMES,
-    PROXIMITY_MAX as PROXIMITY_MAX,
-    RALLY_SPANS_CSV as RALLY_SPANS_CSV,
-    REST_SPEED as REST_SPEED,
-    REST_WINDOW as REST_WINDOW,
-    SMOOTH_WINDOW as SMOOTH_WINDOW,
-    START_MIN_FRAMES as START_MIN_FRAMES,
-    START_SPEED as START_SPEED,
+    CONTACT_FRAMES_CSV,
+    END_REST_FRAMES,
+    PROXIMITY_MAX,
+    RALLY_SPANS_CSV,
+    REST_SPEED,
+    REST_WINDOW,
+    SMOOTH_WINDOW,
+    START_MIN_FRAMES,
+    START_SPEED,
+    BaseAnnotatorConfig,
     RallySegmentationThresholds,
 )
-from .doubles_flag import read_whole_video_flags as read_whole_video_flags
+from .doubles_flag import read_whole_video_flags
 from .fps_constants import FpsConstants, scale_for_fps
-from .rally.cli import log as log, main as _cli_main
+from .rally.cli import log
+from .rally.cli import main as _cli_main
 from .rally.contacts import (
-    BODY_UNIT_WRIST_THRESHOLD as BODY_UNIT_WRIST_THRESHOLD,
-    CONTACT_DEDUP_RADIUS_FRAMES as CONTACT_DEDUP_RADIUS_FRAMES,
-    CONTACT_IMPULSE_MULTIPLE as CONTACT_IMPULSE_MULTIPLE,
-    CONTACT_SUPPRESSION_RADIUS_FRAMES as CONTACT_SUPPRESSION_RADIUS_FRAMES,
-    FLOOR_EPS as FLOOR_EPS,
-    IMPULSE_FLOOR_HALF_WINDOW_FRAMES as IMPULSE_FLOOR_HALF_WINDOW_FRAMES,
+    BODY_UNIT_WRIST_THRESHOLD,
+    CONTACT_DEDUP_RADIUS_FRAMES,
+    CONTACT_IMPULSE_MULTIPLE,
+    CONTACT_SUPPRESSION_RADIUS_FRAMES,
+    FLOOR_EPS,
+    IMPULSE_FLOOR_HALF_WINDOW_FRAMES,
     assemble_contacts,
-    contact_proximity_ok as contact_proximity_ok,
-    detect_contact_flags as detect_contact_flags,
-    impulse_cell_candidates as impulse_cell_candidates,
-    rolling_floor as rolling_floor,
-    span_impulses as span_impulses,
-    suppress_contact_flags as suppress_contact_flags,
-    wrist_contact_near as wrist_contact_near,
+    contact_proximity_ok,
+    detect_contact_flags,
+    impulse_cell_candidates,
+    rolling_floor,
+    span_impulses,
+    suppress_contact_flags,
+    wrist_contact_near,
 )
 from .rally.evidence import (
-    BODY_UNIT_HALF_WINDOW as BODY_UNIT_HALF_WINDOW,
-    CourtGeo as CourtGeo,
-    build_sticky_result as build_sticky_result,
-    court_scale_slots as court_scale_slots,
-    tracker_segments as tracker_segments,
+    BODY_UNIT_HALF_WINDOW,
+    CourtGeo,
+    build_sticky_result,
+    court_scale_slots,
+    tracker_segments,
 )
 from .rally.serve import (
-    PLAYER_PRESENT_MIN_FRAC as PLAYER_PRESENT_MIN_FRAC,
-    ServeSetupInputs as ServeSetupInputs,
-    ServeStartClose as ServeStartClose,
-    ServeStartMode as ServeStartMode,
+    PLAYER_PRESENT_MIN_FRAC,
+    ServeSetupInputs,
+    ServeStartClose,
+    ServeStartMode,
     ServeStartOptions,
-    build_serve_setup_inputs as build_serve_setup_inputs,
-    series_drift as series_drift,
-    serve_setup_still as serve_setup_still,
+    build_serve_setup_inputs,
+    series_drift,
+    serve_setup_still,
 )
 from .rally.spans import (
-    QUIET_START_REST_FRACTION as QUIET_START_REST_FRACTION,
-    VISIBILITY_REST_FRAC as VISIBILITY_REST_FRAC,
+    QUIET_START_REST_FRACTION,
+    VISIBILITY_REST_FRAC,
     find_rally_spans,
 )
 from .rally.trajectory import apply_replay_mask
 from .types import (
-    ANKLE_L as ANKLE_L,
-    ANKLE_R as ANKLE_R,
+    ANKLE_L,
+    ANKLE_R,
+    WRIST_L,
+    WRIST_R,
     ContactCandidate,
     ReentryGuardVariant,
-    Slot as Slot,
+    Slot,
     SmoothingMode,
     SpanOpen,
-    StickyResult as StickyResult,
-    WRIST_L as WRIST_L,
-    WRIST_R as WRIST_R,
-    compute_speed as compute_speed,
-    rolling_nanmedian as rolling_nanmedian,
-    true_runs as true_runs,
+    StickyResult,
+    compute_speed,
+    rolling_nanmedian,
+    true_runs,
 )
 
+# Re-exported for callers that import these names from here; see the module docstring.
+__all__ = [
+    "ANKLE_L",
+    "ANKLE_R",
+    "BODY_UNIT_HALF_WINDOW",
+    "BODY_UNIT_WRIST_THRESHOLD",
+    "CONTACT_DEDUP_RADIUS_FRAMES",
+    "CONTACT_FRAMES_CSV",
+    "CONTACT_IMPULSE_MULTIPLE",
+    "CONTACT_SUPPRESSION_RADIUS_FRAMES",
+    "END_REST_FRAMES",
+    "FLOOR_EPS",
+    "IMPULSE_FLOOR_HALF_WINDOW_FRAMES",
+    "PLAYER_PRESENT_MIN_FRAC",
+    "PROXIMITY_MAX",
+    "QUIET_START_REST_FRACTION",
+    "RALLY_SPANS_CSV",
+    "REST_SPEED",
+    "REST_WINDOW",
+    "SMOOTH_WINDOW",
+    "START_MIN_FRAMES",
+    "START_SPEED",
+    "VISIBILITY_REST_FRAC",
+    "WRIST_L",
+    "WRIST_R",
+    "BaseAnnotatorConfig",
+    "CourtGeo",
+    "ServeSetupInputs",
+    "ServeStartClose",
+    "ServeStartMode",
+    "ServeStartOptions",
+    "Slot",
+    "SpanOpen",
+    "StickyResult",
+    "apply_replay_mask",
+    "build_serve_setup_inputs",
+    "build_sticky_result",
+    "compute_speed",
+    "contact_proximity_ok",
+    "court_scale_slots",
+    "detect_contact_flags",
+    "find_rally_spans",
+    "impulse_cell_candidates",
+    "log",
+    "main",
+    "read_whole_video_flags",
+    "rolling_floor",
+    "rolling_nanmedian",
+    "scale_thresholds",
+    "segment_video",
+    "series_drift",
+    "serve_setup_still",
+    "span_impulses",
+    "suppress_contact_flags",
+    "tracker_segments",
+    "true_runs",
+    "wrist_contact_near",
+]
 
 def scale_thresholds(
     thresholds: RallySegmentationThresholds, fps: float, *,
@@ -190,9 +249,8 @@ def segment_video(
         )
     # Argument validation precedes any span work so bad combinations fail loudly
     # here, never as a numpy error from deep inside span finding.
-    if sticky_distances is not None:
-        if sticky_distances.shape != (len(track),):
-            raise ValueError('sticky_distances must have shape (len(track),)')
+    if sticky_distances is not None and sticky_distances.shape != (len(track),):
+        raise ValueError('sticky_distances must have shape (len(track),)')
     if exclusion_mask is not None:
         track = apply_replay_mask(track, exclusion_mask)
 

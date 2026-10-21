@@ -1,6 +1,7 @@
 """Extract per-epoch curves from TB events for all nosides runs."""
-import os
 import json
+import os
+
 from tensorboard.backend.event_processing import event_accumulator
 
 EXP_DIR = 'experiments/bst_x/shuttleset'

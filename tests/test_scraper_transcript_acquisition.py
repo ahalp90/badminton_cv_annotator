@@ -41,19 +41,18 @@ def test_parse_json3_skips_timing_only_and_joins_segs(tmp_path):
 
 
 def test_parse_vtt_joins_multiline_and_skips_empty_cues(tmp_path):
-    vtt = '\n'.join([
-        'WEBVTT',
-        '',
-        '00:00:01.000 --> 00:00:03.000',
-        'first line',
-        'second line',
-        '',
-        '00:00:07.000 --> 00:00:08.000',  # timestamp with no text -> skipped
-        '',
-        '00:00:04.500 --> 00:00:06.000',
-        'solo',
-        '',
-    ])
+    vtt = (
+        'WEBVTT\n'
+        '\n'
+        '00:00:01.000 --> 00:00:03.000\n'
+        'first line\n'
+        'second line\n'
+        '\n'
+        '00:00:07.000 --> 00:00:08.000\n'  # timestamp with no text -> skipped
+        '\n'
+        '00:00:04.500 --> 00:00:06.000\n'
+        'solo\n'
+    )
     path = tmp_path / 'v.vtt'
     path.write_text(vtt, encoding='utf-8')
 
@@ -73,7 +72,8 @@ def test_pull_subtitles_prefers_json3_over_vtt(tmp_path, monkeypatch):
     work = tmp_path / 'work'
     work.mkdir()
 
-    def fake_run(cmd, capture_output=False, text=False, timeout=None):
+    def fake_run(cmd, capture_output=False, text=False, timeout=None, check=True):
+        assert check is False
         # yt-dlp would write both formats; the pull must prefer the timestamped json3.
         (work / 'vid.en.json3').write_text('{}', encoding='utf-8')
         (work / 'vid.en.vtt').write_text('WEBVTT', encoding='utf-8')
@@ -129,7 +129,6 @@ def test_transcript_circuit_breaker_fires_at_floor(transcript_env, monkeypatch):
 
     def always_fail(video_id, url):
         calls['n'] += 1
-        return None
 
     monkeypatch.setattr(transcript_acquisition, 'acquire_transcript', always_fail)
     with pytest.raises(RuntimeError, match='block threshold'):
@@ -143,7 +142,6 @@ def test_transcript_below_floor_no_early_stop_then_final_block(transcript_env, m
 
     def always_fail(video_id, url):
         calls['n'] += 1
-        return None
 
     monkeypatch.setattr(transcript_acquisition, 'acquire_transcript', always_fail)
     below_floor = config.TRANSCRIPT_BLOCK_MIN_ATTEMPTS - 1

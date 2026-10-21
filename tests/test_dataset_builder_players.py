@@ -17,7 +17,6 @@ from dataset_builder.players import (
     phase_for_span,
 )
 
-
 PLAYERS_CSV = """player_id,player_name,sex
 kento_momota,Kento MOMOTA,male
 chou_tien_chen,CHOU Tien Chen,male

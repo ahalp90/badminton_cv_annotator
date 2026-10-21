@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from annotator.vlm_scene_benchmark.contracts import ShardSpec
 from annotator.vlm_scene_benchmark.prepare import (
     PreparedShardManifest,
     VideoFileSpec,
@@ -16,8 +17,6 @@ from annotator.vlm_scene_benchmark.prepare import (
     resolve_model_video,
     write_manifest,
 )
-from annotator.vlm_scene_benchmark.contracts import ShardSpec
-
 
 SHA256 = "a" * 64
 
@@ -115,7 +114,7 @@ def test_manifest_reader_requires_arrays(tmp_path: Path) -> None:
     value["cut_frames"] = "20,40"
     path.write_text(json.dumps(value), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="must be JSON arrays"):
+    with pytest.raises(TypeError, match="must be JSON arrays"):
         read_manifest(path)
 
 

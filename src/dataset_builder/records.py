@@ -60,7 +60,7 @@ class SourceReference:
             if not isinstance(value, str) or not value:
                 raise ValueError(f"source reference {name} must be a non-empty string")
         if not isinstance(self.commentary_eligible, bool):
-            raise ValueError("source reference commentary_eligible must be boolean")
+            raise TypeError("source reference commentary_eligible must be boolean")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -126,7 +126,7 @@ def load_rally_record_projection(
         raise ValueError("primitive projection video_id differs from the expected video")
     raw_records = payload["records"]
     if not isinstance(raw_records, list):
-        raise ValueError("primitive projection records must be a list")
+        raise TypeError("primitive projection records must be a list")
     projection = RallyRecordProjection(
         _string(
             payload["input_manifest_sha256"],
@@ -316,11 +316,11 @@ def load_rally_records(path: Path) -> list[dict[str, object]]:
         raise ValueError("record assembly configuration contains unredacted secrets")
     raw_sources = payload["sources"]
     if not isinstance(raw_sources, list):
-        raise ValueError("rally record collection sources must be a list")
+        raise TypeError("rally record collection sources must be a list")
     sources = [dict(_mapping(source, "record source")) for source in raw_sources]
     raw_records = payload["records"]
     if not isinstance(raw_records, list):
-        raise ValueError("rally record collection records must be a list")
+        raise TypeError("rally record collection records must be a list")
     records = [dict(_mapping(record, "rally record")) for record in raw_records]
     validate_record_collection(input_manifest, sources, records)
     live_manifest = load_run_manifest(Path(path).parent)
@@ -371,7 +371,7 @@ def _validate_timing(
             f"annotation fps {annotation_fps} conflicts with canonical fps {metadata.fps}"
         )
     if isinstance(annotation_frame_count, bool) or not isinstance(annotation_frame_count, int):
-        raise ValueError("annotation_frame_count must be an integer")
+        raise TypeError("annotation_frame_count must be an integer")
     if annotation_frame_count != metadata.frame_count:
         raise ValueError(
             f"annotation frame_count {annotation_frame_count} conflicts with canonical "
@@ -400,7 +400,7 @@ def _validate_spans(
     frame_count: int,
 ) -> list[tuple[int, int]]:
     if not isinstance(raw_spans, list):
-        raise ValueError("annotation spans must be a list")
+        raise TypeError("annotation spans must be a list")
     spans: list[tuple[int, int]] = []
     previous_end = 0
     for rally_id, span in enumerate(raw_spans):
@@ -472,7 +472,7 @@ def _validate_contact(
     if isinstance(rally_id, bool) or not isinstance(rally_id, int) or not 0 <= rally_id < len(spans):
         raise ValueError(f"{name} rally_id is outside the detected rallies: {rally_id!r}")
     if isinstance(frame, bool) or not isinstance(frame, int):
-        raise ValueError(f"{name} frame must be an integer")
+        raise TypeError(f"{name} frame must be an integer")
     start, end = spans[rally_id]
     if not start <= frame < end:
         raise ValueError(f"{name} frame {frame} is outside rally {rally_id} span [{start}, {end})")
@@ -504,7 +504,7 @@ def _validate_filtered_by_rally(
     rally_count: int,
 ) -> None:
     if not isinstance(actual, dict):
-        raise ValueError("filtered_by_rally must be a dictionary")
+        raise TypeError("filtered_by_rally must be a dictionary")
     normalized: dict[int, list[int]] = {}
     for rally_id, frames in actual.items():
         if isinstance(rally_id, bool) or not isinstance(rally_id, int) or not 0 <= rally_id < rally_count:
@@ -679,7 +679,7 @@ def _validate_outcome_maps(
         ):
             raise ValueError("verdict row key and rally_id must agree")
         if not isinstance(verdict.striker_half, Half):
-            raise ValueError("verdict striker_half must be Half")
+            raise TypeError("verdict striker_half must be Half")
         if verdict.striker_half != annotation.striker_halves[rally_id]:
             raise ValueError("verdict striker_half differs from the indexed striker half")
         _validate_verdict(verdict)
@@ -702,16 +702,16 @@ def _validate_verdict(verdict: VerdictRow) -> None:
     if verdict.margin_m is not None:
         _finite_number(verdict.margin_m, "verdict landing margin")
     if not isinstance(verdict.within_line_margin, bool):
-        raise ValueError("verdict within_line_margin must be boolean")
+        raise TypeError("verdict within_line_margin must be boolean")
     if not isinstance(verdict.within_net_margin, bool):
-        raise ValueError("verdict within_net_margin must be boolean")
+        raise TypeError("verdict within_net_margin must be boolean")
 
 
 def _validate_landing(landing: object, frame_count: int) -> None:
     if landing is None:
         return
     if not isinstance(landing, Landing):
-        raise ValueError("landing values must be Landing or null")
+        raise TypeError("landing values must be Landing or null")
     if (
         isinstance(landing.frame, bool)
         or not isinstance(landing.frame, int)
@@ -723,9 +723,9 @@ def _validate_landing(landing: object, frame_count: int) -> None:
     for coordinate in landing.norm:
         _finite_number(coordinate, "landing normalized court coordinate")
     if not isinstance(landing.half, Half):
-        raise ValueError("landing half must be Half")
+        raise TypeError("landing half must be Half")
     if not isinstance(landing.at_border, bool) or not isinstance(landing.net_ender, bool):
-        raise ValueError("landing quality flags must be boolean")
+        raise TypeError("landing quality flags must be boolean")
 
 
 def _validate_geometric_verdict(geometric: GeometricVerdictRow) -> None:
@@ -739,7 +739,7 @@ def _validate_geometric_verdict(geometric: GeometricVerdictRow) -> None:
     if geometric.agreement is not None and not isinstance(geometric.agreement, bool):
         raise ValueError("geometric agreement must be boolean or null")
     if not isinstance(geometric.window_closed_by_mask, bool):
-        raise ValueError("geometric window_closed_by_mask must be boolean")
+        raise TypeError("geometric window_closed_by_mask must be boolean")
 
 
 def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, object]:
@@ -788,7 +788,7 @@ def _commentary_payloads(
     commentary_eligible: bool,
 ) -> list[dict[str, object]]:
     if not isinstance(outcome, StageOutcome):
-        raise ValueError("commentary_outcome must be StageOutcome")
+        raise TypeError("commentary_outcome must be StageOutcome")
     if outcome in {
         StageOutcome.SKIPPED,
         StageOutcome.EXCLUDED,
@@ -961,13 +961,13 @@ def _mapping(payload: object, name: str) -> Mapping[str, object]:
 
 def _integer_value(payload: object, name: str) -> int:
     if isinstance(payload, bool) or not isinstance(payload, int):
-        raise ValueError(f"{name} must be an integer")
+        raise TypeError(f"{name} must be an integer")
     return payload
 
 
 def _finite_number(payload: object, name: str) -> float:
     if isinstance(payload, bool):
-        raise ValueError(f"{name} must be a finite number")
+        raise TypeError(f"{name} must be a finite number")
     try:
         value = float(payload)
     except (TypeError, ValueError) as error:
@@ -989,7 +989,7 @@ def _string(payload: object, name: str) -> str:
 
 def _text(payload: object, name: str) -> str:
     if not isinstance(payload, str):
-        raise ValueError(f"{name} must be a string")
+        raise TypeError(f"{name} must be a string")
     return payload
 
 

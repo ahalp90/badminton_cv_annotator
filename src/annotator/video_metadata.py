@@ -30,7 +30,7 @@ class VideoMetadata:
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_path, Path):
-            raise ValueError(f"source_path must be a Path: {self.source_path!r}")
+            raise TypeError(f"source_path must be a Path: {self.source_path!r}")
         if not self.source_path.is_absolute():
             raise ValueError(f"source_path must be absolute: {self.source_path}")
         if not isinstance(self.fps, Fraction) or self.fps <= 0:
@@ -115,7 +115,7 @@ def probe_video_metadata(video: Path) -> VideoMetadata:
         raise ValueError(f"ffprobe returned a malformed video stream: {source_path}")
     format_metadata = metadata.get("format")
     if not isinstance(format_metadata, dict):
-        raise ValueError(f"video format metadata is missing: {source_path}")
+        raise TypeError(f"video format metadata is missing: {source_path}")
 
     counted_frame_count = _parse_positive_int(stream.get("nb_read_frames"), "nb_read_frames")
     header_frame_count = _parse_optional_positive_int(stream.get("nb_frames"), "nb_frames")
@@ -201,7 +201,7 @@ def _execute_ffprobe(video: Path, command: list[str]) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ValueError(f"ffprobe returned unparseable metadata for {video}") from exc
     if not isinstance(metadata, dict):
-        raise ValueError(f"ffprobe returned malformed metadata for {video}")
+        raise TypeError(f"ffprobe returned malformed metadata for {video}")
     return metadata
 
 
@@ -224,7 +224,7 @@ def _validate_frame_timestamps(
 ) -> None:
     frames = metadata.get("frames")
     if not isinstance(frames, list):
-        raise ValueError("video frame timestamps are missing")
+        raise TypeError("video frame timestamps are missing")
     if len(frames) != frame_count:
         raise ValueError(
             f"video has {len(frames)} frame timestamps, expected frame_count={frame_count}"
@@ -232,7 +232,7 @@ def _validate_frame_timestamps(
     time_base = _parse_fraction(stream.get("time_base"), "time_base")
     for frame_index, frame in enumerate(frames):
         if not isinstance(frame, dict):
-            raise ValueError(f"video frame timestamp {frame_index} is malformed")
+            raise TypeError(f"video frame timestamp {frame_index} is malformed")
         timestamp = _parse_int(frame.get("best_effort_timestamp"), "best_effort_timestamp")
         observed_time = timestamp * time_base
         expected_time = Fraction(frame_index, 1) / fps
@@ -279,7 +279,7 @@ def _parse_optional_positive_int(value: object, field_name: str) -> int | None:
 
 def _parse_int(value: object, field_name: str) -> int:
     if isinstance(value, bool):
-        raise ValueError(f"video metadata {field_name} is unparseable: {value!r}")
+        raise TypeError(f"video metadata {field_name} is unparseable: {value!r}")
     if isinstance(value, int):
         result = value
     elif isinstance(value, str) and value.strip():
@@ -299,7 +299,7 @@ def _parse_sample_aspect_ratio(value: object) -> Fraction:
     if value is None or (isinstance(value, str) and value.strip().upper() in {"", "N/A"}):
         return Fraction(1)
     if not isinstance(value, str):
-        raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
+        raise TypeError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")
     parts = value.strip().split(":")
     if len(parts) != 2:
         raise ValueError(f"video metadata sample_aspect_ratio is unparseable: {value!r}")

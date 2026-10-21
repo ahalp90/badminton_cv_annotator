@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from preparing_data import prepare_train_on_shuttleset as prep
 from preparing_data.heuristics.base import (
     DOUBLES_COUNT_MARGIN,

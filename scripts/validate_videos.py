@@ -68,6 +68,7 @@ def fetch_youtube_durations(
             result = subprocess.run(
                 ['yt-dlp', '--get-duration', url],
                 capture_output=True, text=True, timeout=30,
+                check=False,
             )
             raw = result.stdout.strip()
 
@@ -86,7 +87,7 @@ def fetch_youtube_durations(
 
         except subprocess.TimeoutExpired:
             print(f"  WARNING: timeout for ID {vid_id}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one bad video must not stop the check
             print(f"  WARNING: error for ID {vid_id}: {e}")
 
         if i < len(to_fetch) - 1:
@@ -133,10 +134,11 @@ def probe_local_durations(video_dir: Path) -> dict[int, float]:
                 ['ffprobe', '-v', 'quiet', '-show_entries',
                  'format=duration', '-of', 'json', str(f)],
                 capture_output=True, text=True, timeout=30,
+                check=False,
             )
             data = json.loads(result.stdout)
             durations[vid_id] = float(data['format']['duration'])
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one bad video must not stop the check
             print(f"  WARNING: ffprobe failed for {f.name}: {e}")
 
     if skipped:

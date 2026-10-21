@@ -91,12 +91,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
-
 from pipeline.clip_index import build_clip_path_index
 from pipeline.config import (
     CLIPS_OUTPUT_DIR,
     SHUTTLE_OUTPUT_DIR,
 )
+
 from classifier_shared.taxonomy import (
     BST_X_TAXONOMIES,
     TAXONOMIES,
@@ -104,7 +104,6 @@ from classifier_shared.taxonomy import (
     derive_class_index,
     taxonomy_lookup,
 )
-
 
 SPLITS = ('train', 'val', 'test')
 

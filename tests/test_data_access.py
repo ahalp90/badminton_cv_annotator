@@ -15,6 +15,15 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pipeline.data_access import (
+    ClipRecord,
+    DataPaths,
+    _derive_class_label,
+    _menu,
+    get_clip_records,
+    interactive,
+    summarise,
+)
 
 from classifier_shared.taxonomy import (
     TAXONOMY_BST_24,
@@ -22,16 +31,6 @@ from classifier_shared.taxonomy import (
     TAXONOMY_UNE_V1_14,
     taxonomy_lookup,
 )
-from pipeline.data_access import (
-    ClipRecord,
-    DataPaths,
-    _derive_class_label,
-    get_clip_records,
-    interactive,
-    summarise,
-    _menu,
-)
-
 
 # ---------------------------------------------------------------------------
 # Fake dataset + CSV builders

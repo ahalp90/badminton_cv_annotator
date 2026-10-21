@@ -457,7 +457,7 @@ def test_annotator_imports_without_torch() -> None:
         "assert len(table) == 30, f'expected 30 tour points, got {len(table)}'\n"
         "print('OK', len(table))\n"
     )
-    result = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True, check=False)
     assert result.returncode == 0, f"torch-free import failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
     assert result.stdout.startswith("OK"), result.stdout
 

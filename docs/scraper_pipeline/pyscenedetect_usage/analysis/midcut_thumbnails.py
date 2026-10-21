@@ -4,23 +4,20 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.scoring import GtRally
-from annotator.evaluation.scoring import load_gt_rallies
-from annotator.masks.composition import CompositionSegment
-from annotator.masks.composition import build_composition_mask
 from annotator.config import COMPOSITION_KEEP_VOTE
-
+from annotator.evaluation.scoring import GtRally, load_gt_rallies
+from annotator.masks.composition import CompositionSegment, build_composition_mask
 
 ANALYSIS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ANALYSIS_DIR.parents[3]

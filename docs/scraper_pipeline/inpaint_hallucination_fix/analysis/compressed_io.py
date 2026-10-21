@@ -10,7 +10,6 @@ from typing import Any
 
 import numpy as np
 
-
 LZMA_PRESET = 9
 
 

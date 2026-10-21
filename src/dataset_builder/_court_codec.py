@@ -5,15 +5,12 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 if TYPE_CHECKING:
     from annotator.courts.evidence import CourtSceneRecord, SceneStatus
-
-
-T = TypeVar("T")
 
 
 def load_court_provenance(
@@ -24,7 +21,7 @@ def load_court_provenance(
 ) -> tuple[CourtSceneRecord, ...]:
     """Decode and cross-check the per-scene court records."""
     if not isinstance(scene_payload, list):
-        raise ValueError("court scene_records must be a list")
+        raise TypeError("court scene_records must be a list")
     records = tuple(
         _scene_record(item, f"scene_records[{index}]")
         for index, item in enumerate(scene_payload)
@@ -106,7 +103,7 @@ def _object(payload: object, name: str) -> dict[str, object]:
 
 def _video_id(payload: object, name: str) -> int | str:
     if isinstance(payload, bool) or not isinstance(payload, (int, str)):
-        raise ValueError(f"{name} must be an integer or string")
+        raise TypeError(f"{name} must be an integer or string")
     return payload
 
 
@@ -118,26 +115,26 @@ def _string(payload: object, name: str) -> str:
 
 def _integer(payload: object, name: str) -> int:
     if isinstance(payload, bool) or not isinstance(payload, int):
-        raise ValueError(f"{name} must be an integer")
+        raise TypeError(f"{name} must be an integer")
     return payload
 
 
 def _boolean(payload: object, name: str) -> bool:
     if not isinstance(payload, bool):
-        raise ValueError(f"{name} must be a boolean")
+        raise TypeError(f"{name} must be a boolean")
     return payload
 
 
 def _finite(payload: object, name: str) -> float:
     if isinstance(payload, bool) or not isinstance(payload, (int, float)):
-        raise ValueError(f"{name} must be a finite number")
+        raise TypeError(f"{name} must be a finite number")
     value = float(payload)
     if not math.isfinite(value):
         raise ValueError(f"{name} must be a finite number")
     return value
 
 
-def _optional(payload: object, loader: Callable[[object, str], T], name: str) -> T | None:
+def _optional[T](payload: object, loader: Callable[[object, str], T], name: str) -> T | None:
     return None if payload is None else loader(payload, name)
 
 

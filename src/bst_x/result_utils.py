@@ -3,17 +3,14 @@
 # Licence. See src/bst_x/THIRD_PARTY_NOTICES.md. This project is otherwise
 # licensed LGPL-3.0-or-later.
 
-import torch
-from torch import Tensor
-
-from sklearn.metrics import confusion_matrix
-
-import pandas as pd
-import numpy as np
-
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
+import numpy as np
+import pandas as pd
+import torch
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from sklearn.metrics import confusion_matrix
+from torch import Tensor
 
 # ---------------------------------------------------------------------------
 # Display defaults for confusion matrix plots

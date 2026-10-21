@@ -11,9 +11,9 @@ from contextlib import redirect_stdout
 from typing import TYPE_CHECKING
 
 import torch
+from loss.adaptive_focal import AdaptiveFocalLoss
 
 from classifier_shared.taxonomy import Taxonomy
-from loss.adaptive_focal import AdaptiveFocalLoss
 
 if TYPE_CHECKING:
     # Type-only: annotations reference these, but importing them at runtime

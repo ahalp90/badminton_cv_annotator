@@ -37,9 +37,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from run_tracker import _AIM_AVAILABLE, mirror_to_aim
-
 
 SERIAL_HEADER_RE = re.compile(r'^=== Serial (\d+) \(', re.MULTILINE)
 
@@ -239,6 +237,7 @@ def main():
     repo = None
     if args.repo:
         import shutil
+
         from aim import Repo
         aim_dir = Path(args.repo) / '.aim'
         if args.wipe and aim_dir.exists():

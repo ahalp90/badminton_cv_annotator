@@ -14,7 +14,6 @@ from dataset_builder.degradation import (
 )
 from dataset_builder.schema_v1 import PLAYER_RALLIES, RALLIES
 
-
 IDENTITY = ("run1", "shuttleset", "0001")
 
 

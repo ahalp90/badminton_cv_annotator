@@ -87,8 +87,8 @@ def loupe_origin(coarse_x: float, coarse_y: float, half: int, width: int, height
     :return: (origin_x, origin_y) integer top-left of the crop
     """
     win = 2 * half
-    origin_x = int(round(coarse_x)) - half
-    origin_y = int(round(coarse_y)) - half
+    origin_x = round(coarse_x) - half
+    origin_y = round(coarse_y) - half
     # Clamp into [0, dim - win]; max(dim - win, 0) guards a frame smaller than the crop.
     origin_x = min(max(origin_x, 0), max(width - win, 0))
     origin_y = min(max(origin_y, 0), max(height - win, 0))
@@ -1062,7 +1062,7 @@ def render_loupe(frame: np.ndarray, action: SessionAction | TourAction, half: in
     zoomed = cv2.resize(crop, (win * zoom, win * zoom), interpolation=cv2.INTER_NEAREST)
     if action.coarse_xy is not None:
         loupe_x, loupe_y = source_to_loupe(action.coarse_xy[0], action.coarse_xy[1], origin, zoom)
-        cx, cy = int(round(loupe_x)), int(round(loupe_y))
+        cx, cy = round(loupe_x), round(loupe_y)
         cv2.line(zoomed, (cx - 12, cy), (cx + 12, cy), CORNER_COLOUR, 1, cv2.LINE_AA)
         cv2.line(zoomed, (cx, cy - 12), (cx, cy + 12), CORNER_COLOUR, 1, cv2.LINE_AA)
     return zoomed

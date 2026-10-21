@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import gzip
 import io
+import itertools
 import math
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -88,19 +89,20 @@ def make_interval(
 
 
 def _validate_interval(interval: LabelInterval, row_number: int) -> None:
-    interval.metadata
+    # Building the metadata runs VideoMetadata's own checks on video_id, fps and frame_count.
+    _ = interval.metadata
     for field_name, value in (("start_frame", interval.start_frame), ("end_frame", interval.end_frame)):
         if isinstance(value, bool) or not isinstance(value, int):
-            raise ValueError(f"row {row_number}: {field_name} must be an integer, got {value!r}")
+            raise TypeError(f"row {row_number}: {field_name} must be an integer, got {value!r}")
     if not 0 <= interval.start_frame < interval.end_frame <= interval.frame_count:
         raise ValueError(
             f"row {row_number}: interval [{interval.start_frame}, {interval.end_frame}) "
             f"is outside [0, {interval.frame_count})"
         )
     if not isinstance(interval.truth, SceneTruth):
-        raise ValueError(f"row {row_number}: invalid truth {interval.truth!r}")
+        raise TypeError(f"row {row_number}: invalid truth {interval.truth!r}")
     if not isinstance(interval.note, str):
-        raise ValueError(f"row {row_number}: note must be text")
+        raise TypeError(f"row {row_number}: note must be text")
 
 
 def validate_intervals(
@@ -154,7 +156,7 @@ def validate_partition(
         raise ValueError(
             f"partition starts at {intervals[0].start_frame}, expected {covered_start}"
         )
-    for previous, current in zip(intervals, intervals[1:]):
+    for previous, current in itertools.pairwise(intervals):
         if current.start_frame != previous.end_frame:
             raise ValueError(f"gap [{previous.end_frame}, {current.start_frame})")
     if intervals[-1].end_frame != end:
@@ -248,10 +250,12 @@ def read_label_csv(path: Path) -> list[LabelInterval]:
 @contextmanager
 def _write_text(path: Path, *, compressed: bool) -> Iterator[TextIO]:
     if compressed:
-        with path.open("wb") as raw_handle:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as gzip_handle:
-                with io.TextIOWrapper(gzip_handle, encoding="utf-8", newline="") as text_handle:
-                    yield text_handle
+        with (
+            path.open("wb") as raw_handle,
+            gzip.GzipFile(filename="", mode="wb", fileobj=raw_handle, mtime=0) as gzip_handle,
+            io.TextIOWrapper(gzip_handle, encoding="utf-8", newline="") as text_handle,
+        ):
+            yield text_handle
         return
     with path.open("w", encoding="utf-8", newline="") as handle:
         yield handle

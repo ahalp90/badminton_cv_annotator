@@ -122,24 +122,32 @@ exclude = [
     "**/deprecated/",
     "src/shared/tracknetv3/",         # Vendored TrackNetV3 inference code
     "experiments/annotator/monotrack_benchmark/monotrack/",  # Unmodified MonoTrack release
-    "scripts/archive/autoseg_trials/",  # Frozen S28-S29 trial records, preserved rather than restyled
+    "scripts/archive/",  # Frozen script records, preserved rather than restyled
 ]
 
 [tool.ruff.lint]
+# Ruff 0.16 dropped these from its defaults. The code already follows them, and the
+# E402 markers guard entry points that must set up the environment before importing NumPy.
+extend-select = [
+    "E402", "E701", "E703", "E711", "E712", "E713", "E714", "E721", "E741", "E742", "E743",
+    "F403", "F405",
+]
 ignore = [
     "F541",  # f-string without placeholders
-    "E401",  # multiple imports on one line
-    "E731",  # lambda assignment
-    "E702",  # multiple statements on one line (semicolon)
-    # F722/F821 misfire on jaxtyping shape annotations like Float32[Tensor, "batch n_classes"]:
-    # ruff reads the shape strings as Python forward-refs, which they aren't. Both are off
-    # project-wide; pyrefly does the undefined-name check instead (see [tool.pyrefly] and the
-    # pyrefly step in the lint CI job), because it resolves jaxtyping's real types.
-    "F722",  # forward-annotation "syntax error" on multi-axis / scalar shapes
-    "F821",  # "undefined name" on single-axis shapes
+    # F821 misfires on jaxtyping shape annotations like Float32[Tensor, "batch"]: ruff reads
+    # the shape string as a Python forward-ref, which it isn't. Pyrefly does the undefined-name
+    # check instead (see [tool.pyrefly] and the pyrefly step in the lint CI job), because it
+    # resolves jaxtyping's real types. F722, its multi-axis twin, is off by default since 0.16.
+    "F821",
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# torch.device is immutable, so it is safe as a default argument.
+extend-immutable-calls = ["torch.device"]
+
 [tool.ruff.lint.per-file-ignores]
+# The smoke test reports every failing check, so each check catches everything.
+"src/bric/smoke_test.py" = ["BLE001"]
 # Research entry points set thread limits or import paths before loading their modules.
 "experiments/court_detector/saved_views/run_views.py" = ["E402"]
 "experiments/annotator/court_geometry_repair/scripts/evaluate_court_comparison.py" = ["E402"]

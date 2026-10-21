@@ -14,18 +14,18 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from shared.court import (
-    convert_homogeneous,
-    load_all_court_info,
-    project,
-    scale_pos_by_resolution,
-)
 from classifier_shared.dataset import HOMOGRAPHY_CSV_PATH
 from classifier_shared.taxonomy import (
     DEFAULT_TAXONOMY,
     TAXONOMIES,
     Taxonomy,
     derive_class_index,
+)
+from shared.court import (
+    convert_homogeneous,
+    load_all_court_info,
+    project,
+    scale_pos_by_resolution,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]

@@ -4,6 +4,8 @@ Tracks are built to make the truth obvious: a rest span, a zig-zag rally with a
 known number of clean velocity reversals, then a long rest. The contact tests
 pin the measured impulse rule and its largest-impulse de-duplication.
 """
+import itertools
+
 import numpy as np
 import pytest
 
@@ -16,8 +18,8 @@ from annotator.evaluation.fixtures import SSET_01
 from annotator.fps_constants import scale_for_fps
 from annotator.rally.serve import serve_distance_ratio_passes
 from annotator.rally.spans import (
-    burst_rally_spans,
     active_region_rally_spans,
+    burst_rally_spans,
     last_rest_close,
     serve_qualified_rally_spans,
 )
@@ -678,7 +680,7 @@ def test_serve_start_split_burst_unions_to_the_single_span():
         ), None)
     assert single == [(10, 200)]
     assert split[0][0] == single[0][0] and split[-1][1] == single[0][1]
-    assert all(earlier[1] == later[0] for earlier, later in zip(split, split[1:]))  # contiguous
+    assert all(earlier[1] == later[0] for earlier, later in itertools.pairwise(split))  # contiguous
 
 
 def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():

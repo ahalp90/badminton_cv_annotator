@@ -21,7 +21,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 # Resolution at which BST's homography.csv matrices were computed.
 # Pixel coordinates from a different resolution (e.g. our 1080p source
 # videos) must be scaled to this before applying H — see
