@@ -499,11 +499,11 @@ means.
 | All but acceleration rescaled | 85.21% | 292.8 | 83.42% | 241.6 |
 
 **Confidence cut-offs.** The three cut-offs in Table 3 were chosen on the same
-8 validation videos. The best-balance cut-off maximises the five-seed mean F1
-for picking fully correct rallies. The boundary cut-off is the lowest at which
-99% of kept rallies, pooled over the five seeds, have the right start and end.
-Both were searched in steps of 0.005. The keep-half cut-off keeps half of the
-found rallies, pooled over the five seeds.
+8 validation videos. The 0.335 cut-off keeps half of the found rallies, pooled
+over the five seeds. The 0.385 cut-off gives the highest five-seed mean F1 for
+picking fully correct rallies. The 0.75 cut-off is the lowest at which 99% of
+kept rallies, pooled over the five seeds, have the right start and end. The
+last two were searched in steps of 0.005.
 
 ## Appendix C: Our court detector's two modes
 
