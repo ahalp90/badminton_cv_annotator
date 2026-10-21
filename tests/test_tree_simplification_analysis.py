@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from experiments.annotator.tree_simplification.analysis import (
     common,
+    flaw_rescore,
     input_evidence,
     input_selection,
     plot_review_tradeoff,
@@ -127,6 +128,18 @@ def test_materialise_refuses_a_folder_in_use(tmp_path) -> None:
 def test_tracked_test_run_loads_all_ten_bundles(tmp_path) -> None:
     test_run.materialise(common.RESULTS, tmp_path / 'test-run', use_current_checkout=False)
     test_run.check(tmp_path / 'test-run')
+
+
+def test_flaw_scoring_pools_seeds_like_the_write_up() -> None:
+    per_video = {
+        'first': {**counts(8, 10, 10, 2), 'fully_correct_rallies_edge_allowance': 3, 'dropped_predictions': 4},
+        'second': {**counts(2, 10, 10, 1), 'fully_correct_rallies_edge_allowance': 1, 'dropped_predictions': 0},
+    }
+    summary = flaw_rescore.seed_summary(per_video)
+    assert summary['attributed_f1_percent'] == 50.0
+    assert summary['fully_correct_rallies_percent'] == 15.0
+    assert summary['fully_correct_rallies_edge_allowance_percent'] == 20.0
+    assert summary['dropped_predictions'] == 4
 
 
 def test_screening_totals_must_equal_the_recorded_totals() -> None:
