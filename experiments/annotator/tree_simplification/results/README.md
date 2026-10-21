@@ -265,6 +265,34 @@ The experiment ran from checkout `ddd2a7f2`. The production export used
 `e040d4041beaaf982c966fdd6ca9e214`. Commit `9a1cd0b6` later added it unchanged
 as `benchmark.py`.
 
+## Rebuilding and checking these files
+
+The scripts in [`../analysis/`](../analysis/) rebuild the evidence files and
+figures here and compare them with the tracked copies. JSON files must match
+by content. Figures must match apart from Matplotlib's generated element ids.
+The [analysis README](../analysis/README.md) lists each script's inputs and
+the fields it copies rather than rebuilds.
+
+| File | Rebuilt or checked by | Needs data outside the repo |
+|---|---|---|
+| `five-seed-evidence.json.gz`, `selector-settings-evidence.json.gz`, `previous-hgb-validation.json.gz` | `validation_evidence.py selectors` | no |
+| `selected-production.json.gz` | `validation_evidence.py selectors` (the replay) and `ranking` (the review ranking) | no |
+| `fps-normalisation-evidence.json.gz` | `validation_evidence.py frame-rate` | no |
+| `input-preprocessing-evidence.json.gz`, `input-review-thresholds.json.gz` | `input_evidence.py`, with `input_selection.py rank` and `choose` for the choice of test configurations | no |
+| `input-validation-review-rows.json.gz`, `input-test-review-rows.json.gz` | `input_selection.py rows` | yes: the local archive |
+| `input-review-tradeoff.svg` | `plot_review_tradeoff.py` | no |
+| `test-run/` | `test_run.py materialise`, then `check` loads all ten bundles | no |
+| `selected-profile.json.gz` | `profile_selected.py` makes a new profile; times differ from run to run | yes: prepared arrays |
+
+The other files are saved records: the chosen settings, the timing run, the
+stage costs, the model bundles and the prediction files. The scripts above
+read them as inputs.
+
+The local archive is `raw-data.tar.zst` in the campaign's local folder. Its
+`remote/` folder holds the small records pulled from `RUN/`, with the same
+folder names. So `remote/search-xgb/leaves-15` is the run folder
+`RUN/search-xgb/leaves-15`.
+
 ## How the scores work
 
 - A rally is fully correct when one predicted section contains its whole
