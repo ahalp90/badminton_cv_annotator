@@ -210,6 +210,23 @@ change of courts, fitted models and training order, so the net result cannot
 be attributed to court geometry alone. The [evaluation guide](evaluation.md)
 puts the current model and historical baselines on the same footing.
 
+## Late October: fit three models instead of eight
+
+The eight fitted models overlapped. Three of them chose between the same fixed
+list of contact sequences, and two of those differed by one score column. A
+three-model stack replaced them: the contact model, one XGBoost rally selector
+choosing from a larger option list, and a small ranker that orders the output
+for review without changing it.
+
+On the 46 ShuttleSet22 test videos, the new stack gets 86.24% correct-player F1
+and 54.78% fully correct rallies. The old eight-model stack gets 85.44% and
+51.02% under the same scoring. Both are means over five fits, so they do not
+line up with the single-model counts above. The timed inference stage is about
+3.74 times slower. Scaling motion features to a common frame rate and a
+20-configuration preprocessing sweep left the defaults in place. Review
+filtering stays optional, and production fitting still defaults to eight models.
+[Tree simplification](reports/tree_simplification.md)
+
 ## Where to continue
 
 The experiments point to three useful areas for a future project:

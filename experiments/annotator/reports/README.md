@@ -28,8 +28,7 @@ they address. Results and reproduction instructions share one document.
 |---|---|
 | Why did freshly fitted models differ after the refactor? | [Refit investigation](refit_regression.md) · [reproduction](refit_regression.md#reproduction) |
 | How was the current model selected, and how does it compare? | [Model selection](model_selection.md) · [reproduction](model_selection.md#reproduction) |
-| Can a smaller fitted stack improve rally recovery? | [Tree simplification](tree_simplification.md) · [reproduction](tree_simplification.md#evidence-and-reproduction) |
-| Does preprocessing improve the simplified stack, and how useful are review scores? | [Preprocessing and review filtering](input_preprocessing.md) · [evidence and reproduction](input_preprocessing.md#cost-checks-and-reproduction) |
+| Can three fitted models replace the eight, and do frame-rate scaling, preprocessing or review filtering help them? | [Tree simplification](tree_simplification.md) · [reproduction](tree_simplification.md#evidence-and-reproduction) |
 
 Saved CSVs, arrays, images and exact implementation excerpts remain with their
 experiment outputs. The reports link to them where they support a finding.
