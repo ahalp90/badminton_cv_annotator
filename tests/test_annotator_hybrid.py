@@ -21,7 +21,7 @@ from annotator.models import SideGeometry
 from annotator.sequence.contacts import initial_sequences
 from annotator.sequence.rally_model import RallyLayerModels, RallyLayerPrediction
 from annotator.sequence.rally_options import FEATURE_NAMES
-from annotator.sequence.refine import build_option_pool
+from annotator.sequence.repairs import build_rally_repairs
 from annotator.training.workflow import Split, VideoInput, sequence_training_video
 from annotator.types import StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
@@ -74,13 +74,14 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         assert side_for_frame(170) is None
         assert side_for_frame(220) is not None
         initial = initial_sequences(evidence.heuristic_spans, events)
-        pools.append(build_option_pool(
+        pools.append(build_rally_repairs(
             initial, events, scores, rows, search_intervals, fps=30.0, side_for_frame=side_for_frame,
         ))
     video_pool, scene_pool = pools
-    assert scene_pool.serve_inputs.rows_by_key
-    assert scene_pool.options == video_pool.options
-    np.testing.assert_array_equal(scene_pool.sequence_features, video_pool.sequence_features)
+    assert scene_pool.candidates[0]
+    assert scene_pool.sequences == video_pool.sequences
+    for frame, physical in scene_pool.physical.items():
+        np.testing.assert_array_equal(physical, video_pool.physical[frame])
 
 
 @pytest.mark.parametrize('enabled', [False, True])
@@ -119,30 +120,19 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
         models.contact, config, models.side_geometry,
     )
 
-    def refine(spans, events, scores, feature_rows, search_intervals, *, fps, side_for_frame, **_kwargs):
-        initial = initial_sequences(spans, events)
-        pool = build_option_pool(
-            initial, events, scores, feature_rows, search_intervals, fps=fps, side_for_frame=side_for_frame,
-        )
-        return SimpleNamespace(pool=pool)
-
     monkeypatch.setattr(hybrid, 'features_from_evidence', lambda _evidence: features)
-    monkeypatch.setattr(hybrid, 'refine_contact_sequences', refine)
-    monkeypatch.setattr(hybrid, 'score_rally_confidence', lambda *_args: SimpleNamespace())
     inference = hybrid.predict_contacts(evidence, models)
     expected_candidates = [16, 80] if enabled else [1, 10, 16, 40, 60, 80]
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == ([16, 80] if enabled else [10, 80])
-    for pool in (training.pool, inference.refined.pool):
-        later = [event.frame for event in pool.later_candidates[0]]
-        assert later == ([] if enabled else [40, 60])
+    for pool in (training.repairs, inference.refined.pool.context.repairs):
+        candidate_frames = [event.frame for event in pool.candidates[0]]
+        assert candidate_frames == ([] if enabled else [1, 40, 60])
         if enabled:
             assert set(pool.physical).isdisjoint({1, 10, 40, 60})
-            assert not pool.serve_inputs.rows_by_key
         else:
             assert 1 in pool.physical
-            assert pool.serve_inputs.rows_by_key
 
     layers = tuple(DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES) + 8 * depth)), [0, 1])
                    for depth in range(2))

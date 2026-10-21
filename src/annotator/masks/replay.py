@@ -32,7 +32,7 @@ from annotator.config import (
 )
 from annotator.fps_constants import scale_for_fps
 from annotator.masks.inpaint import code_counts, grade_track
-from annotator.rally_segmentation import compute_speed, rolling_nanmedian, true_runs
+from annotator.types import compute_speed, rolling_nanmedian, true_runs
 
 log = logging.getLogger(__name__)
 

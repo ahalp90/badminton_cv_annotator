@@ -10,15 +10,14 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from annotator.sequence.contacts import ContactEvent, scale_frames
+from annotator.sequence.contacts import ContactEvent, scale_frames, stream_from_payload
 from annotator.training.sequences import LabelledRally, match_contacts
 from annotator.training.workflow import load_labels
 from dataset_builder.vision import load_json_gz, save_json_gz
-from experiments.annotator.old_court_regression.retrain import (
+from experiments.annotator.development import (
     COUNT_NAMES,
     TEST_VIDEO_IDS,
     score_stream,
-    stream_from_payload,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[3]

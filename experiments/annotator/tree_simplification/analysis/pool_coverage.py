@@ -44,7 +44,7 @@ TOLERANCE_AT_30_FPS = 10
 
 def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
     """Coverage with initial neighbours, then the two generous reachability checks, for one video."""
-    video = pool.original
+    video = pool.video
     padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
     tolerance = scale_frames(TOLERANCE_AT_30_FPS, video.fps)
     stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
@@ -102,7 +102,7 @@ def main() -> None:
     results = []
     for identity, video in sorted(validation_videos(args.shots_master).items()):
         pool: LabelledOptions = joblib.load(args.pools / 'videos' / f'{identity}.joblib')
-        if pool.original.identity != identity or pool.original.rallies != video.rallies:
+        if pool.video.identity != identity or pool.video.rallies != video.rallies:
             raise ValueError(f'{identity}: the option list was built from different labels')
         results.append(inspect_pool(pool))
     print(json.dumps({'per_video': results}, indent=2))

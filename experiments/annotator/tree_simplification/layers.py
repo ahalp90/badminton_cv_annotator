@@ -9,7 +9,7 @@ from annotator.sequence import rally_layers
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_layers import CONTEXT_FEATURE_NAMES
 from annotator.training import rally_layers as rally_training
-from annotator.training.sequences import TreeFitConfig
+from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
 __all__ = [

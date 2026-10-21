@@ -4,14 +4,17 @@ from dataclasses import replace
 
 import numpy as np
 
+from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.boundaries import extend_boundaries
-from annotator.sequence.candidates import ServeCandidate
-from annotator.sequence.contacts import ContactEvent, initial_sequences
-from annotator.sequence.edits import apply_choices, option_pool, sequence_edits
-from annotator.sequence.features import PHYSICAL_FEATURE_NAMES, ServeEditInputs
+from annotator.sequence.contacts import ContactEvent, apply_choices, initial_sequences
+from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
 from annotator.sequence.rally_options import RallyContext, build_rally_options
-from annotator.sequence.refine import OptionPool
+from annotator.sequence.repairs import (
+    RallyRepairs,
+    add_later_contacts,
+    serve_and_deletion_repairs,
+)
 from annotator.sequence.sides import alternate_sides
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from annotator.training.workflow import whole_rally_correctness
@@ -31,21 +34,18 @@ def example_video() -> SequenceTrainingVideo:
     serve = tuple(ContactEvent(frame, 0.8, Half.TOP) for frame in (52, 75))
     # The close and out-of-bound later rows exercise rejection in new combinations.
     later = tuple(ContactEvent(frame, 0.7, Half.BOT) for frame in (40, 105, 135, 149, 165, 195))
-    serve_candidates = [ServeCandidate(1, event, 90, ()) for event in serve]
-    edits = {}
+    seeds = []
     previous_end = -1
     for sequence in initial:
-        edits[sequence.span_id] = sequence_edits(
-            sequence, serve_candidates if sequence.span_id == 1 else (), events, previous_end,
-        )
+        repairs = serve_and_deletion_repairs(sequence, serve if sequence.span_id == 1 else (), events, previous_end)
+        seeds.extend(add_later_contacts(
+            repairs, later if sequence.span_id == 1 else (), NEARBY_CONTACT_DISTANCE_AT_30_FPS,
+        ))
         previous_end = sequence.end_frame
-    options = option_pool(edits, {1: later}, 30.0)
     physical = {event.frame: np.full(len(PHYSICAL_FEATURE_NAMES), event.frame, dtype=float)
                 for event in (*events, *serve, *later)}
-    pool = OptionPool(
-        options, {1: later}, ServeEditInputs({}, np.empty((0, 0))),
-        np.full((len(options), 1), np.nan), np.full((len(options), 1), np.nan), physical,
-    )
+    candidates = {1: tuple(sorted((*serve, *later), key=lambda event: event.frame))}
+    pool = RallyRepairs(tuple(seeds), candidates, physical)
     rallies = tuple(LabelledRally(str(sequence.span_id), tuple(event.frame for event in sequence.events),
                                  tuple(event.side for event in sequence.events)) for sequence in initial)
     return SequenceTrainingVideo('fixture', 'group', 30.0, initial, events, pool, rallies, 430)
@@ -60,15 +60,15 @@ def test_multiple_additions_and_deletions_preserve_all_original_choices() -> Non
     assert (150, 180) in frame_lists
     assert (52, 60, 150, 180) in frame_lists
     keys = {(sequence.span_id, sequence_key(sequence)) for sequence in options.sequences}
-    assert {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options} <= keys
+    assert {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences} <= keys
     restricted = expand_pool(video, max_edits=0, deletion_candidates=0)
     restricted_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in restricted.sequences}
-    assert {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options} <= restricted_keys
+    assert {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences} <= restricted_keys
 
 
 def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
     video = example_video()
-    context = RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
+    context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
     runtime = build_rally_options(context)
     labelled = expand_pool(video)
     unlabelled = expand_pool(replace(video, rallies=()))
@@ -83,7 +83,7 @@ def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
 def test_new_combinations_obey_spacing_bounds_and_do_not_resurrect_deletions() -> None:
     video = example_video()
     options = expand_pool(video)
-    original_keys = {(option.span_id, sequence_key(option.sequence)) for option in video.pool.options}
+    original_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences}
     for sequence in options.sequences:
         if (sequence.span_id, sequence_key(sequence)) in original_keys:
             continue

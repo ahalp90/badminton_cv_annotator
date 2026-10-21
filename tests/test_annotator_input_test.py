@@ -34,10 +34,6 @@ def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
     settings.pop('rally_layers')
     settings['contact']['random_seed'] = DEFAULT_TRAINING_SETTINGS.contact.random_seed + seed_offset
     settings['confidence']['random_seed'] = DEFAULT_TRAINING_SETTINGS.confidence.random_seed + seed_offset
-    settings['sequences']['serve']['random_seed'] = DEFAULT_TRAINING_SETTINGS.sequences.serve.random_seed + seed_offset
-    settings['sequences']['sequence']['random_seed'] = (
-        DEFAULT_TRAINING_SETTINGS.sequences.sequence.random_seed + seed_offset
-    )
     settings = json.loads(json.dumps(settings, default=sorted))
     contact_settings = {
         'prepared': str(root / 'prepared'),
@@ -61,7 +57,7 @@ def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
                 'settings': contact_settings['settings'],
             },
             'tree': {
-                'random_seed': DEFAULT_TRAINING_SETTINGS.sequences.sequence.random_seed + seed_offset,
+                'random_seed': DEFAULT_TRAINING_SETTINGS.rally_layers.tree.random_seed + seed_offset,
             },
         },
         'preprocessing': preprocessing,

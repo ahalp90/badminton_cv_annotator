@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from experiments.annotator.tree_hp_tune.run import pooled_scores
+from experiments.annotator.development import pooled_scores
 from experiments.annotator.tree_simplification.analysis.common import (
     RESULTS,
     SEED_OFFSETS,

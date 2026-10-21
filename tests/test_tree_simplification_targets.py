@@ -10,11 +10,10 @@ import pytest
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.edits import EditKind, SequenceEdit, SequenceOption
-from annotator.sequence.features import ServeEditInputs
-from annotator.sequence.refine import OptionPool
+from annotator.sequence.repairs import RallyRepairs
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
-from experiments.annotator.tree_simplification import pilot, targets
+from experiments.annotator import development as experiment
+from experiments.annotator.tree_simplification import targets
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
     sequence_key,
@@ -36,17 +35,10 @@ def make_pool(
         0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
     )
     events = initial.events
-    initial_option = SequenceOption(SequenceEdit(EditKind.KEEP, None, None, initial), None, initial)
     original_option_sequence = ContactSequence(
         0, 0, 200, (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT)),
     )
-    original_option = SequenceOption(
-        SequenceEdit(EditKind.DELETE, None, 20, original_option_sequence), None, original_option_sequence,
-    )
-    option_pool = OptionPool(
-        (initial_option, original_option), {}, ServeEditInputs({}, np.empty((0, 0))),
-        np.empty((2, 0)), np.empty((2, 0)), {},
-    )
+    option_pool = RallyRepairs((initial, original_option_sequence), {}, {})
     rally = LabelledRally('rally', (20, 60), (Half.TOP, Half.BOT))
     video = SequenceTrainingVideo('video', 'group', fps, (initial,), events, option_pool, (rally,), 210)
     return LabelledOptions(
@@ -151,7 +143,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         ContactSequence(1, 100, 180, (ContactEvent(116, 0.9, Half.TOP), ContactEvent(136, 0.9, Half.BOT))),
     )
     events = (*first.events, *second.events)
-    option_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
+    option_pool = RallyRepairs((), {}, {})
     rallies = (
         LabelledRally('first', (10, 30), (Half.TOP, Half.BOT)),
         LabelledRally('boundary', (85,), (None,)),
@@ -222,7 +214,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
     with lzma.open(target_path, 'rb') as stream:
         saved = np.load(stream, allow_pickle=False)
     assert saved.shape == (1,)
-    assert pilot.read_json(metadata_path)['rows'] == 1
+    assert experiment.read_json(metadata_path)['rows'] == 1
 
     def forbidden_recompute(_pool: LabelledOptions) -> np.ndarray:
         raise AssertionError('matching completed sidecars should be resumed')
@@ -245,8 +237,8 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     video_path = pools_root / 'videos' / 'video.joblib'
     video_path.parent.mkdir(parents=True)
     joblib.dump(pool, video_path)
-    pilot.write_json(pools_root / 'pools.json.gz', {'schema': 'pools/1'})
-    pilot.write_json(video_path.with_suffix('.json.gz'), {
+    experiment.write_json(pools_root / 'pools.json.gz', {'schema': 'pools/1'})
+    experiment.write_json(video_path.with_suffix('.json.gz'), {
         'video': 'video', 'group': 'group', 'split': 'train',
     })
     output = tmp_path / 'targets'

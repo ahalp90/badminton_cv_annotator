@@ -14,16 +14,12 @@ from annotator.outcomes.point_winner import Half, attribute_half
 from annotator.sequence import (
     CandidateScores,
     ContactEvent,
-    RefinedSequences,
-    refine_contact_sequences,
 )
-from annotator.sequence.confidence import RallyConfidence, score_rally_confidence
 from annotator.sequence.rally_model import (
-    LayerConfidence,
-    RallyLayerModels,
     RallyLayerPrediction,
-    refine_rally_layers,
-    score_layer_confidence,
+    RallyReview,
+    score_rally_review,
+    select_rally_sequences,
 )
 from annotator.types import StickyResult
 from shared.progress import report
@@ -55,8 +51,8 @@ class HybridPrediction:
 
     features: ContactFeatures
     contacts: ScoredContacts
-    refined: RefinedSequences | RallyLayerPrediction
-    confidence: RallyConfidence | LayerConfidence
+    refined: RallyLayerPrediction
+    confidence: RallyReview
 
 
 def features_from_evidence(evidence: ContactEvidence) -> ContactFeatures:
@@ -119,18 +115,10 @@ def predict_contact_features(
     )
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     report("refining rally sequences")
-    if isinstance(models.sequences, RallyLayerModels):
-        layer_prediction = refine_rally_layers(
-            evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
-            fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
-        )
-        report("scoring rally confidence")
-        review = score_layer_confidence(layer_prediction, models.confidence)
-        return HybridPrediction(features, contacts, layer_prediction, review)
-    refined = refine_contact_sequences(
+    refined = select_rally_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
     )
     report("scoring rally confidence")
-    confidence = score_rally_confidence(refined, models.confidence, models.sequences.insertion, evidence.fps)
+    confidence = score_rally_review(refined, models.confidence)
     return HybridPrediction(features, contacts, refined, confidence)

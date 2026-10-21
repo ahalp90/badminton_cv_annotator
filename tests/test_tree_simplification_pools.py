@@ -1,6 +1,5 @@
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -8,6 +7,8 @@ import pytest
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.repairs import RallyRepairs
+from annotator.training.sequences import SequenceTrainingVideo
 from experiments.annotator.tree_simplification import pools
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
@@ -30,15 +31,9 @@ def example_pool() -> LabelledOptions:
         initial[1],
         replace(initial[1], events=(other_addition, other)),
     )
-    original_options_list = (SimpleNamespace(span_id=0, sequence=sequences[1]),)
-    original = SimpleNamespace(
-        identity='fixture',
-        group='A',
-        fps=30.0,
-        events=(first, second, other),
-        frame_count=50,
-        initial=initial,
-        pool=SimpleNamespace(options=original_options_list),
+    original = SequenceTrainingVideo(
+        'fixture', 'A', 30.0, initial, (first, second, other),
+        RallyRepairs((sequences[1],), {}, {}), (), 50,
     )
     return LabelledOptions(
         sequences,
@@ -59,7 +54,7 @@ def test_original_options_keep_choices_and_row_alignment() -> None:
     np.testing.assert_array_equal(original.targets, options.targets[[0, 1, 4]])
     np.testing.assert_array_equal(original.span_rows[0], [0, 1])
     np.testing.assert_array_equal(original.span_rows[1], [2])
-    assert original.original is options.original
+    assert original.video is options.video
 
 
 def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:

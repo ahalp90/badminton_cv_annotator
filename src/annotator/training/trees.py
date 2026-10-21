@@ -1,17 +1,24 @@
-"""Fit the annotator's binary trees with an explicitly selected backend."""
+"""Fit the annotator's XGBoost trees with fixed weighting and stopping rules."""
 
-from enum import StrEnum
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_sample_weight
 
 
-class TreeBackend(StrEnum):
-    HIST_GRADIENT_BOOSTING = 'hist_gradient_boosting'
-    XGBOOST = 'xgboost'
+@dataclass(frozen=True)
+class TreeFitConfig:
+    """XGBoost settings shared by rally selection and review ranking."""
+
+    max_iter: int = 200
+    max_leaf_nodes: int = 15
+    learning_rate: float = 0.05
+    l2_regularization: float = 1.0
+    random_seed: int = 20260905
+    device: str = 'cpu'
+    min_child_weight: float = 5.0
 
 
 AUTO_STOPPING_ROWS = 10_000
@@ -26,48 +33,24 @@ def fit_binary_tree(
     max_iter: int,
     max_leaf_nodes: int,
     learning_rate: float,
-    min_samples_leaf: int,
     l2_regularization: float,
     random_seed: int,
     balanced: bool,
     sample_weight: np.ndarray | None = None,
     early_stopping: bool | Literal['auto'] = False,
-    backend: TreeBackend = TreeBackend.HIST_GRADIENT_BOOSTING,
     device: str = 'cpu',
     min_child_weight: float = 5.0,
 ) -> Any:
     """Fit already selected rows containing both binary target classes.
 
-    XGBoost uses a Hessian-weight minimum, ``min_child_weight``, instead of
-    HGB's row-count minimum, ``min_samples_leaf``. These are separate controls.
-    Its stopping split comes solely from these training rows. The automatic
-    threshold, holdout fraction and patience follow HGB defaults, but the
-    backend's optimisation and stopping rules are not numerically equivalent.
+    Stopping uses a stratified holdout from these training rows. Class weights
+    are computed before that split, then multiplied by any supplied row weights.
 
     :param matrix: One feature row per selected training example; NaNs are allowed.
     :param labels: Aligned labels, with both 0 and 1 present.
     :param sample_weight: Optional per-row weights, multiplied by class weights when balanced.
-    :return: The fitted backend estimator, exposing ``classes_`` and ``predict_proba``.
+    :return: The fitted XGBoost estimator, exposing ``classes_`` and ``predict_proba``.
     """
-    if backend == TreeBackend.HIST_GRADIENT_BOOSTING:
-        model = HistGradientBoostingClassifier(
-            max_iter=max_iter,
-            max_leaf_nodes=max_leaf_nodes,
-            learning_rate=learning_rate,
-            min_samples_leaf=min_samples_leaf,
-            l2_regularization=l2_regularization,
-            random_state=random_seed,
-            class_weight='balanced' if balanced else None,
-            early_stopping=early_stopping,
-        )
-        if sample_weight is None:
-            model.fit(matrix, labels)
-        else:
-            model.fit(matrix, labels, sample_weight=sample_weight)
-        return model
-    if backend != TreeBackend.XGBOOST:
-        raise ValueError(f'unknown tree backend: {backend}')
-
     from xgboost import XGBClassifier
 
     stopping = len(labels) > AUTO_STOPPING_ROWS if early_stopping == 'auto' else early_stopping

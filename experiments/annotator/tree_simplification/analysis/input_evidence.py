@@ -26,7 +26,7 @@ from statistics import mean, median
 from typing import Any
 
 from annotator.models import model_files
-from experiments.annotator.tree_hp_tune.run import pooled_scores
+from experiments.annotator.development import pooled_scores
 from experiments.annotator.tree_simplification import review_thresholds
 from experiments.annotator.tree_simplification.analysis.common import (
     RESULTS,

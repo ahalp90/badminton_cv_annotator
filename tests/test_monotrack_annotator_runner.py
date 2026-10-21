@@ -18,13 +18,12 @@ from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
 from annotator.resolve import resolve
 from annotator.run_video import empty_result
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.types import DeadMaskMode
 from dataset_builder import vision
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json
-from experiments.annotator.old_court_regression.retrain import stream_payload
 
 
 @pytest.fixture

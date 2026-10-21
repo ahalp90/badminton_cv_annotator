@@ -14,7 +14,7 @@ import numpy as np
 from annotator.contacts.features import REGION_FIELDS
 from annotator.contacts.model import contact_feature_matrix
 from annotator.fps_constants import ScalingKind
-from annotator.training.trees import TreeBackend, fit_binary_tree
+from annotator.training.trees import fit_binary_tree
 
 POSITIVE_RADIUS_AT_30_FPS = 1
 IGNORED_RADIUS_AT_30_FPS = 4
@@ -39,11 +39,9 @@ class ContactFitConfig:
     learning_rate: float = 0.06
     max_iter: int = 180
     max_leaf_nodes: int = 31
-    min_samples_leaf: int = 40
     l2_regularization: float = 1.0
     random_seed: int = 20260824
     early_stopping: bool | Literal["auto"] = "auto"
-    backend: TreeBackend = TreeBackend.HIST_GRADIENT_BOOSTING
     device: str = 'cpu'
     min_child_weight: float = 5.0
 
@@ -181,11 +179,10 @@ def fit_contact_model(
         learning_rate=config.learning_rate,
         max_iter=config.max_iter,
         max_leaf_nodes=config.max_leaf_nodes,
-        min_samples_leaf=config.min_samples_leaf,
         l2_regularization=config.l2_regularization,
         balanced=True,
         random_seed=config.random_seed,
         early_stopping=config.early_stopping,
-        backend=config.backend, device=config.device, min_child_weight=config.min_child_weight,
+        device=config.device, min_child_weight=config.min_child_weight,
     )
     return ContactModelFit(model, selection)

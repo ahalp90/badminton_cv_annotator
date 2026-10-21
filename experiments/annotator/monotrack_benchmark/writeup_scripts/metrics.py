@@ -41,7 +41,7 @@ import pandas as pd
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames
+from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.sequence.sides import alternate_sides
 from annotator.training.sequences import match_contacts
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
@@ -53,7 +53,6 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     load_manifest,
     read_json,
 )
-from experiments.annotator.old_court_regression.retrain import stream_from_payload
 
 BENCHMARK = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results'
 INPUTS = BENCHMARK / 'inputs'
@@ -72,7 +71,6 @@ SHUTTLESET22 = REPO / 'data/shuttleset22/set'
 WINDOW_BEFORE, WINDOW_AFTER = 30, 31
 # A prediction this close to a scored hit is never ignored, so it can still match or count as an extra.
 IGNORE_MARGIN = 10
-
 
 
 def annotator_run(condition: str, models: str, seed: int) -> Path:

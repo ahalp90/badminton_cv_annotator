@@ -13,11 +13,10 @@ import pytest
 from annotator.config import BaseAnnotatorConfig
 from annotator.outcomes.point_winner import Half
 from annotator.run_video import AnnotatorResult, empty_result
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.heuristic_only_tune import data as search_data
-from experiments.annotator.old_court_regression.retrain import stream_payload
 
 
 def _video(rallies: tuple[LabelledRally, ...]) -> search_data.SearchVideo:

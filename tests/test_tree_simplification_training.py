@@ -1,7 +1,7 @@
 """Recursive rally-group exclusion, stack reuse and validation isolation."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,20 +13,19 @@ from threadpoolctl import threadpool_limits
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.features import ServeEditInputs
-from annotator.sequence.refine import OptionPool
+from annotator.sequence.repairs import RallyRepairs
 from annotator.training import rally_layers as production_training
-from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
+from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import LabelledOptions
-from experiments.annotator.tree_simplification.specialists import SpecialistModels
 
 
 def make_pool(identity: str, group: str) -> LabelledOptions:
     event = ContactEvent(10, 0.8, Half.TOP)
     initial = ContactSequence(0, 0, 20, (event,))
     deleted = ContactSequence(0, 0, 20, ())
-    original_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
+    original_pool = RallyRepairs((), {}, {})
     original = SequenceTrainingVideo(identity, group, 30.0, (initial,), (event,), original_pool, (), 30)
     return LabelledOptions(
         (initial, deleted), np.asarray([[0, 1], [1, 0]], dtype=np.float32),
@@ -69,8 +68,8 @@ class RecordingFits:
         *, span_weight: float,
     ) -> RecordedModel:
         assert span_weight > 0
-        assert all(pool.original.identity.startswith('train-') for pool in pools)
-        groups = frozenset(pool.original.group for pool in pools)
+        assert all(pool.video.identity.startswith('train-') for pool in pools)
+        groups = frozenset(pool.video.group for pool in pools)
         depth = len(histories[0]) + 1
         ancestors = set(groups)
         for pool, history in zip(pools, histories, strict=True):
@@ -78,9 +77,9 @@ class RecordingFits:
             for previous_depth, scores in enumerate(history, 1):
                 producer = self.model_for(scores)
                 assert producer.depth == previous_depth
-                assert producer.groups == groups - {pool.original.group}
-                assert pool.original.group not in producer.ancestors
-                assert producer.ancestors <= groups - {pool.original.group}
+                assert producer.groups == groups - {pool.video.group}
+                assert pool.video.group not in producer.ancestors
+                assert producer.ancestors <= groups - {pool.video.group}
                 ancestors.update(producer.ancestors)
         model = RecordedModel(groups, frozenset(ancestors), depth, len(self.models) + 1)
         self.models.append(model)
@@ -92,7 +91,7 @@ class RecordingFits:
             producer = self.model_for(scores)
             assert producer.depth == previous_depth
             assert producer.groups == model.groups
-        self.predictions.append((model.serial, pool.original.identity))
+        self.predictions.append((model.serial, pool.video.identity))
         return np.full(len(pool.sequences), model.serial, dtype=float)
 
 
@@ -118,8 +117,8 @@ def test_depth_three_excludes_held_groups_through_all_ancestors_and_reuses_subse
     assert len(recorded.models) == 17
     for (subset, depth, identity), scores in trainer.scores.items():
         assert len(scores) == depth
-        assert trainer.pools[identity].original.group not in subset
-        assert all(trainer.pools[identity].original.group not in recorded.model_for(row).ancestors for row in scores)
+        assert trainer.pools[identity].video.group not in subset
+        assert all(trainer.pools[identity].video.group not in recorded.model_for(row).ancestors for row in scores)
 
 
 def test_resume_loads_complete_models_and_refits_only_an_incomplete_checkpoint(
@@ -143,9 +142,9 @@ def test_resume_loads_complete_models_and_refits_only_an_incomplete_checkpoint(
     assert len(recorded.models) == 18
 
 
-def test_real_hgb_prefixes_receive_one_context_block_per_previous_layer(tmp_path: Path) -> None:
+def test_real_xgboost_prefixes_receive_one_context_block_per_previous_layer(tmp_path: Path) -> None:
     pools = training_pools(videos_per_group=1)
-    trainer = train.LayerTrainer(pools, TreeFitConfig(max_iter=3, min_samples_leaf=1), tmp_path, span_weight=2.0)
+    trainer = train.LayerTrainer(pools, TreeFitConfig(max_iter=3, min_child_weight=0), tmp_path, span_weight=2.0)
     with threadpool_limits(limits=1):
         models = trainer.fit(tuple('ABCD'), 3)
         scores = train.score_layers(models, make_pool('validation', 'A'))
@@ -159,8 +158,8 @@ def test_production_review_predictions_exclude_the_outer_group_at_every_layer(mo
     groups_by_pool = {}
     for identity, pool in training_pools().items():
         runtime = pool.runtime
-        groups_by_pool[id(runtime)] = pool.original.group
-        pools[identity] = production_training.RallyTrainingPool(identity, pool.original.group, runtime, pool.targets)
+        groups_by_pool[id(runtime)] = pool.video.group
+        pools[identity] = production_training.RallyTrainingPool(identity, pool.video.group, runtime, pool.targets)
     models = []
 
     def fit(options, _targets, histories, _config, *, span_weight):
@@ -195,57 +194,6 @@ def test_production_review_predictions_exclude_the_outer_group_at_every_layer(mo
     assert trainer.fit(tuple('ABCD'), 2) is final
 
 
-def test_specialists_exclude_the_predicted_group_at_every_rally_depth(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    recorded = RecordingFits(monkeypatch)
-    specialist_fits = []
-
-    def group_code(groups: frozenset[str]) -> int:
-        return sum(1 << 'ABCD'.index(group) for group in groups)
-
-    def fit_specialists(
-        videos: Sequence[SequenceTrainingVideo], _config: Any, roles: tuple[str, ...], *, targets: Any,
-    ) -> SpecialistModels:
-        assert roles == ('serve',)
-        assert all(video.identity.startswith('train-') for video in videos)
-        assert all(targets[video.identity] == video.identity for video in videos)
-        groups = frozenset(video.group for video in videos)
-        specialist_fits.append(groups)
-        return SpecialistModels(serve=groups, insertion=None)
-
-    def augment(pool: LabelledOptions, models: SpecialistModels) -> LabelledOptions:
-        code = np.full(len(pool.targets), group_code(models.serve))
-        return replace(pool, matrix=np.column_stack((pool.matrix, code)))
-
-    def fit(pools: Sequence[LabelledOptions], histories: Any, config: TreeFitConfig, *, span_weight: float) -> RecordedModel:
-        groups = frozenset(pool.original.group for pool in pools)
-        for pool in pools:
-            assert np.all(pool.matrix[:, -1] == group_code(groups - {pool.original.group}))
-        return recorded.fit(pools, histories, config, span_weight=span_weight)
-
-    def predict(model: RecordedModel, pool: LabelledOptions, history: Any) -> np.ndarray:
-        assert np.all(pool.matrix[:, -1] == group_code(model.groups))
-        return recorded.predict(model, pool, history)
-
-    monkeypatch.setattr(train, 'fit_specialists', fit_specialists)
-    monkeypatch.setattr(train, 'sequence_targets', lambda video: video.identity)
-    monkeypatch.setattr(train, 'augment_pool', augment)
-    monkeypatch.setattr(train, 'fit_layer', fit)
-    monkeypatch.setattr(train, 'predict_layer', predict)
-    pools, groups = training_pools(), tuple('ABCD')
-    trainer = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0, roles=('serve',))
-    models = trainer.fit(groups, 2)
-    expected = {frozenset(subset) for size in (2, 3, 4) for subset in combinations(groups, size)}
-    assert len(specialist_fits) == len(set(specialist_fits)) == 11
-    assert set(specialist_fits) == expected
-    assert len(recorded.models) == 6
-    train.score_layers(models, make_pool('validation', 'V'))
-    resumed = train.LayerTrainer(pools, TreeFitConfig(), tmp_path, span_weight=2.0, roles=('serve',))
-    assert resumed.fit(groups, 2) == models
-    assert len(specialist_fits) == 11
-
-
 @pytest.mark.parametrize('first_depth', [1, 3])
 @pytest.mark.parametrize('span_weight', [None, 371.86228729719033])
 def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_evaluation(
@@ -266,7 +214,7 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
             return {'prepared': str(prepared_dir)}
         if path == prepared_dir / 'preparation.json.gz':
             return {'inputs': {'paths': {'shots_master': str(tmp_path / 'shots.csv')},
-                               'groups': {identity: pool.original.group for identity, pool in pools.items()}}}
+                               'groups': {identity: pool.video.group for identity, pool in pools.items()}}}
         if path.parent == pool_dir / 'videos':
             identity = path.name.removesuffix('.json.gz')
             return {'split': 'train' if identity in training else 'validation'}
@@ -295,7 +243,7 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
     monkeypatch.setattr(train, 'evaluate', evaluate)
     command = [
         'train', '--pools', str(pool_dir), '--output', str(output),
-        '--backend', 'hist_gradient_boosting', '--device', 'cpu', '--threads', '1',
+        '--device', 'cpu', '--threads', '1',
     ]
     if span_weight is not None:
         command.extend(('--span-weight', str(span_weight)))

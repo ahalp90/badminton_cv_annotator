@@ -34,7 +34,7 @@ sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import scale_frames
+from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -56,7 +56,6 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     judge_found_rallies,
     rally_ladder,
 )
-from experiments.annotator.old_court_regression.retrain import stream_from_payload
 
 TOLERANCE = 10
 SHUTTLESET22 = REPO / 'data/shuttleset22/set'

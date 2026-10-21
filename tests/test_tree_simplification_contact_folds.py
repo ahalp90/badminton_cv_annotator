@@ -10,18 +10,18 @@ import numpy as np
 import pytest
 
 from annotator.training.contact import ContactFitConfig
-from annotator.training.trees import TreeBackend
-from experiments.annotator.tree_simplification import contact_folds, pilot, pools
+from experiments.annotator import development as experiment
+from experiments.annotator.tree_simplification import contact_folds, pools
 
 VALIDATION = ('sset_18', 'sset_22', 'sset_24', 'sset_25', 'sset_30', 'sset_31', 'sset_39', 'sset_40')
 
 
-def development() -> pilot.retrain.Development:
+def development() -> experiment.Development:
     groups = {}
     for fold, identities in contact_folds.CONTACT_FOLDS.items():
         groups.update({identity: fold[0] for identity in identities})
     groups.update({identity: 'V' for identity in VALIDATION})
-    return pilot.retrain.Development(groups, dict.fromkeys(groups, 30.0), {
+    return experiment.Development(groups, dict.fromkeys(groups, 30.0), {
         identity: int(identity.removeprefix('sset_')) for identity in groups
     })
 
@@ -32,14 +32,14 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
         directory.mkdir()
     groups = development().group_by_video
     settings = {
-        'contact': asdict(ContactFitConfig(backend=TreeBackend.XGBOOST, device='cuda')),
+        'contact': asdict(ContactFitConfig(device='cuda')),
         'preprocessing': {'fixture': True}, 'contact_prediction': {},
     }
-    pilot.write_json(prepared / 'preparation.json.gz', {
+    experiment.write_json(prepared / 'preparation.json.gz', {
         'inputs': {'groups': groups, 'preprocessing': settings['preprocessing'],
                    'paths': {'shots_master': str(tmp_path / 'shots.csv')}},
     })
-    pilot.write_json(reference / 'settings.json.gz', {'prepared': str(prepared), 'settings': settings})
+    experiment.write_json(reference / 'settings.json.gz', {'prepared': str(prepared), 'settings': settings})
     (reference / 'contacts').mkdir(parents=True)
     for name in ('held_A', 'held_B', 'held_C', 'held_D', 'v_32'):
         joblib.dump({'original': name}, reference / 'contacts' / f'{name}.joblib')
@@ -47,7 +47,7 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
         'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
         'max_edits': 3, 'deletion_candidates': 6,
     }
-    pilot.write_json(original / 'pools.json.gz', manifest)
+    experiment.write_json(original / 'pools.json.gz', manifest)
     (prepared / 'videos').mkdir()
     (original / 'videos').mkdir()
     for identity, group in groups.items():
@@ -57,9 +57,9 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
         joblib.dump(SimpleNamespace(video=video, group=group, features=SimpleNamespace(rows=np.zeros(2))),
                     prepared / 'videos' / f'{identity}.joblib')
         metadata = {'video': identity, 'group': group, 'split': split}
-        pilot.write_json(prepared / 'videos' / f'{identity}.json.gz', metadata)
+        experiment.write_json(prepared / 'videos' / f'{identity}.json.gz', metadata)
         joblib.dump({'identity': identity}, original / 'videos' / f'{identity}.joblib')
-        pilot.write_json(original / 'videos' / f'{identity}.json.gz', metadata)
+        experiment.write_json(original / 'videos' / f'{identity}.json.gz', metadata)
     return SimpleNamespace(prepared=prepared, original=original, reference=reference, manifest=manifest)
 
 
@@ -116,14 +116,14 @@ def test_orchestration_fits_28_only_and_reuses_completed_folds(
     training = set(context.videos(('A', 'B', 'C', 'D')))
     for fold, identities in zip(contact_folds.CONTACT_FOLDS, fits, strict=True):
         assert training - set(identities) == set(contact_folds.CONTACT_FOLDS[fold])
-        receipt = pilot.read_json(tmp_path / 'output' / 'contacts' / f'held_{fold}.json.gz')
+        receipt = experiment.read_json(tmp_path / 'output' / 'contacts' / f'held_{fold}.json.gz')
         assert receipt['rows'] == 2 and receipt['positive_rows'] == 1
     assert joblib.load(fixture.reference / 'contacts' / 'v_32.joblib') == {'original': 'v_32'}
     assert not (tmp_path / 'output' / 'contacts' / 'v_32.joblib').exists()
     manifest_path = tmp_path / 'output' / 'contact-folds.json.gz'
-    manifest = pilot.read_json(manifest_path)
+    manifest = experiment.read_json(manifest_path)
     manifest['folds']['A1'].reverse()
-    pilot.write_json(manifest_path, manifest)
+    experiment.write_json(manifest_path, manifest)
     with pytest.raises(ValueError, match='Contact folds or settings changed'):
         contact_folds.prepare_contact_folds(fixture.prepared, fixture.reference, fixture.original, tmp_path / 'output')
     assert len(fits) == 8
@@ -169,12 +169,12 @@ def test_pool_override_copies_validation_bytes_and_binds_resume_identity(
         for suffix in ('.joblib', '.json.gz'):
             assert (output / 'videos' / f'{identity}{suffix}').read_bytes() == (
                 fixture.original / 'videos' / f'{identity}{suffix}').read_bytes()
-    manifest = pilot.read_json(output / 'pools.json.gz')
+    manifest = experiment.read_json(output / 'pools.json.gz')
     assert manifest['settings'] == fixture.manifest['settings']
     submitted.clear()
     default_output = tmp_path / 'default-pools'
     pools.prepare_pools(fixture.prepared, fixture.reference, default_output)
-    assert pilot.read_json(default_output / 'pools.json.gz') == fixture.manifest
+    assert experiment.read_json(default_output / 'pools.json.gz') == fixture.manifest
     assert len(submitted) == 40
     for job in submitted:
         name = 'v_32' if job.split == 'validation' else f'held_{job.group}'
@@ -190,6 +190,6 @@ def test_pool_override_copies_validation_bytes_and_binds_resume_identity(
         pools.prepare_pools(fixture.prepared, fixture.reference, output,
                             **{**options, 'contact_paths': {'sset_01': contact_paths['sset_01']}})
     original_manifest = {**fixture.manifest, 'max_edits': 2}
-    pilot.write_json(fixture.original / 'pools.json.gz', original_manifest)
+    experiment.write_json(fixture.original / 'pools.json.gz', original_manifest)
     with pytest.raises(ValueError, match='different preparation or proposal settings'):
         pools.prepare_pools(fixture.prepared, fixture.reference, output, **options)

@@ -1,4 +1,4 @@
-"""Prepare the fixed vision evidence once for the tree-stack comparison."""
+"""Prepare fixed vision evidence for rally-model experiments."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ from annotator.config import BaseAnnotatorConfig, RallySegmentationThresholds
 from annotator.hybrid import features_from_evidence
 from annotator.run_video import RunCapture, run_video
 from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
@@ -39,7 +40,6 @@ from experiments.annotator.heuristic_only_tune.data import (
     load_original_videos,
     run_video_kwargs,
 )
-from experiments.annotator.tree_hp_tune.run import development_for, preprocessing
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 

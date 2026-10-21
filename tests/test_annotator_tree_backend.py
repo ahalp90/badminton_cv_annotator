@@ -1,34 +1,17 @@
-"""Default HGB parity and opt-in XGBoost weighting and stopping boundaries."""
+"""XGBoost weighting and stopping use the same selected training rows."""
 
-from pathlib import Path
 from typing import Any, Literal
 
-import joblib
 import numpy as np
 import pytest
-from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.utils.class_weight import compute_sample_weight
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.features import REGION_FIELDS
-from annotator.contacts.model import CONTACT_FEATURE_NAMES, contact_feature_matrix
-from annotator.sequence.confidence import (
-    BASE_FEATURE_NAMES,
-    GAP_FEATURE_NAMES,
-    ConfidenceFeatures,
-)
-from annotator.training.confidence import ConfidenceFitConfig, fit_confidence_model
-from annotator.training.contact import (
-    ContactFitConfig,
-    ContactTrainingVideo,
-    fit_contact_model,
-)
-from annotator.training.sequences import TreeFitConfig, fit_tree
-from annotator.training.trees import TreeBackend, fit_binary_tree
+from annotator.training.trees import fit_binary_tree
 
 FIT_SETTINGS = {
     'max_iter': 8, 'max_leaf_nodes': 7, 'learning_rate': 0.15,
-    'min_samples_leaf': 2, 'l2_regularization': 1.0, 'random_seed': 7,
+    'l2_regularization': 1.0, 'random_seed': 7,
 }
 
 
@@ -39,27 +22,6 @@ def examples(row_count: int = 120) -> tuple[np.ndarray, np.ndarray]:
     matrix[:, 0] = np.arange(row_count)
     matrix[::7, 2] = np.nan
     return matrix, labels
-
-
-@pytest.mark.parametrize(('balanced', 'weighted'), [(False, False), (True, False), (False, True), (True, True)])
-@pytest.mark.parametrize('early_stopping', [False, True, 'auto'])
-def test_default_backend_matches_previous_hgb_constructor(
-    balanced: bool, weighted: bool, early_stopping: bool | Literal['auto'],
-) -> None:
-    matrix, labels = examples()
-    weights = 1.0 / (1 + np.arange(len(labels)) % 4) if weighted else None
-    with threadpool_limits(limits=1):
-        actual = fit_binary_tree(
-            matrix, labels, balanced=balanced, sample_weight=weights, early_stopping=early_stopping, **FIT_SETTINGS,
-        )
-        expected = HistGradientBoostingClassifier(
-            max_iter=8, max_leaf_nodes=7, learning_rate=0.15, min_samples_leaf=2,
-            l2_regularization=1.0, random_state=7,
-            class_weight='balanced' if balanced else None, early_stopping=early_stopping,
-        ).fit(matrix, labels, sample_weight=weights)
-        assert type(actual) is HistGradientBoostingClassifier
-        assert actual.get_params() == expected.get_params()
-        np.testing.assert_array_equal(actual.predict_proba(matrix), expected.predict_proba(matrix))
 
 
 @pytest.mark.parametrize(('balanced', 'weighted'), [(False, False), (True, False), (False, True), (True, True)])
@@ -111,11 +73,11 @@ def test_xgb_weights_and_internal_stopping_split(
     with threadpool_limits(limits=1):
         model = fit_binary_tree(
             matrix, labels, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
-            backend=TreeBackend.XGBOOST, **FIT_SETTINGS,
+            **FIT_SETTINGS,
         )
         repeated = fit_binary_tree(
             matrix, labels, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
-            backend=TreeBackend.XGBOOST, **FIT_SETTINGS,
+            **FIT_SETTINGS,
         )
     np.testing.assert_array_equal(seen[0], seen[1])
     np.testing.assert_array_equal(model.predict_proba(matrix), repeated.predict_proba(matrix))
@@ -123,48 +85,12 @@ def test_xgb_weights_and_internal_stopping_split(
     assert np.mean(model.predict_proba(matrix)[labels == 1, 1]) > np.mean(model.predict_proba(matrix)[labels == 0, 1])
 
 
-def test_xgb_training_entry_points_and_models_round_trip(tmp_path: Path) -> None:
-    xgb = pytest.importorskip('xgboost')
-    matrix, labels = examples()
-    targets = labels.astype(int)
-    targets[::9] = -1
-    sequence = fit_tree(matrix, targets, TreeFitConfig(max_iter=8, backend=TreeBackend.XGBOOST))
-    gap = np.tile(matrix[:, 1:2], (1, len(GAP_FEATURE_NAMES)))
-    features = ConfidenceFeatures(tuple(range(len(matrix))), gap[:, :len(BASE_FEATURE_NAMES)], gap)
-    confidence = fit_confidence_model(features, targets, ConfidenceFitConfig(max_iter=8, backend=TreeBackend.XGBOOST))
-    fields = tuple(dict.fromkeys(('frame', *CONTACT_FEATURE_NAMES, *REGION_FIELDS)))
-    rows = np.zeros(len(matrix), dtype=[(name, np.float32) for name in fields])
-    rows['frame'] = np.arange(len(rows))
-    for name in REGION_FIELDS:
-        rows[name] = 1
-    video = ContactTrainingVideo('training', rows, np.arange(10, len(rows), 20), 30.0)
-    contact = fit_contact_model([video], ContactFitConfig(max_iter=8, backend=TreeBackend.XGBOOST))
-    contact_matrix = contact_feature_matrix(contact.selection.rows)
-    for name, model, inputs in (
-        ('sequence', sequence, matrix), ('confidence', confidence, gap), ('contact', contact.model, contact_matrix),
-    ):
-        assert isinstance(model, xgb.XGBClassifier)
-        path = tmp_path / f'{name}.joblib'
-        joblib.dump(model, path)
-        loaded = joblib.load(path)
-        np.testing.assert_array_equal(loaded.classes_, [0, 1])
-        np.testing.assert_array_equal(loaded.predict_proba(inputs), model.predict_proba(inputs))
-        params = model.get_params()
-        assert params['objective'] == 'binary:logistic'
-        assert params['tree_method'] == 'hist'
-        assert params['grow_policy'] == 'lossguide'
-        assert params['max_depth'] == 0
-        assert params['max_bin'] == 255
-        assert params['min_child_weight'] == 5.0
-        assert params['device'] == 'cpu'
-
-
 def test_xgb_stops_when_internal_holdout_loss_cannot_improve() -> None:
     pytest.importorskip('xgboost')
     matrix = np.zeros((200, 3), dtype=np.float32)
     labels = np.tile([0, 1], 100)
     model = fit_binary_tree(
-        matrix, labels, balanced=True, early_stopping=True, backend=TreeBackend.XGBOOST,
+        matrix, labels, balanced=True, early_stopping=True,
         **{**FIT_SETTINGS, 'max_iter': 40},
     )
     assert model.best_iteration == 0

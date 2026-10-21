@@ -34,23 +34,22 @@ from annotator.models import (
     load_models,
     save_models,
 )
+from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import (
     RallyLayerModels,
     RallyLayerPrediction,
-    score_layer_confidence,
+    score_rally_review,
 )
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import whole_rally_correctness
-from annotator.training.trees import TreeBackend
 from annotator.training.workflow import TrainingSettings
+from experiments.annotator import development as experiment
+from experiments.annotator.development import development_for, pooled_scores
 from experiments.annotator.heuristic_only_tune.data import (
     load_original_videos,
     score_stream,
 )
-from experiments.annotator.old_court_regression import retrain
-from experiments.annotator.old_court_regression.retrain import stream_payload
-from experiments.annotator.tree_hp_tune.run import development_for, pooled_scores
-from experiments.annotator.tree_simplification import integrate, pilot
+from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.prepare import (
@@ -60,7 +59,7 @@ from experiments.annotator.tree_simplification.prepare import (
 
 def _prepared_inputs(prepared_root: Path) -> dict[str, Any]:
     """Load and validate the saved raw preprocessing identity."""
-    pilot.require_raw_features(prepared_root)
+    experiment.require_raw_features(prepared_root)
     manifest = read_json(prepared_root / 'preparation.json.gz')
     if manifest['source'] != source_record():
         raise ValueError('Prepared source differs from this checkout; use a fresh prepared directory')
@@ -75,7 +74,7 @@ def _training_records(
     prepared_root: Path, inputs: dict[str, Any], development: Any,
 ) -> dict[str, ContactTrainingVideo]:
     """Load contact rows from the fixed 32-video development training split."""
-    training_ids = development.videos(retrain.TRAINING_GROUPS)
+    training_ids = development.videos(experiment.TRAINING_GROUPS)
     training: dict[str, ContactTrainingVideo] = {}
     for identity in training_ids:
         path = prepared_root / 'videos' / f'{identity}.joblib'
@@ -117,13 +116,13 @@ def fit_contacts(
     inputs = _prepared_inputs(prepared_root)
     videos = load_original_videos(Path(inputs['paths']['shots_master']))
     development = development_for(videos)
-    training_ids = development.videos(retrain.TRAINING_GROUPS)
+    training_ids = development.videos(experiment.TRAINING_GROUPS)
     training = _training_records(prepared_root, inputs, development)
     if set(training) != set(training_ids):
         raise ValueError('Contact fit inputs do not match the fixed 32-video training split')
 
     settings = replace(
-        pilot.settings_for(TreeBackend.XGBOOST, device, 5.0, seed_offset=seed_offset),
+        experiment.settings_for(device, 5.0, seed_offset=seed_offset),
         preprocessing=preprocessing_from_record(inputs['preprocessing']),
     )
     pool_settings = _pool_settings(settings, prepared_root)
@@ -134,7 +133,7 @@ def fit_contacts(
         raise ValueError('Contact settings changed; use a fresh output directory')
     write_json(settings_path, pool_settings)
 
-    fits = retrain.contact_fit_videos(development)
+    fits = experiment.contact_fit_videos(development)
     expected_names = {'held_A', 'held_B', 'held_C', 'held_D', 'v_32'}
     if set(fits) != expected_names | {'final_40'}:
         raise ValueError('Contact fit definitions differ from the five production contact models')
@@ -183,12 +182,12 @@ def fit_contacts(
                 continue
 
             started = time.perf_counter()
-            pilot.progress(output, 'contact-fit-start', fit=name, videos=len(sampling_order))
+            experiment.progress(output, 'contact-fit-start', fit=name, videos=len(sampling_order))
             fitted = fit_contact_model(
                 [training[identity] for identity in sampling_order], settings.contact,
                 fit_video_order=fit_order,
             )
-            retrain.dump_atomically(fitted.model, model_path)
+            experiment.dump_atomically(fitted.model, model_path)
             record = {
                 'identity': identity,
                 'source': source,
@@ -197,7 +196,7 @@ def fit_contacts(
                 'wall_s': time.perf_counter() - started,
             }
             write_json(record_path, record)
-            pilot.progress(output, 'contact-fit-complete', fit=name, rows=record['rows'])
+            experiment.progress(output, 'contact-fit-complete', fit=name, rows=record['rows'])
 
     write_json(stage_path, stage)
     return stage
@@ -209,7 +208,7 @@ def _export_inputs(run: Path, targets: Path) -> tuple[dict[str, Any], dict[str, 
     if not result.get('complete'):
         raise ValueError('Export requires a complete fitted rally run')
     if settings.get('specialists') or settings.get('original_options') or 'target_policy' not in settings:
-        raise ValueError('Export requires a general-layer run on all options with five-frame targets')
+        raise ValueError('Export requires a rally selector trained on all options with five-frame targets')
     depth = settings['layers']
     if not isinstance(depth, int) or not 1 <= depth <= 3:
         raise ValueError('Export requires a saved rally stack with one to three layers')
@@ -240,7 +239,7 @@ def _review_rows(
     layer_prediction = prediction.refined
     if not isinstance(layer_prediction, RallyLayerPrediction):
         raise TypeError('Raw export requires a rally-layer prediction')
-    selector = score_layer_confidence(layer_prediction, None)
+    selector = score_rally_review(layer_prediction, None)
     rankings: dict[str, Any] = {}
     rows: list[dict[str, Any]] = []
     by_span = {sequence.span_id: sequence for sequence in layer_prediction.sequences}
@@ -311,7 +310,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
     models = load_models(bundle)
 
     pools_root = Path(settings['pools']).resolve()
-    validation_ids = [identity for identity, group in inputs['groups'].items() if group == retrain.VALIDATION_GROUP]
+    validation_ids = [identity for identity, group in inputs['groups'].items() if group == experiment.VALIDATION_GROUP]
     if len(validation_ids) != 8:
         raise ValueError('Prepared manifest must contain the fixed eight validation videos')
     (output / 'streams').mkdir(exist_ok=True)
@@ -320,7 +319,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
     rows: list[dict[str, Any]] = []
     with threadpool_limits(limits=threads):
         for identity in sorted(validation_ids):
-            prepared = pilot.load_prepared(prepared_root, identity)
+            prepared = experiment.load_prepared(prepared_root, identity)
             video = prepared.video
             if video.split != 'validation' or prepared.group != inputs['groups'][identity]:
                 raise ValueError(f'{identity}: replay split or group differs from preparation')
@@ -338,7 +337,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
             per_video[identity] = score_stream(video, stream)
             review_per_video[identity], video_rows = _review_rows(video, identity, prediction)
             rows.extend(video_rows)
-            pilot.progress(output, 'raw-replay-parity', video=identity, complete=len(per_video), planned=8)
+            experiment.progress(output, 'raw-replay-parity', video=identity, complete=len(per_video), planned=8)
 
     pooled_review = {}
     for name in ('selector', 'fitted'):
@@ -360,7 +359,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
         'review': pooled_review,
     }
     write_json(output / 'result.json.gz', result)
-    pilot.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])
+    experiment.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])
     return result
 
 

@@ -1,26 +1,21 @@
-"""Candidate shortlists, sequence edits and the option pool keep their fixed order."""
+"""Contact shortlists, seed proposals and selected full-stream membership."""
 
 import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.candidates import (
-    ServeCandidate,
-    shortlist_later_frames,
-    shortlist_serve_frames,
-)
+from annotator.sequence.candidates import shortlist_later_frames, shortlist_serve_frames
 from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
     ContactSequence,
+    apply_choices,
     initial_sequences,
 )
-from annotator.sequence.edits import (
-    EditKind,
-    SequenceEdit,
-    apply_choices,
-    option_pool,
-    sequence_edits,
+from annotator.sequence.repairs import (
+    add_later_contacts,
+    check_events_match_kept_candidates,
+    serve_and_deletion_repairs,
 )
 
 
@@ -32,14 +27,6 @@ def _scores(rows: list[tuple[int, int, float, bool]]) -> CandidateScores:
 
 def _frames(sequence: ContactSequence) -> list[int]:
     return [event.frame for event in sequence.events]
-
-
-def _serve(span_id: int, frame: int, first_contact_frame: int, probability: float = .5) -> ServeCandidate:
-    return ServeCandidate(span_id, ContactEvent(frame, probability, None), first_contact_frame, ())
-
-
-def _edit_summary(edits) -> list[tuple[str, int | None, int | None]]:
-    return [(str(edit.kind), edit.serve_frame, edit.deleted_frame) for edit in edits]
 
 
 def test_initial_sequences_leave_out_of_span_contacts_unowned():
@@ -107,52 +94,6 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
     assert shortlist_later_frames(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
 
 
-def test_sequence_edits_keep_fixed_order_and_skip_redundant_combinations():
-    sequence = ContactSequence(0, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    candidates = [_serve(0, 105, 120), _serve(0, 110, 120)]
-    edits = sequence_edits(sequence, candidates, sequence.events, previous_end=-1)
-    assert _edit_summary(edits) == [
-        ("keep", None, None),
-        ("add", 105, None),
-        ("replace", 105, None),
-        ("add", 110, None),
-        ("replace", 110, None),
-        ("delete", None, 120),
-        ("delete", None, 160),
-        ("add_delete", 105, 160),
-        ("replace_delete", 105, 160),
-        ("add_delete", 110, 160),
-        ("replace_delete", 110, 160),
-    ]
-    assert [_frames(edit.sequence) for edit in edits[1:3]] == [[105, 120, 160], [105, 160]]
-    assert edits[1].sequence.start_frame == 100
-
-
-def test_serve_edit_absorbs_gap_contacts_and_stops_at_previous_span():
-    gap_contact = ContactEvent(98, .7, Half.BOT)
-    sequence = ContactSequence(1, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    events = [gap_contact, *sequence.events]
-    candidates = [_serve(1, 90, 120), _serve(1, 97, 120)]
-    edits = sequence_edits(sequence, candidates, events, previous_end=95)
-    serve_edits = [edit for edit in edits if edit.serve_frame is not None]
-    assert {edit.serve_frame for edit in serve_edits} == {97}
-    added = next(edit for edit in serve_edits if edit.kind == EditKind.ADD)
-    assert (added.sequence.start_frame, _frames(added.sequence)) == (97, [97, 98, 120, 160])
-    assert added.sequence.events[1] is gap_contact
-
-
-def test_option_pool_checks_later_contacts_against_each_edited_sequence():
-    sequence = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
-    keep = SequenceEdit(EditKind.KEEP, None, None, sequence)
-    delete_first = SequenceEdit(EditKind.DELETE, None, 120, ContactSequence(0, 100, 200, sequence.events[1:]))
-    later = [ContactEvent(125, .6, None), ContactEvent(140, .5, None), ContactEvent(250, .9, None)]
-    options = option_pool({0: (keep, delete_first)}, {0: later}, fps=30.0)
-    summary = [(str(option.edit.kind), None if option.added_contact is None else option.added_contact.frame)
-               for option in options]
-    assert summary == [("keep", None), ("keep", 140), ("delete", None), ("delete", 125), ("delete", 140)]
-    assert _frames(options[1].sequence) == [120, 140, 160]
-
-
 def test_applied_choices_keep_out_of_span_contacts():
     events = [ContactEvent(frame, .8, None) for frame in (20, 60, 120, 170, 200, 300)]
     initial = initial_sequences([(0, 100), (150, 250)], events)
@@ -170,3 +111,41 @@ def test_applied_choices_keep_an_absorbed_gap_contact_the_edit_dropped():
     replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
     _sequences, stream = apply_choices(initial, events, {0: initial[0], 1: replaced})
     assert [event.frame for event in stream] == [20, 110, 120, 170, 200]
+
+
+def test_serve_and_deletion_repairs_keep_order_and_skip_redundant_combinations():
+    before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
+    earlier = [ContactEvent(frame, .5, None) for frame in (105, 110)]
+    seeds = serve_and_deletion_repairs(before, earlier, before.events, previous_end=-1)
+    assert [_frames(seed) for seed in seeds] == [
+        [120, 160], [105, 120, 160], [105, 160], [110, 120, 160], [110, 160],
+        [160], [120], [105, 120], [105], [110, 120], [110],
+    ]
+    assert seeds[1].start_frame == 100
+
+
+def test_earlier_serve_absorbs_gap_contacts_and_stops_at_previous_rally():
+    gap = ContactEvent(98, .7, Half.BOT)
+    before = ContactSequence(1, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
+    earlier = [ContactEvent(frame, .5, None) for frame in (90, 97)]
+    seeds = serve_and_deletion_repairs(before, earlier, [gap, *before.events], previous_end=95)
+    assert not any(90 in _frames(seed) for seed in seeds)
+    added = next(seed for seed in seeds if _frames(seed) == [97, 98, 120, 160])
+    assert added.start_frame == 97 and added.events[1] is gap
+
+
+def test_initial_events_must_be_exactly_the_kept_candidates():
+    scores = _scores([(20, 0, .9, True), (40, 0, .8, False)])
+    check_events_match_kept_candidates((ContactEvent(20, .9, None),), scores)
+    with pytest.raises(ValueError, match='exactly the kept candidates'):
+        check_events_match_kept_candidates((ContactEvent(40, .8, None),), scores)
+
+
+def test_later_contacts_are_checked_against_each_repaired_sequence():
+    kept = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    deleted_first = ContactSequence(0, 100, 200, kept.events[1:])
+    candidates = [ContactEvent(125, .6, None), ContactEvent(140, .5, None), ContactEvent(250, .9, None)]
+    repaired = add_later_contacts((kept, deleted_first), candidates, distance=6)
+    assert [_frames(sequence) for sequence in repaired] == [
+        [120, 160], [120, 140, 160], [160], [125, 160], [140, 160],
+    ]

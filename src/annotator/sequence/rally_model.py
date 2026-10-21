@@ -30,8 +30,8 @@ from annotator.sequence.rally_options import (
     RallyOptions,
     build_rally_options,
 )
-from annotator.sequence.refine import (
-    build_option_pool,
+from annotator.sequence.repairs import (
+    build_rally_repairs,
     check_events_match_kept_candidates,
 )
 
@@ -79,7 +79,7 @@ class LayerReviewFeatures:
 
 
 @dataclass(frozen=True)
-class LayerConfidence:
+class RallyReview:
     """Review priority scores; they do not change annotations or approve rallies."""
 
     features: LayerReviewFeatures
@@ -108,17 +108,17 @@ def predict_rally_options(models: RallyLayerModels, pool: RallyOptions) -> Rally
     return RallyLayerPrediction(sequences, events, pool, scores, chosen)
 
 
-def refine_rally_layers(
+def select_rally_sequences(
     spans: Sequence[tuple[int, int]], events: tuple[ContactEvent, ...], scores: CandidateScores,
     features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
     side_for_frame: Callable[[int], Half | None], models: RallyLayerModels, frame_count: int | None = None,
 ) -> RallyLayerPrediction:
     check_events_match_kept_candidates(events, scores)
     initial = initial_sequences(spans, events)
-    original = build_option_pool(
+    repairs = build_rally_repairs(
         initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
     )
-    context = RallyContext(fps, initial, events, original, frame_count)
+    context = RallyContext(fps, initial, events, repairs, frame_count)
     pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
     return predict_rally_options(models, pool)
 
@@ -135,7 +135,7 @@ def build_layer_review_features(prediction: RallyLayerPrediction) -> LayerReview
         raw = pool.sequences[row]
         final = final_by_span[span_id]
         bounded = replace(raw, start_frame=final.start_frame, end_frame=final.end_frame)
-        summaries.append(sequence_summary(bounded, pool.original.fps))
+        summaries.append(sequence_summary(bounded, pool.context.fps))
         history = []
         for scores in prediction.scores:
             values = scores[pool.span_rows[span_id]]
@@ -148,10 +148,10 @@ def build_layer_review_features(prediction: RallyLayerPrediction) -> LayerReview
     return LayerReviewFeatures(span_ids, np.column_stack((option_features, scores, boundaries)))
 
 
-def score_layer_confidence(prediction: RallyLayerPrediction, model: Any | None) -> LayerConfidence:
+def score_rally_review(prediction: RallyLayerPrediction, model: Any | None) -> RallyReview:
     features = build_layer_review_features(prediction)
     if model is None:
         scores = prediction.scores[-1][list(prediction.chosen.values())]
     else:
         scores = positive_probabilities(model, features.matrix)
-    return LayerConfidence(features, scores)
+    return RallyReview(features, scores)

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from sklearn.ensemble import HistGradientBoostingClassifier
 from threadpoolctl import threadpool_limits
+from xgboost import XGBClassifier
 
 from annotator.contacts.features import REGION_FIELDS
 from annotator.contacts.model import (
@@ -59,13 +59,12 @@ def test_sampling_matches_reference_for_multiple_fps_and_video_order() -> None:
 def test_small_fit_scores_only_supplied_training_video() -> None:
     train = training_video('train', 30.0)
     validation = training_video('validation', 30.0, (200,))
-    config = replace(ContactFitConfig(), max_iter=8, min_samples_leaf=2)
+    config = replace(ContactFitConfig(), max_iter=8, min_child_weight=0)
     with threadpool_limits(limits=1):
         fitted = fit_contact_model([train], config)
         scored = score_contact_features(validation.features, fitted.model, validation.fps)
     assert fitted.selection.video_counts.keys() == {'train'}
     assert set(fitted.selection.rows['fixture']) == {b'train'}
-    assert fitted.model.get_params()['class_weight'] == 'balanced'
     assert fitted.model.n_features_in_ == 85
     assert len(scored.probabilities) > 0
     assert np.isfinite(scored.probabilities).all()
@@ -120,11 +119,11 @@ def test_fit_order_reorders_selected_chunks_without_changing_sampling(monkeypatc
     expected_labels = np.concatenate(label_chunks)
     observed = []
 
-    def fit(model, matrix: np.ndarray, labels: np.ndarray):
+    def fit(model, matrix: np.ndarray, labels: np.ndarray, **_kwargs):
         observed.append((matrix, labels))
         return model
 
-    monkeypatch.setattr(HistGradientBoostingClassifier, 'fit', fit)
+    monkeypatch.setattr(XGBClassifier, 'fit', fit)
     fitted = fit_contact_model(videos, fit_video_order=fit_order)
     assert list(fitted.selection.video_counts) == expected_order
     assert fitted.selection.video_counts == selected.video_counts
@@ -140,7 +139,7 @@ def test_fit_order_must_permute_training_video_ids(monkeypatch, fit_order: list[
     def unexpected_fit(*_args, **_kwargs):
         pytest.fail('invalid fit order reached the estimator')
 
-    monkeypatch.setattr(HistGradientBoostingClassifier, 'fit', unexpected_fit)
+    monkeypatch.setattr(XGBClassifier, 'fit', unexpected_fit)
     videos = [training_video('first', 30.0), training_video('second', 30.0)]
     with pytest.raises(ValueError, match='each training video ID exactly once'):
         fit_contact_model(videos, fit_video_order=fit_order)

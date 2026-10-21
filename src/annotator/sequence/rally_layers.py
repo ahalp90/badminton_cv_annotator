@@ -6,8 +6,7 @@ from typing import Any
 import numpy as np
 
 from annotator.sequence.boundaries import extend_boundaries
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.edits import apply_choices
+from annotator.sequence.contacts import ContactEvent, ContactSequence, apply_choices
 from annotator.sequence.features import positive_probabilities
 from annotator.sequence.rally_options import RallyOptions
 from annotator.sequence.sides import alternate_sides
@@ -72,7 +71,7 @@ def finish_rows(
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Apply the chosen rows together before canonical boundary and side finishing."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
-    video = pool.original
+    video = pool.context
     sequences, events = apply_choices(video.initial, video.events, choices)
     extended = extend_boundaries(sequences, events, video.fps, frame_count=video.frame_count)
     return alternate_sides(extended, events)

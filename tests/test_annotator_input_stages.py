@@ -12,9 +12,9 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.sequence.rally_model import (
-    LayerConfidence,
     LayerReviewFeatures,
     RallyLayerPrediction,
+    RallyReview,
 )
 from annotator.training.contact import ContactTrainingVideo
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
@@ -163,11 +163,11 @@ def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkey
     monkeypatch.setattr(input_stages, 'load_original_videos', lambda _: [])
     monkeypatch.setattr(input_stages, 'development_for', lambda _: development)
     monkeypatch.setattr(input_stages, '_training_records', lambda *_: training)
-    monkeypatch.setattr(input_stages.retrain, 'contact_fit_videos', lambda _: fit_orders)
+    monkeypatch.setattr(input_stages.experiment, 'contact_fit_videos', lambda _: fit_orders)
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
-    monkeypatch.setattr(input_stages.pilot, 'progress', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        input_stages.pilot, 'settings_for',
+        input_stages.experiment, 'settings_for',
         lambda *_args, **_kwargs: replace(DEFAULT_TRAINING_SETTINGS, preprocessing=BaseAnnotatorConfig()),
     )
     calls = []
@@ -180,7 +180,7 @@ def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkey
         )
 
     monkeypatch.setattr(input_stages, 'fit_contact_model', fit_contact)
-    monkeypatch.setattr(input_stages.retrain, 'dump_atomically', lambda _model, path: path.write_bytes(b'model'))
+    monkeypatch.setattr(input_stages.experiment, 'dump_atomically', lambda _model, path: path.write_bytes(b'model'))
 
     input_stages.fit_contacts(tmp_path, tmp_path / 'contacts-run', threads=1)
 
@@ -236,7 +236,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     layer_prediction = RallyLayerPrediction(
         sequences=(sequence,), events=(), pool=object(), scores=(np.asarray([0.8]),), chosen={4: 0},
     )
-    confidence = LayerConfidence(LayerReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
+    confidence = RallyReview(LayerReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
     prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
@@ -247,12 +247,12 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
-    monkeypatch.setattr(input_stages, 'score_layer_confidence', lambda *_args: confidence)
+    monkeypatch.setattr(input_stages, 'score_rally_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
     monkeypatch.setattr(input_stages, 'score_stream', lambda *_args: {'5': {}, '10': {}})
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})
-    monkeypatch.setattr(input_stages.pilot, 'load_prepared', lambda _root, identity: fake_videos[identity])
-    monkeypatch.setattr(input_stages.pilot, 'progress', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(input_stages.experiment, 'load_prepared', lambda _root, identity: fake_videos[identity])
+    monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(input_stages, 'stream_payload', lambda *_args: expected_stream)
     saved_models = []
     monkeypatch.setattr(input_stages, 'save_models', lambda models, _path: saved_models.append(models))

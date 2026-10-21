@@ -1,4 +1,4 @@
-"""Prepared inputs shared by the tree-stack experiments."""
+"""Prepared evidence and features shared by rally-model experiments."""
 
 from dataclasses import dataclass
 

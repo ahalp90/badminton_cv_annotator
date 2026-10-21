@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol, cast
 
+from annotator.models import DEFAULT_MODEL_DIRECTORY
 from dataset_builder.fixed_sources import FIXED_SOURCE_DATASET
 from dataset_builder.manifest import (
     build_stage_fingerprint,
@@ -136,7 +137,7 @@ class BuilderConfig:
     commentary_clean_model: str
     commentary_api_key_environment: str
     fixed_sources: FixedSourceConfig | None = None
-    annotator_model_dir: Path = REPO_ROOT / 'models' / 'annotator'
+    annotator_model_dir: Path = DEFAULT_MODEL_DIRECTORY
 
 
 @dataclass(frozen=True)
@@ -335,7 +336,9 @@ def load_builder_config(path: Path, *, repo_root: Path = REPO_ROOT) -> BuilderCo
         inpaint_model=inpaint_model,
         deeplsd_source=_repo_path(models["deeplsd_source"], "models.deeplsd_source", repo_root),
         deeplsd_weights=_repo_path(models["deeplsd_weights"], "models.deeplsd_weights", repo_root),
-        annotator_model_dir=_repo_path(models.get('annotator', 'models/annotator'), 'models.annotator', repo_root),
+        annotator_model_dir=_repo_path(
+            models.get('annotator', str(DEFAULT_MODEL_DIRECTORY)), 'models.annotator', repo_root,
+        ),
         tracknet_workers=_positive_integer(
             vision["tracknet_workers"], "vision.tracknet_workers",
         ),

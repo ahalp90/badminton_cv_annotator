@@ -30,16 +30,16 @@ class LabelledOptions:
     matrix: np.ndarray
     targets: np.ndarray
     span_rows: dict[int, np.ndarray]
-    original: SequenceTrainingVideo
+    video: SequenceTrainingVideo
 
     @property
     def runtime(self) -> RallyOptions:
         """Share proposal arrays with the label-free inference path."""
-        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.original))
+        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.video))
 
 
 def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
+    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
 
 
 def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> LabelledOptions:

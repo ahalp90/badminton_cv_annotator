@@ -31,12 +31,10 @@ from threadpoolctl import threadpool_limits
 from annotator.contacts.model import contact_feature_matrix
 from annotator.models import AnnotatorModels, fitted_trees, load_models, save_models
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
-from annotator.training.trees import TreeBackend
+from experiments.annotator import development as experiment
+from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
-from experiments.annotator.old_court_regression import retrain
-from experiments.annotator.tree_hp_tune.run import development_for
-from experiments.annotator.tree_simplification import pilot
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
 
@@ -57,10 +55,10 @@ def contact_stage(seed: int) -> dict:
 
 def training_settings_record(seed: int, models: AnnotatorModels) -> dict:
     """The fit settings in the form the contact-stage record saves them."""
-    settings = replace(pilot.settings_for(TreeBackend.XGBOOST, DEVICE, 5.0, seed_offset=seed),
+    settings = replace(experiment.settings_for(DEVICE, 5.0, seed_offset=seed),
                        preprocessing=models.preprocessing)
     record = asdict(settings)
-    record.pop('rally_layers')
+    record = experiment.contact_stage_settings(record)
     return json.loads(json.dumps(record, default=sorted))
 
 
@@ -74,7 +72,7 @@ def load_training_videos(prepared: Path, preprocessing: dict) -> dict[str, tuple
         sidecar = read_json(prepared / 'videos' / f'{identity}.json.gz')
         if sidecar.get('video') != identity or sidecar.get('preprocessing') != preprocessing:
             raise ValueError(f'{identity}: prepared sidecar differs from the bundle preprocessing')
-        video = pilot.load_prepared(prepared, identity)
+        video = experiment.load_prepared(prepared, identity)
         frames = np.asarray(sorted(frame for rally in video.video.rallies for frame in rally.frames), dtype=np.int32)
         videos[identity] = (video, ContactTrainingVideo(identity, video.features.rows, frames, video.video.fps))
     if len(videos) != 40:
@@ -92,15 +90,15 @@ def refit(seed: int, prepared: Path, output: Path) -> dict:
     preprocessing = preprocessing_record(models.preprocessing)
     stage = contact_stage(seed)
     settings = training_settings_record(seed, models)
-    if stage['seed_offset'] != seed or stage['settings']['settings'] != settings:
+    if stage['seed_offset'] != seed or experiment.contact_stage_settings(stage['settings']['settings']) != settings:
         raise ValueError(f'seed {seed}: contact settings differ from the test bundle contact stage')
-    contact_settings = pilot.settings_for(TreeBackend.XGBOOST, DEVICE, 5.0, seed_offset=seed).contact
+    contact_settings = experiment.settings_for(DEVICE, 5.0, seed_offset=seed).contact
     videos = load_training_videos(prepared, preprocessing)
     development = development_for(load_original_videos(SHOTS_MASTER))
-    fits = retrain.contact_fit_videos(development)
+    fits = experiment.contact_fit_videos(development)
     if list(fits['v_32']) != stage['fits']['v_32']['sampling_order']:
         raise ValueError(f'seed {seed}: 32-video sampling order differs from the contact stage')
-    validation = [videos[identity][0] for identity in development.videos((retrain.VALIDATION_GROUP,))]
+    validation = [videos[identity][0] for identity in development.videos((experiment.VALIDATION_GROUP,))]
 
     def fit(name: str) -> tuple[object, int, int, float]:
         order = fits[name]

@@ -31,7 +31,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from annotator.sequence.contacts import scale_frames
+from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -53,7 +53,6 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     judge_found_rallies,
     rally_ladder,
 )
-from experiments.annotator.old_court_regression.retrain import stream_from_payload
 from experiments.annotator.tree_simplification.analysis.common import (
     REPOSITORY,
     RESULTS,
