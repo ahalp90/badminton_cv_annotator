@@ -161,6 +161,10 @@ coordination logs are not needed to interpret it.
 
 ## Reproduction
 
+These commands reproduce the historical eight-model system. Its fitting runners
+have been retired; use the pre-retirement revision `8f4310ee` for these commands.
+For current XGBoost fitting, use the [current reproduction guide](../tree_simplification/README.md).
+
 The runner fits models from the original court, shuttle and pose data, annotates
 held-out videos, and scores the historical PR149 output and new output against
 the same labels. The later new-court comparison has its own

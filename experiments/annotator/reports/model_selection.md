@@ -295,6 +295,10 @@ Compact evidence retained with this report:
 
 ## Reproduction
 
+These commands reproduce the historical eight-model system. Its fitting runners
+have been retired; use the pre-retirement revision `8f4310ee` for these commands.
+For current XGBoost fitting, use the [current reproduction guide](../tree_simplification/README.md).
+
 The runner starts from saved court-detector outputs, converts them into the
 annotator's scene geometry and per-frame court records, then fits and evaluates
 the models. It uses the [old-court runner](refit_regression.md#reproduction)'s
