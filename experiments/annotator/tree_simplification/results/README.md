@@ -9,7 +9,7 @@ videos; they are repeated fits, not independent evaluation populations.
   both depths, plus every outcome from the six-setting initial-seed screen.
 - `selector-settings-evidence.json.gz`: both retained 31-leaf configurations
   (200 and 400 rounds), both depths and all five seeds. Counts are retained per
-  video, with pooled metrics, paired differences and completion receipts.
+  video, with pooled metrics and paired differences.
 - `previous-hgb-validation.json.gz`: the best earlier HGB grid's validation
   means, including its source branch, commit and result path. These aggregate
   means provide a descriptive comparison, rather than paired seed differences.
@@ -18,14 +18,16 @@ videos; they are repeated fits, not independent evaluation populations.
 - `selected-settings.json.gz`: the export's source run, depth and exact training
   and pool settings, including the unchanged contact configuration.
 - `selected-timing.json.gz`: both model orders on all eight validation videos,
-  using two CPU threads and checking every output stream.
-- `timing-script.json.gz`: the checksum of the timing script, which ran beside
-  the experiment checkout before being added as `benchmark.py`.
+  using two CPU threads and checking every output stream. The timing script
+  ran beside checkout `e2b948d2` with md5 `e040d4041beaaf982c966fdd6ca9e214`.
+  Commit `9a1cd0b6` later added it unchanged as `benchmark.py`.
 - `selected-profile.json.gz`: a single-video profile locating the expanded
   proposal and feature construction cost. Profiling adds timing overhead.
 
-The evidence records the original source paths on Carmack and in the local
-collection. Large prepared inputs and fitted models remain outside Git. The
+Source paths in the evidence start with a placeholder. `RUN/` is the
+experiment's run folder. `CHECKOUT/`, `VENV/` and `USER_DATA/` are the profiled
+code checkout, its Python environment and the folder holding its Python
+interpreter. Large prepared inputs and fitted models remain outside Git. The
 experiment checkout was `ddd2a7f2`; production export uses `e2b948d2`.
 The selection retains the original seed-zero fit rather than choosing a seed
 from its validation score.
