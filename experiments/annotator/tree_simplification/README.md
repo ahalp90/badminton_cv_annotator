@@ -33,8 +33,8 @@ Terms used in the commands and code:
   at different offsets share their videos, so they show fitting variation, not
   independent samples.
 
-Install the `annotator-experiments` extra for XGBoost. The separate MonoTrack
-environment is not needed here. Run every command from the repository root.
+The base install includes XGBoost. The separate MonoTrack environment is not
+needed here. Run every command from the repository root.
 
 ## Tracked models and prediction files
 

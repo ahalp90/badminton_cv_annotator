@@ -25,6 +25,7 @@ dependencies = [
     "scipy>=1.18.1",
     # Hybrid annotator contact and sequence trees.
     "scikit-learn==1.9.1",  # Must match the shipped annotator model.
+    "xgboost==3.4.1",  # Rally-layer trees; annotator models pickle XGBClassifier, so loading them needs it.
     "joblib>=1.6.0",
     # Video / image I/O
     "opencv-python==5.0.0.93",
@@ -51,7 +52,6 @@ dependencies = [
 annotator-experiments = [
     "pybetterleaks==0.6.2",
     "ripgrep==15.1.0",
-    "xgboost==3.4.1",
 ]
 
 # BRIC handler runtime deps for inference (R(2+1)D-18 load + YOLO11 player

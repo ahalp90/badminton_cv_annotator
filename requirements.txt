@@ -16,6 +16,7 @@ pandas==3.0.6
 matplotlib==3.10.9
 scipy==1.18.1
 scikit-learn==1.9.1          # Matches the included annotator model
+xgboost==3.4.1               # Rally-layer trees; needed to load annotator models
 joblib==1.6.0                # Loads annotator models
 cloudpickle==3.1.2           # Serialisation used by joblib
 narwhals==2.26.0             # Dataframe support in scikit-learn

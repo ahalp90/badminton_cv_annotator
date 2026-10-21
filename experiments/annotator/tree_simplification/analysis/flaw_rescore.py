@@ -47,7 +47,6 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.flaw_scoring impo
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     IGNORE_MARGIN,
     INPUTS,
-    TREE,
     WINDOW_AFTER,
     WINDOW_BEFORE,
     ignore_left_out,
@@ -65,6 +64,7 @@ from experiments.annotator.tree_simplification.analysis.common import (
 )
 
 OLD_ANNOTATOR = 'old-annotator-hgb-grid-017'
+OLD_PREDICTIONS = REPOSITORY / 'experiments/annotator/tree_hp_tune/results/test_rerun/A/v32/grid-017'
 NEW_CONFIGURATIONS = ('raw_baseline', 'body_window_36')
 TREATMENTS = ('standard', 'ignore', 'count')
 SCORED_RALLIES = 3327
@@ -153,7 +153,7 @@ def check_write_up(summary: dict[str, Any]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--results', type=Path, default=RESULTS, help='tracked results folder')
-    parser.add_argument('--old-predictions', type=Path, default=TREE / 'A/v32/grid-017',
+    parser.add_argument('--old-predictions', type=Path, default=OLD_PREDICTIONS,
                         help='the old annotator test predictions, one seed-<N> folder per seed')
     parser.add_argument('--output', type=Path, required=True, help='gzip JSON file to write')
     args = parser.parse_args()

@@ -81,13 +81,13 @@ dependencies = [
     { name = "torchvision", version = "0.28.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torchvision", version = "0.28.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux'" },
     { name = "tqdm" },
+    { name = "xgboost" },
 ]
 
 [package.optional-dependencies]
 annotator-experiments = [
     { name = "pybetterleaks" },
     { name = "ripgrep" },
-    { name = "xgboost" },
 ]
 bric = [
     { name = "lap" },
@@ -171,7 +171,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'bric-train'" },
     { name = "transformers", marker = "extra == 'bst-x-runtime'" },
     { name = "ultralytics", marker = "extra == 'bric-runtime'", specifier = ">=8.3" },
-    { name = "xgboost", marker = "extra == 'annotator-experiments'", specifier = "==3.4.1" },
+    { name = "xgboost", specifier = "==3.4.1" },
 ]
 provides-extras = ["annotator-experiments", "bric-runtime", "bric-train", "scraper", "bric", "bst-x-runtime", "dev"]
 
