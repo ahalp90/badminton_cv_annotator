@@ -248,7 +248,6 @@ use plainer folder names:
 | `RUN/seed-repeats/seed-<N>/pilot` | The old eight-model stack refitted with XGBoost at seed offset N. Its contact models built that seed's option lists. | `pilot --seed-offset N` in a new folder |
 | `RUN/seed-repeats/seed-<N>/tightest-expanded7`, `RUN/seed-repeats/seed-<N>/tightest-expanded15` | The 7-leaf and 15-leaf selectors at seed offset N | a `train` run per seed |
 | `RUN/xgb-repeats/seed-<N>/leaves31`, `RUN/xgb-repeats/seed-<N>/longer31` | The 31-leaf, 200-round and 400-round selectors at seed offset N | a `train` run per seed |
-| `RUN/xgb-followup-leaves31.exit`, `RUN/xgb-repeat-<N>-leaves31.exit`, `RUN/xgb-repeat-<N>-longer31.exit` | Exit-code files of the 31-leaf runs. Not kept. | none |
 | `RUN/production/expanded31-400-depth1-e2b948d2` | The chosen model's production export: bundle and validation predictions | `RUN/production-31-leaves-400-rounds` |
 | `RUN/production/timing-expanded31-400-depth1-e2b948d2` | The timing comparison's output | `RUN/timing-31-leaves-400-rounds` |
 | `RUN/fps-motion-v1/seed-<N>`, `RUN/fps-velocity-v1/seed-<N>` | The frame-rate arms: all motion features scaled, and velocity only scaled | `RUN/fps/...`, one folder family per arm |
