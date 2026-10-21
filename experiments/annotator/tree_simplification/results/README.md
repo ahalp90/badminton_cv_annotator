@@ -37,6 +37,8 @@ independent samples.
 | `input-review-thresholds.json.gz` | The review thresholds chosen on validation rows before any test access. Each target share of sections to keep maps to a score threshold. |
 | `input-review-tradeoff.svg` | Figure for baseline preprocessing: the share of test sections kept against the error among judged kept sections, at ±5 and ±10 frames. |
 | `input-stage-costs.csv` | Time and memory of every timed command in the sweep and the test run. See [Stage costs](#stage-costs). |
+| `screening-evidence.json.gz` | The search arms dropped before the five-seed repeats, all single seed-0 fits on validation: the backend pilot, the first grid with XGBoost and HGB, the label and option-list comparison, smaller trees, specialist selectors, keep-margin replays and contact models fitted on 28 videos. Also the option-list ceiling and the frame-rate contact diagnostics. |
+| `target-screen.svg` | Figure for the report's appendix A3: fully correct rallies against correct-player F1 for the first grid, the ±5-frame label runs and the old stack refitted with XGBoost. |
 | `models/` | 12 model bundles. See [Model bundles](#model-bundles). |
 | `streams/` | 1,220 prediction files and 460 per-video test score files. See [Prediction files](#prediction-files). |
 | `test-run/` | 31 records that let the ten test bundles load again through `input_test`'s own checks. See [Test-run records](#test-run-records). |
@@ -282,6 +284,8 @@ the fields it copies rather than rebuilds.
 | `input-validation-review-rows.json.gz`, `input-test-review-rows.json.gz` | `input_selection.py rows` | yes: the local archive |
 | `input-review-tradeoff.svg` | `plot_review_tradeoff.py` | no |
 | `test-run/` | `test_run.py materialise`, then `check` loads all ten bundles | no |
+| `screening-evidence.json.gz` | `screening_evidence.py` | yes: the local archive |
+| `target-screen.svg` | `plot_target_screen.py` | no |
 | `selected-profile.json.gz` | `profile_selected.py` makes a new profile; times differ from run to run | yes: prepared arrays |
 
 The other files are saved records: the chosen settings, the timing run, the
@@ -290,8 +294,8 @@ read them as inputs.
 
 The local archive is `raw-data.tar.zst` in the campaign's local folder. Its
 `remote/` folder holds the small records pulled from `RUN/`, with the same
-folder names. So `remote/search-xgb/leaves-15` is the run folder
-`RUN/search-xgb/leaves-15`.
+folder names. So `remote/search-xgb/leaves-15` in
+`screening-evidence.json.gz` is the run folder `RUN/search-xgb/leaves-15`.
 
 ## How the scores work
 

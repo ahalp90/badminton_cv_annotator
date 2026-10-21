@@ -181,6 +181,7 @@ def test_profile_paths_hide_the_checkout() -> None:
 
 
 @pytest.mark.parametrize(('module', 'evidence', 'figure'), [
+    (plot_target_screen, 'screening-evidence.json.gz', 'target-screen.svg'),
     (plot_review_tradeoff, 'input-preprocessing-evidence.json.gz', 'input-review-tradeoff.svg'),
 ])
 def test_figures_rebuild_from_tracked_evidence(tmp_path, module, evidence: str, figure: str) -> None:
