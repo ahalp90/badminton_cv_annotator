@@ -38,7 +38,7 @@ Review scores order manual inspection; they do not change annotations.
 
 Layer metadata records depth, proposal limits, feature layouts and fitted or
 selector-only review mode. Loading checks those fields against the runtime.
-The legacy and layer bundle schemas remain distinct.
+The eight-model and layer bundle schemas remain distinct.
 
 **Contents**
 

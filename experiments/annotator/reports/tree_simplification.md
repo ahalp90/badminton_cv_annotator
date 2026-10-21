@@ -703,8 +703,8 @@ The 413 rallies with a correct option assume the neighbouring sections stay as
 they started. That count is neither a joint ceiling nor a guaranteed score. Two
 rallies are provably unreachable: `sset_18` set1:13 (labels 17580 to 18033) and
 set1:33 (labels 36696 to 36899). Review note: an independent review could not
-falsify the 500 ceiling. It is loose, and it does not transfer: other contact
-models reach 5 of the 168.
+falsify the 500 ceiling. It is loose, and it holds only for the contact model
+probed here.
 
 ### Summary of the search
 
@@ -763,10 +763,10 @@ to 8.5 points of F1. These differences show no statistical significance or
 equivalence. They give no measured reason to replace raw features.
 
 **Contact-model diagnostics** over offsets 100 to 400 compare raw and scaled
-contact models directly. Training F1 at 25 fps rose slightly (all motion +0.06
-and +0.07 points at ±5 and ±10, velocity only +0.16 and +0.16). At 30 fps it
+contact models directly. Training F1 at 25 fps rose slightly (all motion +0.07
+and +0.06 points at ±5 and ±10, velocity only +0.15 and +0.16). At 30 fps it
 fell for both. Validation F1 at 30 fps fell for both. At 25 fps it fell for all
-motion features (−0.33 and −0.23) and was mixed for velocity only. Training
+motion features (−0.33 and −0.22) and was mixed for velocity only. Training
 scores here are not unbiased estimates.
 
 All ten runs rebuilt every validation option list and prediction file exactly.

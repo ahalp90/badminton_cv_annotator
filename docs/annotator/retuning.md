@@ -175,7 +175,7 @@ groups than selector layers, as well as the existing minimum of three groups.
 The group exclusions also apply when producing review-ranker training inputs.
 `--device cuda` uses the GPU for XGBoost fitting; saved models use CPU inference.
 `--threads` defaults to two and caps the fitting process's numerical libraries.
-Without `--rally-layers`, fitting keeps the legacy stack.
+Without `--rally-layers`, fitting keeps the old eight-model stack.
 
 The layer bundle stores its edit limits and feature layout. Annotation and
 evaluation select the appropriate path when loading it; they need no layer
