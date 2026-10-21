@@ -180,9 +180,9 @@ def fit_contacts(prepared_root: Path, output: Path, seed_offset: int, threads: i
     units = preparation_receipt(prepared_root)
     preparation = units['preparation']
     settings = pilot.settings_for(TreeBackend.XGBOOST, 'cuda', 5.0, seed_offset=seed_offset)
-    legacy_settings = asdict(settings)
-    legacy_settings.pop('rally_layers')
-    config = json.loads(json.dumps({'settings': legacy_settings, 'prepared': str(prepared_root)}, default=sorted))
+    training_settings = asdict(settings)
+    training_settings.pop('rally_layers')
+    config = json.loads(json.dumps({'settings': training_settings, 'prepared': str(prepared_root)}, default=sorted))
     output.mkdir(parents=True, exist_ok=True)
     receipt = output / 'settings.json.gz'
     if receipt.exists() and pilot.read_json(receipt) != config:

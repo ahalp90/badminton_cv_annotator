@@ -229,9 +229,9 @@ def main() -> None:
     source = source_record()
     settings = settings_for(TreeBackend(args.backend), args.device, args.min_child_weight, seed_offset=args.seed_offset)
     args.output.mkdir(parents=True, exist_ok=True)
-    legacy_settings = asdict(settings)
-    legacy_settings.pop('rally_layers')
-    config = {'settings': legacy_settings, 'prepared': str(args.prepared.resolve())}
+    training_settings = asdict(settings)
+    training_settings.pop('rally_layers')
+    config = {'settings': training_settings, 'prepared': str(args.prepared.resolve())}
     config = json.loads(json.dumps(config, default=sorted))
     config_path = args.output / 'settings.json.gz'
     if config_path.exists() and read_json(config_path) != config:

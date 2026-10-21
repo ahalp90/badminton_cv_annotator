@@ -165,14 +165,14 @@ def _validation_tradeoff(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any
             scored_by_score[score][label] += 1
 
     scores = sorted(scored_by_score)
-    cutoffs = sorted({0.0, 1.0, *scores})
+    candidate_thresholds = sorted({0.0, 1.0, *scores})
     below = {label: 0 for label in LABELS}
     score_index = 0
     curve = [_summary_from_counts(len(rows), missing, scored, scored, unfiltered=True) | {
         'cutoff': None, 'achieved_coverage': 1.0,
     }]
     coverages = []
-    for cutoff in cutoffs:
+    for cutoff in candidate_thresholds:
         while score_index < len(scores) and scores[score_index] < cutoff:
             for label in LABELS:
                 below[label] += scored_by_score[scores[score_index]][label]
