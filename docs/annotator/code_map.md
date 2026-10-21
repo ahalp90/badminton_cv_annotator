@@ -51,6 +51,13 @@ These are the main files involved in running, changing or fitting the annotator:
 6. **`training/workflow.py`** — fits models and evaluates them on videos kept out of training.
 7. **`models.py`** — model directory contents and compatibility checks.
 
+For a rally-layer bundle, `hybrid.py` dispatches to `sequence/rally_model.py`.
+`sequence/rally_options.py` builds label-free proposals and features;
+`sequence/rally_layers.py` scores and finishes them. Shared training targets
+live in `training/rally_targets.py`, with recursive fitting and held-group
+review ranking in `training/rally_layers.py`. Experimental wrappers reuse these
+implementations while preserving saved pool classes.
+
 ## Production call map
 
 ```text

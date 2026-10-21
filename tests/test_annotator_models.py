@@ -20,6 +20,7 @@ def test_shipped_bundle_loads_and_predicts():
         / 'data/annotator/sset_and_sset22_trained_20261003T041112Z'
     )
     models = load_models(directory)
+    assert isinstance(models.sequences, SequenceModels)
     estimators = (
         models.contact,
         models.sequences.whole_sequence,

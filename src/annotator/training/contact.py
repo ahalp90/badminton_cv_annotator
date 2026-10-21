@@ -7,14 +7,14 @@ sampling. Validation and test videos belong to the caller's evaluation path.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
 
 from annotator.contacts.features import REGION_FIELDS
 from annotator.contacts.model import contact_feature_matrix
 from annotator.fps_constants import ScalingKind
+from annotator.training.trees import TreeBackend, fit_binary_tree
 
 POSITIVE_RADIUS_AT_30_FPS = 1
 IGNORED_RADIUS_AT_30_FPS = 4
@@ -43,6 +43,9 @@ class ContactFitConfig:
     l2_regularization: float = 1.0
     random_seed: int = 20260824
     early_stopping: bool | Literal["auto"] = "auto"
+    backend: TreeBackend = TreeBackend.HIST_GRADIENT_BOOSTING
+    device: str = 'cpu'
+    min_child_weight: float = 5.0
 
 
 DEFAULT_CONTACT_FIT_CONFIG = ContactFitConfig()
@@ -71,7 +74,7 @@ class ContactTrainingSelection:
 class ContactModelFit:
     """Fitted contact tree and the examples already selected for its fit."""
 
-    model: HistGradientBoostingClassifier
+    model: Any
     selection: ContactTrainingSelection
 
 
@@ -153,7 +156,7 @@ def fit_contact_model(
     """Fit a balanced contact tree using only the named training videos.
 
     :param training_videos: Explicit training features and labels; omit held-out videos.
-    :param config: Histogram gradient boosting settings and sampling seed.
+    :param config: Tree backend, fit settings and sampling seed.
     :param fit_video_order: Optional permutation of video IDs for the selected fit
         rows. Negative sampling still follows ``training_videos`` order.
     :return: Fitted model and its selected examples without repeating selection.
@@ -173,15 +176,16 @@ def fit_contact_model(
                 np.concatenate([selection.labels[slices[identity]] for identity in fit_video_order]),
                 {identity: selection.video_counts[identity] for identity in fit_video_order},
             )
-    model = HistGradientBoostingClassifier(
+    model = fit_binary_tree(
+        contact_feature_matrix(selection.rows), selection.labels,
         learning_rate=config.learning_rate,
         max_iter=config.max_iter,
         max_leaf_nodes=config.max_leaf_nodes,
         min_samples_leaf=config.min_samples_leaf,
         l2_regularization=config.l2_regularization,
-        class_weight='balanced',
-        random_state=config.random_seed,
+        balanced=True,
+        random_seed=config.random_seed,
         early_stopping=config.early_stopping,
+        backend=config.backend, device=config.device, min_child_weight=config.min_child_weight,
     )
-    model.fit(contact_feature_matrix(selection.rows), selection.labels)
     return ContactModelFit(model, selection)

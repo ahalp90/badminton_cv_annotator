@@ -27,11 +27,10 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     read_json,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
-    CONFIGURATION,
     HEURISTIC,
     INPUTS,
     SEEDS,
-    TREE,
+    annotator_run,
     left_out_windows,
     test_left_out,
 )
@@ -80,7 +79,7 @@ def main() -> None:
     args = parser.parse_args()
     manifest = load_manifest(INPUTS)
     test = test_left_out()
-    annotator = [extras_split({item['item_id']: read_json(TREE / f'A/v32/{CONFIGURATION}/seed-{seed}' / f'{item["item_id"]}.json.gz')
+    annotator = [extras_split({item['item_id']: read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
                                for item in manifest['items']}, test) for seed in SEEDS]
     trees_off = extras_split(read_json(HEURISTIC / 'test/predictions.json.gz')['streams'], test)
     validation = validation_left_out(args.shots_master)

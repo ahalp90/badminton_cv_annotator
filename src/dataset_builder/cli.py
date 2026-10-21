@@ -787,6 +787,32 @@ def _build_parser() -> argparse.ArgumentParser:
             "--progress", choices=("auto", "on", "off"), default="auto",
             help="Terminal progress: auto on a TTY, on to force, off for plain logs.",
         )
+    review_parser = subparsers.add_parser(
+        "review-policy",
+        help="Write opt-in accept, review, or filter decisions beside a completed run.",
+    )
+    review_parser.add_argument("--run-dir", type=Path, required=True)
+    review_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="New .json.gz decision sidecar; existing output paths are rejected.",
+    )
+    review_parser.add_argument(
+        "--low-filter-threshold",
+        type=float,
+        required=True,
+        help="Scores below this value are labelled filter; review scores are uncalibrated.",
+    )
+    review_parser.add_argument(
+        "--high-accept-threshold",
+        type=float,
+        required=True,
+        help=(
+            "Scores at or above this value are labelled accept. No numeric threshold is "
+            "recommended until validation analysis is complete."
+        ),
+    )
     export_parser = subparsers.add_parser(
         "export-v1",
         help="Write the frozen v1 dataset tables from one completed run.",
@@ -926,6 +952,23 @@ def _run_export_v1_shuttleset22(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _run_review_policy(arguments: argparse.Namespace) -> int:
+    from dataset_builder.review_policy import write_review_policy
+
+    try:
+        output = write_review_policy(
+            arguments.run_dir,
+            arguments.output,
+            low_filter_threshold=arguments.low_filter_threshold,
+            high_accept_threshold=arguments.high_accept_threshold,
+        )
+    except (OSError, ValueError, EOFError) as error:
+        print(f"review policy failed: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    print(f"dataset builder wrote optional review-policy decisions to {output}")
+    return 0
+
+
 def _print_export_summary(manifest: Mapping[str, object]) -> None:
     tables = cast(Mapping[str, Mapping[str, object]], manifest["tables"])
     rows = ", ".join(f"{name} {entry['rows']}" for name, entry in tables.items())
@@ -936,6 +979,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse the one-command interface and return a process exit status."""
     parser = _build_parser()
     arguments = parser.parse_args(argv)
+    if arguments.command == "review-policy":
+        return _run_review_policy(arguments)
     if arguments.command == "export-v1":
         return _run_export_v1(arguments)
     if arguments.command == "export-v1-shuttleset22":

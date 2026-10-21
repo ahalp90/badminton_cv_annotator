@@ -18,6 +18,13 @@ from annotator.sequence import (
     refine_contact_sequences,
 )
 from annotator.sequence.confidence import RallyConfidence, score_rally_confidence
+from annotator.sequence.rally_model import (
+    LayerConfidence,
+    RallyLayerModels,
+    RallyLayerPrediction,
+    refine_rally_layers,
+    score_layer_confidence,
+)
 from annotator.types import StickyResult
 from shared.progress import report
 
@@ -48,8 +55,8 @@ class HybridPrediction:
 
     features: ContactFeatures
     contacts: ScoredContacts
-    refined: RefinedSequences
-    confidence: RallyConfidence
+    refined: RefinedSequences | RallyLayerPrediction
+    confidence: RallyConfidence | LayerConfidence
 
 
 def features_from_evidence(evidence: ContactEvidence) -> ContactFeatures:
@@ -98,6 +105,13 @@ def predict_contacts(evidence: ContactEvidence, models: AnnotatorModels) -> Hybr
     """Build features once, score contacts and refine their rally sequences."""
     report("building contact features")
     features = features_from_evidence(evidence)
+    return predict_contact_features(evidence, features, models)
+
+
+def predict_contact_features(
+    evidence: ContactEvidence, features: ContactFeatures, models: AnnotatorModels,
+) -> HybridPrediction:
+    """Annotate precomputed contact features through the same production path."""
     report("scoring contact candidates")
     contacts = score_contact_features(
         features.rows, models.contact, evidence.fps, models.contact_settings,
@@ -105,6 +119,14 @@ def predict_contacts(evidence: ContactEvidence, models: AnnotatorModels) -> Hybr
     )
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     report("refining rally sequences")
+    if isinstance(models.sequences, RallyLayerModels):
+        layer_prediction = refine_rally_layers(
+            evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
+            fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
+        )
+        report("scoring rally confidence")
+        review = score_layer_confidence(layer_prediction, models.confidence)
+        return HybridPrediction(features, contacts, layer_prediction, review)
     refined = refine_contact_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),

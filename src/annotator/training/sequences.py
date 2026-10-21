@@ -9,9 +9,9 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
+from typing import Any
 
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
@@ -28,6 +28,7 @@ from annotator.sequence.refine import (
     finish_sequences,
 )
 from annotator.sequence.sides import alternate_sides
+from annotator.training.trees import TreeBackend, fit_binary_tree
 
 TARGET_TOLERANCE_AT_30_FPS = 10
 
@@ -70,7 +71,7 @@ class SequenceTargets:
 
 @dataclass(frozen=True)
 class TreeFitConfig:
-    """Histogram gradient boosting settings for one part of the sequence stack."""
+    """Tree backend and fit settings for one part of the sequence stack."""
 
     max_iter: int = 200
     max_leaf_nodes: int = 15
@@ -78,6 +79,9 @@ class TreeFitConfig:
     min_samples_leaf: int = 20
     l2_regularization: float = 1.0
     random_seed: int = 20260905
+    backend: TreeBackend = TreeBackend.HIST_GRADIENT_BOOSTING
+    device: str = 'cpu'
+    min_child_weight: float = 5.0
 
 
 @dataclass(frozen=True)
@@ -98,16 +102,16 @@ class SequenceModelFit:
     models: SequenceModels
     cross_fitted: dict[str, RefinedSequences]
     targets: dict[str, SequenceTargets]
-    cross_fitted_insertion_models: dict[str, HistGradientBoostingClassifier]
+    cross_fitted_insertion_models: dict[str, Any]
 
 
 @dataclass(frozen=True)
 class UpstreamSequenceModels:
     """Serve and insertion trees feeding a chooser trained on the same group set."""
 
-    serve_summary: HistGradientBoostingClassifier
-    serve_physical: HistGradientBoostingClassifier
-    insertion: HistGradientBoostingClassifier
+    serve_summary: Any
+    serve_physical: Any
+    insertion: Any
 
 
 MATCH_CONTACT = np.uint8(1)
@@ -348,19 +352,19 @@ def sequence_targets(video: SequenceTrainingVideo) -> SequenceTargets:
     return SequenceTargets(serve, sequence, insertion)
 
 
-def fit_tree(matrix: np.ndarray, targets: np.ndarray, config: TreeFitConfig) -> HistGradientBoostingClassifier:
+def fit_tree(matrix: np.ndarray, targets: np.ndarray, config: TreeFitConfig) -> Any:
     """Fit a balanced tree on known labels; both target classes must be present."""
     included = targets >= 0
     if set(targets[included].tolist()) != {0, 1}:
         raise ValueError("sequence tree fit requires both positive and negative labelled examples")
-    model = HistGradientBoostingClassifier(
+    return fit_binary_tree(
+        matrix[included], targets[included],
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes,
         learning_rate=config.learning_rate, min_samples_leaf=config.min_samples_leaf,
-        l2_regularization=config.l2_regularization, random_state=config.random_seed,
-        class_weight='balanced', early_stopping=False,
+        l2_regularization=config.l2_regularization, random_seed=config.random_seed,
+        balanced=True,
+        backend=config.backend, device=config.device, min_child_weight=config.min_child_weight,
     )
-    model.fit(matrix[included], targets[included])
-    return model
 
 
 def fit_upstream_models(
@@ -467,3 +471,35 @@ def fit_sequence_models(
                 insertion_models[video.identity] = models.insertion
     models = fit_choosers(training_videos, targets, all_groups, cache, config)
     return SequenceModelFit(models, predictions, targets, insertion_models)
+
+
+def whole_rally_correctness(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance_at_30_fps: int = 10,
+) -> int:
+    """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
+
+    Missing contacts, merged/partial rallies, extra events and known side
+    contradictions are wrong even when another human side label is unavailable.
+    """
+    overlaps = overlapping_rallies(sequence, rallies)
+    if not overlaps:
+        return -1
+    if len(overlaps) > 1:
+        return 0
+    rally = overlaps[0]
+    if not all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames):
+        return 0
+    tolerance = scale_frames(tolerance_at_30_fps, fps)
+    matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
+    if len(matches) < len(rally.frames):
+        return 0
+    revised, _events = alternate_sides((sequence,), sequence.events)
+    if any(rally.sides[label] is not None and revised[0].events[prediction].side != rally.sides[label]
+           for label, prediction, _offset in matches):
+        return 0
+    if len(sequence.events) > len(rally.frames):
+        return 0
+    if any(side is None for side in rally.sides):
+        return -1
+    return 1

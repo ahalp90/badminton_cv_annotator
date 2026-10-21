@@ -1,11 +1,15 @@
 """Choose discovery-mode confidence cut-offs on the eight validation videos, then read them on test.
 
-The confidence score ranks found rallies by how likely they are to be fully correct. Keeping
-only rallies at or above a cut-off trades coverage (labelled rallies delivered) for accuracy
-(share of kept rallies that are right). Two cut-offs are chosen on validation, never on test:
+The confidence score is the review ranker's score, which ranks found rallies by how likely
+they are to be fully correct. Keeping only rallies at or above a cut-off trades coverage
+(labelled rallies delivered) for accuracy (share of kept rallies that are right). All three
+cut-offs come from validation, never from test:
 
 - balanced: the highest F1 for "fully correct", where precision is the fully correct share of
   kept rallies and recall is the share of all fully correct found rallies that are kept;
+- keep half: the review threshold that keeps half of the found rallies on validation, pooled
+  over the five seeds. It is read from the review-threshold search in
+  ``tree_simplification/results/input-review-thresholds.json.gz``;
 - boundaries: the lowest cut-off where at least 99% of kept rallies, pooled over the five
   seeds, have the right boundaries.
 
@@ -18,7 +22,7 @@ Test videos also hold 524 ShuttleSet22 rallies left out of the test set. ``metri
 drops found rallies that sit only on those, so every kept test rally can be scored. Validation
 labels hold every rally in ShuttleSet's release; ``left_out_rallies.py`` (run first) checks this.
 
-Usage: python confidence_cutoffs.py --validation DIR --data DIR --shots-master CSV --out DIR
+Usage: python confidence_cutoffs.py --data DIR --shots-master CSV --out DIR
 """
 from __future__ import annotations
 
@@ -42,27 +46,33 @@ from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     BOUNDARY_RIGHT,
-    CONFIGURATION,
+    RUNS,
     SEEDS,
     judge_found_rallies,
 )
 from experiments.annotator.old_court_regression.retrain import stream_from_payload
-from experiments.annotator.tree_hp_tune import test_rerun
 
 TOLERANCE = 10
 THRESHOLDS = np.round(np.arange(0, 1.0001, 0.005), 3)
-HISTORICAL_CUTOFF = 0.7570784853533734
 BOUNDARY_TARGET = 99.0
+TREE_RESULTS = REPO / 'experiments/annotator/tree_simplification/results'
+
+
+def keep_half_cutoff() -> float:
+    """The fitted review ranker's threshold that keeps half of the validation rallies, baseline preprocessing."""
+    record = read_json(TREE_RESULTS / 'input-review-thresholds.json.gz')
+    (ranking,) = [ranking for ranking in record['candidate_rankings']
+                  if (ranking['candidate'], ranking['ranking']) == ('raw_baseline', 'fitted')]
+    (threshold,) = [threshold for threshold in ranking['thresholds'] if threshold['target_coverage'] == 0.5]
+    return float(threshold['cutoff'])
 
 
 def validation_found(validation: Path, shots_master: Path) -> tuple[pd.DataFrame, int]:
     """Judged found rallies for every seed and validation video, plus the labelled rally count."""
     videos = [video for video in load_original_videos(shots_master) if video.split == 'validation']
-    bundles = {bundle.seed_offset: bundle for bundle in test_rerun.discover_bundles()
-               if bundle.stage == 'v32' and bundle.label == CONFIGURATION}
     rows = []
     for seed in SEEDS:
-        saved = read_json(bundles[seed].path.parent / 'validation.json.gz')
+        saved = read_json(TREE_RESULTS / f'test-run/candidates/raw_baseline/seed-{seed}/export/result.json.gz')
         strict_total = 0
         for video in videos:
             stream = read_json(validation / f'seed-{seed}' / f'{video.identity}.json.gz')
@@ -73,7 +83,7 @@ def validation_found(validation: Path, shots_master: Path) -> tuple[pd.DataFrame
                              'confidence': stream['confidence'][str(record['span_id'])]})
             _, _, _, rally_rows = score_video(video.identity, video.split, stream, video.rallies, video.fps, TOLERANCE)
             strict_total += sum(bool(row['fully_correct']) for row in rally_rows)
-        # The rerun streams match the committed ones, so the strict count must match the saved score.
+        # The validation runs match the tracked predictions, so the strict count must match the saved score.
         if strict_total != saved['totals'][str(TOLERANCE)]['fully_correct_rallies']:
             raise ValueError(f'seed {seed}: strict fully correct {strict_total} != saved validation score')
     return pd.DataFrame(rows), sum(len(video.rallies) for video in videos)
@@ -109,8 +119,8 @@ def curve(found: pd.DataFrame, total_rallies: int, thresholds) -> pd.DataFrame:
 
 def seed_summary(curves: pd.DataFrame) -> pd.DataFrame:
     """Mean, lowest and highest seed for each cut-off."""
-    columns = ['kept', 'fully_correct_kept', 'fully_correct_share', 'boundaries_right_share', 'coverage',
-               'boundary_coverage', 'f1', 'no_labelled_rally_kept']
+    columns = ['kept', 'fully_correct_kept', 'boundaries_right_kept', 'fully_correct_share', 'boundaries_right_share',
+               'coverage', 'boundary_coverage', 'f1', 'no_labelled_rally_kept']
     summary = curves.groupby('threshold')[columns].agg(['mean', 'min', 'max'])
     pooled = curves.groupby('threshold')[['boundaries_right_kept', 'kept']].sum()
     summary[('pooled_boundaries_right_share', 'mean')] = 100 * pooled['boundaries_right_kept'] / pooled['kept']
@@ -125,7 +135,7 @@ def choose_cutoffs(validation: pd.DataFrame) -> dict[str, float]:
     balanced = float(validation[('f1', 'mean')].idxmax())
     qualifying = validation.index[validation[('pooled_boundaries_right_share', 'mean')] >= BOUNDARY_TARGET]
     boundaries = float(qualifying.min())
-    return {'balanced': balanced, 'boundaries_99': boundaries, 'historical': HISTORICAL_CUTOFF}
+    return {'balanced': balanced, 'keep_half': keep_half_cutoff(), 'boundaries_99': boundaries}
 
 
 def at_cutoff(summary: pd.DataFrame, threshold: float) -> dict[str, dict[str, float]]:
@@ -135,7 +145,8 @@ def at_cutoff(summary: pd.DataFrame, threshold: float) -> dict[str, dict[str, fl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--validation', type=Path, required=True, help='validation rerun with seed-*/ folders')
+    parser.add_argument('--validation', type=Path, default=RUNS / 'validation/32_videos',
+                        help='validation discovery runs with seed-*/ folders')
     parser.add_argument('--data', type=Path, required=True, help='metrics.py output with found_rallies_*_seed*.csv.gz')
     parser.add_argument('--test-rallies', type=int, default=3327)
     parser.add_argument('--shots-master', type=Path, required=True)
@@ -147,10 +158,11 @@ def main() -> None:
         raise ValueError('validation videos have left-out rallies; flag their found rallies before choosing cut-offs')
     found, validation_rallies = validation_found(args.validation, args.shots_master)
     found.to_csv(args.out / 'validation_found_rallies.csv.gz', index=False)
-    validation_curves = curve(found, validation_rallies, sorted(set(THRESHOLDS.tolist()) | {HISTORICAL_CUTOFF}))
+    grid = seed_summary(curve(found, validation_rallies, THRESHOLDS.tolist()))
+    cutoffs = choose_cutoffs(grid)
+    validation_curves = curve(found, validation_rallies, sorted(set(THRESHOLDS.tolist()) | set(cutoffs.values())))
     validation_curves.to_csv(args.out / 'validation_confidence_curve.csv', index=False)
     validation = seed_summary(validation_curves)
-    cutoffs = choose_cutoffs(validation)
 
     test_found = pd.concat([pd.read_csv(args.data / f'found_rallies_annotator_discovery_seed{seed}.csv.gz').assign(seed=seed)
                             for seed in SEEDS])

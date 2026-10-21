@@ -1,10 +1,44 @@
 # How the trees work together
 
-The annotator's eight fitted classifiers work in sequence. One scores possible
+The default annotator's eight fitted classifiers work in sequence. One scores possible
 hits, others judge repairs to the contact sequence, and the final classifier
 ranks completed rallies for review. Earlier scores help the later classifiers
 make those decisions. All eight use histogram gradient boosting, which combines
 small decision trees into a classifier.
+
+An opt-in rally-layer bundle uses the same contact detector, followed by fitted
+whole-rally selectors and a separate review ranker. The selected development
+configuration uses one 31-leaf selector with 400 boosting rounds. The production
+loader chooses the runtime path from the saved bundle. The eight-model path
+below remains the reference. See the
+[selection evidence](../../experiments/annotator/reports/tree_simplification.md)
+and [fitting a rally-layer bundle](retuning.md#rally-layer-bundles).
+
+## Rally-layer bundles
+
+The contact model scores searched frames first. A shared proposal builder then
+enumerates possible sequences for each rough rally, including additions and
+deletions. It uses contact evidence and the saved edit limits without reading
+labels. Each selector scores the same options. Later selectors also receive
+earlier scores, choices and margins. The final choice goes through the shared
+boundary and alternating-side rules.
+
+Training judges complete sequences. A rally uses ±5-frame targets when its pool
+contains a known correct option at that tolerance; otherwise it uses ±10-frame
+targets. Both tolerances scale with FPS. Unknown labels stay excluded. Group
+exclusion applies recursively to the downstream selectors. Contact inputs keep
+the existing held-group scheme, so internal training predictions retain indirect
+contact-label paths and are not independent evaluation results.
+
+The review ranker uses held-group predictions and compact sequence, unused
+contact and boundary evidence. It also sees the final option's score under each
+selector and that selector's own top-two margin. The margin describes the
+selector's preferred option even when the final selector chose something else.
+Review scores order manual inspection; they do not change annotations.
+
+Layer metadata records depth, proposal limits, feature layouts and fitted or
+selector-only review mode. Loading checks those fields against the runtime.
+The eight-model and layer bundle schemas remain distinct.
 
 **Contents**
 
