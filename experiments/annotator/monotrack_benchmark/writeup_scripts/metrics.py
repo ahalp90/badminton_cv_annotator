@@ -1,4 +1,4 @@
-"""Contact, rally and confidence numbers for the v3 MonoTrack comparison report.
+"""Contact, rally and confidence numbers for the MonoTrack comparison report.
 
 Reads committed prediction streams only. Every condition is rescored here with the
 benchmark's own contact matcher, and the pooled totals are checked against each
@@ -22,7 +22,7 @@ so every condition ignores them: a prediction inside a left-out rally's window t
 than 10 frames from every scored hit is dropped before scoring, and so is a found rally left
 with no predictions. Saved-score checks add the dropped predictions back.
 
-Usage: python metrics.py --confidence DIR --out DIR
+Usage: python metrics.py --out DIR
 """
 from __future__ import annotations
 
@@ -58,14 +58,13 @@ from experiments.annotator.old_court_regression.retrain import stream_from_paylo
 BENCHMARK = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results'
 INPUTS = BENCHMARK / 'inputs'
 COMPARISON = BENCHMARK / 'comparison'
-TREE = REPO / 'experiments/annotator/tree_hp_tune/results/test_rerun'
+# Our annotator's runs from annotator_runs.py: test/<condition>/<models>/seed-<N>/ and validation/.
+RUNS = BENCHMARK / 'annotator_runs'
+# The tracked test predictions of the five 32-video bundles, which the discovery runs must reproduce.
+TRACKED_DISCOVERY = REPO / 'experiments/annotator/tree_simplification/results/streams/input-test/raw_baseline'
 HEURISTIC = REPO / 'experiments/annotator/heuristic_only_tune/results'
 SEEDS = (0, 100, 200, 300, 400)
-# The tree retune setting with the best mean validation Correct-player F1; the report uses it throughout.
-CONFIGURATION = 'grid-017'
 TOLERANCES = (10, 5)
-# The review cut-off carried over from the historical confidence model, fixed before this test.
-REVIEW_THRESHOLD = 0.7570784853533734
 BOOTSTRAP_DRAWS = 10_000
 BOOTSTRAP_SEED = 20261019
 SHUTTLESET22 = REPO / 'data/shuttleset22/set'
@@ -74,15 +73,27 @@ WINDOW_BEFORE, WINDOW_AFTER = 30, 31
 # A prediction this close to a scored hit is never ignored, so it can still match or count as an extra.
 IGNORE_MARGIN = 10
 
+
+
+def annotator_run(condition: str, models: str, seed: int) -> Path:
+    """One seed's test run: condition ``discovery``, ``our_courts`` or ``monotrack_courts``.
+
+    Models are ``32_videos`` (the headline), ``40_videos`` (contact model refitted on all 40 original
+    videos) or ``body_window_36`` (the preprocessing setting with the most fully correct validation rallies).
+    """
+    return RUNS / 'test' / condition / models / f'seed-{seed}'
+
+
 SUPPLIED_RUNS = {
     'monotrack_own_courts': [COMPARISON / 'mono_zeroed_own_off'],
     'monotrack_our_courts': [COMPARISON / 'mono_zeroed_our_courts_off'],
-    'annotator_our_courts': [TREE / f'B/v32/{CONFIGURATION}/seed-{seed}' for seed in SEEDS],
-    'annotator_monotrack_courts': [TREE / f'C/v32/{CONFIGURATION}/seed-{seed}' for seed in SEEDS],
+    'annotator_our_courts': [annotator_run('our_courts', '32_videos', seed) for seed in SEEDS],
+    'annotator_monotrack_courts': [annotator_run('monotrack_courts', '32_videos', seed) for seed in SEEDS],
     'heuristic_our_courts': [HEURISTIC / 'known_our_courts'],
     'heuristic_monotrack_courts': [HEURISTIC / 'known_mono_courts'],
-    'annotator40_our_courts': [TREE / f'B/final40/{CONFIGURATION}/seed-{seed}' for seed in SEEDS],
-    'annotator40_monotrack_courts': [TREE / f'C/final40/{CONFIGURATION}/seed-{seed}' for seed in SEEDS],
+    'annotator40_our_courts': [annotator_run('our_courts', '40_videos', seed) for seed in SEEDS],
+    'annotator40_monotrack_courts': [annotator_run('monotrack_courts', '40_videos', seed) for seed in SEEDS],
+    'annotator_body_window_36_our_courts': [annotator_run('our_courts', 'body_window_36', seed) for seed in SEEDS],
 }
 # Found-rally outcomes, from worst to best. The first three fail the boundary rung.
 OUTCOMES = ('no_labelled_rally', 'merged_rallies', 'part_of_rally', 'missed_hits', 'extra_hits', 'wrong_player',
@@ -91,21 +102,21 @@ BOUNDARY_RIGHT = frozenset(OUTCOMES[3:])
 HITS_RIGHT = frozenset(OUTCOMES[5:])
 
 
-def discovery_runs(confidence_root: Path) -> dict[str, list[dict[str, dict]]]:
-    """Per-video discovery streams for each run, keyed by item ID."""
+def discovery_runs() -> dict[str, list[dict[str, dict]]]:
+    """Per-video discovery streams for each run, keyed by item ID, with each found rally's confidence."""
     runs: dict[str, list[dict[str, dict]]] = {'annotator_discovery': [], 'annotator40_discovery': []}
     manifest = load_manifest(INPUTS)
     for seed in SEEDS:
         streams = {}
         for item in manifest['items']:
-            stream = read_json(TREE / f'A/v32/{CONFIGURATION}/seed-{seed}' / f'{item["item_id"]}.json.gz')
-            rerun = read_json(confidence_root / f'seed-{seed}' / f'{item["item_id"]}.json.gz')
-            if rerun['sequences'] != stream['sequences'] or rerun['events'] != stream['events']:
-                raise ValueError(f'seed {seed}, video {item["item_id"]}: confidence rerun differs from committed stream')
-            streams[item['item_id']] = rerun
+            stream = read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
+            tracked = read_json(TRACKED_DISCOVERY / f'seed-{seed}' / f'{item["item_id"]}.json.gz')
+            if stream['sequences'] != tracked['sequences'] or stream['events'] != tracked['events']:
+                raise ValueError(f'seed {seed}, video {item["item_id"]}: discovery run differs from the tracked predictions')
+            streams[item['item_id']] = stream
         runs['annotator_discovery'].append(streams)
         runs['annotator40_discovery'].append({
-            item['item_id']: read_json(TREE / f'A/final40/{CONFIGURATION}/seed-{seed}' / f'{item["item_id"]}.json.gz')
+            item['item_id']: read_json(annotator_run('discovery', '40_videos', seed) / f'{item["item_id"]}.json.gz')
             for item in manifest['items']})
     runs['heuristic_discovery'] = [read_json(HEURISTIC / 'test/predictions.json.gz')['streams']]
     return runs
@@ -237,6 +248,8 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
         for row in score_video(item['item_id'], 'test', unmasked, labels, item['fps'], tolerance)[3])
     sequences, _ = stream_from_payload(scored)
     judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']))
+    # Without the edge allowance, a found rally must span its labelled hits exactly.
+    no_allowance = rally_ladder(judge_found_rallies(sequences, labels, 0), labels)['boundaries_right']
     outside = 0 if supplied else sum(
         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
         for event in scored['events'])
@@ -251,6 +264,8 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
         'predicted_outside_windows': outside,
         'ignored_predictions': ignored,
         'found_rallies': len(sequences),
+        'found_rallies_before_ignore': len(unmasked['sequences']),
+        'boundaries_right_no_allowance': no_allowance,
         **rally_ladder(judged, labels),
     }
     confidence = stream.get('confidence')
@@ -315,6 +330,8 @@ def rates(totals: pd.Series) -> dict[str, float]:
         'fully_correct_strict': 100 * totals['fully_correct_strict'] / rallies,
         'hits_right': 100 * totals['hits_right'] / rallies,
         'boundaries_right': 100 * totals['boundaries_right'] / rallies,
+        'boundaries_right_no_allowance': 100 * totals['boundaries_right_no_allowance'] / rallies,
+        'ignored_found_rallies': totals['found_rallies_before_ignore'] - totals['found_rallies'],
         'missed': labelled - matched, 'wrong_player': matched - attributed,
         'extra_inside_windows': predicted - matched - totals['predicted_outside_windows'],
         'extra_outside_windows': totals['predicted_outside_windows'],
@@ -378,7 +395,7 @@ def paired_bootstrap(first: pd.DataFrame, second: pd.DataFrame) -> dict:
 
 def confidence_curve(condition: dict, total_rallies: int) -> dict:
     """What a reviewer gets by keeping only found rallies at or above each confidence cut-off."""
-    thresholds = np.round(np.linspace(0, 1, 101), 2).tolist() + [REVIEW_THRESHOLD]
+    thresholds = np.round(np.linspace(0, 1, 101), 2).tolist()
     curves = []
     for run in condition['runs']:
         found = run['found']
@@ -401,7 +418,6 @@ def confidence_curve(condition: dict, total_rallies: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--confidence', type=Path, required=True, help='confidence rerun output with seed-*/ folders')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
     args = parser.parse_args()
@@ -417,14 +433,14 @@ def main() -> None:
                    for run in runs]
         conditions[name] = score_condition(name, streams, supplied=True, saved=runs, windows=windows, pool=pool)
         print(name, 'scored', flush=True)
-    for name, streams in discovery_runs(args.confidence).items():
+    for name, streams in discovery_runs().items():
         conditions[name] = score_condition(name, streams, supplied=False, saved=None, windows=windows, pool=pool)
         print(name, 'scored', flush=True)
 
     # Discovery totals must reproduce the committed whole-video scores.
-    for name, prefix in (('annotator_discovery', 'A/v32'), ('annotator40_discovery', 'A/final40')):
+    for name, models in (('annotator_discovery', '32_videos'), ('annotator40_discovery', '40_videos')):
         for seed, run in zip(SEEDS, conditions[name]['runs'], strict=True):
-            check_against_saved(name, run['per_video'], read_json(TREE / f'{prefix}/{CONFIGURATION}/seed-{seed}/scores.json.gz'))
+            check_against_saved(name, run['per_video'], read_json(annotator_run('discovery', models, seed) / 'scores.json.gz'))
     heuristic_saved = read_json(HEURISTIC / 'test/summary.json.gz')
     summary = {name: summarise(condition) for name, condition in conditions.items()}
     summary['_heuristic_discovery_saved_summary_keys'] = list(heuristic_saved)

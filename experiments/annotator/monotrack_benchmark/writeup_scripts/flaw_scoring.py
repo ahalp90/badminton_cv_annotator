@@ -45,14 +45,13 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     read_json,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
-    CONFIGURATION,
     HEURISTIC,
     IGNORE_MARGIN,
     INPUTS,
     SEEDS,
-    TREE,
     WINDOW_AFTER,
     WINDOW_BEFORE,
+    annotator_run,
     ignore_left_out,
     judge_found_rallies,
     rally_ladder,
@@ -195,7 +194,7 @@ def main() -> None:
     if check['scored_sides_agree'] != check['scored_sides']:
         raise ValueError('side rule does not reproduce the scored labels')
 
-    runs = {'annotator': [{item['item_id']: read_json(TREE / f'A/v32/{CONFIGURATION}/seed-{seed}' / f'{item["item_id"]}.json.gz')
+    runs = {'annotator': [{item['item_id']: read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
                            for item in items} for seed in SEEDS],
             'trees_off': [read_json(HEURISTIC / 'test/predictions.json.gz')['streams']]}
     result = {'label_checks': {key: int(value) for key, value in check.items()}}

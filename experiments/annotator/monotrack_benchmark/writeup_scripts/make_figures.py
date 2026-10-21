@@ -1,4 +1,4 @@
-"""Draw the v3 MonoTrack comparison charts from ``metrics.py`` output.
+"""Draw the MonoTrack comparison charts from ``metrics.py`` output.
 
 Each figure carries its own title, axis labels and notes so it reads without the report.
 
@@ -28,7 +28,6 @@ MUTED = '#52514e'
 GRID = '#e4e3df'
 SURFACE = '#fcfcfb'
 SEEDS = (0, 100, 200, 300, 400)
-REVIEW_THRESHOLD = 0.7570784853533734
 MIN_KEPT = 50
 POPULATION = '46 ShuttleSet22 videos, 3,327 labelled rallies, 37,184 labelled hits'
 SCORING_NOTE = 'A hit counts as found within ±10 frames (1/3 s). Annotator values are the mean of five training seeds.'
@@ -194,8 +193,9 @@ def per_video_figure(data: Path, out: Path) -> None:
         axes.plot([low, high], [low, high], color=MUTED, linewidth=1, linestyle='--', zorder=1)
         axes.scatter(x, y, s=34, color=ANNOTATOR_COLOUR, edgecolor=SURFACE, linewidth=0.8, zorder=3)
         above, below = int((y > x).sum()), int((y < x).sum())
-        axes.text(0.03, 0.97, f'Above the line (ours higher): {above} videos\nBelow (MonoTrack higher): {below}',
-                  transform=axes.transAxes, va='top', fontsize=9.5, color=TEXT)
+        # The empty lower-right corner keeps the counts clear of the dots.
+        axes.text(0.97, 0.03, f'Above the line (ours higher): {above} videos\nBelow (MonoTrack higher): {below}',
+                  transform=axes.transAxes, ha='right', va='bottom', fontsize=9.5, color=TEXT)
         axes.set_xlim(low, high)
         axes.set_ylim(low, high)
         axes.set_aspect('equal')
@@ -287,11 +287,13 @@ def ladder_figure(summary: dict, out: Path) -> None:
 
 CUTOFF_LABELS = {
     'balanced': 'best balance',
-    'historical': 'historical',
+    'keep_half': 'keeps half',
     'boundaries_99': '99% right boundaries',
 }
 # Label offsets in points, placed to keep each label clear of both curves.
-CUTOFF_LABEL_OFFSETS = {'balanced': (6, 8), 'historical': (4, 12), 'boundaries_99': (4, 22)}
+CUTOFF_LABEL_OFFSETS = {'balanced': (6, 14), 'keep_half': (8, 2), 'boundaries_99': (4, 22)}
+# Alignment of each cut-off's number above the left panel, so close cut-offs' numbers sit apart.
+CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'left', 'keep_half': 'right', 'boundaries_99': 'center'}
 
 
 def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -304,7 +306,7 @@ def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray
 
 
 def cutoff_text(value: float) -> str:
-    """A cut-off as the report writes it: 0.35, 0.757, 0.84."""
+    """A cut-off as the report writes it, to at most three decimals."""
     return f'{value:.3f}'.rstrip('0')
 
 
@@ -329,7 +331,8 @@ def confidence_figure(data: Path, out: Path) -> None:
     left.text(0.01, 99.6, '99%', fontsize=8.5, color=MUTED)
     for name, value in cutoffs.items():
         left.axvline(value, color=MUTED, linewidth=1, linestyle='-', alpha=0.6)
-        left.text(value, 101, cutoff_text(value), ha='center', va='bottom', fontsize=8.5, color=TEXT)
+        left.text(value, 101, cutoff_text(value), ha=CUTOFF_TOP_LABEL_ALIGN[name], va='bottom', fontsize=8.5,
+                  color=TEXT)
     left.set_xlim(0, 1)
     left.set_ylim(0, 100)
     left.set_xlabel('Keep found rallies with confidence at or above this cut-off', color=TEXT)
@@ -352,7 +355,7 @@ def confidence_figure(data: Path, out: Path) -> None:
             if curves is test:
                 right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
                                xytext=CUTOFF_LABEL_OFFSETS[name], textcoords='offset points', fontsize=9, color=TEXT)
-    right.set_xlim(0, 55)
+    right.set_xlim(0, 62)
     right.set_ylim(30, 100)
     right.set_xlabel('Fully correct rallies handed over (% of all labelled rallies)', color=TEXT)
     right.set_ylabel('Share of kept rallies fully correct (%)', color=TEXT)
@@ -361,13 +364,13 @@ def confidence_figure(data: Path, out: Path) -> None:
     figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
     figure.text(0.01, 0.075, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} gives the highest F1 for '
-                f'"fully correct"; {cutoff_text(cutoffs["boundaries_99"])} is the lowest cut-off where 99% of kept '
-                f'rallies have the right boundaries. {cutoff_text(cutoffs["historical"])} is carried over from an '
-                'earlier confidence model.', fontsize=9, color=MUTED)
+                f'"fully correct"; {cutoff_text(cutoffs["keep_half"])} keeps half of the found rallies; '
+                f'{cutoff_text(cutoffs["boundaries_99"])} is the lowest cut-off where 99% of kept rallies have the right '
+                'boundaries.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.045, f'Mean of five training seeds; shading spans lowest to highest seed. Lines stop where fewer '
                 f'than {MIN_KEPT} found rallies are kept. ±10 frames.', fontsize=9, color=MUTED)
-    example = test[np.isclose(test['threshold'], cutoffs['historical'])].mean(numeric_only=True)
-    figure.text(0.01, 0.015, f'Example: at {cutoff_text(cutoffs["historical"])}, {example["kept"]:,.0f} found rallies are kept and '
+    example = test[np.isclose(test['threshold'], cutoffs['keep_half'])].mean(numeric_only=True)
+    figure.text(0.01, 0.015, f'Example: at {cutoff_text(cutoffs["keep_half"])}, {example["kept"]:,.0f} found rallies are kept and '
                 f'{example["fully_correct_share"]:.1f}% of them ({example["fully_correct_kept"]:,.0f}) are fully correct. '
                 f'Those are {example["coverage"]:.1f}% of all 3,327 labelled rallies.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.1, 1, 0.95))
@@ -375,7 +378,7 @@ def confidence_figure(data: Path, out: Path) -> None:
     plt.close(figure)
 
 
-# Band colour and the darker mean-line colour for each contact-tree training set.
+# Band colour and the darker mean-line colour for each contact-model training set.
 THIRTY_TWO_VIDEO_COLOURS = (ANNOTATOR_COLOUR, '#163f75')
 FORTY_VIDEO_COLOURS = ('#7b52c9', '#3f2380')
 # heading, 32-video key, 40-video key; the last group finds its own rallies and sits below a divider.
@@ -393,7 +396,7 @@ STABILITY_METRICS = (
 
 
 def stability_figure(summary: dict, out: Path) -> None:
-    """Fig 1's layout, one row per contact-tree training set, with each row's seed range as a band."""
+    """Fig 1's layout, one row per contact-model training set, with each row's seed range as a band."""
     figure, axes_row = plt.subplots(1, 3, figsize=(13, 6.6), sharey=True, facecolor=SURFACE)
     rows, headings = [], []
     top = 0.0
@@ -429,12 +432,12 @@ def stability_figure(summary: dict, out: Path) -> None:
     for row, heading in headings:
         first.text(-0.04, row + 0.05, heading, transform=first.get_yaxis_transform(), ha='right', va='center',
                    fontsize=10, fontweight='bold', color=TEXT)
-    figure.suptitle("Our annotator's performance on ShuttleSet22, contact tree trained on 32 videos (train only) vs "
+    figure.suptitle("Our annotator's performance on ShuttleSet22, contact model trained on 32 videos (train only) vs "
                     '40 videos (train + validation)', fontsize=13, color=TEXT, x=0.01, y=0.985, ha='left', va='top')
-    # Why only the contact tree changes: the downstream trees are cross-fitted on the 32 training videos.
-    figure.text(0.01, 0.938, 'All other trees keep their 32-video fits in both, so only the contact tree differs. They '
-                'learn from contact-tree predictions on training videos held out from that contact tree.', fontsize=10,
-                color=MUTED, va='top')
+    # Why only the contact model changes: the later trees are cross-fitted on the 32 training videos.
+    figure.text(0.01, 0.938, 'The rally selector and review ranker keep their 32-video fits in both, so only the contact '
+                'model differs. They learn from contact-model predictions on training videos held out from that '
+                'contact model.', fontsize=9, color=MUTED, va='top')
     figure.text(0.01, 0.06, 'Shaded band: lowest to highest of five training seeds. Dark line and first number: '
                 'the mean. ±10 frames.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.025, 'The two F1 panels share one scale. MonoTrack, given rally bounds on its own courts, scores '

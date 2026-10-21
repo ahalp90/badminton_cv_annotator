@@ -1,11 +1,12 @@
 # Write-up scripts
 
 These scripts produce the numbers, tables and figures in the
-[v3](../annotator_monotrack_own_weights_compared_writeup_v3.md) and
-[v4](../annotator_monotrack_own_weights_compared_writeup_v4.md) reports. Most
-steps read committed results only. Two steps need data that is not in the
-repository: the confidence reruns need the saved inference inputs, and the
-galleries need frames from the source videos.
+[v5 report](../annotator_monotrack_own_weights_compared_writeup_v5.md). Earlier
+reports used earlier versions of these scripts, which are in the git history.
+Most steps read committed results only. Three steps need data that is not in the
+repository: the annotator runs need the saved inference inputs, the 40-video
+contact refit needs prepared training inputs, and the galleries need frames from
+the source videos.
 
 Run every command from the repository root.
 
@@ -15,24 +16,29 @@ Run every command from the repository root.
 | --- | --- |
 | [metrics.py](metrics.py) | Contact, rally and confidence scores for every condition, rescored from the committed prediction streams and checked against each run's saved scores. Ignores the 524 rallies with flawed labels. |
 | [court_metrics.py](court_metrics.py) | Each rally's court error and IoU against ShuttleSet22's reference corners, for our per-rally, MonoTrack's and our per-scene courts. |
-| [confidence_rerun.py](confidence_rerun.py) | Reruns the 32-video models in discovery mode on test and keeps each found rally's confidence score. Checks that hits and rally spans match the committed streams. |
-| [confidence_rerun_validation.py](confidence_rerun_validation.py) | The same rerun on the 8 validation videos. |
+| [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
+| [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. The 32-video discovery runs must match the tracked predictions exactly. |
 | [confidence_cutoffs.py](confidence_cutoffs.py) | Chooses the confidence cut-offs on validation and reads them on test, for the cut-off table. |
 | [left_out_rallies.py](left_out_rallies.py) | Counts the rallies with flawed labels for Appendix G. |
 | [flaw_scoring.py](flaw_scoring.py) | Scores discovery mode with the flawed rallies standard, ignored and counted, for Appendix G. |
 | [make_figures.py](make_figures.py) | Figures 1–6 and 10. |
 | [extract_frames.py](extract_frames.py) | Decodes named frames from the source videos for the galleries. |
-| [render_gallery.py](render_gallery.py) | Gallery drawing helpers. Run directly, it draws the earlier reports' galleries, including the video 17 contact sheet and the full-size panels in `writeup_figures/court_gallery/` that v3 and v4 link to. |
+| [render_gallery.py](render_gallery.py) | Gallery drawing helpers. Run directly, it draws the earlier reports' galleries, including the video 17 contact sheet and the full-size panels in `writeup_figures/court_gallery/` that the reports link to. |
 | [render_gallery_v3.py](render_gallery_v3.py) | Figures 7–9. |
 
 ## Inputs
 
 - Predictions and court inputs: [`../benchmark_results/`](../benchmark_results/).
-- Our annotator with trees on: `../../tree_hp_tune/results/test_rerun/`. The
-  report uses the `grid-017` runs, set by `CONFIGURATION` in `metrics.py`.
+- Our annotator with trees on: [`../benchmark_results/annotator_runs/`](../benchmark_results/annotator_runs/),
+  made by `annotator_runs.py`. Test runs sit in `test/<condition>/<models>/seed-<N>/`
+  and validation runs in `validation/32_videos/seed-<N>/`. The 40-video bundles
+  are in `models_40_videos/`.
+- The test bundles: `../../tree_simplification/results/models/raw_baseline-seed-<N>/`
+  and `body_window_36-seed-<N>/`. Their tracked discovery predictions and
+  validation results are elsewhere in `../../tree_simplification/results/`.
+- The review threshold that keeps half of the validation rallies:
+  `../../tree_simplification/results/input-review-thresholds.json.gz`.
 - Our annotator with trees off: `../../heuristic_only_tune/results/`.
-- Confidence reruns: [`../benchmark_results/confidence_rerun/`](../benchmark_results/confidence_rerun/),
-  with `test/` and `validation/` folders of five seeds each.
 - ShuttleSet22 labels and reference corners: `data/shuttleset22/set/`.
 - Original ShuttleSet labels: `training/data/shuttleset/annotations/shots_master.csv`.
 
@@ -41,33 +47,40 @@ Run every command from the repository root.
 ```bash
 PY=python
 W=experiments/annotator/monotrack_benchmark/writeup_scripts
-RERUN=experiments/annotator/monotrack_benchmark/benchmark_results/confidence_rerun
 SHOTS=training/data/shuttleset/annotations/shots_master.csv
 OUT=report_data
 
-$PY $W/metrics.py --confidence $RERUN/test --out $OUT
+$PY $W/metrics.py --out $OUT
 $PY $W/court_metrics.py --out $OUT
 $PY $W/left_out_rallies.py --data $OUT --shots-master $SHOTS
-$PY $W/confidence_cutoffs.py --validation $RERUN/validation --data $OUT --shots-master $SHOTS --out $OUT
+$PY $W/confidence_cutoffs.py --data $OUT --shots-master $SHOTS --out $OUT
 $PY $W/flaw_scoring.py --out $OUT
 $PY $W/make_figures.py --data $OUT --out figures
 ```
 
 `metrics.py` takes `--workers` (default 6) and runs for several minutes.
 
-### Confidence reruns
+### Annotator runs
 
-The committed rerun output is enough for every step above. To repeat the reruns,
-pass the repository root and a TOML file whose `[paths]` table points at the
-saved inference inputs:
+The committed runs are enough for every step above. Repeating them needs the
+`annotator-experiments` extra for XGBoost. Run the contact refit first, because
+the runner uses its bundles:
 
 ```bash
-$PY $W/confidence_rerun.py --repository . --paths test_paths.toml --output $RERUN/test
-$PY $W/confidence_rerun_validation.py --repository . --paths validation_paths.toml --output $RERUN/validation
+RUNS=experiments/annotator/monotrack_benchmark/benchmark_results/annotator_runs
+$PY $W/fit_contact_40.py --prepared PREPARED --out $RUNS/models_40_videos
+$PY $W/annotator_runs.py --paths paths.toml --out $RUNS
 ```
 
-- Test keys: `test_inputs`, `test_courts`, `inpaint_root` and `pose_root`.
-- Validation keys: `shots_master`, `stages` and `development_courts`.
+- `PREPARED` is the baseline preparation of the 40 original videos, made by
+  [`tree_simplification.prepare`](../../tree_simplification/README.md#prepared-inputs-and-the-backend-pilot).
+  The refit runs on a CUDA GPU, as the test bundles' contact fits did, so the
+  32-video check can match them exactly.
+- The paths file's `[paths]` table needs `test_courts`, `inpaint_root`,
+  `pose_root`, `stages` and `development_courts`.
+- `annotator_runs.py` runs one single-threaded job per video, with `--workers`
+  jobs at once (default 28, about 1.3 GiB each). `--only` limits it to runs
+  whose folder starts with a given prefix, such as `test/discovery`.
 
 ### Galleries
 
