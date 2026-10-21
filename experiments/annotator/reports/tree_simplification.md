@@ -15,8 +15,8 @@ with baseline preprocessing and review filtering off.
   selector (31 leaves per tree, 400 boosting rounds) then picks one contact
   sequence for each proposed rally section from a fixed list of options. A small
   review ranker (7 leaves, 100 rounds) orders the output for manual checking and
-  never changes it. Production fitting still defaults to the eight-model stack,
-  and `--rally-layers 1` fits the new one.
+  never changes it. Production fitting now defaults to this three-model stack.
+  `--rally-layers` remains available for experiments with more selector layers.
 - **Reading the numbers.** Correct-player F1 counts a predicted contact only
   when it matches a labelled contact within ±10 frames (or ±5) and names the
   right player. A fully correct rally has every labelled contact matched with
@@ -340,14 +340,13 @@ not been measured, so the practical trade-off is still open.
 
 **Where things are.**
 
-- [Reproduction guide](../tree_simplification/README.md): commands for every run
-  in this report, including [production export](../tree_simplification/README.md#production-export-and-review-ranking),
-  [inference timing](../tree_simplification/README.md#production-inference-timing),
-  [frame-rate scaling](../tree_simplification/README.md#fps-motion-unit-experiment),
-  [preprocessing refits](../tree_simplification/README.md#refit-changed-preprocessing-with-raw-features),
+- [Reproduction guide](../tree_simplification/README.md): commands for the current fitting pipeline, including [production export](../tree_simplification/README.md#production-export-and-review-ranking),
+  [preparation and fitting](../tree_simplification/README.md#reproduce-the-current-fit),
+  [further experiments](../tree_simplification/README.md#further-experiments),
   [the test run and review thresholds](../tree_simplification/README.md#test-run-and-review-thresholds),
   [tracked models and prediction files](../tree_simplification/README.md#tracked-models-and-prediction-files)
   and [analysis scripts](../tree_simplification/README.md#analysis-scripts).
+  Retired backend and eight-model commands require the historical revision.
 - [Results index](../tree_simplification/results/README.md): every evidence
   file, the label defaults, each sweep configuration id with its exact setting,
   and the bundle md5 table.
@@ -363,8 +362,8 @@ not been measured, so the practical trade-off is still open.
 - [Analysis scripts](../tree_simplification/analysis/README.md): one row per
   script, with its inputs, output and any data it needs from outside the repo.
 - For a fresh one-selector fit through the production API, use
-  [`--rally-layers 1`](../../../docs/annotator/retuning.md#rally-layer-bundles).
-  Loading a saved bundle picks its inference path automatically.
+  [production fit command](../../../docs/annotator/retuning.md#fit-commands).
+  One selector is now the default; older eight-model bundles are unsupported.
 
 **Evidence files**, all under `../tree_simplification/results/`:
 

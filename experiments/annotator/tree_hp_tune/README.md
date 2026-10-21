@@ -1,5 +1,10 @@
 # Tree retune over preprocessing settings
 
+This directory preserves the historical eight-model tuning results. Its HGB
+fitting commands and their tests have been retired; reproducing those fits
+requires the original repository revision. Use the
+[current XGBoost guide](../tree_simplification/README.md) for new fits.
+
 **Result: the shipped settings stay.**
 
 - Tried: 48 combinations of preprocessing settings, mixing shipped values with
@@ -14,20 +19,20 @@ Full numbers: [RESULTS.md](RESULTS.md).
 
 | File | What it does |
 | --- | --- |
-| [run.py](run.py) | Fits the trees for each of the 48 settings on the 32 training videos |
-| [repeats.py](repeats.py) | Takes the top four settings plus shipped, fits four more seeds of each, scores all five seeds on validation and picks the winner |
-| [final_test.py](final_test.py) | Scores the winner and shipped on the 46 test videos, five seeds each |
-| [supervise.py](supervise.py) | Runs the phases one after another and pauses fits when memory runs low |
-| [status.py](status.py) | Shows how far a run has got |
-| [test_rerun.py](test_rerun.py) | Scores the saved 32-video and 40-video models on test under three rally and court conditions |
+| `run.py` | Fits the trees for each of the 48 settings on the 32 training videos |
+| `repeats.py` | Takes the top four settings plus shipped, fits four more seeds of each, scores all five seeds on validation and picks the winner |
+| `final_test.py` | Scores the winner and shipped on the 46 test videos, five seeds each |
+| `supervise.py` | Runs the phases one after another and pauses fits when memory runs low |
+| `status.py` | Shows how far a run has got |
+| `test_rerun.py` | Scores the saved 32-video and 40-video models on test under three rally and court conditions |
 | [grid-48.json.gz](grid-48.json.gz) | The 48 settings |
 | [results/](results/) | Scores, predictions and the saved models from the run |
 
-Tests: `tests/test_tree_hp_tune*.py`.
+The historical `tests/test_tree_hp_tune*.py` tests were retired with the fitting commands.
 
 ## Rerun saved models on test
 
-- [test_rerun.py](test_rerun.py) compares the saved 32-video and 40-video
+- `test_rerun.py` compares the saved 32-video and 40-video
   contact-tree fits on all 46 test videos. It scores `grid-017` and shipped
   across five seeds, without refitting.
 - Conditions: A discovers rallies with fast-robust scene courts; B uses known

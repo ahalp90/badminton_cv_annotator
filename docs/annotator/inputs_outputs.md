@@ -146,16 +146,17 @@ The court loader checks that scene intervals cover the full video timeline and t
 The `--models` argument points to a directory:
 
 ```text
-models/annotator/
+experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/
 ├── models.joblib
 └── metadata.json
 ```
 
 Loading checks:
 
-- schema `annotator-models/1`;
-- exact scikit-learn version;
-- exact contact feature order;
+- schema `annotator-rally-layers/1`;
+- exact scikit-learn and XGBoost versions;
+- exact contact, rally and review feature order;
+- rally proposal budgets and review-ranking mode;
 - that `models.joblib` contains an `AnnotatorModels` object;
 - that the side-geometry mode in the object and metadata agree.
 
@@ -209,6 +210,10 @@ Counts and summary information for shuttle visibility, inpainting and guard code
 
 ## `AnnotatorResult` fields
 
+Both modes use the same contact-row format. Heuristic contacts retain wrist and
+suppression verdicts. Learned contacts set those verdicts to `None`, because the
+fitted models selected them; the common output format preserves existing readers.
+
 | Field | Meaning | Common use |
 | --- | --- | --- |
 | `spans` | Final rally intervals as `(start, end)` | Rally timing |
@@ -253,19 +258,17 @@ They are not permanent player identities. When players change ends, the labels r
 
 ### Missing outcome values
 
-Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. A shuttle that is not visible on the contact frame leaves that hit height unresolved and adds a row to `hit_height_failures`.
+Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds a row to `hit_height_failures`.
 
 ## Direct Python call
 
 For callers that already hold the arrays in memory, the main function is `run_video()`:
 
 ```python
-from pathlib import Path
-
-from annotator.models import load_models
+from annotator.models import DEFAULT_MODEL_DIRECTORY, load_models
 from annotator.run_video import run_video
 
-models = load_models(Path("models/annotator"))
+models = load_models(DEFAULT_MODEL_DIRECTORY)
 result = run_video(
     track,
     bboxes,
@@ -282,6 +285,6 @@ The five positional arrays are the frame-aligned shuttle track and pose detectio
 
 The direct call uses the model directory and settings as follows:
 
-- When `models` is omitted, full annotation loads `models/annotator` relative to the working directory. Passing the loaded models makes the location explicit.
+- When `models` is omitted, full annotation loads the tracked raw-baseline seed-0 bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
-- `heuristic_only=True` runs the rules without the fitted trees. It exists for feature preparation and comparisons. Normal annotation uses the fitted models.
+- `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation, feature preparation and heuristic experiments. Pass `base` to choose its preprocessing settings.

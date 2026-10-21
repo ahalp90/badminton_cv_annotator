@@ -88,7 +88,7 @@ A picked player counts even when its wrists were not measured. An offset that fa
 
 Dropped rows leave the candidate pool completely. They cannot be selected as initial contacts, and the sequence stage cannot shortlist them later as a serve or a missed contact.
 
-The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#9-contact-selection-settings) covers how it is set for a fit.
+The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#python-fit-settings) covers how it is set for a fit.
 
 Relevant code: `contacts/model.py::score_contact_features()`, `hybrid.py`, `training/workflow.py`.
 

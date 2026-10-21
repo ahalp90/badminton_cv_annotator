@@ -72,7 +72,7 @@ $PY $W/annotator_runs.py --paths paths.toml --out $RUNS
 ```
 
 - `PREPARED` is the baseline preparation of the 40 original videos, made by
-  [`tree_simplification.prepare`](../../tree_simplification/README.md#prepared-inputs-and-the-backend-pilot).
+  [`tree_simplification.prepare`](../../tree_simplification/README.md#reproduce-the-current-fit).
   The refit runs on a CUDA GPU, as the test bundles' contact fits did, so the
   32-video check can match them exactly.
 - The paths file's `[paths]` table needs `test_courts`, `inpaint_root`,
