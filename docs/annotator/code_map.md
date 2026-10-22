@@ -18,8 +18,12 @@ intermediate results are unfamiliar.
 | Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
 | Propose rally sequences | [sequence/repairs.py](../../src/annotator/sequence/repairs.py) | Shortlist earlier/later contacts and build serve/deletion repairs |
 | Describe all alternatives | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Add combined edits, order alternatives and build their features |
-| Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally and build review evidence |
+| Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive contact records, server, winner, landing and hit height |
+
+In `rally_model.py`, start with `select_rally_sequences()` and
+`predict_rally_options()`. The scoring, ranking and finalisation helpers follow
+in the same file.
 
 `heuristic_only=True` uses the same preparation, then sends rule-based contacts
 directly to outcome estimation. `stop_after_segmentation=True` returns rough

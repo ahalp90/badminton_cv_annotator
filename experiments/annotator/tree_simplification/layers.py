@@ -5,9 +5,9 @@ from typing import Any
 
 import numpy as np
 
-from annotator.sequence import rally_layers
+from annotator.sequence import rally_model
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_layers import CONTEXT_FEATURE_NAMES
+from annotator.sequence.rally_model import CONTEXT_FEATURE_NAMES
 from annotator.training import rally_layers as rally_training
 from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification.options import LabelledOptions
@@ -21,15 +21,15 @@ DEFAULT_LAYER_CONFIG = TreeFitConfig()
 
 
 def ordered_span_rows(pool: LabelledOptions, scores: np.ndarray) -> dict[int, np.ndarray]:
-    return rally_layers.ordered_span_rows(pool.runtime, scores)
+    return rally_model.ordered_span_rows(pool.runtime, scores)
 
 
 def choose_rows(pool: LabelledOptions, scores: np.ndarray) -> dict[int, int]:
-    return rally_layers.choose_rows(pool.runtime, scores)
+    return rally_model.choose_rows(pool.runtime, scores)
 
 
 def layer_features(pool: LabelledOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    return rally_layers.layer_features(pool.runtime, prior_scores)
+    return rally_model.layer_features(pool.runtime, prior_scores)
 
 
 def judged_weights(pool: LabelledOptions) -> np.ndarray:
@@ -47,16 +47,16 @@ def fit_layer(
 
 
 def predict_layer(model: Any, pool: LabelledOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    return rally_layers.predict_layer(model, pool.runtime, prior_scores)
+    return rally_model.predict_layer(model, pool.runtime, prior_scores)
 
 
 def finish_selected(
     pool: LabelledOptions, scores: np.ndarray,
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    return rally_layers.finish_selected(pool.runtime, scores)
+    return rally_model.finish_selected(pool.runtime, scores)
 
 
 def finish_rows(
     pool: LabelledOptions, rows: dict[int, int],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    return rally_layers.finish_rows(pool.runtime, rows)
+    return rally_model.finish_rows(pool.runtime, rows)

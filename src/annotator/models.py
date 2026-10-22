@@ -12,8 +12,11 @@ import sklearn
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.model import CONTACT_FEATURE_NAMES, ContactModelConfig
-from annotator.sequence.rally_layers import CONTEXT_FEATURE_NAMES
-from annotator.sequence.rally_model import RallyLayerModels, review_feature_names
+from annotator.sequence.rally_model import (
+    CONTEXT_FEATURE_NAMES,
+    RallyLayerModels,
+    review_feature_names,
+)
 from annotator.sequence.rally_options import FEATURE_NAMES
 
 MODEL_SCHEMA = 'annotator-rally-layers/1'

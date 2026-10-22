@@ -10,12 +10,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.sequence.rally_layers import layer_features
 from annotator.sequence.rally_model import (
     LayerReviewFeatures,
     RallyLayerModels,
     RallyLayerPrediction,
     build_layer_review_features,
+    layer_features,
     predict_rally_options,
     score_layers,
 )
