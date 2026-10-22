@@ -88,7 +88,7 @@ A picked player counts even when its wrists were not measured. An offset that fa
 
 Dropped rows leave the candidate pool completely. They cannot be selected as initial contacts, and the sequence stage cannot shortlist them later as a serve or a missed contact.
 
-The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#9-contact-selection-settings) covers how it is set for a fit.
+The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#python-fit-settings) covers how it is set for a fit.
 
 Relevant code: `contacts/model.py::score_contact_features()`, `hybrid.py`, `training/workflow.py`.
 
@@ -113,7 +113,7 @@ Examples at 30 FPS include:
 
 Frame counts grow with FPS. Per-frame speed thresholds shrink as FPS rises because the shuttle moves a shorter image distance between adjacent frames.
 
-Relevant code: `fps_constants.py`, `resolve.py`.
+Relevant code: `config.py::resolve()`.
 
 ## Sticky player evidence
 
@@ -224,8 +224,8 @@ The next layer is described in [How the trees work together](tree_stack.md).
 
 | Concern | Main source |
 | --- | --- |
-| FPS-relative constants | `fps_constants.py` |
-| assembled preprocessing settings | `config.py`, `resolve.py` |
+| Thresholds resolved for a video's frame rate | `config.py` |
+| assembled preprocessing settings | `config.py::resolve()` |
 | replay / off-rally exclusion | `masks/replay.py`, `masks/dead.py` |
 | shuttle recurrence guard | `masks/inpaint.py` |
 | sticky player picks | `rally/evidence.py` |

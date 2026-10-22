@@ -6,13 +6,13 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
+from annotator.config import ScalingKind
 from annotator.contacts.features import (
     BASE_MISSINGNESS_SIGNALS,
     BASE_PHYSICS_SIGNALS,
     REGION_FIELDS,
     WINDOW_OFFSETS_BASE30,
 )
-from annotator.fps_constants import ScalingKind
 
 CONTACT_FEATURE_NAMES = tuple(
     f"{signal}_t{offset:+d}"

@@ -1,7 +1,7 @@
 """Single-fixture, base-30 calibration sweeps for the annotator pipeline.
 
 The routing rule is deliberately centralised: numeric names in
-``_OVERRIDABLE_BASE30_ROWS`` become ``BaseAnnotatorConfig.overrides_base30``;
+``_OVERRIDABLE_THRESHOLD_FIELDS`` become ``BaseAnnotatorConfig.overrides_base30``;
 the two segmentation fields are direct base fields; serve numerics belong to
 ``ServeStartConfig``.  Strategy names are enum names, never enum values.
 """
@@ -23,7 +23,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import (
+    _OVERRIDABLE_THRESHOLD_FIELDS,
+    BaseAnnotatorConfig,
+    ScalingKind,
+    resolve,
+)
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SHARED_FILES,
@@ -41,9 +46,7 @@ from annotator.evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
-from annotator.fps_constants import ScalingKind, scale_for_fps
-from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.resolve import _OVERRIDABLE_BASE30_ROWS
+from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import run_video
 from annotator.types import ServeStartConfig, SpanOpen
 from experiments.annotator.heuristic_tuning import selection
@@ -241,7 +244,7 @@ def _base_and_serve(spec: CandidateSpec) -> tuple[BaseAnnotatorConfig, ServeStar
     direct: dict[str, float] = {}
     serve: dict[str, float] = {}
     for key, value in spec.overrides_base30.items():
-        if key in _OVERRIDABLE_BASE30_ROWS:
+        if key in _OVERRIDABLE_THRESHOLD_FIELDS:
             overrides[key] = value
         elif key in DIRECT_BASE_KEYS:
             direct[key] = value
@@ -298,15 +301,8 @@ def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
 
 
 def _shipped_base30_values() -> dict[str, float]:
-    constants = scale_for_fps(30.0)
-    thresholds = BaseAnnotatorConfig().thresholds
-    values: dict[str, float] = {}
-    for key in _OVERRIDABLE_BASE30_ROWS:
-        if hasattr(constants, key):
-            values[key] = getattr(constants, key)
-        elif hasattr(thresholds, key):
-            values[key] = getattr(thresholds, key)
-    return values
+    thresholds = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    return {key: getattr(thresholds, key) for key in _OVERRIDABLE_THRESHOLD_FIELDS}
 
 
 def _changed_from_defaults(spec: CandidateSpec) -> int:
@@ -316,7 +312,7 @@ def _changed_from_defaults(spec: CandidateSpec) -> int:
     shipped_base30 = _shipped_base30_values()
     changed = 0
     for key, value in spec.overrides_base30.items():
-        if key in _OVERRIDABLE_BASE30_ROWS:
+        if key in _OVERRIDABLE_THRESHOLD_FIELDS:
             if value != shipped_base30[key]:
                 changed += 1
         elif key in DIRECT_BASE_KEYS:

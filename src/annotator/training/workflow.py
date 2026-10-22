@@ -18,31 +18,25 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import ContactFeatures
 from annotator.contacts.model import ContactModelConfig, score_contact_features
 from annotator.hybrid import (
-    ContactEvidence,
     features_from_evidence,
     predict_contacts,
     sequence_inputs,
 )
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
-from annotator.outcomes.point_winner import (
-    SHIPPED_LANDING_FILTER_OPTIONS,
-    Half,
-)
-from annotator.run_video import RunCapture, run_video
-from annotator.sequence.confidence import ConfidenceFeatures, build_confidence_features
+from annotator.outcomes.point_winner import Half
+from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     initial_sequences,
     scale_frames,
 )
-from annotator.sequence.refine import build_option_pool
+from annotator.sequence.repairs import build_rally_repairs
 from annotator.shuttle_track import validate_shuttle_track
-from annotator.training.confidence import ConfidenceFitConfig, fit_confidence_model
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
@@ -55,13 +49,11 @@ from annotator.training.rally_layers import (
 )
 from annotator.training.sequences import (
     LabelledRally,
-    SequenceFitConfig,
     SequenceTrainingVideo,
-    fit_sequence_models,
     match_contacts,
     whole_rally_correctness,
 )
-from annotator.training.trees import TreeBackend
+from annotator.training.trees import TreeFitConfig
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
@@ -120,10 +112,9 @@ class TrainingSettings:
 
     contact: ContactFitConfig = field(default_factory=ContactFitConfig)
     contact_prediction: ContactModelConfig = field(default_factory=ContactModelConfig)
-    sequences: SequenceFitConfig = field(default_factory=SequenceFitConfig)
-    confidence: ConfidenceFitConfig = field(default_factory=ConfidenceFitConfig)
+    confidence: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(max_iter=100, max_leaf_nodes=7))
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
-    rally_layers: RallyFitConfig | None = None
+    rally_layers: RallyFitConfig = field(default_factory=RallyFitConfig)
 
 
 DEFAULT_TRAINING_SETTINGS = TrainingSettings()
@@ -221,8 +212,8 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
     return tuple(rallies)
 
 
-def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnotatorConfig) -> ContactEvidence:
-    """Run the heuristic path on canonical stages and reuse its captured evidence."""
+def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnotatorConfig) -> AnnotationEvidence:
+    """Prepare canonical stage arrays directly for contact-model features."""
     stages = run_dir / 'stages'
     try:
         metadata = VideoMetadata.from_dict(load_json_gz(stages / 'metadata' / identity / METADATA_FILENAME))
@@ -239,38 +230,35 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
     inputs = court.evidence.inputs
     if inputs is None:
         raise ValueError(f'{identity}: court extraction has no usable operational court inputs')
-    capture = RunCapture()
-    run_video(
+    return prepare_annotation(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        fps=float(metadata.fps), base=preprocessing, heuristic_only=True,
-        landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
+        resolved=resolve(preprocessing, float(metadata.fps)),
         net_band=inputs.net_band, resolution=inputs.resolution, video_id=identity,
-        court_info=inputs.court_info, homo_df=None,
         gate_court_info=inputs.gate_court_info, gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
         cut_frames=[end for _start, end in court.raw_cuts[:-1]], keep_vote=court.evidence.keep_vote,
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
-        landing_error_band_m=inputs.landing_error_band_m, capture=capture,
     )
-    if capture.contact_evidence is None:
-        raise ValueError(f'{identity}: heuristic annotation did not capture contact evidence')
-    return capture.contact_evidence
 
 
 def sequence_training_video(
-    entry: VideoInput, evidence: ContactEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
+    entry: VideoInput, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
     contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
 ) -> SequenceTrainingVideo:
-    """Score the base tree and build one reusable downstream option pool."""
+    """Score contacts and prepare candidate sequences for rally fitting."""
     scored = score_contact_features(
         features.rows, contact_model, evidence.fps, settings,
         shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
     )
     scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
     initial = initial_sequences(evidence.heuristic_spans, events)
-    pool = build_option_pool(initial, events, scores, features.rows, features.search_intervals,
-                             fps=evidence.fps, side_for_frame=side_for_frame)
-    return SequenceTrainingVideo(entry.identity, entry.group, evidence.fps, initial, events, pool, rallies, len(evidence.track))
+    repairs = build_rally_repairs(
+        initial, events, scores, features.rows, features.search_intervals,
+        fps=evidence.fps, side_for_frame=side_for_frame,
+    )
+    return SequenceTrainingVideo(
+        entry.identity, entry.group, evidence.fps, initial, events, repairs, rallies, len(evidence.track),
+    )
 
 
 def fit_from_manifest(
@@ -310,47 +298,18 @@ def fit_from_manifest(
             raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
     del contact_inputs
     del other_group_inputs
-    sequence_inputs = []
+    training_videos = []
     for entry in entries:
         evidence = evidence_by_video.pop(entry.identity)
         features = features_by_video.pop(entry.identity)
-        sequence_inputs.append(sequence_training_video(
+        training_videos.append(sequence_training_video(
             entry, evidence, features, labels_by_video[entry.identity],
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
     del evidence, features
-    if settings.rally_layers is not None:
-        layer_fit = fit_rally_models(sequence_inputs, settings.rally_layers)
-        review_model = fit_rally_review_model(sequence_inputs, layer_fit.cross_fitted, settings.confidence)
-        models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
-                                 settings.preprocessing, side_geometry)
-        save_models(models, output)
-        return models
-    try:
-        sequence_fit = fit_sequence_models(sequence_inputs, settings.sequences)
-    except ValueError as error:
-        raise ValueError(f'grouped sequence-model fitting failed: {error}') from error
-    fps_by_video = {video.identity: video.fps for video in sequence_inputs}
-    base_rows, gap_rows, correctness = [], [], []
-    for entry in entries:
-        prediction = sequence_fit.cross_fitted[entry.identity]
-        insertion_model = sequence_fit.cross_fitted_insertion_models[entry.identity]
-        features = build_confidence_features(prediction, insertion_model, fps_by_video[entry.identity])
-        sequences = {sequence.span_id: sequence for sequence in prediction.sequences}
-        correctness.extend(whole_rally_correctness(
-            sequences[span_id], labels_by_video[entry.identity], fps_by_video[entry.identity],
-        ) for span_id in features.span_ids)
-        base_rows.append(features.base)
-        gap_rows.append(features.gap)
-    base, gap = np.concatenate(base_rows), np.concatenate(gap_rows)
-    confidence_features = ConfidenceFeatures(tuple(range(len(base))), base, gap)
-    try:
-        confidence = fit_confidence_model(
-            confidence_features, np.asarray(correctness, dtype=np.int8), settings.confidence,
-        )
-    except ValueError as error:
-        raise ValueError(f'confidence-model fitting failed: {error}') from error
-    models = AnnotatorModels(contact_model, sequence_fit.models, confidence, settings.contact_prediction,
+    layer_fit = fit_rally_models(training_videos, settings.rally_layers)
+    review_model = fit_rally_review_model(training_videos, layer_fit.cross_fitted, settings.confidence)
+    models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)
     save_models(models, output)
     return models
@@ -414,7 +373,7 @@ def argument_parser() -> argparse.ArgumentParser:
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
     fit.add_argument('--side-geometry', choices=list(SideGeometry), default=SideGeometry.VIDEO, type=SideGeometry)
-    fit.add_argument('--rally-layers', type=int, choices=(1, 2, 3), help='Fit an XGBoost rally-layer bundle')
+    fit.add_argument('--rally-layers', type=int, choices=(1, 2, 3), default=1, help='Number of rally selector layers')
     fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
     fit.add_argument('--threads', type=int, default=2)
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
@@ -434,17 +393,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.command == 'fit':
             if arguments.threads < 1:
                 raise ValueError('--threads must be positive')
-            settings = DEFAULT_TRAINING_SETTINGS
-            if arguments.rally_layers is not None:
-                backend = {'backend': TreeBackend.XGBOOST, 'device': arguments.device}
-                layers = RallyFitConfig(depth=arguments.rally_layers)
-                settings = replace(
-                    settings, contact=replace(settings.contact, **backend),
-                    confidence=replace(settings.confidence, **backend),
-                    rally_layers=replace(layers, tree=replace(layers.tree, **backend)),
-                )
-            elif arguments.device != 'cpu':
-                raise ValueError('--device cuda requires --rally-layers')
+            defaults = DEFAULT_TRAINING_SETTINGS
+            settings = replace(
+                defaults,
+                contact=replace(defaults.contact, device=arguments.device),
+                confidence=replace(defaults.confidence, device=arguments.device),
+                rally_layers=replace(
+                    defaults.rally_layers, depth=arguments.rally_layers,
+                    tree=replace(defaults.rally_layers.tree, device=arguments.device),
+                ),
+            )
             with threadpool_limits(limits=arguments.threads):
                 fit_from_manifest(manifest, arguments.output, arguments.side_geometry, settings)
             print(f'Saved annotator models to {arguments.output}')

@@ -23,7 +23,7 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator import rally_segmentation
+from annotator.rally import evidence as rally_evidence
 from annotator.types import StickyResult
 
 
@@ -79,7 +79,7 @@ def _cache_lock(path: Path) -> Iterator[None]:
 
 @contextmanager
 def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
-    """Temporarily cache the helper called by ``run_video`` in this worker process.
+    """Cache the sticky producer used by annotation and direct preparation.
 
     Each worker runs one candidate at a time. The patch is process-local and
     always restored. Candidate-dependent masks are applied after sticky evidence
@@ -88,7 +88,7 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
     :param cache_dir: Cache directory beneath the validated, immutable run output.
     :param video_id: The fixed video's identity, as passed to the sticky helper.
     """
-    original = rally_segmentation.build_sticky_result
+    original = rally_evidence.build_sticky_result
     signature = inspect.signature(original)
 
     @wraps(original)
@@ -107,5 +107,5 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
             _write_result(path, result)
             return result
 
-    with patch.object(rally_segmentation, 'build_sticky_result', cached):
+    with patch.object(rally_evidence, 'build_sticky_result', cached):
         yield

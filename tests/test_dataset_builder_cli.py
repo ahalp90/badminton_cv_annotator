@@ -630,12 +630,12 @@ class _ConcreteRuntimeFixture:
         from sklearn.dummy import DummyClassifier
 
         from annotator.models import AnnotatorModels, save_models
-        from annotator.sequence import SequenceModels
+        from annotator.sequence.rally_model import RallyLayerModels
 
         tree = DummyClassifier(strategy='prior').fit([[0], [1]], [0, 1])
         self.annotator_model_dir = tmp_path / 'annotator-models'
         save_models(
-            AnnotatorModels(tree, SequenceModels(tree, tree, tree, tree, tree, tree), tree),
+            AnnotatorModels(tree, RallyLayerModels((tree,)), tree),
             self.annotator_model_dir,
         )
         self._install(monkeypatch)

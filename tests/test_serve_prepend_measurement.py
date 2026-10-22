@@ -115,7 +115,7 @@ def test_central_pose_band_uses_largest_valid_detection() -> None:
 def test_candidate_rule_records_truth_mask_and_pose_verdicts(monkeypatch) -> None:
     monkeypatch.setattr(
         measurement.candidate_measurement,
-        "detect_contact_flags",
+        "impulse_cell_candidates",
         lambda *_args, **_kwargs: [(7, 5.0), (8, 4.0), (16, 9.0)],
     )
     fixture = replace(SSET_01, resolution=(100.0, 100.0))

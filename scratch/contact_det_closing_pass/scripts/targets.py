@@ -6,7 +6,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from scratch.contact_det.scripts.score_contact_rallies import (
     FixedEvent,
     FixedSpan,

@@ -4,16 +4,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from annotator.rally.serve import sticky_serve_setup_before
-from annotator.rally_segmentation import (
+from annotator.rally.serve import (
     ServeSetupInputs,
     ServeStartMode,
     ServeStartOptions,
-    StickyResult,
     build_serve_setup_inputs,
-    find_rally_spans,
+    sticky_serve_setup_before,
 )
-from annotator.types import Slot
+from annotator.rally.spans import find_rally_spans
+from annotator.types import Slot, StickyResult
+from tests.annotator_config import burst_config
 
 
 @pytest.fixture
@@ -175,23 +175,21 @@ def test_dispatch_validates_options_cross_fields(make_setup) -> None:
     setup = make_setup(2.0, n=6)
 
     def options(**overrides: object) -> ServeStartOptions:
-        fields = {'dist': None, 'threshold': 0.3, 'mode': ServeStartMode.TRIM, 'setup': setup,
+        fields = {'threshold': 0.3, 'mode': ServeStartMode.TRIM, 'setup': setup,
                       'lookback_frames': 4}
         fields.update(overrides)
         return ServeStartOptions(**fields)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match='setup must be supplied'):
-        find_rally_spans(track, serve_start=options(setup=None))
-    with pytest.raises(ValueError, match='legacy serve-start dist'):
-        find_rally_spans(track, serve_start=options(dist=np.zeros(6)))
+        find_rally_spans(track, serve_start=options(setup=None), resolved=burst_config())
     with pytest.raises(ValueError, match='lookback_frames'):
-        find_rally_spans(track, serve_start=options(lookback_frames=None))
+        find_rally_spans(track, serve_start=options(lookback_frames=None), resolved=burst_config())
     with pytest.raises(ValueError, match='stillness_window_frames'):
-        find_rally_spans(track, serve_start=options(stillness_threshold_bh=0.2))
+        find_rally_spans(track, serve_start=options(stillness_threshold_bh=0.2), resolved=burst_config())
     with pytest.raises(ValueError, match='stillness_window_frames'):
-        find_rally_spans(track, serve_start=options(stillness_window_frames=-3))
+        find_rally_spans(track, serve_start=options(stillness_window_frames=-3), resolved=burst_config())
     with pytest.raises(ValueError, match='threshold'):
-        find_rally_spans(track, serve_start=options(threshold=-1.0))
+        find_rally_spans(track, serve_start=options(threshold=-1.0), resolved=burst_config())
 
 
 @pytest.mark.parametrize('count', (2.0, 1.0))

@@ -13,10 +13,13 @@ import numpy as np
 import pytest
 import score_tree_contact_detector as scorer
 
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.types import SmoothingMode
+
 
 def test_impulses_keep_the_production_junction_alignment() -> None:
-    from annotator.config import RallySegmentationThresholds
-    from annotator.fps_constants import scale_for_fps
+
+
     from annotator.rally.contacts import span_impulses
 
     track = np.zeros((18, 3), dtype=np.float64)
@@ -24,20 +27,9 @@ def test_impulses_keep_the_production_junction_alignment() -> None:
     track[:, 0] = np.concatenate([np.linspace(0.1, 0.8, 9), np.linspace(0.8, 0.2, 9)])
     spans = ((2, 16),)
     signals = freezer._shuttle_signals(track, spans, 30.0)
-    values = scale_for_fps(30.0)
-    thresholds = RallySegmentationThresholds(
-        values.rest_speed,
-        values.rest_window,
-        values.end_rest_frames,
-        values.start_speed,
-        values.start_min_frames,
-        values.smooth_window,
-        values.impulse_floor_half_window_frames,
-        values.contact_dedup_radius_frames,
-        values.contact_suppression_radius_frames,
-        freezer.RELAXED_IMPULSE_MULTIPLE,
-    )
-    expected = span_impulses(track, 2, 16, thresholds)
+    values = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    thresholds = values
+    expected = span_impulses(track, 2, 16, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
     assert expected is not None
     np.testing.assert_allclose(signals["shuttle_impulse"][3:15], expected)
     assert np.isnan(signals["shuttle_impulse"][[2, 15]]).all()

@@ -33,15 +33,14 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from annotator.config import BaseAnnotatorConfig  # noqa: E402
+from annotator.config import BaseAnnotatorConfig, resolve  # noqa: E402
 from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
 from annotator.masks.inpaint import (  # noqa: E402
     code_counts,
     grade_track,
 )
-from annotator.rally_segmentation import detect_contact_flags  # noqa: E402
-from annotator.resolve import resolve  # noqa: E402
-from annotator.run_video import run_video  # noqa: E402
+from annotator.rally.contacts import impulse_cell_candidates  # noqa: E402
+from annotator.rally_segmentation import segment_shuttle_track  # noqa: E402
 
 FRAME_WIDTH = 512
 FRAME_HEIGHT = 288
@@ -435,20 +434,16 @@ def build_event_outputs(
 
     base = BaseAnnotatorConfig()
     resolved = resolve(base, spec.fps)
-    result = run_video(
-        track,
-        fps=spec.fps,
-        base=base,
+    spans, contacts = segment_shuttle_track(
+        track, resolved,
         raw_exclusion_mask=np.zeros(len(track), dtype=bool),
-        court_optional=True,
-        stop_after_segmentation=True,
     )
     gt_rallies = load_gt_rallies(shots_master, spec.video_id)
     impulse_mask = np.zeros(len(track), dtype=bool)
     impulse_rows: list[dict[str, object]] = []
     flagged_pairs: list[tuple[int, int]] = []
-    for rally_id, (start, end) in enumerate(result.spans):
-        flags = detect_contact_flags(
+    for rally_id, (start, end) in enumerate(spans):
+        flags = impulse_cell_candidates(
             track,
             start,
             end,
@@ -471,17 +466,17 @@ def build_event_outputs(
 
     contact_pairs = [
         (int(contact.rally_id), int(contact.contact_frame))
-        for contact in result.contacts
+        for contact in contacts
     ]
     if flagged_pairs != contact_pairs:
         raise ValueError(
-            f"{spec.name}: resolved impulse flags disagree with run_video raw contacts"
+            f"{spec.name}: resolved impulse flags disagree with track-segmentation raw contacts"
         )
 
     tp_mask = np.zeros(len(track), dtype=bool)
     tp_rows: list[dict[str, object]] = []
     accepted_spans = 0
-    for span_id, (start, end) in enumerate(result.spans):
+    for span_id, (start, end) in enumerate(spans):
         overlapping = [
             rally for rally in gt_rallies
             if start <= rally.extent[1] and rally.extent[0] < end
@@ -562,8 +557,7 @@ def build_event_outputs(
         ),
         "resolved_default_path": {
             "composition": (
-                "run_video(base=BaseAnnotatorConfig(), raw_exclusion_mask=zeros, "
-                "court_optional=True, stop_after_segmentation=True)"
+                "segment_shuttle_track(track, resolve(BaseAnnotatorConfig(), fps), raw_exclusion_mask=zeros)"
             ),
             "fps": spec.fps,
             "smoothing_mode": str(resolved.smoothing_mode),
@@ -580,7 +574,7 @@ def build_event_outputs(
         },
         "counts": {
             "gt_rallies": len(gt_rallies),
-            "detected_spans": len(result.spans),
+            "detected_spans": len(spans),
             "raw_impulse_rows": len(impulse_rows),
             "unique_impulse_frames": int(impulse_mask.sum()),
             "coordinate_valid_impulse_frames": int(impulse_valid.sum()),

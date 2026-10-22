@@ -38,7 +38,7 @@ import pandas as pd
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames
+from annotator.sequence.contacts import scale_frames, stream_from_payload
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
@@ -50,7 +50,6 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     SEEDS,
     judge_found_rallies,
 )
-from experiments.annotator.old_court_regression.retrain import stream_from_payload
 
 TOLERANCE = 10
 THRESHOLDS = np.round(np.arange(0, 1.0001, 0.005), 3)

@@ -1,5 +1,9 @@
 # Understanding the annotator results
 
+This page describes the earlier eight-model comparisons. For the current
+XGBoost system, use the [three-model evaluation](reports/tree_simplification.md)
+and its explicit scoring rules.
+
 The main measure of success is a **complete, correctly annotated rally**.
 Good contact detection helps, but a single remaining mistake can invalidate a
 rally. Contact and whole-rally scores show different aspects of an improvement.

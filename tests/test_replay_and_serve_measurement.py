@@ -103,7 +103,7 @@ def test_gt_statuses_distinguish_target_serve_miss() -> None:
 def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     monkeypatch.setattr(
         measurement,
-        "detect_contact_flags",
+        "impulse_cell_candidates",
         lambda *_args, **_kwargs: [(5, 3.0), (7, 4.0), (9, 1.0), (10, 0.5)],
     )
     track = np.column_stack((np.linspace(0, 1, 25), np.zeros(25), np.ones(25)))

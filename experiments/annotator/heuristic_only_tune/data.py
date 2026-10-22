@@ -15,7 +15,7 @@ from annotator.outcomes.point_winner import (
     alternating_player_sides,
 )
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.sequences import LabelledRally
 from annotator.types import ServeStartConfig
@@ -40,7 +40,6 @@ from experiments.annotator.old_court_regression.old_inputs import (
     OldVideoInputs,
     development_label_rows,
 )
-from experiments.annotator.old_court_regression.retrain import stream_payload
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 TRACKED_SPLIT = (

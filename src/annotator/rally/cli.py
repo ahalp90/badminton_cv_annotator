@@ -191,7 +191,8 @@ def main() -> None:
     input_track_paths = sorted(args.shuttle_dir.glob('*.npy'))
     from annotator.evaluation.batch_report import publish_batch_report
 
-    from ..run_video import run_video
+    from ..config import resolve
+    from ..rally_segmentation import segment_shuttle_track
 
     filter_result = _filter_track_paths(input_track_paths, args.doubles_csv)
     track_paths = filter_result.included_paths
@@ -214,19 +215,15 @@ def main() -> None:
             track = np.load(track_path)
             positions = _load_positions(args.pos_dir, video_id)
             dead_mask = _load_dead_mask(args.mask_dir, video_id)
-            result = run_video(
+            spans, contacts = segment_shuttle_track(
                 track,
-                fps=fps,
-                base=BaseAnnotatorConfig(span_open=span_open),
+                resolve(BaseAnnotatorConfig(span_open=span_open), fps),
                 positions=positions,
                 raw_exclusion_mask=(
                     dead_mask if dead_mask is not None
                     else np.zeros(len(track), dtype=bool)
                 ),
-                court_optional=True,
-                stop_after_segmentation=True,
             )
-            spans, contacts = result.spans, result.contacts
         except Exception as exc:  # noqa: BLE001 - log-and-skip per video: one bad track must not sink the batch
             exception_text = ' '.join(str(exc).split()) or type(exc).__name__
             outcomes_by_path[track_path] = VideoOutcome(

@@ -18,30 +18,22 @@ from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 
 # isort: split
 
-from annotator.training.trees import TreeBackend
 
-
-def configurations(backend: TreeBackend, structures: bool = False) -> list[dict[str, Any]]:
-    if structures:
-        return [
-            {'name': name, 'leaves': 15, 'layers': 2, 'min_child_weight': 5.0, 'original_options': True,
-             'specialists': roles}
-            for name, roles in (
-                ('serve', ['serve']), ('insertion', ['insertion']), ('both', ['serve', 'insertion']),
-            )
-        ]
+def configurations() -> list[dict[str, Any]]:
     runs = [{'name': 'original-options', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'original_options': True}]
     runs.extend([
         {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'original_options': False}
         for leaves in (15, 7, 31)
     ])
-    if backend == TreeBackend.XGBOOST:
-        runs.append({'name': 'minimum-child-weight-10', 'leaves': 15, 'layers': 3, 'min_child_weight': 10.0, 'original_options': False})
+    runs.append({
+        'name': 'minimum-child-weight-10', 'leaves': 15, 'layers': 3,
+        'min_child_weight': 10.0, 'original_options': False,
+    })
     return runs
 
 
 def run_configuration(
-    run: dict[str, Any], pools: Path, output: Path, backend: TreeBackend, device: str, threads: int,
+    run: dict[str, Any], pools: Path, output: Path, device: str, threads: int,
 ) -> dict[str, Any]:
     destination = output / run['name']
     destination.mkdir(parents=True, exist_ok=True)
@@ -50,14 +42,12 @@ def run_configuration(
         return {'name': run['name'], 'exit_code': 0, 'resumed_complete': True}
     command = [
         sys.executable, '-u', '-m', 'experiments.annotator.tree_simplification.train',
-        '--pools', str(pools), '--output', str(destination), '--backend', backend.value, '--device', device,
+        '--pools', str(pools), '--output', str(destination), '--device', device,
         '--threads', str(threads), '--leaves', str(run['leaves']), '--layers', str(run['layers']),
         '--min-child-weight', str(run['min_child_weight']),
     ]
     if run['original_options']:
         command.append('--original-options')
-    if run.get('specialists'):
-        command.extend(['--specialists', *run['specialists']])
     environment = {**os.environ, 'OMP_NUM_THREADS': str(threads), 'OPENBLAS_NUM_THREADS': str(threads),
                    'MKL_NUM_THREADS': str(threads)}
     started = time.perf_counter()
@@ -75,22 +65,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pools', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--backend', choices=list(TreeBackend), default=TreeBackend.XGBOOST)
     parser.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     parser.add_argument('--jobs', type=int, default=4)
     parser.add_argument('--threads', type=int, default=2)
-    parser.add_argument('--structures', action='store_true', help='Compare local edit specialists on the original options')
     args = parser.parse_args()
     if args.jobs < 1 or args.threads < 1 or args.jobs * args.threads > 28:
         parser.error('jobs and threads must be positive and use at most 28 CPU cores together')
-    backend = TreeBackend(args.backend)
-    if backend == TreeBackend.HIST_GRADIENT_BOOSTING and args.device != 'cpu':
-        parser.error('HGB requires --device cpu')
-    runs = configurations(backend, args.structures)
+    runs = configurations()
     args.output.mkdir(parents=True, exist_ok=True)
     plan = {
         'pools': str(args.pools.resolve()), 'pool_settings': read_json(args.pools / 'pools.json.gz'),
-        'backend': backend.value, 'device': args.device, 'configurations': runs,
+        'device': args.device, 'configurations': runs,
     }
     plan_path = args.output / 'plan.json.gz'
     if plan_path.exists() and read_json(plan_path) != plan:
@@ -99,7 +84,7 @@ def main() -> None:
     completed = []
     with ThreadPoolExecutor(max_workers=args.jobs) as executor:
         futures = [executor.submit(
-            run_configuration, run, args.pools.resolve(), args.output.resolve(), backend, args.device, args.threads,
+            run_configuration, run, args.pools.resolve(), args.output.resolve(), args.device, args.threads,
         ) for run in runs]
         for future in as_completed(futures):
             record = future.result()

@@ -10,9 +10,9 @@ from threadpoolctl import threadpool_limits
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.features import ServeEditInputs
-from annotator.sequence.refine import OptionPool
-from annotator.training.sequences import SequenceTrainingVideo, TreeFitConfig
+from annotator.sequence.repairs import RallyRepairs
+from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification import layers, margins
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
@@ -28,7 +28,7 @@ def example_pool() -> LabelledOptions:
         initial[0], replace(initial[0], events=(first, added, last)),
         replace(initial[0], events=(last,)), initial[1],
     )
-    original_pool = OptionPool((), {}, ServeEditInputs({}, np.empty((0, 0))), np.empty((0, 0)), np.empty((0, 0)), {})
+    original_pool = RallyRepairs((), {}, {})
     original = SequenceTrainingVideo(
         'fixture', 'group', 30.0, initial, (first, last, neighbour, outside), original_pool, (), 110,
     )
@@ -150,7 +150,7 @@ def test_fitted_layer_predicts_all_options_and_can_change_earlier_choices() -> N
     pool = example_pool()
     prior = np.asarray([0.9, 0.1, 0.8, 0.6])
     with threadpool_limits(limits=1):
-        model = layers.fit_layer([pool], [(prior,)], TreeFitConfig(max_iter=15, min_samples_leaf=1), span_weight=1.5)
+        model = layers.fit_layer([pool], [(prior,)], TreeFitConfig(max_iter=15, min_child_weight=0), span_weight=1.5)
         scores = layers.predict_layer(model, pool, (prior,))
     assert scores.shape == (4,)
     assert np.isfinite(scores).all()

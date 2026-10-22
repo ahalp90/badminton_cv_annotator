@@ -1,9 +1,12 @@
-# Selected annotator model — 3 October 2026
+# Historical annotator model — 3 October 2026
 
-This is the selected new-court **base** model. Pass this directory to the
-annotator's `--models` argument, keeping `models.joblib` and `metadata.json`
-together. It requires **scikit-learn 1.9.1** and was fitted and load-checked with
-Python 3.12.13.
+This is the retired eight-model new-court **base** bundle. The current annotator
+no longer loads it. Use the [current XGBoost bundle](../../../experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/)
+for annotation; this directory preserves the historical result.
+
+Loading it with its original code requires **scikit-learn 1.9.1**. It was fitted
+and load-checked with Python 3.12.13. Keep `models.joblib` and `metadata.json`
+together when reproducing that run.
 
 The contact tree was trained on 40 original-ShuttleSet development videos.
 Sequence and review models were trained on the 32 videos in groups A–D.

@@ -5,7 +5,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes.point_winner import (
     Half,
@@ -18,7 +18,6 @@ from annotator.outcomes.point_winner import (
     rally_verdict,
 )
 from annotator.outcomes.video import LandingContext, build_rally_outcome
-from annotator.resolve import resolve
 from annotator.types import compute_speed
 
 

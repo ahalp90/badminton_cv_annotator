@@ -105,9 +105,9 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
 
     from annotator.models import load_models
     from annotator.run_video import RunCapture, run_video
+    from annotator.sequence.contacts import stream_payload
     from experiments.annotator.heuristic_only_tune import data
     from experiments.annotator.heuristic_only_tune.run import read_json, write_json
-    from experiments.annotator.old_court_regression.retrain import stream_payload
 
     if run.split == 'test':
         video = next(video for video in data.load_test_videos(INPUTS) if video.identity == video_id)
@@ -187,8 +187,8 @@ def finish_run(run: Run, directory: Path, records: list[dict]) -> None:
     """Score a finished run and save how it went."""
     from score import score_run
 
+    from experiments.annotator.development import pooled_scores
     from experiments.annotator.heuristic_only_tune.run import write_json
-    from experiments.annotator.tree_hp_tune.run import pooled_scores
 
     if run.condition == 'discovery':
         per_video = {record['video']: record['score'] for record in records}

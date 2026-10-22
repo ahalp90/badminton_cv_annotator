@@ -10,12 +10,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.sequence.rally_layers import layer_features
 from annotator.sequence.rally_model import (
     LayerReviewFeatures,
     RallyLayerModels,
     RallyLayerPrediction,
     build_layer_review_features,
+    layer_features,
     predict_rally_options,
     score_layers,
 )
@@ -24,7 +24,6 @@ from annotator.sequence.rally_options import (
     RallyOptions,
     build_rally_options,
 )
-from annotator.training.confidence import ConfidenceFitConfig
 from annotator.training.rally_targets import (
     five_frame_preferred_targets,
     option_targets,
@@ -32,10 +31,9 @@ from annotator.training.rally_targets import (
 )
 from annotator.training.sequences import (
     SequenceTrainingVideo,
-    TreeFitConfig,
     whole_rally_correctness,
 )
-from annotator.training.trees import TreeBackend, fit_binary_tree
+from annotator.training.trees import TreeFitConfig, fit_binary_tree
 
 
 @dataclass(frozen=True)
@@ -43,7 +41,7 @@ class RallyFitConfig:
     """Selected development settings; deeper stacks remain available for comparisons."""
 
     tree: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(
-        backend=TreeBackend.XGBOOST, max_iter=400, max_leaf_nodes=31,
+        max_iter=400, max_leaf_nodes=31,
     ))
     depth: int = 1
     max_edits: int = 3
@@ -95,8 +93,8 @@ def fit_layer(
     return fit_binary_tree(
         np.concatenate(matrices), labelled, sample_weight=np.concatenate(weights) * span_weight, balanced=False,
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
-        min_samples_leaf=config.min_samples_leaf, l2_regularization=config.l2_regularization,
-        random_seed=config.random_seed, backend=config.backend, device=config.device,
+        l2_regularization=config.l2_regularization,
+        random_seed=config.random_seed, device=config.device,
         min_child_weight=config.min_child_weight,
     )
 
@@ -143,7 +141,7 @@ def prepare_training_pools(
     pools = {}
     judged_original_rows = judged_original_spans = 0
     for video in videos:
-        context = RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
+        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
         pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
         wide = option_targets(video, pool)
         five = option_targets(video, pool, tolerance_at_30_fps=5)
@@ -175,7 +173,7 @@ def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitCo
     return RallyModelFit(models, predictions, span_weight)
 
 
-def fit_review_model(features: LayerReviewFeatures, correctness: np.ndarray, config: ConfidenceFitConfig) -> Any:
+def fit_review_model(features: LayerReviewFeatures, correctness: np.ndarray, config: TreeFitConfig) -> Any:
     labels = np.asarray(correctness)
     if labels.shape != (len(features.span_ids),) or not np.isin(labels, (-1, 0, 1)).all():
         raise ValueError('review labels must be -1, 0 or 1 and align with feature rows')
@@ -185,14 +183,14 @@ def fit_review_model(features: LayerReviewFeatures, correctness: np.ndarray, con
     return fit_binary_tree(
         features.matrix[judged], labels[judged], balanced=False,
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
-        min_samples_leaf=config.min_samples_leaf, l2_regularization=config.l2_regularization,
-        random_seed=config.random_seed, backend=config.backend, device=config.device,
+        l2_regularization=config.l2_regularization,
+        random_seed=config.random_seed, device=config.device,
         min_child_weight=config.min_child_weight,
     )
 
 
 def fit_rally_review_model(
-    videos: Sequence[SequenceTrainingVideo], predictions: dict[str, RallyLayerPrediction], config: ConfidenceFitConfig,
+    videos: Sequence[SequenceTrainingVideo], predictions: dict[str, RallyLayerPrediction], config: TreeFitConfig,
 ) -> Any:
     matrices, correctness = [], []
     for video in videos:

@@ -1,4 +1,4 @@
-"""Prepare the fixed vision evidence once for the tree-stack comparison."""
+"""Prepare fixed vision evidence for rally-model experiments."""
 
 from __future__ import annotations
 
@@ -28,18 +28,17 @@ from experiments.annotator.heuristic_only_tune.run import (
 import joblib
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, RallySegmentationThresholds
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.hybrid import features_from_evidence
-from annotator.run_video import RunCapture, run_video
+from annotator.preparation import prepare_annotation
 from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_inputs,
     load_original_videos,
-    run_video_kwargs,
 )
-from experiments.annotator.tree_hp_tune.run import development_for, preprocessing
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 
@@ -53,9 +52,6 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     expected_fields = set(asdict(BaseAnnotatorConfig()))
     if set(record) != expected_fields:
         raise ValueError('Saved preprocessing fields differ from BaseAnnotatorConfig')
-    thresholds = record['thresholds']
-    if not isinstance(thresholds, (list, tuple)):
-        raise TypeError('Saved preprocessing thresholds must be a sequence')
     overrides = record['overrides_base30']
     if overrides is not None and not isinstance(overrides, dict):
         raise TypeError('Saved preprocessing overrides must be an object or null')
@@ -63,7 +59,6 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     if not isinstance(rejected_grades, list):
         raise TypeError('Saved rejected grades must be a list')
     config = BaseAnnotatorConfig(
-        thresholds=RallySegmentationThresholds(*thresholds),
         dead_mask_mode=DeadMaskMode(record['dead_mask_mode']),
         smoothing_mode=SmoothingMode(record['smoothing_mode']),
         overrides_base30=overrides,
@@ -119,16 +114,18 @@ def prepare_video(
         return record
     with threadpool_limits(limits=1):
         inputs = load_original_inputs(video, paths['stages'], paths['development_courts'])
-        capture = RunCapture()
         pose = inputs.pose
         with cache_sticky_result(output / 'sticky', video.identity):
-            run_video(
+            evidence = prepare_annotation(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                base=base, heuristic_only=True, capture=capture, **run_video_kwargs(inputs),
+                resolved=resolve(base, inputs.fps), video_id=inputs.identity,
+                resolution=inputs.court.resolution, net_band=inputs.court.net_band,
+                gate_court_info=inputs.court.gate_court_info,
+                gate_resolution_table=inputs.court.gate_resolution_table,
+                court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
+                cut_frames=[end for _start, end in inputs.raw_cuts[:-1]], keep_vote=inputs.keep_vote,
+                inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
             )
-        evidence = capture.contact_evidence
-        if evidence is None:
-            raise ValueError(f'{video.identity}: annotation did not capture contact evidence')
         features = features_from_evidence(evidence)
         prepared = PreparedVideo(video, group, evidence, features)
         destination.parent.mkdir(parents=True, exist_ok=True)

@@ -15,13 +15,12 @@ from annotator.sequence.rally_options import (
     RallyContext,
     RallyOptions,
     build_rally_options,
-    feature_names,
     sequence_key,
 )
 from annotator.training.rally_targets import finish_in_initial_context, option_targets
 from annotator.training.sequences import SequenceTrainingVideo
 
-__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'feature_names', 'finish_in_initial_context', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'finish_in_initial_context', 'sequence_key']
 
 
 @dataclass(frozen=True)
@@ -30,16 +29,16 @@ class LabelledOptions:
     matrix: np.ndarray
     targets: np.ndarray
     span_rows: dict[int, np.ndarray]
-    original: SequenceTrainingVideo
+    video: SequenceTrainingVideo
 
     @property
     def runtime(self) -> RallyOptions:
         """Share proposal arrays with the label-free inference path."""
-        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.original))
+        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.video))
 
 
 def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.pool, video.frame_count)
+    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
 
 
 def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> LabelledOptions:

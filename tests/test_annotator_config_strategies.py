@@ -1,19 +1,17 @@
 """Annotator config plumbing and opt-in span strategy tests."""
 from __future__ import annotations
 
-import inspect
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
-import annotator.run_video as run_video_module
-from annotator.config import SHIPPED_THRESHOLDS, BaseAnnotatorConfig
-from annotator.fps_constants import scale_for_fps
+from annotator import preparation
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.preparation import build_serve_options, prepare_annotation
 from annotator.rally.spans import gap_state_rest_mask, quiet_start_rally_spans
-from annotator.rally_segmentation import segment_video
-from annotator.resolve import resolve
-from annotator.run_video import build_serve_options, run_video
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
+from tests.annotator_config import burst_config
 
 
 def test_base30_overrides_resolve_all_scaling_kinds() -> None:
@@ -38,12 +36,6 @@ def test_shipped_tracking_strategies_resolve_at_video_fps() -> None:
     assert resolved30.reentry_guard_buffer == 0.05
 
 
-def test_low_level_segment_strategies_remain_opt_in() -> None:
-    parameters = inspect.signature(segment_video).parameters
-    assert parameters['smoothing_mode'].default is SmoothingMode.ZERO_FILL
-    assert parameters['gap_state_demotion_bound'].default is None
-    assert parameters['reentry_guard_variant'].default is None
-    assert parameters['reentry_guard_buffer'].default is None
 
 
 def test_unknown_base30_override_fails_loudly() -> None:
@@ -74,9 +66,9 @@ def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest
     config = type('Config', (), {'close': object(), 'threshold_bh': 0.1, 'mode': None,
                                   'stillness_threshold_bh': None})()
     with pytest.raises(ValueError, match='unsupported with BACK_FILL'):
-        build_serve_options(config, None, scale_for_fps(30.0), (1.0, 1.0))
-    monkeypatch.setattr(run_video_module.rally_segmentation, 'build_serve_setup_inputs', lambda *_args: None)
-    options = build_serve_options(config, None, scale_for_fps(30.0), (1.0, 1.0), None)
+        build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0))
+    monkeypatch.setattr(preparation, 'build_serve_setup_inputs', lambda *_args: None)
+    options = build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0), None)
     assert options.close is config.close
 
 
@@ -119,25 +111,20 @@ def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
     assert resolved.reentry_guard_buffer is None
 
 
-def test_quiet_start_and_serve_start_fail_in_run_video() -> None:
+def test_quiet_start_and_serve_start_fail_before_preparation() -> None:
     with pytest.raises(ValueError, match='quiet_start_window'):
-        run_video(
-            None, None, None, None, None, fps=30.0,
-            base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), landing_options=None,
-            net_band=(0.0, 1.0), resolution=(1.0, 1.0), video_id=1,
-            court_info={}, homo_df=None, gate_court_info={}, gate_resolution_table=None,
-            serve_start=object(), heuristic_only=True,
+        prepare_annotation(
+            None, None, None, None, None,
+            resolved=resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), 30.0),
+            net_band=None, resolution=None, video_id=None, gate_court_info=None,
+            gate_resolution_table=None, court_present=None, homography_rows=None, serve_start=object(),
         )
 
 
 @pytest.mark.parametrize('span_open', (SpanOpen.REGION_START, SpanOpen.BACK_FILL))
-def test_quiet_start_and_span_open_fail_in_run_video(span_open: SpanOpen) -> None:
+def test_quiet_start_and_span_open_fail_during_resolution(span_open: SpanOpen) -> None:
     with pytest.raises(ValueError, match='quiet_start_window cannot be combined with span_open'):
-        run_video(
-            None, None, None, None, None, fps=30.0,
-            base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open),
-            court_optional=True, stop_after_segmentation=True, heuristic_only=True,
-        )
+        resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open), 30.0)
 
 
 def test_gap_state_with_and_without_reentry_guard() -> None:
@@ -146,12 +133,9 @@ def test_gap_state_with_and_without_reentry_guard() -> None:
     track = np.column_stack([np.full(len(y), 0.5), y, np.ones(len(y))])
     track[6:18, 2] = 0
     speed = np.full(len(track), np.nan)
-    thresholds = SHIPPED_THRESHOLDS._replace(rest_window=3, rest_speed=1.0)
-    constants = scale_for_fps(25.0)
-    unguarded = gap_state_rest_mask(speed, track, thresholds, constants, 75, None, None)
-    guarded = gap_state_rest_mask(
-        speed, track, thresholds, constants, 75, ReentryGuardVariant.REENTRY_ONLY, 0.1,
-    )
+    thresholds = replace(burst_config().thresholds, rest_window=3, rest_speed=1.0)
+    unguarded = gap_state_rest_mask(speed, track, thresholds, 75, None, None)
+    guarded = gap_state_rest_mask(speed, track, thresholds, 75, ReentryGuardVariant.REENTRY_ONLY, 0.1)
     assert not unguarded[10]
     assert guarded[10]
 
@@ -162,15 +146,13 @@ def test_quiet_start_selects_later_quiet_preceded_burst() -> None:
     speed[15:18] = 1.0
     at_rest = np.zeros(30, dtype=bool)
     at_rest[10:15] = True
-    thresholds = SHIPPED_THRESHOLDS._replace(
-        start_speed=0.5, start_min_frames=3, end_rest_frames=100,
-    )
+    thresholds = replace(burst_config().thresholds, start_speed=0.5, start_min_frames=3, end_rest_frames=100)
     assert quiet_start_rally_spans(speed, at_rest, thresholds, 5) == [(15, 30)]
 
 
 def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
-    values25 = scale_for_fps(25.0)
-    values30 = scale_for_fps(30.0)
+    values25 = resolve(BaseAnnotatorConfig(), 25.0).thresholds
+    values30 = resolve(BaseAnnotatorConfig(), 30.0).thresholds
     fields = (
         'blip_max_frames', 'high_shot_oob_lookback_frames',
         'high_shot_oob_min_visible_frames', 'high_shot_oob_extrap_frames',
@@ -181,10 +163,12 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
 
 
 def test_impulse_cell_candidates_consumes_threshold_multiple() -> None:
-    from annotator.rally_segmentation import impulse_cell_candidates
+    from annotator.rally.contacts import impulse_cell_candidates
 
     apex = np.array([0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0], dtype=float) * 0.05
     track = np.column_stack([np.full(len(apex), 0.5), apex, np.ones(len(apex))])
-    assert impulse_cell_candidates(track, 0, len(track), SHIPPED_THRESHOLDS)
-    strict = SHIPPED_THRESHOLDS._replace(contact_impulse_multiple=1e12)
-    assert impulse_cell_candidates(track, 0, len(track), strict) == []
+    assert impulse_cell_candidates(
+        track, 0, len(track), burst_config().thresholds, smoothing_mode=SmoothingMode.ZERO_FILL
+    )
+    strict = replace(burst_config().thresholds, contact_impulse_multiple=1000000000000.0)
+    assert impulse_cell_candidates(track, 0, len(track), strict, smoothing_mode=SmoothingMode.ZERO_FILL) == []

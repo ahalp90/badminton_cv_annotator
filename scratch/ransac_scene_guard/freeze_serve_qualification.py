@@ -33,7 +33,7 @@ FIXTURE_SOURCE = "serve_prepend_lookback_189c5af_20260808/fixtures"
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import FIXTURES, FilePin, Fixture, verify_file
 from annotator.masks.replay import _read_homography_rows
 from annotator.rally.evidence import build_sticky_result, tracker_segments
@@ -44,7 +44,6 @@ from annotator.rally.serve import (
     resolve_serve_gate,
 )
 from annotator.rally.spans import build_rest_mask, find_rally_spans, rally_regions
-from annotator.resolve import resolve
 from annotator.types import compute_speed
 from shared.court import load_all_court_info
 
@@ -244,20 +243,19 @@ def freeze_fixture(
         gate_courts,
         gate_resolution,
         fixture.resolution,
-        resolved.constants.body_unit_half_window,
+        resolved.thresholds.body_unit_half_window,
     )
     setup = build_serve_setup_inputs(sticky, fixture.resolution)
     production_diagnostics: dict[str, Any] = {}
     options = ServeStartOptions(
-        dist=None,
         threshold=SERVE_THRESHOLD_BH,
         mode=ServeStartMode.TRIM,
         close=None,
         diagnostics=production_diagnostics,
         setup=setup,
         stillness_threshold_bh=None,
-        lookback_frames=resolved.constants.serve_start_lookback_frames,
-        stillness_window_frames=resolved.constants.serve_stillness_window_frames,
+        lookback_frames=resolved.thresholds.serve_start_lookback_frames,
+        stillness_window_frames=resolved.thresholds.serve_stillness_window_frames,
     )
     gate = resolve_serve_gate(options)
 
@@ -266,7 +264,6 @@ def freeze_fixture(
         speed,
         track,
         resolved.thresholds,
-        constants=resolved.constants,
         gap_state_demotion_bound=resolved.gap_state_demotion_bound,
         reentry_guard_variant=resolved.reentry_guard_variant,
         reentry_guard_buffer=resolved.reentry_guard_buffer,
@@ -282,17 +279,7 @@ def freeze_fixture(
         gate.qualifies,
     )
 
-    production_spans = find_rally_spans(
-        track,
-        thresholds=resolved.thresholds,
-        serve_start=options,
-        span_open=resolved.span_open,
-        constants=resolved.constants,
-        gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-        reentry_guard_variant=resolved.reentry_guard_variant,
-        reentry_guard_buffer=resolved.reentry_guard_buffer,
-        quiet_start_window=resolved.quiet_start_window,
-    )
+    production_spans = find_rally_spans(track, serve_start=options, resolved=resolved)
     if production_diagnostics.get("qualifying_counts") != qualifying_counts:
         raise AssertionError(f"{fixture.name}: direct burst capture differs from production diagnostics")
 

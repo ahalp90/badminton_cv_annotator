@@ -1,9 +1,8 @@
 """Boundary widening keeps membership; tied side alternation keeps raw guesses."""
 
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.boundaries import extend_boundaries
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.sides import alternate_sides
+from annotator.sequence.rally_model import alternate_sides, extend_boundaries
 
 TOP = Half.TOP
 BOT = Half.BOT

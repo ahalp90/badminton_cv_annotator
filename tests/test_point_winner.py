@@ -4,10 +4,11 @@ Covers the promoted D5 chain (src/scraper/point_winner.py): the alternation-rhyt
 the window fix, the ankle-refined landing filter, the net rule / in-out verdict, margins, hit
 height, and the verdict assembly. No fixtures; each test builds its own small numpy arrays.
 """
+
 import numpy as np
 import pytest
 
-from annotator.fps_constants import scale_for_fps
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.outcomes.point_winner import (
     Half,
     HitHeightRow,
@@ -34,13 +35,7 @@ from annotator.outcomes.point_winner import (
     rally_verdict,
     window_end,
 )
-from annotator.rally_segmentation import (
-    ANKLE_L,
-    ANKLE_R,
-    WRIST_L,
-    WRIST_R,
-    StickyResult,
-)
+from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40
@@ -130,7 +125,9 @@ def test_window_end_waits_past_a_top_exit_gap():
     rows += [(0.5, 0.5, 1)] * 5     # frames 11-15: back in view
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == len(track)
+    assert window_end(
+        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames
+    ) == len(track)
 
 
 def test_window_end_closes_at_a_non_top_exit_gap():
@@ -141,7 +138,10 @@ def test_window_end_closes_at_a_non_top_exit_gap():
     rows += [(0.5, 0.5, 1)] * 5
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 1
+    assert (
+        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        == 1
+    )
 
 
 def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
@@ -154,7 +154,10 @@ def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
     rows += [(0.5, 0.5, 1)] * 3
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 14
+    assert (
+        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        == 14
+    )
 
 
 def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
@@ -162,7 +165,10 @@ def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
     dead[3] = True
-    assert window_end(0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames) == 3
+    assert (
+        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        == 3
+    )
 
 
 def test_window_end_event_mask_removes_top_exit_exemption() -> None:
@@ -173,7 +179,7 @@ def test_window_end_event_mask_removes_top_exit_exemption() -> None:
     event_mask[0] = True
 
     assert window_end(
-        0, len(track), track, dead, scale_for_fps(25.0).sustained_loss_frames, event_mask,
+        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames, event_mask,
     ) == 1
 
 
@@ -339,7 +345,7 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
                                 carry_thr=0.5, use_settle=False)
 
-    min_samples = scale_for_fps(25.0).min_descend_samples
+    min_samples = resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples
     landing = filtered_descending_landing(0, 3, track, kin, opts, min_samples)
     assert landing is not None
     assert landing[0] == 2  # the only run's terminal, kept despite being carried
@@ -365,7 +371,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, scale_for_fps(25.0).min_descend_samples,
+        0, 7, track, kin, opts, resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
         shuttle_hallucination_mask=event_mask,
         rejected_intervals=rejected_intervals,
     )
@@ -390,7 +396,7 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, scale_for_fps(25.0).min_descend_samples,
+        0, len(track), track, kin, opts, resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
         shuttle_hallucination_mask=event_mask,
     ) is None
 
@@ -575,7 +581,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
                   'border_U': 0.0, 'border_D': resolution[1]}
     net_band = (100.0, 200.0)  # well above the landing: irrelevant to net_ender here
 
-    constants = scale_for_fps(25.0)
+    constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     end_frame = landing_window(
         2, n_frames, track, dead, constants.sustained_loss_frames,
     ).end_frame
@@ -608,7 +614,7 @@ def test_landing_window_end_feeds_explicit_landing():
         'H': np.eye(3), 'border_L': 0.0, 'border_R': resolution[0],
         'border_U': 0.0, 'border_D': resolution[1],
     }
-    constants = scale_for_fps(25.0)
+    constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames)
     landing = pick_landing_to_end(
         2, window.end_frame, track, kin, opts, Half.TOP, (100.0, 200.0), resolution,

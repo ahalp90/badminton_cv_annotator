@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import replace
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from scratch.contact_det.scripts.score_contact_rallies import FixedEvent
 from scratch.contact_det_closing_pass.scripts.evaluation import (
     score_sections,

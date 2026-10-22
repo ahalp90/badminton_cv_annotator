@@ -1,12 +1,12 @@
 """Label-free contact proposals and evidence for fitted rally selectors."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from itertools import combinations
 
 import numpy as np
 
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
-from annotator.sequence.confidence import summarise_gap_maxima
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
 from annotator.sequence.features import (
     PHYSICAL_FEATURE_NAMES,
@@ -16,7 +16,7 @@ from annotator.sequence.features import (
     sequence_summary,
     side_agreement,
 )
-from annotator.sequence.refine import OptionPool
+from annotator.sequence.repairs import RallyRepairs
 
 FEATURE_NAMES = (
     *(f'before__{name}' for name in SUMMARY_FEATURE_NAMES),
@@ -35,7 +35,6 @@ FEATURE_NAMES = (
     'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
     *(f'strongest_unused__{name}' for name in PHYSICAL_FEATURE_NAMES),
 )
-feature_names = FEATURE_NAMES
 
 
 @dataclass(frozen=True)
@@ -45,7 +44,7 @@ class RallyContext:
     fps: float
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
-    pool: OptionPool
+    repairs: RallyRepairs
     frame_count: int | None = None
 
 
@@ -56,7 +55,17 @@ class RallyOptions:
     sequences: tuple[ContactSequence, ...]
     matrix: np.ndarray
     span_rows: dict[int, np.ndarray]
-    original: RallyContext
+    context: RallyContext
+
+
+def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]:
+    """Summarise the strongest candidate in each gap with available evidence."""
+    if not values:
+        return (np.nan, np.nan, np.nan, np.nan)
+    maxima = np.asarray([max(group) for group in values], dtype=np.float64)
+    ordered = np.sort(maxima)[::-1]
+    return (float(ordered[0]), float(ordered[1]) if len(ordered) > 1 else np.nan,
+            float(np.mean(maxima)), float(np.sum(maxima)))
 
 
 def sequence_key(sequence: ContactSequence) -> tuple[int, int, tuple[int, ...]]:
@@ -68,18 +77,6 @@ def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float,
         return np.nan, np.nan, np.nan
     values = [event.probability for event in events]
     return min(values), max(values), float(np.mean(values))
-
-
-def span_candidates(video: RallyContext, span_id: int) -> tuple[ContactEvent, ...]:
-    """Recover the existing serve/later shortlist without running fitted models."""
-    candidates = {event.frame: event for event in video.pool.later_candidates.get(span_id, ())}
-    for option in video.pool.options:
-        if option.span_id != span_id or option.edit.serve_frame is None:
-            continue
-        frame = option.edit.serve_frame
-        event = next(event for event in option.sequence.events if event.frame == frame)
-        candidates[frame] = event
-    return tuple(candidates[frame] for frame in sorted(candidates))
 
 
 def toggle_proposals(
@@ -152,8 +149,9 @@ def unused_evidence(
 
 def option_features(
     before: ContactSequence, after: ContactSequence, candidates: tuple[ContactEvent, ...],
-    video: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
+    context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
 ) -> np.ndarray:
+    """Measure a proposed contact sequence against the initial rally evidence."""
     before_frames = {event.frame for event in before.events}
     after_frames = {event.frame for event in after.events}
     added = tuple(event for event in after.events if event.frame not in before_frames)
@@ -165,37 +163,37 @@ def option_features(
         after.events[0].frame if after.events else None,
         None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
     )
-    raw, unused_frame = unused_evidence(after, candidates, video.fps)
+    raw, unused_frame = unused_evidence(after, candidates, context.fps)
     return np.concatenate((
-        before_summary, sequence_summary(after, video.fps), before_sides, side_agreement(after),
+        before_summary, sequence_summary(after, context.fps), before_sides, side_agreement(after),
         (len(added), len(deleted)), probability_summary(added), probability_summary(deleted),
-        *(physical_or_nan(video.pool.physical, frame) for frame in physical_frames),
-        raw, physical_or_nan(video.pool.physical, unused_frame),
+        *(physical_or_nan(context.repairs.physical, frame) for frame in physical_frames),
+        raw, physical_or_nan(context.repairs.physical, unused_frame),
     ))
 
 
-def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
+def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
     """Build ordered contact-toggle proposals from detector evidence alone."""
     if max_edits < 0 or deletion_candidates < 0:
         raise ValueError('edit and deletion budgets must be non-negative')
     sequences = []
     matrices = []
     span_rows = {}
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
-    original_by_span: dict[int, list[ContactSequence]] = {}
-    for option in video.pool.options:
-        original_by_span.setdefault(option.span_id, []).append(option.sequence)
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, video.fps)
+    stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
+    repairs_by_span: dict[int, list[ContactSequence]] = {}
+    for sequence in context.repairs.sequences:
+        repairs_by_span.setdefault(sequence.span_id, []).append(sequence)
+    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
-    for before in video.initial:
-        candidates = span_candidates(video, before.span_id)
+    for before in context.initial:
+        candidates = context.repairs.candidates.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in candidates)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
-        proposals = toggle_proposals(
-            before, candidates, video.events[first:last], previous_end, distance, max_edits, deletion_candidates,
+        combined_sequences = toggle_proposals(
+            before, candidates, context.events[first:last], previous_end, distance, max_edits, deletion_candidates,
         )
         unique = {sequence_key(before): before}
-        for sequence in (*original_by_span.get(before.span_id, ()), *proposals):
+        for sequence in (*repairs_by_span.get(before.span_id, ()), *combined_sequences):
             unique.setdefault(sequence_key(sequence), sequence)
         original_frames = {event.frame for event in before.events}
         ordered = sorted(unique.values(), key=lambda sequence: (
@@ -206,12 +204,12 @@ def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candid
         evidence = {event.frame: event for sequence in ordered for event in sequence.events}
         evidence.update((event.frame, event) for event in candidates)
         evidence_candidates = tuple(evidence[frame] for frame in sorted(evidence))
-        before_summary, before_sides = sequence_summary(before, video.fps), side_agreement(before)
+        before_summary, before_sides = sequence_summary(before, context.fps), side_agreement(before)
         start_row = len(sequences)
         for after in ordered:
             sequences.append(after)
-            matrices.append(option_features(before, after, evidence_candidates, video, before_summary, before_sides))
+            matrices.append(option_features(before, after, evidence_candidates, context, before_summary, before_sides))
         span_rows[before.span_id] = np.arange(start_row, len(sequences), dtype=np.int64)
         previous_end = before.end_frame
     matrix = np.asarray(matrices, dtype=np.float32).reshape(len(sequences), len(FEATURE_NAMES))
-    return RallyOptions(tuple(sequences), matrix, span_rows, video)
+    return RallyOptions(tuple(sequences), matrix, span_rows, context)

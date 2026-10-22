@@ -1,11 +1,11 @@
 """Check experiment-only conversion of per-frame motion into base-30 units."""
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
+from annotator.config import BASE_FPS
 from annotator.contacts.features import (
     BASE_MISSINGNESS_SIGNALS,
     REGION_FIELDS,
@@ -13,10 +13,10 @@ from annotator.contacts.features import (
     ContactFeatures,
     build_contact_features,
 )
-from annotator.fps_constants import BASE_FPS
 from annotator.rally.contacts import FLOOR_EPS
 from annotator.types import StickyResult
-from experiments.annotator.tree_simplification import integrate, pilot
+from experiments.annotator import development as experiment
+from experiments.annotator.tree_simplification import input_stages
 from experiments.annotator.tree_simplification.fps_normalisation import (
     SCHEMA,
     file_md5,
@@ -219,7 +219,7 @@ def test_conversion_rejects_nonpositive_fps(fps: float) -> None:
 def test_partial_preparation_fails_before_creating_fit_outputs(tmp_path: Path) -> None:
     prepared = tmp_path / 'prepared'
     prepared.mkdir()
-    pilot.write_json(prepared / 'preparation.json.gz', {
+    experiment.write_json(prepared / 'preparation.json.gz', {
         'motion_units': SCHEMA, 'inputs': {'groups': {'sset_01': 'A', 'sset_18': 'V'}},
     })
     output = tmp_path / 'fit'
@@ -229,41 +229,34 @@ def test_partial_preparation_fails_before_creating_fit_outputs(tmp_path: Path) -
 
 
 def test_prepared_artifact_change_invalidates_receipt(tmp_path: Path) -> None:
-    pilot.write_json(tmp_path / 'preparation.json.gz', {
+    experiment.write_json(tmp_path / 'preparation.json.gz', {
         'motion_units': SCHEMA, 'inputs': {'groups': {'sset_01': 'A'}},
     })
     path = tmp_path / 'videos' / 'sset_01.joblib'
     path.parent.mkdir()
     path.write_bytes(b'original artifact')
-    pilot.write_json(path.with_suffix('.json.gz'), {'motion_units': SCHEMA, 'prepared_md5': file_md5(path)})
+    experiment.write_json(path.with_suffix('.json.gz'), {'motion_units': SCHEMA, 'prepared_md5': file_md5(path)})
     assert preparation_receipt(tmp_path)['artifacts'] == {'sset_01': file_md5(path)}
     path.write_bytes(b'replaced artifact')
     with pytest.raises(ValueError, match='differs from its receipt'):
         preparation_receipt(tmp_path)
 
 
-def test_raw_pilot_refuses_normalised_fit_and_evaluation(tmp_path: Path) -> None:
-    pilot.write_json(tmp_path / 'preparation.json.gz', {'motion_units': SCHEMA})
+def test_raw_training_refuses_normalised_prepared_features(tmp_path: Path) -> None:
+    experiment.write_json(tmp_path / 'preparation.json.gz', {'motion_units': SCHEMA})
     with pytest.raises(ValueError, match='production bundles use raw units'):
-        pilot.fit(tmp_path, {}, tmp_path / 'fit', pilot.DEFAULT_TRAINING_SETTINGS)
-    with pytest.raises(ValueError, match='production bundles use raw units'):
-        pilot.evaluate(tmp_path, Mock(), tmp_path / 'evaluation')
-    assert not (tmp_path / 'fit').exists()
-    assert not (tmp_path / 'evaluation').exists()
+        experiment.require_raw_features(tmp_path)
 
 
-def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path) -> None:
     prepared, run, output = (tmp_path / name for name in ('prepared', 'run', 'export'))
     prepared.mkdir()
     run.mkdir()
-    pilot.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
-    pilot.write_json(run / 'result.json.gz', {'complete': True})
-    pilot.write_json(run / 'settings.json.gz', {'pool_settings': {'prepared': str(prepared)}})
-    monkeypatch.setattr(integrate.sys, 'argv', [
-        'integrate', '--run', str(run), '--layers', '1', '--five-frame-targets', str(tmp_path / 'targets'),
-        '--output', str(output),
-    ])
+    experiment.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
+    experiment.write_json(run / 'result.json.gz', {'complete': True})
+    experiment.write_json(run / 'settings.json.gz', {
+        'layers': 1, 'target_policy': {}, 'pool_settings': {'prepared': str(prepared), 'contact_run': str(tmp_path)},
+    })
     with pytest.raises(ValueError, match='production bundles use raw units'):
-        integrate.main()
+        input_stages.export_run(run, tmp_path / 'targets', output)
     assert not output.exists()
-

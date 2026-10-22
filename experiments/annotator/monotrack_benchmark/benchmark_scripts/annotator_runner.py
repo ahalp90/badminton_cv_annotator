@@ -35,10 +35,10 @@ def run_item(
     from annotator.models import load_models
     from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
     from annotator.run_video import RunCapture, run_video
+    from annotator.sequence.contacts import stream_payload
     from annotator.shuttle_track import validate_shuttle_track
     from annotator.types import DeadMaskMode
     from dataset_builder.vision import load_court_vision, load_pose_arrays
-    from experiments.annotator.old_court_regression.retrain import stream_payload
 
     config, item, condition, output = task
     paths = config['paths']

@@ -330,7 +330,7 @@ def _load_ground_truth() -> GroundTruth:
 
 
 def _scaled_frames(base30: int, fps: float) -> int:
-    from annotator.fps_constants import ScalingKind
+    from annotator.config import ScalingKind
 
     return int(ScalingKind.FRAME_COUNT.scale(base30, fps))
 

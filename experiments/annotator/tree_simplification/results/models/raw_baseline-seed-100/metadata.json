@@ -1,5 +1,5 @@
 {
-  "schema": "annotator-rally-layers/1",
+  "schema": "annotator-rally-layers/2",
   "scikit_learn": "1.9.1",
   "contact_features": [
     "shuttle_vx_t-10",

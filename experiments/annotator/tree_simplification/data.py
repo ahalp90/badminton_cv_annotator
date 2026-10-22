@@ -1,9 +1,9 @@
-"""Prepared inputs shared by the tree-stack experiments."""
+"""Prepared evidence and features shared by rally-model experiments."""
 
 from dataclasses import dataclass
 
 from annotator.contacts.features import ContactFeatures
-from annotator.hybrid import ContactEvidence
+from annotator.preparation import AnnotationEvidence
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 
 
@@ -13,5 +13,5 @@ class PreparedVideo:
 
     video: SearchVideo
     group: str
-    evidence: ContactEvidence
+    evidence: AnnotationEvidence
     features: ContactFeatures

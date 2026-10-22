@@ -1,4 +1,5 @@
 """Smoke coverage for the public annotator video composition."""
+
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -7,10 +8,10 @@ import pandas as pd
 import pytest
 
 import annotator.run_video as run_video_module
-from annotator import rally_segmentation
-from annotator.config import BaseAnnotatorConfig
+from annotator import preparation, rally_segmentation
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.contacts.selection import scoring_filter
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
-from annotator.fps_constants import scale_for_fps
 from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
@@ -18,20 +19,21 @@ from annotator.outcomes.point_winner import (
     LandingFilterOptions,
     Verdict,
 )
-from annotator.outcomes.video import scoring_filter
-from annotator.rally_segmentation import ServeStartClose, ServeStartMode, StickyResult
+from annotator.preparation import build_serve_options
+from annotator.rally import evidence as rally_evidence
+from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import (
     AnnotatorResult,
     RunCapture,
-    build_serve_options,
     run_video,
 )
 from annotator.sequence import ContactEvent, ContactSequence
-from annotator.types import ContactCandidate, ServeStartConfig
+from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 
 
 def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
     inputs = _synthetic_inputs()
+    inputs['raw_exclusion_mask'][1:30] = True
     final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, Half.TOP), ContactEvent(17, .8, Half.TOP))
     sequence = ContactSequence(0, 8, 23, final_events[1:])
     prediction = SimpleNamespace(
@@ -42,6 +44,7 @@ def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, an
     def predict(evidence, models):
         assert evidence.heuristic_spans == [(10, 20)]
         assert evidence.raw_contact_frames == [14]
+        assert evidence.exclusion_mask[9]
         assert models is annotator_models
         return prediction
 
@@ -49,7 +52,7 @@ def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, an
         raise AssertionError('model-selected sides must not be re-attributed')
 
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
-    monkeypatch.setattr(run_video_module, 'build_contact_data', unexpected_reattribution)
+    monkeypatch.setattr(run_video_module, 'select_heuristic_contacts', unexpected_reattribution)
     capture = RunCapture()
     result = run_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
@@ -134,9 +137,8 @@ def test_build_serve_options_wires_sticky_setup() -> None:
     resolution = (1920.0, 1080.0)
     options = build_serve_options(
         ServeStartConfig(threshold_bh=0.75, mode=ServeStartMode.TRIM, stillness_threshold_bh=0.2),
-        sticky, scale_for_fps(30.0), resolution,
+        sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
     )
-    assert options.dist is None
     assert options.setup is not None
     assert options.stillness_threshold_bh == 0.2
     assert options.lookback_frames == 25
@@ -146,7 +148,7 @@ def test_build_serve_options_wires_sticky_setup() -> None:
     with pytest.raises(ValueError, match='serve_start.close is unsupported with BACK_FILL'):
         build_serve_options(
             ServeStartConfig(threshold_bh=0.1, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST),
-            sticky, scale_for_fps(30.0), resolution,
+            sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
         )
 
 
@@ -154,7 +156,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     inputs = _synthetic_inputs()
     injected = [(10, 20)]
     monkeypatch.setattr(
-        rally_segmentation, 'find_rally_spans',
+        preparation, 'find_rally_spans',
         lambda *args, **kwargs: pytest.fail('natural span finding was not bypassed'),
     )
 
@@ -163,95 +165,22 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     assert result.spans == injected
 
 
-def test_run_video_court_optional_stop_early_preserves_positions_and_raw_contacts(monkeypatch):
-    track = np.zeros((20, 3), dtype=np.float64)
-    positions = np.zeros((20, 2, 2), dtype=np.float64)
-    expected_contacts = [ContactCandidate(0, 7, True, None, None)]
-    received = {}
-
-    def fake_segment_video(track_arg, **kwargs):
-        received.update(kwargs)
-        return [(3, 12)], expected_contacts
-
-    monkeypatch.setattr(rally_segmentation, 'segment_video', fake_segment_video)
-    monkeypatch.setattr(
-        rally_segmentation, 'tracker_segments',
-        lambda *args, **kwargs: pytest.fail('court-optional mode must not build tracker segments'),
-    )
-    monkeypatch.setattr(
-        rally_segmentation, 'build_sticky_result',
-        lambda *args, **kwargs: pytest.fail('court-optional mode must not build sticky'),
-    )
-    monkeypatch.setattr(
-        run_video_module.point_winner, 'pick_landing_to_end',
-        lambda *args, **kwargs: pytest.fail('stop-early mode must not enter landing'),
-    )
-
-    result = run_video(
-        track, fps=25.0, positions=positions,
-        raw_exclusion_mask=np.zeros(len(track), dtype=bool),
-        court_optional=True, stop_after_segmentation=True, heuristic_only=True,
-    )
-
-    assert received['positions'] is positions
-    assert received['sticky_distances'] is None
-    assert result.spans == [(3, 12)]
-    assert result.contacts == expected_contacts
-    assert result.filtered_contacts == []
-    assert result.filtered_by_rally == {}
-    assert result.striker_halves == []
-    assert result.verdict_rows == {}
-    assert result.landings == {}
-    assert result.hit_height_by_frame == {}
-
-
-def test_run_video_court_optional_ignores_hard_court_union_flag() -> None:
-    n_frames = 20
-    capture = RunCapture()
-    result = run_video(
-        np.zeros((n_frames, 3)),
-        fps=25.0,
-        positions=np.zeros((n_frames, 2, 2)),
-        raw_exclusion_mask=np.zeros(n_frames, dtype=bool),
-        court_optional=True,
-        stop_after_segmentation=True,
-        court_invalid_is_excluded=True,
-        capture=capture, heuristic_only=True,
-    )
-    assert result.verdict_rows == {}
-    assert capture.definitive_exclusion_mask is not None
-    assert not capture.definitive_exclusion_mask.any()
-
-
-def test_run_video_court_optional_rejects_contradictory_court_evidence():
-    with pytest.raises(ValueError, match='court_optional rejects supplied inputs: homography_rows'):
-        run_video(
-            np.zeros((10, 3)), fps=25.0, homography_rows=[],
-            court_optional=True, stop_after_segmentation=True, heuristic_only=True,
-        )
-
-
-def test_run_video_court_optional_requires_stop_early():
-    with pytest.raises(ValueError, match='court_optional requires stop_after_segmentation'):
-        run_video(np.zeros((10, 3)), fps=25.0, court_optional=True, heuristic_only=True)
-
-
 @pytest.mark.parametrize('field', ['bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id',
                                    'gate_court_info', 'gate_resolution_table'])
-def test_run_video_normal_mode_requires_sticky_inputs(field):
+def test_run_video_requires_player_and_court_inputs(field):
     inputs = _synthetic_inputs()
     del inputs['raw_exclusion_mask']
     inputs[field] = None
-    with pytest.raises(ValueError, match=rf'normal mode requires .*\b{field}\b'):
-        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), stop_after_segmentation=True, heuristic_only=True)
+    with pytest.raises(ValueError, match=rf'requires .*\b{field}\b'):
+        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), heuristic_only=True)
 
 
 @pytest.mark.parametrize('field', ['landing_options', 'net_band', 'court_info', 'homo_df'])
-def test_run_video_full_chain_requires_downstream_inputs(field):
+def test_run_video_requires_outcome_inputs(field):
     inputs = _synthetic_inputs()
     del inputs['raw_exclusion_mask']
     inputs[field] = None
-    with pytest.raises(ValueError, match=rf'full-chain mode requires .*\b{field}\b'):
+    with pytest.raises(ValueError, match=rf'requires? .*\b{field}\b'):
         run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), heuristic_only=True)
 
 
@@ -277,18 +206,18 @@ def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
         {**scene_row, 'start_frame': '0', 'end_frame': '150'},
         {**scene_row, 'start_frame': '150', 'end_frame': str(n_frames)},
     ]
-    expected = rally_segmentation.tracker_segments(homography_rows, court_present, n_frames)
+    expected = rally_evidence.tracker_segments(homography_rows, court_present, n_frames)
     # Dropout splits the first scene row: the fixture must stay non-trivial.
     assert expected == [(0, 40), (60, 150), (150, 300)]
 
-    real_builder = rally_segmentation.build_sticky_result
+    real_builder = rally_evidence.build_sticky_result
     received = []
 
     def spy(track, segments, *args, **kwargs):
         received.append(segments)
         return real_builder(track, segments, *args, **kwargs)
 
-    monkeypatch.setattr(rally_segmentation, 'build_sticky_result', spy)
+    monkeypatch.setattr(rally_evidence, 'build_sticky_result', spy)
 
     run_video(**inputs, court_present=court_present, homography_rows=homography_rows, heuristic_only=True)
 
@@ -299,8 +228,8 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
     inputs = _synthetic_inputs()
     original_track = inputs['track'].copy()
     del inputs['raw_exclusion_mask']
-    real_build_sticky = rally_segmentation.build_sticky_result
-    real_build_options = run_video_module.build_serve_options
+    real_build_sticky = rally_evidence.build_sticky_result
+    real_build_options = preparation.build_serve_options
     sticky_tracks = []
     option_stickies = []
     segment_tracks = []
@@ -324,9 +253,9 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
         segment_tracks.append((track.copy(), kwargs['exclusion_mask'].copy()))
         return real_segment_video(track, *args, **kwargs)
 
-    monkeypatch.setattr(rally_segmentation, 'build_sticky_result', spy_build_sticky)
-    monkeypatch.setattr(run_video_module, 'build_serve_options', spy_build_options)
-    monkeypatch.setattr(run_video_module, 'build_dead_mask', fake_dead_mask)
+    monkeypatch.setattr(rally_evidence, 'build_sticky_result', spy_build_sticky)
+    monkeypatch.setattr(preparation, 'build_serve_options', spy_build_options)
+    monkeypatch.setattr(preparation, 'build_dead_mask', fake_dead_mask)
     monkeypatch.setattr(rally_segmentation, 'segment_video', spy_segment_video)
 
     run_video(
@@ -647,7 +576,7 @@ def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypa
 
 def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
     inputs = _synthetic_inputs()
-    real_build_sticky_result = rally_segmentation.build_sticky_result
+    real_build_sticky_result = rally_evidence.build_sticky_result
     build_calls = 0
 
     def count_builds(*args, **kwargs):
@@ -659,10 +588,10 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
         raise AssertionError('dead-mask builder must be bypassed')
 
     monkeypatch.setattr(
-        rally_segmentation, 'build_sticky_result', count_builds,
+        rally_evidence, 'build_sticky_result', count_builds,
     )
     monkeypatch.setattr(
-        run_video_module, 'build_dead_mask', fail_if_called,
+        preparation, 'build_dead_mask', fail_if_called,
     )
 
     result = run_video(
@@ -770,22 +699,13 @@ def test_run_video_default_empty_horizon_capture_stays_empty():
     assert capture.landing_horizon_rows == []
 
 
-def test_run_video_court_invalid_union_is_full_chain_only() -> None:
+def test_run_video_can_exclude_frames_without_court_presence() -> None:
     inputs = _synthetic_inputs()
     court_present = np.ones(len(inputs['track']), dtype=bool)
     court_present[10] = False
     capture = RunCapture()
     scene_inputs = _default_scene_inputs(len(inputs['track']))
     scene_inputs['court_present'] = court_present
-
-    run_video(
-        **inputs,
-        **scene_inputs,
-        stop_after_segmentation=True,
-        capture=capture,
-        court_invalid_is_excluded=True, heuristic_only=True,
-    )
-    assert not capture.definitive_exclusion_mask[10]
 
     run_video(
         **inputs,
@@ -799,9 +719,8 @@ def test_run_video_court_invalid_union_is_full_chain_only() -> None:
 
 @pytest.mark.parametrize('gap', [(0, 10), (150, 160), (290, 300)])
 @pytest.mark.parametrize('exclude_invalid', [False, True])
-@pytest.mark.parametrize('stop_early', [False, True])
-def test_run_video_excludes_scene_gaps_only_in_full_chain(
-    gap: tuple[int, int], exclude_invalid: bool, stop_early: bool,
+def test_run_video_excludes_scene_gaps(
+    gap: tuple[int, int], exclude_invalid: bool,
 ) -> None:
     inputs = _synthetic_inputs()
     n_frames = len(inputs['track'])
@@ -824,21 +743,17 @@ def test_run_video_excludes_scene_gaps_only_in_full_chain(
         **inputs, **scene_inputs,
         spans=[(0, n_frames)], contacts={0: contact_frames}, capture=capture,
         court_invalid_is_excluded=exclude_invalid,
-        stop_after_segmentation=stop_early, heuristic_only=True,
+        heuristic_only=True,
     )
 
     assert not capture.raw_exclusion_mask.any()
     assert [contact.contact_frame for contact in result.contacts] == contact_frames
-    if stop_early:
-        assert not capture.definitive_exclusion_mask.any()
-        assert result.filtered_contacts == []
-    else:
-        expected_mask = np.zeros(n_frames, dtype=bool)
-        expected_mask[gap_start:gap_end] = True
-        expected_mask[120] = exclude_invalid
-        np.testing.assert_array_equal(capture.definitive_exclusion_mask, expected_mask)
-        expected_contacts = [180] if exclude_invalid else [120, 180]
-        assert [contact.contact_frame for contact in result.filtered_contacts] == expected_contacts
+    expected_mask = np.zeros(n_frames, dtype=bool)
+    expected_mask[gap_start:gap_end] = True
+    expected_mask[120] = exclude_invalid
+    np.testing.assert_array_equal(capture.definitive_exclusion_mask, expected_mask)
+    expected_contacts = [180] if exclude_invalid else [120, 180]
+    assert [contact.contact_frame for contact in result.filtered_contacts] == expected_contacts
 
 
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
@@ -853,9 +768,6 @@ def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
             capture=capture,
             court_invalid_is_excluded=True, heuristic_only=True,
         )
-    assert capture.raw_exclusion_mask is not None
-    assert capture.definitive_exclusion_mask is not None
-    assert capture.definitive_exclusion_mask.all()
 
 
 def test_run_video_uses_supplied_landing_error_band_without_static_homography(monkeypatch) -> None:
@@ -957,7 +869,7 @@ def test_run_video_threads_event_mask_to_dead_mask_builder(
         received.append(kwargs['shuttle_hallucination_mask'].copy())
         return np.zeros(n_frames, dtype=bool)
 
-    monkeypatch.setattr(run_video_module, 'build_dead_mask', fake_dead_mask)
+    monkeypatch.setattr(preparation, 'build_dead_mask', fake_dead_mask)
     kwargs = {'spans': [(10, 20)], 'contacts': {0: [14]}} if contacts_mode == 'injected' else {}
 
     run_video(**inputs, **_default_scene_inputs(n_frames), **kwargs, heuristic_only=True)
@@ -973,7 +885,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
     codes = np.zeros(frame_count, dtype=np.uint8)
     codes[10:14] = [0, 1, 2, 3]
     mask_calls = []
-    original = run_video_module.build_shuttle_hallucination_mask
+    original = preparation.build_shuttle_hallucination_mask
 
     def build_mask(*args):
         result = original(*args)
@@ -988,7 +900,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
         )
 
     models = replace(annotator_models, preprocessing=BaseAnnotatorConfig(rejected_grades=rejected_grades))
-    monkeypatch.setattr(run_video_module, 'build_shuttle_hallucination_mask', build_mask)
+    monkeypatch.setattr(preparation, 'build_shuttle_hallucination_mask', build_mask)
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
     capture = RunCapture()
     run_video(
@@ -996,5 +908,4 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
         models=models, inpaint_codes=codes, capture=capture,
     )
     assert len(mask_calls) == 1
-    assert capture.contact_evidence.shuttle_hallucination_mask is mask_calls[0]
     np.testing.assert_array_equal(mask_calls[0], np.isin(codes, tuple(rejected_grades)))

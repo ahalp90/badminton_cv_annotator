@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from annotator.config import ScalingKind
 from annotator.evaluation.fixtures import FIXTURES
 from annotator.evaluation.gt_scoring import (
     RallyRow,
@@ -17,7 +18,6 @@ from annotator.evaluation.gt_scoring import (
     load_gt_tables,
     score_video,
 )
-from annotator.fps_constants import ScalingKind
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from dataset_builder.vision import (

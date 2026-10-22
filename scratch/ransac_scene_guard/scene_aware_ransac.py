@@ -46,7 +46,7 @@ if str(REPO_ROOT / "src") not in sys.path:
 import audit_production_variants as variants
 import audit_tracks as audit
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from annotator.masks.inpaint import NO_FLAG, grade_track
 
 

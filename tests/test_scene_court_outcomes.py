@@ -1,8 +1,11 @@
 """Downstream outcome consumers use the court geometry of each contact scene."""
 
+from types import SimpleNamespace
+
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.contacts.selection import ContactData, select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
@@ -12,7 +15,6 @@ from annotator.outcomes.point_winner import (
     LandingKinematics,
     VerdictRow,
 )
-from annotator.resolve import resolve
 from annotator.types import ContactCandidate
 
 
@@ -39,10 +41,11 @@ def test_contact_attribution_uses_net_band_at_contact_scene(monkeypatch):
 
     monkeypatch.setattr(video_outcomes.point_winner, 'attribute_half', fake_attribute_half)
     contacts = [ContactCandidate(0, 7, None, None, None)]
-    result = video_outcomes.build_contact_data(
-        [(0, 10)], contacts, np.zeros(10, dtype=bool), np.zeros((10, 3)), None,
-        np.zeros((10, 1, 4)), (1.0, 2.0), scene_courts=scenes,
+    evidence = SimpleNamespace(
+        heuristic_spans=[(0, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
+        track=np.zeros((10, 3)), sticky=None, bboxes=np.zeros((10, 1, 4)), scene_courts=scenes,
     )
+    result = select_heuristic_contacts(evidence)
 
     assert received_bands == [scenes[1].net_band]
     assert result.striker_halves == [Half.TOP]
@@ -62,9 +65,9 @@ def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
     monkeypatch.setattr(
         video_outcomes.point_winner, 'build_hit_height_rows', fake_hit_height_rows,
     )
-    hit_heights, failures = video_outcomes.build_hit_heights(
-        [(0, 10)], {0: [7]}, np.zeros((10, 3)), (1.0, 2.0), (1280.0, 720.0), scenes,
-    )
+    evidence = SimpleNamespace(track=np.zeros((10, 3)), resolution=(1280.0, 720.0), scene_courts=scenes)
+    contacts = SimpleNamespace(spans=[(0, 10)], filtered_by_rally={0: [7]})
+    hit_heights, failures = video_outcomes.build_hit_heights(evidence, contacts)
 
     assert received_bands == [scenes[1].net_band]
     assert hit_heights == {7: 1}
@@ -105,34 +108,21 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
     monkeypatch.setattr(video_outcomes.point_winner, 'pick_landing_to_end', fake_pick)
     monkeypatch.setattr(video_outcomes.point_winner, 'rally_verdict', fake_verdict)
 
-    contact_data = video_outcomes.ContactData(
+    contact_data = ContactData(
+        spans=[(0, 12)],
         filtered_contacts=[], scored_by_rally={}, filtered_by_rally={0: [7]},
         striker_halves=[Half.TOP], n_strokes_list=[1], next_servers=[None],
         fitted_first_all=[Half.TOP],
     )
+    evidence = SimpleNamespace(
+        track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), sticky=None,
+        resolved=resolve(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
+        net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
+        source_codes=None, scene_courts=scenes,
+    )
     result = video_outcomes.build_verdict_data(
-        track,
-        fps=25.0,
-        spans=[(0, 12)],
-        definitive_exclusion_mask=np.zeros(n_frames, dtype=bool),
-        sticky=None,
-        contact_data=contact_data,
-        resolved=resolve(BaseAnnotatorConfig(), 25.0),
-        kps=None,
-        resolution=(1280.0, 720.0),
-        video_id=None,
-        homo_df=None,
-        court_info={'scene': 'global'},
-        landing_options=None,
-        net_band=(1.0, 2.0),
-        ref_err_px=3.5,
-        landing_error_band_m=99.0,
-        shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
-        source_codes=None,
-        rejection_diagnostics=None,
-        landing_horizons_s=(),
-        horizon_rows=None,
-        scene_courts=scenes,
+        evidence, contact_data, court_info={'scene': 'global'}, landing_options=None, band_m=99.0,
+        rejection_diagnostics=None, landing_horizons_s=(), horizon_rows=None,
     )
 
     assert landing_call == {

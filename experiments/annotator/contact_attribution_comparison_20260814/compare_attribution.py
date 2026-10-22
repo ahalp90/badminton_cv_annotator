@@ -17,8 +17,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from annotator import rally_segmentation
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.courts.evidence import (
     DETECTOR_RESOLUTION,
     build_net_band,
@@ -33,7 +32,7 @@ from annotator.evaluation.fixtures import (
 )
 from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
 from annotator.outcomes import point_winner
-from annotator.resolve import resolve
+from annotator.rally import evidence as rally_evidence
 from annotator.types import WRIST_L, WRIST_R, StickyResult
 from shared.court import HOMOGRAPHY_RESOLUTION
 
@@ -207,11 +206,11 @@ def load_sticky(
 
     court_info = load_active_court_info(paths.court_scenes)
     net_band = build_net_band(court_info, fixture.resolution)
-    segments = rally_segmentation.tracker_segments(
+    segments = rally_evidence.tracker_segments(
         scene_rows.to_dict("records"), court_present, expected_frames
     )
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).constants
-    sticky = rally_segmentation.build_sticky_result(
+    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    sticky = rally_evidence.build_sticky_result(
         track,
         segments,
         bboxes,

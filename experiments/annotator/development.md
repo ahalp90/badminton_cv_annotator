@@ -1,5 +1,9 @@
 # How the auto-annotator developed
 
+This history covers the earlier eight-model system. The later
+[three-model experiment](reports/tree_simplification.md) replaced its fitted
+repair stages with one rally selector and became the current implementation.
+
 The auto-annotator grew from a set of motion and geometry rules into a system
 that detects contacts, repairs rallies and ranks the results for review. The
 central difficulty stayed the same throughout: finding most hits is much easier

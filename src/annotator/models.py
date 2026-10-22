@@ -12,15 +12,20 @@ import sklearn
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.model import CONTACT_FEATURE_NAMES, ContactModelConfig
-from annotator.sequence.rally_layers import CONTEXT_FEATURE_NAMES
-from annotator.sequence.rally_model import RallyLayerModels, review_feature_names
+from annotator.sequence.rally_model import (
+    CONTEXT_FEATURE_NAMES,
+    RallyLayerModels,
+    review_feature_names,
+)
 from annotator.sequence.rally_options import FEATURE_NAMES
-from annotator.sequence.refine import SequenceModels
 
-MODEL_SCHEMA = 'annotator-models/1'
-LAYER_MODEL_SCHEMA = 'annotator-rally-layers/1'
+MODEL_SCHEMA = 'annotator-rally-layers/2'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
+DEFAULT_MODEL_DIRECTORY = (
+    Path(__file__).resolve().parents[2]
+    / 'experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0'
+)
 
 
 class SideGeometry(StrEnum):
@@ -39,7 +44,7 @@ class AnnotatorModels:
     """The complete fitted annotator, including the rules it was trained with."""
 
     contact: Any
-    sequences: SequenceModels | RallyLayerModels
+    sequences: RallyLayerModels
     confidence: Any
     contact_settings: ContactModelConfig = field(default_factory=ContactModelConfig)
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
@@ -55,9 +60,7 @@ def model_files(directory: Path) -> dict[str, Path]:
 
 
 def fitted_trees(models: AnnotatorModels) -> tuple[Any, ...]:
-    sequences = models.sequences
-    rally_trees = sequences.layers if isinstance(sequences, RallyLayerModels) else tuple(vars(sequences).values())
-    return tuple(tree for tree in (models.contact, models.confidence, *rally_trees) if tree is not None)
+    return tuple(tree for tree in (models.contact, models.confidence, *models.sequences.layers) if tree is not None)
 
 
 def layer_contract(models: RallyLayerModels) -> dict[str, Any]:
@@ -81,10 +84,8 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
         'contact_features': list(CONTACT_FEATURE_NAMES),
         'side_geometry': models.side_geometry.value,
     }
-    if isinstance(models.sequences, RallyLayerModels):
-        metadata['schema'] = LAYER_MODEL_SCHEMA
-        metadata['rally_layers'] = layer_contract(models.sequences)
-        metadata['review_ranking'] = 'selector' if models.confidence is None else 'fitted'
+    metadata['rally_layers'] = layer_contract(models.sequences)
+    metadata['review_ranking'] = 'selector' if models.confidence is None else 'fitted'
     if any(type(tree).__module__.startswith('xgboost') for tree in fitted_trees(models)):
         metadata['xgboost'] = version('xgboost')
     (directory / METADATA_FILENAME).write_text(json.dumps(metadata, indent=2) + '\n')
@@ -103,7 +104,7 @@ def load_models(directory: Path) -> AnnotatorModels:
             'Supply the model directory produced by the annotator retune.'
         )
     metadata = json.loads((directory / METADATA_FILENAME).read_text())
-    if metadata.get('schema') not in (MODEL_SCHEMA, LAYER_MODEL_SCHEMA):
+    if metadata.get('schema') != MODEL_SCHEMA:
         raise ValueError('Unsupported annotator model bundle; fit a fresh bundle with the current training command.')
     trained_version = metadata['scikit_learn']
     if trained_version != sklearn.__version__:
@@ -120,14 +121,11 @@ def load_models(directory: Path) -> AnnotatorModels:
         raise TypeError('Model bundle does not contain a complete AnnotatorModels value')
     if models.side_geometry.value != metadata['side_geometry']:
         raise ValueError('Model bundle and metadata disagree about the net position used for player sides')
-    if metadata['schema'] == LAYER_MODEL_SCHEMA:
-        if not isinstance(models.sequences, RallyLayerModels):
-            raise ValueError('Layer metadata requires a fitted rally-layer bundle')
-        if metadata['rally_layers'] != layer_contract(models.sequences):
-            raise ValueError('Rally-layer features or proposal settings differ; refit the bundle')
-        ranking = 'selector' if models.confidence is None else 'fitted'
-        if metadata['review_ranking'] != ranking:
-            raise ValueError('Model bundle and metadata disagree about review ranking')
-    elif not isinstance(models.sequences, SequenceModels):
-        raise ValueError('Eight-model metadata requires the eight-model sequence bundle')
+    if not isinstance(models.sequences, RallyLayerModels):
+        raise TypeError('Rally metadata requires a fitted rally-layer bundle')
+    if metadata['rally_layers'] != layer_contract(models.sequences):
+        raise ValueError('Rally-layer features or proposal settings differ; refit the bundle')
+    ranking = 'selector' if models.confidence is None else 'fitted'
+    if metadata['review_ranking'] != ranking:
+        raise ValueError('Model bundle and metadata disagree about review ranking')
     return models

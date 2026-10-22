@@ -33,7 +33,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import SLOWMO_SPEED_FRAC, BaseAnnotatorConfig
+from annotator.config import SLOWMO_SPEED_FRAC, BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -54,16 +54,9 @@ from annotator.masks.replay import (
     perspective_shift_signal,
     velocity_drop_signal,
 )
-from annotator.rally_segmentation import (
-    BODY_UNIT_WRIST_THRESHOLD,
-    build_sticky_result,
-    compute_speed,
-    detect_contact_flags,
-    find_rally_spans,
-    rolling_nanmedian,
-    tracker_segments,
-)
-from annotator.resolve import resolve
+from annotator.rally.contacts import impulse_cell_candidates
+from annotator.rally.evidence import build_sticky_result, tracker_segments
+from annotator.rally.spans import find_rally_spans
 from annotator.review.broadcast_labels import (
     LabelInterval,
     SceneTruth,
@@ -72,6 +65,7 @@ from annotator.review.broadcast_labels import (
     validate_partition,
 )
 from annotator.run_video import RunCapture, run_video
+from annotator.types import compute_speed, rolling_nanmedian
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_LABELS = SCRIPT_DIR / "data/sset_01_broadcast_timeline_labels.csv.gz"
@@ -290,11 +284,11 @@ def slow_motion_details(
     if rally_median <= 0:
         raise ValueError("slow-motion rally median must be positive")
     resolved = resolve(BaseAnnotatorConfig(), fps)
-    rolling_speed = rolling_nanmedian(speed, resolved.constants.rest_window)
+    rolling_speed = rolling_nanmedian(speed, resolved.thresholds.rest_window)
     threshold = SLOWMO_SPEED_FRAC * rally_median
     signal = (
         (track[:, 2] == 1)
-        & (rolling_speed >= resolved.constants.rest_speed)
+        & (rolling_speed >= resolved.thresholds.rest_speed)
         & (rolling_speed < threshold)
     )
     return SlowMotionDetails(signal, speed, rolling_speed, rally_median, threshold)
@@ -335,16 +329,7 @@ def slow_motion_rows(
 def bootstrap_spans(track: np.ndarray, fps: float) -> list[tuple[int, int]]:
     """Reproduce the current unmasked span pass used to build the replay mask."""
     resolved = resolve(BaseAnnotatorConfig(), fps)
-    return find_rally_spans(
-        track,
-        resolved.thresholds,
-        span_open=resolved.span_open,
-        constants=resolved.constants,
-        gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-        reentry_guard_variant=resolved.reentry_guard_variant,
-        reentry_guard_buffer=resolved.reentry_guard_buffer,
-        quiet_start_window=resolved.quiet_start_window,
-    )
+    return find_rally_spans(track, resolved)
 
 
 def gt_statuses(
@@ -415,8 +400,8 @@ def evaluate_serve_candidates(
         if not accepted:
             continue
         anchor = accepted[0]
-        lookback_start = max(0, anchor - resolved.constants.serve_start_lookback_frames)
-        flags = detect_contact_flags(
+        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
+        flags = impulse_cell_candidates(
             track,
             lookback_start,
             anchor,
@@ -435,7 +420,7 @@ def evaluate_serve_candidates(
             code = int(inpaint_codes[frame])
             wrist_pass = bool(
                 np.isfinite(sticky_distance)
-                and sticky_distance <= BODY_UNIT_WRIST_THRESHOLD
+                and sticky_distance <= resolved.thresholds.wrist_distance_body_heights
             )
             evidence_pass = visible and code == NO_FLAG and wrist_pass
             policy_pass = evidence_pass and not bool(definitive_mask[frame])
@@ -518,9 +503,9 @@ def evaluate_serve_candidates(
     policy_selected = [int(row["candidate_frame"]) for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.constants.serve_start_lookback_frames,
+            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
-            "wrist_threshold_body_heights": BODY_UNIT_WRIST_THRESHOLD,
+            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,
             "requires_inpaint_code": NO_FLAG,
             "definitive_mask_policy": "blocked",
@@ -765,7 +750,7 @@ def run_measurement(
     pinned_mask_diff_frames = int(np.count_nonzero(raw_union != committed_mask))
     resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
     duration_filtered = filter_short_exclusion_runs(
-        raw_union, resolved.constants.replay_mask_min_frames,
+        raw_union, resolved.thresholds.replay_mask_min_frames,
     )
     e2e_definitive = duration_filtered | ~court_present
 
@@ -815,7 +800,7 @@ def run_measurement(
         keyword["gate_court_info"],
         keyword["gate_resolution_table"],
         fixture.resolution,
-        resolved.constants.body_unit_half_window,
+        resolved.thresholds.body_unit_half_window,
     )
     accepted_by_span = {
         int(span_id): sorted(map(int, frames))
@@ -872,7 +857,7 @@ def run_measurement(
             {"path": pin.path.as_posix(), "md5": pin.md5} for pin in fixture.files
         ],
         "replay_mask": {
-            "replay_mask_min_frames": resolved.constants.replay_mask_min_frames,
+            "replay_mask_min_frames": resolved.thresholds.replay_mask_min_frames,
             "fresh_union_matches_pinned_raw_mask": pinned_mask_diff_frames == 0,
             "fresh_union_pinned_raw_diff_frames": pinned_mask_diff_frames,
             "detectors": binary_by_detector,

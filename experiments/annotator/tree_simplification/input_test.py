@@ -28,8 +28,10 @@ from threadpoolctl import threadpool_limits
 
 from annotator.models import AnnotatorModels, fitted_trees, load_models, model_files
 from annotator.run_video import RunCapture, run_video
+from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import RallyLayerModels
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
+from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
     load_test_inputs,
@@ -37,8 +39,6 @@ from experiments.annotator.heuristic_only_tune.data import (
     run_video_kwargs,
     score_stream,
 )
-from experiments.annotator.old_court_regression.retrain import stream_payload
-from experiments.annotator.tree_hp_tune.run import pooled_scores
 from experiments.annotator.tree_simplification import input_stages, integrate
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
 
@@ -157,8 +157,6 @@ def _load_test_bundle(
     expected_seeds = {
         'contact': DEFAULT_TRAINING_SETTINGS.contact.random_seed,
         'confidence': DEFAULT_TRAINING_SETTINGS.confidence.random_seed,
-        'sequences.serve': DEFAULT_TRAINING_SETTINGS.sequences.serve.random_seed,
-        'sequences.sequence': DEFAULT_TRAINING_SETTINGS.sequences.sequence.random_seed,
     }
     for fit_name, base_seed in expected_seeds.items():
         section, *subsection = fit_name.split('.')
@@ -168,7 +166,7 @@ def _load_test_bundle(
         if config['random_seed'] != base_seed + seed_offset:
             raise ValueError(f'{candidate}, seed {seed_offset}: {fit_name} seed does not match the selected offset')
     if run_settings['tree']['random_seed'] != (
-        DEFAULT_TRAINING_SETTINGS.sequences.sequence.random_seed + seed_offset
+        DEFAULT_TRAINING_SETTINGS.rally_layers.tree.random_seed + seed_offset
     ):
         raise ValueError(f'{candidate}, seed {seed_offset}: selector seed does not match the selected offset')
 

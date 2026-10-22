@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from scratch.contact_det.scripts.score_contact_rallies import FixedSpan, RallyReference
 from scratch.contact_det_closing_pass.scripts.evaluation import (
     score_sections,

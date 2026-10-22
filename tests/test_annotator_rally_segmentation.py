@@ -4,44 +4,44 @@ Tracks are built to make the truth obvious: a rest span, a zig-zag rally with a
 known number of clean velocity reversals, then a long rest. The contact tests
 pin the measured impulse rule and its largest-impulse de-duplication.
 """
+
 import itertools
+from dataclasses import replace
 
 import numpy as np
 import pytest
 
-from annotator.config import (
-    END_REST_FRAMES,
-    SHIPPED_THRESHOLDS,
-    SMOOTH_WINDOW,
-)
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import SSET_01
-from annotator.fps_constants import scale_for_fps
-from annotator.rally.serve import serve_distance_ratio_passes
+from annotator.rally.contacts import (
+    contact_proximity_ok,
+    impulse_cell_candidates,
+    span_impulses,
+    suppress_contact_flags,
+    wrist_contact_near,
+)
+from annotator.rally.evidence import CourtGeo, court_scale_slots
+from annotator.rally.serve import (
+    ServeSetupInputs,
+    ServeStartClose,
+    ServeStartMode,
+    ServeStartOptions,
+    serve_distance_ratio_passes,
+)
 from annotator.rally.spans import (
     active_region_rally_spans,
     burst_rally_spans,
     last_rest_close,
     serve_qualified_rally_spans,
 )
-from annotator.rally.trajectory import _nan_rolling_mean, _rolling_mean
-from annotator.rally_segmentation import (
-    CourtGeo,
-    ServeSetupInputs,
-    ServeStartClose,
-    ServeStartMode,
-    ServeStartOptions,
-    SpanOpen,
+from annotator.rally.trajectory import (
+    _nan_rolling_mean,
+    _rolling_mean,
     apply_replay_mask,
-    compute_speed,
-    contact_proximity_ok,
-    court_scale_slots,
-    detect_contact_flags,
-    segment_video,
-    span_impulses,
-    suppress_contact_flags,
-    wrist_contact_near,
 )
-from annotator.types import SmoothingMode
+from annotator.rally_segmentation import segment_video
+from annotator.types import SmoothingMode, SpanOpen, compute_speed
+from tests.annotator_config import burst_config
 
 SSET_01_COURT_GEO = CourtGeo(*SSET_01.court_geo)
 
@@ -96,7 +96,7 @@ def test_compute_speed_and_visibility_nan():
 
 def test_single_rally_span_and_three_contacts():
     track, rally_start, rally_end, _truth_contacts = _build_rally_track()
-    spans, contacts = segment_video(track)
+    spans, contacts = segment_video(track, resolved=burst_config())
 
     assert len(spans) == 1
     start, end = spans[0]
@@ -113,7 +113,7 @@ def test_static_track_yields_no_rally():
     track = np.column_stack([
         np.full(150, 0.5), np.full(150, 0.5), np.ones(150),
     ])
-    spans, contacts = segment_video(track)
+    spans, contacts = segment_video(track, resolved=burst_config())
     assert spans == []
     assert contacts == []
 
@@ -123,12 +123,14 @@ def test_invisible_moving_track_reads_as_rest():
     # and the window is mostly untracked -> rest. No rally is found.
     ys = np.tile([0.1, 0.9], 75)
     track = np.column_stack([np.full(150, 0.5), ys, np.zeros(150)])
-    spans, _ = segment_video(track)
+    spans, _ = segment_video(track, resolved=burst_config())
     assert spans == []
 
 
 def test_ignore_invisible_smoothing_uses_even_fps_scaled_window() -> None:
-    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=scale_for_fps(60.0).smooth_window)
+    thresholds = replace(
+        burst_config().thresholds, smooth_window=resolve(BaseAnnotatorConfig(), 60.0).thresholds.smooth_window
+    )
     assert thresholds.smooth_window == 6
     track = np.column_stack([
         [1.0, 99.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0],
@@ -147,7 +149,7 @@ def test_ignore_invisible_smoothing_uses_even_fps_scaled_window() -> None:
 
 
 def test_ignore_invisible_smoothing_marks_all_invisible_span_unmeasurable() -> None:
-    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=6)
+    thresholds = replace(burst_config().thresholds, smooth_window=6)
     track = np.column_stack([np.arange(8, dtype=float), np.zeros(8), np.zeros(8)])
 
     impulses = span_impulses(
@@ -172,7 +174,12 @@ def _triangle_track(step: float) -> np.ndarray:
 
 def test_contact_detected_on_fast_reversal():
     track = _triangle_track(RALLY_STEP)
-    contacts = [frame for frame, _impulse in detect_contact_flags(track, 0, len(track))]
+    contacts = [
+        frame
+        for frame, _impulse in impulse_cell_candidates(
+            track, 0, len(track), thresholds=burst_config().thresholds, smoothing_mode=SmoothingMode.ZERO_FILL
+        )
+    ]
     assert contacts == [1, 7, 13]
 
 
@@ -182,7 +189,9 @@ def test_contact_suppression_ranks_impulse_then_frame():
     # would suppress nothing).
     flags = [(10, 1.0), (18, 2.0), (27, 2.0)]
     assert suppress_contact_flags(flags, radius=9) == [18, 27]
-    assert detect_contact_flags(_triangle_track(RALLY_STEP), 0, 15)
+    assert impulse_cell_candidates(
+        _triangle_track(RALLY_STEP), 0, 15, thresholds=burst_config().thresholds, smoothing_mode=SmoothingMode.ZERO_FILL
+    )
 
 
 def test_proximity_ok_true_false_blank():
@@ -206,13 +215,13 @@ def test_proximity_ok_true_false_blank():
 def test_segment_video_proximity_paths():
     track, _, _, _ = _build_rally_track()
     # No positions: every contact carries a blank guardrail.
-    _, contacts_blank = segment_video(track, positions=None)
+    _, contacts_blank = segment_video(track, positions=None, resolved=burst_config())
     assert contacts_blank
     assert all(contact.proximity_ok is None for contact in contacts_blank)
 
     # Player sitting on the shuttle at every frame: every contact reads True.
     positions = np.repeat(track[:, None, :2], 2, axis=1)  # (t, 2, 2) both slots on the shuttle
-    _, contacts_near = segment_video(track, positions=positions)
+    _, contacts_near = segment_video(track, positions=positions, resolved=burst_config())
     assert all(contact.proximity_ok is True for contact in contacts_near)
 
 
@@ -233,15 +242,12 @@ def test_court_scale_slots_keeps_identities_on_tied_scores():
 
 
 def test_wrist_contact_near_verdicts():
-    # None distances (gate never ran): unmeasured -> None, never a pass.
-    assert wrist_contact_near(None, 0) is None
-
-    # Below / at / above the sticky body-unit gate, plus NaN.
+    assert wrist_contact_near(None, 0, threshold=1.4) is None
     sticky_distances = np.array([1.39, 1.4, 1.41, np.nan])
-    assert wrist_contact_near(sticky_distances, 0) is True
-    assert wrist_contact_near(sticky_distances, 1) is True   # equality passes (<=)
-    assert wrist_contact_near(sticky_distances, 2) is False
-    assert wrist_contact_near(sticky_distances, 3) is False
+    assert wrist_contact_near(sticky_distances, 0, threshold=1.4) is True
+    assert wrist_contact_near(sticky_distances, 1, threshold=1.4) is True
+    assert wrist_contact_near(sticky_distances, 2, threshold=1.4) is False
+    assert wrist_contact_near(sticky_distances, 3, threshold=1.4) is False
 
 
 def test_segment_video_wrist_near_paths():
@@ -249,7 +255,7 @@ def test_segment_video_wrist_near_paths():
 
     # No gate inputs at all: the gate never ran, both verdicts are blank (None), and no
     # suppression happens, so every raw candidate stands (recall-first).
-    _, contacts_blank = segment_video(track)
+    _, contacts_blank = segment_video(track, resolved=burst_config())
     assert contacts_blank
     assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts_blank)
     assert contacts_blank[0][:4] == (
@@ -260,7 +266,7 @@ def test_segment_video_wrist_near_paths():
     # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and
     # suppression records only its losers.
     near = np.zeros(len(track))
-    _, contacts_near = segment_video(track, sticky_distances=near)
+    _, contacts_near = segment_video(track, sticky_distances=near, resolved=burst_config())
     assert [contact.wrist_near for contact in contacts_near] == [True] * len(contacts_near)
     assert [contact.suppressed for contact in contacts_near] == [True, False, True, False, True]
     filtered = [
@@ -273,7 +279,7 @@ def test_segment_video_wrist_near_paths():
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
     far = np.full(len(track), 2.0)
-    _, contacts_far = segment_video(track, sticky_distances=far)
+    _, contacts_far = segment_video(track, sticky_distances=far, resolved=burst_config())
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts_far)
 
 
@@ -285,25 +291,19 @@ def test_sticky_gate_failure_rows_fail_closed(failure_distance):
     monkeypatch: the caller supplies the full-length series directly.
     """
     track, _, _, _ = _build_rally_track()
-    _, contacts = segment_video(
-        track, sticky_distances=np.full(len(track), failure_distance),
-    )
+    _, contacts = segment_video(track, sticky_distances=np.full(len(track), failure_distance), resolved=burst_config())
     assert contacts
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts)
 
 
-def test_end_rest_frames_constant_used():
-    # A short rest between two bursts must not split into two rallies unless it
-    # reaches END_REST_FRAMES. Sanity that the constant is the gate.
-    assert END_REST_FRAMES > SMOOTH_WINDOW
 
 
 # ---------------------------------------------------------------------------
-# Thresholds option: None reads globals; a preset changes behaviour
+# Resolved thresholds change which bursts qualify
 # ---------------------------------------------------------------------------
 # END_REST_FRAMES patched into a preset for the synthetic serve-start / split tracks below,
 # whose bursts sit in one active region (no rest run reaches this bound).
-_SERVE_THRESHOLDS = SHIPPED_THRESHOLDS._replace(end_rest_frames=40)
+_SERVE_THRESHOLDS = replace(burst_config().thresholds, end_rest_frames=40)
 
 
 def _burst_track() -> np.ndarray:
@@ -328,14 +328,6 @@ def _burst_track() -> np.ndarray:
     return np.column_stack([xs_arr, ys, vis])
 
 
-def test_thresholds_none_matches_explicit_shipped_preset():
-    # thresholds=None reads the module globals; the shipped preset carries the same values, so
-    # the two must agree bit-for-bit on the rally track (spans and contacts).
-    track, _rally_start, _rally_end, _contacts = _build_rally_track()
-    spans_globals, contacts_globals = segment_video(track)
-    spans_shipped, contacts_shipped = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
-    assert spans_globals == spans_shipped
-    assert contacts_globals == contacts_shipped
 
 
 def test_thresholds_preset_changes_behaviour():
@@ -343,9 +335,9 @@ def test_thresholds_preset_changes_behaviour():
     # preset raising start_speed to 0.03 rejects the same burst -> no span, proving the preset
     # flows all the way through segmentation.
     track = _burst_track()
-    assert len(segment_video(track, thresholds=SHIPPED_THRESHOLDS)[0]) >= 1
-    stricter = SHIPPED_THRESHOLDS._replace(start_speed=0.03)
-    assert segment_video(track, thresholds=stricter)[0] == []
+    assert len(segment_video(track, resolved=burst_config())[0]) >= 1
+    stricter = replace(burst_config().thresholds, start_speed=0.03)
+    assert segment_video(track, resolved=replace(burst_config(), thresholds=stricter))[0] == []
 
 
 # ---------------------------------------------------------------------------
@@ -422,10 +414,10 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
 def test_segment_video_exclusion_mask_freezes_masked_region_to_rest():
     # A whole sustained raw run freezes the complete rally region to rest.
     track, rally_start, rally_end, _contacts = _build_rally_track()
-    assert len(segment_video(track)[0]) == 1
+    assert len(segment_video(track, resolved=burst_config())[0]) == 1
     mask = np.zeros(len(track), dtype=bool)
     mask[rally_start:rally_end] = True
-    spans_masked, contacts_masked = segment_video(track, exclusion_mask=mask)
+    spans_masked, contacts_masked = segment_video(track, exclusion_mask=mask, resolved=burst_config())
     assert spans_masked == []
     assert contacts_masked == []
 
@@ -445,7 +437,7 @@ def _span_open_speed_rest() -> tuple[np.ndarray, np.ndarray]:
 
 def test_span_open_region_start_vs_back_fill_differ_on_no_burst_region():
     speed, at_rest = _span_open_speed_rest()
-    thresholds = SHIPPED_THRESHOLDS._replace(end_rest_frames=40)
+    thresholds = replace(burst_config().thresholds, end_rest_frames=40)
     region_start = active_region_rally_spans(speed, at_rest, thresholds, SpanOpen.REGION_START)
     back_fill = active_region_rally_spans(speed, at_rest, thresholds, SpanOpen.BACK_FILL)
     # The burst region opens at its start under BOTH rules; the no-burst region opens only under
@@ -478,8 +470,8 @@ def test_segment_video_span_open_region_start_drops_the_burst_gate():
     # The slow-drift region carries no fast burst: the default rule finds no span, REGION_START
     # opens the region anyway.
     track = _slow_drift_track()
-    assert segment_video(track)[0] == []
-    assert len(segment_video(track, span_open=SpanOpen.REGION_START)[0]) >= 1
+    assert segment_video(track, resolved=burst_config())[0] == []
+    assert len(segment_video(track, resolved=replace(burst_config(), span_open=SpanOpen.REGION_START))[0]) >= 1
 
 
 def test_segment_video_serve_start_with_region_start_raises():
@@ -492,11 +484,11 @@ def test_segment_video_serve_start_with_region_start_raises():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM,
+        threshold=0.10, mode=ServeStartMode.TRIM,
         setup=setup, lookback_frames=25,
     )
     with pytest.raises(ValueError):
-        segment_video(track, serve_start=options, span_open=SpanOpen.REGION_START)
+        segment_video(track, serve_start=options, resolved=replace(burst_config(), span_open=SpanOpen.REGION_START))
 
 
 def test_segment_video_serve_start_split_with_back_fill_raises():
@@ -511,11 +503,11 @@ def test_segment_video_serve_start_split_with_back_fill_raises():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST,
+        threshold=0.10, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST,
         setup=setup, lookback_frames=25,
     )
     with pytest.raises(ValueError):
-        segment_video(track, serve_start=options, span_open=SpanOpen.BACK_FILL)
+        segment_video(track, serve_start=options, resolved=replace(burst_config(), span_open=SpanOpen.BACK_FILL))
 
 
 # ---------------------------------------------------------------------------
@@ -545,7 +537,7 @@ def test_serve_start_opens_at_first_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup({60})
     assert burst_rally_spans(speed, at_rest, _SERVE_THRESHOLDS) == [(10, 120)]  # stock opens at 10
     for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
-        options = ServeStartOptions(dist=None, threshold=0.10, mode=mode, setup=setup, lookback_frames=25)
+        options = ServeStartOptions(threshold=0.10, mode=mode, setup=setup, lookback_frames=25)
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(60, 120)]
 
 
@@ -553,7 +545,7 @@ def test_serve_start_trim_falls_back_when_no_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup(set())  # nothing qualifies
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM, diagnostics=diag,
+        threshold=0.10, mode=ServeStartMode.TRIM, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 120)]
@@ -565,7 +557,7 @@ def test_serve_start_reject_drops_region_when_no_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup(set())
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, diagnostics=diag,
+        threshold=0.10, mode=ServeStartMode.REJECT, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == []
@@ -576,21 +568,23 @@ def test_serve_start_back_fill_opens_qualifying_region_at_region_start():
     # serve_start + BACK_FILL: the serve gate decides qualification, the span opens at region_start.
     speed, at_rest, setup = _serve_start_speed_rest_setup({60})
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, setup=setup, lookback_frames=25,
+        threshold=0.10, mode=ServeStartMode.REJECT, setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, SpanOpen.BACK_FILL) == [(0, 120)]
 
 
 def test_segment_video_serve_start_none_is_exact_stock():
     track, _rs, _re, _c = _build_rally_track()
-    assert segment_video(track, serve_start=None) == segment_video(track)
+    assert segment_video(track, serve_start=None, resolved=burst_config()) == segment_video(
+        track, resolved=burst_config()
+    )
 
 
 def test_segment_video_serve_start_reject_all_nan_drops_all_spans():
     # A track that forms one span by default; all-NaN setup evidence qualifies no burst, so REJECT drops
     # every region and segment_video routes through the serve-start finder to return no spans.
     track, _rs, _re, _c = _build_rally_track()
-    assert len(segment_video(track)[0]) == 1
+    assert len(segment_video(track, resolved=burst_config())[0]) == 1
     setup = ServeSetupInputs(
         count=np.ones(len(track)), wrist_dist=np.full((len(track), 2), np.nan),
         analysed=np.ones(len(track), dtype=bool),
@@ -599,10 +593,10 @@ def test_segment_video_serve_start_reject_all_nan_drops_all_spans():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+        threshold=0.10, mode=ServeStartMode.REJECT,
         setup=setup, lookback_frames=25,
     )
-    spans, contacts = segment_video(track, serve_start=options)
+    spans, contacts = segment_video(track, serve_start=options, resolved=burst_config())
     assert spans == [] and contacts == []
 
 
@@ -647,7 +641,7 @@ def test_serve_start_split_off_is_single_span():
     for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
         diag: dict = {}
         options = ServeStartOptions(
-            dist=None, threshold=0.10, mode=mode, diagnostics=diag,
+            threshold=0.10, mode=mode, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 200)]
@@ -657,7 +651,7 @@ def test_serve_start_split_off_is_single_span():
 def test_serve_start_split_burst_cuts_at_every_qualifying_burst():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150})
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
@@ -669,13 +663,13 @@ def test_serve_start_split_burst_unions_to_the_single_span():
     single = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+            threshold=0.10, mode=ServeStartMode.REJECT,
             setup=setup, lookback_frames=25,
         ), None)
     split = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
+            threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
             setup=setup, lookback_frames=25,
         ), None)
     assert single == [(10, 200)]
@@ -686,7 +680,7 @@ def test_serve_start_split_burst_unions_to_the_single_span():
 def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150}, rest_runs=((100, 110),))
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
@@ -696,7 +690,7 @@ def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
 def test_serve_start_split_last_rest_takes_the_last_of_several_runs():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80}, rest_runs=((30, 40), (55, 60)))
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 55), (80, 200)]
@@ -707,13 +701,13 @@ def test_serve_start_split_no_qualify_region_honours_mode():
     for close in (ServeStartClose.BURST, ServeStartClose.LAST_REST):
         diag: dict = {}
         trim = ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.TRIM, close=close, diagnostics=diag,
+            threshold=0.10, mode=ServeStartMode.TRIM, close=close, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, trim, None) == [(10, 200)]
         assert diag['n_no_qualify'] == 1 and diag['qualifying_counts'] == [0]
         reject = ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=close,
+            threshold=0.10, mode=ServeStartMode.REJECT, close=close,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, reject, None) == []
@@ -723,7 +717,7 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150})
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+        threshold=0.10, mode=ServeStartMode.REJECT,
         close=ServeStartClose.BURST, diagnostics=diag, setup=setup, lookback_frames=25,
     )
     serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None)

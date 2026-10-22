@@ -168,6 +168,12 @@ def probe_video_fps(video: Path) -> Fraction:
     return _parse_cfr_rate(streams[0])
 
 
+
+def probe_fps(video_path: Path) -> float:
+    """Return the canonical CFR frame rate as a float."""
+    return float(probe_video_fps(video_path))
+
+
 def _run_ffprobe(video: Path) -> dict[str, Any]:
     command = [
         "ffprobe",

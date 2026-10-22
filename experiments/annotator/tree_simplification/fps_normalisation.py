@@ -21,20 +21,19 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import SHIPPED_THRESHOLDS
+from annotator.config import BASE_FPS, BaseAnnotatorConfig, ScalingKind, resolve
 from annotator.contacts.features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     shift_within_interval,
 )
-from annotator.fps_constants import BASE_FPS, ScalingKind, scale_for_fps
 from annotator.rally.contacts import FLOOR_EPS, rolling_floor, span_impulses
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
-from annotator.training.trees import TreeBackend
 from annotator.types import SmoothingMode
+from experiments.annotator import development as experiment
+from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
-from experiments.annotator.tree_hp_tune.run import development_for
-from experiments.annotator.tree_simplification import pilot
+from experiments.annotator.heuristic_only_tune.run import source_record
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 SCHEMA = 'contact-motion-base30/1'
@@ -49,7 +48,7 @@ def file_md5(path: Path) -> str:
 
 def preparation_receipt(prepared_root: Path) -> dict[str, Any]:
     """Reject partial or modified prepared families before fitting or replay."""
-    preparation = pilot.read_json(prepared_root / 'preparation.json.gz')
+    preparation = experiment.read_json(prepared_root / 'preparation.json.gz')
     schema = preparation.get('motion_units')
     if schema not in (SCHEMA, VELOCITY_SCHEMA):
         raise ValueError('Expected the normalised prepared family')
@@ -59,7 +58,7 @@ def preparation_receipt(prepared_root: Path) -> dict[str, Any]:
         raise ValueError('Normalised preparation is incomplete')
     artifacts = {}
     for path in paths:
-        record = pilot.read_json(path.with_suffix('.json.gz'))
+        record = experiment.read_json(path.with_suffix('.json.gz'))
         actual = file_md5(path)
         if record.get('motion_units') != schema or record.get('prepared_md5') != actual:
             raise ValueError(f'{path.stem}: prepared artifact differs from its receipt')
@@ -76,7 +75,7 @@ def normalise_contact_features(
     The impulse ratio uses a floor in the same base-30 units. Its smoothing and
     missing-data policy remain those of the original contact feature builder.
     """
-    constants = scale_for_fps(fps)
+    constants = resolve(BaseAnnotatorConfig(), fps).thresholds
     if fps == BASE_FPS:
         return features
     factor = fps / BASE_FPS
@@ -90,9 +89,8 @@ def normalise_contact_features(
         rows[f'shuttle_impulse_t{offset:+d}'] *= factor ** 2
 
     ratio = np.full(len(track), np.nan, dtype=np.float64)
-    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=constants.smooth_window)
     for start, end in features.search_intervals:
-        impulse = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        impulse = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
         if impulse is None:
             continue
         impulse = impulse * factor ** 2
@@ -116,12 +114,12 @@ def normalise_contact_features(
 
 def _prepare_one(arguments: tuple[Path, Path, bool]) -> dict[str, Any]:
     source, output, velocity_only = arguments
-    record = pilot.read_json(source.with_suffix('.json.gz'))
+    record = experiment.read_json(source.with_suffix('.json.gz'))
     source_md5 = file_md5(source)
     destination = output / 'videos' / source.name
     record_path = destination.with_suffix('.json.gz')
     if destination.exists() and record_path.exists():
-        cached = pilot.read_json(record_path)
+        cached = experiment.read_json(record_path)
         if cached.get('source_md5') != source_md5 or cached.get('prepared_md5') != file_md5(destination):
             raise ValueError('Prepared source or cached artifact changed; use a fresh directory')
         return cached
@@ -135,11 +133,11 @@ def _prepare_one(arguments: tuple[Path, Path, bool]) -> dict[str, Any]:
         features = normalise_contact_features(
             prepared.features, prepared.evidence.track, prepared.video.fps, velocity_only=velocity_only,
         )
-        pilot.retrain.dump_atomically(replace(prepared, features=features), destination)
+        experiment.dump_atomically(replace(prepared, features=features), destination)
         schema = VELOCITY_SCHEMA if velocity_only else SCHEMA
         record.update(fps=prepared.video.fps, motion_units=schema, source_md5=source_md5,
                       prepared_md5=file_md5(destination), wall_s=time.perf_counter() - started)
-        pilot.write_json(record_path, record)
+        experiment.write_json(record_path, record)
         return record
 
 
@@ -148,19 +146,19 @@ def prepare(source: Path, output: Path, workers: int, only: str | None = None, *
     source, output = source.resolve(), output.resolve()
     if source == output:
         raise ValueError('Normalised preparation requires a separate output directory')
-    original = pilot.read_json(source / 'preparation.json.gz')
+    original = experiment.read_json(source / 'preparation.json.gz')
     if 'motion_units' in original:
         raise ValueError('Source is already transformed')
     manifest = {
         **original, 'motion_units': VELOCITY_SCHEMA if velocity_only else SCHEMA,
-        'raw_prepared': str(source), 'transform_source': pilot.source_record(),
+        'raw_prepared': str(source), 'transform_source': source_record(),
         'transform_md5': file_md5(Path(__file__)),
     }
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / 'preparation.json.gz'
-    if manifest_path.exists() and pilot.read_json(manifest_path) != manifest:
+    if manifest_path.exists() and experiment.read_json(manifest_path) != manifest:
         raise ValueError('Preparation inputs or transformation changed; use a fresh directory')
-    pilot.write_json(manifest_path, manifest)
+    experiment.write_json(manifest_path, manifest)
     paths = sorted((source / 'videos').glob('*.joblib'))
     if {path.stem for path in paths} != set(original['inputs']['groups']):
         raise ValueError('Source preparation is incomplete')
@@ -171,61 +169,61 @@ def prepare(source: Path, output: Path, workers: int, only: str | None = None, *
     with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn')) as executor:
         for record in executor.map(_prepare_one, [(path, output, velocity_only) for path in paths]):
             print(record, flush=True)
-    pilot.progress(output, 'prepared', videos=len(paths), complete=only is None)
+    experiment.progress(output, 'prepared', videos=len(paths), complete=only is None)
 
 
 def fit_contacts(prepared_root: Path, output: Path, seed_offset: int, threads: int) -> None:
-    """Fit the same four held-group models and final 32-video contact model as the raw pilot."""
+    """Fit the same four held-group models and final 32-video contact model as the raw development."""
     prepared_root = prepared_root.resolve()
     units = preparation_receipt(prepared_root)
     preparation = units['preparation']
-    settings = pilot.settings_for(TreeBackend.XGBOOST, 'cuda', 5.0, seed_offset=seed_offset)
+    settings = experiment.settings_for('cuda', 5.0, seed_offset=seed_offset)
     training_settings = asdict(settings)
     training_settings.pop('rally_layers')
     config = json.loads(json.dumps({'settings': training_settings, 'prepared': str(prepared_root)}, default=sorted))
     output.mkdir(parents=True, exist_ok=True)
     receipt = output / 'settings.json.gz'
-    if receipt.exists() and pilot.read_json(receipt) != config:
+    if receipt.exists() and experiment.read_json(receipt) != config:
         raise ValueError('Contact settings changed; use a fresh output directory')
     units_path = output / 'motion-units.json.gz'
-    if units_path.exists() and pilot.read_json(units_path) != units:
+    if units_path.exists() and experiment.read_json(units_path) != units:
         raise ValueError('Contact preparation changed; use a fresh output directory')
-    pilot.write_json(receipt, config)
-    pilot.write_json(units_path, units)
+    experiment.write_json(receipt, config)
+    experiment.write_json(units_path, units)
     videos = load_original_videos(Path(preparation['inputs']['paths']['shots_master']))
     development = development_for(videos)
     if preparation['inputs']['groups'] != development.group_by_video:
         raise ValueError('Prepared membership differs from the fixed development split')
-    training_ids = development.videos(pilot.retrain.TRAINING_GROUPS)
+    training_ids = development.videos(experiment.TRAINING_GROUPS)
     training = {}
     for identity in training_ids:
-        prepared = pilot.load_prepared(prepared_root, identity)
+        prepared = experiment.load_prepared(prepared_root, identity)
         if prepared.video.split != 'train' or prepared.group != development.group_by_video[identity]:
             raise ValueError(f'{identity}: training membership differs')
         frames = np.asarray(sorted(frame for rally in prepared.video.rallies for frame in rally.frames), dtype=np.int32)
         training[identity] = ContactTrainingVideo(identity, prepared.features.rows, frames, prepared.video.fps)
     del prepared
     with threadpool_limits(limits=threads):
-        for name, sampling_order in pilot.retrain.contact_fit_videos(development).items():
+        for name, sampling_order in experiment.contact_fit_videos(development).items():
             if name == 'final_40':
                 continue
             path = output / 'contacts' / f'{name}.joblib'
             if path.exists() and path.with_suffix('.json.gz').exists():
                 continue
             started = time.perf_counter()
-            pilot.progress(output, 'contact-fit', fit=name)
+            experiment.progress(output, 'contact-fit', fit=name)
             fitted = fit_contact_model(
                 [training[identity] for identity in sampling_order], settings.contact,
                 fit_video_order=development.id_order(sampling_order),
             )
-            pilot.retrain.dump_atomically(fitted.model, path)
-            pilot.write_json(path.with_suffix('.json.gz'), {
+            experiment.dump_atomically(fitted.model, path)
+            experiment.write_json(path.with_suffix('.json.gz'), {
                 'wall_s': time.perf_counter() - started, 'rows': len(fitted.selection.labels),
                 'positive_rows': int(fitted.selection.labels.sum()), 'training_videos': sampling_order,
                 'motion_units': units['schema'],
             })
             del fitted
-    pilot.progress(output, 'complete', fits=5, motion_units=units['schema'])
+    experiment.progress(output, 'complete', fits=5, motion_units=units['schema'])
 
 
 def main() -> None:

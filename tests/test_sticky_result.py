@@ -5,12 +5,10 @@ import pandas as pd
 import pytest
 
 from annotator.courts.scenes import build_scene_courts
-from annotator.rally_segmentation import (
-    WRIST_L,
-    WRIST_R,
-    build_sticky_result,
-    segment_video,
-)
+from annotator.rally.evidence import build_sticky_result
+from annotator.rally_segmentation import segment_video
+from annotator.types import WRIST_L, WRIST_R
+from tests.annotator_config import burst_config
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -139,6 +137,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         resolution_table,
         (1280.0, 720.0),
         scene_courts=scene_courts,
+        half_window=12,
     )
 
     # A displaced global outline rejects the top player in scene 0, while the
@@ -155,6 +154,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         {'1': global_scene.court_info},
         resolution_table,
         (1280.0, 720.0),
+        half_window=12,
     )
 
     np.testing.assert_array_equal(local_result.picks, np.tile([0, 1], (4, 1)))
@@ -181,6 +181,7 @@ def test_sticky_picker_rejects_tracker_segment_crossing_scene_boundary():
             resolution_table,
             (1280.0, 720.0),
             scene_courts=scene_courts,
+            half_window=12,
         )
 
 
@@ -260,7 +261,7 @@ def test_segment_video_sticky_distance_shape_is_checked():
     track = np.zeros((3, 3), dtype=np.float64)
 
     with pytest.raises(ValueError, match='shape'):
-        segment_video(track, sticky_distances=np.zeros(2))
+        segment_video(track, sticky_distances=np.zeros(2), resolved=burst_config())
 
 
 def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():

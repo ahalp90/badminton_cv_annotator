@@ -16,7 +16,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.fps_constants import BASE_FPS, ScalingKind
+from annotator.config import BASE_FPS, ScalingKind
 from annotator.outcomes.point_winner import project_pixels_to_court
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (

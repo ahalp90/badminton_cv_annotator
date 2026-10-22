@@ -12,7 +12,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'src'))
 
-from experiments.annotator.tree_simplification import pilot
+from experiments.annotator import development as experiment
 
 # isort: split
 
@@ -24,8 +24,8 @@ from annotator.training.contact import (
     ContactTrainingVideo,
     fit_contact_model,
 )
+from experiments.annotator.development import development_for, xgboost_settings
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
-from experiments.annotator.tree_hp_tune.run import development_for
 from experiments.annotator.tree_simplification.pools import prepare_pools
 
 CONTACT_FOLDS = {
@@ -41,10 +41,10 @@ CONTACT_FOLDS = {
 SCHEMA = 'tree-simplification-contact-folds/1'
 
 
-def fold_assignments(development: pilot.retrain.Development) -> dict[str, str]:
+def fold_assignments(development: experiment.Development) -> dict[str, str]:
     """Require the fixed 32/8 split and preserve the downstream A–D groups."""
-    training = development.videos(pilot.retrain.TRAINING_GROUPS)
-    validation = development.videos((pilot.retrain.VALIDATION_GROUP,))
+    training = development.videos(experiment.TRAINING_GROUPS)
+    validation = development.videos((experiment.VALIDATION_GROUP,))
     assignments = {}
     for fold, identities in CONTACT_FOLDS.items():
         if len(identities) != 4:
@@ -78,12 +78,12 @@ def prepare_contact_folds(
         raise ValueError('threads and workers must each be between 1 and 28')
     prepared_root, contact_run_output = prepared_root.resolve(), contact_run_output.resolve()
     original_pools, output = original_pools.resolve(), output.resolve()
-    contact_run_settings = pilot.read_json(contact_run_output / 'settings.json.gz')
-    preparation = pilot.read_json(prepared_root / 'preparation.json.gz')['inputs']
+    contact_run_settings = experiment.read_json(contact_run_output / 'settings.json.gz')
+    preparation = experiment.read_json(prepared_root / 'preparation.json.gz')['inputs']
     if contact_run_settings['prepared'] != str(prepared_root):
         raise ValueError('Contact-run settings name a different prepared directory')
     settings = contact_run_settings['settings']
-    pool_settings = pilot.read_json(original_pools / 'pools.json.gz')
+    pool_settings = experiment.read_json(original_pools / 'pools.json.gz')
     if (pool_settings['prepared'], pool_settings['contact_run'], pool_settings['settings']) != (
         str(prepared_root), str(contact_run_output), settings,
     ):
@@ -103,16 +103,16 @@ def prepare_contact_folds(
         'assignments': assignments, 'final_contact': str(final_contact),
     }
     manifest_path = output / 'contact-folds.json.gz'
-    if manifest_path.exists() and pilot.read_json(manifest_path) != manifest:
+    if manifest_path.exists() and experiment.read_json(manifest_path) != manifest:
         raise ValueError('Contact folds or settings changed; use a fresh output directory')
     output.mkdir(parents=True, exist_ok=True)
     if not manifest_path.exists():
-        pilot.write_json(manifest_path, manifest)
-    config = ContactFitConfig(**settings['contact'])
-    training_ids = development.videos(pilot.retrain.TRAINING_GROUPS)
+        experiment.write_json(manifest_path, manifest)
+    config = ContactFitConfig(**xgboost_settings(settings['contact']))
+    training_ids = development.videos(experiment.TRAINING_GROUPS)
     training = {}
     for identity in training_ids:
-        prepared = pilot.load_prepared(prepared_root, identity)
+        prepared = experiment.load_prepared(prepared_root, identity)
         if prepared.video.split != 'train' or prepared.group != development.group_by_video[identity]:
             raise ValueError(f'{identity}: training membership differs')
         frames = np.asarray(sorted(frame for rally in prepared.video.rallies for frame in rally.frames), dtype=np.int32)
@@ -125,13 +125,13 @@ def prepare_contact_folds(
                 continue
             sampling_order = tuple(identity for identity in training_ids if identity not in held)
             fit_order = development.id_order(sampling_order)
-            pilot.progress(output, 'contact-fit', fold=fold, training_videos=len(sampling_order))
+            experiment.progress(output, 'contact-fit', fold=fold, training_videos=len(sampling_order))
             started = time.perf_counter()
             fitted = fit_contact_model(
                 [training[identity] for identity in sampling_order], config, fit_video_order=fit_order,
             )
-            pilot.retrain.dump_atomically(fitted.model, path)
-            pilot.write_json(path.with_suffix('.json.gz'), {
+            experiment.dump_atomically(fitted.model, path)
+            experiment.write_json(path.with_suffix('.json.gz'), {
                 'fold': fold, 'held_videos': held, 'training_videos': sampling_order,
                 'fit_video_order': fit_order, 'rows': len(fitted.selection.labels),
                 'positive_rows': int(fitted.selection.labels.sum()), 'wall_s': time.perf_counter() - started,
@@ -144,7 +144,7 @@ def prepare_contact_folds(
         max_edits=pool_settings['max_edits'], deletion_candidates=pool_settings['deletion_candidates'],
         contact_paths=paths, contact_folds=CONTACT_FOLDS, validation_source=original_pools,
     )
-    pilot.progress(output, 'complete', contact_fits=8, only=only)
+    experiment.progress(output, 'complete', contact_fits=8, only=only)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

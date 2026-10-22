@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.commentary_benchmark_inputs import (
     COMMENTARY_CODE_COMMIT,
     COMMENTARY_INVENTORY_SHA256,
@@ -36,7 +37,6 @@ from annotator.evaluation.shuttleset22_features import (
     DEFAULT_ANNOTATION_ROOT,
     _tree_digest,
 )
-from annotator.fps_constants import scale_for_fps
 from annotator.masks.replay import filter_short_exclusion_runs
 from dataset_builder.vision import save_json_gz
 from scraper.commentary_pairing import (
@@ -131,7 +131,7 @@ def _duration_filtered_mask(inputs: VideoInputs) -> np.ndarray | None:
     if inputs.replay_mask is None:
         return None
     return filter_short_exclusion_runs(
-        inputs.replay_mask, scale_for_fps(inputs.fps).replay_mask_min_frames
+        inputs.replay_mask, resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     )
 
 
@@ -142,7 +142,7 @@ def _masked_rally_ids(
     filtered = _duration_filtered_mask(inputs)
     if filtered is None:
         return set()
-    minimum_run = scale_for_fps(inputs.fps).replay_mask_min_frames
+    minimum_run = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     return {
         rally_id
         for rally_id, start_frame, end_frame in rallies

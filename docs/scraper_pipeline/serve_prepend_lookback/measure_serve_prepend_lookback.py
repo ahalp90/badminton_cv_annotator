@@ -36,6 +36,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SSET_01,
@@ -51,7 +52,6 @@ from annotator.evaluation.scoring import (
     greedy_match,
     load_gt_rallies,
 )
-from annotator.fps_constants import scale_for_fps
 from annotator.masks.inpaint import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
 from annotator.review.broadcast_labels import VideoMetadata
 from annotator.run_video import RunCapture, run_video
@@ -308,7 +308,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     classifications = classify_all(result.spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
-    constants = scale_for_fps(fixture.fps)
+    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
     )

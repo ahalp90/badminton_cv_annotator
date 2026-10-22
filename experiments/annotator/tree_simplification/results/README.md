@@ -71,22 +71,27 @@ Folder names under `models/` and `streams/` say what the model is.
 ## Model bundles
 
 Each folder under `models/` holds `models.joblib` and `metadata.json`.
-`annotator.models.load_models(folder)` loads any of them.
+`annotator.models.load_models(folder)` loads the current one-selector bundles.
+The old eight-model bundle is retained for historical comparisons in its original environment.
 
 | Folder | What it is | `models.joblib` md5 | `metadata.json` md5 |
 |---|---|---|---|
-| `selected` | The chosen model: one 31-leaf, 400-round selector, seed 0, baseline preprocessing, exported at `e2b948d2` | `9f96c0f40ab42b9498cb0c6a2533951d` | `77899da271f783a20a7128bc8625050d` |
-| `raw_baseline-seed-0` | Test bundle, baseline preprocessing | `44c858b2d92c4c8658f26e22fde6c9ad` | `77899da271f783a20a7128bc8625050d` |
-| `raw_baseline-seed-100` | Test bundle, baseline preprocessing | `edb8a45d579d9822d96fdde6f627ff2e` | `77899da271f783a20a7128bc8625050d` |
-| `raw_baseline-seed-200` | Test bundle, baseline preprocessing | `53de8ecb4bd4a4c8799d4e9f73dca5c9` | `77899da271f783a20a7128bc8625050d` |
-| `raw_baseline-seed-300` | Test bundle, baseline preprocessing | `0f726d46b444fde15690de47a6105b9a` | `77899da271f783a20a7128bc8625050d` |
-| `raw_baseline-seed-400` | Test bundle, baseline preprocessing | `7c1f0c4e808a9a412eecfef8439576c1` | `77899da271f783a20a7128bc8625050d` |
-| `body_window_36-seed-0` | Test bundle, 36-frame body-size half-window | `c5daa4b22a02c90bd2c01a69506768ff` | `77899da271f783a20a7128bc8625050d` |
-| `body_window_36-seed-100` | Test bundle, 36-frame body-size half-window | `0f9c4be9bc959c00740b9726cc840ef9` | `77899da271f783a20a7128bc8625050d` |
-| `body_window_36-seed-200` | Test bundle, 36-frame body-size half-window | `df46dcc9fda2a9066af2317f1b26f2bd` | `77899da271f783a20a7128bc8625050d` |
-| `body_window_36-seed-300` | Test bundle, 36-frame body-size half-window | `373ec6618329b0b376d8becf2a08e70f` | `77899da271f783a20a7128bc8625050d` |
-| `body_window_36-seed-400` | Test bundle, 36-frame body-size half-window | `67c38de9b275130a64ef65a18e618f18` | `77899da271f783a20a7128bc8625050d` |
+| `selected` | The chosen model: one 31-leaf, 400-round selector, seed 0, baseline preprocessing, exported at `e2b948d2` | `400dd5250a146ba9d777866d7c64f337` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `raw_baseline-seed-0` | Test bundle, baseline preprocessing | `2dfe1dc5b79d4d297e388a38adad156c` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `raw_baseline-seed-100` | Test bundle, baseline preprocessing | `4e963e1f96669306a1f0a8a75313df2e` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `raw_baseline-seed-200` | Test bundle, baseline preprocessing | `bd053df92124bb4c565f2bcc8bb080be` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `raw_baseline-seed-300` | Test bundle, baseline preprocessing | `f13d0ae71841f89042b11d0bbd05ddb8` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `raw_baseline-seed-400` | Test bundle, baseline preprocessing | `b907a49bed054f7db3f0cd358d8a9b21` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `body_window_36-seed-0` | Test bundle, 36-frame body-size half-window | `31847804972bb55f279c11ee396804e7` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `body_window_36-seed-100` | Test bundle, 36-frame body-size half-window | `c53e7cec24a2d0b9a721be9ad369a277` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `body_window_36-seed-200` | Test bundle, 36-frame body-size half-window | `af88b709ffa422fbe0ded1b5a2300b58` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `body_window_36-seed-300` | Test bundle, 36-frame body-size half-window | `1501601a91ab475625c86b9461fa8ef2` | `d1223a88e723c3c3879d17a0dbabeaeb` |
+| `body_window_36-seed-400` | Test bundle, 36-frame body-size half-window | `e1716b5fbca661222b1877bd7947562b` | `d1223a88e723c3c3879d17a0dbabeaeb` |
 | `old-eight-model-stack-xgboost-seed-0` | The old eight-model stack refitted with XGBoost, seed 0; the reference in the timing comparison | `1e77654b05acb255e057cdf6b617d390` | `a87f68ff2acc886c4aed83fc4f095ef4` |
+
+The current bundles use schema `annotator-rally-layers/2`. Their stored preprocessing
+was converted to the single override mapping without changing fitted trees or
+effective settings. The table fingerprints identify those current files.
 
 The ten test bundles' md5s equal `bundle_md5` in `test-run/selection.json.gz`.
 The preprocessing setting lives inside `models.joblib`, so every new-stack
@@ -139,8 +144,10 @@ path. Then copy each bundle from `models/<configuration>-seed-<N>/` into
 `candidates/<configuration>/seed-<N>/export/bundle/`. `input_test` checks the
 records, seeds and bundle md5s before it loads a bundle.
 
-These copies use the current key names. Apart from the `SWEEP/` prefix and
-those renamed keys and values, each record equals its original.
+These copies use the current key names and `SWEEP/` path prefix. The saved
+preprocessing omits the retired `thresholds` field, and bundle fingerprints
+identify the converted bundles. Metrics, seeds, populations and recorded source
+provenance remain unchanged.
 
 **What is saved here, and what is not.** The records, bundles and prediction
 files are enough to load and check all ten test bundles, score every prediction

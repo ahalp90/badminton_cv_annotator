@@ -25,8 +25,8 @@ from threadpoolctl import threadpool_limits
 
 from annotator.hybrid import predict_contact_features
 from annotator.models import load_models
+from annotator.sequence.contacts import stream_payload
 from experiments.annotator.heuristic_only_tune.run import source_record
-from experiments.annotator.old_court_regression.retrain import stream_payload
 from experiments.annotator.tree_simplification.analysis.common import (
     REPOSITORY,
     RESULTS,

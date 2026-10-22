@@ -12,9 +12,10 @@ experiments explain why those parts exist, which approaches earned their place,
 and where the system still falls short.
 
 **The current system finds most contacts, but complete rallies still need human
-review.** The selected model recovers 1,744 of 3,327 labelled rallies in the
-46-video ShuttleSet22 comparison. That is 52.4% under the recorded evaluation
-rules. These videos have been examined repeatedly during development; the result
+review.** The current three-model XGBoost system recovers a mean of 1,822.4 of
+3,327 labelled rallies across five fits in the 46-video ShuttleSet22 comparison.
+That is 54.78% under the report's standard scoring rules. The
+[tree comparison](reports/tree_simplification.md) gives the results and definitions. These videos have been examined repeatedly during development; the result
 does not establish performance on unfamiliar broadcasts or club footage.
 
 ## Reading guide
@@ -32,14 +33,17 @@ does not establish performance on unfamiliar broadcasts or club footage.
 
 The working pipeline uses saved court geometry, shuttle tracks and player poses.
 Rules find plausible contact frames, a learned classifier scores them, and
-later models compare small repairs to each rally. A separate model ranks the
+one rally selector compares possible contact sequences for each rally. A separate model ranks the
 finished rallies for review. The normal annotation and retraining commands live
 in `src/annotator`; the code here runs experiments around that implementation.
 
-The selected model is the **new-court base**, recorded on 3 October 2026. Its
-files are in [the committed model directory](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
-The latest refit recovered more contacts than the historical model, but fewer
-complete rallies.
+The default is the **raw-baseline XGBoost bundle, seed 0**, in
+[the committed model directory](tree_simplification/results/models/raw_baseline-seed-0/).
+It uses a contact classifier, one rally selector and a review ranker. The
+[reproduction guide](tree_simplification/README.md) covers the fixed split and
+five seeded fits. The former eight-model bundles are historical records; the
+current annotator no longer loads or fits them. Heuristic-only annotation remains
+available.
 
 Three substantial problems remain:
 
@@ -63,7 +67,9 @@ to the experiments that motivate them.
 | `heuristic_tuning/` | Calibration fixtures and parameter sweeps for the early rules |
 | `contact_attribution_comparison_20260814/` | Player-distance experiment code and evidence |
 | `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
-| `old_court_regression/`, `good_court_refit/` | Refit runners, pinned inputs and comparison evidence |
+| `tree_simplification/` | Current XGBoost fitting, evaluation and saved results |
+| `development.py` | Shared fixed splits, sampling order and experiment helpers |
+| `old_court_regression/`, `good_court_refit/` | Historical pinned inputs and comparison evidence |
 | `annotator_closeout_new_courts/` | Closeout of the new-court model: where it fails, footage checks, detector audit and shuttle guard addendum |
 | `measurement.py`, `records.py`, `runs/` | End-to-end measurement, result packaging and saved runs |
 

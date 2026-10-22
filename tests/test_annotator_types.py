@@ -6,16 +6,12 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from annotator.config import (
-    SHIPPED_THRESHOLDS,
     BaseAnnotatorConfig,
-    ResolvedAnnotatorConfig,
+    ScalingKind,
+    resolve,
 )
-from annotator.fps_constants import ScalingKind, scale_for_fps
-from annotator.rally_segmentation import scale_thresholds
-from annotator.resolve import resolve
 from annotator.types import (
     DeadMaskMode,
-    ReentryGuardVariant,
     Slot,
     SmoothingMode,
 )
@@ -43,7 +39,7 @@ _FIELDS = {
 
 def test_scaling_kind_matches_every_fps_constant_field() -> None:
     for fps in (25.0, 30.0, 50.0, 60.0):
-        constants = scale_for_fps(fps)
+        constants = resolve(BaseAnnotatorConfig(), fps).thresholds
         for field, (base30, kind) in _FIELDS.items():
             result = kind.scale(base30, fps)
             assert getattr(constants, field) == result
@@ -66,23 +62,6 @@ def test_slot_values_pin_sticky_storage_rows() -> None:
     assert rows[Slot.BOTTOM] == 'row 1'
 
 
-@pytest.mark.parametrize('fps', (25.0, 30.0, 50.0, 60.0))
-def test_resolve_composes_final_constants_and_thresholds(fps: float) -> None:
-    base = BaseAnnotatorConfig()
-    resolved = resolve(base, fps)
-    expected_constants = scale_for_fps(fps)
-    expected_thresholds = scale_thresholds(SHIPPED_THRESHOLDS, fps)
-    assert resolved == ResolvedAnnotatorConfig(
-        fps=fps, constants=expected_constants, thresholds=expected_thresholds,
-        dead_mask_mode=DeadMaskMode.REPLAY,
-        smoothing_mode=SmoothingMode.IGNORE_INVISIBLE,
-        gap_state_demotion_bound=ScalingKind.FRAME_COUNT.scale(75.0, fps),
-        reentry_guard_variant=ReentryGuardVariant.TWO_SIDED,
-        reentry_guard_buffer=0.05,
-    )
-    assert base.thresholds == SHIPPED_THRESHOLDS
-    assert resolved.dead_mask_mode is DeadMaskMode.REPLAY
-    assert resolved.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
 
 
 def test_resolve_preserves_dead_mask_mode_without_fps_scaling() -> None:
@@ -101,6 +80,12 @@ def test_config_dataclasses_are_frozen() -> None:
     base = BaseAnnotatorConfig()
     resolved = resolve(base, 30.0)
     with pytest.raises(FrozenInstanceError):
-        base.thresholds = SHIPPED_THRESHOLDS  # type: ignore[misc]
+        base.smoothing_mode = SmoothingMode.ZERO_FILL  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
         resolved.fps = 60.0  # type: ignore[misc]
+
+
+def test_resolved_thresholds_are_frozen() -> None:
+    resolved = resolve(BaseAnnotatorConfig(), 30.0)
+    with pytest.raises(FrozenInstanceError):
+        resolved.thresholds.rest_speed = 0.5  # type: ignore[misc]

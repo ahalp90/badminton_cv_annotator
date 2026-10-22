@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 
 EVIDENCE_SCHEMA = "contact-evidence-freeze/1"
 MANIFEST_SCHEMA = "contact-evidence-manifest/1"

@@ -11,13 +11,13 @@ There are two common cases:
 - **Metadata, shuttle, pose and court outputs already exist** — `python -m annotator` runs annotation for one video.
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
-The selected model is **base, recorded on 3 October 2026**, fitted with
-**scikit-learn 1.9.1**. Base leaves the optional rule for rejecting unreliable
-shuttle candidates without a nearby player switched off.
-Its checked `models.joblib` and `metadata.json` files are included in
-[`data/annotator/sset_and_sset22_trained_20261003T041112Z`](../../data/annotator/sset_and_sset22_trained_20261003T041112Z/).
-The commands below use this committed model directly. The [evaluation report](../../experiments/annotator/reports/model_selection.md)
-explains why base was selected and which errors remain.
+The selected model is the XGBoost `raw_baseline` bundle from the current rally-model
+benchmark. It contains the contact classifier, one rally selector and a review
+model. The commands below use the tracked seed-0 bundle in
+[`experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/).
+It requires scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
+rule is off. The [comparison report](../../experiments/annotator/reports/tree_simplification.md)
+explains the selection and remaining errors.
 
 **Contents**
 
@@ -48,7 +48,7 @@ metadata.json
 
 The two files form one model bundle. Before annotation starts, the loader
 checks the model format (its schema), the order of the contact measurements
-(its feature order) and the exact scikit-learn version used for fitting.
+(its feature order) and the exact scikit-learn and XGBoost versions used for fitting.
 
 The model needs shuttle, pose and court data consistent with the data used
 during training. A substantial detector change can require a new fit
@@ -95,7 +95,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models data/annotator/sset_and_sset22_trained_20261003T041112Z \
+  --models experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0 \
   --output-dir data/annotations/match-name
 ```
 
@@ -137,10 +137,10 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "data/annotator/sset_and_sset22_trained_20261003T041112Z"
+annotator = "experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0"
 ```
 
-The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is `models/annotator`.
+The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.
 
 The supplied trial config already contains this setting. A typical run is:
 
@@ -172,9 +172,33 @@ explains which changes require refitting.
 | Rally/contact rules | `BaseAnnotatorConfig` | saved in the model directory | Rough rallies, masks and contact search regions seen by the fitted stages |
 | Shuttle/pose/court extraction | dataset-builder config | `configs/dataset_builder/*.toml` | Upstream evidence supplied to annotation |
 
-The [refit guide](retuning.md#8-python-fit-settings) lists tree-training parameters and defaults.
+The [refit guide](retuning.md#python-fit-settings) lists tree-training parameters and defaults.
 
 Separate model and output directories make side-by-side comparisons easy to trace.
+
+## Heuristic-only annotation
+
+The Python API also runs the complete rule-based annotator without loading a
+model. Use the same prepared arrays and court/landing inputs:
+
+```python
+from annotator.config import BaseAnnotatorConfig
+from annotator.run_video import run_video
+
+result = run_video(
+    track, bboxes, scores, kps, ndet,
+    fps=fps,
+    heuristic_only=True,
+    base=BaseAnnotatorConfig(),
+    **court_and_mask_inputs,
+)
+```
+
+This returns heuristic contacts, player assignments and outcome estimates.
+Change `base` for a heuristic experiment and save its configuration with the
+result. For feature inputs, call `prepare_annotation()` directly. For a shuttle
+track without player or court evidence, use `segment_shuttle_track()`. The
+[input guide](inputs_outputs.md#direct-python-call) explains these calls.
 
 ## 7. Common failures
 
@@ -207,6 +231,6 @@ command. `python -m annotator` runs the full fitted annotation chain.
 | Understand the fitted classifiers | [Tree model stack](tree_stack.md) |
 | Check saved inputs and output fields | [Inputs and outputs](inputs_outputs.md) |
 | Fit a new model | [Retuning guide](retuning.md) |
-| Reproduce the completed comparison | [Annotator reproduction guide](../../experiments/annotator/reports/model_selection.md#reproduction) |
+| Reproduce the completed comparison | [Current experiment commands](../../experiments/annotator/tree_simplification/README.md) |
 | Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
 | Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |

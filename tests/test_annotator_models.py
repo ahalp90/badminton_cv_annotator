@@ -2,7 +2,6 @@
 
 import json
 from dataclasses import replace
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -10,40 +9,38 @@ import pytest
 from sklearn.dummy import DummyClassifier
 
 from annotator.contacts.model import ContactModelConfig
-from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
-from annotator.sequence import SequenceModels
+from annotator.models import (
+    DEFAULT_MODEL_DIRECTORY,
+    MODEL_SCHEMA,
+    AnnotatorModels,
+    SideGeometry,
+    fitted_trees,
+    load_models,
+    save_models,
+)
+from annotator.sequence.rally_model import RallyLayerModels
 
 
-def test_shipped_bundle_loads_and_predicts():
-    directory = (
-        Path(__file__).resolve().parents[1]
-        / 'data/annotator/sset_and_sset22_trained_20261003T041112Z'
-    )
-    models = load_models(directory)
-    assert isinstance(models.sequences, SequenceModels)
-    estimators = (
-        models.contact,
-        models.sequences.whole_sequence,
-        models.sequences.later_contact,
-        models.sequences.scored_insertion,
-        models.sequences.insertion,
-        models.sequences.serve_summary,
-        models.sequences.serve_physical,
-        models.confidence,
-    )
-    for estimator in estimators:
+@pytest.mark.parametrize('name', [
+    *(f'{variant}-seed-{seed}' for variant in ('raw_baseline', 'body_window_36')
+      for seed in (0, 100, 200, 300, 400)),
+    'selected',
+])
+def test_shipped_bundle_loads_and_predicts(name):
+    models = load_models(DEFAULT_MODEL_DIRECTORY.parent / name)
+    assert 'thresholds' not in vars(models.preprocessing)
+    assert isinstance(models.sequences, RallyLayerModels)
+    for estimator in fitted_trees(models):
         probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
         assert probabilities.shape == (1, 2)
         assert np.isfinite(probabilities).all()
         np.testing.assert_allclose(probabilities.sum(axis=1), 1)
-    rows = np.random.default_rng(0).normal(size=(8, models.contact.n_features_in_))
-    np.testing.assert_allclose(models.contact.predict_proba(rows)[0, 1], 0.031204, atol=1e-6)
 
 
 def test_bundle_roundtrip_keeps_predictions_and_geometry(tmp_path):
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 1, 1])
     models = AnnotatorModels(
-        tree, SequenceModels(tree, tree, tree, tree, tree, tree), tree, side_geometry=SideGeometry.SCENE,
+        tree, RallyLayerModels((tree,)), tree, side_geometry=SideGeometry.SCENE,
     )
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
@@ -60,7 +57,7 @@ def test_missing_bundle_explains_retune_requirement(tmp_path):
 def test_incompatible_runtime_is_rejected_before_loading_models(tmp_path):
     (tmp_path / 'models.joblib').write_bytes(b'not loaded')
     (tmp_path / 'metadata.json').write_text(json.dumps({
-        'schema': 'annotator-models/1', 'scikit_learn': '0.0',
+        'schema': MODEL_SCHEMA, 'scikit_learn': '0.0',
     }))
     with pytest.raises(ValueError, match='Refit the bundle'):
         load_models(tmp_path)
@@ -80,3 +77,11 @@ def test_bundle_without_new_policy_field_defaults_to_baseline(tmp_path, annotato
     object.__delattr__(old_models.contact_settings, 'reject_masked_without_player')
     joblib.dump(old_models, tmp_path / 'models.joblib')
     assert not load_models(tmp_path).contact_settings.reject_masked_without_player
+
+
+@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1'])
+def test_retired_schema_is_rejected_before_unpickling(tmp_path, schema):
+    (tmp_path / 'models.joblib').write_bytes(b'not loaded')
+    (tmp_path / 'metadata.json').write_text(json.dumps({'schema': schema}))
+    with pytest.raises(ValueError, match='Unsupported annotator model bundle'):
+        load_models(tmp_path)
