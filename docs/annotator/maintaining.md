@@ -15,6 +15,12 @@ Candidate and proposal order affects equal-score choices. Feature columns,
 NaNs and dtypes form the model inputs. Moving code must preserve these values,
 not just the number of features or selected contact count.
 
+Learned impulse features and replay-mask signals use the default thresholds for
+the video's frame rate. They ignore the saved `overrides_base30` adjustments used
+by segmentation. Learned impulses count invisible shuttle frames as zero when
+smoothing; heuristic segmentation skips them by default. Preserve both choices
+when sharing calculations between annotation paths.
+
 A rally owns an explicit contact sequence. Full-stream contacts outside every
 initial rally survive selection. Boundary padding preserves contact membership;
 filtering the full stream by final bounds is not an equivalent reconstruction.
