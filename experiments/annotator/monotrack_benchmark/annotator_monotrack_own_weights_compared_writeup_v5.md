@@ -205,6 +205,15 @@ column counts the kept rallies that are fully correct, with their share of all
 | 0.335 | 2,224 | 68.1% | 96.4% | 2,144 | 1,513 (45.5%) |
 | 0.385 | 1,992 | 69.9% | 97.0% | 1,932 | 1,391 (41.8%) |
 | 0.75 | 557 | 83.4% | 99.1% | 552 | 464 (14.0%) |
+| 0.675 | 936 | 80.5% | 99.0% | 926 | 753 (22.6%) |
+| 0.50 | 1,589 | 73.3% | 98.0% | 1,558 | 1,164 (35.0%) |
+
+The last two rows are the cut-offs in the project README. We read them off the
+test curve, so unlike the first three they were not chosen on validation. Of
+the kept rallies that need a fix, 65% at 0.675 and 60% at 0.50 are off by a
+single hit. That hit is almost always a missed or extra one; a wrong hitter
+accounts for under 1%. The curves, cut-offs and these counts are in
+[`benchmark_results/confidence_curves/`](benchmark_results/confidence_curves/).
 
 The share and the count answer different questions. The share says how far a
 person can trust what they are handed: at 0.335, about 2 rallies in 3 need no

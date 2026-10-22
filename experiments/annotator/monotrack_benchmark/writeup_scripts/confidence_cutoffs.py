@@ -43,7 +43,10 @@ from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved 
     score_video,
 )
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
-from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json
+from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
+    read_json,
+    write_json,
+)
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     BOUNDARY_RIGHT,
     RUNS,
@@ -160,14 +163,14 @@ def main() -> None:
     grid = seed_summary(curve(found, validation_rallies, THRESHOLDS.tolist()))
     cutoffs = choose_cutoffs(grid)
     validation_curves = curve(found, validation_rallies, sorted(set(THRESHOLDS.tolist()) | set(cutoffs.values())))
-    validation_curves.to_csv(args.out / 'validation_confidence_curve.csv', index=False)
+    validation_curves.to_csv(args.out / 'validation_confidence_curve.csv.gz', index=False)
     validation = seed_summary(validation_curves)
 
     test_found = pd.concat([pd.read_csv(args.data / f'found_rallies_annotator_discovery_seed{seed}.csv.gz').assign(seed=seed)
                             for seed in SEEDS])
     test_thresholds = sorted(set(THRESHOLDS.tolist()) | set(cutoffs.values()))
     test_curves = curve(test_found, args.test_rallies, test_thresholds)
-    test_curves.to_csv(args.out / 'test_confidence_curve.csv', index=False)
+    test_curves.to_csv(args.out / 'test_confidence_curve.csv.gz', index=False)
     test = seed_summary(test_curves)
     validation_at = {name: at_cutoff(validation, value) for name, value in cutoffs.items()}
     result = {
@@ -175,7 +178,7 @@ def main() -> None:
         .tolist(), 'cutoffs': cutoffs, 'validation': validation_at,
         'test': {name: at_cutoff(test, value) for name, value in cutoffs.items()},
     }
-    (args.out / 'confidence_cutoffs.json').write_text(json.dumps(result, indent=1))
+    write_json(args.out / 'confidence_cutoffs.json.gz', result)
     print(json.dumps({'cutoffs': cutoffs}, indent=1))
     for name, value in cutoffs.items():
         for split, table in (('validation', validation), ('test', test)):

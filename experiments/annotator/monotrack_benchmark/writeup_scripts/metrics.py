@@ -192,21 +192,26 @@ def judge_found_rallies(sequences, rallies, tolerance: int) -> list[dict]:
                   and rally.frames[-1] < sequence.end_frame + tolerance)
         matches = match_contacts(rally.frames, frames, tolerance)
         if not covers:
-            outcome = 'part_of_rally'
-        elif len(matches) < len(rally.frames):
+            judged.append(record | {'outcome': 'part_of_rally'})
+            continue
+        revised = alternate_sides((sequence,), sequence.events)[0][0]
+        # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
+        record |= {
+            'missed': len(rally.frames) - len(matches),
+            'extra': len(frames) - len(matches),
+            'wrong_player': sum(rally.sides[label] is not None and revised.events[prediction].side != rally.sides[label]
+                                for label, prediction, _offset in matches),
+        }
+        if record['missed']:
             outcome = 'missed_hits'
         elif len(frames) > len(rally.frames):
             outcome = 'extra_hits'
+        elif record['wrong_player']:
+            outcome = 'wrong_player'
+        elif any(side is None for side in rally.sides):
+            outcome = 'unlabelled_player'
         else:
-            revised = alternate_sides((sequence,), sequence.events)[0][0]
-            wrong = any(rally.sides[label] is not None and revised.events[prediction].side != rally.sides[label]
-                        for label, prediction, _offset in matches)
-            if wrong:
-                outcome = 'wrong_player'
-            elif any(side is None for side in rally.sides):
-                outcome = 'unlabelled_player'
-            else:
-                outcome = 'fully_correct'
+            outcome = 'fully_correct'
         judged.append(record | {'outcome': outcome})
     return judged
 

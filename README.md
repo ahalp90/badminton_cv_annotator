@@ -1,10 +1,14 @@
 # Badminton CV Annotator
 
-We're trying to turn ordinary badminton broadcasts into structured evidence about **how each player is actually playing**.
+We've turned badminton broadcasts into structured evidence about **how each player is actually playing**.
 
-We couldn't find a large existing dataset built around individual badminton performance, so we're building one.
+We couldn't find a large existing dataset built around individual badminton performance, so we made one. We also built the systems you'd need to make a similar dataset from any collection of badminton videos.
 
-Our pipeline runs end-to-end: from video discovery through to download, auto-annotation and dataset compilation. It can discover and triage videos, extract court geometry, player pose and shuttle tracks, detect rallies and contacts, attribute contacts to players, clean and align commentary, derive performance features, and assemble the whole lot into a research-backed featureset.
+If you're looking to build your own dataset or analyse your own games, the two most interesting sub-systems are:
+- The auto-annotator. It takes a raw badminton video, extracts all the motion data, and marks up the rally boundaries and hit times. That lets you go straight to the important bits of a long, uncut video.
+- The court detector. Give it a video, or even a still image, and it will find your badminton court.
+
+Our pipeline runs end-to-end. It finds and filters match videos, downloads them, extracts court geometry, player pose and shuttle tracks, detects rallies and hits, works out who made each hit, cleans and aligns commentary, and turns the whole lot into a research-backed featureset.
 
 ```mermaid
 flowchart LR
@@ -21,117 +25,84 @@ flowchart LR
     I -. "optional stroke labels" .-> H
 ```
 
-Most of our system is custom-built. There are explicit rules and learned components for things like court handling, replay exclusion, rally segmentation, contact candidate generation, player attribution and feature extraction. The pipeline is also resumable, so expensive vision outputs can be checked and reused instead of recomputed whenever a later stage changes.
+Our models extract pose, court position, shuttle tracks, rally spans and hit times from each video. We turn these into research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance, rather than just predicting match outcomes or stroke labels.
 
-The commentary path is one example of the extra plumbing around the edges: transcripts are cleaned, useful spans can be refined to word-level timing with WhisperX, and commentary is then paired to the rally it most plausibly describes rather than dumped against an entire match.
+We've also extracted 6,254 commentary passages, so a future team can try training an auto-grader with commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1). We clean each transcript, align it to the video (WhisperX), and link it to the rally it describes.
 
-On the modelling side, we extract the useful raw primitives--pose, court position, shuttle tracks, rally spans and contact events--as well as engineered measurements Like posture variability, recovery behaviour, movement and timing features. The aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance rather than just predicting match outcomes or stroke labels.
-
-At this stage we've built a proof of concept dataset by extracting and deriving features from the ShuttleSet and ShuttleSet22 datasets. These had existing annotations for contact timing and rally boundaries--areas where our auto-annotator isn't yet reliable enough to autonomously build a research dataset.
-
-![Trial performance-feature distributions](docs/dataset_builder/figures/issue_104_feature_distributions.png)
-
-See the [trial feature definitions](docs/trial_feature_list.md), the [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), and the [frozen v1 dataset schema](docs/dataset_v1_schema.md).
-
-The [player-feature evaluation and report figures](docs/dataset_builder/player_feature_evaluation/README.md) compare 43 player summaries with recorded rally outcomes. The associations remain exploratory; performance prediction was not evaluated on separate matches.
-
-## Court-detection dataset
-
-The [ShuttleSet and ShuttleSet22 court detections](data/court_detections/sset_and_sset22/extractions_20261003/README.md)
-contain one prediction file per video: **86 videos and 44,810 scenes**. Start
-there to load the extracted court coordinates. These predictions are separate
-from the older performance-feature handover below.
-
-The [court research map](experiments/court_detector/README.md) points to the
-accuracy report, galleries and tools for improving the detector.
-
-## Dataset handover
-
-The COSC595 handover is a frozen delivery of the existing dataset exports and supporting model outputs. It is not a fresh extraction run.
-
-The [handover folder](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1) contains the packages and their README. [Issue #134](https://github.com/ahalp90/badminton_cv_annotator/issues/134) records the delivery checks and review status. The [`START-HERE.md` developer guide](https://drive.google.com/file/d/1rrfn8f0zK75nDKESeBlJQSU2FBtpW_5j/view) gives the shortest route into the code and the remaining work.
-
-| Download | Contents |
-| --- | --- |
-| `cosc595-dataset-v1-main.zip` (about 130 MB) | Tables, manifests, player signals, schema, attribution, loading example and checks |
-| `cosc595-dataset-v1-supporting-extracts.zip` (about 8.2 GB) | Optional pose, bounding-box, shuttle, court and mask outputs referenced by the dataset; these are model outputs, not match videos |
-
-Both archives unpack into a `dataset-v1/` directory, so they can share one parent folder. `SHA256SUMS` and `archive-inventory.json` record the published contents.
-
-The main dataset contains **6,833 human-source rallies across 86 videos**: 3,182 from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. ShuttleSet also contains automatically generated rally rows; `rally_origin == "source_contacts"` identifies the human-source population.
-
-ShuttleSet22 video 15 is excluded because its labels are misaligned; [PR #159](https://github.com/ahalp90/badminton_cv_annotator/pull/159) records that change. The schema is [`rally-dataset/1.3`](docs/dataset_v1_schema.md), and the frozen repository baseline is [`2488f9b`](https://github.com/ahalp90/badminton_cv_annotator/tree/2488f9b5c116d499ef79e9ed21dd837ec0b0c44f). The handover also keeps the original export provenance in `docs/SOURCE_RECORD.md` and the package manifests.
-
-A later manual review checked 134 commentary passages covering 135 of the dataset's 3,500 candidate commentary–rally links. It found 116 matching passages, 13 general-discussion passages and five unclear passages. The sample was selected rather than random, so it does **not** establish whole-dataset pairing accuracy. The [review record](docs/dataset_builder/commentary_manual_review_20261002.md) preserves the labels, timing checks and notes.
-
-The frozen handover predates the latest court integration and annotator refit. Existing court errors can therefore affect its derived features. The features are experimental measurements, not validated player-skill grades. Full match videos are also outside the packages; the handover's rebuild notes list the extra inputs needed to reproduce the exports.
+At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) and ShuttleSet22, both released by the [CoachAI group](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet). We took the hit times, hitters and shot types from those datasets' existing labels, and everything else comes from our pipeline. Our auto-annotator's shot classifications, hit timings and attributions are highly accurate, but its rallies still need some manual review, and we wanted research-grade labels throughout.
 
 ## Auto-annotator
 
-The auto-annotator is the part of the project that tries to turn badminton
-footage into complete, correctly labelled rallies. It finds live play, detects
-racket contacts, assigns them to the near or far player, repairs the contact
-sequence and ranks rallies for human review.
+![The annotator marking contacts on a broadcast rally and an amateur clip, with the detected court and tracked shuttle](docs/images/annotator_in_action.gif)
 
-Over several months, the work progressed from hand-written shuttle and pose
-rules to learned contact detection, rally-wide side assignment, bounded sequence
-repairs and a separate review model. Court detection and player tracking also
-needed substantial work: bad geometry can spoil the evidence supplied to every
-later stage. The [development narrative](experiments/annotator/development.md)
-explains the experiments, including approaches that were tried and rejected.
+*GIF at half speed; detected court in red*
 
-Individual contacts are now much more reliable than complete rallies. The
-selected model finds 34,200 of 37,184 labelled contacts and recovers **1,744 of
-3,327 complete rallies (52.4%)** on the 46-video ShuttleSet22 comparison, using
-a ±10-frame timing allowance at 30 fps. This is a frequently examined development
-benchmark; transfer to unfamiliar broadcasts and club footage remains unproven.
-The [evaluation guide](experiments/annotator/evaluation.md) explains the scoring,
-historical baselines and limits. The output still needs human review before it
-can supply trustworthy research labels.
+We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Three gradient-boosted tree models then pick each rally's real hits and score each finished rally for confidence.
 
-The [student handover](experiments/annotator/README.md) covers the project
-and remaining research questions. The [quickstart](docs/annotator/quickstart.md)
-covers running the selected model; [how it works](docs/annotator/how_it_works.md)
-explains the implementation.
+We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 ShuttleSet videos, and testing on the separate ShuttleSet22 dataset.
+
+![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v5/fig1_headline.png)
+
+*MonoTrack needs rally boundaries provided*
+
+Our model, unlike most systems, can reliably discover its own rally boundaries to automate annotation of a raw video (bottom row).
+
+It also gives each rally a confidence score, so you can trade recall for less manual review:
+
+| Confidence threshold | Rallies kept / 3,327 | Right start and end | Need no fixes |
+| ---: | ---: | ---: | ---: |
+| 0.675 | 926 | 99.0% | 80.5% |
+| 0.50 | 1,558 | 98.0% | 73.3% |
+
+*Most fixes are a single contact per rally.*
+
+Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v5.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
 ## Court detector
 
-The court detector finds the four outer court corners from line markings and
-player positions. It can combine evidence within a scene or across returning
-camera views. Each scene still receives one fixed court projection.
+The court detector returns the four outer corners of the court in an image or video, from arbitrary camera angles and even when parts of the court are hidden. It matches line and person detections to the layout of a standard court (configurable). In video, it also checks where the players stand, which helps it reject lines that belong to another court or to nothing at all. Once the annotator knows where the court is, it can tell when the camera is showing play and convert positions to court coordinates. The detector is optimised for parallel computation, batching and GPU-acceleration.
 
-The [detector overview](docs/court_detector/README.md) explains its role and
-main stages. The [usage guide](docs/court_detector/usage.md) covers input needs,
-setup, commands and every CLI option. [Design notes](docs/court_detector/design.md)
-explain the current choices; the [experiment reports](experiments/court_detector/README.md)
-record the development and evaluation.
+| Court detector | Median corner error | Rallies within 5 px |
+| --- | ---: | ---: |
+| Ours | 3.8 px | 85.8% |
+| MonoTrack's | 6.5 px | 17.2% |
+
+*Errors are in 1920×1080 video pixels.*
+
+We've released [court detections for all 86 ShuttleSet and ShuttleSet22 videos](data/court_detections/sset_and_sset22/extractions_20261003/README.md), covering 44,810 scenes. For 85 of the 86 videos, the main-camera court is within 5 px of the reference corners.
+
+Read the [overview](docs/court_detector/README.md) for how it works, or the [usage guide](docs/court_detector/usage.md) to run it.
+
+## The dataset
+
+The dataset has 6,833 rallies from 86 professional singles matches, with 43 players: 3,182 rallies from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. Each rally comes with player pose, court position, shuttle tracks and performance measures, alongside 6,254 timestamped commentary passages.
+
+![How much of each measure comes down to the player rather than the match](docs/images/dataset_player_signature.png)
+
+You can see how each player moves, stands, recovers and picks their shots, rally by rally.
+
+### Dataset handover
+
+Download the dataset from the [v2 release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/dataset-v2). The optional supporting extracts are on [Google Drive](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1).
+
+| Download | Contents |
+| --- | --- |
+| `cosc595-dataset-main.zip` (141 MB) | Rallies, hits, per-player features and match trends, commentary, court-position and posture arrays, the schema and a loading helper |
+| Supporting extracts | Optional saved pose, shuttle, court and filtering outputs |
 
 ## Earlier work: BST-X
 
-This project grew out of our earlier badminton stroke-classification work.
-
-**BST-X** classifies an individual stroke from pose and shuttle information around the contact window. In our ShuttleSet comparison it outperformed the published BST and TemPose baselines on the original 25-class taxonomy, with the strongest recorded run reaching about **0.830 macro-F1**.
+This project grew out of our earlier stroke classifier, **BST-X**. It classifies a single stroke from pose and shuttle data around the hit. On ShuttleSet's original 25 stroke classes it beat the published BST and TemPose models, with our best run reaching about **0.830 macro-F1**, or **0.865** on the ShuttleSet authors' 10 broader stroke types.
 
 ![BST-X comparison on ShuttleSet](docs/images/bar_chart_overall_shuttleset_comparison.png)
 
-That work is largely finished; the current project is about moving from isolated strokes toward understanding complete rallies and, eventually, player performance.
+We've largely finished that work and moved on from single strokes to whole rallies and, eventually, player performance.
 
 ## Running it
 
-Using the saved dataset only requires the smaller environment described in the handover README. The commands below install the repository base dependencies and development tools. Additional setup is needed for vision processing and the full test suite.
+You'll need Python 3.12+, [uv](https://docs.astral.sh/uv/), FFmpeg, and a CUDA GPU for the full vision pipeline. If you only want to use the dataset, Python with pandas and numpy is enough.
 
-The base development install does not include all dependencies imported by the full test suite. Before running `uv run pytest`, install the dependencies for the components under test. These include `safetensors` for court models and `positional-encodings`, `tensorboard` and `torcheval` for classifier modules. See the runtime and training extras in [`pyproject.toml`](pyproject.toml).
-
-Before running the trial pipeline:
-
-- Pose extraction and court detection share the root project environment; [the court setup guide](docs/court_detector/usage.md#cuda-pose-inference) covers CUDA dependencies.
-- `BADMINTON_TRACKNET_PYTHON`, `BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON` identify the Python executables used by the extraction stages. All three can point to the root project's `.venv/bin/python`.
-- Supply the TrackNet, InpaintNet and court model weights at the paths in [`configs/dataset_builder/trial.toml`](configs/dataset_builder/trial.toml), or update the configuration to match their locations.
-- Set `GEMINI_API_KEY` for the trial's enabled commentary stage. Full vision processing also needs FFmpeg and a suitable GPU environment.
-
-A fresh full pipeline rebuild was not tested during this handover. The package's `docs/REBUILD.md` lists the additional source data and saved records needed to reproduce the delivered exports.
-
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), FFmpeg, and CUDA-capable hardware for the full vision pipeline.
+Install the base dependencies and dev tools, then run the checks:
 
 ```bash
 git clone https://github.com/ahalp90/badminton_cv_annotator.git
@@ -143,7 +114,9 @@ uv run pyrefly check
 uv run pytest
 ```
 
-The dataset builder is a one-shot, resumable CLI:
+For the full test suite, add `--extra bst-x-runtime` for the classifier modules and install `safetensors` for the court models. You'll find the other extras in [`pyproject.toml`](pyproject.toml).
+
+To build a dataset, run the pipeline:
 
 ```bash
 PYTHONPATH=src uv run python -m dataset_builder run \
@@ -151,14 +124,25 @@ PYTHONPATH=src uv run python -m dataset_builder run \
   --run-dir /absolute/path/to/run
 ```
 
-The trial configuration includes video discovery and commentary. Re-running against the same directory validates and reuses completed stages rather than blindly recomputing expensive vision work.
+With the trial config, it also finds videos online and processes commentary. If you re-run it against the same folder, it checks and reuses the stages it's already finished instead of redoing the expensive vision work.
 
-Useful starting points are the [dataset-builder trial](docs/dataset_builder/issue_15_batch_5_e2e_report.md), [feature benchmark](docs/dataset_builder/issue_104_shuttleset_benchmark.md), [annotator handover](experiments/annotator/README.md), and [HPC quickstart](docs/hpc_quickstart.md).
+Before a full run:
+
+- Put the TrackNet, InpaintNet and court model weights at the paths in [`trial.toml`](configs/dataset_builder/trial.toml), or change the paths to match.
+- Point `BADMINTON_TRACKNET_PYTHON`, `BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON` at the Python each extraction stage should use. All three can be the project's `.venv/bin/python`.
+- Set `GEMINI_API_KEY` for the commentary stage.
+- Pose extraction and court detection both run in the root environment. For their CUDA setup, see the [court usage guide](docs/court_detector/usage.md#cuda-pose-inference).
+
+To rebuild the dataset, run the pipeline above, then write the tables with `python -m dataset_builder export-v1` for ShuttleSet and `export-v1-shuttleset22` for ShuttleSet22. Add `--help` to either to see its inputs.
 
 ## Project
 
-This repository supports COSC595 and COSC320 projects at the University of New England and continues the earlier [Badminton Stroke Classification](https://github.com/Kira-Le/badminton_stroke_classification) project.
+Capstone project at the University of New England (Australia). Ongoing research and maintenance by Ariel Halperin.
 
-Current COSC595 contributors are **Ariel Halperin** and **Curtis Martin**. The earlier COSC594/COSC320 foundation was created by Ariel Halperin, Curtis Martin, Scott Bailey, Kiri Lefebvre, Isiah Darcy, Ethan McDonough and Jared Pitman.
+| Stage | Contributors |
+| --- | --- |
+| Ongoing | **Ariel Halperin** |
+| COSC595 | **Ariel Halperin** (machine learning); **Curtis Martin** (dataset) |
+| COSC594/COSC320 | **Ariel Halperin** (BST-X); **Scott Bailey** (BRIC stroke classifier); front end led by **Curtis Martin**, with Scott Bailey, Kiri Lefebvre, Isiah Darcy, Ethan McDonough and Jared Pitman |
 
 Licensed under the **GNU Lesser General Public License v3.0 or later**. See [COPYING.LESSER](COPYING.LESSER), [COPYING](COPYING), and [`data/ATTRIBUTION.md`](data/ATTRIBUTION.md) for third-party and dataset attribution.

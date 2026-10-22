@@ -7,6 +7,7 @@ Usage: python make_figures.py --data DIR --out DIR
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -311,9 +312,10 @@ def cutoff_text(value: float) -> str:
 
 
 def confidence_figure(data: Path, out: Path) -> None:
-    test = pd.read_csv(data / 'test_confidence_curve.csv')
-    validation = pd.read_csv(data / 'validation_confidence_curve.csv')
-    cutoffs = json.loads((data / 'confidence_cutoffs.json').read_text())['cutoffs']
+    test = pd.read_csv(data / 'test_confidence_curve.csv.gz')
+    validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz')
+    with gzip.open(data / 'confidence_cutoffs.json.gz', 'rt') as stream:
+        cutoffs = json.load(stream)['cutoffs']
     grid = test[test['threshold'].isin(np.round(np.arange(0, 1.0001, 0.005), 3))]
     figure, (left, right) = plt.subplots(1, 2, figsize=(14, 5.8), facecolor=SURFACE,
                                          gridspec_kw={'width_ratios': (1.25, 1)})

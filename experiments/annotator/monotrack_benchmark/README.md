@@ -25,6 +25,8 @@ configurations; Appendix E gives the ±5-frame results.
 - [Results](benchmark_results/comparison/): predictions and per-condition scores.
   Our annotator's runs for v5 are in
   [`benchmark_results/annotator_runs/`](benchmark_results/annotator_runs/).
+- [Confidence curves](benchmark_results/confidence_curves/): kept-rally results at every
+  confidence cut-off, the chosen cut-offs, and the fix counts behind the project README.
 - [Figures](writeup_figures/): charts, court overlays and inspected frames. The
   v5 charts are in `writeup_figures/v5/`; its court galleries and the v3 and v4
   figures are in `writeup_figures/v3/`.

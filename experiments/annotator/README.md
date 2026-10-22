@@ -15,8 +15,7 @@ and where the system still falls short.
 review.** The current three-model XGBoost system recovers a mean of 1,822.4 of
 3,327 labelled rallies across five fits in the 46-video ShuttleSet22 comparison.
 That is 54.78% under the report's standard scoring rules. The
-[tree comparison](reports/tree_simplification.md) gives the results and definitions. These videos have been examined repeatedly during development; the result
-does not establish performance on unfamiliar broadcasts or club footage.
+[tree comparison](reports/tree_simplification.md) gives the results and definitions.
 
 ## Reading guide
 

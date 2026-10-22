@@ -19,6 +19,7 @@ Run every command from the repository root.
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
 | [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. The 32-video discovery runs must match the tracked predictions exactly. |
 | [confidence_cutoffs.py](confidence_cutoffs.py) | Chooses the confidence thresholds on validation and reads them on test, for the threshold table. |
+| [kept_rally_errors.py](kept_rally_errors.py) | Counts the errors in kept rallies that need a fix, at the two cut-offs in the project README. |
 | [left_out_rallies.py](left_out_rallies.py) | Counts the rallies with flawed labels for Appendix G. |
 | [flaw_scoring.py](flaw_scoring.py) | Scores discovery mode with the flawed rallies standard, ignored and counted, for Appendix G. |
 | [make_figures.py](make_figures.py) | Figures 1–6 and 10. |
@@ -54,6 +55,7 @@ $PY $W/metrics.py --out $OUT
 $PY $W/court_metrics.py --out $OUT
 $PY $W/left_out_rallies.py --data $OUT --shots-master $SHOTS
 $PY $W/confidence_cutoffs.py --data $OUT --shots-master $SHOTS --out $OUT
+$PY $W/kept_rally_errors.py --data $OUT --out $OUT
 $PY $W/flaw_scoring.py --out $OUT
 $PY $W/make_figures.py --data $OUT --out figures
 ```
