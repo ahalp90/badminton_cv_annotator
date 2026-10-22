@@ -7,8 +7,8 @@ import numpy as np
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
+from annotator.sequence.rally_model import alternate_sides
 from annotator.sequence.repairs import RallyRepairs
-from annotator.sequence.sides import alternate_sides
 
 
 @dataclass(frozen=True)

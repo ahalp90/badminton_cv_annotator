@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from annotator.sequence.boundaries import BOUNDARY_PADDING_AT_30_FPS, extend_boundaries
 from annotator.sequence.contacts import ContactSequence, apply_choices, scale_frames
+from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, extend_boundaries
 from annotator.sequence.rally_options import RallyOptions, sequence_key
 from annotator.training.sequences import SequenceTrainingVideo, whole_rally_correctness
 

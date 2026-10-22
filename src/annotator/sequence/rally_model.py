@@ -1,4 +1,7 @@
-"""Select and finish rally sequences, then expose evidence for review ranking."""
+"""Select rally contacts, extend their bounds and fit striker order.
+
+The final sequences also supply features for review ranking.
+"""
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -6,14 +9,15 @@ from typing import Any
 
 import numpy as np
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.boundaries import extend_boundaries
+from annotator.outcomes.point_winner import OTHER_HALF, Half, fit_alternation
 from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
     ContactSequence,
     apply_choices,
+    events_between,
     initial_sequences,
+    scale_frames,
 )
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
@@ -31,7 +35,8 @@ from annotator.sequence.repairs import (
     build_rally_repairs,
     check_events_match_kept_candidates,
 )
-from annotator.sequence.sides import alternate_sides
+
+BOUNDARY_PADDING_AT_30_FPS = 10
 
 CONTEXT_FEATURE_NAMES = (
     'option_score', 'chosen_score', 'top_margin', 'option_minus_chosen',
@@ -129,7 +134,7 @@ def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
 def finish_rows(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Apply the chosen rows together before canonical boundary and side finishing."""
+    """Apply selected contacts, extend rally bounds and fit alternating sides."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     video = pool.context
     sequences, events = apply_choices(video.initial, video.events, choices)
@@ -142,6 +147,92 @@ def finish_selected(
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Finish all selected spans together using the production boundary/side rules."""
     return finish_rows(pool, choose_rows(pool, scores))
+
+
+def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
+    if not sequence.events:
+        return [sequence.start_frame, sequence.end_frame]
+    first_frame = min(event.frame for event in sequence.events)
+    last_frame = max(event.frame for event in sequence.events)
+    start = max(0, min(sequence.start_frame, first_frame - padding))
+    end = max(sequence.end_frame, last_frame + padding + 1)
+    return [start, end]
+
+
+def extend_boundaries(
+    sequences: Sequence[ContactSequence], events: Sequence[ContactEvent], fps: float,
+    *, frame_count: int | None = None,
+) -> tuple[ContactSequence, ...]:
+    """Pad each sequence around its first and last contact, keeping its contacts.
+
+    Padding never moves a bound inward and stops at the neighbouring
+    sequences' current bounds. When both neighbours reach into one gap, the
+    gap's midpoint divides it. A sequence whose padded bounds would take in or
+    lose any full-stream contact keeps its current bounds instead.
+
+    :param sequences: Chosen sequences in chronological order, disjoint.
+    :param events: Full-stream contact events in frame order.
+    :param fps: Source frame rate.
+    :param frame_count: Video length; bound extensions stop at this exclusive end.
+    :return: Sequences in the same order, with the same contacts.
+    """
+    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, fps)
+    bounds = [proposed_bounds(sequence, padding) for sequence in sequences]
+    for position in range(len(sequences)):
+        if frame_count is not None:
+            bounds[position][1] = min(bounds[position][1], frame_count)
+        if position:
+            bounds[position][0] = max(bounds[position][0], sequences[position - 1].end_frame)
+        if position + 1 < len(sequences):
+            bounds[position][1] = min(bounds[position][1], sequences[position + 1].start_frame)
+    for left_position in range(len(sequences) - 1):
+        right_position = left_position + 1
+        if bounds[left_position][1] <= bounds[right_position][0]:
+            continue
+        midpoint = (sequences[left_position].end_frame + sequences[right_position].start_frame) // 2
+        bounds[left_position][1] = min(bounds[left_position][1], midpoint)
+        bounds[right_position][0] = max(bounds[right_position][0], midpoint)
+
+    extended = []
+    for sequence, (start_frame, end_frame) in zip(sequences, bounds, strict=True):
+        if events_between(events, start_frame, end_frame) == sequence.events:
+            extended.append(replace(sequence, start_frame=start_frame, end_frame=end_frame))
+        else:
+            extended.append(sequence)
+    return tuple(extended)
+
+
+def alternating_sides(final_half: Half, event_count: int) -> list[Half]:
+    last = event_count - 1
+    return [final_half if (last - index) % 2 == 0 else OTHER_HALF[final_half] for index in range(event_count)]
+
+
+def alternate_sides(
+    sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
+) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
+    """Replace each sequence's raw side guesses with its better alternating phase.
+
+    A tied phase vote leaves that sequence's raw per-contact guesses unchanged.
+    Contacts outside every sequence keep their raw guesses.
+
+    :param sequences: Final sequences; each contact belongs to at most one.
+    :param events: Full-stream contact events in frame order.
+    :return: Sequences and full-stream events with the fitted sides.
+    """
+    side_by_frame: dict[int, Half | None] = {}
+    for sequence in sequences:
+        final_half = fit_alternation([event.side for event in sequence.events])
+        if final_half is None:
+            continue
+        fitted = alternating_sides(final_half, len(sequence.events))
+        for event, side in zip(sequence.events, fitted, strict=True):
+            side_by_frame[event.frame] = side
+    revised = tuple(replace(event, side=side_by_frame.get(event.frame, event.side)) for event in events)
+    by_frame = {event.frame: event for event in revised}
+    revised_sequences = tuple(
+        replace(sequence, events=tuple(by_frame[event.frame] for event in sequence.events)) for sequence in sequences
+    )
+    return revised_sequences, revised
 
 
 def layer_features(pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:

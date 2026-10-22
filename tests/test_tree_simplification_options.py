@@ -6,16 +6,15 @@ import numpy as np
 
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.boundaries import extend_boundaries
 from annotator.sequence.contacts import ContactEvent, apply_choices, initial_sequences
 from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
+from annotator.sequence.rally_model import alternate_sides, extend_boundaries
 from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.sequence.repairs import (
     RallyRepairs,
     add_later_contacts,
     serve_and_deletion_repairs,
 )
-from annotator.sequence.sides import alternate_sides
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from annotator.training.workflow import whole_rally_correctness
 from experiments.annotator.tree_simplification.options import (

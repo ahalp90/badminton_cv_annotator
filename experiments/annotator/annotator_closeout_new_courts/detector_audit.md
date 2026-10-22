@@ -71,7 +71,7 @@ The false hit also becomes the rally's recorded striker in all 233. It does not 
 
 ### One missed hit flips a run of sides
 
-The model gives each rally's hits alternating sides. It picks whichever of the two alternating patterns agrees with more of its raw guesses (`sequence/sides.py:17–42`). When a hit inside the rally is missed, the hits before and after the gap need opposite patterns, so one run is wrong whichever pattern wins.
+The model gives each rally's hits alternating sides. It picks whichever of the two alternating patterns agrees with more of its raw guesses (`sequence/rally_model.py::alternate_sides`). When a hit inside the rally is missed, the hits before and after the gap need opposite patterns, so one run is wrong whichever pattern wins.
 
 | Where the rally's misses fall | Rallies | Matched hits | Wrong sides | Share |
 |---|---:|---:|---:|---:|

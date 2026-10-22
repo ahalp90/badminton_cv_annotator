@@ -27,8 +27,8 @@ from typing import Any
 import joblib
 import numpy as np
 
-from annotator.sequence.boundaries import BOUNDARY_PADDING_AT_30_FPS
 from annotator.sequence.contacts import scale_frames
+from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS
 from annotator.training.sequences import match_contacts, overlapping_rallies
 from experiments.annotator.tree_simplification.analysis.common import (
     SHOTS_MASTER,

@@ -42,7 +42,7 @@ sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.sequence.sides import alternate_sides
+from annotator.sequence.rally_model import alternate_sides
 from annotator.training.sequences import match_contacts
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,

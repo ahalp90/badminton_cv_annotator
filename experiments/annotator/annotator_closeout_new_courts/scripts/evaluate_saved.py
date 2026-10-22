@@ -18,7 +18,7 @@ from annotator.sequence.contacts import (
     scale_frames,
     stream_from_payload,
 )
-from annotator.sequence.sides import alternate_sides
+from annotator.sequence.rally_model import alternate_sides
 from annotator.training.sequences import (
     LabelledRally,
     match_contacts,
