@@ -191,15 +191,13 @@ def build_serve_options(
     resolution: tuple[float, float],
     span_open: SpanOpen | None = SpanOpen.BACK_FILL,
 ) -> ServeStartOptions:
-    """Build sticky-sourced serve-start evidence from the unmasked cache.
+    """Build serve detection inputs from player measurements before replay masking.
 
-    Build serve evidence before replay masking, which can otherwise remove
-    the quiet setup frames needed to recognise a serve.
+    Replay masking can remove the quiet setup frames needed to recognise a serve.
     """
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
     return ServeStartOptions(
-        # The sticky path supplies body-height-normalised serve-setup evidence.
         threshold=config.threshold_bh, mode=config.mode, close=config.close,
         setup=build_serve_setup_inputs(sticky, resolution),
         stillness_threshold_bh=config.stillness_threshold_bh,

@@ -207,9 +207,10 @@ def extend_boundaries(
 def alternate_sides(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Replace each sequence's raw side guesses with its better alternating phase.
+    """Fit alternating player sides to each sequence's per-contact guesses.
 
-    A tied phase vote leaves that sequence's raw per-contact guesses unchanged.
+    Choose the assignment that agrees with more guesses. A tie keeps the original
+    per-contact guesses.
     Contacts outside every sequence keep their raw guesses.
 
     :param sequences: Final sequences; each contact belongs to at most one.

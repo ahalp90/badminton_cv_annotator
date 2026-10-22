@@ -1,4 +1,4 @@
-"""Serve-start options and sticky serve-setup policy."""
+"""Recognise serve preparation from player positions and wrist-to-shuttle distance."""
 
 import warnings
 from dataclasses import dataclass
@@ -12,14 +12,12 @@ from ..types import Slot, StickyResult
 
 
 class ServeSetupInputs(NamedTuple):
-    """Per-frame evidence for the body-height-unit serve-setup gate.
+    """Player measurements used to recognise serve preparation at each frame.
 
-    Ankles are image-fraction centroids and heights are image-HEIGHT fractions.
-    ``wrist_dist`` is the raw wrist-to-shuttle distance as an image-height
-    fraction, with ``+inf`` outside analysed coverage and NaN when a frame or
-    slot has no measured distance. Dividing the raw pixel distance by the same
-    image height used for ``top_height`` and ``bot_height`` makes the gate's
-    ratio cancel exactly to body heights, with no hidden normalisation step.
+    Ankle coordinates are fractions of image width and height. Player heights
+    and wrist-to-shuttle distances are fractions of image height, so their ratio
+    expresses distance in player body heights. Wrist distance is ``+inf`` outside
+    analysed frames and NaN where a player has no measured distance.
     """
 
     count: np.ndarray
@@ -31,7 +29,7 @@ class ServeSetupInputs(NamedTuple):
     bot_height: np.ndarray
 
     def validate(self) -> None:
-        """Validate shapes, dtypes, and the count contract."""
+        """Check array shapes, dtypes and nonnegative whole-number player counts."""
         arrays = {name: np.asarray(value) for name, value in self._asdict().items()}
         trailing_shapes = {
             'count': (), 'wrist_dist': (2,), 'analysed': (),
@@ -60,12 +58,12 @@ class ServeSetupInputs(NamedTuple):
 
 
 def series_drift(points: np.ndarray) -> tuple[float, int]:
-    """Return median-half drift for a sentinel-coded point series.
+    """Measure movement between the first and second halves of a position series.
 
-    ``points`` may contain NaN rows and the paired-zero ``(0, 0)`` sentinel;
-    it is not suitable for arbitrary geometry where the origin is meaningful.
-    Both coordinates must be finite and the pair must not be zero, while
-    ``(0, y)`` and ``(x, 0)`` remain detected.
+    Ignore non-finite positions and ``(0, 0)``, which denotes a missing detection.
+    Split the remaining positions in time order, keeping any extra point in the
+    first half. Return the distance between the two median positions and the
+    number of detections. Fewer than two detections give a NaN distance.
     """
     points = np.asarray(points)
     if points.ndim != 2 or points.shape[1:] != (2,):
@@ -133,7 +131,7 @@ def serve_setup_still(
 def build_serve_setup_inputs(
     sticky: 'StickyResult', resolution: tuple[float, float],
 ) -> ServeSetupInputs:
-    """Build validated sticky-sourced evidence for the serve-setup gate."""
+    """Prepare player measurements from sticky tracking for serve detection."""
     if (not isinstance(resolution, tuple) or len(resolution) != 2 or
             any(isinstance(value, bool) or not isinstance(value, Real)
                 or not np.isfinite(value) or value <= 0 for value in resolution)):
@@ -168,12 +166,9 @@ def build_serve_setup_inputs(
 
 
 class ServeStartMode(StrEnum):
-    """What a region whose bursts are none of them serve-setup-preceded does.
+    """What to do when no fast burst in a region follows detected serve preparation.
 
-    TRIM keeps the span at the region's first burst (the stock pick), so coverage is only
-    ever traded by a later start on the QUALIFYING regions. REJECT drops the region outright,
-    the stronger anti-weld / anti-spurious lever, at the risk of dropping a GT rally that
-    happens to sit in a no-qualify region.
+    TRIM starts the rally at the first fast burst. REJECT discards the region.
     """
 
     TRIM = 'trim'
@@ -181,13 +176,13 @@ class ServeStartMode(StrEnum):
 
 
 class ServeStartClose(StrEnum):
-    """Where a split span closes; the serve-start split axis (None = single span, off).
+    """Where to end a rally when another burst follows detected serve preparation.
 
-    In split mode every serve-setup-qualifying burst opens a span. BURST closes the previous
-    span exactly at the next qualifying burst, so the split spans union back to the single
-    span and coverage is unchanged. LAST_REST closes it at the start of the last rest run
-    before that burst, leaving the between-rally dead tail (where the junk contacts live)
-    outside the span, at the risk of uncovering a rally whose own serve failed the gate.
+    BURST ends it at that next burst, so the split rallies cover the same frames
+    as one rally. LAST_REST ends it at the start of the last rest period between
+    the bursts, or at the next burst if there is no such rest. Excluding the rest
+    can remove contacts between rallies.
+    Setting ``ServeStartOptions.close`` to None keeps one rally per region.
     """
 
     BURST = 'burst'
@@ -225,10 +220,10 @@ class ServeStartOptions(NamedTuple):
 def serve_distance_ratio_passes(
     window_dist: np.ndarray, window_height: np.ndarray, threshold_bh: float,
 ) -> bool:
-    """Return whether paired distance evidence passes the body-height threshold.
+    """Check median wrist-to-shuttle distance relative to mean player height.
 
-    The finite-distance mask selects the matching heights. Sticky setup construction writes both
-    values for a picked slot on the same frame.
+    Use only frames with a finite distance. Sticky tracking supplies the matching
+    player height on those frames.
     """
     mask = np.isfinite(window_dist)
     if not mask.any():
@@ -241,7 +236,14 @@ def sticky_serve_setup_before(
     setup: ServeSetupInputs, burst: int, threshold: float, lookback_frames: int,
     stillness_threshold_bh: float | None, stillness_window_frames: int | None,
 ) -> bool:
-    """Apply the sticky coverage gate and its three serve-setup lanes."""
+    """Check for serve preparation in the frames before a fast burst.
+
+    All required frames must have been analysed. When the window's median standing
+    count is at least two, require measurements for both players and a nearby
+    shuttle for at least one. Both must pass stillness checks when enabled. For
+    a median count of at least one but below two, require one sufficiently observed player
+    with a nearby shuttle and, when enabled, stillness. Reject lower median counts.
+    """
     if not 0 <= burst < len(setup.count):
         raise ValueError('claimed_serve_frame must be in range [0, t)')
     setup_window = slice(max(0, burst - lookback_frames), burst)
@@ -266,9 +268,8 @@ def sticky_serve_setup_before(
         valid[:, slot] = np.isfinite(distances[:, slot]) & np.isfinite(heights[slot])
 
     if median_count >= 2:
-        # Presence floor AND the primitive's minimum detections: below two valid
-        # rows a drift cannot be split into halves, so the window fails closed
-        # even with the stillness gate off.
+        # Each player needs measurements in at least half the window. The two-frame
+        # minimum comes from the drift check and applies even with stillness off.
         if any(np.mean(valid[:, slot]) < PLAYER_PRESENT_MIN_FRAC or
                np.count_nonzero(valid[:, slot]) < 2 for slot in Slot):
             return False
@@ -310,9 +311,6 @@ def sticky_serve_setup_before(
                 return True
         return False
 
-    # TODO: position-based count means a tight close-up CAN read 1 and route partial; the old
-    # "close-ups read zero" claim was size-banded and does not describe the permanent
-    # court-scale box and slot paths.
     return False
 
 
@@ -354,7 +352,7 @@ def _valid_serve_threshold(value: object, name: str) -> float:
 
 
 def resolve_serve_gate(options: ServeStartOptions) -> ServeGate:
-    """Validate serve-start options and return the executable gate."""
+    """Validate the measurements and thresholds used to recognise serve preparation."""
     if options.setup is None:
         raise ValueError('serve-start setup must be supplied')
     threshold = _valid_serve_threshold(options.threshold, 'threshold')
@@ -368,8 +366,7 @@ def resolve_serve_gate(options: ServeStartOptions) -> ServeGate:
         )
     else:
         stillness_threshold_bh = None
-        # Still validated when supplied: a bad window would silently wrap the
-        # coverage-gate slice even with the stillness gate off.
+        # Validate an explicitly supplied window even when stillness is disabled.
         stillness_window_frames = (
             None if options.stillness_window_frames is None
             else _valid_serve_window(options.stillness_window_frames, 'stillness_window_frames')

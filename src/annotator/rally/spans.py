@@ -20,7 +20,7 @@ from .serve import (
 )
 from .trajectory import _rolling_mean
 
-# Fraction of a window that must be tracked for it to read as seeing the shuttle.
+# Minimum tracked fraction of a window before shuttle speed can rule out rest.
 VISIBILITY_REST_FRAC = 0.5
 QUIET_START_REST_FRACTION = 0.8
 
@@ -113,9 +113,7 @@ def build_rest_mask(
 def rally_regions(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]], list[tuple[int, int]]]:
-    """Shared region scaffold for the span-opening rules.
-
-    Every opening rule uses the same sustained-fast runs and active regions.
+    """Find fast bursts, rest periods and the regions between long rests.
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param at_rest: `(t,)` per-frame rest flag.
@@ -142,14 +140,12 @@ def rally_regions(
 def burst_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds,
 ) -> list[tuple[int, int]]:
-    """Segment the video into rally spans between extended rest.
+    """Start each rally at a fast burst and end it at the next long rest.
 
-    A long rest (a rest run >= END_REST_FRAMES) separates rallies. Inside each
-    stretch of non-long-rest frames, the rally starts at the first sustained
-    burst of fast frames (START_MIN_FRAMES consecutive above START_SPEED, the
-    acceleration-from-rest signature) and ends where the following long rest
-    begins. A stretch with no such burst (e.g. a brief tracker twitch) yields
-    no rally.
+    A long rest lasts at least ``thresholds.end_rest_frames``. Between long rests,
+    a rally starts at the first burst above ``thresholds.start_speed`` for at
+    least ``thresholds.start_min_frames``. A region with no such burst yields no
+    rally. The final rally can extend to the end of the video.
 
     :param speed: `(t,)` per-frame speed (NaN on non-visible steps).
     :param at_rest: `(t,)` per-frame rest flag.
@@ -220,12 +216,10 @@ def quiet_start_rally_spans(
 
 
 def last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
-    """Where a split span closes under close='last_rest'.
+    """End a rally at the start of the last rest period before the next serve.
 
-    The START of the last at_rest run (any length) that ends at or before the next qualifying
-    burst AND opens after this span's own open, so the dead tail between the previous rally's
-    last action and the next serve falls outside the span (that tail is where the between-rally
-    junk contacts sit). Falls back to next_burst when no rest run sits between the two opens.
+    The rest must start after this rally opens and end at or before the next
+    qualifying burst. If no rest fits, end the rally at that next burst.
 
     :param rest_runs: every `(start, end)` at_rest run, ascending (true_runs order).
     :param open_frame: this span's opening (qualifying) burst frame.
@@ -241,18 +235,17 @@ def serve_qualified_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds,
     options: ServeStartOptions, span_open: SpanOpen | None,
 ) -> list[tuple[int, int]]:
-    """Span finder that opens only at a serve-setup-preceded burst.
+    """Find rallies by checking for serve preparation before fast shuttle bursts.
 
-    Same region / long-rest / fast-run structure as the stock finder. The change: a rally
-    opens at a fast burst whose sticky setup lookback passes the serve-setup gate. A region with
-    no qualifying burst is handled by the mode: TRIM falls back to the first burst (span survives
-    at the stock start), REJECT drops it.
+    A burst qualifies when its preceding frames show serve preparation. If none
+    qualify in a region, TRIM starts a rally at its first burst and REJECT drops
+    the region. Regions with no fast bursts yield no rally.
 
-    `options.close` controls what a QUALIFYING region does when span_open is None (the default):
-    None opens one span at the FIRST qualifying burst running to region end; BURST / LAST_REST
-    open a span at EVERY qualifying burst. span_open=BACK_FILL back-fills a qualifying region to
-    a single span opening at region_start (serve-start with span_open=REGION_START is rejected
-    by segment_video before this is reached).
+    With ``options.close=None``, start at the first qualifying burst and end at
+    the region's end. BURST and LAST_REST instead open a rally at each qualifying
+    burst and choose where the previous rally ends. BACK_FILL overrides splitting
+    and opens one rally at the region's start. REGION_START is incompatible with
+    serve detection and is rejected by ``segment_video`` before this call.
 
     :param speed: (t,) per-frame speed (NaN on non-visible steps).
     :param at_rest: (t,) per-frame rest flag.
@@ -271,39 +264,30 @@ def serve_qualified_rally_spans(
     spans: list[tuple[int, int]] = []
     no_qualify_regions: list[tuple[int, int]] = []
     n_regions_with_burst = 0
-    # Per-region qualifying-burst counts (spans per region under split) and the frames between
-    # consecutive qualifying bursts (the double-fire read: a small spacing means a second serve
-    # signature fired just after a span opened, cutting one rally in two). Diagnosed, not suppressed.
+    # Closely spaced serve detections can split one rally in two. Record their
+    # spacing for diagnostics without changing which bursts qualify.
     qualifying_counts: list[int] = []
     qualifying_spacings: list[int] = []
     for region_start, region_end in regions:
         bursts = [start for start, _ in fast_runs if region_start <= start < region_end]
         if not bursts:
-            continue  # no burst at all: stock forms no span here either, not a serve-start drop
+            continue
         n_regions_with_burst += 1
-        # Gate every burst, not just up to the first: the split modes open a span at each, and
-        # the double-fire diagnostics need the whole per-region qualifying picture regardless.
+        # Check every burst for splitting and diagnostics, even in single-span mode.
         qualifying = [start for start in bursts if gate.qualifies(start)]
         qualifying_counts.append(len(qualifying))
         qualifying_spacings.extend(int(later - earlier)
                                    for earlier, later in itertools.pairwise(qualifying))
 
         if not qualifying:
-            # No qualifying burst: the mode owns the region. TRIM keeps the span at the stock
-            # first burst; REJECT drops it. Both record the region as no-qualify.
             if mode is ServeStartMode.TRIM:
                 spans.append((int(bursts[0]), int(region_end)))
             no_qualify_regions.append((int(region_start), int(region_end)))
         elif span_open is SpanOpen.BACK_FILL:
-            # Serve gate decides qualification; the span back-fills to the region start.
             spans.append((int(region_start), int(region_end)))
         elif close is None:
-            # Split off: one span at the first qualifying burst, running to region end.
             spans.append((int(qualifying[0]), int(region_end)))
         else:
-            # Split on: every qualifying burst opens a span, closing where the next one opens
-            # (close='burst') or at the last rest run before it (close='last_rest'); the last
-            # span runs to region end. Under close='burst' the spans union to the single span.
             for idx, open_frame in enumerate(qualifying):
                 if idx + 1 < len(qualifying):
                     next_burst = qualifying[idx + 1]

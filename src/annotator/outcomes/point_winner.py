@@ -278,33 +278,22 @@ def at_frame_border(xy: np.ndarray) -> bool:
 # ---------------------------------------------------------------------------
 # Kinematic landing filter (settle cap + carry filter, both ankle-rule refined)
 # ---------------------------------------------------------------------------
-# Purpose: the "last descending run" a naive search keeps is often the post-rally pickup / carry /
-# toss-back, whose ELEVATED terminal (shuttle in a hand, mid-air) projects past the far baseline
-# through the floor homography and lands the verdict in the wrong court half. This filter excludes
-# fallen/carried shuttle spans from the descending-run search KINEMATICALLY, repurposing rally segmentation's
-# serve gate's low-displacement-over-a-window machinery (its body-height form) into two signals:
-#   - SETTLE: the shuttle goes static (self-speed rolling-median <= settle_thr) for >= settle_min
-#     frames and is NOT held at a wrist (the "not a trajectory inversion around the nearest wrist"
-#     carve-out, proxied kinematically by wrist-proximity in body-height units). A ground settle =
-#     the shuttle has fallen and come to rest, so later motion is out-of-play: the search window is
-#     CAPPED at the first settle onset.
-#   - CARRY: a descending run whose terminal sat sustained-close to the nearest sticky-selected
-#     player's wrist (median wrist/box-height distance over the trailing carry_win frames <=
-#     carry_thr) is a lowering-by-hand, not a fall; it is dropped from the run set.
-# The last SURVIVING run wins, exactly as a naive search keeps the last run. NO geometric clamp
-# lives anywhere here: every decision reads shuttle speed and shuttle-to-wrist body-height distance
-# only.
+# A pickup or toss-back after a rally can look like a later landing. Projecting
+# that airborne shuttle onto the court floor can put it in the wrong court half.
+# Limit the search when the shuttle settles on the ground, and filter descending
+# runs that stay close to a player's wrist. A shuttle nearer an ankle than a wrist
+# is treated as grounded. These checks use motion and player distance, not court bounds.
 class LandingKinematics(NamedTuple):
-    """Per-frame kinematic signals for the landing filter, built once per video.
+    """Shuttle motion and distance from players, measured at each video frame.
 
-    :param carry_ratio: (t,) shuttle-to-nearest sticky-selected player's nearer-WRIST distance
-        divided by that player's bbox height (body-height units); NaN where the shuttle is invisible
-        or no sticky pick has a finite height. The body-height form of the serve gate's proximity
-        signal, with the wrist numerator matching the shipped wrists-per-box-height attribution.
-    :param ankle_ratio: (t,) the same signal built from the nearer ANKLE (COCO 15/16) instead of the
-        wrist, in the same body-height units. A terminal (or a settle frame) nearer an ankle than a
-        wrist is the shuttle grounded by the feet, not held.
-    :param speed: (t,) shuttle self-speed (norm-units/frame, compute_speed); NaN on non-visible steps.
+    :param carry_ratio: (t,) minimum wrist-to-shuttle distance in player body
+        heights. Divide each selected player's distance by their box height before
+        taking the minimum. NaN when the shuttle is invisible or no selected
+        player has a finite height.
+    :param ankle_ratio: (t,) minimum ankle-to-shuttle distance, calculated in the
+        same way. The nearest ankle and wrist can belong to different players.
+    :param speed: (t,) shuttle speed in normalised image coordinates per frame;
+        NaN when either endpoint of a step is invisible.
     """
 
     carry_ratio: np.ndarray
@@ -313,23 +302,21 @@ class LandingKinematics(NamedTuple):
 
 
 class LandingFilterOptions(NamedTuple):
-    """One landing-filter setting: the settle cap + carry filter kinematics.
+    """Settings for distinguishing a landing from a pause or movement by hand.
 
-    :param settle_win: rolling-median window (frames) for the shuttle self-speed static test.
-    :param settle_thr: static speed threshold (norm-units/frame); at/below this reads as static.
-    :param settle_min: consecutive ground-static frames that mark a settle onset (the window cap).
-    :param carry_win: trailing window (frames) the carry proximity median runs over.
-    :param carry_thr: carried when median trailing wrist/box-height distance <= this (body heights).
-    :param use_settle: apply the settle window cap.
-    :param use_carry: drop carried runs from the run set.
-    :param null_if_all_carried: when every run is carried, null the landing (True) rather than fall
-        back to the last run (False). False is the shipped default (keep-last-drop): nulling loses
-        rallies the measurement showed were recoverable by keeping the last surviving run anyway.
-    :param use_ankle_rule: a shuttle nearer a player's ANKLE than any player's wrist reads as
-        grounded, not hand-held. Refines both the carry filter (keeps such a terminal as a landing)
-        and the settle cap's held carve-out (does not veto such a frame). True is the shipped
-        default: without it, a standing player over a genuinely fallen shuttle never lets the
-        settle cap fire (measured on sset_01's rally 90).
+    :param settle_win: rolling-median window for shuttle speed, in frames.
+    :param settle_thr: maximum speed considered still, in normalised image units
+        per frame.
+    :param settle_min: consecutive still, grounded frames needed to end the search.
+    :param carry_win: trailing window for median wrist distance, in frames.
+    :param carry_thr: maximum median wrist distance considered carried, in body heights.
+        Also used per frame to distinguish a held shuttle from a ground settle.
+    :param use_settle: end the search when the shuttle settles on the ground.
+    :param use_carry: remove descending runs classified as carried.
+    :param null_if_all_carried: return no landing if every run is carried. False
+        retains the last run to avoid losing a landing misclassified as carried.
+    :param use_ankle_rule: treat a shuttle nearer an ankle than a wrist as grounded.
+        This can preserve a descending run or allow the settle check to end the search.
     """
 
     settle_win: int
@@ -395,10 +382,6 @@ def build_landing_kinematics(
             # keeps the min() reductions below deterministic if that ever changes.
             wrist_ratio = wrist_px / box_height
             wrist_ratios.append(0.0 if np.isnan(wrist_ratio) else wrist_ratio)
-        # Same machinery on the nearer ANKLE. The two minima are taken independently, so the
-        # nearest ankle and nearest wrist may in principle come from different players; at a
-        # terminal or a ground settle the shuttle is beside one player, so both minima are that
-        # player's and the per-candidate box-height normaliser cancels in the ankle-vs-wrist test.
             ankles = kps[frame, slot, (ANKLE_L, ANKLE_R), :]
             ankle_px = np.hypot(ankles[:, 0] - shuttle_x, ankles[:, 1] - shuttle_y).min()
             ankle_ratio_val = ankle_px / box_height
@@ -722,11 +705,12 @@ def pick_landing_to_end(
 def geometric_verdict(
     striker_half: Half, landing: Landing | None, best_guess: bool = False,
 ) -> tuple[Verdict | None, Half | None, VerdictSource]:
-    """(verdict, winner_half, source) from the landing geometry at M=0: net rule, else in/out.
+    """Return the verdict, winner half and source using the zero-margin landing rule.
 
-    best_guess=False (the confident path): None where no confident call is available (off-frame /
-    exactly on a line). best_guess=True permits a call at borders or without a
-    margin, but still withholds a call for an out landing on the hitter's own half.
+    A net fault loses the rally. Otherwise, use whether the landing is inside the
+    receiver's singles court. With ``best_guess=False``, withhold calls at image borders
+    or exactly on a court line. ``best_guess=True`` permits those calls. Both modes
+    withhold a call for an out landing on the hitter's own half.
     """
     receiver = OTHER_HALF[striker_half]
     if landing is not None and landing.net_ender:
@@ -786,15 +770,13 @@ def rally_verdict(
     rally_id: int, striker_half: Half, next_server: Half | None, landing: Landing | None,
     band_m: float,
 ) -> VerdictRow:
-    """One rally's verdict row: the shipped next-server-first call, geometry as a fallback.
+    """Use the next server to identify the winner, falling back to the landing.
 
-    Rally n's winner is rally n+1's fitted first-stroke half whenever one is attributable
-    (winner-serves-next), sidestepping the landing estimate for the winner call entirely — a
-    next-server row never checks `landing.net_ender`. Only when no next serve is attributable
-    does the call fall back to the landing's best-guess court-half membership.
-    An out landing on the attributed hitter's own half leaves that call unresolved.
-    Margins and band flags always read the landing
-    geometry, diagnostic even on a next-server row.
+    The winner serves next, so an attributed next server determines this rally's
+    winner. Otherwise, use the best-guess landing verdict, which permits calls at
+    image borders and on court lines. An out landing on the hitter's own half
+    leaves that inference unresolved. Report landing margins in either case when
+    a landing is available.
     """
     if next_server is not None:
         winner = next_server

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class DeadMaskMode(StrEnum):
-    """Select the producer policy for the per-frame dead-time mask."""
+    """Choose replay detection, scene composition, or both to mask dead time."""
 
     REPLAY = 'replay'
     COMPOSITION = 'composition'
@@ -32,15 +32,12 @@ class SmoothingMode(StrEnum):
 
 
 class SpanOpen(StrEnum):
-    """Where a rally span opens; ResolvedAnnotatorConfig.span_open, default None.
+    """Where to start a rally within the region between long rests.
 
-    None keeps today's burst-open rule bit-for-bit: a span opens at the first
-    qualifying fast burst in its active region. The two named rules trade that:
-      REGION_START drops the qualifying-burst gate entirely and opens a span at
-      every active region's start (each maximal run of non-long-rest frames).
-      BACK_FILL keeps the qualifying-burst gate unchanged (a region with no
-      qualifying fast run yields no rally) but moves the emitted span's start
-      back from the burst to the region start.
+    REGION_START opens a rally at every region's start. BACK_FILL also opens at
+    the region's start, but requires a sustained fast burst within that region.
+    Setting ``ResolvedAnnotatorConfig.span_open`` to None starts at the first
+    qualifying fast burst instead.
     """
 
     REGION_START = 'region_start'
@@ -48,14 +45,18 @@ class SpanOpen(StrEnum):
 
 
 class ReentryGuardVariant(StrEnum):
-    """Which sides of a high-shot gap the re-entry buffer tests."""
+    """Checks for a shuttle returning after leaving the top of the frame.
+
+    REENTRY_ONLY requires it to return near the top and descend. TWO_SIDED also
+    requires its last position before disappearing to be near the top.
+    """
 
     TWO_SIDED = 'two-sided'
     REENTRY_ONLY = 'reentry-only'
 
 
 class ContactCandidate(NamedTuple):
-    """One raw contact candidate and its independent gate/suppression verdicts."""
+    """A contact candidate with proximity, wrist-distance and suppression results."""
 
     rally_id: int
     contact_frame: int
@@ -65,7 +66,7 @@ class ContactCandidate(NamedTuple):
 
 
 class ServeStartConfig(NamedTuple):
-    """Policy-only serve-start request; ``threshold_bh`` is a body-height multiple, the sticky lane's only unit."""
+    """Serve detection settings, with distance thresholds in player body heights."""
 
     threshold_bh: float
     mode: ServeStartMode

@@ -128,12 +128,10 @@ def contact_proximity_ok(
 def wrist_contact_near(
     sticky_distances: np.ndarray | None, contact_frame: int, threshold: float,
 ) -> bool | None:
-    """The single-frame body-unit wrist gate on one contact, in player-box-height units.
+    """Check wrist-to-shuttle distance at a contact, measured in player body heights.
 
-    Mirrors `contact_proximity_ok`'s three-way verdict. None distances mean the gate never
-    ran (no body-unit or pose/court inputs), which returns None (serialised blank
-    downstream): raw candidates stand, per the recall-first convention. A NaN frame is
-    measured-but-unconfirmed and fails closed to False, the measured arm's behaviour.
+    Return None when no distance array was supplied. With an array, a finite
+    distance within the threshold passes; a missing or excessive distance fails.
     """
     if sticky_distances is None:
         return None
