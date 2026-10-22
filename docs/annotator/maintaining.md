@@ -49,10 +49,17 @@ heuristic agreement.
 name or meaning affects stored results, resume checks and downstream assembly.
 Both exclusion masks are persisted beside the result.
 
-Current model bundles use `annotator-rally-layers/1`. The loader checks runtime
-versions, feature order, proposal settings, side geometry and review mode.
+Current model bundles use `annotator-rally-layers/2`. Saved preprocessing has
+one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`
+converts it into one `Thresholds` value for the video's frame rate.
+The loader checks runtime versions, feature order, proposal settings, side geometry and review mode.
 Joblib also records Python class paths: moving `AnnotatorModels`,
 `RallyLayerModels` or saved evidence classes needs an explicit migration.
+
+The eleven active tree-simplification bundles and five 40-video contact refits
+were converted to this schema without changing fitted trees or effective
+preprocessing. Their current replay and checker records use the same representation.
+Recorded numerical results and source provenance remain unchanged.
 
 Old eight-model bundles are unsupported. Historical research results remain
 readable, but old proposal caches must be regenerated after the proposal

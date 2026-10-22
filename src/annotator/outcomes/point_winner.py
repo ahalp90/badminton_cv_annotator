@@ -17,7 +17,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.fps_constants import FpsConstants, ScalingKind
+from annotator.config import ScalingKind, Thresholds
 from annotator.types import (
     ANKLE_L,
     ANKLE_R,
@@ -691,7 +691,7 @@ def pick_landing_to_end(
     final_contact: int, end_frame: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
-    constants: FpsConstants, fps: float,
+    constants: Thresholds, fps: float,
     shuttle_hallucination_mask: np.ndarray | None = None,
     rejected_intervals: list[tuple[int, int]] | None = None,
     *, infer_net_fault: bool = True,

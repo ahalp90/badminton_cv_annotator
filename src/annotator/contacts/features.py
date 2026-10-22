@@ -63,7 +63,7 @@ BASE_MISSINGNESS_SIGNALS = (
 
 
 def _scaled_frames(base30: int, fps: float) -> int:
-    from annotator.fps_constants import ScalingKind
+    from annotator.config import ScalingKind
 
     return int(ScalingKind.FRAME_COUNT.scale(base30, fps))
 
@@ -145,8 +145,7 @@ def build_shuttle_signals(
     fps: float,
 ) -> dict[str, np.ndarray]:
     """Build frame-aligned shuttle kinematics with the production impulse convention."""
-    from annotator.config import RallySegmentationThresholds
-    from annotator.fps_constants import scale_for_fps
+    from annotator.config import BaseAnnotatorConfig, resolve
     from annotator.rally.contacts import rolling_floor, span_impulses
 
     n_frames = len(track)
@@ -158,19 +157,8 @@ def build_shuttle_signals(
     speed = np.hypot(vx, vy)
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
-    values = scale_for_fps(fps)
-    thresholds = RallySegmentationThresholds(
-        values.rest_speed,
-        values.rest_window,
-        values.end_rest_frames,
-        values.start_speed,
-        values.start_min_frames,
-        values.smooth_window,
-        values.impulse_floor_half_window_frames,
-        values.contact_dedup_radius_frames,
-        values.contact_suppression_radius_frames,
-        RELAXED_IMPULSE_MULTIPLE,
-    )
+    # Learned motion features retain their training defaults when heuristic settings change.
+    thresholds = resolve(BaseAnnotatorConfig(), fps).thresholds
     for start, end in spans:
         # The tree was trained on zero-filled impulse smoothing, including invisible
         # shuttle rows. Changing it to ignore missing rows changes model inputs.
@@ -179,7 +167,7 @@ def build_shuttle_signals(
             continue
         span = track[start:end]
         around_visible = (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
-        floor = rolling_floor(span_values, around_visible, values.impulse_floor_half_window_frames)
+        floor = rolling_floor(span_values, around_visible, thresholds.impulse_floor_half_window_frames)
         frames = np.arange(start + 1, start + 1 + len(span_values))
         impulse[frames] = span_values
         impulse_ratio[frames] = span_values / np.maximum(floor, 1e-4)

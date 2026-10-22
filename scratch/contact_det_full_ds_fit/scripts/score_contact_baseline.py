@@ -108,7 +108,7 @@ def _write_scores(path: Path, rows: np.ndarray) -> None:
 
 
 def _scaled_frames(value_at_30_fps: int, fps: float) -> int:
-    from annotator.fps_constants import ScalingKind
+    from annotator.config import ScalingKind
 
     return int(ScalingKind.FRAME_COUNT.scale(value_at_30_fps, fps))
 

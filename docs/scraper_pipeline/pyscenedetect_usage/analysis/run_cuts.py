@@ -17,7 +17,7 @@ from scenedetect import (
 )
 from scenedetect.detectors.content_detector import FlashFilter
 
-from annotator.fps_constants import scale_for_fps
+from annotator.config import BaseAnnotatorConfig, resolve
 
 
 def detector_for(config: str, min_scene_len: int):
@@ -60,7 +60,7 @@ def main() -> None:
 
     video = open_video(str(args.video))
     n_frames = video.duration.frame_num
-    min_scene_len = scale_for_fps(args.fps).composition_min_scene_len
+    min_scene_len = resolve(BaseAnnotatorConfig(), args.fps).thresholds.composition_min_scene_len
     manager = SceneManager()
     manager.add_detector(detector_for(args.config, min_scene_len))
     n_read = manager.detect_scenes(video, show_progress=False)

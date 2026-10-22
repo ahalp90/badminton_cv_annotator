@@ -10,11 +10,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from annotator.config import resolve
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.gt_scoring import RunVideoInputs
 from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
-from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.resolve import resolve
+from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.types import ContactCandidate, SpanOpen
 from experiments.annotator.heuristic_tuning import sweep
 from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME

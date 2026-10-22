@@ -39,10 +39,6 @@ class CourtGeo(NamedTuple):
     net_band: tuple[float, float]
 
 
-# Fixed body-height window for the compatibility path. Resolved config supplies it explicitly.
-BODY_UNIT_HALF_WINDOW = 12
-
-
 def court_scale_slots(
     frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
 ) -> np.ndarray:
@@ -262,7 +258,7 @@ def build_sticky_result(
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
     gate_court_info: dict[str, dict], gate_resolution_table: object,
-    resolution: tuple[float, float], half_window: int = BODY_UNIT_HALF_WINDOW,
+    resolution: tuple[float, float], half_window: int,
     *, scene_courts: tuple[SceneCourt, ...] | None = None,
 ) -> StickyResult:
     """Run sticky player tracking and measure its contact and serve evidence."""

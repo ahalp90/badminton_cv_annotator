@@ -236,12 +236,14 @@ Against one 15-leaf selector, `sset_30` gains 2.0 rallies and 1.11 points at
 positive overall means. The saved predictions cannot show whether a candidate
 contact was missing, or which feature caused a loss.
 
-**The chosen model** is [`results/models/selected/`](../tree_simplification/results/models/selected/)
-(md5 `9f96c0f40ab42b9498cb0c6a2533951d`). The preprocessing sweep refitted the
+**The chosen model** is [`selected/models.joblib`](../tree_simplification/results/models/selected/models.joblib)
+(md5 `400dd5250a146ba9d777866d7c64f337`). The preprocessing sweep refitted the
 same setting as its baseline. Those refits give exactly the same validation
 prediction files at all five seeds (40 of 40 files). The sweep's seed-0 bundle
-(md5 `44c858b2d92c4c8658f26e22fde6c9ad`) differs from the chosen bundle in bytes,
-not in output.
+[`raw_baseline-seed-0/models.joblib`](../tree_simplification/results/models/raw_baseline-seed-0/models.joblib)
+(md5 `2dfe1dc5b79d4d297e388a38adad156c`) differs from the chosen bundle in bytes,
+not in output. These fingerprints identify the current `annotator-rally-layers/2` files. The
+preprocessing representation changed; the fitted trees and predictions did not.
 
 ## The ShuttleSet22 test run
 

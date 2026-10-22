@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.resolve import resolve
+from annotator.config import resolve
 from annotator.run_video import AnnotatorResult
 from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 

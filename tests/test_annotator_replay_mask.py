@@ -3,6 +3,7 @@
 Synthetic inputs are shaped so each signal has one obvious firing region and one
 obvious quiet region.
 """
+
 import logging
 import sys
 import warnings
@@ -14,8 +15,9 @@ import annotator.masks.replay as replay_mask_module
 from annotator.config import (
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
+    BaseAnnotatorConfig,
+    resolve,
 )
-from annotator.fps_constants import scale_for_fps
 from annotator.masks.inpaint import FABRICATED, code_counts, grade_track
 from annotator.masks.replay import (
     HOMOGRAPHY_CORNER_COLS,
@@ -40,7 +42,7 @@ def _homography_row(video_id: str, start: int, end: int, corners: list[float]) -
 def test_court_absence_fires_on_sustained_gap_not_blips():
     n_frames = 60
     court_present = np.ones(n_frames, dtype=bool)
-    window = scale_for_fps(25.0).court_absent_window
+    window = resolve(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window
     long_gap = slice(10, 10 + window + 5)   # sustained absence, fires
     short_blip = slice(45, 48)                            # 3 frames, below the window
     court_present[long_gap] = False

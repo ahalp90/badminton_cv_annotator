@@ -16,6 +16,7 @@ the rally rules, not a second definition.
 
 Run as `python -m annotator.masks.replay --video-id ...` with PYTHONPATH=src.
 """
+
 import argparse
 import csv
 import logging
@@ -29,8 +30,8 @@ from annotator.config import (
     RALLY_SPANS_CSV,
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
+    resolve,
 )
-from annotator.fps_constants import scale_for_fps
 from annotator.masks.inpaint import code_counts, grade_track
 from annotator.types import compute_speed, rolling_nanmedian, true_runs
 
@@ -69,7 +70,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)  # (frames,)
     for start, end in true_runs(absent):
-        window = scale_for_fps(fps).court_absent_window
+        window = resolve(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
         if end - start >= window:
             mask[start:end] = True
     return mask
@@ -207,7 +208,7 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
-    values = scale_for_fps(fps)
+    values = resolve(BaseAnnotatorConfig(), fps).thresholds
     rolling_median = rolling_nanmedian(speed, values.rest_window)  # (t,)
     visible = track[:, 2] == 1  # (t,)
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)  # NaN windows read not-slow

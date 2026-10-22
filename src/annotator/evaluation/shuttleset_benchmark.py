@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, ScalingKind
 from annotator.evaluation.gt_scoring import (
     VideoScoring,
     canonical_tolerance,
@@ -37,7 +37,6 @@ from annotator.evaluation.shuttleset_features import (
     feature_population,
     score_contact_coordinates,
 )
-from annotator.fps_constants import ScalingKind
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
     GeometricVerdictRow,

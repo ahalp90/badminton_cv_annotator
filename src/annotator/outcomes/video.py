@@ -302,7 +302,7 @@ def select_landing(
         next_start,
         context.track,
         context.definitive_exclusion_mask,
-        context.resolved.constants.sustained_loss_frames,
+        context.resolved.thresholds.sustained_loss_frames,
         context.shuttle_hallucination_mask,
     )
     if context.rejection_diagnostics is not None:
@@ -311,7 +311,7 @@ def select_landing(
             next_start,
             context.track,
             context.definitive_exclusion_mask,
-            context.resolved.constants.sustained_loss_frames,
+            context.resolved.thresholds.sustained_loss_frames,
         )
         if safe_window.end_frame < window_end_without_events:
             record_rejection(
@@ -329,7 +329,7 @@ def select_landing(
         next_start,
         context.track,
         all_false_exclusion_mask,
-        context.resolved.constants.sustained_loss_frames,
+        context.resolved.thresholds.sustained_loss_frames,
         context.shuttle_hallucination_mask,
     )
     landing_rejections: list[tuple[int, int]] = []
@@ -343,7 +343,7 @@ def select_landing(
         context.net_band,
         context.resolution,
         context.court_info,
-        context.resolved.constants,
+        context.resolved.thresholds,
         context.fps,
         shuttle_hallucination_mask=context.shuttle_hallucination_mask,
         rejected_intervals=landing_rejections,
@@ -406,7 +406,7 @@ def build_horizon_rows(
                 context.net_band,
                 context.resolution,
                 context.court_info,
-                context.resolved.constants,
+                context.resolved.thresholds,
                 context.fps,
                 shuttle_hallucination_mask=context.shuttle_hallucination_mask,
                 infer_net_fault=selection.search_start == selection.final_contact,

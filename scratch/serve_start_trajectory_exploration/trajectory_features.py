@@ -9,7 +9,7 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from annotator.outcomes.point_winner import Half, alternating_player_sides
 from annotator.types import true_runs
 

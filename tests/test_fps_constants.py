@@ -3,21 +3,14 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import asdict, fields, replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.config import SHIPPED_THRESHOLDS, BaseAnnotatorConfig
-from annotator.fps_constants import (
-    FPS_CONSTANT_FIELD_NAMES,
-    FpsConstants,
-    ScalingKind,
-    probe_fps,
-    scale_for_fps,
-)
+from annotator.config import BaseAnnotatorConfig, ScalingKind, Thresholds, resolve
 from annotator.masks.replay import combine_mask, court_absence_signal
 from annotator.outcomes.point_winner import (
     Half,
@@ -29,16 +22,14 @@ from annotator.outcomes.point_winner import (
     pick_landing_to_end,
     window_end,
 )
-from annotator.rally_segmentation import (
-    build_sticky_result,
-    scale_thresholds,
-    segment_video,
-)
-from annotator.resolve import resolve
+from annotator.rally.evidence import build_sticky_result
+from annotator.rally_segmentation import segment_video
+from annotator.video_metadata import probe_fps
+from tests.annotator_config import burst_config
 
 
-def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
-    values = scale_for_fps(30.0)
+def test_resolved_thresholds_has_base_30_identity_for_every_scaled_row() -> None:
+    values = resolve(BaseAnnotatorConfig(), 30.0).thresholds
     assert values.rest_speed == 0.002
     # float64 evaluates 0.015 * 30.0 / 30.0 one ulp below the source literal.
     assert values.start_speed == 0.014999999999999998
@@ -53,7 +44,7 @@ def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
         values.composition_min_scene_len,
     ) == (5, 3, 3, 90, 15, 15, 12, 3, 9, 25, 15, 10, 3, 12, 15)
 
-    values25 = scale_for_fps(25.0)
+    values25 = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     assert values25.rest_speed == 0.0024
     assert values25.start_speed == 0.018
     assert (
@@ -68,64 +59,70 @@ def test_scale_for_fps_has_base_30_identity_for_every_scaled_row() -> None:
     ) == (4, 3, 3, 75, 13, 13, 10, 3, 8, 21, 13, 8, 3, 10, 13)
 
 
-def test_scale_for_fps_half_up_spots_and_floor_one() -> None:
-    values50 = scale_for_fps(50.0)
-    values60 = scale_for_fps(60.0)
+def test_resolved_thresholds_half_up_spots_and_floor_one() -> None:
+    values50 = resolve(BaseAnnotatorConfig(), 50.0).thresholds
+    values60 = resolve(BaseAnnotatorConfig(), 60.0).thresholds
     assert values50.impulse_floor_half_window_frames == 20
     assert values60.contact_dedup_radius_frames == 6
     assert values60.contact_suppression_radius_frames == 18
     assert values60.composition_min_scene_len == 30
     assert values60.court_absent_window == 30
     assert values60.replay_mask_min_frames == 30
-    assert scale_for_fps(25.0).contact_suppression_radius_frames == 8
-    assert scale_for_fps(25.0).court_absent_window == 13
-    assert scale_for_fps(25.0).replay_mask_min_frames == 13
-    assert scale_for_fps(25.0).composition_min_scene_len == 13
-    assert scale_for_fps(1.0).start_min_frames == 1
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.contact_suppression_radius_frames == 8
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window == 13
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.replay_mask_min_frames == 13
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.composition_min_scene_len == 13
+    assert resolve(BaseAnnotatorConfig(), 1.0).thresholds.start_min_frames == 1
 
 
 def test_resolution_scales_body_unit_window() -> None:
     base = BaseAnnotatorConfig()
-    assert resolve(base, 25.0).constants.body_unit_half_window == 10
-    assert resolve(base, 50.0).constants.body_unit_half_window == 20
+    assert resolve(base, 25.0).thresholds.body_unit_half_window == 10
+    assert resolve(base, 50.0).thresholds.body_unit_half_window == 20
 
 
-def test_scale_for_fps_composition_scene_length_is_distinct_but_currently_equal() -> None:
-    values60 = scale_for_fps(60.0)
-    values25 = scale_for_fps(25.0)
+def test_resolved_thresholds_composition_scene_length_is_distinct_but_currently_equal() -> None:
+    values60 = resolve(BaseAnnotatorConfig(), 60.0).thresholds
+    values25 = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     assert values60.composition_min_scene_len == values60.court_absent_window
     assert values25.composition_min_scene_len == values25.court_absent_window
 
 
 def test_replay_mask_min_frames_is_distinct_and_overridable() -> None:
-    values = scale_for_fps(30.0, {'court_absent_window': 20, 'replay_mask_min_frames': 7})
+    values = resolve(
+        BaseAnnotatorConfig(overrides_base30={'court_absent_window': 20, 'replay_mask_min_frames': 7}), 30.0
+    ).thresholds
     assert values.court_absent_window == 20
     assert values.replay_mask_min_frames == 7
 
 
-def test_scale_for_fps_visible_sample_rows_floor_at_two_frames() -> None:
-    values10 = scale_for_fps(10.0)
+def test_resolved_thresholds_visible_sample_rows_floor_at_two_frames() -> None:
+    values10 = resolve(BaseAnnotatorConfig(), 10.0).thresholds
     assert values10.high_shot_oob_min_visible_frames == 2
     assert values10.reentry_min_visible_frames == 2
-    assert scale_for_fps(25.0).high_shot_oob_min_visible_frames == 2
-    assert scale_for_fps(60.0).high_shot_oob_min_visible_frames == 5
-    assert scale_for_fps(25.0).reentry_min_visible_frames == 2
-    assert scale_for_fps(60.0).reentry_min_visible_frames == 5
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.high_shot_oob_min_visible_frames == 2
+    assert resolve(BaseAnnotatorConfig(), 60.0).thresholds.high_shot_oob_min_visible_frames == 5
+    assert resolve(BaseAnnotatorConfig(), 25.0).thresholds.reentry_min_visible_frames == 2
+    assert resolve(BaseAnnotatorConfig(), 60.0).thresholds.reentry_min_visible_frames == 5
 
 
 @pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
 def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> None:
     overrides = {
         field.name: float(index) + 0.25
-        for index, field in enumerate(fields(FpsConstants), start=1)
+        for index, field in enumerate(fields(Thresholds), start=1)
     }
-    constants = scale_for_fps(fps, overrides)
+    constants = resolve(BaseAnnotatorConfig(overrides_base30=overrides), fps).thresholds
     speed_fields = {'rest_speed', 'start_speed'}
+    dimensionless_fields = {'contact_impulse_multiple', 'wrist_distance_body_heights'}
     minimum_two_fields = {
         'high_shot_oob_min_visible_frames',
         'reentry_min_visible_frames',
     }
     for field_name, base30_value in overrides.items():
+        if field_name in dimensionless_fields:
+            assert getattr(constants, field_name) == base30_value
+            continue
         scaling = (
             ScalingKind.PER_FRAME_SPEED
             if field_name in speed_fields
@@ -137,18 +134,6 @@ def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> No
         assert getattr(constants, field_name) == expected
 
 
-def test_resolve_accepts_every_fps_field_and_explicit_contact_threshold() -> None:
-    overrides = {
-        field.name: float(index) + 0.25
-        for index, field in enumerate(fields(FpsConstants), start=1)
-    }
-    overrides['contact_impulse_multiple'] = 5.5
-
-    resolved = resolve(BaseAnnotatorConfig(overrides_base30=overrides), 30.0)
-
-    assert FPS_CONSTANT_FIELD_NAMES == frozenset(field.name for field in fields(FpsConstants))
-    assert asdict(resolved.constants) == asdict(scale_for_fps(30.0, overrides))
-    assert resolved.thresholds.contact_impulse_multiple == 5.5
 
 
 def test_probe_fps_rejects_vfr_and_invalid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,8 +188,10 @@ def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:
     track[:, 2] = 1
     track[20:40, 0] = np.arange(20) * 0.01
     track[40:, 0] = track[39, 0]
-    unaware, _ = segment_video(track, thresholds=SHIPPED_THRESHOLDS)
-    aware, _ = segment_video(track, thresholds=scale_thresholds(SHIPPED_THRESHOLDS, 50.0))
+    unaware, _ = segment_video(track, resolved=replace(burst_config(), thresholds=burst_config().thresholds))
+    aware, _ = segment_video(
+        track, resolved=replace(burst_config(), thresholds=resolve(BaseAnnotatorConfig(), 50.0).thresholds)
+    )
     assert unaware == []
     assert aware == [(21, 41)]
 
@@ -252,10 +239,10 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     """One resolved config crosses every promoted FPS-sensitive boundary exactly once."""
     base = BaseAnnotatorConfig()
     resolved = resolve(base, 60.0)
-    assert resolved.constants.court_absent_window == 30
-    assert resolved.constants.sustained_loss_frames == 20
-    assert resolved.constants.min_descend_samples == 6
-    assert resolved.constants.body_unit_half_window == 24
+    assert resolved.thresholds.court_absent_window == 30
+    assert resolved.thresholds.sustained_loss_frames == 20
+    assert resolved.thresholds.min_descend_samples == 6
+    assert resolved.thresholds.body_unit_half_window == 24
     # 29 is below the correct 30-frame replay threshold; 40 brackets correct 30 and double 60.
     present = np.ones(500, dtype=bool)
     present[10:39] = False
@@ -281,8 +268,10 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     present = np.ones(n_frames, dtype=bool)
     present[45:75] = False
     replay = combine_mask(present, None, None, None, n_frames, resolved.fps)
-    plain_spans, _ = segment_video(track, thresholds=resolved.thresholds)
-    masked_spans, _ = segment_video(track, thresholds=resolved.thresholds, exclusion_mask=replay)
+    plain_spans, _ = segment_video(track, resolved=replace(burst_config(), thresholds=resolved.thresholds))
+    masked_spans, _ = segment_video(
+        track, exclusion_mask=replay, resolved=replace(burst_config(), thresholds=resolved.thresholds)
+    )
     assert plain_spans[0][0] == 45
     assert masked_spans[0][0] == 75
 
@@ -313,14 +302,16 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     full_sticky = build_sticky_result(
         track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
         {'v': court_info.copy()}, resolution_table, (1920.0, 1080.0),
-        resolved.constants.body_unit_half_window,
+        resolved.thresholds.body_unit_half_window,
     )
-    base_radius_thresholds = resolved.thresholds._replace(contact_suppression_radius_frames=9)
+    base_radius_thresholds = replace(resolved.thresholds, contact_suppression_radius_frames=9)
     base_radius_contacts = segment_video(
-        track, thresholds=base_radius_thresholds, sticky_distances=short_sticky.distances,
+        track,
+        sticky_distances=short_sticky.distances,
+        resolved=replace(burst_config(), thresholds=base_radius_thresholds),
     )[1]
     resolved_contacts = segment_video(
-        track, thresholds=resolved.thresholds, sticky_distances=short_sticky.distances,
+        track, sticky_distances=short_sticky.distances, resolved=replace(burst_config(), thresholds=resolved.thresholds)
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
@@ -333,7 +324,9 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
 
     short_window_contacts = base_radius_contacts
     full_contacts = segment_video(
-        track, thresholds=base_radius_thresholds, sticky_distances=full_sticky.distances,
+        track,
+        sticky_distances=full_sticky.distances,
+        resolved=replace(burst_config(), thresholds=base_radius_thresholds),
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
     full_contact = next(contact for contact in full_contacts if contact.contact_frame == 82)
@@ -343,7 +336,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     # The final resolved contact uses the same track, sticky cache, and resolved constants for
     # attribution and landing.
     resolved_full_contacts = segment_video(
-        track, thresholds=resolved.thresholds, sticky_distances=full_sticky.distances,
+        track, sticky_distances=full_sticky.distances, resolved=replace(burst_config(), thresholds=resolved.thresholds)
     )[1]
     final_contact = [
         contact.contact_frame for contact in resolved_full_contacts
@@ -378,10 +371,10 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         )
 
     unscaled_landing = pick_with(
-        replace(resolved.constants, sustained_loss_frames=10, min_descend_samples=3),
+        replace(resolved.thresholds, sustained_loss_frames=10, min_descend_samples=3),
     )
-    landing = pick_with(resolved.constants)
-    double_scaled_landing = pick_with(replace(resolved.constants, min_descend_samples=12))
+    landing = pick_with(resolved.thresholds)
+    double_scaled_landing = pick_with(replace(resolved.thresholds, min_descend_samples=12))
     assert unscaled_landing is not None
     assert unscaled_landing.frame == 139
     assert landing is not None

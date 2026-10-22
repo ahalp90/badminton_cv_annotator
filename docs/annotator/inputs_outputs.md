@@ -153,7 +153,7 @@ experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/
 
 Loading checks:
 
-- schema `annotator-rally-layers/1`;
+- schema `annotator-rally-layers/2`;
 - exact scikit-learn and XGBoost versions;
 - exact contact, rally and review feature order;
 - rally proposal budgets and review-ranking mode;

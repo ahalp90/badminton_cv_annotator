@@ -23,7 +23,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import (
+    _OVERRIDABLE_BASE30_ROWS,
+    BaseAnnotatorConfig,
+    ScalingKind,
+    resolve,
+)
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SHARED_FILES,
@@ -41,9 +46,7 @@ from annotator.evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
-from annotator.fps_constants import ScalingKind, scale_for_fps
-from annotator.rally_segmentation import ServeStartClose, ServeStartMode
-from annotator.resolve import _OVERRIDABLE_BASE30_ROWS
+from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import run_video
 from annotator.types import ServeStartConfig, SpanOpen
 from experiments.annotator.heuristic_tuning import selection
@@ -298,15 +301,8 @@ def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
 
 
 def _shipped_base30_values() -> dict[str, float]:
-    constants = scale_for_fps(30.0)
-    thresholds = BaseAnnotatorConfig().thresholds
-    values: dict[str, float] = {}
-    for key in _OVERRIDABLE_BASE30_ROWS:
-        if hasattr(constants, key):
-            values[key] = getattr(constants, key)
-        elif hasattr(thresholds, key):
-            values[key] = getattr(thresholds, key)
-    return values
+    thresholds = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    return {key: getattr(thresholds, key) for key in _OVERRIDABLE_BASE30_ROWS}
 
 
 def _changed_from_defaults(spec: CandidateSpec) -> int:

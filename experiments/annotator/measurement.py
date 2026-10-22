@@ -37,7 +37,7 @@ from annotator.artifact_io import (
     write_gzip_bytes,
     write_json_object,
 )
-from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
 from annotator.courts.evidence import (
     DETECTED_PARENT,
     DETECTOR_RESOLUTION,
@@ -75,7 +75,6 @@ from annotator.evaluation.scoring import (
 )
 from annotator.models import AnnotatorModels, load_models, model_files
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Landing
-from annotator.resolve import resolve
 from annotator.run_video import (
     AnnotatorResult,
     LandingHorizonRow,

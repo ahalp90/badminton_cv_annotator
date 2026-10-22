@@ -33,14 +33,13 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from annotator.config import BaseAnnotatorConfig  # noqa: E402
+from annotator.config import BaseAnnotatorConfig, resolve  # noqa: E402
 from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
 from annotator.masks.inpaint import (  # noqa: E402
     code_counts,
     grade_track,
 )
-from annotator.rally_segmentation import detect_contact_flags  # noqa: E402
-from annotator.resolve import resolve  # noqa: E402
+from annotator.rally.contacts import impulse_cell_candidates  # noqa: E402
 from annotator.run_video import run_video  # noqa: E402
 
 FRAME_WIDTH = 512
@@ -448,7 +447,7 @@ def build_event_outputs(
     impulse_rows: list[dict[str, object]] = []
     flagged_pairs: list[tuple[int, int]] = []
     for rally_id, (start, end) in enumerate(result.spans):
-        flags = detect_contact_flags(
+        flags = impulse_cell_candidates(
             track,
             start,
             end,

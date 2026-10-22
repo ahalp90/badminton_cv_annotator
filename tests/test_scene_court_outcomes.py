@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
@@ -12,7 +12,6 @@ from annotator.outcomes.point_winner import (
     LandingKinematics,
     VerdictRow,
 )
-from annotator.resolve import resolve
 from annotator.types import ContactCandidate
 
 

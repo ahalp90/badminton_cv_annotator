@@ -19,7 +19,7 @@ from annotator.sequence.rally_model import (
 )
 from annotator.sequence.rally_options import FEATURE_NAMES
 
-MODEL_SCHEMA = 'annotator-rally-layers/1'
+MODEL_SCHEMA = 'annotator-rally-layers/2'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (

@@ -8,13 +8,12 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import Fixture
 from annotator.evaluation.gt_scoring import canonical_tolerance
 from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
 from annotator.masks.inpaint import CODE_NAMES, NO_FLAG
-from annotator.rally_segmentation import BODY_UNIT_WRIST_THRESHOLD, detect_contact_flags
-from annotator.resolve import resolve
+from annotator.rally.contacts import impulse_cell_candidates
 from annotator.review.broadcast_labels import (
     SceneTruth,
     VideoMetadata,
@@ -315,6 +314,7 @@ def _build_candidate_row(
     statuses: Sequence[dict[str, Any]],
     tolerance: int,
     suppression_radius: int,
+    wrist_distance_body_heights: float,
     natural_raw: set[tuple[int, int]],
     natural_accepted: set[tuple[int, int]],
 ) -> dict[str, Any]:
@@ -335,7 +335,7 @@ def _build_candidate_row(
     wrist_pass = bool(
         pose.wrist_distance_bh is not None
         and np.isfinite(pose.wrist_distance_bh)
-        and pose.wrist_distance_bh <= BODY_UNIT_WRIST_THRESHOLD
+        and pose.wrist_distance_bh <= wrist_distance_body_heights
     )
     evidence_pass = visible and code == NO_FLAG and court_absent and wrist_pass
     anchor_distance = anchor - frame
@@ -439,8 +439,8 @@ def evaluate_serve_candidates(
         accepted = accepted_by_span.get(span_id, [])
         anchor = min(accepted) if accepted else span[0]
         anchor_source = "first-accepted-contact" if accepted else "span-start-fallback"
-        lookback_start = max(0, anchor - resolved.constants.serve_start_lookback_frames)
-        flags = detect_contact_flags(
+        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
+        flags = impulse_cell_candidates(
             arrays[0],
             lookback_start,
             anchor,
@@ -469,6 +469,7 @@ def evaluate_serve_candidates(
                 statuses=statuses,
                 tolerance=tolerance,
                 suppression_radius=resolved.thresholds.contact_suppression_radius_frames,
+                wrist_distance_body_heights=resolved.thresholds.wrist_distance_body_heights,
                 natural_raw=natural_raw,
                 natural_accepted=natural_accepted,
             )
@@ -509,11 +510,11 @@ def evaluate_serve_candidates(
     policy_selected = [row for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.constants.serve_start_lookback_frames,
+            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
             "central_band_fraction": band_fraction,
             "pose_selection": "largest valid bbox area, then score, then earliest slot",
-            "wrist_threshold_body_heights": BODY_UNIT_WRIST_THRESHOLD,
+            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
             "contact_suppression_radius_frames": (
                 resolved.thresholds.contact_suppression_radius_frames
             ),

@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 import numpy as np
 import pandas as pd
 
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.fixtures import FIXTURES, Fixture
 from annotator.evaluation.gt_scoring import load_gt_tables
 from annotator.evaluation.scoring import (
@@ -20,11 +21,10 @@ from annotator.evaluation.scoring import (
     classify_all,
     load_gt_rallies,
 )
-from annotator.fps_constants import scale_for_fps
 from annotator.masks.inpaint import grade_track
 from annotator.masks.replay import _read_homography_rows
 from annotator.outcomes import point_winner
-from annotator.rally_segmentation import build_sticky_result, tracker_segments
+from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.types import StickyResult
 from classifier_shared.dataset import SET_INFO_DIR
 from classifier_shared.player_mapping import collect_shots
@@ -343,7 +343,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
     if not scene_rows:
         raise ValueError(f"{fixture.name}: scene rows are missing")
     segments = tracker_segments(scene_rows, court_present, n_frames)
-    constants = scale_for_fps(fixture.fps)
+    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
     gate_courts = {str(video_id): court for video_id, court in courts.items()}
     gate_resolution = resolution_table.copy()
     gate_resolution.index = gate_resolution.index.astype(str)

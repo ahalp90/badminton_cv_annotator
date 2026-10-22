@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from annotator.config import BASE_FPS
 from annotator.contacts.features import (
     BASE_MISSINGNESS_SIGNALS,
     REGION_FIELDS,
@@ -12,7 +13,6 @@ from annotator.contacts.features import (
     ContactFeatures,
     build_contact_features,
 )
-from annotator.fps_constants import BASE_FPS
 from annotator.rally.contacts import FLOOR_EPS
 from annotator.types import StickyResult
 from experiments.annotator import development as experiment

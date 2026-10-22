@@ -10,7 +10,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from annotator.types import ContactCandidate
 
 CANONICAL_CONTACT_TOLERANCE_BASE30 = 5

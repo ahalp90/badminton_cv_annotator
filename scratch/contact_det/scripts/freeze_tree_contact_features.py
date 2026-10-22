@@ -20,6 +20,9 @@ from typing import Any
 
 import numpy as np
 
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.types import SmoothingMode
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -101,7 +104,7 @@ CONTEXT_FIELDS = (
 
 
 def _scaled_frames(base30: int, fps: float) -> int:
-    from annotator.fps_constants import ScalingKind
+    from annotator.config import ScalingKind
 
     return int(ScalingKind.FRAME_COUNT.scale(base30, fps))
 
@@ -215,8 +218,8 @@ def _shuttle_signals(
     fps: float,
 ) -> dict[str, np.ndarray]:
     """Build frame-aligned shuttle kinematics with the production impulse convention."""
-    from annotator.config import RallySegmentationThresholds
-    from annotator.fps_constants import scale_for_fps
+
+
     from annotator.rally.contacts import rolling_floor, span_impulses
 
     n_frames = len(track)
@@ -228,21 +231,10 @@ def _shuttle_signals(
     speed = np.hypot(vx, vy)
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
-    values = scale_for_fps(fps)
-    thresholds = RallySegmentationThresholds(
-        values.rest_speed,
-        values.rest_window,
-        values.end_rest_frames,
-        values.start_speed,
-        values.start_min_frames,
-        values.smooth_window,
-        values.impulse_floor_half_window_frames,
-        values.contact_dedup_radius_frames,
-        values.contact_suppression_radius_frames,
-        RELAXED_IMPULSE_MULTIPLE,
-    )
+    values = resolve(BaseAnnotatorConfig(), fps).thresholds
+    thresholds = values
     for start, end in spans:
-        span_values = span_impulses(track, start, end, thresholds)
+        span_values = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
         if span_values is None:
             continue
         span = track[start:end]

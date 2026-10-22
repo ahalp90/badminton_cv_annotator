@@ -19,8 +19,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD
-from annotator.fps_constants import scale_for_fps
+from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig, resolve
 from annotator.masks.composition import detect_cuts
 from annotator.outcomes.point_winner import (
     COURT_LENGTH_M,
@@ -205,7 +204,7 @@ def build_raw_cut_intervals(video_path: Path, n_frames: int, fps: float) -> list
         video_path,
         expected_frames=n_frames,
         threshold=COMPOSITION_CONTENT_THRESHOLD,
-        min_scene_len=scale_for_fps(fps).composition_min_scene_len,
+        min_scene_len=resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len,
     )
     cut_frames = np.asarray(cut_frames, dtype=int)
     boundaries = np.concatenate((np.array([0], dtype=int), cut_frames, np.array([n_frames], dtype=int)))

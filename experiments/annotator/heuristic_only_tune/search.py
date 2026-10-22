@@ -8,7 +8,7 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
-from annotator.rally.contacts import BODY_UNIT_WRIST_THRESHOLD
+from annotator.config import BaseAnnotatorConfig, resolve
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
@@ -148,6 +148,7 @@ def refine_specs(
     rows: list[dict[str, Any]], objective: str, parents: int,
     axes: dict[str, tuple[float, ...]] = AXES,
 ) -> list[CandidateSpec]:
+    default_wrist_distance = resolve(BaseAnnotatorConfig(), 30.0).thresholds.wrist_distance_body_heights
     seen = {row['candidate_id'] for row in rows}
     specs = []
 
@@ -159,7 +160,10 @@ def refine_specs(
 
     for row in sorted(rows, key=lambda item: rank_key(item, objective))[:parents]:
         parent = spec_from_row(row['spec'])
-        values = {'wrist_distance_body_heights': BODY_UNIT_WRIST_THRESHOLD, **parent.overrides_base30}
+        values = {
+            'wrist_distance_body_heights': default_wrist_distance,
+            **parent.overrides_base30,
+        }
         for key, choices in axes.items():
             for value in adjacent_values(values[key], choices):
                 append(CandidateSpec('refine', {**parent.overrides_base30, key: value}, parent.strategies))

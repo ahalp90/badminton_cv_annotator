@@ -20,6 +20,8 @@ from typing import Any
 
 import numpy as np
 
+from annotator.config import BaseAnnotatorConfig, resolve
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -249,7 +251,6 @@ def _load_inputs(
 ) -> tuple[np.ndarray, Any, Any, list[tuple[int, int]], Any, AnnotationData]:
     """Restore arrays, court inputs, sticky evidence, and saved annotation."""
     from annotator.courts.scenes import build_scene_courts
-    from annotator.fps_constants import scale_for_fps
     from annotator.rally.evidence import build_sticky_result, tracker_segments
     from dataset_builder.vision import load_court_vision, load_npy_xz, load_pose_arrays
 
@@ -282,7 +283,7 @@ def _load_inputs(
         court_inputs.gate_court_info,
         court_inputs.gate_resolution_table,
         RESOLUTION,
-        scale_for_fps(fixture.fps).body_unit_half_window,
+        resolve(BaseAnnotatorConfig(), fixture.fps).thresholds.body_unit_half_window,
         scene_courts=build_scene_courts(homography_rows, court_inputs.resolution),
     )
     annotation = read_annotation(paths["annotation"], fixture)

@@ -15,6 +15,7 @@ Run as `python -m scraper.commentary_pairing` with PYTHONPATH=src.
 See ``docs/scraper_pipeline/scraper_architecture.md`` for the stage and file
 contracts.
 """
+
 import argparse
 import csv
 import json
@@ -29,7 +30,7 @@ import cv2
 import numpy as np
 from frozendict import frozendict
 
-from annotator.fps_constants import scale_for_fps
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.masks.replay import filter_short_exclusion_runs
 from annotator.video_metadata import VideoMetadata
 
@@ -187,7 +188,7 @@ def pair_video(
     sorted_chunks = sorted(chunks, key=lambda chunk: float(chunk['start']))
     claimed: set = set()  # chunk_ids already paired
     rows: list[dict] = []
-    minimum_run = scale_for_fps(fps).replay_mask_min_frames
+    minimum_run = resolve(BaseAnnotatorConfig(), fps).thresholds.replay_mask_min_frames
     duration_filtered_replay_mask = (
         None if replay_mask is None
         else filter_short_exclusion_runs(replay_mask, minimum_run)

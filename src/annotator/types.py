@@ -13,7 +13,7 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 if TYPE_CHECKING:
-    from .rally_segmentation import ServeStartClose, ServeStartMode
+    from .rally.serve import ServeStartClose, ServeStartMode
 
 
 class DeadMaskMode(StrEnum):
@@ -32,7 +32,7 @@ class SmoothingMode(StrEnum):
 
 
 class SpanOpen(StrEnum):
-    """Where a rally span opens; segment_video(span_open=...), default None.
+    """Where a rally span opens; ResolvedAnnotatorConfig.span_open, default None.
 
     None keeps today's burst-open rule bit-for-bit: a span opens at the first
     qualifying fast burst in its active region. The two named rules trade that:

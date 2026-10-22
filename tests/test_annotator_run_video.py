@@ -1,4 +1,5 @@
 """Smoke coverage for the public annotator video composition."""
+
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -8,9 +9,8 @@ import pytest
 
 import annotator.run_video as run_video_module
 from annotator import rally_segmentation
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
-from annotator.fps_constants import scale_for_fps
 from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
     Half,
@@ -19,7 +19,8 @@ from annotator.outcomes.point_winner import (
     Verdict,
 )
 from annotator.outcomes.video import scoring_filter
-from annotator.rally_segmentation import ServeStartClose, ServeStartMode, StickyResult
+from annotator.rally import evidence as rally_evidence
+from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import (
     AnnotatorResult,
     RunCapture,
@@ -27,7 +28,7 @@ from annotator.run_video import (
     run_video,
 )
 from annotator.sequence import ContactEvent, ContactSequence
-from annotator.types import ContactCandidate, ServeStartConfig
+from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 
 
 def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
@@ -134,7 +135,7 @@ def test_build_serve_options_wires_sticky_setup() -> None:
     resolution = (1920.0, 1080.0)
     options = build_serve_options(
         ServeStartConfig(threshold_bh=0.75, mode=ServeStartMode.TRIM, stillness_threshold_bh=0.2),
-        sticky, scale_for_fps(30.0), resolution,
+        sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
     )
     assert options.dist is None
     assert options.setup is not None
@@ -146,7 +147,7 @@ def test_build_serve_options_wires_sticky_setup() -> None:
     with pytest.raises(ValueError, match='serve_start.close is unsupported with BACK_FILL'):
         build_serve_options(
             ServeStartConfig(threshold_bh=0.1, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST),
-            sticky, scale_for_fps(30.0), resolution,
+            sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
         )
 
 
@@ -154,7 +155,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     inputs = _synthetic_inputs()
     injected = [(10, 20)]
     monkeypatch.setattr(
-        rally_segmentation, 'find_rally_spans',
+        run_video_module, 'find_rally_spans',
         lambda *args, **kwargs: pytest.fail('natural span finding was not bypassed'),
     )
 
@@ -175,11 +176,11 @@ def test_run_video_court_optional_stop_early_preserves_positions_and_raw_contact
 
     monkeypatch.setattr(rally_segmentation, 'segment_video', fake_segment_video)
     monkeypatch.setattr(
-        rally_segmentation, 'tracker_segments',
+        rally_evidence, 'tracker_segments',
         lambda *args, **kwargs: pytest.fail('court-optional mode must not build tracker segments'),
     )
     monkeypatch.setattr(
-        rally_segmentation, 'build_sticky_result',
+        rally_evidence, 'build_sticky_result',
         lambda *args, **kwargs: pytest.fail('court-optional mode must not build sticky'),
     )
     monkeypatch.setattr(
@@ -277,18 +278,18 @@ def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
         {**scene_row, 'start_frame': '0', 'end_frame': '150'},
         {**scene_row, 'start_frame': '150', 'end_frame': str(n_frames)},
     ]
-    expected = rally_segmentation.tracker_segments(homography_rows, court_present, n_frames)
+    expected = rally_evidence.tracker_segments(homography_rows, court_present, n_frames)
     # Dropout splits the first scene row: the fixture must stay non-trivial.
     assert expected == [(0, 40), (60, 150), (150, 300)]
 
-    real_builder = rally_segmentation.build_sticky_result
+    real_builder = rally_evidence.build_sticky_result
     received = []
 
     def spy(track, segments, *args, **kwargs):
         received.append(segments)
         return real_builder(track, segments, *args, **kwargs)
 
-    monkeypatch.setattr(rally_segmentation, 'build_sticky_result', spy)
+    monkeypatch.setattr(rally_evidence, 'build_sticky_result', spy)
 
     run_video(**inputs, court_present=court_present, homography_rows=homography_rows, heuristic_only=True)
 
@@ -299,7 +300,7 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
     inputs = _synthetic_inputs()
     original_track = inputs['track'].copy()
     del inputs['raw_exclusion_mask']
-    real_build_sticky = rally_segmentation.build_sticky_result
+    real_build_sticky = rally_evidence.build_sticky_result
     real_build_options = run_video_module.build_serve_options
     sticky_tracks = []
     option_stickies = []
@@ -324,7 +325,7 @@ def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(mo
         segment_tracks.append((track.copy(), kwargs['exclusion_mask'].copy()))
         return real_segment_video(track, *args, **kwargs)
 
-    monkeypatch.setattr(rally_segmentation, 'build_sticky_result', spy_build_sticky)
+    monkeypatch.setattr(rally_evidence, 'build_sticky_result', spy_build_sticky)
     monkeypatch.setattr(run_video_module, 'build_serve_options', spy_build_options)
     monkeypatch.setattr(run_video_module, 'build_dead_mask', fake_dead_mask)
     monkeypatch.setattr(rally_segmentation, 'segment_video', spy_segment_video)
@@ -647,7 +648,7 @@ def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypa
 
 def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
     inputs = _synthetic_inputs()
-    real_build_sticky_result = rally_segmentation.build_sticky_result
+    real_build_sticky_result = rally_evidence.build_sticky_result
     build_calls = 0
 
     def count_builds(*args, **kwargs):
@@ -659,7 +660,7 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
         raise AssertionError('dead-mask builder must be bypassed')
 
     monkeypatch.setattr(
-        rally_segmentation, 'build_sticky_result', count_builds,
+        rally_evidence, 'build_sticky_result', count_builds,
     )
     monkeypatch.setattr(
         run_video_module, 'build_dead_mask', fail_if_called,

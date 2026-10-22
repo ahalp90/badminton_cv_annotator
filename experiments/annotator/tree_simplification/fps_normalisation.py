@@ -21,13 +21,12 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import SHIPPED_THRESHOLDS
+from annotator.config import BASE_FPS, BaseAnnotatorConfig, ScalingKind, resolve
 from annotator.contacts.features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     shift_within_interval,
 )
-from annotator.fps_constants import BASE_FPS, ScalingKind, scale_for_fps
 from annotator.rally.contacts import FLOOR_EPS, rolling_floor, span_impulses
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.types import SmoothingMode
@@ -76,7 +75,7 @@ def normalise_contact_features(
     The impulse ratio uses a floor in the same base-30 units. Its smoothing and
     missing-data policy remain those of the original contact feature builder.
     """
-    constants = scale_for_fps(fps)
+    constants = resolve(BaseAnnotatorConfig(), fps).thresholds
     if fps == BASE_FPS:
         return features
     factor = fps / BASE_FPS
@@ -90,9 +89,8 @@ def normalise_contact_features(
         rows[f'shuttle_impulse_t{offset:+d}'] *= factor ** 2
 
     ratio = np.full(len(track), np.nan, dtype=np.float64)
-    thresholds = SHIPPED_THRESHOLDS._replace(smooth_window=constants.smooth_window)
     for start, end in features.search_intervals:
-        impulse = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        impulse = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
         if impulse is None:
             continue
         impulse = impulse * factor ** 2

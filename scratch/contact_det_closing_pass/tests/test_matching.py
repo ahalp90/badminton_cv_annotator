@@ -6,7 +6,7 @@ from itertools import combinations
 
 import pytest
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from scratch.contact_det_closing_pass.scripts.matching import match_contacts
 
 

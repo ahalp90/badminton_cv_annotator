@@ -9,7 +9,7 @@ from time import perf_counter
 
 import pandas as pd
 
-from annotator.fps_constants import ScalingKind
+from annotator.config import ScalingKind
 from scratch.contact_det_closing_pass.scripts.evaluation import write_json
 from scratch.contact_det_closing_pass.scripts.matching import match_contacts
 from scratch.contact_det_closing_pass.scripts.summarise_metrics import (

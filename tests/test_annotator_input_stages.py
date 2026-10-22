@@ -42,7 +42,6 @@ def test_preprocessing_record_round_trips_default_and_nondefault_settings() -> N
     default = BaseAnnotatorConfig()
     custom = replace(
         default,
-        thresholds=default.thresholds._replace(smooth_window=9),
         dead_mask_mode=DeadMaskMode.COMPOSITION,
         smoothing_mode=SmoothingMode.ZERO_FILL,
         overrides_base30={'smooth_window': 9},
@@ -55,7 +54,8 @@ def test_preprocessing_record_round_trips_default_and_nondefault_settings() -> N
 
     for config in (default, custom):
         record = prepare.preprocessing_record(config)
-        assert isinstance(record['thresholds'], list)
+        assert 'thresholds' not in record
+        assert record['overrides_base30'] == config.overrides_base30
         assert prepare.preprocessing_from_record(record) == config
 
 
@@ -278,3 +278,10 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages, 'stream_payload', lambda *_args: {'events': ['mismatch']})
     with pytest.raises(ValueError, match='differs from the saved rally run'):
         input_stages.export_run(run, targets, tmp_path / 'mismatched-export', threads=1)
+
+
+def test_preprocessing_record_rejects_the_retired_threshold_preset() -> None:
+    record = prepare.preprocessing_record(BaseAnnotatorConfig())
+    record['thresholds'] = []
+    with pytest.raises(ValueError, match='Saved preprocessing fields differ'):
+        prepare.preprocessing_from_record(record)

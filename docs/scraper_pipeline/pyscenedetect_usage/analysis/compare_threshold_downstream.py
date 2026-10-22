@@ -14,14 +14,14 @@ import pandas as pd
 from scenedetect import open_video
 
 from annotator.artifact_io import artifacts_are_byte_equal, load_npy
-from annotator.config import COMPOSITION_KEEP_VOTE
+from annotator.config import COMPOSITION_KEEP_VOTE, BaseAnnotatorConfig, resolve
 from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
-from annotator.fps_constants import probe_fps, scale_for_fps
 from annotator.masks.composition import (
     CompositionSegment,
     build_composition_mask,
     detect_cuts,
 )
+from annotator.video_metadata import probe_fps
 
 VIDEO_IDS = (1, 15, 21)
 THRESHOLDS = (22, 27)
@@ -303,7 +303,7 @@ def main() -> None:
     cut_lists: dict[int, dict[int, np.ndarray]] = {22: {}, 27: {}}
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = scale_for_fps(video_input["fps"]).composition_min_scene_len
+        min_scene_len = resolve(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
         detected_cuts = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],
@@ -325,7 +325,7 @@ def main() -> None:
     print("Threshold-27 gate passed for all videos; detecting threshold 22")
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = scale_for_fps(video_input["fps"]).composition_min_scene_len
+        min_scene_len = resolve(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
         cut_lists[22][video_id] = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],

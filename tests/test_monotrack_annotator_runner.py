@@ -13,10 +13,9 @@ import pytest
 
 import annotator.models as model_module
 import annotator.run_video as video_module
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
-from annotator.resolve import resolve
 from annotator.run_video import empty_result
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.types import DeadMaskMode

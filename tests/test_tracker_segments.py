@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.video import scoring_filter
-from annotator.rally_segmentation import tracker_segments, wrist_contact_near
+from annotator.rally.contacts import wrist_contact_near
+from annotator.rally.evidence import tracker_segments
 from annotator.types import ContactCandidate
 
 
@@ -66,7 +67,7 @@ def test_tracker_segments_reject_bad_masks(present):
 def test_contact_outside_tracker_segment_fails_wrist_gate_and_scoring():
     distances = np.full(4, np.inf)
     contact = ContactCandidate(0, 2, None, None, False)
-    wrist_near = wrist_contact_near(distances, contact.contact_frame)
+    wrist_near = wrist_contact_near(distances, contact.contact_frame, threshold=1.4)
     contact = contact._replace(wrist_near=wrist_near)
     assert not np.isfinite(distances[contact.contact_frame])
     assert contact.wrist_near is False

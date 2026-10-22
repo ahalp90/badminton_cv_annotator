@@ -37,10 +37,10 @@ from trajectory_features import (
     summarise_unmatched_anchor_sequence,
 )
 
+from annotator.config import ScalingKind
 from annotator.evaluation.fixtures import FIXTURES
 from annotator.evaluation.gt_scoring import load_gt_tables
 from annotator.evaluation.scoring import RallyBoundary
-from annotator.fps_constants import ScalingKind
 from annotator.masks.inpaint import NO_FLAG
 from annotator.outcomes import point_winner
 from annotator.types import Slot

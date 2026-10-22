@@ -28,7 +28,7 @@ from experiments.annotator.heuristic_only_tune.run import (
 import joblib
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, RallySegmentationThresholds
+from annotator.config import BaseAnnotatorConfig
 from annotator.hybrid import features_from_evidence
 from annotator.run_video import RunCapture, run_video
 from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
@@ -53,9 +53,6 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     expected_fields = set(asdict(BaseAnnotatorConfig()))
     if set(record) != expected_fields:
         raise ValueError('Saved preprocessing fields differ from BaseAnnotatorConfig')
-    thresholds = record['thresholds']
-    if not isinstance(thresholds, (list, tuple)):
-        raise TypeError('Saved preprocessing thresholds must be a sequence')
     overrides = record['overrides_base30']
     if overrides is not None and not isinstance(overrides, dict):
         raise TypeError('Saved preprocessing overrides must be an object or null')
@@ -63,7 +60,6 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     if not isinstance(rejected_grades, list):
         raise TypeError('Saved rejected grades must be a list')
     config = BaseAnnotatorConfig(
-        thresholds=RallySegmentationThresholds(*thresholds),
         dead_mask_mode=DeadMaskMode(record['dead_mask_mode']),
         smoothing_mode=SmoothingMode(record['smoothing_mode']),
         overrides_base30=overrides,

@@ -58,7 +58,7 @@ membership is explicit; final bounds alone do not define that membership.
 | Why did final rally bounds move? | [sequence/boundaries.py](../../src/annotator/sequence/boundaries.py) |
 | Why did the striker half change? | [sequence/sides.py](../../src/annotator/sequence/sides.py) |
 | How is a winner or landing judged? | [outcomes/point_winner.py](../../src/annotator/outcomes/point_winner.py) |
-| How does a setting scale with frame rate? | [resolve.py](../../src/annotator/resolve.py) and [fps_constants.py](../../src/annotator/fps_constants.py) |
+| How does a setting scale with frame rate? | [config.py](../../src/annotator/config.py) |
 
 ## Training and experiments
 

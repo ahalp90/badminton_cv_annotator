@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from annotator import rally_segmentation
-from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
 from annotator.courts.scenes import SceneCourt, build_scene_courts
 from annotator.hybrid import ContactEvidence, HybridPrediction, predict_contacts
 from annotator.masks.dead import build_dead_mask
@@ -30,9 +30,11 @@ from annotator.outcomes.video import (
     build_refined_contact_data,
     build_verdict_data,
 )
-from annotator.resolve import resolve
+from annotator.rally import evidence as rally_evidence
+from annotator.rally.serve import ServeStartOptions, build_serve_setup_inputs
+from annotator.rally.spans import find_rally_spans
 from annotator.sequence import ContactEvent
-from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
+from annotator.types import ContactCandidate, ServeStartConfig, SpanOpen, StickyResult
 from shared.progress import report
 
 DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
@@ -146,7 +148,6 @@ def run_video(
 
     report("finding rallies")
     resolved = resolve(base, fps)
-    span_options = build_span_options(resolved)
     homography_rows = validate_run_inputs(
         court,
         serve_start=serve_start,
@@ -166,7 +167,7 @@ def run_video(
         segmentation = run_court_optional_segmentation(
             track, positions=positions, spans=spans, contacts=contacts,
             raw_exclusion_mask=raw_exclusion_mask, capture=capture,
-            resolved=resolved, span_options=span_options,
+            resolved=resolved,
         )
         return empty_result(segmentation.spans, segmentation.contacts)
 
@@ -188,7 +189,6 @@ def run_video(
         court_invalid_is_excluded=court_invalid_is_excluded,
         stop_after_segmentation=stop_after_segmentation,
         resolved=resolved,
-        span_options=span_options,
     )
     if stop_after_segmentation:
         return empty_result(segmentation.spans, segmentation.contacts)
@@ -295,8 +295,8 @@ def build_shuttle_hallucination_mask(
 
 
 def build_serve_options(
-    config, sticky, constants, resolution, span_open=rally_segmentation.SpanOpen.BACK_FILL,
-) -> rally_segmentation.ServeStartOptions:
+    config, sticky, constants, resolution, span_open=SpanOpen.BACK_FILL,
+) -> ServeStartOptions:
     """Build sticky-sourced serve-start evidence from the unmasked cache.
 
     Build serve evidence before replay masking, which can otherwise remove
@@ -304,10 +304,10 @@ def build_serve_options(
     """
     if config.close is not None and span_open is not None:
         raise ValueError('serve_start.close is unsupported with BACK_FILL')
-    return rally_segmentation.ServeStartOptions(
+    return ServeStartOptions(
         # The sticky path supplies body-height-normalised serve-setup evidence.
         dist=None, threshold=config.threshold_bh, mode=config.mode, close=config.close,
-        setup=rally_segmentation.build_serve_setup_inputs(sticky, resolution),
+        setup=build_serve_setup_inputs(sticky, resolution),
         stillness_threshold_bh=config.stillness_threshold_bh,
         lookback_frames=constants.serve_start_lookback_frames,
         stillness_window_frames=constants.serve_stillness_window_frames,
@@ -418,19 +418,6 @@ def validate_landing_horizons(
     for earlier, later in pairwise(landing_horizons_s):
         if later <= earlier:
             raise ValueError('landing_horizons_s must be strictly increasing')
-
-
-def build_span_options(resolved: ResolvedAnnotatorConfig) -> dict[str, Any]:
-    """Return the shared options for every span-finding path."""
-    return {
-        'thresholds': resolved.thresholds,
-        'span_open': resolved.span_open,
-        'constants': resolved.constants,
-        'gap_state_demotion_bound': resolved.gap_state_demotion_bound,
-        'reentry_guard_variant': resolved.reentry_guard_variant,
-        'reentry_guard_buffer': resolved.reentry_guard_buffer,
-        'quiet_start_window': resolved.quiet_start_window,
-    }
 
 
 def validate_run_inputs(
@@ -566,7 +553,6 @@ def run_court_optional_segmentation(
     raw_exclusion_mask: np.ndarray | None,
     capture: RunCapture | None,
     resolved: ResolvedAnnotatorConfig,
-    span_options: dict[str, Any],
 ) -> SegmentationData:
     """Run the court-free segmentation-only mode."""
     raw_mask = (
@@ -577,7 +563,7 @@ def run_court_optional_segmentation(
     definitive_exclusion_mask = finalise_exclusion_mask(
         raw_mask,
         n_frames=len(track),
-        replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
+        replay_mask_min_frames=resolved.thresholds.replay_mask_min_frames,
         capture=capture,
         check_definitive_mask=False,
     )
@@ -588,12 +574,11 @@ def run_court_optional_segmentation(
             exclusion_mask=definitive_exclusion_mask,
             sticky_distances=None,
             spans=spans,
-            smoothing_mode=resolved.smoothing_mode,
-            **span_options,
+            resolved=resolved,
         )
     else:
-        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
-            track, **span_options,
+        final_spans = spans if spans is not None else find_rally_spans(
+            track, resolved=resolved,
         )
         raw_contacts = injected_contact_rows(contacts)
     return SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask)
@@ -616,24 +601,23 @@ def run_court_segmentation(
     court_invalid_is_excluded: bool,
     stop_after_segmentation: bool,
     resolved: ResolvedAnnotatorConfig,
-    span_options: dict[str, Any],
 ) -> SegmentationData:
     """Build sticky evidence, exclusion masks, spans, and contacts."""
     # Sticky evidence must see the original track. Build it once before any replay masking.
-    segments = rally_segmentation.tracker_segments(
+    segments = rally_evidence.tracker_segments(
         homography_rows, court.court_present, len(track),
     )
-    sticky = rally_segmentation.build_sticky_result(
+    sticky = rally_evidence.build_sticky_result(
         track, segments, court.bboxes, court.scores, court.kps, court.ndet,
         str(court.video_id), court.gate_court_info, court.gate_resolution_table,
-        court.resolution, resolved.constants.body_unit_half_window,
+        court.resolution, resolved.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
     )
 
     serve_options = None
     if contacts is not None:
-        final_spans = spans if spans is not None else rally_segmentation.find_rally_spans(
-            track, **span_options,
+        final_spans = spans if spans is not None else find_rally_spans(
+            track, resolved=resolved,
         )
         raw_contacts = injected_contact_rows(contacts)
         if raw_exclusion_mask is None:
@@ -649,7 +633,7 @@ def run_court_segmentation(
             bootstrap_spans = (
                 spans
                 if spans is not None
-                else rally_segmentation.find_rally_spans(track, **span_options)
+                else find_rally_spans(track, resolved=resolved)
             )
             raw_exclusion_mask = build_dead_mask(
                 resolved.dead_mask_mode, len(track), fps, court_present=court.court_present,
@@ -661,7 +645,7 @@ def run_court_segmentation(
         if serve_start is not None:
             assert court.resolution is not None
             serve_options = build_serve_options(
-                serve_start, sticky, resolved.constants, court.resolution, resolved.span_open,
+                serve_start, sticky, resolved.thresholds, court.resolution, resolved.span_open,
             )
 
     assert raw_exclusion_mask is not None
@@ -676,7 +660,7 @@ def run_court_segmentation(
     definitive_exclusion_mask = finalise_exclusion_mask(
         raw_exclusion_mask,
         n_frames=len(track),
-        replay_mask_min_frames=resolved.constants.replay_mask_min_frames,
+        replay_mask_min_frames=resolved.thresholds.replay_mask_min_frames,
         capture=capture,
         court_present=usable_court_frames,
         include_court_invalid=not stop_after_segmentation,
@@ -689,7 +673,6 @@ def run_court_segmentation(
             sticky_distances=sticky.distances,
             serve_start=serve_options,
             spans=final_spans,
-            smoothing_mode=resolved.smoothing_mode,
-            **span_options,
+            resolved=resolved,
         )
     return SegmentationData(final_spans, raw_contacts, definitive_exclusion_mask, sticky, segments)

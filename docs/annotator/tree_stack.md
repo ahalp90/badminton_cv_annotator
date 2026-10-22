@@ -118,6 +118,6 @@ the runtime versions, ordered feature names, proposal budgets and review mode.
 Changing feature order or proposal semantics requires a new fit and evaluation.
 
 The `RallyLayerModels` class name and module path are retained so current saved
-XGBoost bundles load. The schema is `annotator-rally-layers/1`.
+XGBoost bundles load. The schema is `annotator-rally-layers/2`.
 
 See the [refit guide](retuning.md) for commands, configuration and saved results.
