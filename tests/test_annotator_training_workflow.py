@@ -223,7 +223,7 @@ def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.M
     assert failure.value.code == 2
 
 
-def test_current_stage_loader_reuses_capture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     metadata = VideoMetadata(tmp_path / 'source.mp4', Fraction(30), 2, 1920, 1080)
     paths = []
     captured = object()
@@ -241,15 +241,20 @@ def test_current_stage_loader_reuses_capture(tmp_path: Path, monkeypatch: pytest
             return np.array([[.2, .3, 1], [.3, .4, 1]])
         return np.zeros(2, dtype=np.uint8)
 
-    def run(*_args: Any, **kwargs: Any) -> None:
-        assert kwargs['heuristic_only'] is True
-        kwargs['capture'].contact_evidence = captured
+    def prepare(track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
+                ndet: np.ndarray, **kwargs: Any) -> object:
+        assert kwargs['resolved'].fps == 30.0
+        assert kwargs['court_invalid_is_excluded'] is True
+        assert kwargs['inpaint_codes'].dtype == np.uint8
+        assert 'capture' not in kwargs
+        assert 'landing_options' not in kwargs
+        return captured
 
     monkeypatch.setattr(workflow, 'load_json_gz', lambda path: paths.append(path) or metadata.to_dict())
     monkeypatch.setattr(workflow, 'load_npy_xz', load_array)
     monkeypatch.setattr(workflow, 'load_pose_arrays', lambda path, _count: paths.append(path) or pose)
     monkeypatch.setattr(workflow, 'load_court_vision', lambda path, **_kwargs: paths.append(path) or court)
-    monkeypatch.setattr(workflow, 'run_video', run)
+    monkeypatch.setattr(workflow, 'prepare_annotation', prepare)
     assert workflow.load_contact_evidence(tmp_path, 'video', workflow.TrainingSettings().preprocessing) is captured
     assert tmp_path / 'stages/metadata/video/video_metadata.json.gz' in paths
     assert tmp_path / 'stages/shuttle/video/shuttle_guard_codes.npy.xz' in paths

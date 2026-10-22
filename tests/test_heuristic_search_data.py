@@ -12,11 +12,12 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.outcomes.point_winner import Half
-from annotator.run_video import AnnotatorResult, empty_result
+from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.heuristic_only_tune import data as search_data
+from tests.annotator_result import empty_annotation
 
 
 def _video(rallies: tuple[LabelledRally, ...]) -> search_data.SearchVideo:
@@ -36,7 +37,7 @@ def test_heuristic_stream_uses_fitted_final_striker(
     final_half: Half | None, count: int, expected: list[str | None],
 ) -> None:
     frames = [10, 20, 30][:count]
-    result = empty_result([(0, 40)], [])._replace(
+    result = empty_annotation([(0, 40)], [])._replace(
         filtered_by_rally={0: frames}, striker_halves=[final_half],
     )
     stream = search_data.heuristic_stream(result)
@@ -138,7 +139,7 @@ def test_run_configuration_discovers_boundaries_without_loading_models(monkeypat
 
     def run(*positional: Any, **keyword: Any) -> AnnotatorResult:
         recorded.update(keyword)
-        return empty_result([], [])
+        return empty_annotation([], [])
 
     monkeypatch.setattr(search_data, 'run_video', run)
     monkeypatch.setattr(search_data, 'run_video_kwargs', lambda _inputs: {'fps': 30.0})

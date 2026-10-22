@@ -175,15 +175,13 @@ def test_dispatch_validates_options_cross_fields(make_setup) -> None:
     setup = make_setup(2.0, n=6)
 
     def options(**overrides: object) -> ServeStartOptions:
-        fields = {'dist': None, 'threshold': 0.3, 'mode': ServeStartMode.TRIM, 'setup': setup,
+        fields = {'threshold': 0.3, 'mode': ServeStartMode.TRIM, 'setup': setup,
                       'lookback_frames': 4}
         fields.update(overrides)
         return ServeStartOptions(**fields)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match='setup must be supplied'):
         find_rally_spans(track, serve_start=options(setup=None), resolved=burst_config())
-    with pytest.raises(ValueError, match='legacy serve-start dist'):
-        find_rally_spans(track, serve_start=options(dist=np.zeros(6)), resolved=burst_config())
     with pytest.raises(ValueError, match='lookback_frames'):
         find_rally_spans(track, serve_start=options(lookback_frames=None), resolved=burst_config())
     with pytest.raises(ValueError, match='stillness_window_frames'):

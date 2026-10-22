@@ -20,9 +20,6 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.types import SmoothingMode
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -36,6 +33,9 @@ from freeze_contact_evidence import (
     _sha256,
     _stage_paths,
 )
+
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.types import SmoothingMode
 
 FEATURE_SCHEMA = "tree-contact-features/2"
 MANIFEST_SCHEMA = "tree-contact-feature-manifest/2"

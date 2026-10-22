@@ -17,7 +17,6 @@ import pytest
 
 from annotator import config
 from annotator.doubles_flag import doubles_flag, read_whole_video_flags
-from annotator.run_video import AnnotatorResult
 
 # -- Span-fraction boundary: strict greater-than -----------------------------
 
@@ -152,15 +151,14 @@ def _run_segmentation_cli(tmp_path, monkeypatch, *, doubles_csv: Path | None, pr
     for video_id, n_frames in (('vid_a', 4), ('vid_b', 5), ('vid_c', 6)):
         np.save(shuttle_dir / f'{video_id}.npy', np.zeros((n_frames, 3)))
 
-    import annotator.run_video as run_video_module
     from annotator import rally_segmentation as segmentation
 
-    def fake_run_video(track, *args, **kwargs):
+    def fake_segment(track, resolved, **kwargs):
         processed.append(str(len(track)))
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        return [], []
 
     monkeypatch.setattr(
-        run_video_module, 'run_video', fake_run_video,
+        segmentation, 'segment_shuttle_track', fake_segment,
     )
     argv = [
         'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',

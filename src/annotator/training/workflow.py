@@ -18,21 +18,17 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import ContactFeatures
 from annotator.contacts.model import ContactModelConfig, score_contact_features
 from annotator.hybrid import (
-    ContactEvidence,
     features_from_evidence,
     predict_contacts,
     sequence_inputs,
 )
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
-from annotator.outcomes.point_winner import (
-    SHIPPED_LANDING_FILTER_OPTIONS,
-    Half,
-)
-from annotator.run_video import RunCapture, run_video
+from annotator.outcomes.point_winner import Half
+from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -216,8 +212,8 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
     return tuple(rallies)
 
 
-def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnotatorConfig) -> ContactEvidence:
-    """Run the heuristic path on canonical stages and reuse its captured evidence."""
+def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnotatorConfig) -> AnnotationEvidence:
+    """Prepare canonical stage arrays directly for contact-model features."""
     stages = run_dir / 'stages'
     try:
         metadata = VideoMetadata.from_dict(load_json_gz(stages / 'metadata' / identity / METADATA_FILENAME))
@@ -234,26 +230,19 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
     inputs = court.evidence.inputs
     if inputs is None:
         raise ValueError(f'{identity}: court extraction has no usable operational court inputs')
-    capture = RunCapture()
-    run_video(
+    return prepare_annotation(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        fps=float(metadata.fps), base=preprocessing, heuristic_only=True,
-        landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
+        resolved=resolve(preprocessing, float(metadata.fps)),
         net_band=inputs.net_band, resolution=inputs.resolution, video_id=identity,
-        court_info=inputs.court_info, homo_df=None,
         gate_court_info=inputs.gate_court_info, gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
         cut_frames=[end for _start, end in court.raw_cuts[:-1]], keep_vote=court.evidence.keep_vote,
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
-        landing_error_band_m=inputs.landing_error_band_m, capture=capture,
     )
-    if capture.contact_evidence is None:
-        raise ValueError(f'{identity}: heuristic annotation did not capture contact evidence')
-    return capture.contact_evidence
 
 
 def sequence_training_video(
-    entry: VideoInput, evidence: ContactEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
+    entry: VideoInput, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
     contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
 ) -> SequenceTrainingVideo:
     """Score contacts and prepare candidate sequences for rally fitting."""
@@ -309,17 +298,17 @@ def fit_from_manifest(
             raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
     del contact_inputs
     del other_group_inputs
-    sequence_inputs = []
+    training_videos = []
     for entry in entries:
         evidence = evidence_by_video.pop(entry.identity)
         features = features_by_video.pop(entry.identity)
-        sequence_inputs.append(sequence_training_video(
+        training_videos.append(sequence_training_video(
             entry, evidence, features, labels_by_video[entry.identity],
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
     del evidence, features
-    layer_fit = fit_rally_models(sequence_inputs, settings.rally_layers)
-    review_model = fit_rally_review_model(sequence_inputs, layer_fit.cross_fitted, settings.confidence)
+    layer_fit = fit_rally_models(training_videos, settings.rally_layers)
+    review_model = fit_rally_review_model(training_videos, layer_fit.cross_fitted, settings.confidence)
     models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)
     save_models(models, output)

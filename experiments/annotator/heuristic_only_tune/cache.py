@@ -79,7 +79,7 @@ def _cache_lock(path: Path) -> Iterator[None]:
 
 @contextmanager
 def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
-    """Temporarily cache the helper called by ``run_video`` in this worker process.
+    """Cache the sticky producer used by annotation and direct preparation.
 
     Each worker runs one candidate at a time. The patch is process-local and
     always restored. Candidate-dependent masks are applied after sticky evidence

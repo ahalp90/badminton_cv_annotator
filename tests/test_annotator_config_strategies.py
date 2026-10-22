@@ -6,10 +6,10 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-import annotator.run_video as run_video_module
+from annotator import preparation
 from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.preparation import build_serve_options, prepare_annotation
 from annotator.rally.spans import gap_state_rest_mask, quiet_start_rally_spans
-from annotator.run_video import build_serve_options, run_video
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 from tests.annotator_config import burst_config
 
@@ -67,7 +67,7 @@ def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest
                                   'stillness_threshold_bh': None})()
     with pytest.raises(ValueError, match='unsupported with BACK_FILL'):
         build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0))
-    monkeypatch.setattr(run_video_module, 'build_serve_setup_inputs', lambda *_args: None)
+    monkeypatch.setattr(preparation, 'build_serve_setup_inputs', lambda *_args: None)
     options = build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0), None)
     assert options.close is config.close
 
@@ -111,25 +111,20 @@ def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
     assert resolved.reentry_guard_buffer is None
 
 
-def test_quiet_start_and_serve_start_fail_in_run_video() -> None:
+def test_quiet_start_and_serve_start_fail_before_preparation() -> None:
     with pytest.raises(ValueError, match='quiet_start_window'):
-        run_video(
-            None, None, None, None, None, fps=30.0,
-            base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), landing_options=None,
-            net_band=(0.0, 1.0), resolution=(1.0, 1.0), video_id=1,
-            court_info={}, homo_df=None, gate_court_info={}, gate_resolution_table=None,
-            serve_start=object(), heuristic_only=True,
+        prepare_annotation(
+            None, None, None, None, None,
+            resolved=resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), 30.0),
+            net_band=None, resolution=None, video_id=None, gate_court_info=None,
+            gate_resolution_table=None, court_present=None, homography_rows=None, serve_start=object(),
         )
 
 
 @pytest.mark.parametrize('span_open', (SpanOpen.REGION_START, SpanOpen.BACK_FILL))
-def test_quiet_start_and_span_open_fail_in_run_video(span_open: SpanOpen) -> None:
+def test_quiet_start_and_span_open_fail_during_resolution(span_open: SpanOpen) -> None:
     with pytest.raises(ValueError, match='quiet_start_window cannot be combined with span_open'):
-        run_video(
-            None, None, None, None, None, fps=30.0,
-            base=BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open),
-            court_optional=True, stop_after_segmentation=True, heuristic_only=True,
-        )
+        resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open), 30.0)
 
 
 def test_gap_state_with_and_without_reentry_guard() -> None:

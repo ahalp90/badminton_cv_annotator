@@ -196,9 +196,9 @@ result = run_video(
 
 This returns heuristic contacts, player assignments and outcome estimates.
 Change `base` for a heuristic experiment and save its configuration with the
-result. To stop after rough rally/contact detection, use
-`stop_after_segmentation=True`. The [input guide](inputs_outputs.md#direct-python-call)
-explains the in-memory call.
+result. For feature inputs, call `prepare_annotation()` directly. For a shuttle
+track without player or court evidence, use `segment_shuttle_track()`. The
+[input guide](inputs_outputs.md#direct-python-call) explains these calls.
 
 ## 7. Common failures
 

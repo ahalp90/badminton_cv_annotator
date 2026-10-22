@@ -195,30 +195,23 @@ class ServeStartClose(StrEnum):
 
 
 class ServeStartOptions(NamedTuple):
-    """Serve-start gating for segment_video(serve_start=...).
+    """Settings and sticky player evidence for serve-start gating.
 
-    The sticky setup evidence is built by the caller from the unmasked track. The committed
-    measurement convention builds serve-start evidence before any replay mask is applied.
+    Build setup evidence from the original track before applying replay masks.
 
-    :param dist: retired raw-distance carrier. It must remain None.
-    :param threshold: serve-setup gate distance as a multiple of body height.
-    :param mode: fallback for a region with no qualifying burst (TRIM / REJECT).
-    :param close: optional split placement; None opens one span per region (the default).
-    :param diagnostics: optional caller-supplied dict; when given, the span rule fills it in
-        place with the per-call region counts / spacings (single writer, valid to read straight
-        after the call IN THE SAME PROCESS: the in-place fill does not cross a multiprocessing
-        worker boundary, so the pooled sweep runner leaves it None). None (the default) collects nothing.
-    :param setup: sticky-sourced evidence (build_serve_setup_inputs).
-    :param stillness_threshold_bh: optional stillness bound in body heights for the sticky
-        gate; None (the default) leaves the stillness check off. Sticky path only.
-    :param lookback_frames: resolved setup-window length in frames (the fps table's
-        serve_start_lookback_frames row); required with setup. Sticky path only.
-    :param stillness_window_frames: resolved stillness-window length in frames (the
-        serve_stillness_window_frames row); required once stillness_threshold_bh is set.
-        Sticky path only.
+    :param threshold: Serve-setup distance as a multiple of body height.
+    :param mode: Fallback for a region with no qualifying burst (TRIM / REJECT).
+    :param close: Optional split placement; None opens one span per region.
+    :param diagnostics: Optional dict filled with region counts and spacings in
+        the calling process. Worker processes do not share this mapping.
+    :param setup: Evidence from build_serve_setup_inputs.
+    :param stillness_threshold_bh: Optional stillness bound in body heights;
+        None disables the stillness check.
+    :param lookback_frames: Required resolved setup-window length in frames.
+    :param stillness_window_frames: Resolved stillness-window length, required
+        when stillness_threshold_bh is set.
     """
 
-    dist: np.ndarray | None
     threshold: float
     mode: ServeStartMode
     close: ServeStartClose | None = None
@@ -362,8 +355,6 @@ def _valid_serve_threshold(value: object, name: str) -> float:
 
 def resolve_serve_gate(options: ServeStartOptions) -> ServeGate:
     """Validate serve-start options and return the executable gate."""
-    if options.dist is not None:
-        raise ValueError('legacy serve-start dist is no longer supported; supply setup')
     if options.setup is None:
         raise ValueError('serve-start setup must be supplied')
     threshold = _valid_serve_threshold(options.threshold, 'threshold')

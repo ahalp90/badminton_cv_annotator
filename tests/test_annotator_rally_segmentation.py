@@ -484,7 +484,7 @@ def test_segment_video_serve_start_with_region_start_raises():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM,
+        threshold=0.10, mode=ServeStartMode.TRIM,
         setup=setup, lookback_frames=25,
     )
     with pytest.raises(ValueError):
@@ -503,7 +503,7 @@ def test_segment_video_serve_start_split_with_back_fill_raises():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST,
+        threshold=0.10, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST,
         setup=setup, lookback_frames=25,
     )
     with pytest.raises(ValueError):
@@ -537,7 +537,7 @@ def test_serve_start_opens_at_first_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup({60})
     assert burst_rally_spans(speed, at_rest, _SERVE_THRESHOLDS) == [(10, 120)]  # stock opens at 10
     for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
-        options = ServeStartOptions(dist=None, threshold=0.10, mode=mode, setup=setup, lookback_frames=25)
+        options = ServeStartOptions(threshold=0.10, mode=mode, setup=setup, lookback_frames=25)
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(60, 120)]
 
 
@@ -545,7 +545,7 @@ def test_serve_start_trim_falls_back_when_no_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup(set())  # nothing qualifies
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.TRIM, diagnostics=diag,
+        threshold=0.10, mode=ServeStartMode.TRIM, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 120)]
@@ -557,7 +557,7 @@ def test_serve_start_reject_drops_region_when_no_qualifying_burst():
     speed, at_rest, setup = _serve_start_speed_rest_setup(set())
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, diagnostics=diag,
+        threshold=0.10, mode=ServeStartMode.REJECT, diagnostics=diag,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == []
@@ -568,7 +568,7 @@ def test_serve_start_back_fill_opens_qualifying_region_at_region_start():
     # serve_start + BACK_FILL: the serve gate decides qualification, the span opens at region_start.
     speed, at_rest, setup = _serve_start_speed_rest_setup({60})
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, setup=setup, lookback_frames=25,
+        threshold=0.10, mode=ServeStartMode.REJECT, setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, SpanOpen.BACK_FILL) == [(0, 120)]
 
@@ -593,7 +593,7 @@ def test_segment_video_serve_start_reject_all_nan_drops_all_spans():
         top_height=np.full(len(track), 0.2), bot_height=np.full(len(track), 0.2),
     )
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+        threshold=0.10, mode=ServeStartMode.REJECT,
         setup=setup, lookback_frames=25,
     )
     spans, contacts = segment_video(track, serve_start=options, resolved=burst_config())
@@ -641,7 +641,7 @@ def test_serve_start_split_off_is_single_span():
     for mode in (ServeStartMode.TRIM, ServeStartMode.REJECT):
         diag: dict = {}
         options = ServeStartOptions(
-            dist=None, threshold=0.10, mode=mode, diagnostics=diag,
+            threshold=0.10, mode=mode, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 200)]
@@ -651,7 +651,7 @@ def test_serve_start_split_off_is_single_span():
 def test_serve_start_split_burst_cuts_at_every_qualifying_burst():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150})
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
@@ -663,13 +663,13 @@ def test_serve_start_split_burst_unions_to_the_single_span():
     single = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+            threshold=0.10, mode=ServeStartMode.REJECT,
             setup=setup, lookback_frames=25,
         ), None)
     split = serve_qualified_rally_spans(
         speed, at_rest, _SERVE_THRESHOLDS,
         ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
+            threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.BURST,
             setup=setup, lookback_frames=25,
         ), None)
     assert single == [(10, 200)]
@@ -680,7 +680,7 @@ def test_serve_start_split_burst_unions_to_the_single_span():
 def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150}, rest_runs=((100, 110),))
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [
@@ -690,7 +690,7 @@ def test_serve_start_split_last_rest_picks_run_else_falls_back_to_burst():
 def test_serve_start_split_last_rest_takes_the_last_of_several_runs():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80}, rest_runs=((30, 40), (55, 60)))
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
+        threshold=0.10, mode=ServeStartMode.REJECT, close=ServeStartClose.LAST_REST,
         setup=setup, lookback_frames=25,
     )
     assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None) == [(10, 55), (80, 200)]
@@ -701,13 +701,13 @@ def test_serve_start_split_no_qualify_region_honours_mode():
     for close in (ServeStartClose.BURST, ServeStartClose.LAST_REST):
         diag: dict = {}
         trim = ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.TRIM, close=close, diagnostics=diag,
+            threshold=0.10, mode=ServeStartMode.TRIM, close=close, diagnostics=diag,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, trim, None) == [(10, 200)]
         assert diag['n_no_qualify'] == 1 and diag['qualifying_counts'] == [0]
         reject = ServeStartOptions(
-            dist=None, threshold=0.10, mode=ServeStartMode.REJECT, close=close,
+            threshold=0.10, mode=ServeStartMode.REJECT, close=close,
             setup=setup, lookback_frames=25,
         )
         assert serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, reject, None) == []
@@ -717,7 +717,7 @@ def test_serve_start_split_diagnostics_carry_counts_and_spacings():
     speed, at_rest, setup = _three_burst_speed_rest_setup({10, 80, 150})
     diag: dict = {}
     options = ServeStartOptions(
-        dist=None, threshold=0.10, mode=ServeStartMode.REJECT,
+        threshold=0.10, mode=ServeStartMode.REJECT,
         close=ServeStartClose.BURST, diagnostics=diag, setup=setup, lookback_frames=25,
     )
     serve_qualified_rally_spans(speed, at_rest, _SERVE_THRESHOLDS, options, None)

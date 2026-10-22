@@ -10,9 +10,8 @@ convention as the pose `_failed.npy`.
 Missing inputs contribute an all-False component with a log line. Camera geometry
 describes the view but cannot distinguish live alternate coverage from a replay.
 
-Speed and its helpers come from the shared annotator declarations, re-exported
-by rally segmentation. The slow-motion signal therefore reads the same per-frame speed as
-the rally rules, not a second definition.
+Speed helpers in ``annotator.types`` supply the same per-frame speed used by
+the rally rules.
 
 Run as `python -m annotator.masks.replay --video-id ...` with PYTHONPATH=src.
 """
@@ -69,8 +68,9 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
     if len(court_present) != n_frames:
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)  # (frames,)
+    # Replay signals use FPS-scaled defaults independently of heuristic overrides.
+    window = resolve(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
     for start, end in true_runs(absent):
-        window = resolve(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
         if end - start >= window:
             mask[start:end] = True
     return mask
@@ -208,6 +208,7 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
+    # Replay signals use FPS-scaled defaults independently of heuristic overrides.
     values = resolve(BaseAnnotatorConfig(), fps).thresholds
     rolling_median = rolling_nanmedian(speed, values.rest_window)  # (t,)
     visible = track[:, 2] == 1  # (t,)
@@ -265,6 +266,15 @@ def filter_short_exclusion_runs(mask: np.ndarray, min_frames: int) -> np.ndarray
         if end - start >= min_frames:
             believed[start:end] = True
     return believed
+
+
+def filter_exclusion_mask(raw_mask: np.ndarray, n_frames: int, min_frames: int) -> np.ndarray:
+    """Validate a dead-time mask and discard runs shorter than the trusted minimum."""
+    if len(raw_mask) != n_frames:
+        raise ValueError(f'mask length {len(raw_mask)} != track length {n_frames}')
+    if raw_mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+    return filter_short_exclusion_runs(raw_mask, min_frames)
 
 
 # ---------------------------------------------------------------------------

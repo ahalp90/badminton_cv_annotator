@@ -43,7 +43,7 @@ Heuristic-only annotation remains supported. Test it separately when changing
 shared preparation or outcome code; learned-model agreement does not establish
 heuristic agreement.
 
-## Saved compatibility
+## Saved formats
 
 `AnnotatorResult` fields are serialised by the dataset builder. Changing a field
 name or meaning affects stored results, resume checks and downstream assembly.
@@ -65,6 +65,12 @@ Old eight-model bundles are unsupported. Historical research results remain
 readable, but old proposal caches must be regenerated after the proposal
 representation change. Keep preparation provenance when reusing saved features;
 a current source revision alone does not describe how an older cache was made.
+
+Shared preparation returns `AnnotationEvidence` from
+[preparation.py](../../src/annotator/preparation.py). Training and inference use
+that same function. Prepared-video Joblib caches made with the former
+`hybrid.ContactEvidence` class must be regenerated in a fresh output directory.
+Fitted model bundles and their schema are unchanged by this preparation move.
 
 ## Check a change at its boundary
 

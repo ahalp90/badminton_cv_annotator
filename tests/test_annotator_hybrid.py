@@ -9,6 +9,7 @@ import pytest
 from sklearn.dummy import DummyClassifier
 
 from annotator import hybrid
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import ContactFeatures, contact_feature_dtype
 from annotator.contacts.model import (
     CONTACT_FEATURE_NAMES,
@@ -16,14 +17,15 @@ from annotator.contacts.model import (
     ScoredContacts,
 )
 from annotator.courts.scenes import SceneCourt
-from annotator.hybrid import ContactEvidence, sequence_inputs
+from annotator.hybrid import sequence_inputs
 from annotator.models import SideGeometry
+from annotator.preparation import AnnotationEvidence
 from annotator.sequence.contacts import initial_sequences
 from annotator.sequence.rally_model import RallyLayerModels, RallyLayerPrediction
 from annotator.sequence.rally_options import FEATURE_NAMES
 from annotator.sequence.repairs import build_rally_repairs
 from annotator.training.workflow import Split, VideoInput, sequence_training_video
-from annotator.types import StickyResult
+from annotator.types import ContactCandidate, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
 
 
@@ -60,10 +62,12 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     candidates = rows[np.isin(rows['frame'], candidate_frames)]
     contacts = ScoredContacts(candidates, np.array([0.5, 0.4, 0.95, 0.93]), np.array([2, 3]))
 
-    evidence = ContactEvidence(
-        identity='scene-gap', fps=30.0, resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
+    evidence = AnnotationEvidence(
+        identity='scene-gap', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
         bboxes=bboxes, sticky=sticky, tracker_intervals=[(0, 100), (200, 400)],
-        exclusion_mask=~in_scene, heuristic_spans=[(200, 300)], raw_contact_frames=[220, 260],
+        exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
+        heuristic_contacts=[ContactCandidate(0, frame, None, None, None) for frame in [220, 260]],
+        raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool), source_codes=None,
         scene_courts=scenes, net_band=(500.0, 520.0),
     )
 
@@ -102,10 +106,13 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
     )
     track = np.zeros((frame_count, 3))
     track[:, 2] = 1
-    evidence = ContactEvidence(
-        'masked', 30.0, (1280.0, 720.0), track, np.zeros((frame_count, 2, 17, 2)),
-        np.zeros((frame_count, 2, 4)), sticky, [(0, frame_count)], np.zeros(frame_count, dtype=bool),
-        [(0, 90)], [16, 80], (), (500.0, 520.0), shuttle_hallucination_mask=mask,
+    evidence = AnnotationEvidence(
+        identity='masked', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
+        track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)), bboxes=np.zeros((frame_count, 2, 4)),
+        sticky=sticky, tracker_intervals=[(0, frame_count)],
+        exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),
+        heuristic_spans=[(0, 90)], heuristic_contacts=[ContactCandidate(0, frame, None, None, None) for frame in [16, 80]],
+        scene_courts=(), net_band=(500.0, 520.0), shuttle_hallucination_mask=mask, source_codes=None,
     )
     probability_column = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
 

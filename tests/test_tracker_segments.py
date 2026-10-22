@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from annotator.outcomes.video import scoring_filter
+from annotator.contacts.selection import scoring_filter
 from annotator.rally.contacts import wrist_contact_near
 from annotator.rally.evidence import tracker_segments
 from annotator.types import ContactCandidate

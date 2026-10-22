@@ -20,12 +20,11 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from annotator.config import BaseAnnotatorConfig, resolve  # noqa: E402
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.1"
 EVIDENCE_SCHEMA = "contact-evidence-freeze/1"

@@ -35,7 +35,6 @@ FEATURE_NAMES = (
     'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
     *(f'strongest_unused__{name}' for name in PHYSICAL_FEATURE_NAMES),
 )
-feature_names = FEATURE_NAMES
 
 
 @dataclass(frozen=True)
@@ -150,8 +149,9 @@ def unused_evidence(
 
 def option_features(
     before: ContactSequence, after: ContactSequence, candidates: tuple[ContactEvent, ...],
-    video: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
+    context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
 ) -> np.ndarray:
+    """Measure a proposed contact sequence against the initial rally evidence."""
     before_frames = {event.frame for event in before.events}
     after_frames = {event.frame for event in after.events}
     added = tuple(event for event in after.events if event.frame not in before_frames)
@@ -163,34 +163,34 @@ def option_features(
         after.events[0].frame if after.events else None,
         None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
     )
-    raw, unused_frame = unused_evidence(after, candidates, video.fps)
+    raw, unused_frame = unused_evidence(after, candidates, context.fps)
     return np.concatenate((
-        before_summary, sequence_summary(after, video.fps), before_sides, side_agreement(after),
+        before_summary, sequence_summary(after, context.fps), before_sides, side_agreement(after),
         (len(added), len(deleted)), probability_summary(added), probability_summary(deleted),
-        *(physical_or_nan(video.repairs.physical, frame) for frame in physical_frames),
-        raw, physical_or_nan(video.repairs.physical, unused_frame),
+        *(physical_or_nan(context.repairs.physical, frame) for frame in physical_frames),
+        raw, physical_or_nan(context.repairs.physical, unused_frame),
     ))
 
 
-def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
+def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
     """Build ordered contact-toggle proposals from detector evidence alone."""
     if max_edits < 0 or deletion_candidates < 0:
         raise ValueError('edit and deletion budgets must be non-negative')
     sequences = []
     matrices = []
     span_rows = {}
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
+    stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
     repairs_by_span: dict[int, list[ContactSequence]] = {}
-    for sequence in video.repairs.sequences:
+    for sequence in context.repairs.sequences:
         repairs_by_span.setdefault(sequence.span_id, []).append(sequence)
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, video.fps)
+    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
-    for before in video.initial:
-        candidates = video.repairs.candidates.get(before.span_id, ())
+    for before in context.initial:
+        candidates = context.repairs.candidates.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in candidates)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
         combined_sequences = toggle_proposals(
-            before, candidates, video.events[first:last], previous_end, distance, max_edits, deletion_candidates,
+            before, candidates, context.events[first:last], previous_end, distance, max_edits, deletion_candidates,
         )
         unique = {sequence_key(before): before}
         for sequence in (*repairs_by_span.get(before.span_id, ()), *combined_sequences):
@@ -204,12 +204,12 @@ def build_rally_options(video: RallyContext, max_edits: int = 3, deletion_candid
         evidence = {event.frame: event for sequence in ordered for event in sequence.events}
         evidence.update((event.frame, event) for event in candidates)
         evidence_candidates = tuple(evidence[frame] for frame in sorted(evidence))
-        before_summary, before_sides = sequence_summary(before, video.fps), side_agreement(before)
+        before_summary, before_sides = sequence_summary(before, context.fps), side_agreement(before)
         start_row = len(sequences)
         for after in ordered:
             sequences.append(after)
-            matrices.append(option_features(before, after, evidence_candidates, video, before_summary, before_sides))
+            matrices.append(option_features(before, after, evidence_candidates, context, before_summary, before_sides))
         span_rows[before.span_id] = np.arange(start_row, len(sequences), dtype=np.int64)
         previous_end = before.end_frame
     matrix = np.asarray(matrices, dtype=np.float32).reshape(len(sequences), len(FEATURE_NAMES))
-    return RallyOptions(tuple(sequences), matrix, span_rows, video)
+    return RallyOptions(tuple(sequences), matrix, span_rows, context)

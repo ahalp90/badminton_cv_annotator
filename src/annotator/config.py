@@ -109,7 +109,7 @@ class Thresholds:
     wrist_distance_body_heights: float
 
 
-_OVERRIDABLE_BASE30_ROWS = frozenset(field.name for field in fields(Thresholds))
+_OVERRIDABLE_THRESHOLD_FIELDS = frozenset(field.name for field in fields(Thresholds))
 
 
 @dataclass(frozen=True)
@@ -170,9 +170,11 @@ class ResolvedAnnotatorConfig:
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
     """Convert saved settings for a video's frame rate."""
+    if base.quiet_start_window is not None and base.span_open is not None:
+        raise ValueError('quiet_start_window cannot be combined with span_open')
     overrides = base.overrides_base30
     if overrides is not None:
-        unknown_settings = sorted(set(overrides) - _OVERRIDABLE_BASE30_ROWS)
+        unknown_settings = sorted(set(overrides) - _OVERRIDABLE_THRESHOLD_FIELDS)
         if unknown_settings:
             raise ValueError(f'unknown base-30 override settings: {unknown_settings}')
     thresholds = _resolve_thresholds(fps, overrides)

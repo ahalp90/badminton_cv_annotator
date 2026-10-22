@@ -12,7 +12,6 @@ from annotator.evaluation.batch_report import (
     derive_batch_report_path,
     format_batch_report,
 )
-from annotator.run_video import AnnotatorResult
 from annotator.types import ContactCandidate
 
 
@@ -76,17 +75,16 @@ def test_publish_path_uses_custom_rally_spans_path(tmp_path):
     )
 
 
-def _run_cli(tmp_path, monkeypatch, *, extra_args, run_video):
+def _run_cli(tmp_path, monkeypatch, *, extra_args, segment):
     shuttle_dir = tmp_path / 'tracks'
     shuttle_dir.mkdir()
     np.save(shuttle_dir / 'vid.npy', np.zeros((4, 3)))
     spans_path = tmp_path / 'custom' / 'rally_spans.csv'
     contacts_path = tmp_path / 'custom' / 'contact_frames.csv'
 
-    import annotator.run_video as run_video_module
     from annotator import rally_segmentation
 
-    monkeypatch.setattr(run_video_module, 'run_video', run_video)
+    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', segment)
     monkeypatch.setattr(sys, 'argv', [
         'rally_segmentation',
         '--shuttle-dir', str(shuttle_dir),
@@ -106,10 +104,7 @@ def test_cli_publishes_report_with_custom_path_and_default_doubles_mode(
         tmp_path,
         monkeypatch,
         extra_args=[],
-        run_video=lambda track, *args, **kwargs: AnnotatorResult(
-            [(1, 3)], [ContactCandidate(0, 2, None, None, None)],
-            [], {}, [], [], [], [], {}, {}, {}, {}, [],
-        ),
+        segment=lambda track, *args, **kwargs: ([(1, 3)], [ContactCandidate(0, 2, None, None, None)]),
     )
 
     report_path = tmp_path / 'custom' / 'rally_spans_batch_report.txt'
@@ -151,7 +146,7 @@ def test_cli_uses_exception_name_when_processing_failure_has_no_message(
             tmp_path,
             monkeypatch,
             extra_args=[],
-            run_video=fail_without_message,
+            segment=fail_without_message,
         )
 
     report_text = derive_batch_report_path(spans_path).read_text(encoding='utf-8')
@@ -172,13 +167,12 @@ def test_all_excluded_publishes_before_raising_and_writes_no_output_csv(
     shuttle_dir.mkdir()
     np.save(shuttle_dir / 'vid.npy', np.zeros((4, 3)))
 
-    import annotator.run_video as run_video_module
     from annotator import rally_segmentation
 
     def segment_must_not_run(*args, **kwargs):
         raise AssertionError('excluded videos must not reach segment_video')
 
-    monkeypatch.setattr(run_video_module, 'run_video', segment_must_not_run)
+    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', segment_must_not_run)
     monkeypatch.setattr(sys, 'argv', [
         'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
         '--doubles-csv', str(flags_path), '--rally-spans-csv', str(spans_path),

@@ -15,13 +15,12 @@ from annotator.sequence.rally_options import (
     RallyContext,
     RallyOptions,
     build_rally_options,
-    feature_names,
     sequence_key,
 )
 from annotator.training.rally_targets import finish_in_initial_context, option_targets
 from annotator.training.sequences import SequenceTrainingVideo
 
-__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'feature_names', 'finish_in_initial_context', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'finish_in_initial_context', 'sequence_key']
 
 
 @dataclass(frozen=True)

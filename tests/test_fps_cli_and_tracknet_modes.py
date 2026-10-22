@@ -10,8 +10,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import resolve
-from annotator.run_video import AnnotatorResult
 from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 
 
@@ -65,7 +63,6 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     fps_args: list[str],
     expected_impulse: int | None,
 ) -> None:
-    import annotator.run_video as run_video_module
     from annotator import rally_segmentation
 
     shuttle_dir = tmp_path / 'shuttles'
@@ -76,12 +73,12 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
     captured = []
     calls = []
 
-    def fake_run_video(track, **kwargs):
-        calls.append((track, kwargs))
-        captured.append(resolve(kwargs['base'], kwargs['fps']).thresholds)
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+    def fake_segment(track, resolved, **kwargs):
+        calls.append((track, resolved, kwargs))
+        captured.append(resolved.thresholds)
+        return [], []
 
-    monkeypatch.setattr(run_video_module, 'run_video', fake_run_video)
+    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', fake_segment)
     args = [
         '--shuttle-dir', str(shuttle_dir), '--rally-spans-csv', str(tmp_path / 'spans.csv'),
         '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
@@ -101,10 +98,8 @@ def test_rally_segmentation_main_resolves_fps_thresholds(
 
     if expected_impulse is not None:
         assert captured[0].impulse_floor_half_window_frames == expected_impulse
-        assert calls[0][1]['base'].span_open is None
-        assert calls[0][1]['court_optional'] is True
-        assert calls[0][1]['stop_after_segmentation'] is True
-        np.testing.assert_array_equal(calls[0][1]['raw_exclusion_mask'], np.zeros(4, dtype=bool))
+        assert calls[0][1].span_open is None
+        np.testing.assert_array_equal(calls[0][2]['raw_exclusion_mask'], np.zeros(4, dtype=bool))
     if '--missing-id' in fps_args:
         assert not captured
         assert 'skipping missing-id: absent from fps CSV' in caplog.text
@@ -116,7 +111,6 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
     """The contacts CSV carries both verdict columns, blank on the no-gate path."""
-    import annotator.run_video as run_video_module
     from annotator import rally_segmentation
     from annotator.types import ContactCandidate
 
@@ -125,15 +119,15 @@ def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
     np.save(shuttle_dir / 'video-1.npy', np.zeros((4, 3)))
     contacts_csv = tmp_path / 'contacts.csv'
 
-    def fake_run_video(track, **kwargs):
-        return AnnotatorResult([(0, 20)], [
+    def fake_segment(track, resolved, **kwargs):
+        return [(0, 20)], [
             ContactCandidate(0, 1, True, True, False),    # gate winner
             ContactCandidate(0, 5, True, True, True),     # suppression loser
             ContactCandidate(0, 9, False, False, False),  # gate failure
             ContactCandidate(0, 13, None, None, None),    # no-gate path
-        ], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        ]
 
-    monkeypatch.setattr(run_video_module, 'run_video', fake_run_video)
+    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', fake_segment)
     monkeypatch.setattr(sys, 'argv', [
         'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
         '--rally-spans-csv', str(tmp_path / 'spans.csv'),

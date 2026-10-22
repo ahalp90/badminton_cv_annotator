@@ -144,8 +144,10 @@ path. Then copy each bundle from `models/<configuration>-seed-<N>/` into
 `candidates/<configuration>/seed-<N>/export/bundle/`. `input_test` checks the
 records, seeds and bundle md5s before it loads a bundle.
 
-These copies use the current key names. Apart from the `SWEEP/` prefix and
-those renamed keys and values, each record equals its original.
+These copies use the current key names and `SWEEP/` path prefix. The saved
+preprocessing omits the retired `thresholds` field, and bundle fingerprints
+identify the converted bundles. Metrics, seeds, populations and recorded source
+provenance remain unchanged.
 
 **What is saved here, and what is not.** The records, bundles and prediction
 files are enough to load and check all ten test bundles, score every prediction

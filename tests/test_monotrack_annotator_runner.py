@@ -16,13 +16,13 @@ import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
-from annotator.run_video import empty_result
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.types import DeadMaskMode
 from dataset_builder import vision
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json
+from tests.annotator_result import empty_annotation
 
 
 @pytest.fixture
@@ -129,7 +129,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['gate_court_info'] is inputs.court.gate_court_info
         assert kwargs['cut_frames'] == [30]
         assert kwargs['landing_error_band_m'] == 0.05
-        return empty_result(kwargs['spans'], [])._replace(filtered_by_rally={0: [10, 20]}, striker_halves=[Half.BOT])
+        return empty_annotation(kwargs['spans'], [])._replace(filtered_by_rally={0: [10, 20]}, striker_halves=[Half.BOT])
 
     monkeypatch.setattr(video_module, 'run_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path), heuristic_spec=spec)
@@ -163,7 +163,7 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
         assert kwargs['serve_start'] is None
         assert kwargs['spans'] == (None if condition == 'ours_discovery' else [(0, 45)])
         kwargs['capture'].hybrid = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
-        return empty_result([], [])
+        return empty_annotation([], [])
 
     monkeypatch.setattr(video_module, 'run_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path))

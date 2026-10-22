@@ -248,7 +248,6 @@ def freeze_fixture(
     setup = build_serve_setup_inputs(sticky, fixture.resolution)
     production_diagnostics: dict[str, Any] = {}
     options = ServeStartOptions(
-        dist=None,
         threshold=SERVE_THRESHOLD_BH,
         mode=ServeStartMode.TRIM,
         close=None,

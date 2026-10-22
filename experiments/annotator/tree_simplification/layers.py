@@ -53,7 +53,8 @@ def predict_layer(model: Any, pool: LabelledOptions, prior_scores: Sequence[np.n
 def finish_selected(
     pool: LabelledOptions, scores: np.ndarray,
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    return rally_model.finish_selected(pool.runtime, scores)
+    runtime = pool.runtime
+    return rally_model.finish_rows(runtime, rally_model.choose_rows(runtime, scores))
 
 
 def finish_rows(

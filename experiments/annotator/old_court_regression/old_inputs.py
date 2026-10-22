@@ -3,9 +3,9 @@
 The current court loaders accept only court-evidence/0.2. These videos have
 court-evidence/0.1, whose operational fields match 0.2 but whose per-scene
 provenance records do not. This adapter reads the operational fields with the
-existing parsers and passes them to ``run_video`` exactly as
-``load_contact_evidence`` and ``run_full_annotation_stage`` do. The old
-provenance records are ignored rather than converted.
+existing parsers for full annotation through ``run_video``, as the dataset
+builder does. Training uses the same preparation inputs without calculating
+outcomes. The old provenance records are ignored rather than converted.
 """
 
 import csv
@@ -137,11 +137,7 @@ def load_test_inputs(inpaint_root: Path, video_id: int) -> OldVideoInputs:
 def run_old_video(
     inputs: OldVideoInputs, models: AnnotatorModels | None, capture: RunCapture,
 ) -> AnnotatorResult:
-    """Run the heuristic pass (no models) or full annotation on old inputs.
-
-    Arguments mirror ``load_contact_evidence`` for the heuristic pass and
-    ``run_full_annotation_stage`` for full annotation.
-    """
+    """Run complete heuristic or fitted-model annotation on saved old-court inputs."""
     court = inputs.court
     return run_video(
         inputs.track, inputs.pose.bboxes, inputs.pose.scores, inputs.pose.kps, inputs.pose.ndet,

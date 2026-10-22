@@ -1,7 +1,7 @@
 """Downstream outcomes use the selected sequence's contacts and player sides."""
 
+from annotator.contacts.selection import contacts_from_sequences
 from annotator.outcomes.point_winner import Half
-from annotator.outcomes.video import build_refined_contact_data
 from annotator.sequence import ContactEvent, ContactSequence
 
 
@@ -10,7 +10,8 @@ def test_refined_contacts_keep_sequence_membership_and_player_order():
         ContactSequence(0, 0, 100, (ContactEvent(20, .9, Half.TOP), ContactEvent(60, .8, Half.BOT))),
         ContactSequence(1, 120, 200, (ContactEvent(150, .7, Half.TOP),)),
     )
-    result = build_refined_contact_data(sequences)
+    result = contacts_from_sequences(sequences)
+    assert result.spans == [(0, 100), (120, 200)]
     assert result.filtered_by_rally == {0: [20, 60], 1: [150]}
     assert result.striker_halves == [Half.BOT, Half.TOP]
     assert result.fitted_first_all == [Half.TOP, Half.TOP]
@@ -25,7 +26,7 @@ def test_tied_or_empty_sequences_have_no_resolved_winner_side():
         ContactSequence(0, 0, 100, (ContactEvent(20, .9, Half.TOP), ContactEvent(60, .8, Half.TOP))),
         ContactSequence(1, 120, 200, ()),
     )
-    result = build_refined_contact_data(sequences)
+    result = contacts_from_sequences(sequences)
     assert result.striker_halves == [None, None]
     assert result.fitted_first_all == [None, None]
     assert result.n_strokes_list == [2, 0]

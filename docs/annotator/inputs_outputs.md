@@ -287,4 +287,28 @@ The direct call uses the model directory and settings as follows:
 
 - When `models` is omitted, full annotation loads the tracked raw-baseline seed-0 bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
-- `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation, feature preparation and heuristic experiments. Pass `base` to choose its preprocessing settings.
+- `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
+
+`prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py)
+accepts the same five arrays plus resolved settings and the court, mask and scene
+inputs. Training and rally-model experiments call it directly. Its
+`AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
+all heuristic contact rows, raw/final exclusion masks and event-rejection evidence.
+It does not calculate final contact order, landing, winner or hit height.
+
+For a shuttle track without player or court evidence, use:
+
+```python
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.rally_segmentation import segment_shuttle_track
+
+spans, contacts = segment_shuttle_track(
+    track,
+    resolve(BaseAnnotatorConfig(span_open=None), fps),
+    raw_exclusion_mask=dead_mask,
+)
+```
+
+The rally CLI uses `span_open=None` by default. This track-only operation applies
+the supplied dead-time mask after short-run filtering. Court-based exclusions
+belong to shared annotation preparation.

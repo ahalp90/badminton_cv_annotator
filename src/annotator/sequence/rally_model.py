@@ -9,7 +9,11 @@ from typing import Any
 
 import numpy as np
 
-from annotator.outcomes.point_winner import OTHER_HALF, Half, fit_alternation
+from annotator.outcomes.point_winner import (
+    Half,
+    alternating_player_sides,
+    fit_alternation,
+)
 from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
@@ -99,6 +103,7 @@ def select_rally_sequences(
     features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
     side_for_frame: Callable[[int], Half | None], models: RallyLayerModels, frame_count: int | None = None,
 ) -> RallyLayerPrediction:
+    """Build rally alternatives from detector evidence and apply the fitted selectors."""
     check_events_match_kept_candidates(events, scores)
     initial = initial_sequences(spans, events)
     repairs = build_rally_repairs(
@@ -110,6 +115,7 @@ def select_rally_sequences(
 
 
 def predict_rally_options(models: RallyLayerModels, pool: RallyOptions) -> RallyLayerPrediction:
+    """Choose one option per rally, then finish its bounds and player sides."""
     scores = score_layers(models.layers, pool)
     chosen = choose_rows(pool, scores[-1])
     sequences, events = finish_rows(pool, chosen)
@@ -117,6 +123,7 @@ def predict_rally_options(models: RallyLayerModels, pool: RallyOptions) -> Rally
 
 
 def score_layers(models: tuple[Any, ...], pool: RallyOptions) -> tuple[np.ndarray, ...]:
+    """Score every option, passing earlier selectors' scores to later selectors."""
     scores = []
     for model in models:
         scores.append(predict_layer(model, pool, scores))
@@ -124,10 +131,12 @@ def score_layers(models: tuple[Any, ...], pool: RallyOptions) -> tuple[np.ndarra
 
 
 def predict_layer(model: Any, pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
+    """Estimate each option's probability using its evidence and earlier scores."""
     return positive_probabilities(model, layer_features(pool, prior_scores))
 
 
 def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
+    """Choose each rally's highest-scoring option, retaining pool order for ties."""
     return {span_id: int(rows[0]) for span_id, rows in ordered_span_rows(pool, scores).items()}
 
 
@@ -136,17 +145,10 @@ def finish_rows(
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Apply selected contacts, extend rally bounds and fit alternating sides."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
-    video = pool.context
-    sequences, events = apply_choices(video.initial, video.events, choices)
-    extended = extend_boundaries(sequences, events, video.fps, frame_count=video.frame_count)
+    context = pool.context
+    sequences, events = apply_choices(context.initial, context.events, choices)
+    extended = extend_boundaries(sequences, events, context.fps, frame_count=context.frame_count)
     return alternate_sides(extended, events)
-
-
-def finish_selected(
-    pool: RallyOptions, scores: np.ndarray,
-) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Finish all selected spans together using the production boundary/side rules."""
-    return finish_rows(pool, choose_rows(pool, scores))
 
 
 def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
@@ -202,11 +204,6 @@ def extend_boundaries(
     return tuple(extended)
 
 
-def alternating_sides(final_half: Half, event_count: int) -> list[Half]:
-    last = event_count - 1
-    return [final_half if (last - index) % 2 == 0 else OTHER_HALF[final_half] for index in range(event_count)]
-
-
 def alternate_sides(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
@@ -224,7 +221,7 @@ def alternate_sides(
         final_half = fit_alternation([event.side for event in sequence.events])
         if final_half is None:
             continue
-        fitted = alternating_sides(final_half, len(sequence.events))
+        fitted = alternating_player_sides(final_half, len(sequence.events))
         for event, side in zip(sequence.events, fitted, strict=True):
             side_by_frame[event.frame] = side
     revised = tuple(replace(event, side=side_by_frame.get(event.frame, event.side)) for event in events)
@@ -247,18 +244,18 @@ def layer_features(pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) 
     frames = tuple({event.frame for event in sequence.events} for sequence in pool.sequences)
     blocks = [pool.matrix]
     for scores in prior_scores:
-        context = np.empty((len(pool.sequences), len(CONTEXT_FEATURE_NAMES)), dtype=np.float32)
+        choice_features = np.empty((len(pool.sequences), len(CONTEXT_FEATURE_NAMES)), dtype=np.float32)
         for ranked in ordered_span_rows(pool, scores).values():
             chosen = int(ranked[0])
             chosen_score = scores[chosen]
             margin = chosen_score - scores[ranked[1]] if len(ranked) > 1 else 0.0
             for rank, row in enumerate(ranked):
-                context[row] = (
+                choice_features[row] = (
                     scores[row], chosen_score, margin, scores[row] - chosen_score,
                     rank / max(1, len(ranked) - 1), float(row == chosen),
                     len(frames[row] - frames[chosen]), len(frames[chosen] - frames[row]),
                 )
-        blocks.append(context)
+        blocks.append(choice_features)
     return np.column_stack(blocks)
 
 

@@ -2,8 +2,7 @@
 
 Start with [`run_video()`](../../src/annotator/run_video.py). It shows how one
 video becomes an annotation: prepare evidence and rough rallies, select contacts,
-then estimate outcomes. The function appears before its preparation helpers so
-you can follow the main path before inspecting a particular rule.
+then estimate outcomes. Follow its calls to inspect a particular rule.
 
 Read [How it works](how_it_works.md) alongside the code if the badminton terms or
 intermediate results are unfamiliar.
@@ -12,26 +11,34 @@ intermediate results are unfamiliar.
 
 | Step | Read next | What it decides |
 | --- | --- | --- |
-| Prepare rough rallies | `run_court_segmentation()` in [run_video.py](../../src/annotator/run_video.py) | Build player evidence, exclude unusable footage, find spans and heuristic contacts |
+| Prepare rough rallies | `prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py) | Build player evidence, exclude unusable footage, find spans and heuristic contacts |
 | Score and select contacts | [hybrid.py](../../src/annotator/hybrid.py) | Run the contact model, rally selector and review ranking |
 | Build contact evidence | [contacts/features.py](../../src/annotator/contacts/features.py) | Choose search regions and measure shuttle/player signals |
 | Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
 | Propose rally sequences | [sequence/repairs.py](../../src/annotator/sequence/repairs.py) | Shortlist earlier/later contacts and build serve/deletion repairs |
 | Describe all alternatives | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Add combined edits, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
-| Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive contact records, server, winner, landing and hit height |
+| Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and fit alternating player sides, or carry model-selected sides forward |
+| Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
 
 In `rally_model.py`, start with `select_rally_sequences()` and
 `predict_rally_options()`. The scoring, ranking and finalisation helpers follow
 in the same file.
 
-`heuristic_only=True` uses the same preparation, then sends rule-based contacts
-directly to outcome estimation. `stop_after_segmentation=True` returns rough
-rallies and contacts. Supplying `spans` lets callers compare contact detection
-within known rally bounds.
+`heuristic_only=True` uses the same preparation, then selects rule-based contacts
+and fits their player order before outcome estimation. Supplying `spans` lets
+callers compare contact detection within known rally bounds.
+
+Training and experiments call `prepare_annotation()` directly to obtain initial
+rallies and feature inputs without selecting final contacts or estimating outcomes.
+The rally CLI calls `segment_shuttle_track()` in
+[rally_segmentation.py](../../src/annotator/rally_segmentation.py) for tracks without
+player or court evidence.
 
 ## Know which representation you are reading
 
+- `AnnotationEvidence` contains original arrays, resolved settings, masks and initial rally/contact evidence.
+- `ContactData` contains final spans, selected contacts and fitted hitting order.
 - `ContactFeatures` contains searched frame rows and their intervals.
 - `ScoredContacts` adds candidate probabilities and selected row indices.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.
@@ -43,7 +50,8 @@ within known rally bounds.
 
 The full contact stream includes contacts outside every rally. A sequence's
 membership is explicit; final bounds alone do not define that membership.
-`RunCapture` is optional inspection data beside the public result.
+`RunCapture` holds optional mask copies, model predictions and landing diagnostics
+beside the public result. It receives masks after preparation succeeds.
 
 ## Find a particular rule
 
@@ -63,7 +71,7 @@ membership is explicit; final bounds alone do not define that membership.
 ## Training and experiments
 
 [`training/workflow.py`](../../src/annotator/training/workflow.py) is the fitting
-entry point. It reads a manifest, prepares training videos, fits contacts, then
+entry point. It reads a manifest, calls shared preparation, fits contacts, then
 fits rally selection and review. The production proposal and feature builders
 are also used during fitting.
 
