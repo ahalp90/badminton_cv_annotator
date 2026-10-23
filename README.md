@@ -1,11 +1,9 @@
 # Badminton CV Annotator
 
-We've turned badminton broadcasts into structured evidence about **how each player is actually playing**.
-
-We couldn't find a large existing dataset built around individual badminton performance, so we made one. We also built the systems you'd need to make a similar dataset from any collection of badminton videos.
+Our code turns badminton video into rallies, hit times and measures of how each player moves. We used it to build a dataset for assessing badminton players, adding pose, court position, performance measures and commentary to 6,833 rallies from 86 professional matches.
 
 If you're looking to build your own dataset or analyse your own games, the two most interesting sub-systems are:
-- The auto-annotator. It takes a raw badminton video, extracts all the motion data, and marks up the rally boundaries and hit times. That lets you go straight to the important bits of a long, uncut video.
+- The auto-annotator. It takes a raw badminton video, extracts all the motion data, and marks up the rally boundaries and hit times. This allows you to get straight to evaluating rally play in a long, uncut video.
 - The court detector. Give it a video, or even a still image, and it will find your badminton court.
 
 Our pipeline runs end-to-end. It finds and filters match videos, downloads them, extracts court geometry, player pose and shuttle tracks, detects rallies and hits, works out who made each hit, cleans and aligns commentary, and turns the whole lot into a research-backed featureset.
@@ -25,11 +23,11 @@ flowchart LR
     I -. "optional stroke labels" .-> H
 ```
 
-Our models extract pose, court position, shuttle tracks, rally spans and hit times from each video. We turn these into research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance, rather than just predicting match outcomes or stroke labels.
+Our models extract pose, court position, shuttle tracks, rally spans and hit times from each video. We turn these into research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance.
 
-We've also extracted 6,254 commentary passages, so a future team can try training an auto-grader with commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1). We clean each transcript, align it to the video (WhisperX), and link it to the rally it describes.
+We've also extracted 6,254 commentary passages, so a future team can try training an auto-grader with commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1). Transcripts are cleaned, their timestamps aligned (WhisperX) and linked to the rallies they describe.
 
-At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) and ShuttleSet22, both released by the [CoachAI group](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet). We took the hit times, hitters and shot types from those datasets' existing labels, and everything else comes from our pipeline. Our auto-annotator's shot classifications, hit timings and attributions are highly accurate, but its rallies still need some manual review, and we wanted research-grade labels throughout.
+At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) and ShuttleSet22 ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)). We took the hit times, hitters and shot types from those datasets' existing labels, and everything else comes from our pipeline. Our auto-annotator's shot classifications, hit timings and attributions are highly accurate, but its rallies still need some manual review, and we wanted research-grade labels throughout.
 
 ## Auto-annotator
 
@@ -37,7 +35,7 @@ At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://a
 
 *GIF at half speed; detected court in red*
 
-We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Three gradient-boosted tree models then pick each rally's real hits and score each finished rally for confidence.
+We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Rallies are then refined and assigned confidence scores by three gradient-boosted tree models (XGBoost).
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 ShuttleSet videos, and testing on the separate ShuttleSet22 dataset.
 
@@ -45,16 +43,16 @@ We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/
 
 *MonoTrack needs rally boundaries provided*
 
-Our model, unlike most systems, can reliably discover its own rally boundaries to automate annotation of a raw video (bottom row).
+Our model, unlike most systems, can reliably discover its own rally boundaries to automate annotation of a raw video (figure above, bottom row).
 
-It also gives each rally a confidence score, so you can trade recall for less manual review:
+Each rally gets a confidence score, so you can trade recall for less manual review:
 
 | Confidence threshold | Rallies kept / 3,327 | Right start and end | Need no fixes |
 | ---: | ---: | ---: | ---: |
 | 0.675 | 926 | 99.0% | 80.5% |
 | 0.50 | 1,558 | 98.0% | 73.3% |
 
-*Most fixes are a single contact per rally.*
+*Most fixes are a single contact per rally*
 
 Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v5.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
@@ -67,7 +65,7 @@ The court detector returns the four outer corners of the court in an image or vi
 | Ours | 3.8 px | 85.8% |
 | MonoTrack's | 6.5 px | 17.2% |
 
-*Errors are in 1920×1080 video pixels.*
+*Errors are in 1920×1080 video pixels*
 
 We've released [court detections for all 86 ShuttleSet and ShuttleSet22 videos](data/court_detections/sset_and_sset22/extractions_20261003/README.md), covering 44,810 scenes. For 85 of the 86 videos, the main-camera court is within 5 px of the reference corners.
 
@@ -79,9 +77,7 @@ The dataset has 6,833 rallies from 86 professional singles matches, with 43 play
 
 ![How much of each measure comes down to the player rather than the match](docs/images/dataset_player_signature.png)
 
-You can see how each player moves, stands, recovers and picks their shots, rally by rally.
-
-### Dataset handover
+You can follow each player rally by rally, with research-backed measures of posture variability, recovery behaviour, movement, shot preference and timing. You can also see how posture, recovery, movement and rally length trend across each match.
 
 Download the dataset from the [v2 release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/dataset-v2). The optional supporting extracts are on [Google Drive](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1).
 
@@ -95,8 +91,6 @@ Download the dataset from the [v2 release](https://github.com/ahalp90/badminton_
 This project grew out of our earlier stroke classifier, **BST-X**. It classifies a single stroke from pose and shuttle data around the hit. On ShuttleSet's original 25 stroke classes it beat the published BST and TemPose models, with our best run reaching about **0.830 macro-F1**, or **0.865** on the ShuttleSet authors' 10 broader stroke types.
 
 ![BST-X comparison on ShuttleSet](docs/images/bar_chart_overall_shuttleset_comparison.png)
-
-We've largely finished that work and moved on from single strokes to whole rallies and, eventually, player performance.
 
 ## Running it
 
@@ -120,7 +114,7 @@ You'll find the other extras in [`pyproject.toml`](pyproject.toml).
 
 You can build a dataset from any YouTube searches you like. You'll also need a CUDA GPU and a C++ compiler.
 
-1. Install the builder. YouTube keeps blocking older yt-dlp releases, so upgrade yt-dlp and its PO-token plugin straight after syncing. We last tested with yt-dlp 2026.08.19, Deno 2.9.7 and bgutil 1.3.1.
+1. Install the dataset builder. YouTube keeps blocking older yt-dlp releases, so upgrade yt-dlp and its PO-token plugin straight after syncing. Last tested with yt-dlp 2026.08.19, Deno 2.9.7 and bgutil 1.3.1.
 
    ```bash
    uv sync --extra builder
@@ -138,7 +132,7 @@ You can build a dataset from any YouTube searches you like. You'll also need a C
    wget https://cvg-data.inf.ethz.ch/DeepLSD/deeplsd_md.tar -O runtime/checkpoints/deeplsd/DeepLSD/weights/deeplsd_md.tar
    ```
 
-   Skip DeepLSD's own install script. You installed the packages it needs in step 1.
+   Skip DeepLSD's own install script. Its relevant packages were installed at step 1.
 
 4. Start the [bgutil PO-token server](https://github.com/Brainicism/bgutil-ytdlp-pot-provider#1-set-up-the-provider) so YouTube doesn't block your downloads. With Docker:
 
@@ -146,7 +140,7 @@ You can build a dataset from any YouTube searches you like. You'll also need a C
    docker run --name bgutil-provider -d --init -p 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider
    ```
 
-5. Copy the trial config and set your own searches in the copy. The builder only runs from a clean checkout, so leave the tracked configs unchanged.
+5. Copy the trial config and set your own searches in the copy. The dataset builder only runs from a clean checkout, so leave the tracked configs unchanged.
 
    ```bash
    cp configs/dataset_builder/trial.toml my_dataset.toml
@@ -157,7 +151,7 @@ You can build a dataset from any YouTube searches you like. You'll also need a C
    match = ["BWF World Tour women's singles final"]
    ```
 
-6. Run it with `--no-sync`, so uv leaves your GPU setup alone:
+6. Run it. Use `--no-sync` so uv doesn't undo your GPU setup from step 2:
 
    ```bash
    export BADMINTON_TRACKNET_PYTHON="$PWD/.venv/bin/python"
@@ -171,7 +165,7 @@ You can build a dataset from any YouTube searches you like. You'll also need a C
 
 If you re-run it against the same folder, it checks and reuses the stages it's already finished instead of redoing the expensive vision work.
 
-The builder uses Gemini to pick and clean commentary. WhisperX needs its own venv, because it pins an older torch. Without it, commentary keeps YouTube's caption timing.
+The dataset builder uses Gemini to pick and clean commentary. WhisperX needs its own venv, because it pins an older torch. Without it, commentary keeps YouTube's caption timing.
 
 ## Project
 
@@ -179,8 +173,8 @@ Capstone project at the University of New England (Australia). Ongoing research 
 
 | Stage | Contributors |
 | --- | --- |
-| Ongoing | **Ariel Halperin** |
-| COSC595 | **Ariel Halperin** (machine learning); **Curtis Martin** (dataset) |
-| COSC594/COSC320 | **Ariel Halperin** (BST-X); **Scott Bailey** (BRIC stroke classifier); front end led by **Curtis Martin**, with Scott Bailey, Kiri Lefebvre, Isiah Darcy, Ethan McDonough and Jared Pitman |
+| Ongoing | Ariel Halperin |
+| COSC595 | Ariel Halperin (machine learning); Curtis Martin (dataset) |
+| COSC594/COSC320 | Ariel Halperin (BST-X); Scott Bailey (BRIC stroke classifier); front end led by Curtis Martin, with Scott Bailey, Kiri Lefebvre, Isiah Darcy, Ethan McDonough and Jared Pitman |
 
 Licensed under the **GNU Lesser General Public License v3.0 or later**. See [COPYING.LESSER](COPYING.LESSER), [COPYING](COPYING), and [`data/ATTRIBUTION.md`](data/ATTRIBUTION.md) for third-party and dataset attribution.

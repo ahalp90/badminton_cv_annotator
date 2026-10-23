@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.legend import Legend
 from matplotlib.legend_handler import HandlerTuple
+from matplotlib.lines import Line2D
 
 MONOTRACK_COLOUR = '#eb6834'
 ANNOTATOR_COLOUR = '#2a78d6'
@@ -130,14 +131,22 @@ def headline_figure(summary: dict, out: Path) -> None:
         axes.set_xlim(low, high + 2.5)
         axes.set_title(title, fontsize=11, color=TEXT, loc='left')
     axes_row[0].set_yticks(rows, [label for _key, label, _colour, _marker in HEADLINE_ROWS], fontsize=10)
-    for axes in axes_row:
-        axes.axhline(rows[-1] + 0.75, color=MUTED, linewidth=0.8, linestyle=':')
     figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
     figure.text(0.01, 0.045, 'Rows 1-4 are given rally bounds built from the labels (1 s either side); row 5 finds '
-                'the rallies itself. Axes do not start at zero.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.01, 'Our annotator: mean of five training seeds; the black line spans the lowest to highest '
-                'seed. MonoTrack was trained once.', fontsize=9, color=MUTED)
+                'the rallies itself.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.01, 'Our annotator: mean of five training seeds. MonoTrack: best run of a hyperparameter '
+                'grid search.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.075, 1, 0.95))
+    # One dotted line across all three panels sets the self-finding row apart. It starts under the
+    # row label above it. Drawn after layout, because it needs the final label and panel positions.
+    figure.draw_without_rendering()
+    to_figure = figure.transFigure.inverted()
+    _x, divider_y = to_figure.transform(axes_row[0].transData.transform((0, rows[-1] + 0.75)))
+    label_above = axes_row[0].get_yticklabels()[len(HEADLINE_ROWS) - 2]
+    left = to_figure.transform(label_above.get_window_extent().p0)[0]
+    right = axes_row[-1].get_position().x1
+    figure.add_artist(Line2D([left, right], [divider_y, divider_y], transform=figure.transFigure,
+                             color=MUTED, linewidth=0.8, linestyle=':'))
     figure.savefig(out / 'fig1_headline.png', dpi=150, facecolor=SURFACE)
     plt.close(figure)
 

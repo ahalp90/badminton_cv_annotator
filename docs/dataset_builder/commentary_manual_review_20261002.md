@@ -14,7 +14,7 @@ Two chunks each link to two candidate rallies, giving **3,500 commentary–rally
 links** in total. The 2,756 unlinked chunks remain in the dataset with their
 accompanying video times. This preserves commentary beyond the rally-linked
 examples; replays and other non-rally scene types are not separately counted.
-The [dataset handover](../../README.md#dataset-handover) describes the full delivery.
+The [dataset handover](../../README.md#the-dataset) describes the full delivery.
 
 Curtis Martin reviewed **134 commentary passages from 85 videos**, covering
 135 of those candidate rally links.
