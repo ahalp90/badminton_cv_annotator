@@ -1,4 +1,4 @@
-# Badminton CV Annotator
+# Badminton Computer Vision Annotator
 
 Our code turns badminton video into rallies, hit times and measures of how each player moves. We used it to build a dataset for assessing badminton players, adding pose, court position, performance measures and commentary to 6,833 rallies from 86 professional matches.
 
@@ -6,7 +6,7 @@ If you're looking to build your own dataset or analyse your own games, the two m
 - The auto-annotator. It takes a raw badminton video, extracts all the motion data, and marks up the rally boundaries and hit times. This allows you to get straight to evaluating rally play in a long, uncut video.
 - The court detector. Give it a video, or even a still image, and it will find your badminton court.
 
-Our pipeline runs end-to-end. It finds and filters match videos, downloads them, extracts court geometry, player pose and shuttle tracks, detects rallies and hits, works out who made each hit, cleans and aligns commentary, and turns the whole lot into a research-backed featureset.
+Our pipeline runs end-to-end. It finds and filters match videos, downloads them, extracts court geometry, player pose and shuttle tracks, detects rallies and hits, works out who made each hit, and processes the commentary.
 
 ```mermaid
 flowchart LR
@@ -23,11 +23,9 @@ flowchart LR
     I -. "optional stroke labels" .-> H
 ```
 
-Our models extract pose, court position, shuttle tracks, rally spans and hit times from each video. We turn these into research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance.
+Each player gets research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance.
 
 We've also extracted 6,254 commentary passages, so a future team can try training an auto-grader with commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1). Transcripts are cleaned, their timestamps aligned (WhisperX) and linked to the rallies they describe.
-
-At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) and ShuttleSet22 ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)). We took the hit times, hitters and shot types from those datasets' existing labels, and everything else comes from our pipeline. Our auto-annotator's shot classifications, hit timings and attributions are highly accurate, but its rallies still need some manual review, and we wanted research-grade labels throughout.
 
 ## Auto-annotator
 
@@ -37,7 +35,7 @@ At this stage we've built a proof-of-concept dataset from [ShuttleSet](https://a
 
 We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Rallies are then refined and assigned confidence scores by three gradient-boosted tree models (XGBoost).
 
-We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 ShuttleSet videos, and testing on the separate ShuttleSet22 dataset.
+We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
 
 ![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v5/fig1_headline.png)
 
@@ -73,7 +71,7 @@ Read the [overview](docs/court_detector/README.md) for how it works, or the [usa
 
 ## The dataset
 
-The dataset has 6,833 rallies from 86 professional singles matches, with 43 players: 3,182 rallies from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. Each rally comes with player pose, court position, shuttle tracks and performance measures, alongside 6,254 timestamped commentary passages.
+We built the dataset from ShuttleSet and ShuttleSet22. It has 6,833 rallies from 86 professional singles matches, with 43 players: 3,182 rallies from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. Hit times, hitters and shot types come from those datasets' own labels, and everything else comes from our pipeline. Our annotator's rallies still need some manual review, and we wanted research-grade labels throughout. Each rally comes with player pose, court position, shuttle tracks and performance measures, alongside 6,254 timestamped commentary passages.
 
 ![How much of each measure comes down to the player rather than the match](docs/images/dataset_player_signature.png)
 
@@ -88,7 +86,7 @@ Download the dataset from the [v2 release](https://github.com/ahalp90/badminton_
 
 ## Earlier work: BST-X
 
-This project grew out of our earlier stroke classifier, **BST-X**. It classifies a single stroke from pose and shuttle data around the hit. On ShuttleSet's original 25 stroke classes it beat the published BST and TemPose models, with our best run reaching about **0.830 macro-F1**, or **0.865** on the ShuttleSet authors' 10 broader stroke types.
+This project grew out of our earlier stroke classifier, **BST-X**, which identifies each shot from player pose and shuttle movement. On ShuttleSet's 25 stroke classes it beat the published BST and TemPose models, reaching **0.830 macro-F1**, or **0.865** on the ShuttleSet authors' 10 broader stroke types.
 
 ![BST-X comparison on ShuttleSet](docs/images/bar_chart_overall_shuttleset_comparison.png)
 
