@@ -137,14 +137,14 @@ def test_build_preserves_labels_and_counts_failed_courts(tmp_path: Path, monkeyp
         assert labels[10] == 1 and labels[20] == 2
     assert np.all(result["zeroed"][0][15:19, :2] == 0)
     np.testing.assert_array_equal(result["kept"][1], result["zeroed"][1])
-    source_selection = builder.select_players
+    source_selection = inputs.select_players
 
     def one_observation(*args):
         players = source_selection(*args)
         players[1:] = np.nan
         return players
 
-    monkeypatch.setattr(builder, "select_players", one_observation)
+    monkeypatch.setattr(inputs, "select_players", one_observation)
     skipped = builder.build_video((video, stages, courts))
     assert skipped["labels"] == []
     assert [rally["excluded"] for rally in skipped["rallies"]] == [

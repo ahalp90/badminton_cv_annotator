@@ -52,23 +52,30 @@ def detect_rally(detector: Any, corners: np.ndarray, players: np.ndarray,
 
 
 def run_item(config: dict[str, Any], item: dict[str, Any], detector: Any,
-             court_set: str, arm: str, interpolate: bool, output: Path) -> None:
+             court_set: str, arm: str, interpolate: bool, output: Path, split: str = 'test') -> None:
     from inputs import Court, fill_players, select_players, shuttle_variants
 
     paths = config['paths']
-    pose_root = paths['pose_root'] / item['directory']
+    if split == 'validation':
+        pose_root = paths['stages'] / 'pose' / item['item_id']
+        track_root = paths['stages'] / 'shuttle' / item['item_id']
+        track_name = 'shuttle_track.npy.xz'
+        courts = validation_courts(paths['development_courts'], item)
+    else:
+        pose_root = paths['pose_root'] / item['directory']
+        track_root = paths['inpaint_root'] / item['directory']
+        track_name = 'shuttle_track_inpainted.npy.xz'
+        courts = court_records(paths['inputs'] / court_set, item)
     kps = read_array(pose_root / 'pose_kps.npy.xz')
     scores = read_array(pose_root / 'pose_kp_scores.npy.xz')
     ndet = read_array(pose_root / 'pose_ndet.npy.xz')
-    track_root = paths['inpaint_root'] / item['directory']
     sidecars = list(track_root.glob('*_stride8_inpaint_mask.json.gz'))
     if len(sidecars) != 1:
         raise ValueError(f'{item["item_id"]}: expected one inpainting mask')
-    track = read_array(track_root / 'shuttle_track_inpainted.npy.xz')
+    track = read_array(track_root / track_name)
     if len(track) != item['frame_count'] or len(kps) != len(track) or len(ndet) != len(track):
         raise ValueError(f'{item["item_id"]}: input timelines differ')
     shuttle = shuttle_variants(track, read_json(sidecars[0]), item['resolution'])[arm]
-    courts = court_records(paths['inputs'] / court_set, item)
     started = time.perf_counter()
     events, failures = [], []
     for span, record in zip(item['spans'], courts, strict=True):
@@ -92,11 +99,30 @@ def run_item(config: dict[str, Any], item: dict[str, Any], detector: Any,
             failures.append({'span_id': span['span_id'], 'reason': type(error).__name__, 'stage': stage})
     events.sort(key=lambda event: event[0])
     result = {'item_id': item['item_id'], 'status': 'completed', 'boundaries': 'provided',
-              'court_set': court_set, 'shuttle': arm, 'interpolation': interpolate,
+              'court_set': court_set, 'shuttle': arm, 'interpolation': interpolate, 'split': split,
               'stream': fixed_stream(events, item['spans']), 'failed_rallies': failures,
               'seconds': time.perf_counter() - started}
     write_json(output / f'{item["item_id"]}.json.gz', result)
     print(f'{item["item_id"]}: {len(events)} contacts, {len(failures)} failed rallies', flush=True)
+
+
+def validation_courts(root: Path, item: dict[str, Any]) -> list[dict[str, Any]]:
+    records = []
+    for span in item['spans']:
+        record = read_json(root / f'{item["item_id"]}_{span["span_id"]:04d}.json.gz')
+        if record['status'] not in ('completed', 'failed'):
+            raise ValueError(f'{item["item_id"]}: unfinished validation court')
+        records.append({**record, 'scene_valid': record['status'] == 'completed'})
+    return records
+
+
+def evaluation_items(config: dict[str, Any], split: str) -> list[dict[str, Any]]:
+    if split == 'test':
+        return load_manifest(config['paths']['inputs'])['items']
+    from build_training_set import load_videos
+
+    videos = load_videos(config['paths']['spans'], HERE.parent / 'hitnet_retrain/shuttleset_development_split.json.gz')
+    return [video for video in videos if video['role'] == 'validation']
 
 
 def main() -> None:
@@ -113,16 +139,21 @@ def main() -> None:
     parser.add_argument('--courts', choices=('monotrack', 'ours'), default='monotrack')
     parser.add_argument('--interpolation', choices=('on', 'off'), default='on')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--split', choices=('test', 'validation'), default='test')
+    parser.add_argument('--weights-file', type=Path, help='one seed checkpoint; defaults to the arm-named export')
     parser.add_argument('--only', help='one video for a smoke test')
     args = parser.parse_args()
     config = load_config(args.config)
-    items = load_manifest(config['paths']['inputs'])['items']
+    if args.split == 'validation' and args.courts != 'monotrack':
+        parser.error('validation selection uses MonoTrack courts')
+    items = evaluation_items(config, args.split)
     if args.only:
         items = [next(item for item in items if item['item_id'] == args.only)]
-    detector = MLHitDetector(None, None, None, config['paths']['weights'] / f'hitnet_{args.arm}.h5', debug=False)
+    weights = args.weights_file or config['paths']['weights'] / f'hitnet_{args.arm}.h5'
+    detector = MLHitDetector(None, None, None, weights, debug=False)
     args.output.mkdir(parents=True, exist_ok=False)
     for item in items:
-        run_item(config, item, detector, args.courts, args.arm, args.interpolation == 'on', args.output)
+        run_item(config, item, detector, args.courts, args.arm, args.interpolation == 'on', args.output, args.split)
 
 
 if __name__ == '__main__':

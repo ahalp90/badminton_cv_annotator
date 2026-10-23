@@ -57,6 +57,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
 BENCHMARK = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results'
 INPUTS = BENCHMARK / 'inputs'
 COMPARISON = BENCHMARK / 'comparison'
+MONOTRACK_RUNS = BENCHMARK / 'monotrack_five_seed'
 # Our annotator's runs from annotator_runs.py: test/<condition>/<models>/seed-<N>/ and validation/.
 RUNS = BENCHMARK / 'annotator_runs'
 # The tracked test predictions of the five 32-video bundles, which the discovery runs must reproduce.
@@ -83,8 +84,8 @@ def annotator_run(condition: str, models: str, seed: int) -> Path:
 
 
 SUPPLIED_RUNS = {
-    'monotrack_own_courts': [COMPARISON / 'mono_zeroed_own_off'],
-    'monotrack_our_courts': [COMPARISON / 'mono_zeroed_our_courts_off'],
+    'monotrack_own_courts': [MONOTRACK_RUNS / 'test/monotrack' / f'seed-{seed}' for seed in SEEDS],
+    'monotrack_our_courts': [MONOTRACK_RUNS / 'test/ours' / f'seed-{seed}' for seed in SEEDS],
     'annotator_our_courts': [annotator_run('our_courts', '32_videos', seed) for seed in SEEDS],
     'annotator_monotrack_courts': [annotator_run('monotrack_courts', '32_videos', seed) for seed in SEEDS],
     'heuristic_our_courts': [HEURISTIC / 'known_our_courts'],
@@ -325,9 +326,10 @@ def rates(totals: pd.Series) -> dict[str, float]:
     matched, attributed = totals['matched_contacts'], totals['correct_side_contacts']
     rallies = totals['labelled_rallies']
     return {
-        'precision': 100 * matched / predicted, 'recall': 100 * matched / labelled,
+        'precision': 100 * matched / predicted if predicted else 0.0, 'recall': 100 * matched / labelled,
         'f1': 100 * 2 * matched / (predicted + labelled),
-        'player_precision': 100 * attributed / predicted, 'player_recall': 100 * attributed / labelled,
+        'player_precision': 100 * attributed / predicted if predicted else 0.0,
+        'player_recall': 100 * attributed / labelled,
         'player_f1': 100 * 2 * attributed / (predicted + labelled),
         'fully_correct': 100 * totals['fully_correct_matched'] / rallies,
         'fully_correct_strict': 100 * totals['fully_correct_strict'] / rallies,
@@ -423,6 +425,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
+    parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
+                        help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(INPUTS)
@@ -431,7 +435,13 @@ def main() -> None:
 
     conditions = {}
     pool = ProcessPoolExecutor(max_workers=args.workers)
-    for name, runs in SUPPLIED_RUNS.items():
+    supplied_runs = dict(SUPPLIED_RUNS)
+    selected = read_json(args.monotrack_runs / 'selected.json.gz')
+    if selected['selection_split'] != 'validation' or selected['seeds'] != list(SEEDS):
+        raise ValueError('MonoTrack results must use all five validation-selected seeds')
+    for name, court in (('monotrack_own_courts', 'monotrack'), ('monotrack_our_courts', 'ours')):
+        supplied_runs[name] = [args.monotrack_runs / 'test' / court / f'seed-{seed}' for seed in SEEDS]
+    for name, runs in supplied_runs.items():
         streams = [{item['item_id']: read_json(run / f'{item["item_id"]}.json.gz')['stream'] for item in manifest['items']}
                    for run in runs]
         conditions[name] = score_condition(name, streams, supplied=True, saved=runs, windows=windows, pool=pool)
