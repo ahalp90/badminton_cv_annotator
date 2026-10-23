@@ -23,10 +23,6 @@ flowchart LR
     I -. "optional stroke labels" .-> H
 ```
 
-Each player gets research-backed measurements like posture variability, recovery behaviour, movement and timing. Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance.
-
-We've also extracted 6,254 commentary passages, so a future team can try training an auto-grader with commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1). Transcripts are cleaned, their timestamps aligned (WhisperX) and linked to the rallies they describe.
-
 ## Auto-annotator
 
 ![The annotator marking contacts on a broadcast rally and an amateur clip, with the detected court and tracked shuttle](docs/images/annotator_in_action.gif)
@@ -71,11 +67,15 @@ Read the [overview](docs/court_detector/README.md) for how it works, or the [usa
 
 ## The dataset
 
-We built the dataset from ShuttleSet and ShuttleSet22. It has 6,833 rallies from 86 professional singles matches, with 43 players: 3,182 rallies from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. Hit times, hitters and shot types come from those datasets' own labels, and everything else comes from our pipeline. Our annotator's rallies still need some manual review, and we wanted research-grade labels throughout. Each rally comes with player pose, court position, shuttle tracks and performance measures, alongside 6,254 timestamped commentary passages.
+We built the dataset from the videos and contact records of ShuttleSet and ShuttleSet22; the pose, court positions, shuttle tracks, performance measurements and commentary come from our pipeline. It has 6,833 rallies from 86 professional singles matches, with 43 players: 3,182 rallies from 40 ShuttleSet videos and 3,651 from 46 ShuttleSet22 videos. Our annotator's rallies still need some manual review, and we wanted research-grade labels throughout.
 
 ![How much of each measure comes down to the player rather than the match](docs/images/dataset_player_signature.png)
 
-You can follow each player rally by rally, with research-backed measures of posture variability, recovery behaviour, movement, shot preference and timing. You can also see how posture, recovery, movement and rally length trend across each match.
+You can follow each player rally by rally, with research-backed measurements of posture variability, recovery behaviour, movement, shot preference and timing, and see how they trend across a match.
+
+We've also collected 6,254 commentary passages. Transcripts are cleaned, their timestamps aligned (WhisperX) and linked to the rallies they describe.
+
+Our aim is to give a future weakly-supervised model enough information to learn meaningful dimensions of player performance, with the commentary as weak labels [(Rai & Kovashka, 2026)](https://arxiv.org/html/2602.08996v1).
 
 Download the dataset from the [v2 release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/dataset-v2). The optional supporting extracts are on [Google Drive](https://drive.google.com/drive/folders/1BnkYZrfo1KfIXe4aK7PSRtrEirVhWHP1).
 
