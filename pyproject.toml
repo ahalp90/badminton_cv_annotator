@@ -8,7 +8,8 @@ requires-python = ">=3.12"
 # classifier inference. Optional packages for training and development follow.
 #
 # Examples:
-#   uv sync --extra dev                                  # Development tools
+#   uv sync --extra dev                                  # Development tools and tests
+#   uv sync --extra builder                              # Dataset builder
 #   uv sync --extra bric --extra dev                     # BRIC training
 #   uv sync --extra bric-runtime --extra bst-x-runtime   # Both classifiers
 #
@@ -74,9 +75,23 @@ bric-train = [
     "scikit-learn",   # evaluations
 ]
 
-# Commentary clean-pass scoring; kept out of the base install because it pulls
-# in the transformers stack.
-scraper = [
+# Dataset builder: YouTube search and download, live court-line detection and
+# commentary. Last tested with yt-dlp 2026.08.19, Deno 2.9.7 and
+# bgutil-ytdlp-pot-provider 1.3.1. YouTube keeps blocking older yt-dlp
+# releases, so the README upgrades these after each sync.
+# WhisperX is left out: it pins torch 2.8, so it needs its own environment.
+builder = [
+    "yt-dlp[default,deno]>=2026.8.19",
+    "bgutil-ytdlp-pot-provider>=1.3.1",
+    # DeepLSD runs from its own checkout and imports these. This pytlsd commit has
+    # the same line-detection code we ran, with a pybind11 that builds on Python 3.12.
+    "pytlsd @ git+https://github.com/iago-suarez/pytlsd@4180ab8990ae68cc9c8797c63aa1dc47b2c714da",
+    "omegaconf",
+    "scikit-image",
+    # CUDA court-template scoring (court_template_device = "cuda").
+    "cupy-cuda13x>=14.2.0; sys_platform == 'linux'",
+    # Commentary triage and cleaning.
+    "google-genai",
     "bert-score",
 ]
 
@@ -97,8 +112,9 @@ bst-x-runtime = [
     "matplotlib",             # Evaluation plots
 ]
 
-# Dev tooling.
+# Dev tooling. The test suite also covers BST-X, so dev includes its runtime.
 dev = [
+    "badminton-cv-annotator[bst-x-runtime]",
     "pytest",
     "ipython",
     "ruff",   # configured in [tool.ruff] below; invoke via `uv run ruff check`

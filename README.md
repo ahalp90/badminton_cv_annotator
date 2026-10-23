@@ -100,9 +100,9 @@ We've largely finished that work and moved on from single strokes to whole ralli
 
 ## Running it
 
-You'll need Python 3.12+, [uv](https://docs.astral.sh/uv/), FFmpeg, and a CUDA GPU for the full vision pipeline. If you only want to use the dataset, Python with pandas and numpy is enough.
+You'll need Python 3.12+, [uv](https://docs.astral.sh/uv/) and FFmpeg. If you only want to use the dataset, Python with pandas and numpy is enough.
 
-Install the base dependencies and dev tools, then run the checks:
+Install the dev tools, then run the checks:
 
 ```bash
 git clone https://github.com/ahalp90/badminton_cv_annotator.git
@@ -114,26 +114,64 @@ uv run pyrefly check
 uv run pytest
 ```
 
-For the full test suite, add `--extra bst-x-runtime` for the classifier modules and install `safetensors` for the court models. You'll find the other extras in [`pyproject.toml`](pyproject.toml).
+You'll find the other extras in [`pyproject.toml`](pyproject.toml).
 
-To build a dataset, run the pipeline:
+### Build your own dataset
 
-```bash
-PYTHONPATH=src uv run python -m dataset_builder run \
-  --config configs/dataset_builder/trial.toml \
-  --run-dir /absolute/path/to/run
-```
+You can build a dataset from any YouTube searches you like. You'll also need a CUDA GPU and a C++ compiler.
 
-With the trial config, it also finds videos online and processes commentary. If you re-run it against the same folder, it checks and reuses the stages it's already finished instead of redoing the expensive vision work.
+1. Install the builder. YouTube keeps blocking older yt-dlp releases, so upgrade yt-dlp and its PO-token plugin straight after syncing. We last tested with yt-dlp 2026.08.19, Deno 2.9.7 and bgutil 1.3.1.
 
-Before a full run:
+   ```bash
+   uv sync --extra builder
+   uv pip install --upgrade "yt-dlp[default,deno]" bgutil-ytdlp-pot-provider
+   ```
 
-- Put the TrackNet, InpaintNet and court model weights at the paths in [`trial.toml`](configs/dataset_builder/trial.toml), or change the paths to match.
-- Point `BADMINTON_TRACKNET_PYTHON`, `BADMINTON_POSE_PYTHON` and `BADMINTON_COURT_PYTHON` at the Python each extraction stage should use. All three can be the project's `.venv/bin/python`.
-- Set `GEMINI_API_KEY` for the commentary stage.
-- Pose extraction and court detection both run in the root environment. For their CUDA setup, see the [court usage guide](docs/court_detector/usage.md#cuda-pose-inference).
+2. Set up CUDA pose inference with the steps in the [court usage guide](docs/court_detector/usage.md#cuda-pose-inference).
 
-To rebuild the dataset, run the pipeline above, then write the tables with `python -m dataset_builder export-v1` for ShuttleSet and `export-v1-shuttleset22` for ShuttleSet22. Add `--help` to either to see its inputs.
+3. Get the model weights. Put the TrackNet and InpaintNet weights where the [TrackNet guide](src/shared/tracknetv3/README.md#pretrained-weights) says. Then clone [DeepLSD](https://github.com/cvg/DeepLSD) at the commit we ran and download its weights:
+
+   ```bash
+   git clone https://github.com/cvg/DeepLSD.git runtime/checkpoints/deeplsd/DeepLSD
+   git -C runtime/checkpoints/deeplsd/DeepLSD checkout f7d9d62
+   mkdir -p runtime/checkpoints/deeplsd/DeepLSD/weights
+   wget https://cvg-data.inf.ethz.ch/DeepLSD/deeplsd_md.tar -O runtime/checkpoints/deeplsd/DeepLSD/weights/deeplsd_md.tar
+   ```
+
+   Skip DeepLSD's own install script. You installed the packages it needs in step 1.
+
+4. Start the [bgutil PO-token server](https://github.com/Brainicism/bgutil-ytdlp-pot-provider#1-set-up-the-provider) so YouTube doesn't block your downloads. With Docker:
+
+   ```bash
+   docker run --name bgutil-provider -d --init -p 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider
+   ```
+
+5. Copy the trial config and set your own searches in the copy. The builder only runs from a clean checkout, so leave the tracked configs unchanged.
+
+   ```bash
+   cp configs/dataset_builder/trial.toml my_dataset.toml
+   ```
+
+   ```toml
+   [search.terms]
+   match = ["BWF World Tour women's singles final"]
+   ```
+
+6. Run it with `--no-sync`, so uv leaves your GPU setup alone:
+
+   ```bash
+   export BADMINTON_TRACKNET_PYTHON="$PWD/.venv/bin/python"
+   export BADMINTON_POSE_PYTHON="$PWD/.venv/bin/python"
+   export BADMINTON_COURT_PYTHON="$PWD/.venv/bin/python"
+   export GEMINI_API_KEY=your-key
+   PYTHONPATH=src uv run --no-sync python -m dataset_builder run \
+     --config my_dataset.toml \
+     --run-dir /absolute/path/to/run
+   ```
+
+If you re-run it against the same folder, it checks and reuses the stages it's already finished instead of redoing the expensive vision work.
+
+The builder uses Gemini to pick and clean commentary. WhisperX needs its own venv, because it pins an older torch. Without it, commentary keeps YouTube's caption timing.
 
 ## Project
 

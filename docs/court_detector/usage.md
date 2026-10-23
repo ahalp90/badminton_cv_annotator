@@ -29,14 +29,15 @@ caches it for later runs. The detector also imports `src/shared` and
 
 | Need | Used for | Where it comes from |
 | --- | --- | --- |
-| DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage). The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; see [runtime/README.md](../../runtime/README.md). They are gitignored |
+| DeepLSD source checkout and weights (`deeplsd_md.tar`) | Live line detection in both runners | [DeepLSD](https://github.com/cvg/DeepLSD#usage), commit `f7d9d62` in our runs. The dataset builder expects them at `runtime/checkpoints/deeplsd/DeepLSD`; the [README](../../README.md#build-your-own-dataset) has the commands. They are gitignored |
 | RTMLib and ONNX Runtime | Live pose (`--with-people`, or player-required video without `--people`) and `--pose-prerun` | CPU inference is included in the base install: RTMLib 0.0.15, ONNX Runtime 1.27.0 and matching OpenCV 5.0.0.93 wheels. CUDA setup is below |
 | PySceneDetect (`scenedetect`) | `--pyscenedetect`, and view grouping in `video-robust` and `fast-robust` modes | Included in the base project environment, pinned at 0.7.1 |
-| CuPy | `--template-device cuda` only | Required in the GPU environment; not a project dependency |
+| CuPy | `--template-device cuda` only | `cupy-cuda13x` in the `builder` extra on Linux |
 
 DeepLSD loads from its checkout, not from an installed package. The loader puts
-the checkout first on `sys.path` and fails if the folder is missing. Its upstream installation instructions cover
-the line-detection dependencies needed in the same environment.
+the checkout first on `sys.path` and fails if the folder is missing. Install the
+packages it imports with `uv sync --extra builder` rather than DeepLSD's own
+install script.
 
 Court detection and dataset-builder pose extraction use the same root project
 environment and RTMLib adapter. RTMLib requires both `opencv-python` and
@@ -77,8 +78,7 @@ export LD_LIBRARY_PATH="$pose_site_packages/nvidia/cudnn/lib:$pose_site_packages
 
 `onnxruntime.get_available_providers()` must include `CUDAExecutionProvider`.
 The adapter raises an error if a requested CUDA session falls back to CPU.
-DeepLSD source and weights, plus CuPy for GPU template scoring, remain
-additional setup as listed above.
+The DeepLSD checkout and weights remain additional setup, as listed above.
 
 **Devices.**
 
