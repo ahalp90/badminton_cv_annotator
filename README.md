@@ -33,7 +33,7 @@ We use physical rules to find the court, skip replays and other broadcast events
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
 
-![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v5/fig1_headline.png)
+![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v6/fig1_headline.png)
 
 *MonoTrack needs rally boundaries provided*
 
@@ -48,7 +48,7 @@ Each rally gets a confidence score, so you can trade recall for less manual revi
 
 *Most fixes are a single contact per rally*
 
-Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v5.md), or [get started](docs/annotator/quickstart.md) with the annotator.
+Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v6.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
 ## Court detector
 

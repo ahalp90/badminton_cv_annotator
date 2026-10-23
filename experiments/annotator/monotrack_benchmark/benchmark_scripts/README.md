@@ -66,6 +66,8 @@ python five_seed.py \
 
 The output includes every validation prediction, `selected.json.gz`, ten test
 runs, report-compatible scores, and all thirty checkpoints with training records.
+The committed benchmark keeps the five selected checkpoints and all training
+records; the other twenty-five checkpoints can be reproduced by retraining.
 The output directory must be new. Missing or failed jobs stop the workflow.
 An inference failure within a rally remains an empty prediction for that rally.
 Test results are produced only after validation selection is written.
@@ -140,7 +142,10 @@ second before the first labelled contact to one second after the last. The
 heuristic settings stay fixed across court conditions. Omitting
 `--heuristic-settings` retains the full annotator.
 
-The reports use these five condition directories under
+The v6 report uses
+`../benchmark_results/monotrack_five_seed/` for MonoTrack and
+`../benchmark_results/annotator_runs/` for the trained annotator.
+The earlier reports use these five condition directories under
 `../benchmark_results/comparison/`:
 
 | Condition | Directory |
@@ -151,7 +156,7 @@ The reports use these five condition directories under
 | MonoTrack, its own courts | `mono_zeroed_own_off/` |
 | MonoTrack, our per-rally courts | `mono_zeroed_our_courts_off/` |
 
-To reproduce the remaining Appendix A configurations, run `monotrack_runner.py`
+To reproduce the earlier reports' remaining Appendix A configurations, run `monotrack_runner.py`
 with `--courts monotrack` and each of the following settings, then score each
 output with `score.py`:
 
