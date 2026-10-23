@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import tomllib
 from collections import Counter
@@ -10,17 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from inputs import (
-    Court,
-    feature_rows,
-    fill_players,
-    read_array,
-    read_json,
-    select_players,
-    shuttle_variants,
-    write_array,
-    write_json,
-)
 
 HERE = Path(__file__).resolve().parent
 ARMS = ("kept", "zeroed")
@@ -29,8 +19,10 @@ SIDE_CLASSES = {"Bot": 1, "Top": 2}
 
 def load_videos(spans_path: Path, split_path: Path) -> list[dict[str, Any]]:
     """Check the frozen input spans against the committed development split."""
-    videos = read_json(spans_path)["videos"]
-    split = read_json(split_path)
+    with gzip.open(spans_path, 'rt') as stream:
+        videos = json.load(stream)["videos"]
+    with gzip.open(split_path, 'rt') as stream:
+        split = json.load(stream)
     expected = {row["fixture"]: row for row in split["videos"]}
     if len(videos) != len(expected) or {video["item_id"] for video in videos} != set(expected):
         raise ValueError("Span videos differ from the committed development split")
@@ -55,6 +47,16 @@ def load_videos(spans_path: Path, split_path: Path) -> list[dict[str, Any]]:
 
 
 def build_video(task: tuple[dict[str, Any], Path, Path]) -> dict[str, Any]:
+    from inputs import (
+        Court,
+        feature_rows,
+        fill_players,
+        read_array,
+        read_json,
+        select_players,
+        shuttle_variants,
+    )
+
     video, stages, courts = task
     fixture = video["item_id"]
     pose_dir = stages / "pose" / fixture
@@ -112,6 +114,8 @@ def build_video(task: tuple[dict[str, Any], Path, Path]) -> dict[str, Any]:
 
 
 def build(config: dict[str, Any], output: Path, workers: int) -> dict[str, Any]:
+    from inputs import write_array, write_json
+
     paths = config["inputs"]
     videos = load_videos(Path(paths["spans"]), HERE / "shuttleset_development_split.json.gz")
     output.mkdir(parents=True, exist_ok=False)

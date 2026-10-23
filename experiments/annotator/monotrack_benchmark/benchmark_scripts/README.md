@@ -18,10 +18,14 @@ The adapter gives HitNet the court-corner order used in training; the vendored
 MonoTrack code stays unchanged. When our annotator receives MonoTrack's courts,
 it accepts every successful fit without applying our detector's person vote.
 
-Both MonoTrack rows use `hitnet_zeroed.h5`, with InpaintNet-filled positions
-replaced by zeros and MonoTrack's shuttle interpolation off at inference.
-We report the highest-scoring of its four configurations tested on ShuttleSet22.
-Appendix A compares both shuttle inputs with inference interpolation on and off.
+Both MonoTrack rows use one configuration chosen on the eight original
+ShuttleSet validation videos. The comparison covers kept/zeroed shuttle input,
+L2 weights 0, 1e-6 and 1e-4, and inference interpolation on/off. Every setting
+uses seeds 0, 100, 200, 300 and 400, with dropout off.
+The highest mean fully correct rally percentage at ±10 frames wins;
+Correct-player F1 breaks a tie. Selection calls the report's scoring function,
+including its overlapping-rally judgement. All 668 validation rallies count.
+The same five checkpoints are then tested with both court sets.
 
 For provided boundaries, contacts are scored inside the common padded rally
 windows. Discovery is scored across the whole video, including false positives
@@ -42,6 +46,33 @@ fails the affected rally or video and the remaining work continues. Missing
 result files mean a run is unfinished and prevent scoring.
 
 ## Run
+
+For the five-seed MonoTrack comparison, set `stages`, `spans` and
+`development_courts` to the original ShuttleSet inputs used for training.
+Keep all thirty full training outputs under `TRIALS/<arm>_l2<value>/seed-<N>/`.
+The six setting names are `kept_l20`, `kept_l21e-06`, `kept_l20.0001`, and their
+`zeroed` equivalents. Reuse all six completed dropout-off seed-0 runs,
+including their summaries and histories.
+Run the selector with the annotator environment; it starts inference with the
+configured TensorFlow interpreter:
+
+```bash
+python five_seed.py \
+  --config config.local.toml \
+  --trials /path/to/trials \
+  --output /path/to/five-seed-results \
+  --parallel 16
+```
+
+The output includes every validation prediction, `selected.json.gz`, ten test
+runs, report-compatible scores, and all thirty checkpoints with training records.
+The committed benchmark keeps the five selected checkpoints and all training
+records; the other twenty-five checkpoints can be reproduced by retraining.
+The output directory must be new. Missing or failed jobs stop the workflow.
+An inference failure within a rally remains an empty prediction for that rally.
+Test results are produced only after validation selection is written.
+
+The commands below describe the individual runners and the annotator baseline.
 
 Use the annotator's Python environment for the preparation, scoring and launch
 commands. Set the separate TensorFlow 2.15 interpreter in `config.local.toml`.
@@ -111,7 +142,10 @@ second before the first labelled contact to one second after the last. The
 heuristic settings stay fixed across court conditions. Omitting
 `--heuristic-settings` retains the full annotator.
 
-The reports use these five condition directories under
+The v6 report uses
+`../benchmark_results/monotrack_five_seed/` for MonoTrack and
+`../benchmark_results/annotator_runs/` for the trained annotator.
+The earlier reports use these five condition directories under
 `../benchmark_results/comparison/`:
 
 | Condition | Directory |
@@ -122,7 +156,7 @@ The reports use these five condition directories under
 | MonoTrack, its own courts | `mono_zeroed_own_off/` |
 | MonoTrack, our per-rally courts | `mono_zeroed_our_courts_off/` |
 
-To reproduce the remaining Appendix A configurations, run `monotrack_runner.py`
+To reproduce the earlier reports' remaining Appendix A configurations, run `monotrack_runner.py`
 with `--courts monotrack` and each of the following settings, then score each
 output with `score.py`:
 

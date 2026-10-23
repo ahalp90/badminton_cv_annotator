@@ -1,8 +1,9 @@
 # Write-up scripts
 
-These scripts produce the numbers, tables and figures in the
-[v5 report](../annotator_monotrack_own_weights_compared_writeup_v5.md). Earlier
-reports used earlier versions of these scripts, which are in the git history.
+These scripts produce the [v6 report](../annotator_monotrack_own_weights_compared_writeup_v6.md)'s
+numbers, tables and figures.
+The [v5 report](../annotator_monotrack_own_weights_compared_writeup_v5.md) and
+earlier reports used earlier versions of these scripts, which are in the git history.
 Most steps read committed results only. Three steps need data that is not in the
 repository: the annotator runs need the saved inference inputs, the 40-video
 contact refit needs prepared training inputs, and the galleries need frames from
@@ -59,6 +60,12 @@ $PY $W/kept_rally_errors.py --data $OUT --out $OUT
 $PY $W/flaw_scoring.py --out $OUT
 $PY $W/make_figures.py --data $OUT --out figures
 ```
+
+By default, `metrics.py` reads the committed five-seed MonoTrack results in
+`benchmark_results/monotrack_five_seed/`. To score a new `five_seed.py` run,
+pass `--monotrack-runs /path/to/five-seed-results`. Both MonoTrack court
+conditions use all five seeds of the validation-selected configuration.
+The remaining scripts read those updated summaries.
 
 `metrics.py` takes `--workers` (default 6) and runs for several minutes.
 

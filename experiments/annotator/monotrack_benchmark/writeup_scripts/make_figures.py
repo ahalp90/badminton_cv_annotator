@@ -32,7 +32,7 @@ SURFACE = '#fcfcfb'
 SEEDS = (0, 100, 200, 300, 400)
 MIN_KEPT = 50
 POPULATION = '46 ShuttleSet22 videos, 3,327 labelled rallies, 37,184 labelled hits'
-SCORING_NOTE = 'A hit counts as found within ±10 frames (1/3 s). Annotator values are the mean of five training seeds.'
+SCORING_NOTE = 'A hit counts as found within ±10 frames (1/3 s). Trained models use the mean of five seeds.'
 ERROR_TYPES = (
     ('missed', 'Labelled hit missed', '#6250d6'),
     ('wrong_player', 'Hit found, wrong player', '#eda100'),
@@ -111,16 +111,21 @@ HEADLINE_METRICS = (
 
 
 def headline_figure(summary: dict, out: Path) -> None:
+    for key, _label, _colour, _marker in HEADLINE_ROWS:
+        if any(len(summary[key]['10'][metric]['runs']) != len(SEEDS) for metric, _title, _limits in HEADLINE_METRICS):
+            raise ValueError(f'{key}: five training seeds are required for the headline figure')
     figure, axes_row = plt.subplots(1, 3, figsize=(13, 4.6), sharey=True, facecolor=SURFACE)
     rows = np.arange(len(HEADLINE_ROWS))[::-1].astype(float)
     rows[-1] -= 0.5  # gap before the row that finds its own rallies: a harder task
     for axes, (metric, title, (low, high)) in zip(axes_row, HEADLINE_METRICS, strict=True):
+        low = min(low, min(value(summary, key, metric, 'min') for key, *_rest in HEADLINE_ROWS) - 2)
+        high = max(high, max(value(summary, key, metric, 'max') for key, *_rest in HEADLINE_ROWS) + 2)
         style_axes(axes)
         for row, (key, _label, colour, marker) in zip(rows, HEADLINE_ROWS, strict=True):
             mean = value(summary, key, metric)
             axes.plot([low, mean], [row, row], color=GRID, linewidth=1.5, zorder=1)
             label_at = mean
-            if key.startswith('annotator'):
+            if len(summary[key]['10'][metric]['runs']) > 1:
                 axes.plot([value(summary, key, metric, 'min'), value(summary, key, metric, 'max')], [row, row],
                           color=TEXT, linewidth=1.6, zorder=2)
                 label_at = max(mean, value(summary, key, metric, 'max'))
@@ -134,8 +139,8 @@ def headline_figure(summary: dict, out: Path) -> None:
     figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
     figure.text(0.01, 0.045, 'Rows 1-4 are given rally bounds built from the labels (1 s either side); row 5 finds '
                 'the rallies itself.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.01, 'Our annotator: mean of five training seeds. MonoTrack: best run of a hyperparameter '
-                'grid search.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest. '
+                'Settings chosen on validation.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.075, 1, 0.95))
     # One dotted line across all three panels sets the self-finding row apart. It starts under the
     # row label above it. Drawn after layout, because it needs the final label and panel positions.
@@ -180,7 +185,7 @@ def error_figure(summary: dict, out: Path) -> None:
     axes.legend(handles, [label for _key, label, _colour in ERROR_TYPES], loc='upper center', frameon=False,
                 fontsize=9.5, ncol=3, bbox_to_anchor=(0.4, -0.12))
     figure.suptitle(f'Hit errors by type, ±10 frames ({POPULATION})', fontsize=13, color=TEXT, x=0.01, ha='left')
-    figure.text(0.01, 0.04, 'With rally bounds given, hits outside the bounds are not scored. Annotator values are '
+    figure.text(0.01, 0.04, 'With rally bounds given, hits outside the bounds are not scored. Trained-model values are '
                 'means of five training seeds.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.012, 'Predictions inside the 524 ShuttleSet22 rallies that the test set leaves out because of '
                 'flawed labels are ignored.', fontsize=9, color=MUTED)
@@ -214,7 +219,7 @@ def per_video_figure(data: Path, out: Path) -> None:
         axes.set_ylabel('Our annotator, our courts', color=TEXT)
     figure.suptitle('Each dot is one of the 46 test videos; rally bounds given to both systems',
                     fontsize=13, color=TEXT, x=0.01, ha='left')
-    figure.text(0.01, 0.01, 'Annotator values are per-video means of five training seeds. ±10 frames.',
+    figure.text(0.01, 0.01, 'Both trained systems use per-video means of five seeds. ±10 frames.',
                 fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.06, 1, 0.94))
     figure.savefig(out / 'fig4_per_video.png', dpi=150, facecolor=SURFACE)
@@ -288,7 +293,7 @@ def ladder_figure(summary: dict, out: Path) -> None:
     figure.text(0.01, 0.045, 'Boundaries right: one found rally spans the whole labelled rally and no other. Hits '
                 'right: also every hit found, no extras. Fully correct: every hitter right too.', fontsize=9,
                 color=MUTED)
-    figure.text(0.01, 0.015, f'{POPULATION}. Annotator values are means of five training seeds. Found-rally edges '
+    figure.text(0.01, 0.015, f'{POPULATION}. Trained-model values are means of five seeds. Found-rally edges '
                 'get the same ±10-frame allowance as hit timing.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.07, 1, 0.95))
     figure.savefig(out / 'fig5_rally_ladder.png', dpi=150, facecolor=SURFACE)

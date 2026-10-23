@@ -76,16 +76,17 @@ def save_model(model: Any, path: Path, temperature: float) -> None:
         stream.attrs["temperature"] = temperature
 
 
-def train(features: Path, arm: str, dropout: float, l2_reg: float, output: Path, smoke: bool = False) -> dict[str, Any]:
+def train(features: Path, arm: str, dropout: float, l2_reg: float, output: Path,
+          smoke: bool = False, seed: int = 0) -> dict[str, Any]:
     import tensorflow as tf  # pyrefly: ignore[missing-import]
 
     tf.config.threading.set_intra_op_parallelism_threads(2)
     tf.config.threading.set_inter_op_parallelism_threads(1)
     for device in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(device, True)
-    random.seed(0)
-    np.random.seed(0)
-    tf.random.set_seed(0)
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
     output.mkdir(parents=True, exist_ok=False)
     started = time.perf_counter()
     rallies = read_json(features / "rallies.json.gz")
@@ -128,7 +129,7 @@ def train(features: Path, arm: str, dropout: float, l2_reg: float, output: Path,
     (output / "history.csv").unlink()
     best_epoch = int(np.argmin(history.history["val_loss"]))
     summary = {
-        "arm": arm, "dropout": dropout, "l2": l2_reg, "learning_rate": LEARNING_RATE, "seed": 0,
+        "arm": arm, "dropout": dropout, "l2": l2_reg, "learning_rate": LEARNING_RATE, "seed": seed,
         "parameters": model.count_params(), "steps_per_epoch": min(steps, 2) if smoke else steps,
         "train_windows": len(y_train), "validation_windows": len(y_val),
         "train_classes": np.bincount(y_train.astype(int), minlength=3).tolist(),
@@ -151,9 +152,10 @@ def main() -> None:
     parser.add_argument("--dropout", type=float, choices=(0, 0.2), required=True)
     parser.add_argument("--l2", type=float, choices=(0, 1e-6, 1e-4), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--seed", type=int, default=0, help="training seed; balanced data splits stay fixed")
     parser.add_argument("--smoke", action="store_true", help="two training batches, one validation and H5 export")
     args = parser.parse_args()
-    train(args.features, args.arm, args.dropout, args.l2, args.output, args.smoke)
+    train(args.features, args.arm, args.dropout, args.l2, args.output, args.smoke, args.seed)
 
 
 if __name__ == "__main__":

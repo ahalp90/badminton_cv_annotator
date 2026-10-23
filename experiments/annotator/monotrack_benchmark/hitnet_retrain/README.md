@@ -5,9 +5,11 @@ This trains MonoTrack's 130,179-parameter HitNet with two shuttle inputs:
 - **`kept`**: TrackNetV3 tracks with InpaintNet predictions retained.
 - **`zeroed`**: the same tracks, with inpainted frames set to zero.
 
-Each input has six training runs: dropout `{0, 0.2}` × L2 `{0, 1e-6, 1e-4}`. All twelve
-runs use the same architecture and seed 0. The *kept* and *zeroed* hp configurations are
-decided by lowest validation loss.
+The initial grid has six settings per input: dropout `{0, 0.2}` × L2
+`{0, 1e-6, 1e-4}`, all with seed 0. The six dropout-off settings are repeated
+with seeds 100, 200, 300 and 400. Each run retains its lowest-validation-loss
+checkpoint. The benchmark selects one input, L2 and inference-interpolation
+configuration by five-seed mean fully correct validation rallies.
 
 ## Changes from the released setup
 
@@ -64,12 +66,20 @@ augmentation, class balancing, batch size 64, early stopping and learning-rate
 reduction. The best validation checkpoint is reloaded before temperature
 calibration and export.
 
-MonoTrack's shuttle interpolation is off during training. The main benchmark
-also disables it at inference and uses `hitnet_zeroed.h5`, with InpaintNet-filled
-positions replaced by zeros. Both shuttle inputs were evaluated with inference
-interpolation on and off; Appendix A of the reports compares all four settings.
-Zeroed input with interpolation off scored highest on ShuttleSet22. MonoTrack's
-interpolation is separate from InpaintNet's predictions.
+MonoTrack's shuttle interpolation is off during training. Its interpolation is
+separate from InpaintNet's predictions. All six dropout-off settings (both
+shuttle inputs × L2 0, 1e-6 and 1e-4) are extended to five seeds after the
+dropout-on settings consistently attained lower validation accuracy.
+The benchmark selects one shuttle input, L2 weight
+and inference-interpolation setting using mean fully correct validation rallies
+across all five seeds, with Correct-player F1 breaking a tie.
+
+Use `train_hitnet.py --seed N` for seeds 100, 200, 300 and 400 of each arm,
+keeping dropout at zero, repeating all three L2 weights and reusing the six
+seed-0 runs. The seed changes
+model initialisation, augmentation and batch order. Feature preparation and
+the balanced training/validation window samples remain fixed. Each run still
+exports its checkpoint with the lowest validation loss.
 
 ## Setup and run
 
