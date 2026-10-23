@@ -1,8 +1,8 @@
-# Copy to config.local.toml and set the three saved-input paths.
+# Run from this directory. Copy to config.local.toml and set the stage and court paths.
 # No detector or annotator is rerun.
 [inputs]
 stages = "/path/to/shuttleset/stages"
-spans = "/path/to/sset_spans.json.gz"
+spans = "shuttleset_spans.json.gz"
 courts = "/path/to/monotrack/court-results"
 
 [execution]

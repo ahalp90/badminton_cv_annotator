@@ -95,7 +95,10 @@ Set these paths in `config.local.toml`, which is ignored by Git:
 
 - `stages`: saved ShuttleSet RTMPose detections and TrackNetV3 tracks, including
   the inpainting masks.
-- `spans`: the frozen rally windows and contact labels.
+- `spans`: defaults to the included [rally windows and contact labels](shuttleset_spans.json.gz).
+  These cover all 32 training and 8 validation videos. Frame numbers use each
+  video's native frame rate, and `end_frame` is exclusive. Keep this default
+  when reproducing the benchmark; run the training commands from this directory.
 - `courts`: MonoTrack's saved court-detector results, named
   `<fixture>_<span:04d>.json.gz`, one result per rally.
 

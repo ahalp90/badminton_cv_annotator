@@ -47,8 +47,9 @@ result files mean a run is unfinished and prevent scoring.
 
 ## Run
 
-For the five-seed MonoTrack comparison, set `stages`, `spans` and
-`development_courts` to the original ShuttleSet inputs used for training.
+For the five-seed MonoTrack comparison, set `stages` and `development_courts`
+to the original ShuttleSet inputs used for training. `spans` defaults to the
+included [training and validation rally windows](../hitnet_retrain/shuttleset_spans.json.gz).
 Keep all thirty full training outputs under `TRIALS/<arm>_l2<value>/seed-<N>/`.
 The six setting names are `kept_l20`, `kept_l21e-06`, `kept_l20.0001`, and their
 `zeroed` equivalents. Reuse all six completed dropout-off seed-0 runs,
@@ -67,7 +68,7 @@ python five_seed.py \
 The output includes every validation prediction, `selected.json.gz`, ten test
 runs, report-compatible scores, and all thirty checkpoints with training records.
 The committed benchmark keeps the five selected checkpoints and all training
-records; the other twenty-five checkpoints can be reproduced by retraining.
+records; the other twenty-five checkpoints can be retrained with the same settings and seeds.
 The output directory must be new. Missing or failed jobs stop the workflow.
 An inference failure within a rally remains an empty prediction for that rally.
 Test results are produced only after validation selection is written.
