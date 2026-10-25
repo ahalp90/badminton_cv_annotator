@@ -12,13 +12,15 @@ Run every command from the repository root.
 
 | Script | What it produces |
 | --- | --- |
-| [retrain_boundaries.py](retrain_boundaries.py) | Refits the full annotator stack for 2/3, 3/3 and 5/5-second boundary policies, sharing prepared inputs and newly fitted contact trees. |
+| [retrain_boundaries.py](retrain_boundaries.py) | Refits the full annotator stack for 2/3, 3/3 and 5/5-second boundary policies, with optional reuse of saved preparation, contact fits and proposal features. |
 | [metrics.py](metrics.py) | Contact, rally and confidence scores for every condition, rescored from the committed prediction streams and checked against each run's saved scores. Ignores the 524 rallies with flawed labels. |
 | [court_metrics.py](court_metrics.py) | Each rally's court error and IoU against ShuttleSet22's reference corners, for our per-rally, MonoTrack's and our per-scene courts. |
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
 | [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. |
 | [annotator_batch_runs.py](annotator_batch_runs.py) | Runs all three boundary policies together, sharing preparation and compatible rally options. Resumes completed video predictions in place. |
 | [boundary_comparison.py](boundary_comparison.py) | Runs the contact-size comparison, batched inference, validation policy selection and all nine training/evaluation combinations. |
+| [compare_discovery_context.py](compare_discovery_context.py) | Selects between two discovery configurations on all 668 validation rallies under a common no-maximum-context rule, with a separate 354-rally unflagged view. |
+| [discovery_boundary_surveys.py](discovery_boundary_surveys.py) | Judges saved discovery outputs under both 1/1 and 2/3 context limits and searches every unique validation confidence threshold. |
 | [compare_training_targets.py](compare_training_targets.py) | Compares the actual consumed selector targets after checking that proposal rows and features align. |
 | [confidence_cutoffs.py](confidence_cutoffs.py) | Searches every distinct validation confidence score for the three operating objectives, then reports test results at those cut-offs. |
 | [kept_rally_errors.py](kept_rally_errors.py) | Counts the errors in kept rallies that need a fix, at the exact validation-selected cut-offs. |
@@ -35,53 +37,74 @@ Run every command from the repository root.
 - Predictions and court inputs: [`../benchmark_results/`](../benchmark_results/).
 - Our annotator with trees on: fresh runs made by `annotator_runs.py` or
   `annotator_batch_runs.py`. Test runs sit in `test/<condition>/<models>/seed-<N>/`
-  and validation runs in `validation/32_videos/seed-<N>/`. Compact v7 results
-  are in [`../benchmark_results/boundary_retrain_v7/`](../benchmark_results/boundary_retrain_v7/).
+  and validation runs in `validation/32_videos/seed-<N>/`. Current compact results
+  are in [`../benchmark_results/discovery_context/`](../benchmark_results/discovery_context/).
 - The selected test bundles:
-  `../../tree_simplification/results/boundary_retrain_v7/2_3/models/raw_baseline-seed-<N>/`
+  `../../tree_simplification/results/discovery_context/5_5/models/raw_baseline-seed-<N>/`
   and `body_window_36-seed-<N>/`. The contact-size comparison bundles are under
-  `2_3/models_40/seed-<N>/` in the same refit directory.
+  `5_5/models_40/seed-<N>/` in the same refit directory.
 - Our annotator with trees off: `../../heuristic_only_tune/results/`.
 - ShuttleSet22 labels and reference corners: `data/shuttleset22/set/`.
 - Original ShuttleSet labels: `training/data/shuttleset/annotations/shots_master.csv`.
 
-## Run
+## Score the selected model
+
+Headline rally correctness uses no maximum context limit. Confidence surveys
+separately judge the discovery window under 1/1 and 2/3 limits; they do not judge
+the dataset export clip. All contact metrics retain outside-rally contacts.
 
 ```bash
 PY=python
 W=experiments/annotator/monotrack_benchmark/writeup_scripts
 SHOTS=training/data/shuttleset/annotations/shots_master.csv
 OUT=report_data
-RUNS=NEW_RUN/annotator_runs
+RUNS=SAVED_RUN/reporting/annotator_runs/5_5
 
-$PY $W/metrics.py --annotator-runs $RUNS --out $OUT \
-  --boundary-before-seconds 2 --boundary-after-seconds 3
+$PY $W/metrics.py --annotator-runs $RUNS --out $OUT --no-max-buffer
+$PY $W/discovery_boundary_surveys.py --run 5_5 $RUNS --out SURVEYS --workers 8
 $PY $W/court_metrics.py --out $OUT
-$PY $W/left_out_rallies.py --data $OUT --annotator-runs $RUNS --shots-master $SHOTS
-$PY $W/confidence_cutoffs.py --validation $RUNS/validation/32_videos \
-  --metrics $OUT --shots-master $SHOTS --out $OUT \
-  --boundary-before-seconds 2 --boundary-after-seconds 3
-$PY $W/kept_rally_errors.py --data $OUT --out $OUT
-$PY $W/validation_label_sensitivity.py --validation $RUNS/validation/32_videos \
-  --shots-master $SHOTS --out $OUT/validation_label_sensitivity.json.gz
-$PY $W/flaw_scoring.py --annotator-runs $RUNS --out $OUT
-$PY $W/make_figures.py --data $OUT --out figures
+$PY $W/make_figures.py --data $OUT --confidence-data SURVEYS/5_5/2_3 --out figures
 ```
 
-By default, `metrics.py` reads the committed five-seed MonoTrack results in
-`benchmark_results/monotrack_five_seed/`. To score a new `five_seed.py` run,
-pass `--monotrack-runs /path/to/five-seed-results`. Both MonoTrack court
-conditions use all five seeds of the validation-selected configuration.
-The remaining scripts read those updated summaries.
+Court measurements and MonoTrack predictions are unchanged and can be reused.
+`metrics.py` reads the committed five-seed MonoTrack results by default. Pass
+`--monotrack-runs` to score a new run. Both court conditions use all five seeds
+of the validation-selected configuration. `--workers` controls scoring workers.
 
-`metrics.py` takes `--workers` (default 6) and runs for several minutes.
+### Compare capped and uncapped discovery
 
-### Annotator runs
+The comparison selects on five-seed mean fully correct coverage at ±10 frames,
+using all 668 validation rallies and the same no-max rule. Ties use correct-player
+F1, then contact F1. The unflagged view removes 314 marked rallies after judgement;
+it does not remove contacts from F1 or labels from matching and neighbour checks.
+
+```bash
+$PY $W/compare_discovery_context.py \
+  --run 5_5 SAVED_RUN/reporting/annotator_runs/5_5/validation/32_videos \
+  --run no_max NEW_RUN/reporting/annotator_runs/no_max/validation/32_videos \
+  --output COMPARISON --workers 8
+$PY $W/discovery_boundary_surveys.py \
+  --run 5_5 SAVED_RUN/reporting/annotator_runs/5_5 \
+  --run no_max NEW_RUN/reporting/annotator_runs/no_max \
+  --out SURVEYS --workers 8
+```
+
+The uncapped arm was trained and run at revision `65311a3e`. That checkout removes
+output trimming as well as the training limits. To reproduce it, run its
+`retrain_boundaries.py --policies no_max --reuse-training-root SAVED_RUN/training
+--reuse-policy 5_5` with the normal paths/output arguments. Preparation, contact
+fits and proposal features are reused; labels, selector and review fits change.
+The selected current checkout restores the winning 5/5 model's 2/3 finishing.
+These are two complete configurations, so their difference does not isolate
+training from finishing. Keep saved selector predictions immutable; export
+checks their parity before adding review confidence.
+
+### Earlier three-policy training comparison
 
 Retrain all three boundary policies with the fixed selector settings and five
 seeds used in the benchmark. Each fitted tree uses two CPU cores; the driver
 limits total parallel work to 28 cores. Hyperparameter retuning after the
-boundary changes remains a TODO.
+boundary changes remains a low-priority TODO.
 
 ```bash
 $PY $W/retrain_boundaries.py --paths paths.toml --output NEW_RUN/training \

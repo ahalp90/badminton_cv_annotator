@@ -576,6 +576,7 @@ def court_error_figure(courts: pd.DataFrame, out: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, required=True)
+    parser.add_argument('--confidence-data', type=Path, help='Separate finite-boundary confidence survey')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -586,7 +587,7 @@ def main() -> None:
     error_figure(summary, args.out)
     per_video_figure(args.data, args.out)
     ladder_figure(summary, args.out, boundary_policy)
-    confidence_figure(args.data, args.out)
+    confidence_figure(args.confidence_data or args.data, args.out)
     stability_figure(summary, args.out)
     court_error_figure(pd.read_csv(args.data / 'rally_courts.csv.gz'), args.out)
 

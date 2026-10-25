@@ -43,19 +43,21 @@ subset for review.
 
 These thresholds were selected on validation. The table shows their test
 results, excluding detections in rallies with flawed labels. Counts and
-percentages are averaged separately over five training seeds. “Right start and end” allows up
-to two seconds before the first labelled contact and three after the last.
-“Fully correct” also requires every contact and player assignment to be correct.
+percentages are averaged separately over five training seeds. This confidence
+survey checks a maximum of two seconds before the first labelled contact and
+three after the last. “Fully correct” also requires every contact and player
+assignment to be correct. The headline figure uses the common rule without
+maximum context limits.
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| ≈0.279 | 2,189 | 74.5% | 54.4% |
-| ≈0.249 | 2,406 | 74.0% | 52.5% |
-| ≈0.786 | 37 | 94.2% | 84.0% |
+| ≈0.343 | 2,193 | 69.4% | 51.3% |
+| ≈0.347 | 2,173 | 69.4% | 51.4% |
 
-Thresholds are rounded here; the report gives exact values and selection goals.
-The highest threshold met the 99% boundary target on only 7–12 validation
-rallies per seed, and reached 94.2% on test.
+The first threshold keeps closest to half the found validation rallies; the
+second maximises retrieval F1 for fully correct rallies. No threshold reached
+99% mean boundary accuracy while keeping rallies in all five validation seeds.
+The report gives exact thresholds and the separate 1/1 boundary survey.
 
 Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 

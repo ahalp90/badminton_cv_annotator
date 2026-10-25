@@ -3,16 +3,18 @@
 [Read the current report](annotator_monotrack_own_weights_compared_writeup_v7.md)
 for the annotator and court-detector comparison with MonoTrack on 46 ShuttleSet22
 videos: 3,327 scored rallies and 37,184 labelled contacts. Results use five seeds
-and validation-selected settings. The annotator uses the 2/3-second boundary
-training policy; the main contact tolerance is ±10 frames, with ±5 in Appendix E.
+and validation-selected settings. The selected annotator uses 5/5-second training allowances and its existing
+2/3 discovery finishing rule. Headline scoring has no maximum context limit;
+the main contact tolerance is ±10 frames, with ±5 in Appendix E.
 
 ## Results and models
 
 | Find | Location |
 | --- | --- |
-| All nine training/evaluation boundary combinations | [Validation and test table](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances) |
-| Current scores, confidence curves and training-target comparison | [Boundary-policy results](benchmark_results/boundary_retrain_v7/) |
-| Selected annotator models and fit settings | [Model record](../tree_simplification/results/boundary_retrain_v7/README.md) |
+| Current scores and capped/uncapped discovery comparison | [Discovery results](benchmark_results/discovery_context/) |
+| Both 1/1 and 2/3 discovery confidence surveys | [Surveys](benchmark_results/discovery_context/surveys/) |
+| Selected annotator models and fit settings | [Model record](../tree_simplification/results/discovery_context/README.md) |
+| Earlier nine-way boundary comparison | [Historical results](benchmark_results/boundary_retrain_v7/README.md) |
 | MonoTrack selection, five-seed predictions and checkpoints | [MonoTrack results](benchmark_results/monotrack_five_seed/) |
 | Prepared court and rally inputs | [Inputs](benchmark_results/inputs/) |
 | Tree-disabled comparison | [Tuned heuristic results](../heuristic_only_tune/KNOWN_RALLIES.md) |
@@ -24,13 +26,12 @@ Run from the repository root. To rescore predictions from the full comparison:
 ```bash
 W=experiments/annotator/monotrack_benchmark/writeup_scripts
 python "$W/metrics.py" \
-  --annotator-runs NEW_RUN/reporting/annotator_runs/2_3 \
+  --annotator-runs SAVED_RUN/reporting/annotator_runs/5_5 \
   --out REPORT_DATA \
-  --boundary-before-seconds 2 --boundary-after-seconds 3
+  --no-max-buffer
 ```
 
-This path assumes `boundary_comparison.py --output NEW_RUN/reporting` produced
-the predictions. The compact results contain scores and tables; annotator
+This command reuses saved predictions from the selected configuration. The compact results contain scores and tables; annotator
 prediction streams are produced by the
 [training and inference commands](writeup_scripts/README.md#batched-inference-and-resume).
 The scoring command uses the saved MonoTrack five-seed predictions by default.

@@ -24,42 +24,41 @@ rule settings tuned on the same 32 videos.
 ## Short answer
 
 - **Given the rally bounds, our annotator leaves more rallies with nothing to
-  fix, and MonoTrack makes fewer hit errors.** Ours gets 59.9% of rallies
+  fix, and MonoTrack makes fewer hit errors.** Ours gets 60.0% of rallies
   fully correct, against 47.8% for MonoTrack. A fully correct rally has every
   hit found, no extra hits and every hitter right, with each hit within 10
-  frames of its label. The gap is 12.1 points (95% interval 9.4 to 14.8), and
+  frames of its label. The gap is 12.2 points (95% interval 9.6 to 14.9), and
   ours is higher on 42 of 46 videos (Figure 4). MonoTrack makes
-  2,973 hit errors (missed, extra or wrong hitter) against 3,119 for ours,
-  mainly because ours gives the wrong hitter more often (727 against 76). Ours
-  adds fewer extra hits (397 against 886), and its errors sit in fewer rallies:
-  1,333 against 1,736 (Figure 3). Which costs a person more depends on how
-  their checking time splits between finding a rally's errors and editing
-  them, which this report does not measure.
+  2,973 hit errors (missed, extra or wrong hitter) against 3,123 for ours,
+  mainly because ours gives the wrong hitter more often (732 against 76).
+  Ours adds fewer extra hits (391 against 886), and its errors sit in fewer
+  rallies: 1,330 against 1,736 (Figure 3). Which costs a person more depends
+  on their time spent finding errors and editing them; this report does not
+  measure that time.
 - **Both find hits about equally well, and MonoTrack names the hitter more
   reliably.** Contact F1 is 96.7% for ours and 96.0% for MonoTrack.
   Correct-player F1 is 94.7% for ours and 95.8% for MonoTrack.
 - **Our annotator can also find the rallies itself.** MonoTrack's released code
   needs each rally cut out beforehand. Working from the whole video, ours gets
-  42.8% of rallies fully correct, and 66.4% meet the boundary rule below.
-  At the validation-selected threshold of about 0.279, it
-  keeps 2,189 of about 3,663 found rallies, and 54.4% of those are fully correct:
-  1,190 rallies, or 35.8% of all labelled rallies (Figure 6).
+  54.9% of labelled rallies fully correct under the common rule without maximum
+  context limits. A separate confidence survey checks the tighter 2/3-second
+  boundary definition. At its validation-selected threshold of about 0.343,
+  2,193 of about 3,664 found rallies remain. Of those, 51.3% are fully correct
+  under that tighter rule: 1,125 rallies, or 33.8% of all labelled rallies.
 - **Both court detectors place the court close enough that swapping courts
-  barely changes the scores.** The median corner error against ShuttleSet22's
-  reference corners is 3.8 px for ours and 6.5 px for MonoTrack (Figure 2).
-  Swapping courts between the systems moves every score by 0.17 points or less.
-  The 2.7 px gap between the medians is within a painted line's width; the
-  clearer differences are in how each detector fails.
-- **The trees do most of the work, and they are fairly stable.** With all three off,
-  ours gets 6.6% of rallies fully correct. Across five training seeds, fully
-  correct rallies span 58.6% to 60.9%.
+  barely changes the scores.** Median corner error is 3.8 px for ours and
+  6.5 px for MonoTrack (Figure 2). Swapping courts moves every score by
+  0.17 points or less. The 2.7 px gap between medians is within a painted
+  line's width; the clearer differences are in how each detector fails.
+- **The trees do most of the work, and they are fairly stable.** With all three
+  off and rally bounds supplied, ours gets 6.6% fully correct. Across five
+  training seeds, the trained model spans 59.0% to 60.7%.
 
 ![Dot plots of Contact F1, Correct-player F1 and fully correct rallies for each set-up](writeup_figures/v7/fig1_headline.png)
 
-Figure 1. The three headline scores for each set-up, ±10 frames. The top four
-rows score contacts within supplied bounds; the bottom row also checks discovered
-rally boundaries, allowing up to 2 seconds before the first contact and 3 seconds
-after the last for the shuttle to come to rest. Black lines span each system's
+Figure 1. The three headline scores for each set-up, ±10 frames. Rows 1–4 score
+contacts within supplied rally boundaries, as required by MonoTrack. We allow
+a buffer of up to 1 s before and after each rally. Black lines span each system's
 lowest to highest seed. Axes do not start at zero.
 
 ![Cumulative share of rallies within each court error, and per-video median errors](writeup_figures/v5/fig2_court_error.png)
@@ -81,12 +80,12 @@ The trees-off rows are deterministic runs.
 |---|---|---|---:|---:|---:|
 | MonoTrack | Its own | Given | 96.0% (95.9–96.2) | 95.8% (95.7–96.0) | 47.8% (46.4–49.2) |
 | MonoTrack | Ours | Given | 96.0% (95.9–96.2) | 95.9% (95.7–96.1) | 47.9% (46.4–49.2) |
-| Our annotator | Ours | Given | 96.7% (96.6–96.8) | 94.7% (94.5–94.9) | 59.9% (58.6–60.9) |
-| Our annotator | MonoTrack's | Given | 96.6% (96.5–96.7) | 94.7% (94.4–94.9) | 59.8% (58.5–60.7) |
+| Our annotator | Ours | Given | 96.7% (96.7–96.8) | 94.7% (94.5–94.8) | 60.0% (59.0–60.7) |
+| Our annotator | MonoTrack's | Given | 96.6% (96.6–96.7) | 94.6% (94.4–94.8) | 59.9% (58.9–60.6) |
 | Our annotator, trees off | Ours | Given | 88.7% | 71.0% | 6.6% |
 | Our annotator, trees off | MonoTrack's | Given | 88.7% | 70.9% | 6.6% |
-| Our annotator | Ours, per scene | Found by the annotator | 93.4% (93.4–93.5) | 90.8% (90.6–90.9) | 42.8% (42.6–43.0) |
-| Our annotator, trees off | Ours, per scene | Found by the annotator | 77.8% | 63.3% | 4.1% |
+| Our annotator | Ours, per scene | Found by the annotator | 93.5% (93.4–93.5) | 90.8% (90.4–91.0) | 54.9% (54.5–55.8) |
+| Our annotator, trees off | Ours, per scene | Found by the annotator | 77.8% | 63.3% | 4.2% |
 
 - **Contact F1** combines precision (the share of predicted hits that match a
   labelled hit) and recall (the share of labelled hits found). A match must be
@@ -100,20 +99,21 @@ The trees-off rows are deterministic runs.
   hits inside the 524 left-out rallies, which are ignored (Appendix G). A found
   rally is fully correct when it covers exactly one labelled rally, its hits
   match that rally's hits one to one with none left over, and every hitter is
-  right. Its bounds must also meet the 2-second / 3-second context limits
-  defined below, with the same inward allowance that hit timing gets.
+  right. There is no maximum outward context limit. Either edge may fall
+  inward by the same allowance as contact timing. The finite-boundary
+  confidence surveys below apply additional 1/1 or 2/3 limits.
 - **The 95% intervals** come from 10,000 paired bootstrap resamples of the 46
   videos. Each trained system's counts are averaged over its five seeds
   before resampling.
 
 Ours leads on Contact F1 by 0.7 points (95% interval 0.4 to 1.0), with the higher score on 37 of 46 videos.
-MonoTrack leads on Correct-player F1 by 1.1 points (95% interval 0.5 to 1.8), with the higher score on 28 videos.
+MonoTrack leads on Correct-player F1 by 1.1 points (95% interval 0.6 to 1.8), with the higher score on 31 videos.
 
 ## What the numbers mean for labelling work
 
-With rally bounds given, our annotator misses 1,995 hits against
-2,012 for MonoTrack, and adds fewer extras (397 against 886).
-It gives the wrong hitter more often (727 against 76), but its errors
+With rally bounds given, our annotator misses 1,999 hits against
+2,012 for MonoTrack, and adds fewer extras (391 against 886).
+It gives the wrong hitter more often (732 against 76), but its errors
 sit in fewer rallies. Counts are means over five seeds.
 
 ![Stacked bars of hit errors by type for each condition](writeup_figures/v7/fig3_hit_errors.png)
@@ -126,7 +126,7 @@ labelled rally, which count only when the annotator finds its own rallies.
 
 The pattern holds video by video (Figure 4). Ours has more fully correct
 rallies on 42 of 46 videos, and higher Contact F1 on 37.
-MonoTrack has the higher Correct-player F1 on 28.
+MonoTrack has the higher Correct-player F1 on 31.
 
 ![Per-video scatter plots, our annotator against MonoTrack](writeup_figures/v7/fig4_per_video.png)
 
@@ -138,35 +138,38 @@ courts.
 With no rally bounds, our annotator must decide where each rally starts and
 ends. Figure 5 breaks its rally results into three nested steps:
 
-1. **Boundaries right:** one found rally covers exactly one labelled rally.
-   Its start is no more than 2 seconds before the first labelled hit, and its
-   end is no more than 3 seconds after the last. Either edge may fall up to
-   10 frames inside those hits, matching the hit-timing tolerance.
+1. **Boundaries right:** one found rally covers exactly one labelled rally,
+   without merging neighbours or covering only part of a rally. There is no
+   maximum outward context limit. Either edge may fall up to 10 frames inside
+   the first or last labelled hit, matching the hit-timing tolerance.
 2. **Hits right:** that found rally also holds every labelled hit and no extra
    hits. Hitters are not checked.
 3. **Fully correct:** every hitter is right as well.
 
 The labels mark racket contacts, not the physical start of play or the shuttle's
-landing. These limits allow context around the contacts; they do not require
-rallies to include the full buffer. The annotator shortens overlong discovered
-spans around its retained contacts, with neighbour checks to keep spans separate.
+landing. The selected annotator shortens long discovery windows to at most 2 seconds
+before its first retained contact and 3 seconds after its last, with small
+edge padding and neighbour checks. The common evaluation rule measures rally
+and contact completeness without imposing that maximum on either model.
 Supplied rally bounds stay fixed. Inside a chosen span, the rally model's contact
 list is final. Outside every chosen span, all detector contacts remain and count
-towards whole-video hit scores.
+towards whole-video hit scores. Dataset export separately anchors clips to the
+first and last accepted contacts and adds 2 seconds before and 3 after; those
+clips may overlap and do not change the predictions scored here.
 
 ![Bars showing boundaries right, hits right and fully correct for each system](writeup_figures/v7/fig5_rally_ladder.png)
 
 Figure 5. Share of the 3,327 scored rallies reaching each step. With rally
 bounds given, the boundaries are already set, so only the last two steps apply.
 
-The annotator gets the boundaries right for 66.4% of labelled rallies, and 43.4%
-also have every hit right. With its trees off, boundaries are right for
-43.7% of rallies and 4.1% end up fully correct.
+The annotator covers one complete rally for 87.8% of labelled rallies, and
+55.9% also have every hit right. With its trees off, the corresponding boundary
+coverage is 52.1%, and 4.2% end up fully correct.
 
-Contact F1 drops from 96.7% with rally bounds given to 93.4% here.
+Contact F1 drops from 96.7% with rally bounds given to 93.5% here.
 Two sources of errors are:
 
-- **Hits outside every scored rally.** 1,373 predicted hits per seed sit outside
+- **Hits outside every scored rally.** 1,346 predicted hits per seed sit outside
   the scored rally windows, after the excluded windows are masked. What they
   show (replays, warm-ups or play between rallies) has not been checked.
 - **Rallies with no court.** In 211 rallies (1,461 labelled hits) this mode
@@ -176,48 +179,50 @@ Two sources of errors are:
 
 ### Keeping only the confident rallies
 
-Each found rally gets a confidence score from one of the trees, trained to
-predict whether the rally is fully correct. Raising the threshold keeps fewer
-rallies. Figure 6 shows how the accuracy of those kept changes.
+Each found rally gets a confidence score from the review tree. It ranks the
+finished prediction and does not change its contacts or boundaries. Raising
+the threshold keeps fewer rallies.
 
-Figure 6 and Table 3 mark three thresholds, selected from all
-3,346 distinct validation scores:
+This survey checks the discovery window against a finite rule: at most
+2 seconds before the first labelled hit and 3 seconds after the last, with
+up to 10 frames inward. It is stricter than the unfiltered headline rule and
+is separate from dataset clip padding. Appendix B also compares the 1/1 rule
+for both trained configurations.
 
-- **About 0.279, keeps half.** Closest to retaining half the found validation
+Figure 6 and Table 3 use two thresholds chosen from all 3,339 distinct
+validation scores:
+
+- **About 0.343, keeps half.** Closest to retaining half the found validation
   rallies, pooled over five seeds.
-- **About 0.249, the best balance.** Highest mean F1 across five seeds for
-  retrieving fully correct validation rallies.
-- **About 0.786, for boundaries.** Lowest threshold reaching 99% mean
-  boundary accuracy across five seeds, retaining rallies in every seed.
+- **About 0.347, the best balance.** Highest mean F1 across five seeds for
+  retrieving fully correct validation rallies under the 2/3 rule.
 
-Table 3. Test results at each validation-selected threshold, five-seed means.
-Counts and percentages are averaged separately across seeds. Each seed has
-about 3,663 found rallies after detections in excluded rallies are removed
-(Appendix G). The two share columns describe the
-kept rallies. The last column also gives fully correct rallies as a share of
-all 3,327 labelled rallies. Thresholds shown here are rounded; the
-[results file](benchmark_results/boundary_retrain_v7/primary/confidence_cutoffs.json.gz)
-records the exact values used for scoring.
+No threshold reached 99% mean boundary accuracy while retaining rallies in
+all five validation seeds. There is therefore no 99% operating point to report.
+
+Table 3. Test results at the validation-selected thresholds, five-seed means.
+Counts and percentages are averaged separately. Each seed has about 3,664 found
+rallies after detections belonging to excluded rallies are removed (Appendix G).
+The two share columns describe kept rallies under the 2/3 boundary rule. The
+last column also gives their share of all 3,327 labelled rallies. Thresholds
+are rounded here; the [results file](benchmark_results/discovery_context/surveys/5_5/2_3/confidence_cutoffs.json.gz)
+records the exact values.
 
 | Threshold | Rallies kept | Share fully correct | Share with the right start and end | Kept rallies with the right start and end | Fully correct rallies (boundaries and all contacts correctly attributed) |
 |---|---:|---:|---:|---:|---:|
-| ≈0.279 | 2,189 | 54.4% | 74.5% | 1,631 | 1,190 (35.8%) |
-| ≈0.249 | 2,406 | 52.5% | 74.0% | 1,780 | 1,262 (37.9%) |
-| ≈0.786 | 37 | 84.0% | 94.2% | 34 | 31 (0.9%) |
+| ≈0.343 | 2,193 | 51.3% | 69.4% | 1,521 | 1,125 (33.8%) |
+| ≈0.347 | 2,173 | 51.4% | 69.4% | 1,508 | 1,118 (33.6%) |
 
-The 99% boundary target was met on only 7–12 validation rallies per seed
-(mean 10.2). It was not met on test (Table 3).
-
-Before confidence filtering, 42.8% of test rallies are fully correct,
-compared with 32.5% on validation. Appendix G examines how excluding flawed
-rallies affects this comparison.
+Before filtering, the common rule without maximum context limits gives 54.9%
+fully correct test rallies and 44.4% on all validation rallies. Appendix G
+reports the 354-rally unflagged validation view separately.
 
 ![Confidence threshold against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v7/fig6_confidence.png)
 
-Figure 6. Left: on the test videos, what each threshold keeps. Right: the share
-of kept rallies that are fully correct, against the fully correct rallies handed
-over as a share of all labelled rallies, for test and validation. Lines are the
-mean of five seeds; shading spans the lowest to highest seed.
+Figure 6. The 2/3 discovery-boundary survey. Left: what each threshold keeps on
+test. Right: the share of kept rallies that are fully correct, against their
+coverage of all labelled rallies, for test and validation. Lines are five-seed
+means; shading spans the lowest to highest seed.
 
 ## Court detection
 
@@ -298,19 +303,19 @@ these rallies as missed hits.
 Our annotator's trees are fairly stable across training seeds (Figure 10).
 
 - **Seeds.** With rally bounds given, Correct-player F1 spans
-  94.5–94.9% and fully correct rallies 58.6–60.9%. The 2.3-point seed spread in
-  fully correct rallies is small next to the 12.1-point gap to MonoTrack.
+  94.5–94.8% and fully correct rallies 59.0–60.7%. The 1.7-point seed spread in
+  fully correct rallies is small next to the 12.2-point gap to MonoTrack.
 - **Training-set size.** Training the contact model on all 40 original videos
-  instead of 32 changes fully correct rallies by +1.0 points with rally bounds
+  instead of 32 changes fully correct rallies by +1.4 points with rally bounds
   given, and by +0.2 points when finding rallies. With bounds given,
   Correct-player F1 changes by +0.1 points; the fully correct rally change across
-  seeds ranges from +0.5 to +1.7 points. The 32-video models are the fair
+  seeds ranges from +0.5 to +2.2 points. The 32-video models are the fair
   comparison with MonoTrack, so the headline uses them.
 - **Preprocessing comparison.** The fixed alternative from the earlier validation
   search smooths player body size over 36 frames on either side. After refitting,
   with rally bounds given and our courts, it gets 96.5% Contact F1,
-  94.4% Correct-player F1 and 57.6% fully correct rallies.
-  The raw baseline gets 96.7%, 94.7% and 59.9%, respectively.
+  94.5% Correct-player F1 and 58.1% fully correct rallies.
+  The raw baseline gets 96.7%, 94.7% and 60.0%, respectively.
 
 Each tree is an XGBoost gradient-boosted model over named measurements of
 shuttle motion and player pose. Each decision traces back to those measurements.
@@ -478,7 +483,7 @@ Correct-player F1 over five training seeds. The rally selector adds 400 small
 trees in turn, each correcting the ones before it, and each with up to 31 end
 points (leaves). Those settings were kept for the boundary-policy refit. All
 three models were retrained with five seed offsets; a new hyperparameter
-search remains a TODO.
+search remains a low-priority TODO.
 
 **Frame-rate scaling.** A few motion features are measured per frame: shuttle
 velocity, speed and acceleration, and each player's ankle speed. The same
@@ -498,26 +503,65 @@ per-frame convention, which the refit retains.
 | All rescaled to 30 fps | 85.09% | 293.0 | 83.29% | 242.2 |
 | All but acceleration rescaled | 85.21% | 292.8 | 83.42% | 241.6 |
 
-**Boundary policy.** We compared maximum training allowances of 2/3, 3/3 and
-5/5 seconds before/after labelled contacts. Each used a separately retrained
-selector and confidence model with the same contact-model fits. Selection used
-mean fully correct validation-rally coverage before confidence filtering, with
-the same 2/3-second evaluation rule for every training policy. The 2/3 policy
-gave 216.8 of 668 fully correct rallies (32.46%), against 208.6 (31.23%) for
-3/3 and 209.8 (31.41%) for 5/5. It supplies the headline results. Seed ranges
-overlap, and 5/5 scores slightly higher under the two looser evaluation rules.
-The allowances
-are maxima, so valid boundaries closer to the contacts can still receive
-positive training labels. The [training/evaluation table](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances)
-shows validation and test coverage for all nine combinations.
+**Discovery configuration.** We compared the saved 5/5-trained model with its
+2/3 output cap against a new model trained and run without maximum context
+limits. The new arm reused preparation, contact fits and proposal features;
+selector targets and selector/review models were refitted. Contact ownership,
+neighbour checks and five-frame-preferred targets stayed in place.
 
-**Confidence thresholds.** The three operating points in Table 3 were selected
+Selection used five-seed mean fully correct coverage on all 668 validation
+rallies at ±10 frames, with no maximum context limit for either arm. Ties would
+use Correct-player F1, then Contact F1. F1 scores use the whole contact stream,
+including contacts outside found rallies. The separate unflagged view removes
+314 marked rallies after judgement, retaining all labels in matching and
+neighbour checks and all contacts in F1.
+
+Table B2. Common-rule validation results, five-seed means.
+
+| Configuration | Fully correct / 668 | Share | Contact F1 | Correct-player F1 | Fully correct / 354 unflagged |
+|---|---:|---:|---:|---:|---:|
+| 5/5 training, 2/3 discovery cap (selected) | 296.8 | 44.43% | 89.881% | 85.320% | 223.6 (63.16%) |
+| No maximum context in training or discovery | 293.0 | 43.86% | 90.136% | 85.336% | 221.6 (62.60%) |
+
+The selected configuration recovers 3.8 more fully correct rallies per seed:
+0.57 percentage points. Switching to no-max loses 1.28% of the fully correct
+rallies recovered by 5/5. This is a small difference, with no
+claim of statistical superiority. The comparison changes both training and
+finishing, so it does not isolate either one's contribution. The
+[selection record](benchmark_results/discovery_context/policy_selection.json.gz)
+contains each seed. The earlier
+[three-policy comparison](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances)
+used a different, common 2/3 evaluation rule.
+
+**Confidence thresholds.** The two operating points in Table 3 were selected
 on the same eight validation videos, checking every distinct confidence score
 from the selected model's five runs. The objectives were closest to half the
 pooled found rallies retained, highest mean retrieval F1 for fully correct
 rallies, and the lowest threshold reaching 99% mean boundary accuracy while
 retaining rallies in all five seeds. Test results did not choose the training
 policy or confidence thresholds.
+
+Table B3. Finite-boundary discovery surveys, at each configuration's
+validation-selected best-F1 threshold. Limits are maximum seconds before the
+first labelled contact and after the last. The percentages describe kept test
+detections; counts and shares are five-seed means.
+
+| Configuration | Limits before/after | Threshold | Test detections kept | Right boundaries | Fully correct |
+|---|---|---:|---:|---:|---:|
+| 5/5 + 2/3 output cap | 1/1 | ≈0.283 | 2,520 | 1.28% | 0.58% |
+| 5/5 + 2/3 output cap | 2/3 | ≈0.347 | 2,173 | 69.38% | 51.43% |
+| No maximum context | 1/1 | ≈0.590 | 1,280 | 0.69% | 0.55% |
+| No maximum context | 2/3 | ≈0.239 | 2,700 | 33.68% | 22.05% |
+
+All 3,339 distinct validation scores for 5/5 and 3,333 for no-max were searched.
+No threshold reaches 99% mean boundary accuracy while retaining detections in
+all five seeds, under either finite rule. The [complete survey table](benchmark_results/discovery_context/README.md#finite-boundary-confidence-surveys)
+also reports the keep-half thresholds and links to every threshold's results.
+
+The 1/1 rule rejects nearly all discovery windows. The selected model retains
+up to 2/3 seconds of context and the no-max arm can retain more. These surveys
+measure window tightness as well as contact completeness. They judge discovery
+output; the later 2/3-padded dataset clips are not part of this comparison.
 
 ## Appendix C: Our court detector's two modes
 
@@ -588,8 +632,8 @@ from PySceneDetect. It does not measure how often each cause occurs across all
 
 The main results use ±10 frames, which matches the timing target of our
 annotator's later stages. The table below rescores the same predictions at
-±5 frames, with no retraining or retuning. The maximum outward context remains
-2 seconds before and 3 seconds after; the inward allowance becomes five frames.
+±5 frames, with no retraining or retuning. There is no maximum outward context
+limit; the inward allowance becomes five frames.
 
 Table E1. Main conditions rescored at ±5 frames. Both trained systems use
 five-seed means (min–max).
@@ -598,28 +642,30 @@ five-seed means (min–max).
 |---|---|---|---:|---:|---:|
 | MonoTrack | Its own | Given | 94.9% (94.8–95.1) | 94.7% (94.6–95.0) | 40.3% (38.7–41.9) |
 | MonoTrack | Ours | Given | 94.9% (94.8–95.1) | 94.8% (94.6–95.0) | 40.3% (38.7–42.0) |
-| Our annotator | Ours | Given | 94.9% (94.8–95.1) | 93.1% (92.8–93.2) | 49.2% (48.8–50.2) |
-| Our annotator | MonoTrack's | Given | 94.8% (94.8–95.0) | 93.0% (92.8–93.2) | 49.1% (48.7–50.0) |
+| Our annotator | Ours | Given | 94.9% (94.7–95.2) | 93.1% (93.0–93.3) | 49.5% (48.8–50.7) |
+| Our annotator | MonoTrack's | Given | 94.9% (94.6–95.1) | 93.0% (92.9–93.2) | 49.4% (48.6–50.6) |
 | Our annotator, trees off | Ours | Given | 83.5% | 67.2% | 4.2% |
 | Our annotator, trees off | MonoTrack's | Given | 83.5% | 67.1% | 4.2% |
-| Our annotator | Ours, per scene | Found by the annotator | 91.5% (91.4–91.6) | 89.0% (88.9–89.1) | 33.9% (33.6–34.3) |
-| Our annotator, trees off | Ours, per scene | Found by the annotator | 74.0% | 60.5% | 2.4% |
+| Our annotator | Ours, per scene | Found by the annotator | 91.6% (91.5–91.8) | 89.1% (88.7–89.3) | 44.3% (43.7–45.7) |
+| Our annotator, trees off | Ours, per scene | Found by the annotator | 74.0% | 60.5% | 2.5% |
 
 At ±5 frames, Contact F1 is 94.9% for ours and
-94.9% for MonoTrack. Fully correct rallies are 49.2% and 40.3%, respectively.
+94.9% for MonoTrack. Fully correct rallies are 49.5% and 40.3%, respectively.
 
 ## Appendix F: Where the numbers come from
 
-- [Primary results](benchmark_results/boundary_retrain_v7/primary/): five-seed
+- [Primary results](benchmark_results/discovery_context/primary/): five-seed
   summaries, per-video counts, paired bootstrap intervals, found-rally outcomes
-  and complete confidence curves. These use the selected 2/3 training policy
-  and the common 2/3 evaluation rule.
-- [Policy comparison](benchmark_results/boundary_retrain_v7/): validation
-  selection, all nine training/evaluation combinations and the training-target
-  comparison. Confidence thresholds use validation only.
-- [Annotator models and fit settings](../tree_simplification/results/boundary_retrain_v7/README.md):
-  five raw-baseline bundles and five body-window-36 bundles under `2_3/models/`;
-  five contact-size comparison bundles under `2_3/models_40/`.
+  and confidence curves. These use the selected 5/5-trained model and
+  the common rule without maximum context limits.
+- [Discovery comparison](benchmark_results/discovery_context/): validation
+  selection and both finite-boundary confidence surveys for both configurations.
+  Confidence thresholds use validation only. The earlier
+  [training-target comparison](benchmark_results/boundary_retrain_v7/training_targets/)
+  retains its original three-policy results.
+- [Annotator models and fit settings](../tree_simplification/results/discovery_context/README.md):
+  five raw-baseline bundles and five body-window-36 bundles under `5_5/models/`;
+  five contact-size comparison bundles under `5_5/models_40/`.
 - Fresh annotator predictions are generated under
   `NEW_RUN/annotator_runs/<policy>/test/<condition>/<family>/seed-<N>/`, with
   validation under `validation/32_videos/seed-<N>/`. They are not duplicated in
@@ -643,8 +689,8 @@ At ±5 frames, Contact F1 is 94.9% for ours and
   has histories and summaries for five seeds of all six shuttle/L2 settings,
   plus checkpoints for the selected setting. The earlier grid is in
   `hitnet_retrain/weights/`.
-- [Exclusion sensitivity](benchmark_results/boundary_retrain_v7/exclusion_effect/):
-  saved-prediction checks for Appendix G, including the unflagged validation subset.
+- Appendix G uses the primary results' ignored-contact counts and the
+  discovery comparison's separate unflagged validation counts.
 - [Write-up scripts](writeup_scripts/README.md): scoring, confidence surveys
   and figures. The result index explains how to unpack the compressed figure inputs.
 
@@ -668,7 +714,8 @@ hits have an unknown shot type.
 **How they are ignored.** Each left-out rally gets bounds from 1 second before
 its first hit to 1 second after its last, as the scored rallies do. A prediction
 inside those bounds is dropped before scoring, unless it is within 10 frames of
-a scored hit. A found rally left with no predictions is dropped too.
+a scored hit. A previously non-empty found rally is dropped if all its contacts
+are ignored. Detections that were already empty remain in the evaluation.
 
 **What this changes:**
 
@@ -676,31 +723,29 @@ a scored hit. A found rally left with no predictions is dropped too.
   the left-out rallies removes a mean of 1.0 MonoTrack
   predictions and 3 trees-off annotator predictions.
 
-- **When the annotator finds its own rallies,** a mean of 4,069 predictions and
-  about 358 found rallies per seed are dropped. Counted as extra hits instead,
-  they would put Contact F1 at 88.5% rather than 93.4%, and Correct-player F1 at
-  86.0% rather than 90.8%. With its trees off, the figures would be 74.2% rather
-  than 77.8%, and 60.4% rather than 63.3%. Fully correct rally coverage is unchanged for the
-  retrained annotator.
+- **When the annotator finds its own rallies,** a mean of 4,054 predictions and
+  about 357 found rallies per seed are dropped. Counted as extra hits instead,
+  they would put Contact F1 at 88.6% rather than 93.5%, and Correct-player F1 at
+  86.1% rather than 90.8%. With its trees off, the figures would be 74.2% rather
+  than 77.8%, and 60.4% rather than 63.3%.
 - **Court results** cover only the 3,327 scored rallies, so they do not change.
 
 The left-out rallies' bounds may also hold some false hits, so the
 discovery-mode scores describe the rest of each video.
 
 **Validation and test use different label populations.** All 668 validation
-rallies are scored, including 314 with at least one `flaw == 1` row in the raw
-original-ShuttleSet labels. Their flagged frames are present in the labels
-loaded for scoring. The remaining 354 unflagged rallies score 157.0 fully
-correct on average: **44.4%**, compared with **32.5%** across all validation
-rallies and **42.8%** on the unflagged test population. Applying the same
-excluded-window masking to this validation subset leaves its fully correct
-count unchanged.
+rallies are scored, including 314 with a `flaw == 1` row in the raw labels.
+Their labelled contacts remain in matching and neighbouring-rally checks.
+After judgement, the 354 unflagged rallies contain 223.6 fully correct rallies
+on average: **63.2%**, compared with **44.4%** on all validation rallies and
+**54.9%** on the test population. These numbers use the same no-maximum-context
+rule. Contact F1 still uses all validation contacts.
 
-Using the same flaw-flag exclusion removes the apparent test advantage, though
-the releases may still differ in label quality. Model selection and confidence
-thresholds retain the original validation population.
-The [saved counts](benchmark_results/boundary_retrain_v7/exclusion_effect/)
-give the per-seed results and the effect on fixed confidence thresholds.
+The unflagged validation subset scores higher than test, whereas the full
+validation population scores lower. The subsets may also differ in difficulty
+and label quality. This reporting view does not change model selection or
+confidence thresholds. The [selection record](benchmark_results/discovery_context/policy_selection.json.gz)
+gives both validation views for every seed and configuration.
 
 [^datasets]: The original ShuttleSet dataset is used for training and
     validation; its follow-up ShuttleSet22, deduplicated of shared clips, is used
