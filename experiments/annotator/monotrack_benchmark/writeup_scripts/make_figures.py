@@ -326,8 +326,8 @@ def cutoff_text(value: float) -> str:
 
 def boundary_note(policy: dict[str, float]) -> str:
     before, after = policy['before_seconds'], policy['after_seconds']
-    return (f'Boundary context: up to {before:g} s before the first labelled hit and {after:g} s after the last, '
-            'plus ±10 frames. One labelled rally per found rally.')
+    return (f'Bounds: up to {before:g} s before the first labelled hit and {after:g} s after the last; '
+            'edges may fall 10 frames inside. One labelled rally per found span.')
 
 
 def cutoff_row(curves: pd.DataFrame, threshold: float) -> pd.Series:

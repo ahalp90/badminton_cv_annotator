@@ -11,8 +11,9 @@ baseline is documented in the [rally-model report](../../experiments/annotator/r
 
 ## The selected model
 
-These settings describe the saved `raw_baseline-seed-0` bundle. The five benchmark
-runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
+These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md).
+Validation selected the 2-second / 3-second training boundary policy. The five
+benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -55,8 +56,12 @@ Each row contains:
 - evidence from unused candidates and the gaps between contacts.
 
 The highest score wins within each initial rally. Equal scores preserve the
-proposal order. The finishing rules then adjust boundaries without changing
-contact membership and choose the better-fitting alternating player pattern.
+proposal order. The finishing rules shorten overlong discovered spans to at most
+2 seconds before the first kept contact and 3 seconds after the last. Shorter
+spans remain shorter, subject to the small edge padding and neighbour checks.
+The chosen contacts are final inside each chosen span; detector contacts outside
+all chosen spans remain in the full stream. The finishing step also fits the
+hitter order from the retained contacts. Supplied rally bounds stay fixed.
 
 With additional layers, each layer receives the preceding scores, winning score,
 margin, rank, choice and contact differences. All layers score the same ordered
@@ -81,8 +86,11 @@ separately because both can affect reproducibility.
 
 Rally training judges each proposal after applying the boundary rules with its
 initial neighbours. A proposal is wrong if it merges rallies, misses or adds
-contacts, or contradicts known player sides. Missing labels can make a proposal
-unjudgeable; these rows are excluded from fitting.
+contacts, contradicts known player sides, or exceeds the boundary allowances.
+The current allowances are at most 2 seconds before the first labelled contact
+and 3 seconds after the last. Closer valid boundaries remain positive. The
+contact-timing tolerance also allows slightly late starts and early ends.
+Missing labels can make a proposal unjudgeable; these rows are excluded from fitting.
 
 The selector prefers labels matched within five frames at 30 FPS when a rally
 has a positive option at that tolerance. Otherwise it uses the ten-frame labels.
