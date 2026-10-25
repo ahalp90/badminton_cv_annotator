@@ -6,9 +6,9 @@ import numpy as np
 
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, apply_choices, initial_sequences
+from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
-from annotator.sequence.rally_model import alternate_sides, extend_boundaries
+from annotator.sequence.rally_model import alternate_sides, finish_choices
 from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.sequence.repairs import (
     RallyRepairs,
@@ -133,8 +133,7 @@ def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_
     for after in options.sequences:
         chosen = {sequence.span_id: sequence for sequence in video.initial}
         chosen[after.span_id] = after
-        raw, events = apply_choices(video.initial, video.events, chosen)
-        expected = extend_boundaries(raw, events, video.fps, frame_count=video.frame_count)
+        expected, events = finish_choices(video.initial, video.events, chosen, video.fps, frame_count=video.frame_count)
         actual = finish_in_initial_context(video, after.span_id, after, stream_frames)
         assert actual == expected[after.span_id]
         finished, _events = alternate_sides(expected, events)

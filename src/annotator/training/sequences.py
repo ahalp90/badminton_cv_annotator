@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from math import isfinite
 
 import numpy as np
 
@@ -25,6 +26,28 @@ class LabelledRally:
 
 
 @dataclass(frozen=True)
+class RallyBoundaryPolicy:
+    """Maximum context before the first and after the last labelled contact."""
+
+    before_seconds: float = 2.0
+    after_seconds: float = 3.0
+
+    def __post_init__(self) -> None:
+        if any(not isfinite(seconds) or seconds < 0 for seconds in (self.before_seconds, self.after_seconds)):
+            raise ValueError('rally boundary allowances must be finite and non-negative')
+
+
+DEFAULT_RALLY_BOUNDARY_POLICY = RallyBoundaryPolicy()
+
+
+@dataclass(frozen=True)
+class RallyBoundaryJudgement:
+    outcome: str
+    rally: LabelledRally | None
+    overlapping_rallies: int
+
+
+@dataclass(frozen=True)
 class SequenceTrainingVideo:
     """One training video's detector proposals and human contact labels."""
 
@@ -36,6 +59,7 @@ class SequenceTrainingVideo:
     repairs: RallyRepairs
     rallies: tuple[LabelledRally, ...]
     frame_count: int | None = None
+    bounds_supplied: bool = False
 
 
 MATCH_CONTACT = np.uint8(1)
@@ -160,21 +184,22 @@ def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRal
 
 def whole_rally_correctness(
     sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance_at_30_fps: int = 10,
+    *, tolerance_at_30_fps: int = 10, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> int:
     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
 
     Missing contacts, merged/partial rallies, extra events and known side
     contradictions are wrong even when another human side label is unavailable.
     """
-    overlaps = overlapping_rallies(sequence, rallies)
-    if not overlaps:
+    boundary = judge_rally_boundaries(
+        sequence, rallies, fps, tolerance=scale_frames(tolerance_at_30_fps, fps), policy=boundary_policy,
+    )
+    if boundary.outcome == 'no_labelled_rally':
         return -1
-    if len(overlaps) > 1:
+    if boundary.outcome != 'boundaries_right':
         return 0
-    rally = overlaps[0]
-    if not all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames):
-        return 0
+    rally = boundary.rally
+    assert rally is not None
     tolerance = scale_frames(tolerance_at_30_fps, fps)
     matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
     if len(matches) < len(rally.frames):
@@ -188,3 +213,33 @@ def whole_rally_correctness(
     if any(side is None for side in rally.sides):
         return -1
     return 1
+
+
+def judge_rally_boundaries(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance: int, policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+) -> RallyBoundaryJudgement:
+    """Judge one half-open span against contact labels using shared endpoint rules.
+
+    The timing allowance permits small inward errors. Outward context is bounded
+    separately, measured to the final included frame. A span touching contacts
+    from two labelled rallies fails even when both endpoints meet their limits.
+    """
+    start = sequence.start_frame - tolerance
+    end = sequence.end_frame + tolerance
+    overlaps = overlapping_rallies(sequence, rallies)
+    if not overlaps:
+        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
+    if not overlaps:
+        return RallyBoundaryJudgement('no_labelled_rally', None, 0)
+    if len(overlaps) > 1:
+        return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
+    rally = overlaps[0]
+    first, last = rally.frames[0], rally.frames[-1]
+    if not start <= first or not last < end:
+        return RallyBoundaryJudgement('part_of_rally', rally, 1)
+    before = scale_frames(round(policy.before_seconds * 30), fps)
+    after = scale_frames(round(policy.after_seconds * 30), fps)
+    if sequence.start_frame < first - before or sequence.end_frame - 1 > last + after:
+        return RallyBoundaryJudgement('overlong_rally', rally, 1)
+    return RallyBoundaryJudgement('boundaries_right', rally, 1)

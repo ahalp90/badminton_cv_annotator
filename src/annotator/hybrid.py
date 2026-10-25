@@ -98,6 +98,7 @@ def predict_contact_features(
     refined = select_rally_sequences(
         evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
+        bounds_supplied=evidence.bounds_supplied,
     )
     report("scoring rally confidence")
     confidence = score_rally_review(refined, models.confidence)

@@ -30,6 +30,8 @@ from annotator.training.rally_targets import (
     original_option_rows,
 )
 from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    RallyBoundaryPolicy,
     SequenceTrainingVideo,
     whole_rally_correctness,
 )
@@ -46,6 +48,7 @@ class RallyFitConfig:
     depth: int = 1
     max_edits: int = 3
     deletion_candidates: int = 6
+    boundary_policy: RallyBoundaryPolicy = field(default_factory=RallyBoundaryPolicy)
 
 
 @dataclass(frozen=True)
@@ -141,10 +144,10 @@ def prepare_training_pools(
     pools = {}
     judged_original_rows = judged_original_spans = 0
     for video in videos:
-        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
+        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
         pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
-        wide = option_targets(video, pool)
-        five = option_targets(video, pool, tolerance_at_30_fps=5)
+        wide = option_targets(video, pool, boundary_policy=config.boundary_policy)
+        five = option_targets(video, pool, tolerance_at_30_fps=5, boundary_policy=config.boundary_policy)
         original = original_option_rows(pool)
         included = original[wide[original] >= 0]
         judged_original_rows += len(included)
@@ -191,6 +194,7 @@ def fit_review_model(features: LayerReviewFeatures, correctness: np.ndarray, con
 
 def fit_rally_review_model(
     videos: Sequence[SequenceTrainingVideo], predictions: dict[str, RallyLayerPrediction], config: TreeFitConfig,
+    *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> Any:
     matrices, correctness = [], []
     for video in videos:
@@ -199,7 +203,7 @@ def fit_rally_review_model(
         matrices.append(features.matrix)
         sequences = {sequence.span_id: sequence for sequence in prediction.sequences}
         correctness.extend(whole_rally_correctness(
-            sequences[span_id], video.rallies, video.fps,
+            sequences[span_id], video.rallies, video.fps, boundary_policy=boundary_policy,
         ) for span_id in features.span_ids)
     matrix = np.concatenate(matrices)
     features = LayerReviewFeatures(tuple(range(len(matrix))), matrix)

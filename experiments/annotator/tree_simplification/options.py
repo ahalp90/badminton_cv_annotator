@@ -18,7 +18,11 @@ from annotator.sequence.rally_options import (
     sequence_key,
 )
 from annotator.training.rally_targets import finish_in_initial_context, option_targets
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    RallyBoundaryPolicy,
+    SequenceTrainingVideo,
+)
 
 __all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'finish_in_initial_context', 'sequence_key']
 
@@ -30,6 +34,7 @@ class LabelledOptions:
     targets: np.ndarray
     span_rows: dict[int, np.ndarray]
     video: SequenceTrainingVideo
+    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY
 
     @property
     def runtime(self) -> RallyOptions:
@@ -38,11 +43,14 @@ class LabelledOptions:
 
 
 def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
+    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
 
 
-def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> LabelledOptions:
+def expand_pool(
+    video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6,
+    *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+) -> LabelledOptions:
     """Build label-free options, then judge them with initial neighbouring spans."""
     options = build_rally_options(rally_context(video), max_edits, deletion_candidates)
-    targets = option_targets(video, options)
-    return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video)
+    targets = option_targets(video, options, boundary_policy=boundary_policy)
+    return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video, boundary_policy)

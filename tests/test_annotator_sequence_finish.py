@@ -1,8 +1,21 @@
-"""Boundary widening keeps membership; tied side alternation keeps raw guesses."""
+"""Boundary finishing preserves chosen contacts and appropriate video context."""
+
+from dataclasses import replace
+
+import pytest
 
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_model import alternate_sides, extend_boundaries
+from annotator.sequence.contacts import (
+    ContactEvent,
+    ContactSequence,
+    apply_choices,
+    events_between,
+)
+from annotator.sequence.rally_model import (
+    alternate_sides,
+    extend_boundaries,
+    finish_choices,
+)
 
 TOP = Half.TOP
 BOT = Half.BOT
@@ -81,3 +94,56 @@ def test_padding_stops_at_video_end_without_losing_last_contact():
     result = extend_boundaries([sequence], sequence.events, fps=30.0, frame_count=100)
     assert _bounds(result) == [(30, 100)]
     assert result[0].events == sequence.events
+
+
+def test_absorbed_rejected_contact_is_removed_before_padding():
+    original = _sequence(0, 110, 200, [120, 140])
+    candidate = ContactEvent(100, .9, None)
+    rejected = ContactEvent(105, .6, None)
+    chosen = replace(original, start_frame=100, events=(candidate, *original.events))
+    sequences, stream = finish_choices((original,), (rejected, *original.events), {0: chosen}, 30)
+    assert [event.frame for event in stream] == [100, 120, 140]
+    assert sequences[0].start_frame == 90
+    assert events_between(stream, sequences[0].start_frame, sequences[0].end_frame) == sequences[0].events
+
+
+@pytest.mark.parametrize('fps', [30, 60])
+def test_shortening_keeps_three_seconds_of_tail_and_preserves_outside_detector_hits(fps):
+    original = _sequence(0, 0, 30 * fps, [fps, 10 * fps, 12 * fps])
+    chosen = replace(original, events=original.events[1:])
+    sequences, stream = finish_choices((original,), original.events, {0: chosen}, fps)
+    assert _bounds(sequences) == [(8 * fps, 15 * fps + 1)]
+    assert stream == original.events
+    assert events_between(stream, *(_bounds(sequences)[0])) == chosen.events
+
+
+def test_padding_collision_preserves_shortened_bounds():
+    original = _sequence(0, 0, 600, [20, 300, 400])
+    chosen = replace(original, start_frame=300, events=original.events[1:])
+    outside = ContactEvent(295, .8, None)
+    sequences, stream = finish_choices((original,), (*original.events[:1], outside, *chosen.events), {0: chosen}, 30)
+    assert _bounds(sequences) == [(300, 491)]
+    assert outside in stream
+    assert events_between(stream, 300, 491) == chosen.events
+
+
+def test_supplied_bounds_stay_exact_and_close_rallies_remain_disjoint():
+    left = _sequence(0, 0, 500, [200, 450])
+    right = _sequence(1, 505, 700, [510, 650])
+    events = _all_events(left, right)
+    supplied, _ = finish_choices((left, right), events, {0: left, 1: right}, 30, bounds_supplied=True)
+    assert supplied == (left, right)
+    discovered, stream = finish_choices((left, right), events, {0: left, 1: right}, 30)
+    assert discovered[0].end_frame <= discovered[1].start_frame
+    for sequence in discovered:
+        assert events_between(stream, sequence.start_frame, sequence.end_frame) == sequence.events
+
+
+def test_chosen_rally_owns_internal_hits_even_when_initial_span_did_not():
+    original = _sequence(0, 110, 200, [120, 140])
+    chosen = _sequence(0, 100, 200, [100, 120, 140])
+    stream = [ContactEvent(80, .5, None), ContactEvent(105, .5, None), *original.events,
+              ContactEvent(210, .5, None)]
+    sequences, rebuilt = apply_choices((original,), stream, {0: chosen})
+    assert [event.frame for event in rebuilt] == [80, 100, 120, 140, 210]
+    assert sequences == (chosen,)

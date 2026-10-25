@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,11 @@ from threadpoolctl import threadpool_limits
 from annotator.contacts.model import ContactModelConfig
 from annotator.sequence.contacts import ContactSequence
 from annotator.training import rally_targets
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    RallyBoundaryPolicy,
+    SequenceTrainingVideo,
+)
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import (
@@ -51,6 +55,7 @@ class PoolJob:
     contact_prediction: dict[str, Any]
     max_edits: int
     deletion_candidates: int
+    boundary_policy: RallyBoundaryPolicy
 
 
 def _span_rows(sequences: Sequence[ContactSequence], span_ids: Sequence[int]) -> dict[int, np.ndarray]:
@@ -76,6 +81,7 @@ def original_options(options: LabelledOptions, *, selected: np.ndarray | None = 
         options.targets[selected],
         _span_rows(sequences, tuple(options.span_rows)),
         options.video,
+        options.boundary_policy,
     )
 
 
@@ -110,6 +116,7 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
         'video': options.video.identity,
         'group': options.video.group,
         'split': split,
+        'boundary_policy': asdict(options.boundary_policy),
         'options': len(options.sequences),
         'feature_count': int(options.matrix.shape[1]),
         'target_counts_by_edit_kind': {
@@ -136,7 +143,7 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
         prediction = ContactModelConfig(**job.contact_prediction)
         settings = TrainingSettings(contact_prediction=prediction)
         video: SequenceTrainingVideo = experiment.training_pool(prepared, contact, settings)
-        options = expand_pool(video, job.max_edits, job.deletion_candidates)
+        options = expand_pool(video, job.max_edits, job.deletion_candidates, boundary_policy=job.boundary_policy)
         if np.isinf(options.matrix).any():
             raise ValueError(f'{job.video}: option feature matrix contains infinity')
 
@@ -171,6 +178,7 @@ def prepare_pools(
     contact_paths: Mapping[str, Path] | None = None,
     contact_folds: Mapping[str, Sequence[str]] | None = None,
     validation_source: Path | None = None,
+    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> list[dict[str, object]]:
     """Build selected training and validation pools from a completed contact run."""
     if not 1 <= workers <= 28:
@@ -199,6 +207,7 @@ def prepare_pools(
         expected = {
             'schema': SCHEMA, 'prepared': str(prepared_root), 'contact_run': str(contact_run_output),
             'settings': settings, 'max_edits': max_edits, 'deletion_candidates': deletion_candidates,
+            'boundary_policy': asdict(boundary_policy),
         }
         if original != expected:
             raise ValueError('Reused validation pools use different preparation or proposal settings')
@@ -231,6 +240,7 @@ def prepare_pools(
         'settings': settings,
         'max_edits': max_edits,
         'deletion_candidates': deletion_candidates,
+        'boundary_policy': asdict(boundary_policy),
     }
     if contact_paths is not None:
         manifest['contact_paths'] = {video: str(path.resolve()) for video, path in contact_paths.items()}
@@ -256,7 +266,7 @@ def prepare_pools(
             continue
         jobs.append(PoolJob(
             video, record['group'], record['split'], prepared_path, contact_path, output,
-            settings['contact_prediction'], max_edits, deletion_candidates,
+            settings['contact_prediction'], max_edits, deletion_candidates, boundary_policy,
         ))
 
     summaries = []
@@ -284,6 +294,8 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--only', help='Prepare one video as a smoke test')
     parser.add_argument('--max-edits', type=int, default=3)
     parser.add_argument('--deletion-candidates', type=int, default=6)
+    parser.add_argument('--boundary-before-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.before_seconds)
+    parser.add_argument('--boundary-after-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.after_seconds)
     return parser
 
 
@@ -297,6 +309,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare_pools(
         args.prepared, args.contact_run, args.output, workers=args.workers, only=args.only,
         max_edits=args.max_edits, deletion_candidates=args.deletion_candidates,
+        boundary_policy=RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds),
     )
     return 0
 

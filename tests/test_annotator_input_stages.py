@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +17,7 @@ from annotator.sequence.rally_model import (
     RallyReview,
 )
 from annotator.training.contact import ContactTrainingVideo
+from annotator.training.sequences import DEFAULT_RALLY_BOUNDARY_POLICY
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
@@ -207,6 +208,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         'contact_run': str(contact_run_root),
         'max_edits': 3,
         'deletion_candidates': 6,
+        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
         'settings': {
             'preprocessing': inputs['preprocessing'],
             'contact_prediction': {},
@@ -218,6 +220,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         'pool_settings': pool_settings,
         'original_options': False,
         'target_policy': {'manifest': {'targets': 'fixed'}},
+        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
     }
     expected_stream = {'events': [], 'sequences': []}
     for identity in identities:
@@ -243,13 +246,21 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         lambda *_args: (settings, inputs, prepared_root, contact_run_root, 1),
     )
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
-    monkeypatch.setattr(input_stages.integrate, 'fit_review', lambda *_args: object())
+    def fit_review(*_args, device):
+        assert device == 'cuda'
+        return object()
+
+    def score_stream(_video, _stream, *, boundary_policy):
+        assert boundary_policy == DEFAULT_RALLY_BOUNDARY_POLICY
+        return {'5': {}, '10': {}}
+
+    monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
     monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
     monkeypatch.setattr(input_stages, 'score_rally_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
-    monkeypatch.setattr(input_stages, 'score_stream', lambda *_args: {'5': {}, '10': {}})
+    monkeypatch.setattr(input_stages, 'score_stream', score_stream)
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})
     monkeypatch.setattr(input_stages.experiment, 'load_prepared', lambda _root, identity: fake_videos[identity])
     monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)

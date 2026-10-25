@@ -41,6 +41,10 @@ from annotator.sequence.repairs import (
 )
 
 BOUNDARY_PADDING_AT_30_FPS = 10
+# Keep output context fixed while comparing different training-label allowances.
+MAX_START_CONTEXT_AT_30_FPS = 60
+# Slow, high shuttle flights can need roughly three seconds after the last hit.
+MAX_END_CONTEXT_AT_30_FPS = 90
 
 CONTEXT_FEATURE_NAMES = (
     'option_score', 'chosen_score', 'top_margin', 'option_minus_chosen',
@@ -102,6 +106,7 @@ def select_rally_sequences(
     spans: Sequence[tuple[int, int]], events: tuple[ContactEvent, ...], scores: CandidateScores,
     features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
     side_for_frame: Callable[[int], Half | None], models: RallyLayerModels, frame_count: int | None = None,
+    bounds_supplied: bool = False,
 ) -> RallyLayerPrediction:
     """Build rally alternatives from detector evidence and apply the fitted selectors."""
     check_events_match_kept_candidates(events, scores)
@@ -109,7 +114,7 @@ def select_rally_sequences(
     repairs = build_rally_repairs(
         initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
     )
-    context = RallyContext(fps, initial, events, repairs, frame_count)
+    context = RallyContext(fps, initial, events, repairs, frame_count, bounds_supplied)
     pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
     return predict_rally_options(models, pool)
 
@@ -143,12 +148,42 @@ def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
 def finish_rows(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Apply selected contacts, extend rally bounds and fit alternating sides."""
+    """Finish the chosen rallies through the same path used for training labels."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     context = pool.context
-    sequences, events = apply_choices(context.initial, context.events, choices)
-    extended = extend_boundaries(sequences, events, context.fps, frame_count=context.frame_count)
-    return alternate_sides(extended, events)
+    sequences, events = finish_choices(
+        context.initial, context.events, choices, context.fps,
+        frame_count=context.frame_count, bounds_supplied=context.bounds_supplied,
+    )
+    return alternate_sides(sequences, events)
+
+
+def finish_choices(
+    initial: Sequence[ContactSequence], events: Sequence[ContactEvent], choices: dict[int, ContactSequence], fps: float,
+    *, frame_count: int | None = None, bounds_supplied: bool = False,
+) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
+    """Shorten discovery spans, rebuild owned contacts, then add small edge padding.
+
+    Maximum context limits remove long idle periods without forcing tight spans
+    to grow. Rebuilding after shortening preserves detector hits outside every
+    chosen rally, including a rejected endpoint now outside its former rally.
+    """
+    if not bounds_supplied:
+        before = scale_frames(MAX_START_CONTEXT_AT_30_FPS, fps)
+        after = scale_frames(MAX_END_CONTEXT_AT_30_FPS, fps)
+        shortened = {}
+        for span_id, sequence in choices.items():
+            if sequence.events:
+                sequence = replace(
+                    sequence, start_frame=max(sequence.start_frame, sequence.events[0].frame - before),
+                    end_frame=min(sequence.end_frame, sequence.events[-1].frame + after + 1),
+                )
+            shortened[span_id] = sequence
+        choices = shortened
+    sequences, stream = apply_choices(initial, events, choices)
+    if not bounds_supplied:
+        sequences = extend_boundaries(sequences, stream, fps, frame_count=frame_count)
+    return sequences, stream
 
 
 def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:

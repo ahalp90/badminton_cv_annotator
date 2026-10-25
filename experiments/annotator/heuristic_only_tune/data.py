@@ -17,7 +17,11 @@ from annotator.outcomes.point_winner import (
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.shuttle_track import validate_shuttle_track
-from annotator.training.sequences import LabelledRally
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    LabelledRally,
+    RallyBoundaryPolicy,
+)
 from annotator.types import ServeStartConfig
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
@@ -205,12 +209,15 @@ def run_configuration(
     return stream_payload(prediction.refined.sequences, prediction.refined.events)
 
 
-def score_stream(video: SearchVideo, stream: dict[str, Any]) -> dict[str, dict[str, int]]:
+def score_stream(
+    video: SearchVideo, stream: dict[str, Any], *,
+    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+) -> dict[str, dict[str, int]]:
     """Count full-video contact matches and whole rallies using discovered spans."""
     scores = {}
     for tolerance in (5, 10):
         _proposals, contacts, predictions, rallies = score_video(
-            video.identity, video.split, stream, video.rallies, video.fps, tolerance,
+            video.identity, video.split, stream, video.rallies, video.fps, tolerance, boundary_policy=boundary_policy,
         )
         scores[str(tolerance)] = {
             'labelled_rallies': len(rallies),

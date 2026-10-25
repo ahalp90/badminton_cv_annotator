@@ -41,7 +41,11 @@ from annotator.sequence.rally_model import (
     score_rally_review,
 )
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
-from annotator.training.sequences import whole_rally_correctness
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    RallyBoundaryPolicy,
+    whole_rally_correctness,
+)
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for, pooled_scores
@@ -228,6 +232,8 @@ def _export_inputs(run: Path, targets: Path) -> tuple[dict[str, Any], dict[str, 
         raise ValueError('Preparation, contact and selector sources differ; refit from one clean checkout')
     if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
         raise ValueError('Five-frame target manifest differs from the fitted rally run')
+    if settings['boundary_policy'] != pools['boundary_policy']:
+        raise ValueError('Selector boundary policy differs from the fitted pool manifest')
     return settings, inputs, prepared_root, contact_run_root, depth
 
 
@@ -235,6 +241,7 @@ def _review_rows(
     video: Any,
     identity: str,
     prediction: Any,
+    *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     layer_prediction = prediction.refined
     if not isinstance(layer_prediction, RallyLayerPrediction):
@@ -248,6 +255,7 @@ def _review_rows(
             labels = np.asarray([
                 whole_rally_correctness(
                     by_span[span], video.rallies, video.fps, tolerance_at_30_fps=tolerance,
+                    boundary_policy=boundary_policy,
                 )
                 for span in confidence.features.span_ids
             ], dtype=np.int8)
@@ -264,12 +272,15 @@ def _review_rows(
     return rankings, rows
 
 
-def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> dict[str, Any]:
+def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2, device: str = 'cuda') -> dict[str, Any]:
     """Fit review, build a production bundle, and verify all validation streams."""
     if not 1 <= threads <= 28:
         raise ValueError('threads must be between 1 and 28')
+    if device not in ('cpu', 'cuda'):
+        raise ValueError('device must be cpu or cuda')
     run, targets, output = run.resolve(), targets.resolve(), output.resolve()
     settings, inputs, prepared_root, contact_run_root, depth = _export_inputs(run, targets)
+    boundary_policy = RallyBoundaryPolicy(**settings['boundary_policy'])
     receipt = {
         'schema': 'tree-simplification-raw-export/1',
         'run': str(run),
@@ -277,6 +288,8 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
         'settings': settings,
         'preprocessing': inputs['preprocessing'],
         'source': source_record(),
+        'boundary_policy': asdict(boundary_policy),
+        'device': device,
     }
     output.mkdir(parents=True, exist_ok=True)
     receipt_path = output / 'settings.json.gz'
@@ -284,7 +297,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
         raise ValueError('Export inputs changed; use a fresh output directory')
     write_json(receipt_path, receipt)
     with threadpool_limits(limits=threads):
-        review = integrate.fit_review(run, depth, targets, output, settings)
+        review = integrate.fit_review(run, depth, targets, output, settings, device=device)
     pool_settings = settings['pool_settings']
     layer_models = joblib.load(run / f'layers-{depth}' / 'rally-models.joblib')
     if len(layer_models) != depth:
@@ -334,8 +347,10 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
             if stream != read_json(expected_path):
                 raise ValueError(f'{identity}: raw production stream differs from the saved rally run')
             write_json(output / 'streams' / f'{identity}.json.gz', stream)
-            per_video[identity] = score_stream(video, stream)
-            review_per_video[identity], video_rows = _review_rows(video, identity, prediction)
+            per_video[identity] = score_stream(video, stream, boundary_policy=boundary_policy)
+            review_per_video[identity], video_rows = _review_rows(
+                video, identity, prediction, boundary_policy=boundary_policy,
+            )
             rows.extend(video_rows)
             experiment.progress(output, 'raw-replay-parity', video=identity, complete=len(per_video), planned=8)
 
@@ -357,6 +372,7 @@ def export_run(run: Path, targets: Path, output: Path, *, threads: int = 2) -> d
         'totals': pooled_scores(per_video),
         'review_per_video': review_per_video,
         'review': pooled_review,
+        'boundary_policy': asdict(boundary_policy),
     }
     write_json(output / 'result.json.gz', result)
     experiment.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])
@@ -379,6 +395,7 @@ def main() -> None:
     export.add_argument('--five-frame-targets', type=Path, required=True)
     export.add_argument('--output', type=Path, required=True)
     export.add_argument('--threads', type=int, default=2)
+    export.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
 
     args = parser.parse_args()
     if args.command == 'contacts':
@@ -387,7 +404,7 @@ def main() -> None:
             threads=args.threads, device=args.device,
         )
     else:
-        export_run(args.run, args.five_frame_targets, args.output, threads=args.threads)
+        export_run(args.run, args.five_frame_targets, args.output, threads=args.threads, device=args.device)
 
 
 if __name__ == '__main__':

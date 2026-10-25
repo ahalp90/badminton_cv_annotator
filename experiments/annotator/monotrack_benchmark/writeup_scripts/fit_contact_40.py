@@ -39,23 +39,21 @@ from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
 
 SEEDS = (0, 100, 200, 300, 400)
-TREE_RESULTS = REPO / 'experiments/annotator/tree_simplification/results'
 SHOTS_MASTER = REPO / 'training/data/shuttleset/annotations/shots_master.csv'
-# The contact fits behind the test bundles ran on the GPU with four threads.
-DEVICE, THREADS = 'cuda', 4
+THREADS = 2
 
 
-def bundle_path(seed: int) -> Path:
-    return TREE_RESULTS / f'models/raw_baseline-seed-{seed}'
+def bundle_path(seed: int, tree_results: Path) -> Path:
+    return tree_results / f'models/raw_baseline-seed-{seed}'
 
 
-def contact_stage(seed: int) -> dict:
-    return read_json(TREE_RESULTS / f'test-run/candidates/raw_baseline/seed-{seed}/contacts-fit/contact-stage.json.gz')
+def contact_stage(seed: int, tree_results: Path) -> dict:
+    return read_json(tree_results / f'test-run/candidates/raw_baseline/seed-{seed}/contacts-fit/contact-stage.json.gz')
 
 
-def training_settings_record(seed: int, models: AnnotatorModels) -> dict:
+def training_settings_record(seed: int, models: AnnotatorModels, device: str) -> dict:
     """The fit settings in the form the contact-stage record saves them."""
-    settings = replace(experiment.settings_for(DEVICE, 5.0, seed_offset=seed),
+    settings = replace(experiment.settings_for(device, 5.0, seed_offset=seed),
                        preprocessing=models.preprocessing)
     record = asdict(settings)
     record = experiment.contact_stage_settings(record)
@@ -85,14 +83,14 @@ def predictions(model: object, videos: list[PreparedVideo]) -> np.ndarray:
     return model.predict_proba(matrix)[:, 1]  # type: ignore[attr-defined]
 
 
-def refit(seed: int, prepared: Path, output: Path) -> dict:
-    models = load_models(bundle_path(seed))
+def refit(seed: int, prepared: Path, output: Path, tree_results: Path, device: str) -> dict:
+    models = load_models(bundle_path(seed, tree_results))
     preprocessing = preprocessing_record(models.preprocessing)
-    stage = contact_stage(seed)
-    settings = training_settings_record(seed, models)
+    stage = contact_stage(seed, tree_results)
+    settings = training_settings_record(seed, models, device)
     if stage['seed_offset'] != seed or experiment.contact_stage_settings(stage['settings']['settings']) != settings:
         raise ValueError(f'seed {seed}: contact settings differ from the test bundle contact stage')
-    contact_settings = experiment.settings_for(DEVICE, 5.0, seed_offset=seed).contact
+    contact_settings = experiment.settings_for(device, 5.0, seed_offset=seed).contact
     videos = load_training_videos(prepared, preprocessing)
     development = development_for(load_original_videos(SHOTS_MASTER))
     fits = experiment.contact_fit_videos(development)
@@ -125,7 +123,7 @@ def refit(seed: int, prepared: Path, output: Path) -> dict:
     if not np.array_equal(predictions(reloaded.contact, validation), predictions(model_40, validation)):
         raise ValueError(f'seed {seed}: saved 40-video bundle does not reload to the fitted model')
     record = {
-        'seed_offset': seed, 'source_bundle': f'raw_baseline-seed-{seed}', 'device': DEVICE, 'threads': THREADS,
+        'seed_offset': seed, 'source_bundle': str(bundle_path(seed, tree_results)), 'device': device, 'threads': THREADS,
         'contact_settings': settings['contact'],
         'check_32_videos': {'validation_rows': len(expected), 'identical_predictions': True,
                             'selected_rows': rows_32, 'positive_rows': positives_32, 'seconds': seconds_32},
@@ -141,11 +139,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepared', type=Path, required=True,
                         help='prepared baseline inputs for the 40 original videos (tree_simplification prepare)')
+    parser.add_argument('--tree-results', type=Path, required=True,
+                        help='fresh source models/ and test-run/candidates/ root')
+    parser.add_argument('--device', default='cuda', choices=('cuda', 'cpu'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--seeds', type=int, nargs='*', default=list(SEEDS))
     args = parser.parse_args()
     for seed in args.seeds:
-        record = refit(seed, args.prepared.resolve(), args.out)
+        record = refit(seed, args.prepared.resolve(), args.out, args.tree_results.resolve(), args.device)
         print(json.dumps({key: record[key] for key in ('seed_offset', 'check_32_videos')}), flush=True)
 
 

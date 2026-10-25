@@ -30,6 +30,7 @@ from annotator.models import AnnotatorModels, fitted_trees, load_models, model_f
 from annotator.run_video import RunCapture, run_video
 from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import RallyLayerModels
+from annotator.training.sequences import RallyBoundaryPolicy
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
@@ -248,6 +249,7 @@ def evaluate(
     if evaluation_source.get('dirty') is not False:
         raise ValueError('Evaluator checkout must be clean before test evaluation')
     document, finalist, selected, models = _load_test_bundle(selection, candidate, seed_offset)
+    boundary_policy = RallyBoundaryPolicy(**selected['settings']['boundary_policy'])
     if document.get('evaluation_source') != evaluation_source:
         raise ValueError('The test selection names another evaluator source; record the selection again from this checkout')
     paths = load_paths(paths_file)
@@ -332,8 +334,10 @@ def evaluate(
             if prediction is None:
                 raise ValueError(f'{video.identity}: fitted annotation did not return its hybrid prediction')
             stream = stream_payload(prediction.refined.sequences, prediction.refined.events)
-            score = score_stream(video, stream)
-            review, rows = input_stages._review_rows(video, video.identity, prediction)
+            score = score_stream(video, stream, boundary_policy=boundary_policy)
+            review, rows = input_stages._review_rows(
+                video, video.identity, prediction, boundary_policy=boundary_policy,
+            )
             write_json(stream_path, stream)
             metadata = {
                 'complete': True,

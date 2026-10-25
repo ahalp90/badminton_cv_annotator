@@ -104,13 +104,13 @@ def test_applied_choices_keep_out_of_span_contacts():
     assert [event.frame for event in stream] == [20, 120, 170, 200, 300]
 
 
-def test_applied_choices_keep_an_absorbed_gap_contact_the_edit_dropped():
+def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
     events = [ContactEvent(frame, .8, None) for frame in (20, 120, 170, 200)]
     initial = initial_sequences([(0, 100), (150, 250)], events)
     new_serve = ContactEvent(110, .6, None)
     replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
     _sequences, stream = apply_choices(initial, events, {0: initial[0], 1: replaced})
-    assert [event.frame for event in stream] == [20, 110, 120, 170, 200]
+    assert [event.frame for event in stream] == [20, 110, 170, 200]
 
 
 def test_serve_and_deletion_repairs_keep_order_and_skip_redundant_combinations():

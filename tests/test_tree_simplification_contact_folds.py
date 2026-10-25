@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from annotator.training.contact import ContactFitConfig
+from annotator.training.sequences import DEFAULT_RALLY_BOUNDARY_POLICY
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools
 
@@ -46,6 +47,7 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
     manifest = {
         'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
         'max_edits': 3, 'deletion_candidates': 6,
+        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
     }
     experiment.write_json(original / 'pools.json.gz', manifest)
     (prepared / 'videos').mkdir()

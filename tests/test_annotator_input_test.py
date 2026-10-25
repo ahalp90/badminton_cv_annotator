@@ -8,16 +8,20 @@ from contextlib import nullcontext
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import SideGeometry, model_files
 from annotator.sequence.rally_model import RallyLayerModels
+from annotator.training.sequences import RallyBoundaryPolicy
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, input_test
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
+
+TEST_BOUNDARY_POLICY = RallyBoundaryPolicy(5, 5)
 
 
 def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[str, str]]:
@@ -55,12 +59,15 @@ def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
                 'contact_run': str(contact_root),
                 'prepared': str(root / 'prepared'),
                 'settings': contact_settings['settings'],
+                'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
             },
             'tree': {
                 'random_seed': DEFAULT_TRAINING_SETTINGS.rally_layers.tree.random_seed + seed_offset,
             },
+            'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
         },
         'preprocessing': preprocessing,
+        'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
     }
     write_json(export / 'settings.json.gz', export_settings)
     write_json(export / 'result.json.gz', {
@@ -155,15 +162,28 @@ def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_vi
     monkeypatch.setattr(input_test, 'run_video', run_mock)
     monkeypatch.setattr(input_test, 'cache_sticky_result', lambda *_args: nullcontext())
     monkeypatch.setattr(input_test, 'stream_payload', lambda *_args: {'events': [], 'sequences': []})
-    monkeypatch.setattr(input_test, 'score_stream', lambda *_args: {'5': {}, '10': {}})
-    monkeypatch.setattr(input_test, 'pooled_scores', lambda _scores: {'5': {}, '10': {}})
-    monkeypatch.setattr(input_stages, '_review_rows', lambda video, identity, _prediction: (
-        {f'{ranking}-{tolerance}': {'unjudgeable': 1} for ranking in ('selector', 'fitted') for tolerance in (5, 10)},
-        [
+
+    def score_stream(_video: Any, _stream: dict, *, boundary_policy: RallyBoundaryPolicy) -> dict:
+        assert boundary_policy == TEST_BOUNDARY_POLICY
+        return {'5': {}, '10': {}}
+
+    def review_rows(
+        _video: Any, identity: str, _prediction: Any, *, boundary_policy: RallyBoundaryPolicy,
+    ) -> tuple[dict, list[dict]]:
+        assert boundary_policy == TEST_BOUNDARY_POLICY
+        rankings = {
+            f'{ranking}-{tolerance}': {'unjudgeable': 1}
+            for ranking in ('selector', 'fitted') for tolerance in (5, 10)
+        }
+        rows = [
             {'video': identity, 'span': 0, 'tolerance': tolerance, 'ranking': ranking, 'correct': -1, 'score': 0.5}
             for ranking in ('selector', 'fitted') for tolerance in (5, 10)
-        ],
-    ))
+        ]
+        return rankings, rows
+
+    monkeypatch.setattr(input_test, 'score_stream', score_stream)
+    monkeypatch.setattr(input_test, 'pooled_scores', lambda _scores: {'5': {}, '10': {}})
+    monkeypatch.setattr(input_stages, '_review_rows', review_rows)
     return run_calls, videos, load_calls
 
 

@@ -90,7 +90,9 @@ def score_one(task: tuple[str, dict[str, Any], Path, list[LabelledRally]]) -> di
         labels = scored + tuple(left_out)
     _proposals, contacts, predictions, rally_rows = score_video(item['item_id'], 'test', stream, labels, item['fps'], TOLERANCE)
     sequences, _events = stream_from_payload(stream)
-    ladder = rally_ladder(judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps'])), labels)
+    ladder = rally_ladder(
+        judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps']), fps=item['fps']), labels,
+    )
     return {
         'labelled_rallies': len(labels),
         'labelled_contacts': len(contacts),

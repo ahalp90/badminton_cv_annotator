@@ -250,7 +250,7 @@ LADDER_LABELS = {
 LADDER_AXIS_END = 100
 
 
-def ladder_figure(summary: dict, out: Path) -> None:
+def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float]) -> None:
     """Rally-level outcomes: boundaries, then hits, then hitters."""
     by_key = {condition.key: condition for condition in CONDITIONS}
     figure, axes = plt.subplots(figsize=(13, 6.6), facecolor=SURFACE)
@@ -290,11 +290,9 @@ def ladder_figure(summary: dict, out: Path) -> None:
     axes.set_xlabel('Share of the 3,327 labelled rallies (%)', color=TEXT)
     figure.suptitle('How many labelled rallies come out right, step by step (±10 frames)', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
-    figure.text(0.01, 0.045, 'Boundaries right: one found rally spans the whole labelled rally and no other. Hits '
-                'right: also every hit found, no extras. Fully correct: every hitter right too.', fontsize=9,
-                color=MUTED)
-    figure.text(0.01, 0.015, f'{POPULATION}. Trained-model values are means of five seeds. Found-rally edges '
-                'get the same ±10-frame allowance as hit timing.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.045, 'Hits right: every hit found, no extras. Fully correct: every hitter right too. '
+                'Trained-model bars show five-seed means.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.015, boundary_note(boundary_policy), fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.07, 1, 0.95))
     figure.savefig(out / 'fig5_rally_ladder.png', dpi=150, facecolor=SURFACE)
     plt.close(figure)
@@ -321,17 +319,34 @@ def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray
 
 
 def cutoff_text(value: float) -> str:
-    """A cut-off as the report writes it, to at most three decimals."""
-    return f'{value:.3f}'.rstrip('0')
+    """Keep labels short and mark any displayed rounding explicitly."""
+    label = f'{value:.6g}'
+    return label if float(label) == value else f'≈{label}'
+
+
+def boundary_note(policy: dict[str, float]) -> str:
+    before, after = policy['before_seconds'], policy['after_seconds']
+    return (f'Boundary context: up to {before:g} s before the first labelled hit and {after:g} s after the last, '
+            'plus ±10 frames. One labelled rally per found rally.')
+
+
+def cutoff_row(curves: pd.DataFrame, threshold: float) -> pd.Series:
+    """Read the actual selected score, keeping neighbouring attainable scores separate."""
+    selected = curves[curves['threshold'] == threshold]
+    if selected.empty:
+        raise ValueError(f'selected validation cut-off {threshold!r} is absent from the curve')
+    return selected.mean(numeric_only=True)
 
 
 def confidence_figure(data: Path, out: Path) -> None:
-    test = pd.read_csv(data / 'test_confidence_curve.csv.gz')
-    validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz')
+    # Round-trip parsing preserves distinct nearby confidence scores from the full scan.
+    test = pd.read_csv(data / 'test_confidence_curve.csv.gz', float_precision='round_trip')
+    validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz', float_precision='round_trip')
     with gzip.open(data / 'confidence_cutoffs.json.gz', 'rt') as stream:
-        cutoffs = json.load(stream)['cutoffs']
-    grid = test[test['threshold'].isin(np.round(np.arange(0, 1.0001, 0.005), 3))]
-    figure, (left, right) = plt.subplots(1, 2, figsize=(14, 5.8), facecolor=SURFACE,
+        selection = json.load(stream)
+    cutoffs = selection['cutoffs']
+    available = {name: value for name, value in cutoffs.items() if value is not None}
+    figure, (left, right) = plt.subplots(1, 2, figsize=(14, 6.2), facecolor=SURFACE,
                                          gridspec_kw={'width_ratios': (1.25, 1)})
     style_axes(left, 'both')
     lines = (
@@ -340,15 +355,17 @@ def confidence_figure(data: Path, out: Path) -> None:
         ('coverage', 'Fully correct rallies handed over (% of all 3,327 labelled rallies)', ANNOTATOR_COLOUR, ':'),
     )
     for column, label, colour, style in lines:
-        thresholds, mean, low, high = seed_band(grid, column)
+        thresholds, mean, low, high = seed_band(test, column)
         left.fill_between(thresholds, low, high, color=colour, alpha=0.15, linewidth=0)
         left.plot(thresholds, mean, color=colour, linestyle=style, linewidth=2, label=label)
     left.axhline(99, color=MUTED, linewidth=0.8, linestyle=(0, (1, 2)))
     left.text(0.01, 99.6, '99%', fontsize=8.5, color=MUTED)
-    for name, value in cutoffs.items():
+    for name, value in available.items():
         left.axvline(value, color=MUTED, linewidth=1, linestyle='-', alpha=0.6)
-        left.text(value, 101, cutoff_text(value), ha=CUTOFF_TOP_LABEL_ALIGN[name], va='bottom', fontsize=8.5,
-                  color=TEXT)
+        align = 'right' if value > 0.9 else 'left' if value < 0.1 else CUTOFF_TOP_LABEL_ALIGN[name]
+        offset = 3 if align == 'left' else -3 if align == 'right' else 0
+        left.annotate(cutoff_text(value), (value, 100), xytext=(offset, 5), textcoords='offset points',
+                      ha=align, va='bottom', fontsize=8.5, color=TEXT)
     left.set_xlim(0, 1)
     left.set_ylim(0, 100)
     left.set_xlabel('Keep found rallies with confidence at or above this threshold', color=TEXT)
@@ -357,39 +374,54 @@ def confidence_figure(data: Path, out: Path) -> None:
     left.legend(loc='lower left', frameon=False, fontsize=9)
 
     style_axes(right, 'both')
+    coverage_max = max(test['coverage'].max(), validation['coverage'].max())
+    coverage_limit = min(100, max(62, coverage_max + 3))
     for curves, label, colour, style in ((test, 'Test (46 videos)', ANNOTATOR_COLOUR, '-'),
                                          (validation, 'Validation (8 other videos)', MUTED, '--')):
-        sampled = curves[curves['threshold'].isin(np.round(np.arange(0, 1.0001, 0.005), 3))]
-        _thresholds, coverage, _low, _high = seed_band(sampled, 'coverage')
-        _thresholds, share, _low, _high = seed_band(sampled, 'fully_correct_share')
+        _thresholds, coverage, _low, _high = seed_band(curves, 'coverage')
+        _thresholds, share, _low, _high = seed_band(curves, 'fully_correct_share')
         right.plot(coverage, share, color=colour, linestyle=style, linewidth=2, label=label)
-        for name, value in cutoffs.items():
-            row = curves[np.isclose(curves['threshold'], value)].groupby('threshold').mean(numeric_only=True).iloc[0]
-            # Validation points are hollow; the cut-off labels belong to the filled test points.
+        for name, value in available.items():
+            row = cutoff_row(curves, value)
+            # Validation points are hollow; cut-off labels belong to filled test points.
+            if pd.isna(row['fully_correct_share']):
+                continue
             right.scatter(row['coverage'], row['fully_correct_share'], s=36, zorder=4, linewidth=1.5,
                           color=colour if curves is test else SURFACE, edgecolor=colour)
             if curves is test:
+                offset_x, offset_y = CUTOFF_LABEL_OFFSETS[name]
+                align = 'right' if row['coverage'] > 0.7 * coverage_limit else 'left'
+                offset_x = -abs(offset_x) if align == 'right' else offset_x
                 right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
-                               xytext=CUTOFF_LABEL_OFFSETS[name], textcoords='offset points', fontsize=9, color=TEXT)
-    right.set_xlim(0, 62)
-    right.set_ylim(30, 100)
+                               xytext=(offset_x, offset_y), ha=align, textcoords='offset points', fontsize=9, color=TEXT)
+    precision_min = min(test['fully_correct_share'].min(), validation['fully_correct_share'].min())
+    right.set_xlim(0, coverage_limit)
+    right.set_ylim(max(0, min(30, precision_min - 3)), 100)
     right.set_xlabel('Fully correct rallies handed over (% of all labelled rallies)', color=TEXT)
     right.set_ylabel('Share of kept rallies fully correct (%)', color=TEXT)
-    right.set_title('Trade-off: each point is one threshold', fontsize=11, color=TEXT, loc='left', pad=16)
+    right.set_title('Trade-off: each point is one validation threshold', fontsize=11, color=TEXT, loc='left', pad=16)
     right.legend(loc='upper right', frameon=False, fontsize=9)
     figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
-    figure.text(0.01, 0.075, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} gives the highest F1 for '
-                f'"fully correct"; {cutoff_text(cutoffs["keep_half"])} keeps half of the found rallies; '
-                f'{cutoff_text(cutoffs["boundaries_99"])} is the lowest threshold where 99% of kept rallies have the right '
-                'boundaries.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.045, f'Mean of five training seeds; shading spans lowest to highest seed. Lines stop where fewer '
-                f'than {MIN_KEPT} found rallies are kept. ±10 frames.', fontsize=9, color=MUTED)
-    example = test[np.isclose(test['threshold'], cutoffs['keep_half'])].mean(numeric_only=True)
-    figure.text(0.01, 0.015, f'Example: at {cutoff_text(cutoffs["keep_half"])}, {example["kept"]:,.0f} found rallies are kept and '
-                f'{example["fully_correct_share"]:.1f}% of them ({example["fully_correct_kept"]:,.0f}) are fully correct. '
-                f'Those are {example["coverage"]:.1f}% of all 3,327 labelled rallies.', fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.1, 1, 0.95))
+    boundary_cutoff = cutoffs['boundaries_99']
+    target_note = ('99% mean boundary precision is unattainable on validation with rallies kept in all five seeds.'
+                   if boundary_cutoff is None else
+                   f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary precision '
+                   'on validation, with rallies kept in all five seeds.')
+    figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1; '
+                f'{cutoff_text(cutoffs["keep_half"])} keeps closest to half of the pooled found rallies. '
+                'Every distinct validation score is searched.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.09, target_note, fontsize=9, color=MUTED)
+    figure.text(0.01, 0.065, f'Mean of five seeds; shading spans lowest to highest. Lines require at least '
+                f'{MIN_KEPT} kept rallies in every seed; selected cut-offs remain marked.', fontsize=9, color=MUTED)
+    example = cutoff_row(test, cutoffs['keep_half'])
+    share = example['fully_correct_share']
+    precision_text = f'{share:.1f}%' if pd.notna(share) else 'undefined (no rallies kept)'
+    figure.text(0.01, 0.04, f'Test at {cutoff_text(cutoffs["keep_half"])}: {example["kept"]:,.0f} found rallies kept, '
+                f'{precision_text} fully correct ({example["fully_correct_kept"]:,.0f}); '
+                f'{example["coverage"]:.1f}% of all 3,327 labelled rallies handed over.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.015, boundary_note(selection['boundary_policy']), fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.145, 1, 0.95))
     figure.savefig(out / 'fig6_confidence.png', dpi=150, facecolor=SURFACE)
     plt.close(figure)
 
@@ -424,6 +456,12 @@ def stability_figure(summary: dict, out: Path) -> None:
                  (top - 1.5, key40, '40 videos', FORTY_VIDEO_COLOURS)]
         top -= 2.6
     for axes, (metric, title, (low, high)) in zip(axes_row, STABILITY_METRICS, strict=True):
+        compared_metrics = ('f1', 'player_f1') if metric in ('f1', 'player_f1') else (metric,)
+        lowest = min(value(summary, key, compared, 'min')
+                     for _row, key, _label, _colours in rows for compared in compared_metrics)
+        highest = max(value(summary, key, compared, 'max')
+                      for _row, key, _label, _colours in rows for compared in compared_metrics)
+        low, high = min(low, lowest - 1), max(high, highest + 1)
         style_axes(axes)
         for row, key, _label, (band_colour, mean_colour) in rows:
             lowest, mean, highest = (value(summary, key, metric, statistic) for statistic in ('min', 'mean', 'max'))
@@ -456,8 +494,10 @@ def stability_figure(summary: dict, out: Path) -> None:
                 'contact model.', fontsize=9, color=MUTED, va='top')
     figure.text(0.01, 0.06, 'Shaded band: lowest to highest of five training seeds. Dark line and first number: '
                 'the mean. ±10 frames.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.025, 'The two F1 panels share one scale. MonoTrack, given rally bounds on its own courts, scores '
-                '96.0, 95.8 and 48.2. Axes do not start at zero.', fontsize=9, color=MUTED)
+    reference = [value(summary, 'monotrack_own_courts', metric) for metric, _title, _limits in STABILITY_METRICS]
+    figure.text(0.01, 0.025, 'MonoTrack, given rally bounds on its own courts: '
+                f'{reference[0]:.1f} contact F1, {reference[1]:.1f} correct-player F1, '
+                f'{reference[2]:.1f}% fully correct rallies. Axes do not start at zero.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.09, 1, 0.91))
     # One unbroken divider across the figure, placed after layout so it lands on the same gap in every panel.
     _x, divider_y = figure.transFigure.inverted().transform(first.transData.transform((0, headings[-1][0] + 0.5)))
@@ -532,10 +572,12 @@ def main() -> None:
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     summary = json.loads((args.data / 'contact_summary.json').read_text())['summary']
+    with gzip.open(args.data / 'evaluation-policy.json.gz', 'rt') as stream:
+        boundary_policy = json.load(stream)['boundary_policy']
     headline_figure(summary, args.out)
     error_figure(summary, args.out)
     per_video_figure(args.data, args.out)
-    ladder_figure(summary, args.out)
+    ladder_figure(summary, args.out, boundary_policy)
     confidence_figure(args.data, args.out)
     stability_figure(summary, args.out)
     court_error_figure(pd.read_csv(args.data / 'rally_courts.csv.gz'), args.out)

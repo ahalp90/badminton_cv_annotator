@@ -76,7 +76,7 @@ def fit_binary_tree(
         max_depth=0, max_leaves=max_leaf_nodes, max_bin=255,
         learning_rate=learning_rate, n_estimators=max_iter, reg_lambda=l2_regularization,
         min_child_weight=min_child_weight, random_state=random_seed, device=device,
-        n_jobs=1, eval_metric='logloss',
+        n_jobs=2, eval_metric='logloss',
         early_stopping_rounds=STOPPING_ROUNDS if stopping else None,
     )
     xgb_model.fit(

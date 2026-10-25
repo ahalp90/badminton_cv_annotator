@@ -1,28 +1,12 @@
-"""Contact, rally and confidence numbers for the MonoTrack comparison report.
+"""Rescore benchmark conditions with a selected time-based rally boundary policy.
 
-Reads committed prediction streams only. Every condition is rescored here with the
-benchmark's own contact matcher, and the pooled totals are checked against each
-run's saved ``scores.json.gz`` before anything is written.
+Contact matching, excluded-label masking and player alternation use the benchmark's
+existing rules. Saved-score checks compare contact totals, which are independent of
+boundary policy. Report columns retain their established strict/matched names:
+strict uses the whole-rally scorer and matched uses found-rally judgements, both
+with the supplied policy. Supplied windows must agree under both scorers.
 
-Two rally rules are computed for discovery mode:
-
-- ``strict``: the existing rule. One found rally must hold, by frame range, every
-  labelled hit of exactly one labelled rally and no labelled hit of another.
-- ``matched``: the report's rule, in three nested steps. Boundaries right: the strict
-  rule, with the found rally's span widened by 10 frames at each end (the hit-timing
-  allowance). Hits right: its hits also match every labelled hit one to one, with no
-  extras. Fully correct: every hitter is also right.
-
-With supplied windows the two rules agree, because each window holds exactly one
-labelled rally. The script checks this.
-
-The test videos also hold 524 ShuttleSet22 rallies left out of the test set, almost all
-because a hit in them is flagged ``flaw``. Their flagged rows lack usable times and hitters,
-so every condition ignores them: a prediction inside a left-out rally's window that is more
-than 10 frames from every scored hit is dropped before scoring, and so is a found rally left
-with no predictions. Saved-score checks add the dropped predictions back.
-
-Usage: python metrics.py --out DIR
+Usage: python metrics.py --annotator-runs DIR --out DIR
 """
 from __future__ import annotations
 
@@ -32,6 +16,7 @@ import re
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -43,7 +28,12 @@ sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.sequence.rally_model import alternate_sides
-from annotator.training.sequences import match_contacts
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    RallyBoundaryPolicy,
+    judge_rally_boundaries,
+    match_contacts,
+)
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
@@ -52,6 +42,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
     read_json,
+    write_json,
 )
 
 BENCHMARK = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results'
@@ -60,8 +51,6 @@ COMPARISON = BENCHMARK / 'comparison'
 MONOTRACK_RUNS = BENCHMARK / 'monotrack_five_seed'
 # Our annotator's runs from annotator_runs.py: test/<condition>/<models>/seed-<N>/ and validation/.
 RUNS = BENCHMARK / 'annotator_runs'
-# The tracked test predictions of the five 32-video bundles, which the discovery runs must reproduce.
-TRACKED_DISCOVERY = REPO / 'experiments/annotator/tree_simplification/results/streams/input-test/raw_baseline'
 HEURISTIC = REPO / 'experiments/annotator/heuristic_only_tune/results'
 SEEDS = (0, 100, 200, 300, 400)
 TOLERANCES = (10, 5)
@@ -74,48 +63,53 @@ WINDOW_BEFORE, WINDOW_AFTER = 30, 31
 IGNORE_MARGIN = 10
 
 
-def annotator_run(condition: str, models: str, seed: int) -> Path:
+def annotator_run(condition: str, models: str, seed: int, root: Path) -> Path:
     """One seed's test run: condition ``discovery``, ``our_courts`` or ``monotrack_courts``.
 
     Models are ``32_videos`` (the headline), ``40_videos`` (contact model refitted on all 40 original
     videos) or ``body_window_36`` (the preprocessing setting with the most fully correct validation rallies).
     """
-    return RUNS / 'test' / condition / models / f'seed-{seed}'
+    return root / 'test' / condition / models / f'seed-{seed}'
 
 
-SUPPLIED_RUNS = {
-    'monotrack_own_courts': [MONOTRACK_RUNS / 'test/monotrack' / f'seed-{seed}' for seed in SEEDS],
-    'monotrack_our_courts': [MONOTRACK_RUNS / 'test/ours' / f'seed-{seed}' for seed in SEEDS],
-    'annotator_our_courts': [annotator_run('our_courts', '32_videos', seed) for seed in SEEDS],
-    'annotator_monotrack_courts': [annotator_run('monotrack_courts', '32_videos', seed) for seed in SEEDS],
-    'heuristic_our_courts': [HEURISTIC / 'known_our_courts'],
-    'heuristic_monotrack_courts': [HEURISTIC / 'known_mono_courts'],
-    'annotator40_our_courts': [annotator_run('our_courts', '40_videos', seed) for seed in SEEDS],
-    'annotator40_monotrack_courts': [annotator_run('monotrack_courts', '40_videos', seed) for seed in SEEDS],
-    'annotator_body_window_36_our_courts': [annotator_run('our_courts', 'body_window_36', seed) for seed in SEEDS],
-}
-# Found-rally outcomes, from worst to best. The first three fail the boundary rung.
-OUTCOMES = ('no_labelled_rally', 'merged_rallies', 'part_of_rally', 'missed_hits', 'extra_hits', 'wrong_player',
+def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[Path]]:
+    runs = {
+        'monotrack_own_courts': [monotrack_root / 'test/monotrack' / f'seed-{seed}' for seed in SEEDS],
+        'monotrack_our_courts': [monotrack_root / 'test/ours' / f'seed-{seed}' for seed in SEEDS],
+        'heuristic_our_courts': [HEURISTIC / 'known_our_courts'],
+        'heuristic_monotrack_courts': [HEURISTIC / 'known_mono_courts'],
+    }
+    for name, condition, family in (
+        ('annotator_our_courts', 'our_courts', '32_videos'),
+        ('annotator_monotrack_courts', 'monotrack_courts', '32_videos'),
+        ('annotator40_our_courts', 'our_courts', '40_videos'),
+        ('annotator40_monotrack_courts', 'monotrack_courts', '40_videos'),
+        ('annotator_body_window_36_our_courts', 'our_courts', 'body_window_36'),
+    ):
+        runs[name] = [annotator_run(condition, family, seed, annotator_root) for seed in SEEDS]
+    return runs
+
+
+# Found-rally outcomes, from worst to best. The first four fail the boundary rung.
+OUTCOMES = ('no_labelled_rally', 'merged_rallies', 'part_of_rally', 'overlong_rally', 'missed_hits', 'extra_hits', 'wrong_player',
             'unlabelled_player', 'fully_correct')
-BOUNDARY_RIGHT = frozenset(OUTCOMES[3:])
-HITS_RIGHT = frozenset(OUTCOMES[5:])
+BOUNDARY_RIGHT = frozenset(OUTCOMES[4:])
+HITS_RIGHT = frozenset(OUTCOMES[6:])
 
 
-def discovery_runs() -> dict[str, list[dict[str, dict]]]:
+def discovery_runs(annotator_root: Path) -> dict[str, list[dict[str, dict]]]:
     """Per-video discovery streams for each run, keyed by item ID, with each found rally's confidence."""
     runs: dict[str, list[dict[str, dict]]] = {'annotator_discovery': [], 'annotator40_discovery': []}
     manifest = load_manifest(INPUTS)
     for seed in SEEDS:
         streams = {}
         for item in manifest['items']:
-            stream = read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
-            tracked = read_json(TRACKED_DISCOVERY / f'seed-{seed}' / f'{item["item_id"]}.json.gz')
-            if stream['sequences'] != tracked['sequences'] or stream['events'] != tracked['events']:
-                raise ValueError(f'seed {seed}, video {item["item_id"]}: discovery run differs from the tracked predictions')
+            stream = read_json(annotator_run('discovery', '32_videos', seed, annotator_root) / f'{item["item_id"]}.json.gz')
             streams[item['item_id']] = stream
         runs['annotator_discovery'].append(streams)
         runs['annotator40_discovery'].append({
-            item['item_id']: read_json(annotator_run('discovery', '40_videos', seed) / f'{item["item_id"]}.json.gz')
+            item['item_id']: read_json(
+                annotator_run('discovery', '40_videos', seed, annotator_root) / f'{item["item_id"]}.json.gz')
             for item in manifest['items']})
     runs['heuristic_discovery'] = [read_json(HEURISTIC / 'test/predictions.json.gz')['streams']]
     return runs
@@ -169,32 +163,24 @@ def ignore_left_out(stream: dict, windows: list[tuple[int, int]], scored_frames:
     return {**stream, 'sequences': sequences, 'events': events}, len(stream['events']) - len(events)
 
 
-def judge_found_rallies(sequences, rallies, tolerance: int) -> list[dict]:
-    """Classify each found rally by the labelled hits inside its span, widened at each end by ``tolerance``.
-
-    The widening gives span edges the same allowance as hit timing. Without it, a found rally that
-    starts a few frames after the labelled serve would fail the boundary step.
-    """
+def judge_found_rallies(
+    sequences, rallies, tolerance: int, *, fps: float,
+    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+) -> list[dict]:
+    """Classify discovered rallies with the same endpoint policy used for training."""
     judged = []
     for sequence in sequences:
         frames = [event.frame for event in sequence.events]
-        start, end = sequence.start_frame - tolerance, sequence.end_frame + tolerance
-        inside = [rally for rally in rallies if any(start <= frame < end for frame in rally.frames)]
         record = {'span_id': sequence.span_id, 'rally_id': None, 'hits': len(frames)}
-        if not inside:
-            judged.append(record | {'outcome': 'no_labelled_rally'})
+        boundary = judge_rally_boundaries(sequence, rallies, fps, tolerance=tolerance, policy=boundary_policy)
+        rally = boundary.rally
+        if rally is not None:
+            record['rally_id'] = rally.identity
+        if boundary.outcome != 'boundaries_right':
+            judged.append(record | {'outcome': boundary.outcome})
             continue
-        if len(inside) > 1:
-            judged.append(record | {'outcome': 'merged_rallies'})
-            continue
-        rally = inside[0]
-        record['rally_id'] = rally.identity
-        covers = (sequence.start_frame - tolerance <= rally.frames[0]
-                  and rally.frames[-1] < sequence.end_frame + tolerance)
+        assert rally is not None
         matches = match_contacts(rally.frames, frames, tolerance)
-        if not covers:
-            judged.append(record | {'outcome': 'part_of_rally'})
-            continue
         revised = alternate_sides((sequence,), sequence.events)[0][0]
         # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
         record |= {
@@ -231,7 +217,8 @@ def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
 
 
 def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: list[tuple[int, int]], *,
-                          supplied: bool) -> tuple[dict, list[dict]]:
+                          supplied: bool,
+                          boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> tuple[dict, list[dict]]:
     """Counts for one video and tolerance, plus the found-rally judgements."""
     labels = labels_for_item(item)
     if supplied:
@@ -244,16 +231,16 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     scored, ignored = ignore_left_out(unmasked, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
     if supplied:
         scored = fixed_stream(scored['events'], item['spans'])
-    _, contacts, predictions, rally_rows = score_video(item['item_id'], 'test', scored, labels, item['fps'], tolerance)
+    _, contacts, predictions, rally_rows = score_video(
+        item['item_id'], 'test', scored, labels, item['fps'], tolerance, boundary_policy=boundary_policy,
+    )
     strict = sum(bool(row['fully_correct']) for row in rally_rows)
-    # The saved scores count ignored predictions, so the strict rule is also scored without the mask.
-    strict_unmasked = strict if not ignored else sum(
-        bool(row['fully_correct'])
-        for row in score_video(item['item_id'], 'test', unmasked, labels, item['fps'], tolerance)[3])
     sequences, _ = stream_from_payload(scored)
-    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']))
-    # Without the edge allowance, a found rally must span its labelled hits exactly.
-    no_allowance = rally_ladder(judge_found_rallies(sequences, labels, 0), labels)['boundaries_right']
+    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'], boundary_policy=boundary_policy)
+    # Separate endpoint context from the contact-timing tolerance.
+    no_allowance = rally_ladder(judge_found_rallies(
+        sequences, labels, 0, fps=item['fps'], boundary_policy=boundary_policy,
+    ), labels)['boundaries_right']
     outside = 0 if supplied else sum(
         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
         for event in scored['events'])
@@ -263,7 +250,6 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
         'matched_contacts': sum(bool(row['matched']) for row in contacts),
         'correct_side_contacts': sum(bool(row['player_correct']) for row in contacts),
         'fully_correct_strict': strict,
-        'fully_correct_strict_unmasked': strict_unmasked,
         'exact_hits_strict': sum(bool(row['exact_sequence']) for row in rally_rows),
         'predicted_outside_windows': outside,
         'ignored_predictions': ignored,
@@ -278,21 +264,22 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     return counts, judged
 
 
-def score_task(task: tuple[dict, dict, int, list[tuple[int, int]], bool]) -> tuple[dict, list[dict]]:
-    item, stream, tolerance, windows, supplied = task
-    return score_stream_for_item(item, stream, tolerance, windows, supplied=supplied)
+def score_task(task: tuple[dict, dict, int, list[tuple[int, int]], bool, RallyBoundaryPolicy]) -> tuple[dict, list[dict]]:
+    item, stream, tolerance, windows, supplied, boundary_policy = task
+    return score_stream_for_item(item, stream, tolerance, windows, supplied=supplied, boundary_policy=boundary_policy)
 
 
 def score_condition(name: str, streams_by_run: list[dict[str, dict]], *, supplied: bool,
                     saved: list[Path] | None, windows: dict[str, list[tuple[int, int]]],
-                    pool: ProcessPoolExecutor) -> dict:
+                    pool: ProcessPoolExecutor,
+                    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> dict:
     manifest = load_manifest(INPUTS)
     per_run = []
     for run_index, streams in enumerate(streams_by_run):
         rows, found = [], []
-        tasks = [(item, streams[item['item_id']], tolerance, windows[item['item_id']], supplied)
+        tasks = [(item, streams[item['item_id']], tolerance, windows[item['item_id']], supplied, boundary_policy)
                  for item in manifest['items'] for tolerance in TOLERANCES]
-        for (item, _stream, tolerance, _windows, _supplied), (counts, judged) in zip(
+        for (item, _stream, tolerance, _windows, _supplied, _policy), (counts, judged) in zip(
                 tasks, pool.map(score_task, tasks, chunksize=4), strict=True):
                 rows.append({'video': int(item['video_id']), 'tolerance': tolerance, **counts})
                 if tolerance == 10:
@@ -314,8 +301,7 @@ def check_against_saved(name: str, frame: pd.DataFrame, saved: dict) -> None:
         ours = {'labelled_contacts': totals['labelled_contacts'],
                 'predicted_contacts': totals['predicted_contacts'] + totals['ignored_predictions'],
                 'matched_contacts': totals['matched_contacts'],
-                'correct_side_contacts': totals['correct_side_contacts'],
-                'fully_correct_rallies': totals['fully_correct_strict_unmasked']}
+                'correct_side_contacts': totals['correct_side_contacts']}
         for key, value in ours.items():
             if int(value) != int(reference[key]):
                 raise ValueError(f'{name} ±{tolerance}: {key} {int(value)} != saved {reference[key]}')
@@ -423,11 +409,15 @@ def confidence_curve(condition: dict, total_rallies: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--annotator-runs', type=Path, required=True)
+    parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
+    parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
     parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
                         help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
+    policy = RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(INPUTS)
     total_rallies = sum(len(item['spans']) for item in manifest['items'])
@@ -435,28 +425,29 @@ def main() -> None:
 
     conditions = {}
     pool = ProcessPoolExecutor(max_workers=args.workers)
-    supplied_runs = dict(SUPPLIED_RUNS)
+    supplied = supplied_runs(args.annotator_runs, args.monotrack_runs)
     selected = read_json(args.monotrack_runs / 'selected.json.gz')
     if selected['selection_split'] != 'validation' or selected['seeds'] != list(SEEDS):
         raise ValueError('MonoTrack results must use all five validation-selected seeds')
-    for name, court in (('monotrack_own_courts', 'monotrack'), ('monotrack_our_courts', 'ours')):
-        supplied_runs[name] = [args.monotrack_runs / 'test' / court / f'seed-{seed}' for seed in SEEDS]
-    for name, runs in supplied_runs.items():
+    for name, runs in supplied.items():
         streams = [{item['item_id']: read_json(run / f'{item["item_id"]}.json.gz')['stream'] for item in manifest['items']}
                    for run in runs]
-        conditions[name] = score_condition(name, streams, supplied=True, saved=runs, windows=windows, pool=pool)
+        conditions[name] = score_condition(
+            name, streams, supplied=True, saved=runs, windows=windows, pool=pool, boundary_policy=policy,
+        )
         print(name, 'scored', flush=True)
-    for name, streams in discovery_runs().items():
-        conditions[name] = score_condition(name, streams, supplied=False, saved=None, windows=windows, pool=pool)
+    for name, streams in discovery_runs(args.annotator_runs).items():
+        conditions[name] = score_condition(
+            name, streams, supplied=False, saved=None, windows=windows, pool=pool, boundary_policy=policy,
+        )
         print(name, 'scored', flush=True)
 
-    # Discovery totals must reproduce the committed whole-video scores.
+    # Contact totals must match the originating run under either boundary policy.
     for name, models in (('annotator_discovery', '32_videos'), ('annotator40_discovery', '40_videos')):
         for seed, run in zip(SEEDS, conditions[name]['runs'], strict=True):
-            check_against_saved(name, run['per_video'], read_json(annotator_run('discovery', models, seed) / 'scores.json.gz'))
-    heuristic_saved = read_json(HEURISTIC / 'test/summary.json.gz')
+            saved = annotator_run('discovery', models, seed, args.annotator_runs) / 'scores.json.gz'
+            check_against_saved(name, run['per_video'], read_json(saved))
     summary = {name: summarise(condition) for name, condition in conditions.items()}
-    summary['_heuristic_discovery_saved_summary_keys'] = list(heuristic_saved)
 
     per_video = {name: per_video_mean(condition) for name, condition in conditions.items()}
     for name, frame in per_video.items():
@@ -479,6 +470,10 @@ def main() -> None:
     for name in ('annotator_discovery', 'annotator40_discovery', 'heuristic_discovery'):
         for seed, run in zip(SEEDS, conditions[name]['runs']):
             run['found'].to_csv(args.out / f'found_rallies_{name}_seed{seed}.csv.gz', index=False)
+    pool.shutdown()
+    write_json(args.out / 'evaluation-policy.json.gz', {
+        'annotator_runs': str(args.annotator_runs.resolve()), 'boundary_policy': asdict(policy),
+    })
     (args.out / 'contact_summary.json').write_text(json.dumps({'summary': summary, 'paired': paired}, indent=1))
     print(json.dumps({name: {key: round(value['mean'], 2) for key, value in condition['10'].items()}
                       for name, condition in summary.items() if not name.startswith('_')}, indent=1))

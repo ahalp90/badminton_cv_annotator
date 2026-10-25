@@ -8,7 +8,10 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    SequenceTrainingVideo,
+)
 from experiments.annotator.tree_simplification import pools
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
@@ -94,6 +97,7 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
         'only': 'fixture',
         'max_edits': 2,
         'deletion_candidates': 4,
+        'boundary_policy': DEFAULT_RALLY_BOUNDARY_POLICY,
     }
 
     with pytest.raises(SystemExit) as error:

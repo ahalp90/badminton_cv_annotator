@@ -46,6 +46,7 @@ class RallyContext:
     events: tuple[ContactEvent, ...]
     repairs: RallyRepairs
     frame_count: int | None = None
+    bounds_supplied: bool = False
 
 
 @dataclass(frozen=True)
@@ -194,6 +195,10 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
         )
         unique = {sequence_key(before): before}
         for sequence in (*repairs_by_span.get(before.span_id, ()), *combined_sequences):
+            if context.bounds_supplied:
+                if any(not before.start_frame <= event.frame < before.end_frame for event in sequence.events):
+                    continue
+                sequence = replace(sequence, start_frame=before.start_frame, end_frame=before.end_frame)
             unique.setdefault(sequence_key(sequence), sequence)
         original_frames = {event.frame for event in before.events}
         ordered = sorted(unique.values(), key=lambda sequence: (

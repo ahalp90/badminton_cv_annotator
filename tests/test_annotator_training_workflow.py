@@ -127,7 +127,8 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         }
         return SimpleNamespace(models=sequence_models, cross_fitted=predictions)
 
-    def review_fit(videos: list, predictions: dict, _settings: Any) -> Any:
+    def review_fit(videos: list, predictions: dict, _settings: Any, *, boundary_policy: Any) -> Any:
+        assert boundary_policy == workflow.DEFAULT_TRAINING_SETTINGS.rally_layers.boundary_policy
         assert [video.identity for video in videos] == training_order
         assert set(predictions) == set(training_order)
         for video in videos:

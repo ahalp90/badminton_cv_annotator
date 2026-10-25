@@ -1,7 +1,7 @@
 """Recursive rally-group exclusion, stack reuse and validation isolation."""
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from itertools import combinations
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +15,10 @@ from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
 from annotator.training import rally_layers as production_training
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    DEFAULT_RALLY_BOUNDARY_POLICY,
+    SequenceTrainingVideo,
+)
 from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import LabelledOptions
@@ -211,13 +214,16 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
 
     def read(path: Path) -> Any:
         if path == pool_dir / 'pools.json.gz':
-            return {'prepared': str(prepared_dir)}
+            return {'prepared': str(prepared_dir), 'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY)}
         if path == prepared_dir / 'preparation.json.gz':
             return {'inputs': {'paths': {'shots_master': str(tmp_path / 'shots.csv')},
                                'groups': {identity: pool.video.group for identity, pool in pools.items()}}}
         if path.parent == pool_dir / 'videos':
             identity = path.name.removesuffix('.json.gz')
-            return {'split': 'train' if identity in training else 'validation'}
+            return {
+                'split': 'train' if identity in training else 'validation',
+                'boundary_policy': asdict(pools[identity].boundary_policy),
+            }
         return original_read(path)
 
     def load(path: Path, *args: Any, **kwargs: Any) -> Any:
@@ -253,6 +259,8 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
     expected_weight = 1.0 if span_weight is None else span_weight
     assert train.read_json(output / 'settings.json.gz')['span_weight'] == expected_weight
     assert train.read_json(output / 'fits/ABCD/layer-1.json.gz')['span_weight'] == expected_weight
+    assert train.read_json(output / 'settings.json.gz')['boundary_policy'] == asdict(DEFAULT_RALLY_BOUNDARY_POLICY)
+    assert train.read_json(output / 'fits/ABCD/layer-1.json.gz')['boundary_policy'] == asdict(DEFAULT_RALLY_BOUNDARY_POLICY)
     assert evaluations == [1, 2, 3]
     assert len(recorded.models) == 17
     monkeypatch.setattr(train.sys, 'argv', [*command, '--layers', '3', '--leaves', '31'])

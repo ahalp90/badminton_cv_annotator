@@ -20,10 +20,9 @@ Model families:
 - ``body_window_36``: the preprocessing setting with the most fully correct validation rallies.
   Test with our courts only, for the retuning comparison.
 
-Discovery runs of the 32-video bundles must reproduce the tracked test and validation
-prediction files exactly.
+Models come from the supplied fresh training root.
 
-Usage: python annotator_runs.py --paths PATHS.toml --out DIR
+Usage: python annotator_runs.py --paths PATHS.toml --tree-results DIR --models-40 DIR --out DIR
 """
 from __future__ import annotations
 
@@ -31,8 +30,8 @@ import os
 
 # Spawned workers inherit these before numerical libraries load.
 os.environ.update(
-    OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1', BLIS_NUM_THREADS='1',
-    NUMEXPR_NUM_THREADS='1', VECLIB_MAXIMUM_THREADS='1',
+    OMP_NUM_THREADS='2', OPENBLAS_NUM_THREADS='2', MKL_NUM_THREADS='2', BLIS_NUM_THREADS='2',
+    NUMEXPR_NUM_THREADS='2', VECLIB_MAXIMUM_THREADS='2',
 )
 
 import argparse
@@ -43,14 +42,16 @@ import time
 import tomllib
 import traceback
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from annotator.training.sequences import RallyBoundaryPolicy
 
 REPO = Path(__file__).resolve().parents[4]
 BENCHMARK_SCRIPTS = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_scripts'
 INPUTS = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results/inputs'
-TREE_RESULTS = REPO / 'experiments/annotator/tree_simplification/results'
-RUNS = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results/annotator_runs'
 SEEDS = (0, 100, 200, 300, 400)
 SUPPLIED_CONDITIONS = {'our_courts': 'ours_our_courts', 'monotrack_courts': 'ours_mono_courts'}
 TEST_PATH_KEYS = ('test_courts', 'inpaint_root', 'pose_root')
@@ -69,13 +70,6 @@ class Run:
             return output / 'validation' / self.family / f'seed-{self.seed}'
         return output / 'test' / self.condition / self.family / f'seed-{self.seed}'
 
-    def reference(self) -> Path | None:
-        """Tracked prediction files this run must reproduce, if any."""
-        if self.condition != 'discovery' or self.family != '32_videos':
-            return None
-        folder = 'input-validation' if self.split == 'validation' else 'input-test'
-        return TREE_RESULTS / f'streams/{folder}/raw_baseline/seed-{self.seed}'
-
 
 def planned_runs() -> list[Run]:
     runs = []
@@ -88,18 +82,19 @@ def planned_runs() -> list[Run]:
     return runs
 
 
-def bundle_path(run: Run, models_40: Path) -> Path:
+def bundle_path(run: Run, models_40: Path, tree_results: Path) -> Path:
     if run.family == '40_videos':
         return models_40 / f'seed-{run.seed}'
     label = 'body_window_36' if run.family == 'body_window_36' else 'raw_baseline'
-    return TREE_RESULTS / f'models/{label}-seed-{run.seed}'
+    return tree_results / f'models/{label}-seed-{run.seed}'
 
 
 def add_paths() -> None:
     sys.path[:0] = [str(REPO), str(REPO / 'src'), str(BENCHMARK_SCRIPTS)]
 
 
-def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path) -> dict:
+def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path,
+                    boundary_policy: RallyBoundaryPolicy) -> dict:
     """Find rallies in one whole video and keep each found rally's review score."""
     from threadpoolctl import threadpool_limits
 
@@ -116,7 +111,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
         video = next(video for video in data.load_original_videos(REPO / 'training/data/shuttleset/annotations/shots_master.csv')
                      if video.identity == video_id)
         inputs = data.load_original_inputs(video, paths['stages'], paths['development_courts'])
-    with threadpool_limits(limits=1):
+    with threadpool_limits(limits=2):
         models = load_models(bundle)
         capture = RunCapture()
         pose = inputs.pose
@@ -136,14 +131,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     write_json(path, stream_payload(sequences, prediction.refined.events) | {
         'confidence': {str(sequence.span_id): scores[sequence.span_id] for sequence in sequences},
     })
-    # Compare through a JSON round trip so tuples and lists compare equal.
-    saved = read_json(path)
-    reference = run.reference()
-    matches = None
-    if reference is not None:
-        expected = read_json(reference / f'{video_id}.json.gz')
-        matches = saved['sequences'] == expected['sequences'] and saved['events'] == expected['events']
-    return {'score': data.score_stream(video, saved), 'matches_tracked': matches}
+    return {'score': data.score_stream(video, read_json(path), boundary_policy=boundary_policy)}
 
 
 def supplied_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path) -> dict:
@@ -157,15 +145,18 @@ def supplied_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str
     run_item((config, item, SUPPLIED_CONDITIONS[run.condition], output))
     if read_json(output / f'{video_id}.json.gz')['status'] != 'completed':
         raise ValueError(f'{video_id}: annotation failed')
-    return {'score': None, 'matches_tracked': None}
+    return {'score': None}
 
 
-def run_video_job(run: Run, bundle: str, paths: dict[str, str], video_id: str, output: str) -> dict:
+def run_video_job(run: Run, bundle: str, paths: dict[str, str], video_id: str, output: str,
+                  boundary_policy: RallyBoundaryPolicy) -> dict:
     add_paths()
     started = time.monotonic()
     resolved = {name: Path(value) for name, value in paths.items()}
-    job = discovery_video if run.condition == 'discovery' else supplied_video
-    record = job(run, Path(bundle), resolved, video_id, Path(output))
+    if run.condition == 'discovery':
+        record = discovery_video(run, Path(bundle), resolved, video_id, Path(output), boundary_policy)
+    else:
+        record = supplied_video(run, Path(bundle), resolved, video_id, Path(output))
     return record | {'video': video_id, 'seconds': time.monotonic() - started,
                      'peak_rss_mib': resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024}
 
@@ -207,14 +198,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--paths', type=Path, required=True,
                         help='TOML [paths] with test_courts, inpaint_root, pose_root, stages and development_courts')
-    parser.add_argument('--models-40', type=Path, default=RUNS / 'models_40_videos', help='output folder of fit_contact_40.py')
+    parser.add_argument('--models-40', type=Path, required=True, help='output folder of fit_contact_40.py')
+    parser.add_argument('--tree-results', type=Path, required=True, help='fresh training root containing models/')
+    parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
+    parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--workers', type=int, default=28)
+    parser.add_argument('--workers', type=int, default=14)
     parser.add_argument('--only', nargs='*', default=None,
                         help='limit to runs whose folder (relative to --out) starts with one of these, e.g. test/discovery')
     parser.add_argument('--videos', nargs='*', default=None, help='limit to these videos, for a smoke test')
     args = parser.parse_args()
+    if not 1 <= args.workers <= 14:
+        parser.error('--workers must be between 1 and 14 for two-core models')
     add_paths()
+    from annotator.training.sequences import RallyBoundaryPolicy
+    from experiments.annotator.heuristic_only_tune.run import write_json
+
+    policy = RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)
+    args.out.mkdir(parents=True, exist_ok=True)
+    write_json(args.out / 'run-policy.json.gz', {
+        'tree_results': str(args.tree_results.resolve()), 'models_40': str(args.models_40.resolve()),
+        'boundary_policy': asdict(policy),
+    })
     with args.paths.open('rb') as handle:
         paths = {name: str(Path(value).resolve()) for name, value in tomllib.load(handle)['paths'].items()}
     for name in (*TEST_PATH_KEYS, *VALIDATION_PATH_KEYS):
@@ -234,7 +239,7 @@ def main() -> None:
         if directory.exists() and any(directory.iterdir()):
             raise FileExistsError(f'{directory}: run folders must start empty')
         directory.mkdir(parents=True, exist_ok=True)
-        bundle = bundle_path(run, args.models_40.resolve())
+        bundle = bundle_path(run, args.models_40.resolve(), args.tree_results.resolve())
         if not (bundle / 'models.joblib').is_file():
             raise FileNotFoundError(bundle)
         wanted = [video for video in ids[run.split] if args.videos is None or video in args.videos]
@@ -252,7 +257,7 @@ def main() -> None:
                 if job is None:
                     break
                 run, bundle, video, directory = job
-                active[executor.submit(run_video_job, run, bundle, paths, video, directory)] = job
+                active[executor.submit(run_video_job, run, bundle, paths, video, directory, policy)] = job
             if not active:
                 break
             finished, _ = wait(active, return_when=FIRST_COMPLETED)
@@ -266,21 +271,13 @@ def main() -> None:
                     print(f'{label}: failed', flush=True)
                     continue
                 records[run].append(record)
-                match = {None: '', True: ' matches tracked', False: ' DIFFERS from tracked'}[record['matches_tracked']]
-                print(f"{label}: {record['seconds']:.0f}s {record['peak_rss_mib']:.0f} MiB{match}", flush=True)
+                print(f"{label}: {record['seconds']:.0f}s {record['peak_rss_mib']:.0f} MiB", flush=True)
                 if len(records[run]) == expected[run] and args.videos is None:
                     finish_run(run, run.directory(output), records[run])
 
-    from experiments.annotator.heuristic_only_tune.run import write_json
-
-    mismatches = [f"{run.directory(output).relative_to(output)}/{record['video']}"
-                  for run, run_records in records.items() for record in run_records
-                  if record['matches_tracked'] is False]
-    print(f'{sum(map(len, records.values()))} videos complete, {len(failures)} failed, '
-          f'{len(mismatches)} differ from tracked predictions', flush=True)
-    if failures or mismatches:
-        # Tracebacks hold machine paths, so this record exists only when something went wrong.
-        write_json(output / 'failures.json.gz', {'failures': failures, 'mismatches': mismatches})
+    print(f'{sum(map(len, records.values()))} videos complete, {len(failures)} failed', flush=True)
+    if failures:
+        write_json(output / 'failures.json.gz', {'failures': failures})
         raise SystemExit(1)
 
 
