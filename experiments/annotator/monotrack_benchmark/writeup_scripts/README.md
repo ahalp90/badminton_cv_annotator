@@ -148,8 +148,13 @@ $PY $W/boundary_comparison.py --training-root NEW_RUN/training \
   --paths paths.toml --output NEW_RUN/reporting \
   --monotrack-runs experiments/annotator/monotrack_benchmark/benchmark_results/monotrack_five_seed
 $PY $W/compare_training_targets.py --training NEW_RUN/training \
-  --out NEW_RUN/reporting/target_comparison
+  --out NEW_RUN/reporting/target_comparison --workers 10
 ```
+
+The target comparison runs model/seed groups in parallel and saves each finished
+video under `target_comparison/per_video/`. Repeat the same command to resume
+without reloading finished videos. Use a fresh output directory if the training
+inputs or comparison rules change.
 
 The driver records completed stages and resumes them only when their commands
 and required outputs agree. Use `--plan-only` to inspect its commands. Generated
