@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +56,7 @@ class PoolJob:
     max_edits: int
     deletion_candidates: int
     boundary_policy: RallyBoundaryPolicy
+    reuse_options: Path | None = None
 
 
 def _span_rows(sequences: Sequence[ContactSequence], span_ids: Sequence[int]) -> dict[int, np.ndarray]:
@@ -134,16 +135,23 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
 def _prepare_pool(job: PoolJob) -> dict[str, object]:
     """Build and atomically cache one video's labelled option pool."""
     with threadpool_limits(limits=1):
-        prepared: PreparedVideo = joblib.load(job.prepared_path)
-        if prepared.video.identity != job.video or prepared.group != job.group:
-            raise ValueError(f'{job.video}: prepared identity or group differs from its record')
-        if prepared.video.split != job.split:
-            raise ValueError(f'{job.video}: prepared split differs from its record')
-        contact = joblib.load(job.contact_path)
-        prediction = ContactModelConfig(**job.contact_prediction)
-        settings = TrainingSettings(contact_prediction=prediction)
-        video: SequenceTrainingVideo = experiment.training_pool(prepared, contact, settings)
-        options = expand_pool(video, job.max_edits, job.deletion_candidates, boundary_policy=job.boundary_policy)
+        if job.reuse_options is not None:
+            saved: LabelledOptions = joblib.load(job.reuse_options)
+            if saved.video.identity != job.video or saved.video.group != job.group:
+                raise ValueError(f'{job.video}: reused proposal identity or group differs')
+            targets = rally_targets.option_targets(saved.video, saved.runtime, boundary_policy=job.boundary_policy)
+            options = replace(saved, targets=targets, boundary_policy=job.boundary_policy)
+        else:
+            prepared: PreparedVideo = joblib.load(job.prepared_path)
+            if prepared.video.identity != job.video or prepared.group != job.group:
+                raise ValueError(f'{job.video}: prepared identity or group differs from its record')
+            if prepared.video.split != job.split:
+                raise ValueError(f'{job.video}: prepared split differs from its record')
+            contact = joblib.load(job.contact_path)
+            prediction = ContactModelConfig(**job.contact_prediction)
+            settings = TrainingSettings(contact_prediction=prediction)
+            video: SequenceTrainingVideo = experiment.training_pool(prepared, contact, settings)
+            options = expand_pool(video, job.max_edits, job.deletion_candidates, boundary_policy=job.boundary_policy)
         if np.isinf(options.matrix).any():
             raise ValueError(f'{job.video}: option feature matrix contains infinity')
 
@@ -179,6 +187,7 @@ def prepare_pools(
     contact_folds: Mapping[str, Sequence[str]] | None = None,
     validation_source: Path | None = None,
     boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    reuse_options: Path | None = None,
 ) -> list[dict[str, object]]:
     """Build selected training and validation pools from a completed contact run."""
     if not 1 <= workers <= 28:
@@ -248,6 +257,13 @@ def prepare_pools(
         manifest['contact_folds'] = {fold: list(videos) for fold, videos in contact_folds.items()}
     if validation_source is not None:
         manifest['reused_validation'] = {'source': str(validation_source), 'pools_manifest': original}
+    if reuse_options is not None:
+        reuse_options = reuse_options.resolve()
+        reused_manifest = experiment.read_json(reuse_options / 'pools.json.gz')
+        for name in ('schema', 'prepared', 'contact_run', 'settings', 'max_edits', 'deletion_candidates'):
+            if reused_manifest[name] != manifest[name]:
+                raise ValueError(f'Reused proposal {name} differs from this run')
+        manifest['reused_options'] = {'source': str(reuse_options), 'pools_manifest': reused_manifest}
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / 'pools.json.gz'
     if manifest_path.exists() and experiment.read_json(manifest_path) != manifest:
@@ -267,6 +283,7 @@ def prepare_pools(
         jobs.append(PoolJob(
             video, record['group'], record['split'], prepared_path, contact_path, output,
             settings['contact_prediction'], max_edits, deletion_candidates, boundary_policy,
+            None if reuse_options is None else reuse_options / 'videos' / f'{video}.joblib',
         ))
 
     summaries = []
@@ -296,6 +313,8 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--deletion-candidates', type=int, default=6)
     parser.add_argument('--boundary-before-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.before_seconds)
     parser.add_argument('--boundary-after-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.after_seconds)
+    parser.add_argument('--no-max-buffer', action='store_true', help='Train rally completeness without context limits')
+    parser.add_argument('--reuse-options', type=Path, help='Relabel saved proposals without recomputing their features')
     return parser
 
 
@@ -309,7 +328,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare_pools(
         args.prepared, args.contact_run, args.output, workers=args.workers, only=args.only,
         max_edits=args.max_edits, deletion_candidates=args.deletion_candidates,
-        boundary_policy=RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds),
+        boundary_policy=(RallyBoundaryPolicy(None, None) if args.no_max_buffer
+                         else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)),
+        reuse_options=args.reuse_options,
     )
     return 0
 

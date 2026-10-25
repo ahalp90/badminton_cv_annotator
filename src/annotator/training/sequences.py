@@ -27,12 +27,16 @@ class LabelledRally:
 
 @dataclass(frozen=True)
 class RallyBoundaryPolicy:
-    """Maximum context before the first and after the last labelled contact."""
+    """Maximum labelled-contact context; two None values leave context unlimited."""
 
-    before_seconds: float = 2.0
-    after_seconds: float = 3.0
+    before_seconds: float | None = 2.0
+    after_seconds: float | None = 3.0
 
     def __post_init__(self) -> None:
+        if self.before_seconds is None and self.after_seconds is None:
+            return
+        if self.before_seconds is None or self.after_seconds is None:
+            raise ValueError('supply both boundary allowances or leave both unlimited')
         if any(not isfinite(seconds) or seconds < 0 for seconds in (self.before_seconds, self.after_seconds)):
             raise ValueError('rally boundary allowances must be finite and non-negative')
 
@@ -238,8 +242,9 @@ def judge_rally_boundaries(
     first, last = rally.frames[0], rally.frames[-1]
     if not start <= first or not last < end:
         return RallyBoundaryJudgement('part_of_rally', rally, 1)
-    before = scale_frames(round(policy.before_seconds * 30), fps)
-    after = scale_frames(round(policy.after_seconds * 30), fps)
-    if sequence.start_frame < first - before or sequence.end_frame - 1 > last + after:
-        return RallyBoundaryJudgement('overlong_rally', rally, 1)
+    if policy.before_seconds is not None and policy.after_seconds is not None:
+        before = scale_frames(round(policy.before_seconds * 30), fps)
+        after = scale_frames(round(policy.after_seconds * 30), fps)
+        if sequence.start_frame < first - before or sequence.end_frame - 1 > last + after:
+            return RallyBoundaryJudgement('overlong_rally', rally, 1)
     return RallyBoundaryJudgement('boundaries_right', rally, 1)

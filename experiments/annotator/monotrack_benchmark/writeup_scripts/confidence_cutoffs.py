@@ -172,8 +172,10 @@ def main() -> None:
     parser.add_argument('--test-rallies', type=int, default=3327)
     parser.add_argument('--shots-master', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--no-max-buffer', action='store_true', help='Judge rally completeness without context limits')
     args = parser.parse_args()
-    policy = RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)
+    policy = (RallyBoundaryPolicy(None, None) if args.no_max_buffer
+              else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds))
     metrics_policy = read_json(args.metrics / 'evaluation-policy.json.gz')['boundary_policy']
     if metrics_policy != asdict(policy):
         raise ValueError('validation and test metrics must use the same boundary policy')

@@ -98,6 +98,7 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
         'max_edits': 2,
         'deletion_candidates': 4,
         'boundary_policy': DEFAULT_RALLY_BOUNDARY_POLICY,
+        'reuse_options': None,
     }
 
     with pytest.raises(SystemExit) as error:

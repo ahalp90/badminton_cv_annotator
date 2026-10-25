@@ -34,7 +34,9 @@ def training_video() -> SequenceTrainingVideo:
     return SequenceTrainingVideo('fixture', 'A', 30., (sequence,), events, RallyRepairs((), {}, physical), (rally,), 600)
 
 
-@pytest.mark.parametrize(('policy', 'expected'), [(RallyBoundaryPolicy(2, 3), 0), (RallyBoundaryPolicy(5, 5), 1)])
+@pytest.mark.parametrize(('policy', 'expected'), [
+    (RallyBoundaryPolicy(2, 3), 0), (RallyBoundaryPolicy(5, 5), 1), (RallyBoundaryPolicy(None, None), 1),
+])
 def test_saved_policy_controls_wide_five_and_review_labels(
     tmp_path: Path, policy: RallyBoundaryPolicy, expected: int,
 ) -> None:
@@ -101,8 +103,10 @@ def test_export_passes_device_to_confidence_fit(
     policy = asdict(RallyBoundaryPolicy(5, 5))
     settings = {'boundary_policy': policy}
     inputs = {'preprocessing': {'fixture': True}}
-    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args: (settings, inputs, tmp_path, tmp_path, 1))
+    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path, 1))
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'fixture'})
+    for name in ('preparation', 'contact-stage'):
+        experiment.write_json(tmp_path / f'{name}.json.gz', {'source': {'revision': 'upstream'}})
 
     class StopAfterFit(Exception):
         pass
@@ -121,3 +125,21 @@ def test_export_passes_device_to_confidence_fit(
     receipt = experiment.read_json(output / 'settings.json.gz')
     assert receipt['device'] == device
     assert receipt['boundary_policy'] == policy
+
+
+def test_relabel_saved_proposals_preserves_features_and_changes_only_targets(tmp_path: Path) -> None:
+    saved = expand_pool(training_video(), max_edits=0, deletion_candidates=0, boundary_policy=RallyBoundaryPolicy(2, 3))
+    source = tmp_path / 'source.joblib'
+    joblib.dump(saved, source)
+    output = tmp_path / 'relabelled'
+    policy = RallyBoundaryPolicy(None, None)
+    job = pools.PoolJob('fixture', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 0, 0,
+                       policy, source)
+    pools._prepare_pool(job)
+    actual = joblib.load(output / 'videos/fixture.joblib')
+    np.testing.assert_array_equal(actual.matrix, saved.matrix)
+    assert actual.sequences == saved.sequences
+    assert actual.video.rallies == saved.video.rallies
+    assert actual.boundary_policy == policy
+    np.testing.assert_array_equal(saved.targets, [0])
+    np.testing.assert_array_equal(actual.targets, [1])

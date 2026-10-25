@@ -409,12 +409,14 @@ def main() -> None:
     parser.add_argument('--annotator-runs', type=Path, required=True)
     parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
     parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
+    parser.add_argument('--no-max-buffer', action='store_true', help='Judge rally completeness without context limits')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
     parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
                         help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
-    policy = RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)
+    policy = (RallyBoundaryPolicy(None, None) if args.no_max_buffer
+              else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds))
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(INPUTS)
     total_rallies = sum(len(item['spans']) for item in manifest['items'])

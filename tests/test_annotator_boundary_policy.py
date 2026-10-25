@@ -64,3 +64,22 @@ def test_timing_allowance_does_not_merge_a_neighbour_outside_the_span():
     for tolerance in (5, 10):
         assert whole_rally_correctness(sequence, (rally, neighbour), 30, tolerance_at_30_fps=tolerance) == 1
         assert judge_found_rallies((sequence,), (rally, neighbour), tolerance, fps=30)[0]['outcome'] == 'fully_correct'
+
+
+def test_unlimited_context_preserves_rally_and_contact_checks():
+    policy = RallyBoundaryPolicy(None, None)
+    rally = LabelledRally('rally', (300, 400, 500), (Half.TOP, Half.BOT, Half.TOP))
+    events = tuple(ContactEvent(frame, .9, side) for frame, side in zip(rally.frames, rally.sides, strict=True))
+    sequence = ContactSequence(0, 0, 1000, events)
+    assert whole_rally_correctness(sequence, (rally,), 30, boundary_policy=policy) == 1
+    assert judge_found_rallies((sequence,), (rally,), 10, fps=30, boundary_policy=policy)[0]['outcome'] == 'fully_correct'
+    neighbour = LabelledRally('neighbour', (800, 900), (Half.BOT, Half.TOP))
+    assert whole_rally_correctness(sequence, (rally, neighbour), 30, boundary_policy=policy) == 0
+    for changed in (
+        replace(sequence, start_frame=350),
+        replace(sequence, events=events[:-1]),
+        replace(sequence, events=(*events, ContactEvent(600, .9, Half.BOT))),
+        replace(sequence, events=tuple(replace(event, side=Half.BOT if event.side == Half.TOP else Half.TOP)
+                                       for event in events)),
+    ):
+        assert whole_rally_correctness(changed, (rally,), 30, boundary_policy=policy) == 0

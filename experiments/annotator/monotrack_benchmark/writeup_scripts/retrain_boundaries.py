@@ -20,7 +20,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
 STAGES = ('prepare', 'contacts', 'pools', 'targets', 'train', 'export')
-POLICIES = {'2_3': (2, 3), '3_3': (3, 3), '5_5': (5, 5)}
+POLICIES = {'2_3': (2, 3), '3_3': (3, 3), '5_5': (5, 5), 'no_max': (None, None)}
 SEEDS = (0, 100, 200, 300, 400)
 CANDIDATES = ('raw_baseline', 'body_window_36')
 MODULE = 'experiments.annotator.tree_simplification'
@@ -68,8 +68,11 @@ def command(stage: str, *arguments: object) -> tuple[str, ...]:
 
 def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> list[Job]:
     jobs = []
+    upstream = args.reuse_training_root or args.output
+    if args.reuse_training_root is not None and stage in ('prepare', 'contacts'):
+        return jobs
     for candidate in args.candidates:
-        prepared = args.output / 'prepared' / candidate
+        prepared = upstream / 'prepared' / candidate
         if stage == 'prepare':
             jobs.append(Job(command(
                 stage, '--paths', args.paths, '--output', prepared,
@@ -77,7 +80,7 @@ def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> li
             ), prepared))
             continue
         for seed in args.seeds:
-            contacts = args.output / 'contacts' / candidate / f'seed-{seed}'
+            contacts = upstream / 'contacts' / candidate / f'seed-{seed}'
             if stage == 'contacts':
                 jobs.append(Job(command(stage, '--prepared', prepared, '--output', contacts,
                                         '--seed-offset', seed, '--threads', 2, '--device', args.device), contacts))
@@ -87,10 +90,16 @@ def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> li
                 root = args.output / policy / 'test-run' / 'candidates' / candidate / f'seed-{seed}'
                 pools, targets, fitted = root / 'pools', root / 'targets-five', root / 'selector'
                 if stage == 'pools':
+                    policy_arguments = (('--no-max-buffer',) if before is None
+                                        else ('--boundary-before-seconds', before, '--boundary-after-seconds', after))
+                    reuse_arguments = ()
+                    if args.reuse_training_root is not None:
+                        source = upstream / args.reuse_policy / 'test-run' / 'candidates' / candidate / f'seed-{seed}'
+                        reuse_arguments = ('--reuse-options', source / 'pools')
                     jobs.append(Job(command(
                         stage, '--prepared', prepared, '--contact-run', contacts, '--output', pools,
                         '--workers', workers_per_job,
-                        '--boundary-before-seconds', before, '--boundary-after-seconds', after,
+                        *policy_arguments, *reuse_arguments,
                     ), pools))
                 elif stage == 'targets':
                     jobs.append(Job(command(stage, '--pools', pools, '--output', targets,
@@ -104,8 +113,10 @@ def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> li
                     ), fitted))
                 else:
                     exported = root / 'export'
+                    reuse_arguments = ('--reuse-upstream',) if args.reuse_training_root is not None else ()
                     jobs.append(Job(command(stage, '--run', fitted, '--five-frame-targets', targets,
-                                            '--output', exported, '--threads', 2, '--device', args.device), exported))
+                                            '--output', exported, '--threads', 2, '--device', args.device,
+                                            *reuse_arguments), exported))
     return jobs
 
 
@@ -119,6 +130,7 @@ def prepare_candidates(args: argparse.Namespace) -> None:
 
 
 def collect_bundles(args: argparse.Namespace) -> None:
+    upstream = args.reuse_training_root or args.output
     for policy in args.policies:
         for candidate in args.candidates:
             for seed in args.seeds:
@@ -127,7 +139,7 @@ def collect_bundles(args: argparse.Namespace) -> None:
                 shutil.copytree(root / 'export' / 'bundle', destination, dirs_exist_ok=True)
                 contacts = root / 'contacts-fit'
                 if not contacts.exists():
-                    contacts.symlink_to(args.output / 'contacts' / candidate / f'seed-{seed}', target_is_directory=True)
+                    contacts.symlink_to(upstream / 'contacts' / candidate / f'seed-{seed}', target_is_directory=True)
 
 
 def main() -> None:
@@ -140,16 +152,23 @@ def main() -> None:
     parser.add_argument('--candidates', nargs='+', choices=CANDIDATES, default=list(CANDIDATES))
     parser.add_argument('--seeds', nargs='+', type=int, choices=SEEDS, default=list(SEEDS))
     parser.add_argument('--stages', nargs='+', choices=STAGES, default=list(STAGES))
+    parser.add_argument('--reuse-training-root', type=Path,
+                        help='Reuse preparation, contacts and proposals from an existing training run')
+    parser.add_argument('--reuse-policy', choices=POLICIES, default='5_5', help='Saved proposal policy to relabel')
     parser.add_argument('--plan-only', action='store_true')
     args = parser.parse_args()
     if not 2 <= args.workers <= 28:
         parser.error('--workers must be between 2 and 28')
     args.output, args.paths = args.output.resolve(), args.paths.resolve()
+    if args.reuse_training_root is not None:
+        args.reuse_training_root = args.reuse_training_root.resolve()
     if not args.plan_only:
         record = {
             'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip(),
             'paths': str(args.paths), 'policies': args.policies, 'candidates': args.candidates,
             'seeds': args.seeds, 'device': args.device,
+            'reuse_training_root': str(args.reuse_training_root) if args.reuse_training_root is not None else None,
+            'reuse_policy': args.reuse_policy,
         }
         receipt = args.output / 'run.json.gz'
         if receipt.exists():
@@ -165,7 +184,9 @@ def main() -> None:
             workers_per_job = min(2, args.workers // 2)
         else:
             workers_per_job = min(4, args.workers) if stage == 'targets' else 2
-        cores_per_job = 2 * workers_per_job if stage == 'pools' else workers_per_job
+        cores_per_job = workers_per_job
+        if stage == 'pools' and args.reuse_training_root is None:
+            cores_per_job *= 2
         parallel_jobs = max(1, args.workers // cores_per_job)
         jobs = stage_jobs(args, stage, workers_per_job)
         print(f'{stage}: {len(jobs)} jobs, up to{parallel_jobs} concurrent, {workers_per_job} workers each', flush=True)
