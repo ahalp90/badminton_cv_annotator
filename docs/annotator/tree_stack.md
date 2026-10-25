@@ -11,8 +11,9 @@ baseline is documented in the [rally-model report](../../experiments/annotator/r
 
 ## The selected model
 
-These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md).
-Validation selected the 2-second / 3-second training boundary policy. The five
+These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/discovery_context/README.md).
+Validation selected the 5-second / 5-second training boundary policy under
+a common scoring rule without maximum context limits. The five
 benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
@@ -90,8 +91,8 @@ affect reproducibility.
 Rally training judges each proposal after applying the boundary rules with its
 initial neighbours. A proposal is wrong if it merges rallies, misses or adds
 contacts, contradicts known player sides, or exceeds the boundary allowances.
-The current allowances are at most 2 seconds before the first labelled contact
-and 3 seconds after the last. Closer valid boundaries remain positive. The
+The current training allowances are at most 5 seconds before the first labelled
+contact and 5 seconds after the last. Closer valid boundaries remain positive. The
 contact-timing tolerance also allows slightly late starts and early ends.
 Missing labels can make a proposal unjudgeable; these rows are excluded from fitting.
 

@@ -1,7 +1,9 @@
 # Annotator boundary-policy refit
 
-The default annotator uses the **2 seconds before / 3 seconds after** training
-policy, selected on the eight validation videos. All three trees were refitted
+This earlier comparison selected the **2 seconds before / 3 seconds after**
+training policy on the eight validation videos. The [current default](../discovery_context/README.md)
+comes from the subsequent comparison without a maximum evaluation buffer.
+All three trees were refitted
 on the original 32 training videos with the existing hyperparameters and five
 seed offsets. Hyperparameter retuning after these changes remains a TODO.
 

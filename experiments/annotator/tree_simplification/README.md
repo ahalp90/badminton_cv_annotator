@@ -38,9 +38,9 @@ needed here. Run every command from the repository root.
 
 ## Tracked models and prediction files
 
-The current default uses the [boundary-policy refit](results/boundary_retrain_v7/README.md):
-all three trees were retrained, and validation selected the 2-second / 3-second
-policy. Its ten bundles and fit settings are under `results/boundary_retrain_v7/2_3/`.
+The current default uses the [5/5-trained model](results/discovery_context/README.md),
+selected against training without maximum context limits under a common
+validation scoring rule. Its ten bundles are under `results/discovery_context/5_5/`.
 The earlier tree-simplification evidence below retains its original models.
 
 Everything behind the report's numbers sits in [results/](results/). The

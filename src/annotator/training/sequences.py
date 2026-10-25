@@ -29,8 +29,8 @@ class LabelledRally:
 class RallyBoundaryPolicy:
     """Maximum labelled-contact context; two None values leave context unlimited."""
 
-    before_seconds: float | None = 2.0
-    after_seconds: float | None = 3.0
+    before_seconds: float | None = 5.0
+    after_seconds: float | None = 5.0
 
     def __post_init__(self) -> None:
         if self.before_seconds is None and self.after_seconds is None:

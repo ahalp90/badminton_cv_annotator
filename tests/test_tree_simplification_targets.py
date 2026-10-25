@@ -1,7 +1,7 @@
 """Five-frame labels and span-local fallback for fixed labelled option pools."""
 
 import lzma
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import joblib
@@ -206,7 +206,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
     pool_path = pools_root / 'videos' / 'video.joblib'
     pool_path.parent.mkdir(parents=True)
     joblib.dump(pool, pool_path)
-    manifest = {'schema': 'pools/1', 'boundary_policy': {'before_seconds': 2.0, 'after_seconds': 3.0}}
+    manifest = {'schema': 'pools/1', 'boundary_policy': asdict(pool.boundary_policy)}
     job = TargetJob('video', 'group', 'train', pool_path, pools_root, manifest, tmp_path / 'targets')
 
     summary = _target_job(job)
@@ -241,7 +241,7 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     video_path.parent.mkdir(parents=True)
     joblib.dump(pool, video_path)
     experiment.write_json(pools_root / 'pools.json.gz', {
-        'schema': 'pools/1', 'boundary_policy': {'before_seconds': 2.0, 'after_seconds': 3.0},
+        'schema': 'pools/1', 'boundary_policy': asdict(pool.boundary_policy),
     })
     experiment.write_json(video_path.with_suffix('.json.gz'), {
         'video': 'video', 'group': 'group', 'split': 'train',

@@ -14,9 +14,9 @@ There are two common cases:
 The selected model is the XGBoost `raw_baseline` bundle from the current rally-model
 benchmark. It contains the contact classifier, one rally selector and a review
 model. The commands below use the tracked seed-0 bundle in
-[`experiments/annotator/tree_simplification/results/boundary_retrain_v7/2_3/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/2_3/models/raw_baseline-seed-0/).
+[`experiments/annotator/tree_simplification/results/discovery_context/5_5/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/discovery_context/5_5/models/raw_baseline-seed-0/).
 It requires scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
-rule is off. The [refit record](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md)
+rule is off. The [refit record](../../experiments/annotator/tree_simplification/results/discovery_context/README.md)
 explains the boundary-policy selection; the earlier
 [comparison report](../../experiments/annotator/reports/tree_simplification.md)
 covers the tree settings.
@@ -97,7 +97,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models experiments/annotator/tree_simplification/results/boundary_retrain_v7/2_3/models/raw_baseline-seed-0 \
+  --models experiments/annotator/tree_simplification/results/discovery_context/5_5/models/raw_baseline-seed-0 \
   --output-dir data/annotations/match-name
 ```
 
@@ -139,7 +139,7 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "experiments/annotator/tree_simplification/results/boundary_retrain_v7/2_3/models/raw_baseline-seed-0"
+annotator = "experiments/annotator/tree_simplification/results/discovery_context/5_5/models/raw_baseline-seed-0"
 ```
 
 The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.

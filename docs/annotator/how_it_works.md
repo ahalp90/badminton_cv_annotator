@@ -139,9 +139,28 @@ instead of reconstructed from the final bounds.
 
 ## Finish boundaries and court halves
 
-Boundary padding gives the first and last contacts some surrounding video. It
-stops at neighbouring rallies and video limits. An extension is accepted only
-when it preserves the rally's contact membership.
+Boundaries and contacts are separate, interacting parts of the prediction.
+The initial window helps determine which contacts belong to a rally. Candidate
+revisions can change both the contacts and the window; the selector chooses
+one revision for each rally.
+
+The selected model then shortens long discovery windows to at most 2 seconds
+before the first chosen contact and 3 seconds after the last. This step only
+trims: a shorter window stays shorter. A final padding step provides at least
+10 frames of context at 30 FPS where neighbouring rallies, video edges and
+contact membership allow it. Supplied boundaries stay fixed.
+
+Training allows up to 5 seconds of context on each side of the labelled rally.
+That allowance defines a positive training example; it is separate from the
+2/3-second discovery finishing rule. The model was selected against an uncapped
+alternative using a common correctness rule without maximum context limits.
+Both were still required to recover complete rallies, contacts and players.
+
+Dataset export is a separate step. It uses the first through last accepted
+contact as the core rally interval, then adds exactly 2 seconds before and
+3 seconds after, except at video edges. These clips may overlap. A detected
+rally with no accepted contacts stops export so it can be reviewed. Export
+does not change the discovery predictions used for evaluation.
 
 Each contact initially has an individual court-half guess: `Top` for the far
 half, `Bot` for the near half, or unknown. The finishing rule chooses the
