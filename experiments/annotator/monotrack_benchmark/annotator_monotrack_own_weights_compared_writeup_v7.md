@@ -508,8 +508,8 @@ gave 216.8 of 668 fully correct rallies (32.46%), against 208.6 (31.23%) for
 overlap, and 5/5 scores slightly higher under the two looser evaluation rules.
 The allowances
 are maxima, so valid boundaries closer to the contacts can still receive
-positive training labels. The [supporting results](benchmark_results/boundary_retrain_v7/)
-include all nine training/evaluation combinations.
+positive training labels. The [training/evaluation table](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances)
+shows validation and test coverage for all nine combinations.
 
 **Confidence thresholds.** The three operating points in Table 3 were selected
 on the same eight validation videos, checking every distinct confidence score
