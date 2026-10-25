@@ -45,8 +45,9 @@ These thresholds were selected on validation. The table shows their test
 results, excluding detections in rallies with flawed labels. Counts and
 percentages are averaged separately over five training seeds. “Right start and end” allows up
 to two seconds before the first labelled contact and three after the last.
+“Fully correct” also requires every contact and player assignment to be correct.
 
-| Confidence threshold | Found rallies kept | Right start and end | Need no fixes |
+| Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
 | ≈0.279 | 2,189 | 74.5% | 54.4% |
 | ≈0.249 | 2,406 | 74.0% | 52.5% |
