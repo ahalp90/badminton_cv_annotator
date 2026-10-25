@@ -36,6 +36,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     BOUNDARY_RIGHT,
+    DISCOVERY_BOUNDARY_BASIS,
     SEEDS,
     judge_found_rallies,
 )
@@ -176,7 +177,10 @@ def main() -> None:
     args = parser.parse_args()
     policy = (RallyBoundaryPolicy(None, None) if args.no_max_buffer
               else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds))
-    metrics_policy = read_json(args.metrics / 'evaluation-policy.json.gz')['boundary_policy']
+    receipt = read_json(args.metrics / 'evaluation-policy.json.gz')
+    if receipt['boundary_basis'] != DISCOVERY_BOUNDARY_BASIS:
+        raise ValueError('test metrics must score the first and last accepted contacts')
+    metrics_policy = receipt['boundary_policy']
     if metrics_policy != asdict(policy):
         raise ValueError('validation and test metrics must use the same boundary policy')
     args.out.mkdir(parents=True, exist_ok=True)
@@ -198,6 +202,7 @@ def main() -> None:
     test = seed_summary(test_curves)
     result = {
         'boundary_policy': asdict(policy), 'selection_split': 'validation',
+        'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
         'thresholds_searched': len(thresholds), 'boundary_target_feasible': cutoffs['boundaries_99'] is not None,
         'validation_rallies': validation_rallies,
         'validation_found_rallies_per_seed': found.groupby('seed').size().tolist(),

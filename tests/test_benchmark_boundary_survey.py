@@ -105,17 +105,20 @@ def test_boundary_policy_propagates_through_video_scoring_and_task() -> None:
         'span_id': 0, 'rally_id': 'rally', 'start_frame': 0, 'end_frame': 300,
         'label_frames': [100, 200], 'label_sides': [Half.TOP.value, Half.BOT.value],
     }]}
-    events = (ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
+    events = (ContactEvent(10, .9, Half.TOP), ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
     sequence = ContactSequence(0, 10, 251, events)
     stream = stream_payload((sequence,), events) | {'confidence': {'0': 0.7}}
     strict, judged = metrics.score_task((item, stream, 10, [], False, RallyBoundaryPolicy(2, 3)))
     wider, wider_judged = metrics.score_task((item, stream, 10, [], False, RallyBoundaryPolicy(3, 3)))
     assert strict['fully_correct_strict'] == strict['fully_correct_matched'] == 0
     assert judged[0]['outcome'] == 'overlong_rally'
-    assert wider['fully_correct_strict'] == wider['fully_correct_matched'] == 1
-    assert wider_judged[0]['outcome'] == 'fully_correct'
+    assert wider['boundaries_right'] == 1
+    assert wider['fully_correct_strict'] == wider['fully_correct_matched'] == 0
+    assert wider_judged[0]['outcome'] == 'extra_hits'
     for field in ('predicted_contacts', 'matched_contacts', 'correct_side_contacts'):
-        assert strict[field] == wider[field] == 2
+        assert strict[field] == wider[field]
+    assert strict['predicted_contacts'] == 3
+    assert strict['matched_contacts'] == 2
 
 
 def test_saved_check_ignores_rally_totals_for_alternate_boundary_policy() -> None:
@@ -141,6 +144,7 @@ def test_cli_selection_is_unchanged_when_test_outcomes_change(tmp_path: Path, mo
     metrics_root.mkdir()
     confidence_cutoffs.write_json(metrics_root / 'evaluation-policy.json.gz', {
         'boundary_policy': {'before_seconds': 2.0, 'after_seconds': 3.0},
+        'boundary_basis': metrics.DISCOVERY_BOUNDARY_BASIS,
     })
     chosen = []
     for run_number, test_outcome in enumerate(('fully_correct', 'overlong_rally')):

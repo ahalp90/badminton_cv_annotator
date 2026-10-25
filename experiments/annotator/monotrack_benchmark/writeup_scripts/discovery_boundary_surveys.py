@@ -27,6 +27,7 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.boundary_comparis
     lock_record,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
+    DISCOVERY_BOUNDARY_BASIS,
     INPUTS,
     SEEDS,
     judge_found_rallies,
@@ -74,6 +75,7 @@ def main() -> None:
                 lock_record(destination / 'evaluation-policy.json.gz', {
                     'annotator_runs': str(runs.resolve()), 'boundary_policy': asdict(POLICIES[policy]),
                     'stage': 'discovery before dataset export',
+                    'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
                 })
             for seed in SEEDS:
                 if all((destination / f'found_rallies_annotator_discovery_seed{seed}.csv.gz').exists()

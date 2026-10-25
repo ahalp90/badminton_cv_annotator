@@ -1,4 +1,4 @@
-"""Training and benchmark scoring share endpoint limits and frame conventions."""
+"""Training windows and supplied-boundary scoring share frame conventions."""
 
 from dataclasses import replace
 
@@ -33,7 +33,7 @@ def test_endpoint_limits_use_final_included_frame_and_scale_with_fps(fps, policy
     ):
         assert whole_rally_correctness(candidate, (rally,), fps, boundary_policy=policy) == expected
         result = judge_found_rallies(
-            (candidate,), (rally,), scale_frames(10, fps), fps=fps, boundary_policy=policy,
+            (candidate,), (rally,), scale_frames(10, fps), fps=fps, boundary_policy=policy, supplied=True,
         )[0]
         assert (result['outcome'] == 'fully_correct') == bool(expected)
 

@@ -1,4 +1,4 @@
-"""Rescore benchmark conditions with a selected time-based rally boundary policy.
+"""Score discovery contact endpoints and supplied rally windows.
 
 Contact matching, excluded-label masking and player alternation use the benchmark's
 existing rules. Saved-score checks compare contact totals, which are independent of
@@ -16,7 +16,7 @@ import re
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
@@ -87,11 +87,23 @@ def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[
     return runs
 
 
-# Found-rally outcomes, from worst to best. The first four fail the boundary rung.
-OUTCOMES = ('no_labelled_rally', 'merged_rallies', 'part_of_rally', 'overlong_rally', 'missed_hits', 'extra_hits', 'wrong_player',
+# Found-rally outcomes, from worst to best. Empty detections have no endpoints.
+OUTCOMES = ('no_contacts', 'no_labelled_rally', 'merged_rallies', 'part_of_rally', 'overlong_rally', 'missed_hits', 'extra_hits', 'wrong_player',
             'unlabelled_player', 'fully_correct')
-BOUNDARY_RIGHT = frozenset(OUTCOMES[4:])
-HITS_RIGHT = frozenset(OUTCOMES[6:])
+BOUNDARY_RIGHT = frozenset(('missed_hits', 'extra_hits', 'wrong_player', 'unlabelled_player', 'fully_correct'))
+HITS_RIGHT = frozenset(('wrong_player', 'unlabelled_player', 'fully_correct'))
+DISCOVERY_BOUNDARY_BASIS = 'first_and_last_accepted_contacts'
+
+
+def contact_endpoint_stream(stream: dict) -> dict:
+    """Use contact extents for discovery scoring, preserving all full-stream events."""
+    sequences = []
+    for sequence in stream['sequences']:
+        events = sequence['events']
+        if events:
+            sequence = sequence | {'start_frame': events[0][0], 'end_frame': events[-1][0] + 1}
+        sequences.append(sequence)
+    return stream | {'sequences': sequences}
 
 
 def discovery_runs(annotator_root: Path) -> dict[str, list[dict[str, dict]]]:
@@ -163,12 +175,18 @@ def ignore_left_out(stream: dict, windows: list[tuple[int, int]], scored_frames:
 def judge_found_rallies(
     sequences, rallies, tolerance: int, *, fps: float,
     boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    supplied: bool = False,
 ) -> list[dict]:
-    """Classify discovered rallies with the same endpoint policy used for training."""
+    """Judge discovery contact endpoints, or the provided bounds in supplied mode."""
     judged = []
     for sequence in sequences:
         frames = [event.frame for event in sequence.events]
         record = {'span_id': sequence.span_id, 'rally_id': None, 'hits': len(frames)}
+        if not supplied:
+            if not frames:
+                judged.append(record | {'outcome': 'no_contacts'})
+                continue
+            sequence = replace(sequence, start_frame=frames[0], end_frame=frames[-1] + 1)
         boundary = judge_rally_boundaries(sequence, rallies, fps, tolerance=tolerance, policy=boundary_policy)
         rally = boundary.rally
         if rally is not None:
@@ -226,6 +244,8 @@ def prepare_scoring_stream(item: dict, stream: dict, labels, windows: list[tuple
     scored, ignored = ignore_left_out(unmasked, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
     if supplied:
         scored = fixed_stream(scored['events'], item['spans'])
+    else:
+        scored = contact_endpoint_stream(scored)
     return scored, unmasked, ignored
 
 
@@ -240,10 +260,11 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     )
     strict = sum(bool(row['fully_correct']) for row in rally_rows)
     sequences, _ = stream_from_payload(scored)
-    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'], boundary_policy=boundary_policy)
+    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'],
+                                boundary_policy=boundary_policy, supplied=supplied)
     # Separate endpoint context from the contact-timing tolerance.
     no_allowance = rally_ladder(judge_found_rallies(
-        sequences, labels, 0, fps=item['fps'], boundary_policy=boundary_policy,
+        sequences, labels, 0, fps=item['fps'], boundary_policy=boundary_policy, supplied=supplied,
     ), labels)['boundaries_right']
     outside = 0 if supplied else sum(
         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
@@ -479,6 +500,7 @@ def main() -> None:
     pool.shutdown()
     write_json(args.out / 'evaluation-policy.json.gz', {
         'annotator_runs': str(args.annotator_runs.resolve()), 'boundary_policy': asdict(policy),
+        'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
     })
     (args.out / 'contact_summary.json').write_text(json.dumps({'summary': summary, 'paired': paired}, indent=1))
     print(json.dumps({name: {key: round(value['mean'], 2) for key, value in condition['10'].items()}

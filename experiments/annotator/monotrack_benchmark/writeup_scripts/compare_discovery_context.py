@@ -15,6 +15,7 @@ sys.path.insert(0, str(REPO / 'src'))
 
 import numpy as np
 
+from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.training.sequences import RallyBoundaryPolicy
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -27,7 +28,12 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     read_json,
     write_json,
 )
-from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import SEEDS
+from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
+    DISCOVERY_BOUNDARY_BASIS,
+    SEEDS,
+    contact_endpoint_stream,
+    judge_found_rallies,
+)
 from experiments.annotator.monotrack_benchmark.writeup_scripts.validation_label_sensitivity import (
     flaw_labels,
 )
@@ -35,6 +41,7 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.validation_label_
 POLICY = RallyBoundaryPolicy(None, None)
 PROTOCOL = {
     'selection_split': 'validation', 'tolerance_base30': 10,
+    'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
     'boundary_policy': {'before_seconds': None, 'after_seconds': None},
     'primary': 'five-seed mean fully correct rally percentage across all 668 validation rallies',
     'tie_breaks': ['correct-player F1', 'contact F1'],
@@ -51,6 +58,7 @@ class ValidationJob:
     stream: Path
     flagged: frozenset[str]
     output: Path
+    reuse_contact_counts: Path | None = None
 
 
 def score_validation(job: ValidationJob) -> dict:
@@ -62,18 +70,29 @@ def score_validation(job: ValidationJob) -> dict:
             raise ValueError(f'{output}: validation inputs changed; use a fresh output directory')
         return saved
     video = job.video
-    _proposals, contacts, predictions, rallies = score_video(
-        video.identity, video.split, read_json(job.stream), video.rallies, video.fps, 10, boundary_policy=POLICY,
-    )
-    unflagged = [rally for rally in rallies if rally['rally_id'] not in job.flagged]
-    counts = {
-        'labelled_contacts': len(contacts), 'predicted_contacts': len(predictions),
-        'matched_contacts': sum(bool(contact['matched']) for contact in contacts),
-        'correct_player_contacts': sum(bool(contact['player_correct']) for contact in contacts),
-        'rallies': len(rallies), 'fully_correct': sum(bool(rally['fully_correct']) for rally in rallies),
-        'unflagged_rallies': len(unflagged),
-        'unflagged_fully_correct': sum(bool(rally['fully_correct']) for rally in unflagged),
-    }
+    stream = contact_endpoint_stream(read_json(job.stream))
+    if job.reuse_contact_counts is not None:
+        previous = read_json(job.reuse_contact_counts / 'videos' / job.name / f'seed-{job.seed}' / f'{video.identity}.json.gz')
+        if previous['stream'] != str(job.stream.resolve()) or previous['protocol']['tolerance_base30'] != 10:
+            raise ValueError('Contact-count reuse requires the same saved stream and timing tolerance')
+        contact_fields = ('labelled_contacts', 'predicted_contacts', 'matched_contacts', 'correct_player_contacts')
+        counts = {field: previous['counts'][field] for field in contact_fields}
+    else:
+        _proposals, contacts, predictions, _rallies = score_video(
+            video.identity, video.split, stream, video.rallies, video.fps, 10, boundary_policy=POLICY,
+        )
+        counts = {
+            'labelled_contacts': len(contacts), 'predicted_contacts': len(predictions),
+            'matched_contacts': sum(bool(contact['matched']) for contact in contacts),
+            'correct_player_contacts': sum(bool(contact['player_correct']) for contact in contacts),
+        }
+    sequences, _events = stream_from_payload(stream)
+    judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps,
+                                boundary_policy=POLICY)
+    correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
+    unflagged = {rally.identity for rally in video.rallies} - job.flagged
+    counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
+               'unflagged_rallies': len(unflagged), 'unflagged_fully_correct': len(correct & unflagged)}
     record = {'name': job.name, 'seed': job.seed, 'video': video.identity, 'protocol': PROTOCOL,
               'stream': str(job.stream.resolve()), 'counts': counts}
     write_json(output, record)
@@ -113,6 +132,8 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
     parser.add_argument('--score-only', action='store_true', help='Cache one arm before the second is available')
+    parser.add_argument('--reuse-contact-counts', type=Path,
+                        help='Previous comparison scores for these immutable saved prediction files')
     args = parser.parse_args()
     runs = {name: Path(directory) for name, directory in args.run}
     if len(runs) != len(args.run):
@@ -132,7 +153,7 @@ def main() -> None:
         for seed in SEEDS:
             for video in videos:
                 jobs.append(ValidationJob(name, seed, video, directory / f'seed-{seed}' / f'{video.identity}.json.gz',
-                                          frozenset(flagged[video.identity]), args.output))
+                                          frozenset(flagged[video.identity]), args.output, args.reuse_contact_counts))
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
         records = list(executor.map(score_validation, jobs))
     comparison = {name: summarise([record for record in records if record['name'] == name]) for name in runs}
