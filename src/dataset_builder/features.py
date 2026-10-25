@@ -391,7 +391,7 @@ def rally_timestamps(start_frame: int, end_frame: int, fps: float) -> dict[str, 
 def clip_frames(
     start_frame: int, end_frame: int, fps: Fraction, frame_count: int
 ) -> tuple[int, int]:
-    """Return the issue #32 clip range around one rally, clamped to the video."""
+    """Pad a half-open contact interval by 2/3 s, clamped only to the video."""
     validate_frame_range(start_frame, end_frame)
     if frame_count < end_frame:
         raise ValueError(f"frame_count {frame_count} does not cover end_frame {end_frame}")
