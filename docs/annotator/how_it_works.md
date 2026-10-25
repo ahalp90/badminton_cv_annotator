@@ -144,17 +144,26 @@ The initial window helps determine which contacts belong to a rally. Candidate
 revisions can change both the contacts and the window; the selector chooses
 one revision for each rally.
 
-The selected model then shortens long discovery windows to at most 2 seconds
-before the first chosen contact and 3 seconds after the last. This step only
-trims: a shorter window stays shorter. A final padding step provides at least
-10 frames of context at 30 FPS where neighbouring rallies, video edges and
-contact membership allow it. Supplied boundaries stay fixed.
+The chosen window keeps its context: there is no maximum number of seconds
+before the first contact or after the last. The final step can extend it to
+provide 10 frames of context at 30 FPS, where neighbouring rallies, video edges
+and contact membership allow. Supplied boundaries stay fixed.
 
-Training allows up to 5 seconds of context on each side of the labelled rally.
-That allowance defines a positive training example; it is separate from the
-2/3-second discovery finishing rule. The model was selected against an uncapped
-alternative using a common correctness rule without maximum context limits.
-Both were still required to recover complete rallies, contacts and players.
+The window still matters. Inside it, the selector's chosen contacts are the
+rally's accepted contacts; rejected candidates stay rejected. Detector contacts
+outside every chosen window remain in the full contact stream.
+
+Training also allows unlimited outward context. It judges whether a proposal's
+window covers one complete labelled rally, then checks its contacts and player
+sides. A window that merges neighbouring rallies or cuts into the rally beyond
+the timing allowance is still wrong.
+
+When we assess discovery, we use the first and last accepted contacts as the
+rally's endpoints. We allow up to 10 frames inward at 30 FPS and unlimited
+outward extension, while still rejecting merged rallies. The boundary-only
+confidence assessment adds an outward limit of 2 seconds before the first
+labelled contact and 3 seconds after the last. It keeps the same inward
+allowance and ignores errors in the interior contacts and player sides.
 
 Dataset export is a separate step. It uses the first through last accepted
 contact as the core rally interval, then adds exactly 2 seconds before and

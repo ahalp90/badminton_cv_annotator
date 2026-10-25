@@ -25,10 +25,6 @@ sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
-    RallyBoundaryPolicy,
-)
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     read_json,
@@ -38,15 +34,17 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     BOUNDARY_RIGHT,
     DISCOVERY_BOUNDARY_BASIS,
     SEEDS,
+    ContactEndpointLimits,
     judge_found_rallies,
 )
 
 TOLERANCE = 10
 BOUNDARY_TARGET = 99.0
+ENDPOINT_LIMITS = ContactEndpointLimits(2, 3)
 
 
 def validation_found(
-    validation: Path, shots_master: Path, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    validation: Path, shots_master: Path, endpoint_limits: ContactEndpointLimits = ENDPOINT_LIMITS,
 ) -> tuple[pd.DataFrame, int]:
     """Judge fresh validation streams against every labelled development rally."""
     videos = [video for video in load_original_videos(shots_master) if video.split == 'validation']
@@ -57,7 +55,7 @@ def validation_found(
             sequences, _ = stream_from_payload(stream)
             judged = judge_found_rallies(
                 sequences, video.rallies, scale_frames(TOLERANCE, video.fps), fps=video.fps,
-                boundary_policy=boundary_policy,
+                endpoint_limits=endpoint_limits,
             )
             for record in judged:
                 rows.append({'seed': seed, 'video': video.identity, **record,
@@ -167,16 +165,14 @@ def at_cutoff(summary: pd.DataFrame, threshold: float | None) -> dict[str, float
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--validation', type=Path, required=True, help='fresh 32-video validation root with seed-*/')
-    parser.add_argument('--metrics', type=Path, required=True, help='fresh metrics.py output')
+    parser.add_argument('--metrics', type=Path, required=True, help='finite-boundary test scores from discovery_boundary_surveys.py')
     parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
     parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
     parser.add_argument('--test-rallies', type=int, default=3327)
     parser.add_argument('--shots-master', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--no-max-buffer', action='store_true', help='Judge rally completeness without context limits')
     args = parser.parse_args()
-    policy = (RallyBoundaryPolicy(None, None) if args.no_max_buffer
-              else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds))
+    policy = ContactEndpointLimits(args.boundary_before_seconds, args.boundary_after_seconds)
     receipt = read_json(args.metrics / 'evaluation-policy.json.gz')
     if receipt['boundary_basis'] != DISCOVERY_BOUNDARY_BASIS:
         raise ValueError('test metrics must score the first and last accepted contacts')

@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +14,6 @@ sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.training.sequences import DEFAULT_RALLY_BOUNDARY_POLICY
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,
@@ -117,11 +115,9 @@ def main() -> None:
             tolerance = scale_frames(TOLERANCE, video.fps)
             all_judged = judge_found_rallies(
                 sequences, video.rallies, tolerance, fps=video.fps,
-                boundary_policy=DEFAULT_RALLY_BOUNDARY_POLICY,
             )
             clean_judged = judge_found_rallies(
                 sequences, clean_labels[video.identity], tolerance, fps=video.fps,
-                boundary_policy=DEFAULT_RALLY_BOUNDARY_POLICY,
             )
             counts['all_labels_before_mask'] += fully_correct_rallies(all_judged)
             counts['unflagged_before_mask'] += fully_correct_rallies(clean_judged)
@@ -133,7 +129,6 @@ def main() -> None:
             masked_sequences, _masked_events = stream_from_payload(masked)
             masked_judged = judge_found_rallies(
                 masked_sequences, clean_labels[video.identity], tolerance, fps=video.fps,
-                boundary_policy=DEFAULT_RALLY_BOUNDARY_POLICY,
             )
             counts['unflagged_after_mask'] += fully_correct_rallies(masked_judged)
             ignored_events += ignored
@@ -155,7 +150,7 @@ def main() -> None:
     before = aggregate('unflagged_before_mask', clean_denominator)
     after = aggregate('unflagged_after_mask', clean_denominator)
     result = {
-        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
+        'boundary_policy': {'before_seconds': None, 'after_seconds': None},
         'tolerance_base_30_fps': TOLERANCE,
         'ignore_window_base_30_fps': {'before': WINDOW_BEFORE, 'after': WINDOW_AFTER, 'fps_scaled': True},
         'validation_videos': len(videos),

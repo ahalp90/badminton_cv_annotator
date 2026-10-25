@@ -16,7 +16,6 @@ sys.path.insert(0, str(REPO / 'src'))
 import numpy as np
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.training.sequences import RallyBoundaryPolicy
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
@@ -38,7 +37,6 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.validation_label_
     flaw_labels,
 )
 
-POLICY = RallyBoundaryPolicy(None, None)
 PROTOCOL = {
     'selection_split': 'validation', 'tolerance_base30': 10,
     'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
@@ -79,7 +77,7 @@ def score_validation(job: ValidationJob) -> dict:
         counts = {field: previous['counts'][field] for field in contact_fields}
     else:
         _proposals, contacts, predictions, _rallies = score_video(
-            video.identity, video.split, stream, video.rallies, video.fps, 10, boundary_policy=POLICY,
+            video.identity, video.split, stream, video.rallies, video.fps, 10,
         )
         counts = {
             'labelled_contacts': len(contacts), 'predicted_contacts': len(predictions),
@@ -87,8 +85,7 @@ def score_validation(job: ValidationJob) -> dict:
             'correct_player_contacts': sum(bool(contact['player_correct']) for contact in contacts),
         }
     sequences, _events = stream_from_payload(stream)
-    judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps,
-                                boundary_policy=POLICY)
+    judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps)
     correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
     unflagged = {rally.identity for rally in video.rallies} - job.flagged
     counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
@@ -161,12 +158,12 @@ def main() -> None:
               'unflagged_rallies': population - flagged_count, 'comparison': comparison}
     if not args.score_only:
         winner = max(comparison, key=lambda name: selection_key(comparison[name]))
-        result['selected'] = winner
+        result['best_validation_coverage'] = winner
     write_json(args.output / ('validation_scores.json.gz' if args.score_only else 'policy_selection.json.gz'), result)
     for name, summary in comparison.items():
         print(name, summary['mean'], flush=True)
     if not args.score_only:
-        print('Selected:', result['selected'], flush=True)
+        print('Best validation coverage:', result['best_validation_coverage'], flush=True)
 
 
 if __name__ == '__main__':

@@ -53,7 +53,7 @@ def paths(tmp_path):
 def test_grouping_reuses_preparation_across_seeds_and_contact_sizes(tmp_path):
     groups = batch.grouped_jobs(planned_runs())
     assert len(groups) == 192
-    assert sum(len(group.runs) * len(paths(tmp_path).policies) for group in groups) == 4950
+    assert sum(len(group.runs) * len(paths(tmp_path).policies) for group in groups) == 1650
     raw = next(group for group in groups if group.split == 'test' and group.preprocessing == 'raw_baseline')
     assert len(raw.runs) == 10
     assert {run.family for run in raw.runs} == {'32_videos', '40_videos'}
@@ -168,7 +168,7 @@ def test_complete_group_skips_preparation_and_models(tmp_path, monkeypatch, poli
 def test_partial_group_checks_existing_policy_and_uses_separate_pools_for_contact_sizes(tmp_path, monkeypatch):
     runs = (Run('test', 'discovery', '32_videos', 0), Run('test', 'discovery', '40_videos', 0))
     group = batch.VideoGroup('8', 'test', 'discovery', 'raw_baseline', runs)
-    configured = paths(tmp_path)
+    configured = replace(paths(tmp_path), policies=('2_3', '3_3', '5_5'))
     existing = batch.prediction_path(configured, '2_3', runs[0], '8')
     batch.save_or_compare(existing, runs[0], '8', batch.prediction_record(runs[0], '8', prediction()))
     before = existing.read_bytes()

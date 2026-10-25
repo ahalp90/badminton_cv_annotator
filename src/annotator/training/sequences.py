@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import isfinite
 
 import numpy as np
 
@@ -23,25 +22,6 @@ class LabelledRally:
     def __post_init__(self) -> None:
         if len(self.frames) != len(self.sides) or tuple(sorted(self.frames)) != self.frames:
             raise ValueError("rally frames must be sorted and have one aligned side label each")
-
-
-@dataclass(frozen=True)
-class RallyBoundaryPolicy:
-    """Maximum labelled-contact context; two None values leave context unlimited."""
-
-    before_seconds: float | None = 5.0
-    after_seconds: float | None = 5.0
-
-    def __post_init__(self) -> None:
-        if self.before_seconds is None and self.after_seconds is None:
-            return
-        if self.before_seconds is None or self.after_seconds is None:
-            raise ValueError('supply both boundary allowances or leave both unlimited')
-        if any(not isfinite(seconds) or seconds < 0 for seconds in (self.before_seconds, self.after_seconds)):
-            raise ValueError('rally boundary allowances must be finite and non-negative')
-
-
-DEFAULT_RALLY_BOUNDARY_POLICY = RallyBoundaryPolicy()
 
 
 @dataclass(frozen=True)
@@ -188,7 +168,7 @@ def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRal
 
 def whole_rally_correctness(
     sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance_at_30_fps: int = 10, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    *, tolerance_at_30_fps: int = 10,
 ) -> int:
     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
 
@@ -196,7 +176,7 @@ def whole_rally_correctness(
     contradictions are wrong even when another human side label is unavailable.
     """
     boundary = judge_rally_boundaries(
-        sequence, rallies, fps, tolerance=scale_frames(tolerance_at_30_fps, fps), policy=boundary_policy,
+        sequence, rallies, tolerance=scale_frames(tolerance_at_30_fps, fps),
     )
     if boundary.outcome == 'no_labelled_rally':
         return -1
@@ -220,14 +200,12 @@ def whole_rally_correctness(
 
 
 def judge_rally_boundaries(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance: int, policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], *, tolerance: int,
 ) -> RallyBoundaryJudgement:
     """Judge one half-open span against contact labels using shared endpoint rules.
 
-    The timing allowance permits small inward errors. Outward context is bounded
-    separately, measured to the final included frame. A span touching contacts
-    from two labelled rallies fails even when both endpoints meet their limits.
+    The timing allowance permits small inward errors. Outward context is unlimited.
+    A span touching contacts from two labelled rallies fails.
     """
     start = sequence.start_frame - tolerance
     end = sequence.end_frame + tolerance
@@ -242,9 +220,4 @@ def judge_rally_boundaries(
     first, last = rally.frames[0], rally.frames[-1]
     if not start <= first or not last < end:
         return RallyBoundaryJudgement('part_of_rally', rally, 1)
-    if policy.before_seconds is not None and policy.after_seconds is not None:
-        before = scale_frames(round(policy.before_seconds * 30), fps)
-        after = scale_frames(round(policy.after_seconds * 30), fps)
-        if sequence.start_frame < first - before or sequence.end_frame - 1 > last + after:
-            return RallyBoundaryJudgement('overlong_rally', rally, 1)
     return RallyBoundaryJudgement('boundaries_right', rally, 1)

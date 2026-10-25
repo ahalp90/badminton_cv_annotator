@@ -42,8 +42,6 @@ from annotator.sequence.rally_model import (
 )
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
-    RallyBoundaryPolicy,
     whole_rally_correctness,
 )
 from annotator.training.workflow import TrainingSettings
@@ -55,6 +53,7 @@ from experiments.annotator.heuristic_only_tune.data import (
 from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import LabelledOptions
+from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 from experiments.annotator.tree_simplification.prepare import (
     preprocessing_from_record,
 )
@@ -218,6 +217,8 @@ def _export_inputs(
     if not isinstance(depth, int) or not 1 <= depth <= 3:
         raise ValueError('Export requires a saved rally stack with one to three layers')
     pools = settings['pool_settings']
+    if pools['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     prepared_root = Path(pools['prepared']).resolve()
     contact_run_root = Path(pools['contact_run']).resolve()
     inputs = _prepared_inputs(prepared_root, reuse_upstream=reuse_upstream)
@@ -233,8 +234,6 @@ def _export_inputs(
         raise ValueError('Preparation, contact and selector sources differ; refit from one clean checkout')
     if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
         raise ValueError('Five-frame target manifest differs from the fitted rally run')
-    if settings['boundary_policy'] != pools['boundary_policy']:
-        raise ValueError('Selector boundary policy differs from the fitted pool manifest')
     return settings, inputs, prepared_root, contact_run_root, depth
 
 
@@ -242,7 +241,6 @@ def _review_rows(
     video: Any,
     identity: str,
     prediction: Any,
-    *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     layer_prediction = prediction.refined
     if not isinstance(layer_prediction, RallyLayerPrediction):
@@ -256,7 +254,6 @@ def _review_rows(
             labels = np.asarray([
                 whole_rally_correctness(
                     by_span[span], video.rallies, video.fps, tolerance_at_30_fps=tolerance,
-                    boundary_policy=boundary_policy,
                 )
                 for span in confidence.features.span_ids
             ], dtype=np.int8)
@@ -283,7 +280,6 @@ def export_run(
         raise ValueError('device must be cpu or cuda')
     run, targets, output = run.resolve(), targets.resolve(), output.resolve()
     settings, inputs, prepared_root, contact_run_root, depth = _export_inputs(run, targets, reuse_upstream=reuse_upstream)
-    boundary_policy = RallyBoundaryPolicy(**settings['boundary_policy'])
     receipt = {
         'schema': 'tree-simplification-raw-export/1',
         'run': str(run),
@@ -291,7 +287,6 @@ def export_run(
         'settings': settings,
         'preprocessing': inputs['preprocessing'],
         'source': source_record(),
-        'boundary_policy': asdict(boundary_policy),
         'device': device,
         'upstream_sources': {
             'preparation': read_json(prepared_root / 'preparation.json.gz')['source'],
@@ -362,7 +357,7 @@ def export_run(
             })
             per_video[identity] = validation_scores[identity]
             review_per_video[identity], video_rows = _review_rows(
-                video, identity, prediction, boundary_policy=boundary_policy,
+                video, identity, prediction,
             )
             rows.extend(video_rows)
             experiment.progress(output, 'raw-replay-parity', video=identity, complete=len(per_video), planned=8)
@@ -385,7 +380,6 @@ def export_run(
         'totals': pooled_scores(per_video),
         'review_per_video': review_per_video,
         'review': pooled_review,
-        'boundary_policy': asdict(boundary_policy),
     }
     write_json(output / 'result.json.gz', result)
     experiment.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])

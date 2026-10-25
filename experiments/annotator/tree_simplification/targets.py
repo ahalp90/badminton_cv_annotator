@@ -11,7 +11,7 @@ import tempfile
 import time
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +30,9 @@ from annotator.training import rally_targets
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
 )
+from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 
-SCHEMA = 'tree-simplification-five-frame-targets/1'
+SCHEMA = 'tree-simplification-five-frame-targets/2'
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class TargetJob:
 def raw_five_targets(pool: LabelledOptions) -> np.ndarray:
     """Return canonical five-frame whole-rally targets aligned to pool rows."""
     return rally_targets.option_targets(
-        pool.video, pool.runtime, tolerance_at_30_fps=5, boundary_policy=pool.boundary_policy,
+        pool.video, pool.runtime, tolerance_at_30_fps=5,
     )
 
 
@@ -103,8 +104,6 @@ def _target_job(job: TargetJob) -> dict[str, Any] | None:
         pool: LabelledOptions = joblib.load(job.pool_path)
         if pool.video.identity != job.identity or pool.video.group != job.group:
             raise ValueError(f'{job.identity}: option pool identity or group differs from its record')
-        if asdict(pool.boundary_policy) != job.pools_manifest['boundary_policy']:
-            raise ValueError(f'{job.identity}: option pool boundary policy differs from its manifest')
         targets = raw_five_targets(pool)
         if targets.shape != pool.targets.shape:
             raise ValueError(f'{job.identity}: five-frame target rows do not align to its option pool')
@@ -133,6 +132,8 @@ def prepare_targets(
         raise ValueError('workers must be between 1 and 28')
     pools_root = pools_root.resolve()
     pools_manifest = experiment.read_json(pools_root / 'pools.json.gz')
+    if pools_manifest['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     records = {}
     for pool_path in sorted((pools_root / 'videos').glob('*.joblib')):
         identity = pool_path.stem

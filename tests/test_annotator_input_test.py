@@ -15,13 +15,10 @@ import pytest
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import SideGeometry, model_files
 from annotator.sequence.rally_model import RallyLayerModels
-from annotator.training.sequences import RallyBoundaryPolicy
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, input_test
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
-
-TEST_BOUNDARY_POLICY = RallyBoundaryPolicy(5, 5)
 
 
 def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[str, str]]:
@@ -59,15 +56,12 @@ def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[s
                 'contact_run': str(contact_root),
                 'prepared': str(root / 'prepared'),
                 'settings': contact_settings['settings'],
-                'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
             },
             'tree': {
                 'random_seed': DEFAULT_TRAINING_SETTINGS.rally_layers.tree.random_seed + seed_offset,
             },
-            'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
         },
         'preprocessing': preprocessing,
-        'boundary_policy': asdict(TEST_BOUNDARY_POLICY),
     }
     write_json(export / 'settings.json.gz', export_settings)
     write_json(export / 'result.json.gz', {
@@ -163,14 +157,12 @@ def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_vi
     monkeypatch.setattr(input_test, 'cache_sticky_result', lambda *_args: nullcontext())
     monkeypatch.setattr(input_test, 'stream_payload', lambda *_args: {'events': [], 'sequences': []})
 
-    def score_stream(_video: Any, _stream: dict, *, boundary_policy: RallyBoundaryPolicy) -> dict:
-        assert boundary_policy == TEST_BOUNDARY_POLICY
+    def score_stream(_video: Any, _stream: dict) -> dict:
         return {'5': {}, '10': {}}
 
     def review_rows(
-        _video: Any, identity: str, _prediction: Any, *, boundary_policy: RallyBoundaryPolicy,
+        _video: Any, identity: str, _prediction: Any,
     ) -> tuple[dict, list[dict]]:
-        assert boundary_policy == TEST_BOUNDARY_POLICY
         rankings = {
             f'{ranking}-{tolerance}': {'unjudgeable': 1}
             for ranking in ('selector', 'fitted') for tolerance in (5, 10)

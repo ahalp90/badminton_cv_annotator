@@ -6,8 +6,6 @@ from annotator.sequence.contacts import ContactSequence, scale_frames
 from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_choices
 from annotator.sequence.rally_options import RallyOptions, sequence_key
 from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
-    RallyBoundaryPolicy,
     SequenceTrainingVideo,
     whole_rally_correctness,
 )
@@ -36,7 +34,6 @@ def finish_in_initial_context(
 
 def option_targets(
     video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
-    *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
 ) -> np.ndarray:
     targets = np.empty(len(pool.sequences), dtype=np.int8)
     stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
@@ -54,7 +51,6 @@ def option_targets(
             finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
             targets[row] = whole_rally_correctness(
                 finished, rallies, video.fps, tolerance_at_30_fps=tolerance_at_30_fps,
-                boundary_policy=boundary_policy,
             )
     return targets
 

@@ -12,10 +12,8 @@ baseline is documented in the [rally-model report](../../experiments/annotator/r
 ## The selected model
 
 These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/discovery_context/README.md).
-Validation selected the 5/5-trained configuration with its 2/3 discovery
-finishing rule over the uncapped alternative, using a common scoring rule
-without maximum context limits. The five
-benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
+The baseline has no maximum outward context limit in training or discovery.
+The five benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -58,12 +56,12 @@ Each row contains:
 - evidence from unused candidates and the gaps between contacts.
 
 The highest score wins within each initial rally. Equal scores preserve the
-proposal order. The finishing rules shorten overlong discovered spans to at most
-2 seconds before the first kept contact and 3 seconds after the last. Shorter
-spans remain shorter, subject to the small edge padding and neighbour checks.
-The chosen contacts are final inside each chosen span; detector contacts outside
-all chosen spans remain in the full stream. The finishing step also fits the
-hitter order from the retained contacts. Supplied rally bounds stay fixed.
+proposal order. The chosen window keeps its outward context. Finishing can add
+10 frames of contact margin at 30 FPS, subject to neighbour, video-edge and
+contact-membership checks. The chosen contacts are final inside each chosen
+span; detector contacts outside all chosen spans remain in the full stream.
+The finishing step also fits the hitter order from the retained contacts.
+Supplied rally bounds stay fixed.
 
 With additional layers, each layer receives the preceding scores, winning score,
 margin, rank, choice and contact differences. All layers score the same ordered
@@ -91,10 +89,10 @@ affect reproducibility.
 
 Rally training judges each proposal after applying the boundary rules with its
 initial neighbours. A proposal is wrong if it merges rallies, misses or adds
-contacts, contradicts known player sides, or exceeds the boundary allowances.
-The current training allowances are at most 5 seconds before the first labelled
-contact and 5 seconds after the last. Closer valid boundaries remain positive. The
-contact-timing tolerance also allows slightly late starts and early ends.
+contacts, contradicts known player sides, or cuts into a labelled rally beyond
+the contact-timing allowance. Outward context is unlimited. Training judges the
+proposal's window; benchmark discovery assessment uses its first and last
+accepted contacts.
 Missing labels can make a proposal unjudgeable; these rows are excluded from fitting.
 
 The selector prefers labels matched within five frames at 30 FPS when a rally

@@ -25,7 +25,6 @@ def test_tree_settings_and_proposal_limits_match_saved_fits(seed: int) -> None:
     selector = stage['selector']
     assert asdict(settings.rally_layers.tree) == selector['tree']
     assert settings.rally_layers.depth == selector['layers']
-    assert asdict(settings.rally_layers.boundary_policy) == selector['boundary_policy']
     assert settings.rally_layers.max_edits == stage['max_edits']
     assert settings.rally_layers.deletion_candidates == stage['deletion_candidates']
 

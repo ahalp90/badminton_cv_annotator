@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,7 +17,6 @@ from annotator.sequence.rally_model import (
     RallyReview,
 )
 from annotator.training.contact import ContactTrainingVideo
-from annotator.training.sequences import DEFAULT_RALLY_BOUNDARY_POLICY
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
@@ -99,15 +98,14 @@ def test_export_explicitly_reuses_older_preparation_and_contact_fits(tmp_path: P
         directory.mkdir()
     inputs = {'groups': {f'video-{index}': 'A' for index in range(40)},
               'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
-    policy = {'before_seconds': None, 'after_seconds': None}
-    pool_settings = {'prepared': str(prepared), 'contact_run': str(contact), 'boundary_policy': policy,
+    pool_settings = {'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(contact),
                      'settings': {'preprocessing': inputs['preprocessing']}}
     write_json(prepared / 'preparation.json.gz', {'source': {'revision': 'prepared'}, 'inputs': inputs})
     write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
     write_json(contact / 'contact-stage.json.gz', {'source': {'revision': 'contacts'}})
     write_json(targets / 'targets.json.gz', {'fixture': True})
     settings = {'layers': 1, 'target_policy': {'manifest': {'fixture': True}},
-                'pool_settings': pool_settings, 'boundary_policy': policy}
+                'pool_settings': pool_settings}
     write_json(run / 'settings.json.gz', settings)
     write_json(run / 'result.json.gz', {'complete': True, 'source': {'revision': 'selector'}})
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'export'})
@@ -131,6 +129,7 @@ def test_export_rejects_mixed_stage_sources(
         'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
     }
     pool_settings = {
+        'schema': input_stages.POOL_SCHEMA,
         'prepared': str(prepared), 'contact_run': str(contact),
         'settings': {'preprocessing': inputs['preprocessing']},
     }
@@ -227,11 +226,11 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     inputs = {'groups': {identity: 'V' for identity in identities},
               'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
     pool_settings = {
+        'schema': input_stages.POOL_SCHEMA,
         'prepared': str(prepared_root),
         'contact_run': str(contact_run_root),
         'max_edits': 3,
         'deletion_candidates': 6,
-        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
         'settings': {
             'preprocessing': inputs['preprocessing'],
             'contact_prediction': {},
@@ -243,7 +242,6 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         'pool_settings': pool_settings,
         'original_options': False,
         'target_policy': {'manifest': {'targets': 'fixed'}},
-        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
     }
     expected_stream = {'events': [], 'sequences': []}
     for identity in identities:
@@ -324,3 +322,32 @@ def test_preprocessing_record_rejects_the_retired_threshold_preset() -> None:
     record['thresholds'] = []
     with pytest.raises(ValueError, match='Saved preprocessing fields differ'):
         prepare.preprocessing_from_record(record)
+
+
+@pytest.mark.parametrize('device', ['cpu', 'cuda'])
+def test_export_passes_device_to_confidence_fit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, device: str,
+) -> None:
+    settings = {}
+    inputs = {'preprocessing': {'fixture': True}}
+    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path, 1))
+    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'fixture'})
+    for name in ('preparation', 'contact-stage'):
+        write_json(tmp_path / f'{name}.json.gz', {'source': {'revision': 'upstream'}})
+
+    class StopAfterFit(Exception):
+        pass
+
+    captured: dict[str, object] = {}
+
+    def fit_review(*_args, **kwargs) -> None:
+        captured.update(kwargs)
+        raise StopAfterFit
+
+    monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
+    output = tmp_path / 'export'
+    with pytest.raises(StopAfterFit):
+        input_stages.export_run(tmp_path / 'run', tmp_path / 'targets', output, device=device)
+    assert captured['device'] == device
+    receipt = read_json(output / 'settings.json.gz')
+    assert receipt['device'] == device

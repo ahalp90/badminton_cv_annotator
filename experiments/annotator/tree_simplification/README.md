@@ -38,10 +38,10 @@ needed here. Run every command from the repository root.
 
 ## Tracked models and prediction files
 
-The current default uses the [5/5-trained model](results/discovery_context/README.md),
-selected against training without maximum context limits under a common
-validation scoring rule. Its ten bundles are under `results/discovery_context/5_5/`.
-The earlier tree-simplification evidence below retains its original models.
+The current default uses the [no-max model](results/discovery_context/README.md),
+with no maximum context limit in training or discovery. Its ten bundles are
+under `results/discovery_context/no_max/`. The tree-simplification evidence below
+retains the models used in that experiment.
 
 Everything behind the report's numbers sits in [results/](results/). The
 [results index](results/README.md) lists every file with its checksum, the
@@ -51,7 +51,7 @@ archived run folder held.
 - `results/*.json.gz` are the evidence files. Each one backs a table or claim in
   the report.
 - `results/models/<label>/` holds 12 saved bundles (`models.joblib` and
-  `metadata.json`). `raw_baseline-seed-0/` is the default current model. `selected/` is an earlier export. `raw_baseline-seed-<N>/`
+  `metadata.json`). `raw_baseline-seed-0/` is the experiment baseline. `selected/` is an earlier export. `raw_baseline-seed-<N>/`
   and `body_window_36-seed-<N>/` are the ten test-run bundles.
   `old-eight-model-stack-xgboost-seed-0/` is the old stack refitted with
   XGBoost, kept for the timing comparison. The current loader accepts the rally-selector bundles; the old eight-model bundle requires its historical code revision.
@@ -116,8 +116,7 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stage
   --seed-offset 0 --threads 2 --device cuda
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.pools \
   --prepared RUN/prepared --contact-run RUN/seed-0/contacts-fit \
-  --output RUN/seed-0/pools --workers 4 \
-  --boundary-before-seconds 2 --boundary-after-seconds 3
+  --output RUN/seed-0/pools --workers 4
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.targets \
   --pools RUN/seed-0/pools --output RUN/seed-0/targets-five --workers 4
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.train \
@@ -138,10 +137,11 @@ The proposal stage uses held-group contact scores for training videos and the
 final contact model for validation. It shares the production proposal/feature
 builders. Targets prefer five-frame correctness where a judged rally retains a
 positive option, falling back to ten-frame labels otherwise. Both target views
-use the same boundary policy: the maximum time before the first labelled hit
-and after the last. These are upper limits; shorter valid spans remain positive.
-The boundary-policy comparison and full-stack retraining driver are documented
-in the [benchmark scripts](../monotrack_benchmark/writeup_scripts/README.md).
+allow unlimited outward context while rejecting spans that join two labelled
+rallies. Contacts must all match within the chosen tolerance, with the right
+players and no extras.
+The batched [retraining driver](../monotrack_benchmark/writeup_scripts/README.md#fit-and-run-the-baseline)
+shares preparation across seeds and can reuse contact fits and matching option pools.
 
 Selector training gives each judged rally equal total row weight. A scale based
 on the rule-based repair set anchors that weight across proposal expansions.
@@ -150,9 +150,9 @@ calculated from the current training proposals.
 
 Each stage saves its settings and source/input identity. Reusing a directory with
 different inputs or settings fails. Use fresh directories when changing a
-configuration. Prepared features from a different source revision need explicit
-provenance and numerical verification; changing a receipt is not a reproduction.
-Old proposal caches must be rebuilt after the representation refactor.
+configuration. `--reuse-upstream` on export checks compatible preparation and
+contact fits from another source revision. Pool reuse requires the current
+target schema and matching inputs.
 
 ## Paired seed repeats
 

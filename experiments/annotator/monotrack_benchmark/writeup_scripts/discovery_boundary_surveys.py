@@ -17,26 +17,24 @@ sys.path.insert(0, str(REPO / 'src'))
 import pandas as pd
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.training.sequences import RallyBoundaryPolicy
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
-    read_json,
-)
-from experiments.annotator.monotrack_benchmark.writeup_scripts.boundary_comparison import (
     lock_record,
+    read_json,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     DISCOVERY_BOUNDARY_BASIS,
     INPUTS,
     SEEDS,
+    ContactEndpointLimits,
     judge_found_rallies,
     left_out_windows,
     prepare_scoring_stream,
     test_left_out,
 )
 
-POLICIES = {'1_1': RallyBoundaryPolicy(1, 1), '2_3': RallyBoundaryPolicy(2, 3)}
+POLICIES = {'1_1': ContactEndpointLimits(1, 1), '2_3': ContactEndpointLimits(2, 3)}
 
 
 def judge_video(task: tuple[dict, Path, list[tuple[int, int]]]) -> dict[str, list[dict]]:
@@ -48,7 +46,7 @@ def judge_video(task: tuple[dict, Path, list[tuple[int, int]]]) -> dict[str, lis
     result = {}
     for name, policy in POLICIES.items():
         judged = judge_found_rallies(sequences, labels, scale_frames(10, item['fps']), fps=item['fps'],
-                                    boundary_policy=policy)
+                                    endpoint_limits=policy)
         result[name] = [row | {'video': int(item['video_id']), 'confidence': stream['confidence'][str(row['span_id'])]}
                         for row in judged]
     return result

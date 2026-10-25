@@ -26,7 +26,6 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.sequence.contacts import stream_payload
-from annotator.training.sequences import RallyBoundaryPolicy
 from annotator.training.trees import TreeFitConfig
 from dataset_builder.vision import load_npy_xz, save_npy_xz
 from experiments.annotator.development import dump_atomically, pooled_scores, progress
@@ -42,6 +41,9 @@ from experiments.annotator.tree_simplification.layers import (
     predict_layer,
 )
 from experiments.annotator.tree_simplification.options import LabelledOptions
+from experiments.annotator.tree_simplification.pools import (
+    SCHEMA as POOL_SCHEMA,
+)
 from experiments.annotator.tree_simplification.pools import (
     edit_kind,
     original_options,
@@ -106,7 +108,6 @@ class LayerTrainer:
                 'groups': groups, 'layer': depth, 'training_videos': [pool.video.identity for pool in selected],
                 'rows': sum(int((pool.targets >= 0).sum()) for pool in selected),
                 'span_weight': self.span_weight,
-                'boundary_policy': asdict(selected[0].boundary_policy),
                 'fit_wall_s': time.perf_counter() - started,
             })
         self.stacks[key] = (*prefix, model)
@@ -125,7 +126,7 @@ def evaluate(
         sequences, events = finish_selected(pool, scores)
         stream = stream_payload(sequences, events)
         write_json(output / 'streams' / f'{identity}.json.gz', stream)
-        per_video[identity] = score_stream(videos[identity], stream, boundary_policy=pool.boundary_policy)
+        per_video[identity] = score_stream(videos[identity], stream)
         initial = {sequence.span_id: sequence for sequence in pool.video.initial}
         picks[identity] = [
             {'span': span, 'row': row, 'score': float(scores[row]), 'target': int(pool.targets[row]),
@@ -165,7 +166,8 @@ def main() -> None:
         device=args.device, min_child_weight=args.min_child_weight,
     )
     manifest = read_json(args.pools / 'pools.json.gz')
-    boundary_policy = RallyBoundaryPolicy(**manifest['boundary_policy'])
+    if manifest['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     target_manifest = None
     if args.five_frame_targets:
         target_manifest = read_json(args.five_frame_targets / 'targets.json.gz')
@@ -184,8 +186,6 @@ def main() -> None:
         metadata = read_json(path.with_suffix('.json.gz'))
         if metadata['split'] != video.split or pool.video.group != prepared['groups'][identity]:
             raise ValueError(f'{identity}: prepared split or group differs')
-        if pool.boundary_policy != boundary_policy or metadata['boundary_policy'] != asdict(boundary_policy):
-            raise ValueError(f'{identity}: option pool boundary policy differs from its manifest')
         selected = original_rows(pool)
         original = original_options(pool, selected=selected)
         counts[identity] = {
@@ -221,7 +221,6 @@ def main() -> None:
     settings = {
         'tree': asdict(config), 'pools': str(args.pools.resolve()), 'pool_settings': manifest,
         'layers': args.layers, 'original_options': args.original_options, 'span_weight': span_weight,
-        'boundary_policy': asdict(boundary_policy),
     }
     trainer = LayerTrainer(training, config, args.output, span_weight)
     if target_manifest is not None:

@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from annotator.training.contact import ContactFitConfig
-from annotator.training.sequences import DEFAULT_RALLY_BOUNDARY_POLICY
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools
 
@@ -47,7 +46,6 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
     manifest = {
         'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
         'max_edits': 3, 'deletion_candidates': 6,
-        'boundary_policy': asdict(DEFAULT_RALLY_BOUNDARY_POLICY),
     }
     experiment.write_json(original / 'pools.json.gz', manifest)
     (prepared / 'videos').mkdir()
@@ -182,6 +180,9 @@ def test_pool_override_copies_validation_bytes_and_binds_resume_identity(
         name = 'v_32' if job.split == 'validation' else f'held_{job.group}'
         assert job.contact_path == fixture.reference / 'contacts' / f'{name}.joblib'
     swapped = {**contact_paths, 'sset_01': contact_paths['sset_05']}
+    with pytest.raises(ValueError, match='Reused proposal contact_paths differs'):
+        pools.prepare_pools(fixture.prepared, fixture.reference, tmp_path / 'invalid-reuse',
+                            **{**options, 'contact_paths': swapped, 'reuse_options': output})
     with pytest.raises(ValueError, match='Pool settings changed'):
         pools.prepare_pools(fixture.prepared, fixture.reference, output, **{**options, 'contact_paths': swapped})
     changed = dict(contact_folds.CONTACT_FOLDS)

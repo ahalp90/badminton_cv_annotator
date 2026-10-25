@@ -1,7 +1,7 @@
 """Five-frame labels and span-local fallback for fixed labelled option pools."""
 
 import lzma
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 
 import joblib
@@ -161,10 +161,10 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     original = targets.rally_targets.whole_rally_correctness
     observed_rallies = []
 
-    def observe(sequence, labels, fps, *, tolerance_at_30_fps, boundary_policy):
+    def observe(sequence, labels, fps, *, tolerance_at_30_fps):
         observed_rallies.append(tuple(rally.identity for rally in labels))
         return original(
-            sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps, boundary_policy=boundary_policy,
+            sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps,
         )
 
     stream_frames = np.asarray([event.frame for event in events], dtype=np.int64)
@@ -206,7 +206,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
     pool_path = pools_root / 'videos' / 'video.joblib'
     pool_path.parent.mkdir(parents=True)
     joblib.dump(pool, pool_path)
-    manifest = {'schema': 'pools/1', 'boundary_policy': asdict(pool.boundary_policy)}
+    manifest = {'schema': targets.POOL_SCHEMA}
     job = TargetJob('video', 'group', 'train', pool_path, pools_root, manifest, tmp_path / 'targets')
 
     summary = _target_job(job)
@@ -240,9 +240,7 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     video_path = pools_root / 'videos' / 'video.joblib'
     video_path.parent.mkdir(parents=True)
     joblib.dump(pool, video_path)
-    experiment.write_json(pools_root / 'pools.json.gz', {
-        'schema': 'pools/1', 'boundary_policy': asdict(pool.boundary_policy),
-    })
+    experiment.write_json(pools_root / 'pools.json.gz', {'schema': targets.POOL_SCHEMA})
     experiment.write_json(video_path.with_suffix('.json.gz'), {
         'video': 'video', 'group': 'group', 'split': 'train',
     })
@@ -254,3 +252,11 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     assert summaries[0]['video'] == 'video'
     assert (output / 'videos' / 'video.npy.xz').is_file()
     assert prepare_targets(pools_root, output, workers=1, only='video') == []
+
+
+def test_target_stage_rejects_pools_from_the_old_target_rule(tmp_path: Path) -> None:
+    pools_root = tmp_path / 'pools'
+    pools_root.mkdir()
+    experiment.write_json(pools_root / 'pools.json.gz', {'schema': 'tree-simplification-option-pools/1'})
+    with pytest.raises(ValueError, match='unsupported target rule'):
+        prepare_targets(pools_root, tmp_path / 'targets', workers=1)

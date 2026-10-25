@@ -5,9 +5,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
-from annotator.training.sequences import RallyBoundaryPolicy
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     annotator_runs,
     confidence_cutoffs,
@@ -100,28 +97,7 @@ def test_fresh_model_and_supplied_paths_include_every_comparison_condition(tmp_p
     )
 
 
-def test_boundary_policy_propagates_through_video_scoring_and_task() -> None:
-    item = {'item_id': 'video', 'fps': 30.0, 'spans': [{
-        'span_id': 0, 'rally_id': 'rally', 'start_frame': 0, 'end_frame': 300,
-        'label_frames': [100, 200], 'label_sides': [Half.TOP.value, Half.BOT.value],
-    }]}
-    events = (ContactEvent(10, .9, Half.TOP), ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
-    sequence = ContactSequence(0, 10, 251, events)
-    stream = stream_payload((sequence,), events) | {'confidence': {'0': 0.7}}
-    strict, judged = metrics.score_task((item, stream, 10, [], False, RallyBoundaryPolicy(2, 3)))
-    wider, wider_judged = metrics.score_task((item, stream, 10, [], False, RallyBoundaryPolicy(3, 3)))
-    assert strict['fully_correct_strict'] == strict['fully_correct_matched'] == 0
-    assert judged[0]['outcome'] == 'overlong_rally'
-    assert wider['boundaries_right'] == 1
-    assert wider['fully_correct_strict'] == wider['fully_correct_matched'] == 0
-    assert wider_judged[0]['outcome'] == 'extra_hits'
-    for field in ('predicted_contacts', 'matched_contacts', 'correct_side_contacts'):
-        assert strict[field] == wider[field]
-    assert strict['predicted_contacts'] == 3
-    assert strict['matched_contacts'] == 2
-
-
-def test_saved_check_ignores_rally_totals_for_alternate_boundary_policy() -> None:
+def test_saved_check_ignores_rally_totals_for_contact_endpoint_assessment() -> None:
     rows = []
     saved = {'by_tolerance': {}}
     for tolerance in metrics.TOLERANCES:

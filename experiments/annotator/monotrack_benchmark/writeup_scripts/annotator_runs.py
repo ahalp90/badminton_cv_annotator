@@ -42,12 +42,8 @@ import time
 import tomllib
 import traceback
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from annotator.training.sequences import RallyBoundaryPolicy
 
 REPO = Path(__file__).resolve().parents[4]
 BENCHMARK_SCRIPTS = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_scripts'
@@ -93,8 +89,7 @@ def add_paths() -> None:
     sys.path[:0] = [str(REPO), str(REPO / 'src'), str(BENCHMARK_SCRIPTS)]
 
 
-def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path,
-                    boundary_policy: RallyBoundaryPolicy) -> dict:
+def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path) -> dict:
     """Find rallies in one whole video and keep each found rally's review score."""
     from threadpoolctl import threadpool_limits
 
@@ -131,7 +126,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     write_json(path, stream_payload(sequences, prediction.refined.events) | {
         'confidence': {str(sequence.span_id): scores[sequence.span_id] for sequence in sequences},
     })
-    return {'score': data.score_stream(video, read_json(path), boundary_policy=boundary_policy)}
+    return {'score': data.score_stream(video, read_json(path))}
 
 
 def supplied_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str, output: Path) -> dict:
@@ -148,13 +143,12 @@ def supplied_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: str
     return {'score': None}
 
 
-def run_video_job(run: Run, bundle: str, paths: dict[str, str], video_id: str, output: str,
-                  boundary_policy: RallyBoundaryPolicy) -> dict:
+def run_video_job(run: Run, bundle: str, paths: dict[str, str], video_id: str, output: str) -> dict:
     add_paths()
     started = time.monotonic()
     resolved = {name: Path(value) for name, value in paths.items()}
     if run.condition == 'discovery':
-        record = discovery_video(run, Path(bundle), resolved, video_id, Path(output), boundary_policy)
+        record = discovery_video(run, Path(bundle), resolved, video_id, Path(output))
     else:
         record = supplied_video(run, Path(bundle), resolved, video_id, Path(output))
     return record | {'video': video_id, 'seconds': time.monotonic() - started,
@@ -200,8 +194,6 @@ def main() -> None:
                         help='TOML [paths] with test_courts, inpaint_root, pose_root, stages and development_courts')
     parser.add_argument('--models-40', type=Path, required=True, help='output folder of fit_contact_40.py')
     parser.add_argument('--tree-results', type=Path, required=True, help='fresh training root containing models/')
-    parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
-    parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=14)
     parser.add_argument('--only', nargs='*', default=None,
@@ -211,14 +203,12 @@ def main() -> None:
     if not 1 <= args.workers <= 14:
         parser.error('--workers must be between 1 and 14 for two-core models')
     add_paths()
-    from annotator.training.sequences import RallyBoundaryPolicy
     from experiments.annotator.heuristic_only_tune.run import write_json
 
-    policy = RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)
     args.out.mkdir(parents=True, exist_ok=True)
     write_json(args.out / 'run-policy.json.gz', {
         'tree_results': str(args.tree_results.resolve()), 'models_40': str(args.models_40.resolve()),
-        'boundary_policy': asdict(policy),
+        'boundary_policy': {'before_seconds': None, 'after_seconds': None},
     })
     with args.paths.open('rb') as handle:
         paths = {name: str(Path(value).resolve()) for name, value in tomllib.load(handle)['paths'].items()}
@@ -257,7 +247,7 @@ def main() -> None:
                 if job is None:
                     break
                 run, bundle, video, directory = job
-                active[executor.submit(run_video_job, run, bundle, paths, video, directory, policy)] = job
+                active[executor.submit(run_video_job, run, bundle, paths, video, directory)] = job
             if not active:
                 break
             finished, _ = wait(active, return_when=FIRST_COMPLETED)

@@ -1,7 +1,7 @@
 """Fit and inspect review ranking for the current rally selector."""
 
 import shutil
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -76,10 +76,8 @@ def fit_review(run: Path, depth: int, targets: Path, output: Path, settings: dic
     rebuilt = build_rally_options(saved.runtime.context, settings['pool_settings']['max_edits'],
                                  settings['pool_settings']['deletion_candidates'])
     verify_pool(rebuilt, saved)
-    if asdict(saved.boundary_policy) != settings['boundary_policy']:
-        raise ValueError('Review fitting and selector targets use different boundary policies')
     np.testing.assert_array_equal(
-        option_targets(saved.video, rebuilt, boundary_policy=saved.boundary_policy), saved.targets,
+        option_targets(saved.video, rebuilt), saved.targets,
     )
     progress(output, 'training-pool-parity', video=sample, rows=len(saved.targets))
     # Reuse completed selector fits; new held-group review fits stay in this export.
@@ -97,7 +95,7 @@ def fit_review(run: Path, depth: int, targets: Path, output: Path, settings: dic
         TreeFitConfig(**xgboost_settings(settings['pool_settings']['settings']['confidence'])), device=device,
     )
     review = fit_rally_review_model(
-        [pool.video for pool in pools.values()], predictions, config, boundary_policy=saved.boundary_policy,
+        [pool.video for pool in pools.values()], predictions, config,
     )
     dump_atomically(review, output / 'review-model.joblib')
     return review

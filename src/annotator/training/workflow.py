@@ -311,7 +311,6 @@ def fit_from_manifest(
     layer_fit = fit_rally_models(training_videos, settings.rally_layers)
     review_model = fit_rally_review_model(
         training_videos, layer_fit.cross_fitted, settings.confidence,
-        boundary_policy=settings.rally_layers.boundary_policy,
     )
     models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)

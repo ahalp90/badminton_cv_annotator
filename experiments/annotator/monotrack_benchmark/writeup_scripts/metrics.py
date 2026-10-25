@@ -16,7 +16,8 @@ import re
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import asdict, replace
+from dataclasses import dataclass, replace
+from math import isfinite
 from pathlib import Path
 
 import numpy as np
@@ -29,8 +30,6 @@ sys.path.insert(0, str(REPO / 'src'))
 from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.sequence.rally_model import alternate_sides
 from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
-    RallyBoundaryPolicy,
     judge_rally_boundaries,
     match_contacts,
 )
@@ -93,6 +92,18 @@ OUTCOMES = ('no_contacts', 'no_labelled_rally', 'merged_rallies', 'part_of_rally
 BOUNDARY_RIGHT = frozenset(('missed_hits', 'extra_hits', 'wrong_player', 'unlabelled_player', 'fully_correct'))
 HITS_RIGHT = frozenset(('wrong_player', 'unlabelled_player', 'fully_correct'))
 DISCOVERY_BOUNDARY_BASIS = 'first_and_last_accepted_contacts'
+
+
+@dataclass(frozen=True)
+class ContactEndpointLimits:
+    """Outward context allowed by a boundary-only confidence assessment."""
+
+    before_seconds: float
+    after_seconds: float
+
+    def __post_init__(self) -> None:
+        if any(not isfinite(seconds) or seconds < 0 for seconds in (self.before_seconds, self.after_seconds)):
+            raise ValueError('contact endpoint limits must be finite and non-negative')
 
 
 def contact_endpoint_stream(stream: dict) -> dict:
@@ -174,7 +185,7 @@ def ignore_left_out(stream: dict, windows: list[tuple[int, int]], scored_frames:
 
 def judge_found_rallies(
     sequences, rallies, tolerance: int, *, fps: float,
-    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    endpoint_limits: ContactEndpointLimits | None = None,
     supplied: bool = False,
 ) -> list[dict]:
     """Judge discovery contact endpoints, or the provided bounds in supplied mode."""
@@ -187,7 +198,7 @@ def judge_found_rallies(
                 judged.append(record | {'outcome': 'no_contacts'})
                 continue
             sequence = replace(sequence, start_frame=frames[0], end_frame=frames[-1] + 1)
-        boundary = judge_rally_boundaries(sequence, rallies, fps, tolerance=tolerance, policy=boundary_policy)
+        boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
         rally = boundary.rally
         if rally is not None:
             record['rally_id'] = rally.identity
@@ -195,6 +206,12 @@ def judge_found_rallies(
             judged.append(record | {'outcome': boundary.outcome})
             continue
         assert rally is not None
+        if endpoint_limits is not None:
+            before = scale_frames(round(endpoint_limits.before_seconds * 30), fps)
+            after = scale_frames(round(endpoint_limits.after_seconds * 30), fps)
+            if sequence.start_frame < rally.frames[0] - before or sequence.end_frame - 1 > rally.frames[-1] + after:
+                judged.append(record | {'outcome': 'overlong_rally'})
+                continue
         matches = match_contacts(rally.frames, frames, tolerance)
         revised = alternate_sides((sequence,), sequence.events)[0][0]
         # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
@@ -250,21 +267,20 @@ def prepare_scoring_stream(item: dict, stream: dict, labels, windows: list[tuple
 
 
 def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: list[tuple[int, int]], *,
-                          supplied: bool,
-                          boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> tuple[dict, list[dict]]:
+                          supplied: bool) -> tuple[dict, list[dict]]:
     """Counts for one video and tolerance, plus the found-rally judgements."""
     labels = labels_for_item(item)
     scored, unmasked, ignored = prepare_scoring_stream(item, stream, labels, windows, supplied=supplied)
     _, contacts, predictions, rally_rows = score_video(
-        item['item_id'], 'test', scored, labels, item['fps'], tolerance, boundary_policy=boundary_policy,
+        item['item_id'], 'test', scored, labels, item['fps'], tolerance,
     )
     strict = sum(bool(row['fully_correct']) for row in rally_rows)
     sequences, _ = stream_from_payload(scored)
     judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'],
-                                boundary_policy=boundary_policy, supplied=supplied)
+                                supplied=supplied)
     # Separate endpoint context from the contact-timing tolerance.
     no_allowance = rally_ladder(judge_found_rallies(
-        sequences, labels, 0, fps=item['fps'], boundary_policy=boundary_policy, supplied=supplied,
+        sequences, labels, 0, fps=item['fps'], supplied=supplied,
     ), labels)['boundaries_right']
     outside = 0 if supplied else sum(
         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
@@ -289,22 +305,21 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     return counts, judged
 
 
-def score_task(task: tuple[dict, dict, int, list[tuple[int, int]], bool, RallyBoundaryPolicy]) -> tuple[dict, list[dict]]:
-    item, stream, tolerance, windows, supplied, boundary_policy = task
-    return score_stream_for_item(item, stream, tolerance, windows, supplied=supplied, boundary_policy=boundary_policy)
+def score_task(task: tuple[dict, dict, int, list[tuple[int, int]], bool]) -> tuple[dict, list[dict]]:
+    item, stream, tolerance, windows, supplied = task
+    return score_stream_for_item(item, stream, tolerance, windows, supplied=supplied)
 
 
 def score_condition(name: str, streams_by_run: list[dict[str, dict]], *, supplied: bool,
                     saved: list[Path] | None, windows: dict[str, list[tuple[int, int]]],
-                    pool: ProcessPoolExecutor,
-                    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> dict:
+                    pool: ProcessPoolExecutor) -> dict:
     manifest = load_manifest(INPUTS)
     per_run = []
     for run_index, streams in enumerate(streams_by_run):
         rows, found = [], []
-        tasks = [(item, streams[item['item_id']], tolerance, windows[item['item_id']], supplied, boundary_policy)
+        tasks = [(item, streams[item['item_id']], tolerance, windows[item['item_id']], supplied)
                  for item in manifest['items'] for tolerance in TOLERANCES]
-        for (item, _stream, tolerance, _windows, _supplied, _policy), (counts, judged) in zip(
+        for (item, _stream, tolerance, _windows, _supplied), (counts, judged) in zip(
                 tasks, pool.map(score_task, tasks, chunksize=4), strict=True):
                 rows.append({'video': int(item['video_id']), 'tolerance': tolerance, **counts})
                 if tolerance == 10:
@@ -435,16 +450,11 @@ def confidence_curve(condition: dict, total_rallies: int) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--annotator-runs', type=Path, required=True)
-    parser.add_argument('--boundary-before-seconds', type=float, default=2.0)
-    parser.add_argument('--boundary-after-seconds', type=float, default=3.0)
-    parser.add_argument('--no-max-buffer', action='store_true', help='Judge rally completeness without context limits')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
     parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
                         help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
-    policy = (RallyBoundaryPolicy(None, None) if args.no_max_buffer
-              else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds))
     args.out.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(INPUTS)
     total_rallies = sum(len(item['spans']) for item in manifest['items'])
@@ -460,12 +470,12 @@ def main() -> None:
         streams = [{item['item_id']: read_json(run / f'{item["item_id"]}.json.gz')['stream'] for item in manifest['items']}
                    for run in runs]
         conditions[name] = score_condition(
-            name, streams, supplied=True, saved=runs, windows=windows, pool=pool, boundary_policy=policy,
+            name, streams, supplied=True, saved=runs, windows=windows, pool=pool,
         )
         print(name, 'scored', flush=True)
     for name, streams in discovery_runs(args.annotator_runs).items():
         conditions[name] = score_condition(
-            name, streams, supplied=False, saved=None, windows=windows, pool=pool, boundary_policy=policy,
+            name, streams, supplied=False, saved=None, windows=windows, pool=pool,
         )
         print(name, 'scored', flush=True)
 
@@ -499,7 +509,8 @@ def main() -> None:
             run['found'].to_csv(args.out / f'found_rallies_{name}_seed{seed}.csv.gz', index=False)
     pool.shutdown()
     write_json(args.out / 'evaluation-policy.json.gz', {
-        'annotator_runs': str(args.annotator_runs.resolve()), 'boundary_policy': asdict(policy),
+        'annotator_runs': str(args.annotator_runs.resolve()),
+        'boundary_policy': {'before_seconds': None, 'after_seconds': None},
         'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
     })
     (args.out / 'contact_summary.json').write_text(json.dumps({'summary': summary, 'paired': paired}, indent=1))

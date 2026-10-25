@@ -27,6 +27,14 @@ def write_json(path: Path, value: Any) -> None:
         json.dump(value, stream, allow_nan=False, indent=2)
 
 
+def lock_record(path: Path, value: Any) -> None:
+    if path.exists():
+        if read_json(path) != value:
+            raise ValueError(f'{path}: inputs or selection protocol changed; use a fresh output directory')
+    else:
+        write_json(path, value)
+
+
 def read_array(path: Path) -> Any:
     import numpy as np
 

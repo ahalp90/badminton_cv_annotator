@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,11 +27,7 @@ from threadpoolctl import threadpool_limits
 from annotator.contacts.model import ContactModelConfig
 from annotator.sequence.contacts import ContactSequence
 from annotator.training import rally_targets
-from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
-    RallyBoundaryPolicy,
-    SequenceTrainingVideo,
-)
+from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import (
@@ -39,7 +35,7 @@ from experiments.annotator.tree_simplification.options import (
     expand_pool,
 )
 
-SCHEMA = 'tree-simplification-option-pools/1'
+SCHEMA = 'tree-simplification-option-pools/2'
 TARGET_VALUES = (-1, 0, 1)
 EDIT_KINDS = ('keep', 'add', 'delete', 'mixed')
 
@@ -55,7 +51,6 @@ class PoolJob:
     contact_prediction: dict[str, Any]
     max_edits: int
     deletion_candidates: int
-    boundary_policy: RallyBoundaryPolicy
     reuse_options: Path | None = None
 
 
@@ -82,7 +77,6 @@ def original_options(options: LabelledOptions, *, selected: np.ndarray | None = 
         options.targets[selected],
         _span_rows(sequences, tuple(options.span_rows)),
         options.video,
-        options.boundary_policy,
     )
 
 
@@ -117,7 +111,6 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
         'video': options.video.identity,
         'group': options.video.group,
         'split': split,
-        'boundary_policy': asdict(options.boundary_policy),
         'options': len(options.sequences),
         'feature_count': int(options.matrix.shape[1]),
         'target_counts_by_edit_kind': {
@@ -139,8 +132,7 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
             saved: LabelledOptions = joblib.load(job.reuse_options)
             if saved.video.identity != job.video or saved.video.group != job.group:
                 raise ValueError(f'{job.video}: reused proposal identity or group differs')
-            targets = rally_targets.option_targets(saved.video, saved.runtime, boundary_policy=job.boundary_policy)
-            options = replace(saved, targets=targets, boundary_policy=job.boundary_policy)
+            options = saved
         else:
             prepared: PreparedVideo = joblib.load(job.prepared_path)
             if prepared.video.identity != job.video or prepared.group != job.group:
@@ -151,7 +143,7 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
             prediction = ContactModelConfig(**job.contact_prediction)
             settings = TrainingSettings(contact_prediction=prediction)
             video: SequenceTrainingVideo = experiment.training_pool(prepared, contact, settings)
-            options = expand_pool(video, job.max_edits, job.deletion_candidates, boundary_policy=job.boundary_policy)
+            options = expand_pool(video, job.max_edits, job.deletion_candidates)
         if np.isinf(options.matrix).any():
             raise ValueError(f'{job.video}: option feature matrix contains infinity')
 
@@ -186,7 +178,6 @@ def prepare_pools(
     contact_paths: Mapping[str, Path] | None = None,
     contact_folds: Mapping[str, Sequence[str]] | None = None,
     validation_source: Path | None = None,
-    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
     reuse_options: Path | None = None,
 ) -> list[dict[str, object]]:
     """Build selected training and validation pools from a completed contact run."""
@@ -216,7 +207,6 @@ def prepare_pools(
         expected = {
             'schema': SCHEMA, 'prepared': str(prepared_root), 'contact_run': str(contact_run_output),
             'settings': settings, 'max_edits': max_edits, 'deletion_candidates': deletion_candidates,
-            'boundary_policy': asdict(boundary_policy),
         }
         if original != expected:
             raise ValueError('Reused validation pools use different preparation or proposal settings')
@@ -249,7 +239,6 @@ def prepare_pools(
         'settings': settings,
         'max_edits': max_edits,
         'deletion_candidates': deletion_candidates,
-        'boundary_policy': asdict(boundary_policy),
     }
     if contact_paths is not None:
         manifest['contact_paths'] = {video: str(path.resolve()) for video, path in contact_paths.items()}
@@ -262,6 +251,9 @@ def prepare_pools(
         reused_manifest = experiment.read_json(reuse_options / 'pools.json.gz')
         for name in ('schema', 'prepared', 'contact_run', 'settings', 'max_edits', 'deletion_candidates'):
             if reused_manifest[name] != manifest[name]:
+                raise ValueError(f'Reused proposal {name} differs from this run')
+        for name in ('contact_paths', 'contact_folds'):
+            if reused_manifest.get(name) != manifest.get(name):
                 raise ValueError(f'Reused proposal {name} differs from this run')
         manifest['reused_options'] = {'source': str(reuse_options), 'pools_manifest': reused_manifest}
     output.mkdir(parents=True, exist_ok=True)
@@ -282,7 +274,7 @@ def prepare_pools(
             continue
         jobs.append(PoolJob(
             video, record['group'], record['split'], prepared_path, contact_path, output,
-            settings['contact_prediction'], max_edits, deletion_candidates, boundary_policy,
+            settings['contact_prediction'], max_edits, deletion_candidates,
             None if reuse_options is None else reuse_options / 'videos' / f'{video}.joblib',
         ))
 
@@ -311,10 +303,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--only', help='Prepare one video as a smoke test')
     parser.add_argument('--max-edits', type=int, default=3)
     parser.add_argument('--deletion-candidates', type=int, default=6)
-    parser.add_argument('--boundary-before-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.before_seconds)
-    parser.add_argument('--boundary-after-seconds', type=float, default=DEFAULT_RALLY_BOUNDARY_POLICY.after_seconds)
-    parser.add_argument('--no-max-buffer', action='store_true', help='Train rally completeness without context limits')
-    parser.add_argument('--reuse-options', type=Path, help='Relabel saved proposals without recomputing their features')
+    parser.add_argument('--reuse-options', type=Path, help='Reuse matching saved proposals, features and targets')
     return parser
 
 
@@ -328,8 +317,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare_pools(
         args.prepared, args.contact_run, args.output, workers=args.workers, only=args.only,
         max_edits=args.max_edits, deletion_candidates=args.deletion_candidates,
-        boundary_policy=(RallyBoundaryPolicy(None, None) if args.no_max_buffer
-                         else RallyBoundaryPolicy(args.boundary_before_seconds, args.boundary_after_seconds)),
         reuse_options=args.reuse_options,
     )
     return 0

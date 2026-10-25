@@ -20,9 +20,7 @@ from annotator.sequence.contacts import (
 )
 from annotator.sequence.rally_model import alternate_sides
 from annotator.training.sequences import (
-    DEFAULT_RALLY_BOUNDARY_POLICY,
     LabelledRally,
-    RallyBoundaryPolicy,
     judge_rally_boundaries,
     match_contacts,
 )
@@ -46,11 +44,10 @@ PUBLISHED_TEST_TOTALS = {
 
 
 def judge_section(
-    sequence: ContactSequence, rallies: tuple[LabelledRally, ...], tolerance: int, *, fps: float,
-    boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
+    sequence: ContactSequence, rallies: tuple[LabelledRally, ...], tolerance: int,
 ) -> dict[str, object]:
     """Repeat ``whole_rally_correctness`` at any allowance and keep each reason it fails."""
-    boundary = judge_rally_boundaries(sequence, rallies, fps, tolerance=tolerance, policy=boundary_policy)
+    boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
     record: dict[str, object] = {
         "overlapping_rallies": boundary.overlapping_rallies, "rally_id": None, "matched": None, "missing": None,
         "extra": None, "wrong_player": None, "boundary_error": False, "exact_sequence": False,
@@ -79,9 +76,9 @@ def judge_section(
     return {**record, "outcome": 1}
 
 
-def score_video(video: str, split: str, stream: dict, rallies: tuple[LabelledRally, ...], fps: float,
-                tolerance_base30: int, *, boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY,
-                ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+def score_video(
+    video: str, split: str, stream: dict, rallies: tuple[LabelledRally, ...], fps: float, tolerance_base30: int,
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     sequences, events = stream_from_payload(stream)
     confidence = stream.get("confidence")
     tolerance = scale_frames(tolerance_base30, fps)
@@ -89,10 +86,10 @@ def score_video(video: str, split: str, stream: dict, rallies: tuple[LabelledRal
 
     proposals = []
     for sequence in sequences:
-        judgement = judge_section(sequence, rallies, tolerance, fps=fps, boundary_policy=boundary_policy)
+        judgement = judge_section(sequence, rallies, tolerance)
         if tolerance_base30 == 10:
             assert judgement["outcome"] == whole_rally_correctness(
-                sequence, rallies, fps, boundary_policy=boundary_policy,
+                sequence, rallies, fps,
             ), (video, sequence.span_id)
         score = None if confidence is None else confidence[str(sequence.span_id)]
         proposals.append({

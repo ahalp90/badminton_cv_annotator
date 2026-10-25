@@ -19,7 +19,7 @@ import time
 import tomllib
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
@@ -41,7 +41,6 @@ from annotator.models import AnnotatorModels, load_models
 from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import stream_from_payload, stream_payload
 from annotator.sequence.rally_model import predict_rally_options, score_rally_review
-from annotator.training.sequences import RallyBoundaryPolicy
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune import data
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
@@ -59,8 +58,7 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.annotator_runs im
 )
 from experiments.annotator.old_court_regression.old_inputs import OldVideoInputs
 
-POLICIES = {'2_3': RallyBoundaryPolicy(2, 3), '3_3': RallyBoundaryPolicy(3, 3), '5_5': RallyBoundaryPolicy(5, 5),
-            'no_max': RallyBoundaryPolicy(None, None)}
+POLICIES = ('2_3', '3_3', '5_5', 'no_max')
 COURT_FOLDERS = {'our_courts': 'ours', 'monotrack_courts': 'monotrack_for_ours'}
 
 
@@ -70,7 +68,7 @@ class BatchPaths:
     models_40: Path
     output: Path
     inputs: dict[str, Path]
-    policies: tuple[str, ...] = ('2_3', '3_3', '5_5')
+    policies: tuple[str, ...] = ('no_max',)
 
 
 @dataclass(frozen=True)
@@ -259,7 +257,7 @@ def prepare_run_policy(paths: BatchPaths, policy: str) -> None:
     directory = paths.output / policy
     receipt = directory / 'run-policy.json.gz'
     expected = {'tree_results': str((paths.training / policy).resolve()),
-                'models_40': str((paths.models_40 / policy).resolve()), 'boundary_policy': asdict(POLICIES[policy])}
+                'models_40': str((paths.models_40 / policy).resolve()), 'boundary_policy': {'before_seconds': None, 'after_seconds': None}}
     if receipt.exists():
         if read_json(receipt) != expected:
             raise ValueError(f'{receipt}: model paths or evaluation policy differ from the saved run')
@@ -296,7 +294,7 @@ def finish_saved_run(task: tuple[Run, str, BatchPaths]) -> None:
     for video, metadata in videos.items():
         record = read_prediction(directory / f'{video}.json.gz', run, video)
         if run.condition == 'discovery':
-            per_video[video] = data.score_stream(metadata, record, boundary_policy=POLICIES[policy])
+            per_video[video] = data.score_stream(metadata, record)
         if video not in by_video:
             by_video[video] = {'video': video, 'seconds': None, 'peak_rss_mib': None}
     if run.condition == 'discovery':
@@ -350,7 +348,8 @@ def main() -> None:
     parser.add_argument('--videos', nargs='+')
     parser.add_argument('--seeds', type=int, nargs='+', choices=SEEDS, default=list(SEEDS))
     parser.add_argument('--only', nargs='+', help='run-directory prefixes, e.g. test/discovery/32_videos')
-    parser.add_argument('--policies', nargs='+', choices=POLICIES, default=['2_3', '3_3', '5_5'])
+    parser.add_argument('--policies', nargs='+', choices=POLICIES, default=['no_max'],
+                        help='saved configuration directory labels; all use uncapped discovery')
     args = parser.parse_args()
     if not 1 <= args.workers <= 14:
         parser.error('--workers must be between 1 and 14 for two-core trees')
