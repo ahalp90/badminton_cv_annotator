@@ -140,8 +140,8 @@ def headline_figure(summary: dict, out: Path, boundary_policy: dict[str, float])
     before, after = boundary_policy['before_seconds'], boundary_policy['after_seconds']
     figure.text(0.01, 0.085, f'Discovery checks contacts and rally bounds: up to {before:g} s before the first contact '
                 f'and {after:g} s after the last, allowing time for the shuttle to come to rest.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.047, 'Rows 1–4 score contacts within supplied bounds, as in MonoTrack’s published evaluation. '
-                'Our clips allow up to 1 s either side.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.047, 'Rows 1–4 score contacts within supplied rally boundaries, as required by MonoTrack. '
+                'We allow a buffer of up to 1 s before and after each rally.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest. '
                 'Settings chosen on validation.', fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.115, 1, 0.95))
