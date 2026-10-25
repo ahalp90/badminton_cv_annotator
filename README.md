@@ -38,26 +38,21 @@ We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/
 *MonoTrack needs rally boundaries provided*
 
 Our annotator can discover rally boundaries in a raw video (figure above,
-bottom row). Each rally gets a confidence score so you can select a smaller
-subset for review.
-
-These thresholds were selected on validation. The table shows test results,
-excluding detections in rallies with flawed labels, averaged over five seeds.
-“Right start and end” checks the first and last accepted contacts against the
-labelled rally: at most 2 seconds before and 3 seconds after, with a 10-frame
-inward allowance. It ignores errors between those endpoints. “Fully correct”
-also requires every contact and player assignment to be correct.
+bottom row). Each rally gets a confidence score, so you can trade recall for
+less manual review:
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| ≈0.325 | 2,223.0 | 82.3% | 67.6% |
-| ≈0.336 | 2,170.2 | 82.7% | 68.2% |
+| 0.50 | 1,589 | 85.8% | 73.7% |
+| 0.70 | 821 | 89.4% | 80.9% |
+| 0.75 | 560 | 90.8% | 83.5% |
+| 0.80 | 265 | 93.0% | 87.5% |
+| 0.85 | 58 | 94.5% | 91.8% |
 
-Counts are mean rallies per seed. The first threshold keeps roughly half the
-validation detections; the second maximises retrieval F1 for fully correct
-rallies. No threshold reaches 99% mean boundary accuracy on validation while
-retaining detections in every seed. The report gives exact thresholds and the
-separate 1/1 boundary survey.
+*Indicative performance on the test set, averaged over five seeds. “Right start
+and end” allows up to 2 seconds early or 10 frames late for the first contact,
+and 10 frames early or 3 seconds late for the last contact (at 30 fps). These
+buffers match our dataset format and give useful context.*
 
 Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
