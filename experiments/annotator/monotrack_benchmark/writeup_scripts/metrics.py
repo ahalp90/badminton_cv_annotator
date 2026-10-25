@@ -47,10 +47,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
 
 BENCHMARK = REPO / 'experiments/annotator/monotrack_benchmark/benchmark_results'
 INPUTS = BENCHMARK / 'inputs'
-COMPARISON = BENCHMARK / 'comparison'
 MONOTRACK_RUNS = BENCHMARK / 'monotrack_five_seed'
-# Our annotator's runs from annotator_runs.py: test/<condition>/<models>/seed-<N>/ and validation/.
-RUNS = BENCHMARK / 'annotator_runs'
 HEURISTIC = REPO / 'experiments/annotator/heuristic_only_tune/results'
 SEEDS = (0, 100, 200, 300, 400)
 TOLERANCES = (10, 5)

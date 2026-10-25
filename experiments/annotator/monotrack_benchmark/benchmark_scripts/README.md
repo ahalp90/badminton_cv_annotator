@@ -1,4 +1,4 @@
-# MonoTrack benchmark
+# Benchmark scripts
 
 The benchmark compares MonoTrack and our annotator on 46 ShuttleSet22 videos:
 3,327 rallies and 37,184 labelled hits. Video 15 is excluded from this fixed set.
@@ -142,11 +142,15 @@ second before the first labelled contact to one second after the last. The
 heuristic settings stay fixed across court conditions. Omitting
 `--heuristic-settings` retains the full annotator.
 
-The v6 report uses
-`../benchmark_results/monotrack_five_seed/` for MonoTrack and
-`../benchmark_results/annotator_runs/` for the trained annotator.
-The earlier reports use these five condition directories under
-`../benchmark_results/comparison/`:
+The [current report](../annotator_monotrack_own_weights_compared_writeup_v7.md)
+uses the selected five-seed MonoTrack results in
+`../benchmark_results/monotrack_five_seed/` and the annotator results in
+`../benchmark_results/boundary_retrain_v7/`. Use the
+[write-up scripts](../writeup_scripts/README.md) for annotator inference and scoring.
+
+The v5/v6 annotator predictions are retained in
+`../archive/results/annotator_runs/`. Earlier reports use these five condition
+directories under `../archive/results/comparison/`:
 
 | Condition | Directory |
 |---|---|

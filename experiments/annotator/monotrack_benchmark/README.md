@@ -1,39 +1,57 @@
 # MonoTrack benchmark
 
 [Read the current report](annotator_monotrack_own_weights_compared_writeup_v7.md)
-for the comparison of our annotator and court detector with MonoTrack on
-46 ShuttleSet22 videos, covering 3,327 rallies and 37,184 labelled contacts. It
-uses the annotator's three-tree stack. The earlier
-[v6](annotator_monotrack_own_weights_compared_writeup_v6.md),
-[v5](annotator_monotrack_own_weights_compared_writeup_v5.md), [v4](annotator_monotrack_own_weights_compared_writeup_v4.md),
-[v3](annotator_monotrack_own_weights_compared_writeup_v3.md),
-[v2](annotator_monotrack_own_weights_compared_writeup_v2.md) and
-[first report](annotator_monotrack_own_weights_compared_writeup.md) are retained.
+for the annotator and court-detector comparison with MonoTrack on 46 ShuttleSet22
+videos: 3,327 scored rallies and 37,184 labelled contacts. Results use five seeds
+and validation-selected settings. The annotator uses the 2/3-second boundary
+training policy; the main contact tolerance is ±10 frames, with ±5 in Appendix E.
 
-The later [tuned heuristic comparison](../heuristic_only_tune/KNOWN_RALLIES.md)
-adds the tree-disabled annotator with the same supplied rally windows, both
-sets of known-rally courts and the same scoring at ±10 and ±5 frames.
+## Results and models
 
-Both MonoTrack court conditions use zeroed shuttle input, L2 0 and inference
-interpolation off, chosen by five-seed mean fully correct validation rallies.
-Test results report the mean and min–max across those five seeds. Main results
-use ±10 frames. Appendix A gives the validation comparison; Appendix E gives
-the ±5-frame test results.
+| Find | Location |
+| --- | --- |
+| All nine training/evaluation boundary combinations | [Validation and test table](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances) |
+| Current scores, confidence curves and training-target comparison | [Boundary-policy results](benchmark_results/boundary_retrain_v7/) |
+| Selected annotator models and fit settings | [Model record](../tree_simplification/results/boundary_retrain_v7/README.md) |
+| MonoTrack selection, five-seed predictions and checkpoints | [MonoTrack results](benchmark_results/monotrack_five_seed/) |
+| Prepared court and rally inputs | [Inputs](benchmark_results/inputs/) |
+| Tree-disabled comparison | [Tuned heuristic results](../heuristic_only_tune/KNOWN_RALLIES.md) |
 
-- [Benchmark instructions](benchmark_scripts/README.md): current inference and
-  scoring commands.
-- [HitNet training](hitnet_retrain/README.md): training inputs, settings and
-  exported weights.
-- [MonoTrack results](benchmark_results/monotrack_five_seed/): validation
-  selection, five-seed test predictions, scores and training checkpoints.
-  The retrained annotator's compact results are in
-  [`benchmark_results/boundary_retrain_v7/`](benchmark_results/boundary_retrain_v7/).
-- [Confidence curves](benchmark_results/boundary_retrain_v7/primary/): kept-rally
-  results at every distinct validation score and test results at those thresholds.
-- [Figures](writeup_figures/): charts, court overlays and inspected frames. The
-  updated comparison charts are in `writeup_figures/v7/`, with unchanged charts
-  in `writeup_figures/v5/` and court galleries in `writeup_figures/v3/`.
-- [Write-up scripts](writeup_scripts/README.md): the scripts behind the v7
-  numbers, tables and figures.
-- [Reviewed failure](benchmark_results/review_clips/53_0061.md): the annotated
-  clip and its explanation.
+## Rerun
+
+Run from the repository root. To rescore predictions from the full comparison:
+
+```bash
+W=experiments/annotator/monotrack_benchmark/writeup_scripts
+python "$W/metrics.py" \
+  --annotator-runs NEW_RUN/reporting/annotator_runs/2_3 \
+  --out REPORT_DATA \
+  --boundary-before-seconds 2 --boundary-after-seconds 3
+```
+
+This path assumes `boundary_comparison.py --output NEW_RUN/reporting` produced
+the predictions. The compact results contain scores and tables; annotator
+prediction streams are produced by the
+[training and inference commands](writeup_scripts/README.md#batched-inference-and-resume).
+The scoring command uses the saved MonoTrack five-seed predictions by default.
+
+- [Prepare inputs and run MonoTrack](benchmark_scripts/README.md).
+- [Train HitNet](hitnet_retrain/README.md).
+- [Retrain the annotator, compare policies, select confidence cut-offs and draw figures](writeup_scripts/README.md).
+
+The current report links its figures directly. Its updated charts are in
+`writeup_figures/v7/`; shared court charts and galleries remain alongside them.
+
+## Earlier comparisons
+
+Earlier reports are kept together: [v1](archive/reports/v1.md),
+[v2](archive/reports/v2.md), [v3](archive/reports/v3.md),
+[v4](archive/reports/v4.md), [v5](archive/reports/v5.md) and
+[v6](archive/reports/v6.md). Each retains its original results and scoring rules.
+Their exclusive figures are in [archive/figures/](archive/figures/).
+
+[Historical results](archive/results/) contain the original condition comparison,
+the pre-v7 annotator runs and the confidence rerun/curves. The
+[reviewed court-fit failure](benchmark_results/review_clips/53_0061.md) refers to
+those original runs. Current MonoTrack results and the earlier HitNet training
+grid remain in their locations linked above.
