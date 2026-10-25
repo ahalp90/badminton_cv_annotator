@@ -3,6 +3,9 @@
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
+from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
+    write_json,
+)
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     discovery_boundary_surveys as surveys,
 )
@@ -32,7 +35,7 @@ def test_boundary_only_survey_matches_full_scoring_with_excluded_rallies(tmp_pat
     monkeypatch.setattr(surveys, 'labels_for_item', lambda _item: labels)
     monkeypatch.setattr(metrics, 'labels_for_item', lambda _item: labels)
     path = tmp_path / '8.json.gz'
-    surveys.write_json(path, stream)
+    write_json(path, stream)
     actual = surveys.judge_video((item, path, windows))
     for name, policy in surveys.POLICIES.items():
         counts, judged = metrics.score_stream_for_item(item, stream, 10, windows, supplied=False, boundary_policy=policy)

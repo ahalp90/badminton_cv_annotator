@@ -22,7 +22,9 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
     read_json,
-    write_json,
+)
+from experiments.annotator.monotrack_benchmark.writeup_scripts.boundary_comparison import (
+    lock_record,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     INPUTS,
@@ -67,8 +69,13 @@ def main() -> None:
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
         for name, directory in args.run:
             runs = Path(directory)
+            destinations = {policy: args.out / name / policy for policy in POLICIES}
+            for policy, destination in destinations.items():
+                lock_record(destination / 'evaluation-policy.json.gz', {
+                    'annotator_runs': str(runs.resolve()), 'boundary_policy': asdict(POLICIES[policy]),
+                    'stage': 'discovery before dataset export',
+                })
             for seed in SEEDS:
-                destinations = {policy: args.out / name / policy for policy in POLICIES}
                 if all((destination / f'found_rallies_annotator_discovery_seed{seed}.csv.gz').exists()
                        for destination in destinations.values()):
                     continue
@@ -78,14 +85,12 @@ def main() -> None:
                 for policy, destination in destinations.items():
                     destination.mkdir(parents=True, exist_ok=True)
                     rows = [row for result in judged for row in result[policy]]
-                    pd.DataFrame(rows).to_csv(destination / f'found_rallies_annotator_discovery_seed{seed}.csv.gz',
-                                             index=False)
+                    output = destination / f'found_rallies_annotator_discovery_seed{seed}.csv.gz'
+                    temporary = output.with_suffix('.gz.tmp')
+                    pd.DataFrame(rows).to_csv(temporary, index=False, compression='gzip')
+                    temporary.replace(output)
             for policy, limits in POLICIES.items():
                 destination = args.out / name / policy
-                write_json(destination / 'evaluation-policy.json.gz', {
-                    'annotator_runs': str(runs.resolve()), 'boundary_policy': asdict(limits),
-                    'stage': 'discovery before dataset export',
-                })
                 if (destination / 'confidence_cutoffs.json.gz').exists():
                     continue
                 commands.append([
