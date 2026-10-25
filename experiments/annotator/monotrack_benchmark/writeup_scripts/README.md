@@ -17,6 +17,7 @@ Run every command from the repository root.
 | [court_metrics.py](court_metrics.py) | Each rally's court error and IoU against ShuttleSet22's reference corners, for our per-rally, MonoTrack's and our per-scene courts. |
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
 | [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. |
+| [annotator_batch_runs.py](annotator_batch_runs.py) | Runs all three boundary policies together, sharing preparation and compatible rally options. Resumes completed video predictions in place. |
 | [confidence_cutoffs.py](confidence_cutoffs.py) | Searches every distinct validation confidence score for the three operating objectives, then reports test results at those cut-offs. |
 | [kept_rally_errors.py](kept_rally_errors.py) | Counts the errors in kept rallies that need a fix, at the two cut-offs in the project README. |
 | [left_out_rallies.py](left_out_rallies.py) | Counts the rallies with flawed labels for Appendix G. |
@@ -101,6 +102,31 @@ $PY $W/annotator_runs.py --paths paths.toml --tree-results $TREES \
 - `annotator_runs.py` runs one two-core job per video, with `--workers`
   jobs at once (default and maximum 14). `--only` limits it to runs
   whose folder starts with a given prefix, such as `test/discovery`.
+
+### Batched inference and resume
+
+For the three-policy comparison, run compatible bundles together:
+
+```bash
+$PY $W/annotator_batch_runs.py --paths paths.toml \
+  --training-root NEW_RUN/training --models-40 NEW_RUN/models_40 \
+  --out NEW_RUN/annotator_runs --workers 14
+```
+
+The training, 40-video model and output roots each contain `2_3`, `3_3` and
+`5_5` subdirectories. Each 40-video bundle retains its policy's selector and
+confidence models while using the shared, freshly refitted contact model.
+
+The runner loads a video's inputs and prepares contact features once per court
+condition and preprocessing setting. It builds rally options once per contact
+model, then applies each policy's own selector and confidence model. Workers
+stay alive between videos. Each tree still uses two CPU cores.
+
+Repeat the same command to resume. Completed prediction files are retained;
+missing predictions are written atomically. When a shared batch contains an
+existing prediction, the runner checks that the recomputed stream and confidence
+scores agree before adding the other policies. Use the same inputs and model locations when resuming; the runner checks
+the saved model-location and boundary-policy records.
 
 For the policy comparison, score every training policy under each of the three
 evaluation policies. Keep a separate output directory for each pair. Choose
