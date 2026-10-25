@@ -108,23 +108,23 @@ def test_absorbed_rejected_contact_is_removed_before_padding():
 
 
 @pytest.mark.parametrize('fps', [30, 60])
-def test_shortening_keeps_three_seconds_of_tail_and_preserves_outside_detector_hits(fps):
+def test_discovery_keeps_context_and_removes_rejected_hits_owned_by_chosen_span(fps):
     original = _sequence(0, 0, 30 * fps, [fps, 10 * fps, 12 * fps])
     chosen = replace(original, events=original.events[1:])
     sequences, stream = finish_choices((original,), original.events, {0: chosen}, fps)
-    assert _bounds(sequences) == [(8 * fps, 15 * fps + 1)]
-    assert stream == original.events
+    assert _bounds(sequences) == [(0, 30 * fps)]
+    assert stream == chosen.events
     assert events_between(stream, *(_bounds(sequences)[0])) == chosen.events
 
 
-def test_padding_collision_preserves_shortened_bounds():
+def test_padding_collision_preserves_chosen_bounds():
     original = _sequence(0, 0, 600, [20, 300, 400])
     chosen = replace(original, start_frame=300, events=original.events[1:])
     outside = ContactEvent(295, .8, None)
     sequences, stream = finish_choices((original,), (*original.events[:1], outside, *chosen.events), {0: chosen}, 30)
-    assert _bounds(sequences) == [(300, 491)]
+    assert _bounds(sequences) == [(300, 600)]
     assert outside in stream
-    assert events_between(stream, 300, 491) == chosen.events
+    assert events_between(stream, 300, 600) == chosen.events
 
 
 def test_supplied_bounds_stay_exact_and_close_rallies_remain_disjoint():
