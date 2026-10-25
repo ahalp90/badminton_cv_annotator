@@ -60,11 +60,11 @@ from experiments.annotator.tree_simplification.prepare import (
 )
 
 
-def _prepared_inputs(prepared_root: Path) -> dict[str, Any]:
+def _prepared_inputs(prepared_root: Path, *, reuse_upstream: bool = False) -> dict[str, Any]:
     """Load and validate the saved raw preprocessing identity."""
     experiment.require_raw_features(prepared_root)
     manifest = read_json(prepared_root / 'preparation.json.gz')
-    if manifest['source'] != source_record():
+    if not reuse_upstream and manifest['source'] != source_record():
         raise ValueError('Prepared source differs from this checkout; use a fresh prepared directory')
     inputs = manifest['inputs']
     preprocessing_from_record(inputs['preprocessing'])
@@ -220,7 +220,7 @@ def _export_inputs(
     pools = settings['pool_settings']
     prepared_root = Path(pools['prepared']).resolve()
     contact_run_root = Path(pools['contact_run']).resolve()
-    inputs = _prepared_inputs(prepared_root)
+    inputs = _prepared_inputs(prepared_root, reuse_upstream=reuse_upstream)
     if pools['settings']['preprocessing'] != inputs['preprocessing']:
         raise ValueError('Contact settings and prepared evidence use different preprocessing')
     if read_json(contact_run_root / 'settings.json.gz') != {

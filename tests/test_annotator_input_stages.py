@@ -93,6 +93,29 @@ def test_prepared_source_must_match_before_contact_fitting(tmp_path: Path, monke
         input_stages.fit_contacts(tmp_path, tmp_path / 'fit')
 
 
+def test_export_explicitly_reuses_older_preparation_and_contact_fits(tmp_path: Path, monkeypatch) -> None:
+    prepared, contact, run, targets = (tmp_path / name for name in ('prepared', 'contact', 'run', 'targets'))
+    for directory in (prepared, contact, run, targets):
+        directory.mkdir()
+    inputs = {'groups': {f'video-{index}': 'A' for index in range(40)},
+              'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
+    policy = {'before_seconds': None, 'after_seconds': None}
+    pool_settings = {'prepared': str(prepared), 'contact_run': str(contact), 'boundary_policy': policy,
+                     'settings': {'preprocessing': inputs['preprocessing']}}
+    write_json(prepared / 'preparation.json.gz', {'source': {'revision': 'prepared'}, 'inputs': inputs})
+    write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
+    write_json(contact / 'contact-stage.json.gz', {'source': {'revision': 'contacts'}})
+    write_json(targets / 'targets.json.gz', {'fixture': True})
+    settings = {'layers': 1, 'target_policy': {'manifest': {'fixture': True}},
+                'pool_settings': pool_settings, 'boundary_policy': policy}
+    write_json(run / 'settings.json.gz', settings)
+    write_json(run / 'result.json.gz', {'complete': True, 'source': {'revision': 'selector'}})
+    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'export'})
+    with pytest.raises(ValueError, match='Prepared source differs'):
+        input_stages._export_inputs(run, targets)
+    assert input_stages._export_inputs(run, targets, reuse_upstream=True) == (settings, inputs, prepared, contact, 1)
+
+
 @pytest.mark.parametrize('changed_stage', ['contact', 'selector'])
 def test_export_rejects_mixed_stage_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_stage: str,
