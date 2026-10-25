@@ -9,6 +9,9 @@ does not establish statistical superiority or isolate training from finishing.
 ## Selection
 
 Discovery boundaries are the **first and last accepted predicted contacts**.
+These are the selected contacts assigned to that detected rally within its
+saved window. The window establishes contact membership; its start/end
+positions are ignored when assessing the rally's extent.
 Both configurations are judged at ±10 base-30 frames under the same rule
 without maximum outward context. A correct rally covers one complete labelled
 rally without merging neighbours and contains every contact with the right

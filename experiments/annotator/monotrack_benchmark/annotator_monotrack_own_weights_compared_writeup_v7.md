@@ -101,6 +101,8 @@ The trees-off rows are deterministic runs.
   rally is fully correct when it covers exactly one labelled rally, its hits
   match that rally's hits one to one with none left over, and every hitter is
   right. Boundaries are the first and last accepted predicted contacts.
+  These are the selected contacts assigned to that rally within its saved
+  window; the window's start/end positions are ignored in this assessment.
   There is no maximum outward context limit. Either contact endpoint may
   fall inward by the same allowance as contact timing. The finite-boundary
   confidence surveys below apply additional 1/1 or 2/3 limits.
