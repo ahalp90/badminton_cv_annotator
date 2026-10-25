@@ -79,10 +79,13 @@ proposal's final selector score supplies the ranking instead.
 
 ## What the training labels mean
 
-Contact training marks frames close to a human-labelled hit as positive. It
-omits an uncertain band around those positives, keeps nearby negatives and
-samples more distant negatives. Sampling order and fit-row order are recorded
-separately because both can affect reproducibility.
+Contact training labels frames inside broad search regions: within one base-30
+frame of a labelled contact is positive, distances of two to four frames are
+ignored, and five or more frames are negative candidates. It keeps nearby
+negatives and samples more distant ones. See the
+[worked example and measured contact coverage](how_it_works.md#how-contact-training-uses-ground-truth).
+Sampling order and fit-row order are recorded separately because both can
+affect reproducibility.
 
 Rally training judges each proposal after applying the boundary rules with its
 initial neighbours. A proposal is wrong if it merges rallies, misses or adds

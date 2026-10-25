@@ -43,3 +43,22 @@ search. This refit does not repeat the hyperparameter or preprocessing search.
 Use the [benchmark retraining and evaluation commands](../../../monotrack_benchmark/writeup_scripts/README.md)
 to reproduce the three-policy comparison. The earlier bundles and experimental
 results remain under the parent results directory for their historical reports.
+
+## Contact training coverage
+
+The [saved-input measurement](contact_training_coverage.json.gz) checks the
+32 training videos for the selected raw-baseline contact model. Of 27,571 loaded
+GT contacts, 26,893 (97.5%) have a candidate frame within the positive training
+radius of one frame at 30 fps. The 678 others have no feature/search row within
+that radius; no additional contacts are lost to the candidate-region filter.
+The 80,651 positive frame rows exactly match the saved contact-fit count.
+
+Recheck the saved prepared inputs without fitting a model, from the repo root:
+
+```bash
+PYTHONPATH=src:. python experiments/annotator/tree_simplification/analysis/contact_training_coverage.py \
+  --training NEW_RUN/training --workers 8 | gzip > contact_training_coverage.json.gz
+```
+
+The [contact-training explanation](../../../../../docs/annotator/how_it_works.md#how-contact-training-uses-ground-truth)
+describes the search regions, labels and negative sampling.
