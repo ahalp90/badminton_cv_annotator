@@ -45,8 +45,9 @@ These thresholds were selected on validation. The table shows their test
 results, excluding detections in rallies with flawed labels. Counts and
 percentages are averaged separately over five training seeds. This confidence
 survey checks a maximum of two seconds before the first labelled contact and
-three after the last. “Fully correct” also requires every contact and player
-assignment to be correct. The headline figure uses the common rule without
+three after the last. These outward limits are exact, so even a small endpoint
+timing offset can fail the check. “Fully correct” also requires every contact
+and player assignment to be correct. The headline figure uses the common rule without
 maximum context limits.
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |

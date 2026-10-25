@@ -47,6 +47,13 @@ last; 2/3 allows two and three seconds. Both retain the ±10-frame inward
 allowance and the same rally/contact/player checks. Dataset clips are separate:
 accepted first/last contacts plus 2/3 seconds, clipped only at video edges.
 
+The outward limits are exact. A matched endpoint contact a few frames early or
+late can make a capped window fail this rule. Of the selected model's 419.0
+otherwise fully correct test rallies per seed rejected by the 2/3 limit, 417.6
+overshoot by at most 10 frames (one third of a second). The
+[overshoot counts](boundary_overshoots.json.gz) also cover all overlong windows
+for both configurations. This distinguishes small offsets from long context.
+
 Every unique validation score was searched: 3,339 for 5/5 and 3,333 for no-max.
 The objectives are closest to half the pooled validation detections retained,
 and highest mean retrieval F1 for fully correct rallies. The third objective,
@@ -60,7 +67,7 @@ rallies. Thresholds are rounded to six decimal places; each survey's JSON
 records the exact value.
 
 | Configuration | Limits, seconds before/after | Objective | Threshold | Test detections kept | Right boundaries | Fully correct | Fully correct coverage |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | 5/5 + 2/3 output cap | 1/1 | Keep half | 0.343045 | 2,193.2 | 1.15% | 0.57% | 0.38% |
 | 5/5 + 2/3 output cap | 1/1 | Best F1 | 0.283042 | 2,519.8 | 1.28% | 0.58% | 0.44% |
 | 5/5 + 2/3 output cap | 2/3 | Keep half | 0.343045 | 2,193.2 | 69.37% | 51.30% | 33.81% |

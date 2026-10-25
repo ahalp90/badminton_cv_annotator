@@ -12,8 +12,9 @@ baseline is documented in the [rally-model report](../../experiments/annotator/r
 ## The selected model
 
 These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/discovery_context/README.md).
-Validation selected the 5-second / 5-second training boundary policy under
-a common scoring rule without maximum context limits. The five
+Validation selected the 5/5-trained configuration with its 2/3 discovery
+finishing rule over the uncapped alternative, using a common scoring rule
+without maximum context limits. The five
 benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |

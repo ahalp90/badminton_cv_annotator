@@ -189,6 +189,13 @@ up to 10 frames inward. It is stricter than the unfiltered headline rule and
 is separate from dataset clip padding. Appendix B also compares the 1/1 rule
 for both trained configurations.
 
+The outward limits are exact: a correctly matched endpoint contact a few frames
+early or late can put its window past the limit. Across all test detections,
+419.0 rallies per seed pass the common fully-correct rule but fail 2/3; 417.6
+of those exceed a limit by at most 10 frames (one third of a second). These
+[measured overshoots](benchmark_results/discovery_context/boundary_overshoots.json.gz)
+show that the stricter score includes small endpoint offsets.
+
 Figure 6 and Table 3 use two thresholds chosen from all 3,339 distinct
 validation scores:
 
@@ -531,15 +538,19 @@ finishing, so it does not isolate either one's contribution. The
 [selection record](benchmark_results/discovery_context/policy_selection.json.gz)
 contains each seed. The earlier
 [three-policy comparison](benchmark_results/boundary_retrain_v7/README.md#training-and-evaluation-boundary-allowances)
-used a different, common 2/3 evaluation rule.
+selected its default under a common 2/3 evaluation rule. That earlier
+2/3-trained default scored 294.6 of 668 rallies under the looser 5/5 evaluation
+rule. It was not a third arm in this follow-up, which specifically compared
+the saved 5/5 configuration with the uncapped alternative.
 
 **Confidence thresholds.** The two operating points in Table 3 were selected
 on the same eight validation videos, checking every distinct confidence score
 from the selected model's five runs. The objectives were closest to half the
 pooled found rallies retained, highest mean retrieval F1 for fully correct
 rallies, and the lowest threshold reaching 99% mean boundary accuracy while
-retaining rallies in all five seeds. Test results did not choose the training
-policy or confidence thresholds.
+retaining rallies in all five seeds. The third objective was unattainable,
+leaving the two operating points reported in Table 3. Test results did not
+choose the configuration or confidence thresholds.
 
 Table B3. Finite-boundary discovery surveys, at each configuration's
 validation-selected best-F1 threshold. Limits are maximum seconds before the

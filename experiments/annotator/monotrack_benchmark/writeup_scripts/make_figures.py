@@ -410,10 +410,10 @@ def confidence_figure(data: Path, out: Path) -> None:
                     x=0.01, ha='left')
     boundary_cutoff = cutoffs['boundaries_99']
     if boundary_cutoff is None:
-        target_note = '99% mean boundary precision is unattainable on validation with rallies kept in all five seeds.'
+        target_note = '99% mean boundary accuracy is unattainable on validation with rallies kept in all five seeds.'
     else:
         boundary_validation = selection['validation']['boundaries_99']
-        target_note = (f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary precision; '
+        target_note = (f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary accuracy; '
                        f'validation retains {boundary_validation["kept_min"]:.0f}–'
                        f'{boundary_validation["kept_max"]:.0f} rallies per seed.')
     figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1; '
