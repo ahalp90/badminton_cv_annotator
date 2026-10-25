@@ -108,20 +108,21 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.prepare \
   --output RUN/prepared --workers 4
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages contacts \
   --prepared RUN/prepared --output RUN/seed-0/contacts-fit \
-  --seed-offset 0 --threads 4 --device cuda
+  --seed-offset 0 --threads 2 --device cuda
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.pools \
   --prepared RUN/prepared --contact-run RUN/seed-0/contacts-fit \
-  --output RUN/seed-0/pools --workers 4
+  --output RUN/seed-0/pools --workers 4 \
+  --boundary-before-seconds 2 --boundary-after-seconds 3
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.targets \
   --pools RUN/seed-0/pools --output RUN/seed-0/targets-five --workers 4
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.train \
   --pools RUN/seed-0/pools --five-frame-targets RUN/seed-0/targets-five \
-  --output RUN/seed-0/selector --device cuda --threads 4 \
+  --output RUN/seed-0/selector --device cuda --threads 2 \
   --seed 20260905 --leaves 31 --rounds 400 --layers 1 \
   --learning-rate 0.05 --min-child-weight 5 --l2 1
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages export \
   --run RUN/seed-0/selector --five-frame-targets RUN/seed-0/targets-five \
-  --output RUN/seed-0/export --threads 4
+  --output RUN/seed-0/export --threads 2 --device cuda
 ```
 
 The contact stage fits four held-group models on 24 videos each and one final
@@ -131,7 +132,11 @@ from fit-row order. Validation labels never enter those fits.
 The proposal stage uses held-group contact scores for training videos and the
 final contact model for validation. It shares the production proposal/feature
 builders. Targets prefer five-frame correctness where a judged rally retains a
-positive option, falling back to ten-frame labels otherwise.
+positive option, falling back to ten-frame labels otherwise. Both target views
+use the same boundary policy: the maximum time before the first labelled hit
+and after the last. These are upper limits; shorter valid spans remain positive.
+The boundary-policy comparison and full-stack retraining driver are documented
+in the [benchmark scripts](../monotrack_benchmark/writeup_scripts/README.md).
 
 Selector training gives each judged rally equal total row weight. A scale based
 on the rule-based repair set anchors that weight across proposal expansions.
@@ -248,7 +253,7 @@ Run inference for one configuration and seed:
 ```bash
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_test \
   --selection DIR/selection.json.gz --candidate raw_baseline --seed-offset 0 \
-  --paths PATHS.toml --output RUN/test/raw_baseline/seed-0 --threads 4
+  --paths PATHS.toml --output RUN/test/raw_baseline/seed-0 --threads 2
 ```
 
 The evaluator checks the chosen bundle and source before it loads the 46 test
