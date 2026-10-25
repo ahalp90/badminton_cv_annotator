@@ -243,16 +243,18 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
-        lambda *_args: (settings, inputs, prepared_root, contact_run_root, 1),
+        lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root, 1),
     )
+    prepared_root.mkdir()
+    contact_run_root.mkdir()
+    write_json(prepared_root / 'preparation.json.gz', {'source': {'revision': 'upstream'}})
+    write_json(contact_run_root / 'contact-stage.json.gz', {'source': {'revision': 'upstream'}})
+    saved_scores = {identity: {'5': {}, '10': {}} for identity in identities}
+    write_json(run / 'layers-1/validation.json.gz', {'per_video': saved_scores})
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
     def fit_review(*_args, device):
         assert device == 'cuda'
         return object()
-
-    def score_stream(_video, _stream, *, boundary_policy):
-        assert boundary_policy == DEFAULT_RALLY_BOUNDARY_POLICY
-        return {'5': {}, '10': {}}
 
     monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
     monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
@@ -260,7 +262,6 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
     monkeypatch.setattr(input_stages, 'score_rally_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
-    monkeypatch.setattr(input_stages, 'score_stream', score_stream)
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})
     monkeypatch.setattr(input_stages.experiment, 'load_prepared', lambda _root, identity: fake_videos[identity])
     monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)
@@ -282,6 +283,10 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     assert result['complete'] is True
     assert result['replay_streams_match'] is True
     assert set(result['per_video']) == set(identities)
+    assert result['per_video'] == saved_scores
+    for identity in identities:
+        saved_stream = read_json(tmp_path / 'export/streams' / f'{identity}.json.gz')
+        assert saved_stream == expected_stream | {'confidence': {'4': .7}}
     assert {row['ranking'] for row in rows} == {'selector', 'fitted'}
     assert len(rows) == 8 * 2 * 2
     assert all(row['correct'] == -1 for row in rows)

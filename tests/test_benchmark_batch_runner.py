@@ -50,10 +50,10 @@ def paths(tmp_path):
     return batch.BatchPaths(tmp_path / 'training', tmp_path / '40', tmp_path / 'outputs', {})
 
 
-def test_grouping_reuses_preparation_across_seeds_and_contact_sizes():
+def test_grouping_reuses_preparation_across_seeds_and_contact_sizes(tmp_path):
     groups = batch.grouped_jobs(planned_runs())
     assert len(groups) == 192
-    assert sum(len(group.runs) * len(batch.POLICIES) for group in groups) == 4950
+    assert sum(len(group.runs) * len(paths(tmp_path).policies) for group in groups) == 4950
     raw = next(group for group in groups if group.split == 'test' and group.preprocessing == 'raw_baseline')
     assert len(raw.runs) == 10
     assert {run.family for run in raw.runs} == {'32_videos', '40_videos'}
@@ -145,11 +145,12 @@ def test_failed_atomic_write_leaves_no_prediction_or_temporary_file(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_complete_group_skips_preparation_and_models(tmp_path, monkeypatch):
+@pytest.mark.parametrize('policies', [('2_3', '3_3', '5_5'), ('no_max',)])
+def test_complete_group_skips_preparation_and_models(tmp_path, monkeypatch, policies):
     run = Run('test', 'discovery', '32_videos', 0)
     group = batch.VideoGroup('8', 'test', 'discovery', 'raw_baseline', (run,))
-    configured = paths(tmp_path)
-    for policy in batch.POLICIES:
+    configured = replace(paths(tmp_path), policies=policies)
+    for policy in configured.policies:
         batch.save_or_compare(batch.prediction_path(configured, policy, run, '8'), run, '8',
                               batch.prediction_record(run, '8', prediction()))
 
@@ -160,7 +161,7 @@ def test_complete_group_skips_preparation_and_models(tmp_path, monkeypatch):
     monkeypatch.setattr(batch, 'prepare_group', unexpected)
     result = batch.run_group(group, configured)
     assert result['created'] == 0
-    assert result['reused'] == 3
+    assert result['reused'] == len(policies)
     assert result['compared'] == 0
 
 

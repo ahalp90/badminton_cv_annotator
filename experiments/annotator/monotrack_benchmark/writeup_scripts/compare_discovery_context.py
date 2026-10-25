@@ -99,6 +99,12 @@ def summarise(records: list[dict]) -> dict:
             'mean': {measure: float(np.mean([row[measure] for row in per_seed])) for measure in measures}}
 
 
+def selection_key(summary: dict) -> tuple[int, float, float]:
+    """Use exact rally totals so rounding cannot override the F1 tie-breaks."""
+    return (sum(row['fully_correct'] for row in summary['per_seed']),
+            summary['mean']['correct_player_f1'], summary['mean']['contact_f1'])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', nargs=2, action='append', required=True, metavar=('NAME', 'VALIDATION_DIRECTORY'))
@@ -133,10 +139,7 @@ def main() -> None:
     result = {'protocol': PROTOCOL, 'rallies': population, 'flagged_rallies': flagged_count,
               'unflagged_rallies': population - flagged_count, 'comparison': comparison}
     if not args.score_only:
-        winner = max(comparison, key=lambda name: (
-            comparison[name]['mean']['fully_correct_percent'],
-            comparison[name]['mean']['correct_player_f1'], comparison[name]['mean']['contact_f1'],
-        ))
+        winner = max(comparison, key=lambda name: selection_key(comparison[name]))
         result['selected'] = winner
     write_json(args.output / ('validation_scores.json.gz' if args.score_only else 'policy_selection.json.gz'), result)
     for name, summary in comparison.items():

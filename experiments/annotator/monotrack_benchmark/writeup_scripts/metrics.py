@@ -213,11 +213,9 @@ def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
     }
 
 
-def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: list[tuple[int, int]], *,
-                          supplied: bool,
-                          boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> tuple[dict, list[dict]]:
-    """Counts for one video and tolerance, plus the found-rally judgements."""
-    labels = labels_for_item(item)
+def prepare_scoring_stream(item: dict, stream: dict, labels, windows: list[tuple[int, int]], *,
+                           supplied: bool) -> tuple[dict, dict, int]:
+    """Apply the benchmark's supplied bounds and excluded-rally mask once."""
     if supplied:
         events = [event for event in stream['events']
                   if any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])]
@@ -228,6 +226,15 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     scored, ignored = ignore_left_out(unmasked, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
     if supplied:
         scored = fixed_stream(scored['events'], item['spans'])
+    return scored, unmasked, ignored
+
+
+def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: list[tuple[int, int]], *,
+                          supplied: bool,
+                          boundary_policy: RallyBoundaryPolicy = DEFAULT_RALLY_BOUNDARY_POLICY) -> tuple[dict, list[dict]]:
+    """Counts for one video and tolerance, plus the found-rally judgements."""
+    labels = labels_for_item(item)
+    scored, unmasked, ignored = prepare_scoring_stream(item, stream, labels, windows, supplied=supplied)
     _, contacts, predictions, rally_rows = score_video(
         item['item_id'], 'test', scored, labels, item['fps'], tolerance, boundary_policy=boundary_policy,
     )

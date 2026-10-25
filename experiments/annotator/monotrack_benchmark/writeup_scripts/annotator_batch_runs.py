@@ -59,7 +59,8 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.annotator_runs im
 )
 from experiments.annotator.old_court_regression.old_inputs import OldVideoInputs
 
-POLICIES = {'2_3': RallyBoundaryPolicy(2, 3), '3_3': RallyBoundaryPolicy(3, 3), '5_5': RallyBoundaryPolicy(5, 5)}
+POLICIES = {'2_3': RallyBoundaryPolicy(2, 3), '3_3': RallyBoundaryPolicy(3, 3), '5_5': RallyBoundaryPolicy(5, 5),
+            'no_max': RallyBoundaryPolicy(None, None)}
 COURT_FOLDERS = {'our_courts': 'ours', 'monotrack_courts': 'monotrack_for_ours'}
 
 
@@ -69,6 +70,7 @@ class BatchPaths:
     models_40: Path
     output: Path
     inputs: dict[str, Path]
+    policies: tuple[str, ...] = ('2_3', '3_3', '5_5')
 
 
 @dataclass(frozen=True)
@@ -222,28 +224,29 @@ def run_group(group: VideoGroup, paths: BatchPaths) -> dict[str, Any]:
     complete = {}
     for run in group.runs:
         present = []
-        for policy in POLICIES:
+        for policy in paths.policies:
             path = prediction_path(paths, policy, run, group.video)
             if path.exists():
                 read_prediction(path, run, group.video)
                 present.append(policy)
-        complete[run] = len(present) == len(POLICIES)
-    reused = len(POLICIES) * sum(complete.values())
+        complete[run] = len(present) == len(paths.policies)
+    reused = len(paths.policies) * sum(complete.values())
     created, compared = 0, 0
     pending = [run for run in group.runs if not complete[run]]
     if pending:
         with threadpool_limits(limits=2):
-            first_path = bundle_path(pending[0], paths.models_40 / '2_3', paths.training / '2_3')
+            first_policy = paths.policies[0]
+            first_path = bundle_path(pending[0], paths.models_40 / first_policy, paths.training / first_policy)
             baseline = cached_models(first_path)
             evidence, features = prepare_group(group, paths, baseline)
             for run in pending:
                 bundle_paths = tuple(bundle_path(run, paths.models_40 / policy, paths.training / policy)
-                                     for policy in POLICIES)
+                                     for policy in paths.policies)
                 models = policy_models(bundle_paths)
                 if models[0].preprocessing != baseline.preprocessing:
                     raise ValueError(f'{group.label}: grouped runs have different preprocessing')
                 predictions = predict_shared_pool(evidence, features, models)
-                for policy, prediction in zip(POLICIES, predictions, strict=True):
+                for policy, prediction in zip(paths.policies, predictions, strict=True):
                     path = prediction_path(paths, policy, run, group.video)
                     written = save_or_compare(path, run, group.video, prediction_record(run, group.video, prediction))
                     created += int(written)
@@ -347,6 +350,7 @@ def main() -> None:
     parser.add_argument('--videos', nargs='+')
     parser.add_argument('--seeds', type=int, nargs='+', choices=SEEDS, default=list(SEEDS))
     parser.add_argument('--only', nargs='+', help='run-directory prefixes, e.g. test/discovery/32_videos')
+    parser.add_argument('--policies', nargs='+', choices=POLICIES, default=['2_3', '3_3', '5_5'])
     args = parser.parse_args()
     if not 1 <= args.workers <= 14:
         parser.error('--workers must be between 1 and 14 for two-core trees')
@@ -355,13 +359,14 @@ def main() -> None:
     for name in ('stages', 'development_courts', 'test_courts', 'inpaint_root', 'pose_root'):
         if not configured[name].is_dir():
             raise NotADirectoryError(f'{name}: {configured[name]}')
-    paths = BatchPaths(args.training_root.resolve(), args.models_40.resolve(), args.out.resolve(), configured)
+    paths = BatchPaths(args.training_root.resolve(), args.models_40.resolve(), args.out.resolve(), configured,
+                       tuple(args.policies))
     runs = [run for run in planned_runs() if run.seed in args.seeds]
     if args.only:
         runs = [run for run in runs if any(str(run.directory(Path())).startswith(prefix) for prefix in args.only)]
     if not runs:
         parser.error('no runs match the requested filters')
-    for policy in POLICIES:
+    for policy in paths.policies:
         prepare_run_policy(paths, policy)
         for run in runs:
             path = bundle_path(run, paths.models_40 / policy, paths.training / policy)
@@ -374,7 +379,7 @@ def main() -> None:
     results = run_groups(jobs, paths, args.workers)
     write_json(paths.output / 'batch-execution.json.gz', {'groups': results, 'workers': args.workers})
     if args.videos is None:
-        tasks = [(run, policy, paths) for policy in POLICIES for run in runs]
+        tasks = [(run, policy, paths) for policy in paths.policies for run in runs]
         with ProcessPoolExecutor(max_workers=args.workers, mp_context=multiprocessing.get_context('spawn')) as executor:
             list(executor.map(finish_saved_run, tasks))
     print(f"Complete: {sum(result['created'] for result in results)} written, "

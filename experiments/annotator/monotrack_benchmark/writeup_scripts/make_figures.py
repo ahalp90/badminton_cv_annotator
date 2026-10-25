@@ -110,7 +110,7 @@ HEADLINE_METRICS = (
 )
 
 
-def headline_figure(summary: dict, out: Path, boundary_policy: dict[str, float]) -> None:
+def headline_figure(summary: dict, out: Path) -> None:
     for key, _label, _colour, _marker in HEADLINE_ROWS:
         if any(len(summary[key]['10'][metric]['runs']) != len(SEEDS) for metric, _title, _limits in HEADLINE_METRICS):
             raise ValueError(f'{key}: five training seeds are required for the headline figure')
@@ -137,14 +137,11 @@ def headline_figure(summary: dict, out: Path, boundary_policy: dict[str, float])
         axes.set_title(title, fontsize=11, color=TEXT, loc='left')
     axes_row[0].set_yticks(rows, [label for _key, label, _colour, _marker in HEADLINE_ROWS], fontsize=10)
     figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
-    before, after = boundary_policy['before_seconds'], boundary_policy['after_seconds']
-    figure.text(0.01, 0.085, f'Discovery checks contacts and rally bounds: up to {before:g} s before the first contact '
-                f'and {after:g} s after the last, allowing time for the shuttle to come to rest.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.047, 'Rows 1–4 score contacts within supplied rally boundaries, as required by MonoTrack. '
                 'We allow a buffer of up to 1 s before and after each rally.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest. '
                 'Settings chosen on validation.', fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.115, 1, 0.95))
+    figure.tight_layout(rect=(0, 0.08, 1, 0.95))
     # One dotted line across all three panels sets the self-finding row apart. It starts under the
     # row label above it. Drawn after layout, because it needs the final label and panel positions.
     figure.draw_without_rendering()
@@ -253,7 +250,7 @@ LADDER_LABELS = {
 LADDER_AXIS_END = 100
 
 
-def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float]) -> None:
+def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float | None]) -> None:
     """Rally-level outcomes: boundaries, then hits, then hitters."""
     by_key = {condition.key: condition for condition in CONDITIONS}
     figure, axes = plt.subplots(figsize=(13, 6.6), facecolor=SURFACE)
@@ -327,8 +324,11 @@ def cutoff_text(value: float) -> str:
     return label if float(label) == value else f'≈{label}'
 
 
-def boundary_note(policy: dict[str, float]) -> str:
+def boundary_note(policy: dict[str, float | None]) -> str:
     before, after = policy['before_seconds'], policy['after_seconds']
+    if before is None and after is None:
+        return ('One complete labelled rally per found span, with no maximum context limit. '
+                'Edges may fall 10 frames inside.')
     return (f'Bounds: up to {before:g} s before the first labelled hit and {after:g} s after the last; '
             'edges may fall 10 frames inside. One labelled rally per found span.')
 
@@ -582,7 +582,7 @@ def main() -> None:
     summary = json.loads((args.data / 'contact_summary.json').read_text())['summary']
     with gzip.open(args.data / 'evaluation-policy.json.gz', 'rt') as stream:
         boundary_policy = json.load(stream)['boundary_policy']
-    headline_figure(summary, args.out, boundary_policy)
+    headline_figure(summary, args.out)
     error_figure(summary, args.out)
     per_video_figure(args.data, args.out)
     ladder_figure(summary, args.out, boundary_policy)
