@@ -49,8 +49,8 @@ Run every command from the repository root.
 
 ## Score the selected model
 
-Headline rally correctness uses no maximum context limit. Confidence surveys
-separately judge the discovery window under 1/1 and 2/3 limits; they do not judge
+Headline rally correctness uses contact endpoints with no maximum context limit. Confidence surveys
+separately judge those endpoints under 1/1 and 2/3 limits; they do not judge
 the dataset export clip. All contact metrics retain outside-rally contacts.
 
 ```bash
@@ -74,7 +74,8 @@ of the validation-selected configuration. `--workers` controls scoring workers.
 ### Compare capped and uncapped discovery
 
 The comparison selects on five-seed mean fully correct coverage at ±10 frames,
-using all 668 validation rallies and the same no-max rule. Ties use correct-player
+using all 668 validation rallies and the same no-max rule. Boundaries use the
+first and last accepted contacts, including split/merge checks. Ties use correct-player
 F1, then contact F1. The unflagged view removes 314 marked rallies after judgement;
 it does not remove contacts from F1 or labels from matching and neighbour checks.
 
@@ -88,6 +89,12 @@ $PY $W/discovery_boundary_surveys.py \
   --run no_max NEW_RUN/reporting/annotator_runs/no_max \
   --out SURVEYS --workers 8
 ```
+
+Both configurations are confidence-surveyed for the boundary-only comparison. The 1/1 and 2/3 rules use
+contact endpoints with ±10 base-30 frames inward tolerance. Interior contact
+and player errors do not affect boundary-only accuracy. Existing full-video
+contact counts can be reused with `--reuse-contact-counts PREVIOUS_COMPARISON`
+when the saved prediction files and timing tolerance are unchanged.
 
 The uncapped arm was trained and run at revision `65311a3e`. That checkout removes
 output trimming as well as the training limits. To reproduce it, run its

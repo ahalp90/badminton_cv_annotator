@@ -4,16 +4,17 @@ The default annotator uses the **5/5-trained raw-baseline bundle, seed offset 0*
 It narrowly beat training without maximum context limits on fully correct
 validation rallies. Selection used all 668 rallies from the eight validation
 videos, five seeds and ±10-frame contact tolerance, with no maximum context
-limit in the common scoring rule.
+limit in the common scoring rule. Discovery boundaries use the first and last
+accepted contacts.
 
 | Training and discovery output | Fully correct / 668 | Share | Contact F1 | Correct-player F1 | Fully correct / 354 unflagged |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 5/5 training; existing 2/3 output cap | 296.8 | 44.43% | 89.881% | 85.320% | 223.6 (63.16%) |
-| No maximum context in training or output | 293.0 | 43.86% | 90.136% | 85.336% | 221.6 (62.60%) |
+| No maximum context in training or output | 294.0 | 44.01% | 90.136% | 85.336% | 222.6 (62.88%) |
 
 Counts and percentages are five-seed means. The primary measure was fully
 correct coverage; ties would use correct-player F1, then contact F1. The
-3.8-rally difference is small and does not establish statistical superiority.
+2.8-rally difference is small and does not establish statistical superiority.
 The unflagged view excludes 314 marked rallies after judgement. All labels
 remain in contact matching and neighbouring-rally checks; contact F1 measures
 use every contact. Test results did not select the model.

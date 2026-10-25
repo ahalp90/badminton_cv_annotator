@@ -43,8 +43,9 @@ rule settings tuned on the same 32 videos.
   54.9% of labelled rallies fully correct under the common rule without maximum
   context limits. A separate confidence survey checks the tighter 2/3-second
   boundary definition. At its validation-selected threshold of about 0.343,
-  2,193 of about 3,664 found rallies remain. Of those, 51.3% are fully correct
-  under that tighter rule: 1,125 rallies, or 33.8% of all labelled rallies.
+  2,193 of about 3,664 found rallies remain. Of those, 82.6% have correct
+  first/last contact boundaries and 68.2% are fully correct: 1,496 rallies,
+  or 45.0% of all labelled rallies.
 - **Both court detectors place the court close enough that swapping courts
   barely changes the scores.** Median corner error is 3.8 px for ours and
   6.5 px for MonoTrack (Figure 2). Swapping courts moves every score by
@@ -99,8 +100,9 @@ The trees-off rows are deterministic runs.
   hits inside the 524 left-out rallies, which are ignored (Appendix G). A found
   rally is fully correct when it covers exactly one labelled rally, its hits
   match that rally's hits one to one with none left over, and every hitter is
-  right. There is no maximum outward context limit. Either edge may fall
-  inward by the same allowance as contact timing. The finite-boundary
+  right. Boundaries are the first and last accepted predicted contacts.
+  There is no maximum outward context limit. Either contact endpoint may
+  fall inward by the same allowance as contact timing. The finite-boundary
   confidence surveys below apply additional 1/1 or 2/3 limits.
 - **The 95% intervals** come from 10,000 paired bootstrap resamples of the 46
   videos. Each trained system's counts are averaged over its five seeds
@@ -162,9 +164,10 @@ clips may overlap and do not change the predictions scored here.
 Figure 5. Share of the 3,327 scored rallies reaching each step. With rally
 bounds given, the boundaries are already set, so only the last two steps apply.
 
-The annotator covers one complete rally for 87.8% of labelled rallies, and
+The annotator's first/last contact endpoints cover one complete rally for
+72.5% of labelled rallies, and
 55.9% also have every hit right. With its trees off, the corresponding boundary
-coverage is 52.1%, and 4.2% end up fully correct.
+coverage is 38.4%, and 4.2% end up fully correct.
 
 Contact F1 drops from 96.7% with rally bounds given to 93.5% here.
 Two sources of errors are:
@@ -179,46 +182,42 @@ Two sources of errors are:
 
 ### Keeping only the confident rallies
 
-Each found rally gets a confidence score from the review tree. It ranks the
-finished prediction and does not change its contacts or boundaries. Raising
-the threshold keeps fewer rallies.
+Each found rally gets a confidence score from the review tree. Raising the
+threshold keeps fewer rallies without changing their predictions.
 
-This survey checks the discovery window against a finite rule: at most
-2 seconds before the first labelled hit and 3 seconds after the last, with
-up to 10 frames inward. It is stricter than the unfiltered headline rule and
-is separate from dataset clip padding. Appendix B also compares the 1/1 rule
-for both trained configurations.
+Boundary correctness uses the first and last accepted predicted contacts.
+Under the 2/3 rule, the first may be up to 2 seconds before the first labelled
+contact and the last up to 3 seconds after the last labelled contact. Either
+endpoint may fall inward by 10 frames. The interval must cover one complete
+labelled rally without merging neighbours. Interior contact errors and player
+assignments do not affect this boundary-only measure. Appendix B also gives
+the 1/1-second results and the comparison with no-max. Dataset clip padding is
+separate from these measurements.
 
-The outward limits are exact: a correctly matched endpoint contact a few frames
-early or late can put its window past the limit. Across all test detections,
-419.0 rallies per seed pass the common fully-correct rule but fail 2/3; 417.6
-of those exceed a limit by at most 10 frames (one third of a second). These
-[measured overshoots](benchmark_results/discovery_context/boundary_overshoots.json.gz)
-show that the stricter score includes small endpoint offsets.
+All 3,339 distinct validation confidence scores were checked. The selected
+thresholds are about 0.343 to retain half the validation detections, 0.423 to
+maximise mean retrieval F1 for fully correct rallies, and 0.873 to reach 99%
+mean boundary accuracy while retaining detections in every seed.
 
-Figure 6 and Table 3 use two thresholds chosen from all 3,339 distinct
-validation scores:
+The 99% target averages the five seed percentages; it does not require each
+seed to reach 99%. At that threshold, validation retains only 4–24 rallies
+per seed (9.6 on average). Test boundary accuracy is 95.7%, with 36.4 rallies
+retained on average. The high validation accuracy therefore has limited
+coverage and does not carry over unchanged to test.
 
-- **About 0.343, keeps half.** Closest to retaining half the found validation
-  rallies, pooled over five seeds.
-- **About 0.347, the best balance.** Highest mean F1 across five seeds for
-  retrieving fully correct validation rallies under the 2/3 rule.
+Table 3. Test results at validation-selected thresholds, five-seed means.
+Counts and percentages are averaged separately. Each seed starts with about
+3,664 found rallies after excluded rallies are removed (Appendix G). The two
+share columns use retained detections as their denominator. Fully correct
+means every contact and hitter is right, with no extras; its coverage uses
+all 3,327 labelled test rallies. Exact thresholds are in the
+[results file](benchmark_results/discovery_context/surveys/5_5/2_3/confidence_cutoffs.json.gz).
 
-No threshold reached 99% mean boundary accuracy while retaining rallies in
-all five validation seeds. There is therefore no 99% operating point to report.
-
-Table 3. Test results at the validation-selected thresholds, five-seed means.
-Counts and percentages are averaged separately. Each seed has about 3,664 found
-rallies after detections belonging to excluded rallies are removed (Appendix G).
-The two share columns describe kept rallies under the 2/3 boundary rule. The
-last column also gives their share of all 3,327 labelled rallies. Thresholds
-are rounded here; the [results file](benchmark_results/discovery_context/surveys/5_5/2_3/confidence_cutoffs.json.gz)
-records the exact values.
-
-| Threshold | Rallies kept | Share fully correct | Share with the right start and end | Kept rallies with the right start and end | Fully correct rallies (boundaries and all contacts correctly attributed) |
+| Threshold | Rallies kept | Share fully correct | Share with the right start and end | Kept rallies with the right start and end | Fully correct rallies (share of all labelled rallies) |
 |---|---:|---:|---:|---:|---:|
-| ≈0.343 | 2,193 | 51.3% | 69.4% | 1,521 | 1,125 (33.8%) |
-| ≈0.347 | 2,173 | 51.4% | 69.4% | 1,508 | 1,118 (33.6%) |
+| ≈0.343 | 2,193 | 68.2% | 82.6% | 1,811 | 1,496 (45.0%) |
+| ≈0.423 | 1,837 | 71.9% | 84.5% | 1,552 | 1,322 (39.7%) |
+| ≈0.873 | 36 | 94.2% | 95.7% | 34 | 34 (1.0%) |
 
 Before filtering, the common rule without maximum context limits gives 54.9%
 fully correct test rallies and 44.4% on all validation rallies. Appendix G
@@ -226,10 +225,11 @@ reports the 354-rally unflagged validation view separately.
 
 ![Confidence threshold against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v7/fig6_confidence.png)
 
-Figure 6. The 2/3 discovery-boundary survey. Left: what each threshold keeps on
-test. Right: the share of kept rallies that are fully correct, against their
-coverage of all labelled rallies, for test and validation. Lines are five-seed
-means; shading spans the lowest to highest seed.
+Figure 6. Confidence filtering of the 5/5 discovery predictions. Boundary-only
+accuracy uses the first/last contact endpoints and the 2/3 rule. Left: test
+results at each threshold. Right: fully correct share against coverage of
+all labelled rallies, for test and validation. Lines are five-seed means;
+shading spans the lowest to highest seed.
 
 ## Court detection
 
@@ -517,7 +517,8 @@ selector targets and selector/review models were refitted. Contact ownership,
 neighbour checks and five-frame-preferred targets stayed in place.
 
 Selection used five-seed mean fully correct coverage on all 668 validation
-rallies at ±10 frames, with no maximum context limit for either arm. Ties would
+rallies at ±10 frames, using first/last accepted contact endpoints and no
+maximum context limit for either arm. Ties would
 use Correct-player F1, then Contact F1. F1 scores use the whole contact stream,
 including contacts outside found rallies. The separate unflagged view removes
 314 marked rallies after judgement, retaining all labels in matching and
@@ -528,11 +529,10 @@ Table B2. Common-rule validation results, five-seed means.
 | Configuration | Fully correct / 668 | Share | Contact F1 | Correct-player F1 | Fully correct / 354 unflagged |
 |---|---:|---:|---:|---:|---:|
 | 5/5 training, 2/3 discovery cap (selected) | 296.8 | 44.43% | 89.881% | 85.320% | 223.6 (63.16%) |
-| No maximum context in training or discovery | 293.0 | 43.86% | 90.136% | 85.336% | 221.6 (62.60%) |
+| No maximum context in training or discovery | 294.0 | 44.01% | 90.136% | 85.336% | 222.6 (62.88%) |
 
-The selected configuration recovers 3.8 more fully correct rallies per seed:
-0.57 percentage points. Switching to no-max loses 1.28% of the fully correct
-rallies recovered by 5/5. This is a small difference, with no
+The selected configuration recovers 2.8 more fully correct rallies per seed:
+0.42 percentage points, or 0.95% more than no-max. This is a small difference, with no
 claim of statistical superiority. The comparison changes both training and
 finishing, so it does not isolate either one's contribution. The
 [selection record](benchmark_results/discovery_context/policy_selection.json.gz)
@@ -543,36 +543,73 @@ selected its default under a common 2/3 evaluation rule. That earlier
 rule. It was not a third arm in this follow-up, which specifically compared
 the saved 5/5 configuration with the uncapped alternative.
 
-**Confidence thresholds.** The two operating points in Table 3 were selected
-on the same eight validation videos, checking every distinct confidence score
-from the selected model's five runs. The objectives were closest to half the
-pooled found rallies retained, highest mean retrieval F1 for fully correct
-rallies, and the lowest threshold reaching 99% mean boundary accuracy while
-retaining rallies in all five seeds. The third objective was unattainable,
-leaving the two operating points reported in Table 3. Test results did not
-choose the configuration or confidence thresholds.
+**Both configurations on test.** The same contact-endpoint rule was applied
+to the saved test predictions, with no maximum outward context and ±10 frames.
+The following are five-seed means; test results did not select the default.
 
-Table B3. Finite-boundary discovery surveys, at each configuration's
-validation-selected best-F1 threshold. Limits are maximum seconds before the
-first labelled contact and after the last. The percentages describe kept test
-detections; counts and shares are five-seed means.
-
-| Configuration | Limits before/after | Threshold | Test detections kept | Right boundaries | Fully correct |
+| Split | Configuration | Contact F1 | Correct-player F1 | Fully correct rallies | Share fully correct |
 |---|---|---:|---:|---:|---:|
-| 5/5 + 2/3 output cap | 1/1 | ≈0.283 | 2,520 | 1.28% | 0.58% |
-| 5/5 + 2/3 output cap | 2/3 | ≈0.347 | 2,173 | 69.38% | 51.43% |
-| No maximum context | 1/1 | ≈0.590 | 1,280 | 0.69% | 0.55% |
-| No maximum context | 2/3 | ≈0.239 | 2,700 | 33.68% | 22.05% |
+| Validation | 5/5 | 89.881% | 85.320% | 296.8 / 668 | 44.431% |
+| Validation | No-max | 90.136% | 85.336% | 294.0 / 668 | 44.012% |
+| Test | 5/5 | 93.482% | 90.820% | 1,828.0 / 3,327 | 54.944% |
+| Test | No-max | 93.651% | 90.964% | 1,828.4 / 3,327 | 54.956% |
 
-All 3,339 distinct validation scores for 5/5 and 3,333 for no-max were searched.
-No threshold reaches 99% mean boundary accuracy while retaining detections in
-all five seeds, under either finite rule. The [complete survey table](benchmark_results/discovery_context/README.md#finite-boundary-confidence-surveys)
-also reports the keep-half thresholds and links to every threshold's results.
+The test fully-correct scores are effectively tied: no-max recovers 0.4 more
+rallies per seed out of 3,327 (0.012 percentage points). Its test contact F1 is
+0.168 points higher and correct-player F1 is 0.144 points higher. Boundary-only
+coverage under the common rule is also almost identical: 72.46% for both.
+[Per-seed test results](benchmark_results/discovery_context/no_max_test/)
+and the [comparison summary](benchmark_results/discovery_context/discovery_comparison.json.gz)
+retain the exact values.
 
-The 1/1 rule rejects nearly all discovery windows. The selected model retains
-up to 2/3 seconds of context and the no-max arm can retain more. These surveys
-measure window tightness as well as contact completeness. They judge discovery
-output; the later 2/3-padded dataset clips are not part of this comparison.
+**Confidence thresholds.** Both configurations were surveyed across their
+five saved runs. All 3,339 distinct 5/5 confidence scores and 3,333 no-max
+scores were checked on validation. Test results did not choose the model or
+thresholds. Table 3 reports the selected 5/5 model.
+
+Table B3. Boundary-only accuracy at thresholds retaining about half the
+validation detections: 0.343045 for 5/5 and 0.325110 for no-max, both keeping
+377 validation detections per seed. Accuracy uses retained detections as its
+denominator. Both rules measure the first and last accepted contacts, allow
+±10 frames inward and ignore interior contact and hitter errors.
+
+| Limits before/after | Configuration | Validation boundaries right | Test boundaries right | Test detections kept |
+|---|---|---:|---:|---:|
+| 1/1 | 5/5 | 76.91% | 78.69% | 2,193.2 |
+| 1/1 | No-max | 77.25% | 78.31% | 2,223.0 |
+| 2/3 | 5/5 | 78.50% | 82.58% | 2,193.2 |
+| 2/3 | No-max | 79.10% | 82.28% | 2,223.0 |
+
+For a workflow that finds the rally's outer contacts and leaves the interior
+to a person, the two configurations are close. No-max has a small accuracy
+advantage at stricter practical thresholds; 5/5 is slightly ahead at the
+keep-half point on test. Under 2/3, retaining 10% of validation detections
+gives 91.96% test boundary accuracy for no-max versus 90.66% for 5/5, with
+about 390 detections kept by each. At 25%, the figures are 87.79% and 87.19%.
+These small differences do not establish a clear overall winner.
+
+Table B4. Boundary-only test accuracy under 2/3 limits at matched validation
+retention targets. Each threshold is selected on validation and then fixed
+for test. Counts and percentages are five-seed means.
+
+| Validation detections retained | 5/5 test boundary accuracy | No-max test boundary accuracy | 5/5 test detections kept | No-max test detections kept |
+|---|---:|---:|---:|---:|
+| 10% | 90.66% | 91.96% | 395.4 | 389.6 |
+| 25% | 87.19% | 87.79% | 1,192.8 | 1,150.2 |
+| 50% | 82.58% | 82.28% | 2,193.2 | 2,223.0 |
+| 75% | 78.48% | 78.79% | 2,900.6 | 2,889.4 |
+
+The 5/5 model reaches 99% mean validation boundary accuracy at thresholds
+0.880410 (1/1) and 0.873122 (2/3), retaining only 7.0 and 9.6 validation
+detections per seed. Test retains 26.2 and 36.4 detections, with boundary
+accuracy of 95.88% and 95.73%. No-max reaches neither 99% validation target.
+These small retained sets do not establish a practical advantage for 5/5.
+
+The [complete surveys](benchmark_results/discovery_context/README.md#finite-boundary-confidence-surveys)
+give every threshold's outcomes. Changing 1/1 to 2/3 changes boundary-only
+accuracy; full correctness is unchanged because every endpoint of a fully
+correct rally already matches within ±10 frames. Dataset clip padding remains
+separate from these measurements.
 
 ## Appendix C: Our court detector's two modes
 
@@ -670,7 +707,8 @@ At ±5 frames, Contact F1 is 94.9% for ours and
   and confidence curves. These use the selected 5/5-trained model and
   the common rule without maximum context limits.
 - [Discovery comparison](benchmark_results/discovery_context/): validation
-  selection and both finite-boundary confidence surveys for both configurations.
+  selection between both configurations and the two finite-boundary confidence
+  surveys for both sets of five seeds.
   Confidence thresholds use validation only. The earlier
   [training-target comparison](benchmark_results/boundary_retrain_v7/training_targets/)
   retains its original three-policy results.

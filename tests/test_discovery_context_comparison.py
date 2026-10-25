@@ -7,6 +7,7 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally, RallyBoundaryPolicy
+from experiments.annotator.heuristic_only_tune.data import SearchVideo
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     write_json,
 )
@@ -17,6 +18,8 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     metrics,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts.compare_discovery_context import (
+    ValidationJob,
+    score_validation,
     selection_key,
 )
 
@@ -63,6 +66,30 @@ def test_discovery_ignores_windows_even_when_they_overlap_another_label() -> Non
     empty = replace(wide, events=())
     assert metrics.judge_found_rallies((empty,), labels, 10, fps=30)[0]['outcome'] == 'no_contacts'
     assert metrics.judge_found_rallies((wide,), labels, 10, fps=30, supplied=True)[0]['outcome'] == 'merged_rallies'
+    merged = replace(wide, events=(*events, ContactEvent(400, .9, Half.TOP), ContactEvent(500, .9, Half.BOT)))
+    assert metrics.judge_found_rallies((merged,), labels, 10, fps=30)[0]['outcome'] == 'merged_rallies'
+
+
+def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path) -> None:
+    labels = (LabelledRally('first', (100, 200), (Half.TOP, Half.BOT)),
+              LabelledRally('second', (400, 500), (Half.TOP, Half.BOT)))
+    events = (ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
+    outside = ContactEvent(700, .9, Half.TOP)
+    sequence = ContactSequence(0, 0, 600, events)
+    stream = stream_payload((sequence,), (*events, outside))
+    path = tmp_path / 'stream.json.gz'
+    write_json(path, stream)
+    video = SearchVideo('video', 'test', 'validation', 30, (1920, 1080), labels)
+    job = ValidationJob('5_5', 0, video, path, frozenset(('second',)), tmp_path / 'original')
+    full = score_validation(job)
+    assert full['counts']['fully_correct'] == 1
+    assert full['counts']['unflagged_fully_correct'] == 1
+    assert full['counts']['predicted_contacts'] == 3
+    assert full['counts']['matched_contacts'] == 2
+    cached = job.output / 'videos/5_5/seed-0/video.json.gz'
+    write_json(cached, full | {'counts': full['counts'] | {'fully_correct': 0, 'unflagged_fully_correct': 0}})
+    reused = score_validation(replace(job, output=tmp_path / 'reused', reuse_contact_counts=job.output))
+    assert reused['counts'] == full['counts']
 
 
 @pytest.mark.parametrize('fps', (25, 30, 60))

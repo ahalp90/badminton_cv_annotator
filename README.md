@@ -41,23 +41,24 @@ Our annotator can discover rally boundaries in a raw video (figure above,
 bottom row). Each rally gets a confidence score so you can select a smaller
 subset for review.
 
-These thresholds were selected on validation. The table shows their test
-results, excluding detections in rallies with flawed labels. Counts and
-percentages are averaged separately over five training seeds. This confidence
-survey checks a maximum of two seconds before the first labelled contact and
-three after the last. These outward limits are exact, so even a small endpoint
-timing offset can fail the check. “Fully correct” also requires every contact
-and player assignment to be correct. The headline figure uses the common rule without
-maximum context limits.
+These thresholds were selected on validation. The table shows test results,
+excluding detections in rallies with flawed labels, averaged over five seeds.
+“Right start and end” checks the first and last accepted contacts against the
+labelled rally: at most 2 seconds before and 3 seconds after, with a 10-frame
+inward allowance. It ignores errors between those endpoints. “Fully correct”
+also requires every contact and player assignment to be correct.
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| ≈0.343 | 2,193 | 69.4% | 51.3% |
-| ≈0.347 | 2,173 | 69.4% | 51.4% |
+| ≈0.343 | 2,193.2 | 82.6% | 68.2% |
+| ≈0.423 | 1,837.4 | 84.5% | 71.9% |
+| ≈0.873 | 36.4 | 95.7% | 94.2% |
 
-The first threshold keeps closest to half the found validation rallies; the
-second maximises retrieval F1 for fully correct rallies. No threshold reached
-99% mean boundary accuracy while keeping rallies in all five validation seeds.
+The first threshold keeps roughly half the validation detections; the second
+maximises retrieval F1 for fully correct rallies. The third reaches 99% mean
+boundary accuracy on validation, retaining only 9.6 validation detections per
+seed. Its test boundary accuracy is 95.7%, so the 99% target does not carry over
+to test.
 The report gives exact thresholds and the separate 1/1 boundary survey.
 
 Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.

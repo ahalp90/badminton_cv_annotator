@@ -304,9 +304,9 @@ CUTOFF_LABELS = {
     'boundaries_99': '99% validation target',
 }
 # Label offsets in points, placed to keep each label clear of both curves.
-CUTOFF_LABEL_OFFSETS = {'balanced': (6, -23), 'keep_half': (8, 10), 'boundaries_99': (20, 8)}
+CUTOFF_LABEL_OFFSETS = {'balanced': (-8, 18), 'keep_half': (8, -25), 'boundaries_99': (20, 8)}
 # Alignment of each cut-off's number above the left panel, so close cut-offs' numbers sit apart.
-CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'right', 'keep_half': 'left', 'boundaries_99': 'center'}
+CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'center', 'keep_half': 'center', 'boundaries_99': 'center'}
 
 
 def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -327,10 +327,10 @@ def cutoff_text(value: float) -> str:
 def boundary_note(policy: dict[str, float | None]) -> str:
     before, after = policy['before_seconds'], policy['after_seconds']
     if before is None and after is None:
-        return ('One complete labelled rally per found span, with no maximum context limit. '
-                'Edges may fall 10 frames inside.')
-    return (f'Bounds: up to {before:g} s before the first labelled hit and {after:g} s after the last; '
-            'edges may fall 10 frames inside. One labelled rally per found span.')
+        return ('Discovery bounds use first/last accepted contacts, with no maximum outward context. '
+                'Endpoints may fall 10 frames inside.')
+    return (f'First/last accepted contacts: up to {before:g} s before the first labelled hit and {after:g} s after the last; '
+            'up to 10 frames inward. One complete labelled rally.')
 
 
 def cutoff_row(curves: pd.DataFrame, threshold: float) -> pd.Series:
@@ -393,12 +393,11 @@ def confidence_figure(data: Path, out: Path) -> None:
                           color=colour if curves is test else SURFACE, edgecolor=colour)
             if curves is test:
                 offset_x, offset_y = CUTOFF_LABEL_OFFSETS[name]
-                align = 'right' if row['coverage'] > 0.7 * coverage_limit else 'left'
+                align = 'right' if offset_x < 0 or row['coverage'] > 0.7 * coverage_limit else 'left'
                 offset_x = -abs(offset_x) if align == 'right' else offset_x
                 right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
                                xytext=(offset_x, offset_y), ha=align, textcoords='offset points', fontsize=9, color=TEXT,
-                               arrowprops={'arrowstyle': '-', 'color': MUTED, 'lw': 0.8}
-                               if name == 'boundaries_99' else None)
+                               arrowprops={'arrowstyle': '-', 'color': MUTED, 'lw': 0.8})
     precision_min = min(test['fully_correct_share'].min(), validation['fully_correct_share'].min())
     right.set_xlim(0, coverage_limit)
     right.set_ylim(max(0, min(30, precision_min - 3)), 100)

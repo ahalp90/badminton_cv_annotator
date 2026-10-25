@@ -1,22 +1,24 @@
 # Discovery context comparison
 
 The **5/5-trained configuration with its existing 2/3 discovery cap** wins the
-pre-set validation comparison. It recovers 296.8 fully correct rallies per seed,
-compared with 293.0 for training and discovery without maximum context limits.
-This small difference selects the default; it does not establish statistical
-superiority or separate the effects of training and finishing.
+validation comparison: 296.8 fully correct rallies per seed, against 294.0
+for training and discovery without maximum context limits. This is 2.8 more
+rallies, 0.42 percentage points or a 0.95% relative improvement. The difference
+does not establish statistical superiority or isolate training from finishing.
 
 ## Selection
 
-Both configurations are judged at ±10 frames under the same rule without
-maximum outward context. A correct rally must cover one complete labelled rally
-without merging neighbours and contain every contact with the right player,
-without extras. Contact F1 uses the whole stream, including outside-rally events.
+Discovery boundaries are the **first and last accepted predicted contacts**.
+Both configurations are judged at ±10 base-30 frames under the same rule
+without maximum outward context. A correct rally covers one complete labelled
+rally without merging neighbours and contains every contact with the right
+player, without extras. Contact F1 uses the whole stream, including
+outside-rally events.
 
 | Configuration | Fully correct / 668 | Share | Contact F1 | Correct-player F1 | Fully correct / 354 unflagged |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 5/5 training; 2/3 discovery cap | 296.8 | 44.43% | 89.881% | 85.320% | 223.6 (63.16%) |
-| No maximum context in training or discovery | 293.0 | 43.86% | 90.136% | 85.336% | 221.6 (62.60%) |
+| No maximum context in training or discovery | 294.0 | 44.01% | 90.136% | 85.336% | 222.6 (62.88%) |
 
 Values are means across seeds 0, 100, 200, 300 and 400. Selection maximises fully
 correct coverage over all 668 validation rallies; ties use correct-player F1,
@@ -33,61 +35,117 @@ choose the configuration. The selected bundles and fit settings are in the
 ## Selected-model test results
 
 The 46 test videos contain 3,327 scored rallies and 37,184 labelled contacts.
-At ±10 frames, the selected model scores 96.714% Contact F1, 94.702%
-Correct-player F1 and 60.024% fully correct with supplied bounds. In discovery,
-it scores 93.482%, 90.820% and 54.944%, respectively. Rally correctness uses
-no maximum outward context limit. The [primary results](primary/) contain all
-conditions, both timing tolerances, per-video counts and paired intervals.
+With supplied bounds, the selected model scores 96.714% contact F1, 94.702%
+correct-player F1 and 60.024% fully correct rallies.
+In discovery, the selected model scores 93.482% contact F1, 90.820%
+correct-player F1 and 54.944% fully correct rallies.
+Rally correctness uses no maximum outward context limit. The [primary results](primary/)
+contain all conditions, both timing tolerances, per-video counts and paired intervals.
+
+### Both configurations on validation and test
+
+Both use the 32-video contact fits and work from whole videos, finding their
+own rallies. The table uses the common first/last-contact rule, no maximum
+outward context and ±10 base-30 frames inward/contact-matching allowance.
+Values are five-seed means. F1 includes contacts outside found rallies.
+
+| Split | Configuration | Contact F1 | Correct-player F1 | Fully correct rallies | Share fully correct |
+|---|---|---:|---:|---:|---:|
+| Validation | 5/5 | 89.881% | 85.320% | 296.8 / 668 | 44.431% |
+| Validation | No-max | 90.136% | 85.336% | 294.0 / 668 | 44.012% |
+| Test | 5/5 | 93.482% | 90.820% | 1,828.0 / 3,327 | 54.944% |
+| Test | No-max | 93.651% | 90.964% | 1,828.4 / 3,327 | 54.956% |
+
+5/5 recovers 2.8 more fully correct validation rallies per seed. On test, the
+arms are effectively tied: no-max recovers 0.4 more rallies out of 3,327,
+a difference of 0.012 percentage points. No-max improves test contact F1 by
+0.168 points and correct-player F1 by 0.144 points. Test boundary coverage is
+72.462% for 5/5 and 72.456% for no-max. Test results do not change the
+validation-selected default.
+
+The [comparison summary](discovery_comparison.json.gz), [5/5 primary results](primary/)
+and [no-max test results](no_max_test/) contain the underlying values and
+per-seed outcomes. No-max uses the same `metrics.score_stream_for_item` scorer
+at tolerance 10 with `supplied=False` and `RallyBoundaryPolicy(None, None)`;
+all five seeds passed the saved full-stream contact-count checks.
 
 ## Finite-boundary confidence surveys
 
-These surveys judge **discovery output before dataset export**. The 1/1 rule
-allows at most one second before the first labelled contact and one after the
-last; 2/3 allows two and three seconds. Both retain the ±10-frame inward
-allowance and the same rally/contact/player checks. Dataset clips are separate:
-accepted first/last contacts plus 2/3 seconds, clipped only at video edges.
+Both configurations are surveyed using their five saved prediction runs. The boundary-only measure checks the first and last accepted predicted
+contacts against the labelled rally: at most 1/1 or 2/3 seconds outward, with
+±10 base-30 frames inward allowance. The contact interval must cover exactly
+one complete labelled rally. Interior contact errors and player attribution do
+not affect this measure. Empty detections fail it and remain in the denominator.
+Fully correct additionally requires all contacts and hitters to be right; its
+results are identical under 1/1, 2/3 and the common no-maximum-context rule.
+Dataset clips separately add 2/3 seconds to accepted contact endpoints, clipped
+only at video edges; clips may overlap.
 
-The outward limits are exact. A matched endpoint contact a few frames early or
-late can make a capped window fail this rule. Of the selected model's 419.0
-otherwise fully correct test rallies per seed rejected by the 2/3 limit, 417.6
-overshoot by at most 10 frames (one third of a second). The
-[overshoot counts](boundary_overshoots.json.gz) also cover all overlong windows
-for both configurations. This distinguishes small offsets from long context.
+Every unique validation score was searched: 3,339 for 5/5 and 3,333 for no-max. The objectives are closest
+to half the pooled validation detections retained, highest mean retrieval F1
+for fully correct rallies, and the lowest threshold reaching 99% mean boundary
+accuracy with detections retained in all five seeds. The last target averages
+seed percentages; it does not require every seed to reach 99%.
 
-Every unique validation score was searched: 3,339 for 5/5 and 3,333 for no-max.
-The objectives are closest to half the pooled validation detections retained,
-and highest mean retrieval F1 for fully correct rallies. The third objective,
-99% mean boundary accuracy with detections retained in all five seeds, is
-unattainable in all four surveys.
-
-The table reports test results at the validation-selected thresholds. Counts
-and shares are averaged separately. Boundary and fully-correct percentages use
+The next table reports 5/5 test results at validation-selected thresholds;
+the comparison with no-max follows below. Counts and
+shares are averaged separately. Boundary and fully-correct percentages use
 kept detections as their denominator; coverage uses all 3,327 labelled test
-rallies. Thresholds are rounded to six decimal places; each survey's JSON
-records the exact value.
+rallies. Thresholds are rounded to six decimals; JSON records the exact value.
 
-| Configuration | Limits, seconds before/after | Objective | Threshold | Test detections kept | Right boundaries | Fully correct | Fully correct coverage |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 5/5 + 2/3 output cap | 1/1 | Keep half | 0.343045 | 2,193.2 | 1.15% | 0.57% | 0.38% |
-| 5/5 + 2/3 output cap | 1/1 | Best F1 | 0.283042 | 2,519.8 | 1.28% | 0.58% | 0.44% |
-| 5/5 + 2/3 output cap | 2/3 | Keep half | 0.343045 | 2,193.2 | 69.37% | 51.30% | 33.81% |
-| 5/5 + 2/3 output cap | 2/3 | Best F1 | 0.346607 | 2,173.0 | 69.38% | 51.43% | 33.59% |
-| No maximum context | 1/1 | Keep half | 0.325110 | 2,223.0 | 0.85% | 0.51% | 0.34% |
-| No maximum context | 1/1 | Best F1 | 0.589647 | 1,279.6 | 0.69% | 0.55% | 0.21% |
-| No maximum context | 2/3 | Keep half | 0.325110 | 2,223.0 | 31.39% | 21.89% | 14.63% |
-| No maximum context | 2/3 | Best F1 | 0.238601 | 2,699.8 | 33.68% | 22.05% | 17.89% |
+| Limits before/after | Objective | Threshold | Test detections kept | Right boundaries | Fully correct | Fully correct coverage |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 1/1 | Keep half | 0.343045 | 2,193.2 | 78.69% | 68.22% | 44.97% |
+| 1/1 | Best F1 | 0.422554 | 1,837.4 | 80.79% | 71.95% | 39.73% |
+| 1/1 | 99% mean validation boundaries | 0.880410 | 26.2 | 95.88% | 92.54% | 0.73% |
+| 2/3 | Keep half | 0.343045 | 2,193.2 | 82.58% | 68.22% | 44.97% |
+| 2/3 | Best F1 | 0.422554 | 1,837.4 | 84.48% | 71.95% | 39.73% |
+| 2/3 | 99% mean validation boundaries | 0.873122 | 36.4 | 95.73% | 94.24% | 1.02% |
 
-The 1/1 rule rejects nearly all discovery windows from both configurations.
-The selected model deliberately retains up to 2/3 seconds of context, while
-the no-max arm can retain more. These surveys measure window tightness as well
-as contact completeness; their scores should be read separately from the
-common-rule selection above.
+The 5/5 configuration reaches the 99% mean validation target, retaining only
+7.0 detections per seed for 1/1 and 9.6 for 2/3. Test accuracy is 95.88% and
+95.73%, respectively. No-max reaches neither 99% validation target. These tiny
+retained sets are a poor basis for choosing between the configurations.
 
-Each [survey directory](surveys/) holds found-rally judgements, all validation
-and test threshold curves, and `confidence_cutoffs.json.gz` with selected
-thresholds and test results. [Reproduction commands](../../writeup_scripts/README.md)
+### Boundary-only comparison
+
+The following thresholds each retain about half of the validation detections
+(377 per seed for both arms): 0.343045 for 5/5 and 0.325110 for no-max. They
+were then applied unchanged to test. Percentages are mean per-seed accuracy
+among retained detections, not coverage of all labelled rallies.
+
+| Limits before/after | Configuration | Validation boundaries right | Test boundaries right | Test detections kept |
+|---|---|---:|---:|---:|
+| 1/1 | 5/5 | 76.91% | 78.69% | 2,193.2 |
+| 1/1 | No-max | 77.25% | 78.31% | 2,223.0 |
+| 2/3 | 5/5 | 78.50% | 82.58% | 2,193.2 |
+| 2/3 | No-max | 79.10% | 82.28% | 2,223.0 |
+
+For a workflow that finds the rally's outer contacts and leaves the interior
+to a person, the two configurations are close. No-max has a small accuracy
+advantage at stricter practical thresholds; 5/5 is slightly ahead at the
+keep-half point on test. Under 2/3, retaining 10% of validation detections
+gives 91.96% test boundary accuracy for no-max versus 90.66% for 5/5, with
+about 390 detections kept by each. At 25%, the figures are 87.79% and 87.19%.
+These small differences do not establish a clear overall winner.
+
+For a broader comparison, thresholds below were chosen to retain 10%, 25%,
+50% or 75% of pooled validation detections. All use the 2/3 boundary rule;
+the test counts show the coverage trade-off. The 1/1 results show the same
+small no-max advantage at 10% and 25%. The [full retention comparison](boundary_retention.json.gz)
+includes both rules, validation/test accuracy, counts and labelled-rally coverage.
+
+| Validation detections retained | 5/5 test boundary accuracy | No-max test boundary accuracy | 5/5 test detections kept | No-max test detections kept |
+|---|---:|---:|---:|---:|
+| 10% | 90.66% | 91.96% | 395.4 | 389.6 |
+| 25% | 87.19% | 87.79% | 1,192.8 | 1,150.2 |
+| 50% | 82.58% | 82.28% | 2,193.2 | 2,223.0 |
+| 75% | 78.48% | 78.79% | 2,900.6 | 2,889.4 |
+
+Each [survey directory](surveys/) holds found-rally judgements, validation
+and test threshold curves, and exact operating points. [Reproduction commands](../../writeup_scripts/README.md)
 reuse saved predictions. The uncapped experiment used revision `65311a3e`;
-the selected default restores the capped finishing rule.
+the default retains the validation-selected capped configuration.
 
 ## Figures
 
@@ -101,6 +159,5 @@ python experiments/annotator/monotrack_benchmark/writeup_scripts/make_figures.py
   --out FIGURES
 ```
 
-The court inputs and MonoTrack predictions are unchanged. A fresh annotator
-hyperparameter search is a low-priority follow-up; selector-depth experiments
-are separate from this comparison.
+Court inputs and MonoTrack predictions are unchanged. A fresh annotator
+hyperparameter search and selector-depth experiments are separate follow-ups.
