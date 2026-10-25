@@ -3,8 +3,9 @@
 [Read the current report](annotator_monotrack_own_weights_compared_writeup_v7.md)
 for the annotator and court-detector comparison with MonoTrack on 46 ShuttleSet22
 videos: 3,327 scored rallies and 37,184 labelled contacts. Results use five seeds
-and validation-selected settings. The selected annotator uses 5/5-second training allowances and its existing
-2/3 discovery finishing rule. Headline scoring has no maximum context limit;
+and validation-selected settings. The baseline has no maximum outward context
+limit in training, discovery or headline scoring. Boundary-only confidence
+assessment allows 2 seconds before and 3 seconds after the labelled contacts;
 the main contact tolerance is ±10 frames, with ±5 in Appendix E.
 
 ## Results and models
@@ -26,9 +27,8 @@ Run from the repository root. To rescore predictions from the full comparison:
 ```bash
 W=experiments/annotator/monotrack_benchmark/writeup_scripts
 python "$W/metrics.py" \
-  --annotator-runs SAVED_RUN/reporting/annotator_runs/5_5 \
-  --out REPORT_DATA \
-  --no-max-buffer
+  --annotator-runs SAVED_RUN/reporting/annotator_runs/no_max \
+  --out REPORT_DATA
 ```
 
 This command reuses saved predictions from the selected configuration. The compact results contain scores and tables; annotator
@@ -38,7 +38,7 @@ The scoring command uses the saved MonoTrack five-seed predictions by default.
 
 - [Prepare inputs and run MonoTrack](benchmark_scripts/README.md).
 - [Train HitNet](hitnet_retrain/README.md).
-- [Retrain the annotator, compare policies, select confidence cut-offs and draw figures](writeup_scripts/README.md).
+- [Retrain the annotator, select confidence cut-offs and draw figures](writeup_scripts/README.md).
 
 The current report links its figures directly. Its updated charts are in
 `writeup_figures/v7/`; shared court charts and galleries remain alongside them.

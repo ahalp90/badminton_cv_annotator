@@ -139,8 +139,8 @@ def headline_figure(summary: dict, out: Path) -> None:
     figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
     figure.text(0.01, 0.047, 'Rows 1–4 score contacts within supplied rally boundaries, as required by MonoTrack. '
                 'We allow a buffer of up to 1 s before and after each rally.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest. '
-                'Settings chosen on validation.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest.',
+                fontsize=9, color=MUTED)
     figure.tight_layout(rect=(0, 0.08, 1, 0.95))
     # One dotted line across all three panels sets the self-finding row apart. It starts under the
     # row label above it. Drawn after layout, because it needs the final label and panel positions.
@@ -299,14 +299,14 @@ def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float | N
 
 
 CUTOFF_LABELS = {
-    'balanced': 'best balance',
+    'balanced': 'best rally F1',
     'keep_half': 'keeps half',
     'boundaries_99': '99% validation target',
 }
 # Label offsets in points, placed to keep each label clear of both curves.
-CUTOFF_LABEL_OFFSETS = {'balanced': (-8, 18), 'keep_half': (8, -25), 'boundaries_99': (20, 8)}
+CUTOFF_LABEL_OFFSETS = {'balanced': (-8, 45), 'keep_half': (-50, -60), 'boundaries_99': (20, 8)}
 # Alignment of each cut-off's number above the left panel, so close cut-offs' numbers sit apart.
-CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'center', 'keep_half': 'center', 'boundaries_99': 'center'}
+CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'left', 'keep_half': 'right', 'boundaries_99': 'center'}
 
 
 def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -415,7 +415,7 @@ def confidence_figure(data: Path, out: Path) -> None:
         target_note = (f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary accuracy; '
                        f'validation retains {boundary_validation["kept_min"]:.0f}–'
                        f'{boundary_validation["kept_max"]:.0f} rallies per seed.')
-    figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1; '
+    figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1 for fully correct rallies; '
                 f'{cutoff_text(cutoffs["keep_half"])} keeps closest to half of the pooled found rallies. '
                 'Every distinct validation score is searched.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.09, target_note, fontsize=9, color=MUTED)

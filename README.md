@@ -50,16 +50,14 @@ also requires every contact and player assignment to be correct.
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| ≈0.343 | 2,193.2 | 82.6% | 68.2% |
-| ≈0.423 | 1,837.4 | 84.5% | 71.9% |
-| ≈0.873 | 36.4 | 95.7% | 94.2% |
+| ≈0.325 | 2,223.0 | 82.3% | 67.6% |
+| ≈0.336 | 2,170.2 | 82.7% | 68.2% |
 
-The first threshold keeps roughly half the validation detections; the second
-maximises retrieval F1 for fully correct rallies. The third reaches 99% mean
-boundary accuracy on validation, retaining only 9.6 validation detections per
-seed. Its test boundary accuracy is 95.7%, so the 99% target does not carry over
-to test.
-The report gives exact thresholds and the separate 1/1 boundary survey.
+Counts are mean rallies per seed. The first threshold keeps roughly half the
+validation detections; the second maximises retrieval F1 for fully correct
+rallies. No threshold reaches 99% mean boundary accuracy on validation while
+retaining detections in every seed. The report gives exact thresholds and the
+separate 1/1 boundary survey.
 
 Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
