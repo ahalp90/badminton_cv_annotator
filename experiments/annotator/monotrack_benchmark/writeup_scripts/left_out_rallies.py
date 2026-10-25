@@ -2,7 +2,7 @@
 
 The test set scores 3,327 of the ShuttleSet22 rallies in its 46 videos. The other 524 were left
 out upstream because a hit in them is flagged ``flaw`` (or, once, out of time order). ``metrics.py``
-ignores them in every condition. This script counts them, checks that validation has none, and
+ignores them in every condition. This script counts them, checks for raw validation rallies absent from scored labels, and
 records how many discovery predictions they would add as extras if they were not ignored.
 
 Usage: python left_out_rallies.py --data DIR --shots-master CSV

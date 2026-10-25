@@ -4,9 +4,9 @@ The test set scores 3,327 rallies. 524 more rallies in the same videos were left
 because a hit in them is marked ``flaw`` (523) or listed out of time order (1). Discovery
 mode searches whole videos, so it finds them. Three treatments:
 
-- standard: the current scoring. Left-out rallies have no labels, so predictions on them
+- standard: retain all predictions. Left-out rallies have no labels, so predictions on them
   count as extras.
-- ignore: predictions inside a left-out rally's window are dropped before scoring, and a
+- ignore: the headline scoring. Predictions inside a left-out rally's window are dropped, and a
   found rally left with no hits is dropped. Denominators stay at 3,327 rallies.
 - count: left-out rallies join the labels as ordinary rallies (3,851 in all).
 

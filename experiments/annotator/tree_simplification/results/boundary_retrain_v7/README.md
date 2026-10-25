@@ -32,6 +32,10 @@ checks. Supplied rally bounds stay fixed.
 - [`2_3/fit-settings.json.gz`](2_3/fit-settings.json.gz) records the actual fit
   settings, training/validation videos, contact sampling orders and source revision.
   Each tree uses two CPU cores; exported models predict on the CPU.
+- [`2_3/models_40/`](2_3/models_40/) contains the five contact-size comparison
+  bundles. Their contact models use all 40 original videos, while the selector
+  and confidence models retain their selected 32-video fits. Each bundle's
+  `contact-fit.json.gz` records the fit settings and 32-video parity check.
 
 The body-window-36 setting is a fixed comparison from the earlier validation
 search. This refit does not repeat the hyperparameter or preprocessing search.

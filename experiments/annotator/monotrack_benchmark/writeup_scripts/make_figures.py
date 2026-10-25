@@ -110,11 +110,11 @@ HEADLINE_METRICS = (
 )
 
 
-def headline_figure(summary: dict, out: Path) -> None:
+def headline_figure(summary: dict, out: Path, boundary_policy: dict[str, float]) -> None:
     for key, _label, _colour, _marker in HEADLINE_ROWS:
         if any(len(summary[key]['10'][metric]['runs']) != len(SEEDS) for metric, _title, _limits in HEADLINE_METRICS):
             raise ValueError(f'{key}: five training seeds are required for the headline figure')
-    figure, axes_row = plt.subplots(1, 3, figsize=(13, 4.6), sharey=True, facecolor=SURFACE)
+    figure, axes_row = plt.subplots(1, 3, figsize=(13, 4.9), sharey=True, facecolor=SURFACE)
     rows = np.arange(len(HEADLINE_ROWS))[::-1].astype(float)
     rows[-1] -= 0.5  # gap before the row that finds its own rallies: a harder task
     for axes, (metric, title, (low, high)) in zip(axes_row, HEADLINE_METRICS, strict=True):
@@ -137,11 +137,14 @@ def headline_figure(summary: dict, out: Path) -> None:
         axes.set_title(title, fontsize=11, color=TEXT, loc='left')
     axes_row[0].set_yticks(rows, [label for _key, label, _colour, _marker in HEADLINE_ROWS], fontsize=10)
     figure.suptitle(f'Our annotator and MonoTrack on {POPULATION}', fontsize=13, color=TEXT, x=0.01, ha='left')
-    figure.text(0.01, 0.045, 'Rows 1-4 are given rally bounds built from the labels (1 s either side); row 5 finds '
-                'the rallies itself.', fontsize=9, color=MUTED)
+    before, after = boundary_policy['before_seconds'], boundary_policy['after_seconds']
+    figure.text(0.01, 0.085, f'Discovery checks contacts and rally bounds: up to {before:g} s before the first contact '
+                f'and {after:g} s after the last, allowing time for the shuttle to come to rest.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.047, 'Rows 1–4 score contacts within supplied bounds (1 s either side), matching MonoTrack’s '
+                'task.', fontsize=9, color=MUTED)
     figure.text(0.01, 0.01, 'Both trained systems: mean of five seeds; black lines span the lowest to highest. '
                 'Settings chosen on validation.', fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.075, 1, 0.95))
+    figure.tight_layout(rect=(0, 0.115, 1, 0.95))
     # One dotted line across all three panels sets the self-finding row apart. It starts under the
     # row label above it. Drawn after layout, because it needs the final label and panel positions.
     figure.draw_without_rendering()
@@ -173,7 +176,7 @@ def error_figure(summary: dict, out: Path) -> None:
                           color='white' if key in ('missed', 'extra_outside_windows') else TEXT)
             start += width
         rallies = value(summary, condition.key, 'rallies_not_fully_correct')
-        axes.text(start + 150, row, f'{start:,.0f} hit errors in {rallies:,.0f} rallies', va='center', fontsize=9.5,
+        axes.text(start + 150, row, f'{start:,.0f} hit errors\n{rallies:,.0f} rallies not fully correct', va='center', fontsize=9,
                   color=TEXT)
         largest = max(largest, start)
     axes.set_yticks(rows, [condition.label for condition in CONDITIONS], fontsize=10)
@@ -301,12 +304,12 @@ def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float]) -
 CUTOFF_LABELS = {
     'balanced': 'best balance',
     'keep_half': 'keeps half',
-    'boundaries_99': '99% right boundaries',
+    'boundaries_99': '99% validation target',
 }
 # Label offsets in points, placed to keep each label clear of both curves.
-CUTOFF_LABEL_OFFSETS = {'balanced': (6, 14), 'keep_half': (8, 2), 'boundaries_99': (4, 22)}
+CUTOFF_LABEL_OFFSETS = {'balanced': (6, -23), 'keep_half': (8, 10), 'boundaries_99': (20, 8)}
 # Alignment of each cut-off's number above the left panel, so close cut-offs' numbers sit apart.
-CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'left', 'keep_half': 'right', 'boundaries_99': 'center'}
+CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'right', 'keep_half': 'left', 'boundaries_99': 'center'}
 
 
 def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -320,7 +323,7 @@ def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray
 
 def cutoff_text(value: float) -> str:
     """Keep labels short and mark any displayed rounding explicitly."""
-    label = f'{value:.6g}'
+    label = f'{value:.3f}'
     return label if float(label) == value else f'≈{label}'
 
 
@@ -393,7 +396,9 @@ def confidence_figure(data: Path, out: Path) -> None:
                 align = 'right' if row['coverage'] > 0.7 * coverage_limit else 'left'
                 offset_x = -abs(offset_x) if align == 'right' else offset_x
                 right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
-                               xytext=(offset_x, offset_y), ha=align, textcoords='offset points', fontsize=9, color=TEXT)
+                               xytext=(offset_x, offset_y), ha=align, textcoords='offset points', fontsize=9, color=TEXT,
+                               arrowprops={'arrowstyle': '-', 'color': MUTED, 'lw': 0.8}
+                               if name == 'boundaries_99' else None)
     precision_min = min(test['fully_correct_share'].min(), validation['fully_correct_share'].min())
     right.set_xlim(0, coverage_limit)
     right.set_ylim(max(0, min(30, precision_min - 3)), 100)
@@ -404,10 +409,13 @@ def confidence_figure(data: Path, out: Path) -> None:
     figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
     boundary_cutoff = cutoffs['boundaries_99']
-    target_note = ('99% mean boundary precision is unattainable on validation with rallies kept in all five seeds.'
-                   if boundary_cutoff is None else
-                   f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary precision '
-                   'on validation, with rallies kept in all five seeds.')
+    if boundary_cutoff is None:
+        target_note = '99% mean boundary precision is unattainable on validation with rallies kept in all five seeds.'
+    else:
+        boundary_validation = selection['validation']['boundaries_99']
+        target_note = (f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary precision; '
+                       f'validation retains {boundary_validation["kept_min"]:.0f}–'
+                       f'{boundary_validation["kept_max"]:.0f} rallies per seed.')
     figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1; '
                 f'{cutoff_text(cutoffs["keep_half"])} keeps closest to half of the pooled found rallies. '
                 'Every distinct validation score is searched.', fontsize=9, color=MUTED)
@@ -574,7 +582,7 @@ def main() -> None:
     summary = json.loads((args.data / 'contact_summary.json').read_text())['summary']
     with gzip.open(args.data / 'evaluation-policy.json.gz', 'rt') as stream:
         boundary_policy = json.load(stream)['boundary_policy']
-    headline_figure(summary, args.out)
+    headline_figure(summary, args.out, boundary_policy)
     error_figure(summary, args.out)
     per_video_figure(args.data, args.out)
     ladder_figure(summary, args.out, boundary_policy)

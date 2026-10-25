@@ -33,22 +33,30 @@ We use physical rules to find the court, skip replays and other broadcast events
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
 
-![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v6/fig1_headline.png)
+![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v7/fig1_headline.png)
 
 *MonoTrack needs rally boundaries provided*
 
-Our model, unlike most systems, can reliably discover its own rally boundaries to automate annotation of a raw video (figure above, bottom row).
+Our annotator can discover rally boundaries in a raw video (figure above,
+bottom row). Each rally gets a confidence score so you can select a smaller
+subset for review.
 
-Each rally gets a confidence score, so you can trade recall for less manual review:
+These thresholds were selected on validation. The table shows their test
+results, excluding detections in rallies with flawed labels. Counts and
+percentages are averaged separately over five training seeds. “Right start and end” allows up
+to two seconds before the first labelled contact and three after the last.
 
-| Confidence threshold | Rallies kept / 3,327 | Right start and end | Need no fixes |
+| Confidence threshold | Found rallies kept | Right start and end | Need no fixes |
 | ---: | ---: | ---: | ---: |
-| 0.675 | 926 | 99.0% | 80.5% |
-| 0.50 | 1,558 | 98.0% | 73.3% |
+| ≈0.279 | 2,189 | 74.5% | 54.4% |
+| ≈0.249 | 2,406 | 74.0% | 52.5% |
+| ≈0.786 | 37 | 94.2% | 84.0% |
 
-*Most fixes are a single contact per rally*
+Thresholds are rounded here; the report gives exact values and selection goals.
+The highest threshold met the 99% boundary target on only 7–12 validation
+rallies per seed, and reached 94.2% on test.
 
-Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v6.md), or [get started](docs/annotator/quickstart.md) with the annotator.
+Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
 ## Court detector
 
