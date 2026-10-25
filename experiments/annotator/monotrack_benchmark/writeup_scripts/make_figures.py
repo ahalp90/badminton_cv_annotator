@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +22,12 @@ import pandas as pd
 from matplotlib.legend import Legend
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from experiments.annotator.monotrack_benchmark.writeup_scripts.confidence_cutoffs import (
+    curve,
+)
 
 MONOTRACK_COLOUR = '#eb6834'
 ANNOTATOR_COLOUR = '#2a78d6'
@@ -298,15 +305,7 @@ def ladder_figure(summary: dict, out: Path, boundary_policy: dict[str, float | N
     plt.close(figure)
 
 
-CUTOFF_LABELS = {
-    'balanced': 'best rally F1',
-    'keep_half': 'keeps half',
-    'boundaries_99': '99% validation target',
-}
-# Label offsets in points, placed to keep each label clear of both curves.
-CUTOFF_LABEL_OFFSETS = {'balanced': (-8, 45), 'keep_half': (-50, -60), 'boundaries_99': (20, 8)}
-# Alignment of each cut-off's number above the left panel, so close cut-offs' numbers sit apart.
-CUTOFF_TOP_LABEL_ALIGN = {'balanced': 'left', 'keep_half': 'right', 'boundaries_99': 'center'}
+ILLUSTRATIVE_THRESHOLDS = (0.50, 0.70, 0.75, 0.80, 0.85)
 
 
 def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -316,12 +315,6 @@ def seed_band(curves: pd.DataFrame, column: str) -> tuple[np.ndarray, np.ndarray
     # Above a high cut-off only a handful of rallies remain, so shares there are noise.
     table = table.where(kept.min(axis=1) >= MIN_KEPT, axis=0)
     return table.index.to_numpy(), table.mean(axis=1).to_numpy(), table.min(axis=1).to_numpy(), table.max(axis=1).to_numpy()
-
-
-def cutoff_text(value: float) -> str:
-    """Keep labels short and mark any displayed rounding explicitly."""
-    label = f'{value:.3f}'
-    return label if float(label) == value else f'≈{label}'
 
 
 def boundary_note(policy: dict[str, float | None]) -> str:
@@ -334,10 +327,10 @@ def boundary_note(policy: dict[str, float | None]) -> str:
 
 
 def cutoff_row(curves: pd.DataFrame, threshold: float) -> pd.Series:
-    """Read the actual selected score, keeping neighbouring attainable scores separate."""
+    """Read the exact threshold, keeping neighbouring scores separate."""
     selected = curves[curves['threshold'] == threshold]
     if selected.empty:
-        raise ValueError(f'selected validation cut-off {threshold!r} is absent from the curve')
+        raise ValueError(f'threshold {threshold!r} is absent from the curve')
     return selected.mean(numeric_only=True)
 
 
@@ -347,13 +340,19 @@ def confidence_figure(data: Path, out: Path) -> None:
     validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz', float_precision='round_trip')
     with gzip.open(data / 'confidence_cutoffs.json.gz', 'rt') as stream:
         selection = json.load(stream)
-    cutoffs = selection['cutoffs']
-    available = {name: value for name, value in cutoffs.items() if value is not None}
+    test_found = []
+    for seed in SEEDS:
+        found = pd.read_csv(data / f'found_rallies_annotator_discovery_seed{seed}.csv.gz', float_precision='round_trip')
+        test_found.append(found.assign(seed=seed))
+    validation_found = pd.read_csv(data / 'validation_found_rallies.csv.gz', float_precision='round_trip')
+    # Round thresholds need exact counts; saved curves use distinct validation scores.
+    test_points = curve(pd.concat(test_found, ignore_index=True), 3327, ILLUSTRATIVE_THRESHOLDS)
+    validation_points = curve(validation_found, selection['validation_rallies'], ILLUSTRATIVE_THRESHOLDS)
     figure, (left, right) = plt.subplots(1, 2, figsize=(14, 6.2), facecolor=SURFACE,
                                          gridspec_kw={'width_ratios': (1.25, 1)})
     style_axes(left, 'both')
     lines = (
-        ('boundaries_right_share', 'Kept rallies with the right boundaries (% of kept)', TEXT, '-'),
+        ('boundaries_right_share', 'Right start and end (% of kept rallies)', TEXT, '-'),
         ('fully_correct_share', 'Kept rallies fully correct (% of kept)', ANNOTATOR_COLOUR, '-'),
         ('coverage', 'Fully correct rallies handed over (% of all 3,327 labelled rallies)', ANNOTATOR_COLOUR, ':'),
     )
@@ -361,14 +360,13 @@ def confidence_figure(data: Path, out: Path) -> None:
         thresholds, mean, low, high = seed_band(test, column)
         left.fill_between(thresholds, low, high, color=colour, alpha=0.15, linewidth=0)
         left.plot(thresholds, mean, color=colour, linestyle=style, linewidth=2, label=label)
-    left.axhline(99, color=MUTED, linewidth=0.8, linestyle=(0, (1, 2)))
-    left.text(0.01, 99.6, '99%', fontsize=8.5, color=MUTED)
-    for name, value in available.items():
-        left.axvline(value, color=MUTED, linewidth=1, linestyle='-', alpha=0.6)
-        align = 'right' if value > 0.9 else 'left' if value < 0.1 else CUTOFF_TOP_LABEL_ALIGN[name]
-        offset = 3 if align == 'left' else -3 if align == 'right' else 0
-        left.annotate(cutoff_text(value), (value, 100), xytext=(offset, 5), textcoords='offset points',
-                      ha=align, va='bottom', fontsize=8.5, color=TEXT)
+    for threshold in ILLUSTRATIVE_THRESHOLDS:
+        left.axvline(threshold, color=MUTED, linewidth=0.8, alpha=0.5)
+        left.annotate(f'{threshold:.2f}', (threshold, 100), xytext=(0, 5), textcoords='offset points',
+                      ha='center', va='bottom', fontsize=8.5, color=TEXT)
+        row = cutoff_row(test_points, threshold)
+        for column, _label, colour, _style in lines:
+            left.scatter(threshold, row[column], s=24, color=colour, zorder=4)
     left.set_xlim(0, 1)
     left.set_ylim(0, 100)
     left.set_xlabel('Keep found rallies with confidence at or above this threshold', color=TEXT)
@@ -379,56 +377,41 @@ def confidence_figure(data: Path, out: Path) -> None:
     style_axes(right, 'both')
     coverage_max = max(test['coverage'].max(), validation['coverage'].max())
     coverage_limit = min(100, max(62, coverage_max + 3))
-    for curves, label, colour, style in ((test, 'Test (46 videos)', ANNOTATOR_COLOUR, '-'),
-                                         (validation, 'Validation (8 other videos)', MUTED, '--')):
+    for curves, points, label, colour, style in (
+        (test, test_points, 'Test (46 videos)', ANNOTATOR_COLOUR, '-'),
+        (validation, validation_points, 'Validation (8 other videos)', MUTED, '--'),
+    ):
         _thresholds, coverage, _low, _high = seed_band(curves, 'coverage')
         _thresholds, share, _low, _high = seed_band(curves, 'fully_correct_share')
         right.plot(coverage, share, color=colour, linestyle=style, linewidth=2, label=label)
-        for name, value in available.items():
-            row = cutoff_row(curves, value)
-            # Validation points are hollow; cut-off labels belong to filled test points.
-            if pd.isna(row['fully_correct_share']):
-                continue
+        for threshold in ILLUSTRATIVE_THRESHOLDS:
+            row = cutoff_row(points, threshold)
+            # Validation points are hollow; labels belong to filled test points.
             right.scatter(row['coverage'], row['fully_correct_share'], s=36, zorder=4, linewidth=1.5,
                           color=colour if curves is test else SURFACE, edgecolor=colour)
             if curves is test:
-                offset_x, offset_y = CUTOFF_LABEL_OFFSETS[name]
-                align = 'right' if offset_x < 0 or row['coverage'] > 0.7 * coverage_limit else 'left'
-                offset_x = -abs(offset_x) if align == 'right' else offset_x
-                right.annotate(f'{cutoff_text(value)} {CUTOFF_LABELS[name]}', (row['coverage'], row['fully_correct_share']),
-                               xytext=(offset_x, offset_y), ha=align, textcoords='offset points', fontsize=9, color=TEXT,
-                               arrowprops={'arrowstyle': '-', 'color': MUTED, 'lw': 0.8})
+                right.annotate(f'{threshold:.2f}', (row['coverage'], row['fully_correct_share']),
+                               xytext=(9, -26), textcoords='offset points', fontsize=9, color=TEXT)
     precision_min = min(test['fully_correct_share'].min(), validation['fully_correct_share'].min())
     right.set_xlim(0, coverage_limit)
     right.set_ylim(max(0, min(30, precision_min - 3)), 100)
     right.set_xlabel('Fully correct rallies handed over (% of all labelled rallies)', color=TEXT)
     right.set_ylabel('Share of kept rallies fully correct (%)', color=TEXT)
-    right.set_title('Trade-off: each point is one validation threshold', fontsize=11, color=TEXT, loc='left', pad=16)
+    right.set_title('More accurate rallies, fewer rallies handed over', fontsize=11, color=TEXT, loc='left', pad=16)
     right.legend(loc='upper right', frameon=False, fontsize=9)
     figure.suptitle('Our annotator finding its own rallies: keeping only the confident ones', fontsize=13, color=TEXT,
                     x=0.01, ha='left')
-    boundary_cutoff = cutoffs['boundaries_99']
-    if boundary_cutoff is None:
-        target_note = '99% mean boundary accuracy is unattainable on validation with rallies kept in all five seeds.'
-    else:
-        boundary_validation = selection['validation']['boundaries_99']
-        target_note = (f'{cutoff_text(boundary_cutoff)} is the lowest cut-off reaching 99% mean boundary accuracy; '
-                       f'validation retains {boundary_validation["kept_min"]:.0f}–'
-                       f'{boundary_validation["kept_max"]:.0f} rallies per seed.')
-    figure.text(0.01, 0.115, f'Chosen on validation: {cutoff_text(cutoffs["balanced"])} maximises mean F1 for fully correct rallies; '
-                f'{cutoff_text(cutoffs["keep_half"])} keeps closest to half of the pooled found rallies. '
-                'Every distinct validation score is searched.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.09, target_note, fontsize=9, color=MUTED)
-    figure.text(0.01, 0.065, f'Mean of five seeds; shading spans lowest to highest. Lines require at least '
-                f'{MIN_KEPT} kept rallies in every seed; selected cut-offs remain marked.', fontsize=9, color=MUTED)
-    example = cutoff_row(test, cutoffs['keep_half'])
-    share = example['fully_correct_share']
-    precision_text = f'{share:.1f}%' if pd.notna(share) else 'undefined (no rallies kept)'
-    figure.text(0.01, 0.04, f'Test at {cutoff_text(cutoffs["keep_half"])}: {example["kept"]:,.0f} found rallies kept, '
-                f'{precision_text} fully correct ({example["fully_correct_kept"]:,.0f}); '
-                f'{example["coverage"]:.1f}% of all 3,327 labelled rallies handed over.', fontsize=9, color=MUTED)
-    figure.text(0.01, 0.015, boundary_note(selection['boundary_policy']), fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.145, 1, 0.95))
+    figure.text(0.01, 0.105, 'Markers show thresholds 0.50, 0.70, 0.75, 0.80 and 0.85. '
+                'Filled markers: test; hollow markers: validation.', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.08, f'Mean of five seeds; shading spans lowest to highest. Lines require at least '
+                f'{MIN_KEPT} kept rallies in every seed; markers remain visible below that count.', fontsize=9, color=MUTED)
+    before = selection['boundary_policy']['before_seconds']
+    after = selection['boundary_policy']['after_seconds']
+    figure.text(0.01, 0.055, f'Right start and end: first contact up to {before:g} s early or 10 frames late; '
+                f'last contact up to 10 frames early or {after:g} s late (30 fps).', fontsize=9, color=MUTED)
+    figure.text(0.01, 0.03, 'One labelled rally, without merging neighbours. Fully correct: every hit within ±10 frames, '
+                'no missing or extra hits, every hitter right.', fontsize=9, color=MUTED)
+    figure.tight_layout(rect=(0, 0.14, 1, 0.95))
     figure.savefig(out / 'fig6_confidence.png', dpi=150, facecolor=SURFACE)
     plt.close(figure)
 
