@@ -1,146 +1,55 @@
-# Discovery context comparison
+# Whole-rally exclusion results
 
-The baseline uses **no maximum outward context in training or discovery**.
-It keeps the simpler rule; the validation difference from the capped
-configuration is small and does not establish statistical superiority.
+These results use the annotator refitted after excluding unreliable train and
+validation rallies from whole-rally learning and scoring. Contact fitting and
+contact scoring retain all master contacts. The existing ShuttleSet22 test
+protocol is unchanged: 3,327 scored rallies and 37,184 contacts across 46 videos.
 
-## Selection
+## Validation comparison
 
-Discovery boundaries are the **first and last accepted predicted contacts**.
-These are the selected contacts assigned to that detected rally within its
-saved window. The window establishes contact membership; its start/end
-positions are ignored when assessing the rally's extent.
-Both configurations are judged at ±10 base-30 frames under the same rule
-without maximum outward context. A correct rally covers one complete labelled
-rally without merging neighbours and contains every contact with the right
-player, without extras. Contact F1 uses the whole stream, including
-outside-rally events.
+Both fits use the same 347 judgeable validation rallies and all 5,696 contacts.
+The 321 excluded rallies remain available for contact matching and neighbouring-rally
+checks; a prediction merging rallies still counts as wrong. Discovery boundaries
+are first and last accepted predicted contacts, with ±10 base-30-frame tolerance
+and no maximum outward context. Values are five-seed means.
 
-| Configuration | Fully correct / 668 | Share | Contact F1 | Correct-player F1 | Fully correct / 354 unflagged |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 5/5 training; 2/3 discovery cap | 296.8 | 44.43% | 89.881% | 85.320% | 223.6 (63.16%) |
-| No maximum context in training or discovery | 294.0 | 44.01% | 90.136% | 85.336% | 222.6 (62.88%) |
+| Fit | Fully correct / 347 | Share | Contact F1 | Correct-player F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Previous whole-rally labels | 222.2 | 64.03% | 90.136% | 85.336% |
+| Unreliable whole-rally labels excluded | 227.2 | 65.48% | 90.211% | 85.411% |
 
-Values are means across seeds 0, 100, 200, 300 and 400. The unflagged view removes 314 rallies after judgement, retaining
-all labels for matching and neighbour checks and all contacts in F1.
-[Per-seed results and rule](policy_selection.json.gz).
+[Per-seed comparison and rules](policy_selection.json.gz).
+The refit corrects unreliable supervision; this small gain is not evidence of
+statistical superiority. Test fully correct rallies fall from 60.34% to 55.73%
+with supplied bounds and from 54.96% to 51.93% in discovery. The [model record](../../../tree_simplification/results/discovery_context/README.md)
+links all fifteen bundles and fit settings. Contact trees, preprocessing and
+proposal features were reused; selector and review trees were refitted.
 
-Preparation, contact fits and proposal features were reused. The uncapped arm
-refitted selector targets, selectors and review models. It used the same
-five-frame-preferred targets and contact-ownership checks. The baseline bundles and fit settings are in the
-[model record](../../../tree_simplification/results/discovery_context/README.md).
+## Test results and confidence
 
-## Selected-model test results
+The [primary results](primary/) contain both timing tolerances, per-video counts,
+all seven refitted annotator conditions and paired intervals. MonoTrack, trees-off
+and court reference results are unchanged. MonoTrack's full 60-run validation
+reselection retained zeroed shuttle input, L2=0 and interpolation off, so its
+saved test predictions were reused.
 
-The 46 test videos contain 3,327 scored rallies and 37,184 labelled contacts.
-With supplied bounds, the baseline scores 96.751% contact F1, 94.745%
-correct-player F1 and 60.343% fully correct rallies.
-In discovery, the baseline scores 93.651% contact F1, 90.964%
-correct-player F1 and 54.956% fully correct rallies.
-Rally correctness uses no maximum outward context limit. The [primary results](primary/)
-contain all conditions, both timing tolerances, per-video counts and paired intervals.
+The [1/1 survey](surveys/no_max/1_1/) and [2/3 survey](surveys/no_max/2_3/) search
+all attainable validation confidence thresholds. The first/last accepted contacts
+must cover one complete labelled rally, with at most the specified seconds of
+outward context and ±10 base-30 frames inward allowance. Each directory contains
+per-detection judgements, complete validation/test curves and validation-selected
+cutoffs with test outcomes. The README and report also retain fixed thresholds
+0.50, 0.70, 0.75, 0.80 and 0.85. Test outcomes do not choose thresholds.
 
-### Both configurations on validation and test
-
-Both use the 32-video contact fits and work from whole videos, finding their
-own rallies. The table uses the common first/last-contact rule, no maximum
-outward context and ±10 base-30 frames inward/contact-matching allowance.
-Values are five-seed means. F1 includes contacts outside found rallies.
-
-| Split | Configuration | Contact F1 | Correct-player F1 | Fully correct rallies | Share fully correct |
-|---|---|---:|---:|---:|---:|
-| Validation | 5/5 | 89.881% | 85.320% | 296.8 / 668 | 44.431% |
-| Validation | No-max | 90.136% | 85.336% | 294.0 / 668 | 44.012% |
-| Test | 5/5 | 93.482% | 90.820% | 1,828.0 / 3,327 | 54.944% |
-| Test | No-max | 93.651% | 90.964% | 1,828.4 / 3,327 | 54.956% |
-
-5/5 recovers 2.8 more fully correct validation rallies per seed. On test, the
-arms are effectively tied: no-max recovers 0.4 more rallies out of 3,327,
-a difference of 0.012 percentage points. No-max improves test contact F1 by
-0.168 points and correct-player F1 by 0.144 points. Test boundary coverage is
-72.462% for 5/5 and 72.456% for no-max.
-
-The [comparison summary](discovery_comparison.json.gz), [primary results](primary/)
-and [no-max discovery results](no_max_test/) contain the underlying values
-and per-seed outcomes.
-
-## Finite-boundary confidence surveys
-
-Both configurations are surveyed using their five saved prediction runs. The boundary-only measure checks the first and last accepted predicted
-contacts against the labelled rally: at most 1/1 or 2/3 seconds outward, with
-±10 base-30 frames inward allowance. The contact interval must cover exactly
-one complete labelled rally. Interior contact errors and player attribution do
-not affect this measure. Empty detections fail it and remain in the denominator.
-Fully correct additionally requires all contacts and hitters to be right; its
-results are identical under 1/1, 2/3 and the common no-maximum-context rule.
-Dataset clips separately add 2/3 seconds to accepted contact endpoints, clipped
-only at video edges; clips may overlap.
-
-Every unique validation score was searched: 3,339 for 5/5 and 3,333 for no-max. The objectives are closest
-to half the pooled validation detections retained, highest mean retrieval F1
-for fully correct rallies, and the lowest threshold reaching 99% mean boundary
-accuracy with detections retained in all five seeds. The last target averages
-seed percentages; it does not require every seed to reach 99%.
-
-The next table reports the no-max baseline at validation-selected thresholds.
-Counts and shares are averaged separately. Boundary and fully-correct
-percentages use kept detections as their denominator; coverage uses all 3,327
-labelled test rallies. Counts are mean rallies per seed. Thresholds are rounded
-to six decimals; JSON records the exact value.
-
-| Limits before/after | Objective | Threshold | Test detections kept | Right boundaries | Fully correct | Fully correct coverage |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 1/1 | Keep half | 0.325110 | 2,223.0 | 78.31% | 67.64% | 45.19% |
-| 1/1 | Best F1 | 0.335546 | 2,170.2 | 78.73% | 68.24% | 44.50% |
-| 2/3 | Keep half | 0.325110 | 2,223.0 | 82.28% | 67.64% | 45.19% |
-| 2/3 | Best F1 | 0.335546 | 2,170.2 | 82.69% | 68.24% | 44.50% |
-
-No-max reaches neither 99% mean validation boundary target while retaining
-detections in every seed.
-
-### Boundary-only comparison
-
-The following thresholds each retain about half of the validation detections
-(377 per seed for both arms): 0.343045 for 5/5 and 0.325110 for no-max. They
-were then applied unchanged to test. Percentages are mean per-seed accuracy
-among retained detections, not coverage of all labelled rallies.
-
-| Limits before/after | Configuration | Validation boundaries right | Test boundaries right | Test detections kept |
-|---|---|---:|---:|---:|
-| 1/1 | 5/5 | 76.91% | 78.69% | 2,193.2 |
-| 1/1 | No-max | 77.25% | 78.31% | 2,223.0 |
-| 2/3 | 5/5 | 78.50% | 82.58% | 2,193.2 |
-| 2/3 | No-max | 79.10% | 82.28% | 2,223.0 |
-
-For a workflow that finds the rally's outer contacts and leaves the interior
-to a person, the two configurations are close. No-max has a small accuracy
-advantage at stricter practical thresholds; 5/5 is slightly ahead at the
-keep-half point on test. Under 2/3, retaining 10% of validation detections
-gives 91.96% test boundary accuracy for no-max versus 90.66% for 5/5, with
-about 390 detections kept by each. At 25%, the figures are 87.79% and 87.19%.
-These small differences do not establish a clear overall winner.
-
-For a broader comparison, thresholds below were chosen to retain 10%, 25%,
-50% or 75% of pooled validation detections. All use the 2/3 boundary rule;
-the test counts show the coverage trade-off. The 1/1 results show the same
-small no-max advantage at 10% and 25%. The [full retention comparison](boundary_retention.json.gz)
-includes both rules, validation/test accuracy, counts and labelled-rally coverage.
-
-| Validation detections retained | 5/5 test boundary accuracy | No-max test boundary accuracy | 5/5 test detections kept | No-max test detections kept |
-|---|---:|---:|---:|---:|
-| 10% | 90.66% | 91.96% | 395.4 | 389.6 |
-| 25% | 87.19% | 87.79% | 1,192.8 | 1,150.2 |
-| 50% | 82.58% | 82.28% | 2,193.2 | 2,223.0 |
-| 75% | 78.48% | 78.79% | 2,900.6 | 2,889.4 |
-
-Each [survey directory](surveys/) holds found-rally judgements, validation
-and test threshold curves, and exact operating points. [Reproduction commands](../../writeup_scripts/README.md)
-reuse saved predictions.
+The [report](../../annotator_monotrack_own_weights_compared_writeup_v7.md)
+gives the numerical comparisons and limits. [Reproduction commands](../../writeup_scripts/README.md)
+reuse saved predictions. Exclusion counts and reasons are in the
+[development population record](../rally_exclusions/label_counts.json.gz).
 
 ## Figures
 
-Unpack the primary JSON/CSV files needed by the figure script into a temporary
-directory, keeping `rally_courts.csv.gz` compressed. Then run from the repo root:
+Unpack primary JSON/CSV files into a temporary directory, keeping
+`rally_courts.csv.gz` compressed, then run from the repository root:
 
 ```bash
 python experiments/annotator/monotrack_benchmark/writeup_scripts/make_figures.py \
@@ -148,6 +57,3 @@ python experiments/annotator/monotrack_benchmark/writeup_scripts/make_figures.py
   --confidence-data experiments/annotator/monotrack_benchmark/benchmark_results/discovery_context/surveys/no_max/2_3 \
   --out FIGURES
 ```
-
-Court inputs and MonoTrack predictions are unchanged. A fresh annotator
-hyperparameter search and selector-depth experiments are separate follow-ups.

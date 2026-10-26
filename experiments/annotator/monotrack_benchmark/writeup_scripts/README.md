@@ -138,8 +138,22 @@ $PY $W/compare_discovery_context.py \
 
 The comparison uses five-seed mean fully correct coverage on 347 judgeable
 validation rallies. The 321 excluded rallies remain in contact matching and
-neighbouring-rally checks; merging into one still counts as wrong. Reuse saved full-video contact
-counts with `--reuse-contact-counts PREVIOUS_COMPARISON` when predictions and
+neighbouring-rally checks; merging into one still counts as wrong. Regenerate
+the shared exclusion list from the original set CSVs and `shots_master.csv` with:
+
+```bash
+$PY scripts/build_rally_exclusions.py
+```
+
+The output is `data/shuttleset/rally_exclusions.csv.gz`, with one row per
+`vid,set,rally,reason`. A rally can have several reasons: an original flaw flag,
+fewer master rows than original rows, or consecutive contacts assigned to the
+same player. Both rally fitters skip its `-1` targets while retaining the
+video evidence. Contact fitting and contact scoring retain every master contact.
+ShuttleSet22 test exclusions are unchanged.
+
+Reuse saved full-video contact counts with
+`--reuse-contact-counts PREVIOUS_COMPARISON` when predictions and
 timing tolerances are unchanged. Confidence thresholds are selected on validation
 and applied unchanged to test.
 
