@@ -94,10 +94,6 @@ def select_configuration(candidates: list[dict]) -> dict:
             'mean_validation': winner['mean_validation'], 'candidates': ranked}
 
 
-def selection_key(selection: dict[str, Any]) -> tuple[str, float, str]:
-    return selection['arm'], selection['l2'], selection['interpolation']
-
-
 def validation_directory(root: Path, arm: str, l2: float, interpolation: str, seed: int) -> Path:
     return root / 'validation' / f'{training_name(arm, l2)}_{interpolation}' / f'seed-{seed}'
 
@@ -106,15 +102,8 @@ def _score_path(output: Path, arm: str, l2: float, interpolation: str, seed: int
     return validation_directory(output, arm, l2, interpolation, seed) / 'report_scores.json.gz'
 
 
-def _rescore_validation_setting(
-    source: Path,
-    output: Path,
-    items: list[dict[str, Any]],
-    arm: str,
-    l2: float,
-    interpolation: str,
-    seed: int,
-) -> None:
+def _rescore_validation_setting(source: Path, output: Path, items: list[dict[str, Any]], arm: str,
+                                l2: float, interpolation: str, seed: int) -> None:
     windows = {item['item_id']: [] for item in items}
     result = report_scores(
         items, validation_directory(source, arm, l2, interpolation, seed), windows,
@@ -133,12 +122,8 @@ def _load_rescored_candidates(output: Path) -> list[dict[str, Any]]:
     return candidates
 
 
-def rescore_saved_validation(
-    config: dict[str, Any],
-    source: Path,
-    output: Path,
-    parallel: int,
-) -> tuple[dict[str, Any], bool]:
+def rescore_saved_validation(config: dict[str, Any], source: Path, output: Path,
+                             parallel: int) -> tuple[dict[str, Any], bool]:
     """Rescore saved validation streams and select a configuration without inference."""
     if not 1 <= parallel <= 28:
         raise ValueError('parallel must be between 1 and 28')
@@ -162,18 +147,12 @@ def rescore_saved_validation(
     selected = select_configuration(_load_rescored_candidates(output))
     original = read_json(source / 'selected.json.gz')
     write_json(output / 'selected.json.gz', selected)
-    changed = selection_key(selected) != selection_key(original)
+    changed = any(selected[key] != original[key] for key in ('arm', 'l2', 'interpolation'))
     return selected, changed
 
 
-def run_reselected_test(
-    config_file: Path,
-    config: dict[str, Any],
-    trials: Path,
-    output: Path,
-    selected: dict[str, Any],
-    parallel: int,
-) -> None:
+def run_reselected_test(config_file: Path, config: dict[str, Any], trials: Path, output: Path,
+                        selected: dict[str, Any], parallel: int) -> None:
     """Run and score only missing test conditions for the selected setting."""
     items = evaluation_items(config, 'test')
     settings = []
@@ -198,14 +177,8 @@ def run_reselected_test(
             score_run(config['paths']['inputs'], directory)
 
 
-def reselect_saved_validation(
-    config_file: Path,
-    trials: Path | None,
-    source: Path,
-    output: Path,
-    parallel: int,
-    selection_only: bool,
-) -> tuple[dict[str, Any], bool]:
+def reselect_saved_validation(config_file: Path, trials: Path | None, source: Path, output: Path,
+                              parallel: int, selection_only: bool) -> tuple[dict[str, Any], bool]:
     """Rescore cached validation predictions and optionally run the selected test setting."""
     config_file = config_file.resolve()
     source, output = source.resolve(), output.resolve()

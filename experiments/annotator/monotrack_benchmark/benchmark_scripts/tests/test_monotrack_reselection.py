@@ -1,6 +1,7 @@
 """Rescore saved validation predictions without repeating inference."""
 from __future__ import annotations
 
+import itertools
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -22,6 +23,11 @@ def make_source(root: Path, original: tuple[str, float, str]) -> None:
         for seed in SEEDS:
             run = five_seed.validation_directory(root, arm, l2, interpolation, seed)
             write_json(run / 'validation-fixture.json.gz', {'saved': True})
+    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
+        run = root / 'test' / court / f'seed-{seed}'
+        write_json(run / 'test-fixture.json.gz', {'saved': True})
+        write_json(run / 'report_scores.json.gz', {'saved': True})
+        write_json(run / 'scores.json.gz', {'saved': True})
 
 
 def report_result(fully_correct: float = 50.0) -> dict:

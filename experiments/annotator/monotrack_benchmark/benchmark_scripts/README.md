@@ -24,13 +24,18 @@ L2 weights 0, 1e-6 and 1e-4, and inference interpolation on/off. Every setting
 uses seeds 0, 100, 200, 300 and 400, with dropout off.
 The highest mean fully correct rally percentage at ±10 frames wins;
 Correct-player F1 breaks a tie. Selection calls the report's scoring function,
-including its overlapping-rally judgement. All 668 validation rallies count.
+including its overlapping-rally judgement. Whole-rally selection uses the 347
+judgeable validation rallies. The 321 unreliable rallies remain in merge checks;
+contact scores still use all 5,696 contacts. The
+[exclusion CSV](../../../../data/shuttleset/rally_exclusions.csv.gz) records flaws,
+missing master rows and consecutive same-player hits from the original set CSVs.
 The same five checkpoints are then tested with both court sets.
 
 For provided boundaries, contacts are scored inside the common padded rally
 windows. Discovery is scored across the whole video, including false positives
-outside those windows. Fully correct rallies use the same fixed windows in all
-five conditions. The main results use ±10 frames. Appendix E gives the ±5-frame
+outside those windows. Supplied-rally judgement uses the provided windows;
+discovery judgement uses each rally's first and last accepted contacts.
+The main results use ±10 frames. Appendix E gives the ±5-frame
 timing-sensitivity comparison.
 
 Each tolerance has three measures:
@@ -71,6 +76,22 @@ records; the other twenty-five checkpoints can be reproduced by retraining.
 The output directory must be new. Missing or failed jobs stop the workflow.
 An inference failure within a rally remains an empty prediction for that rally.
 Test results are produced only after validation selection is written.
+
+To repeat selection from saved validation predictions without rerunning HitNet:
+
+```bash
+python five_seed.py \
+  --config config.local.toml \
+  --rescore-validation /path/to/existing-five-seed-results \
+  --output /path/to/rescored-results \
+  --parallel 28 --selection-only
+```
+
+The scorer reuses completed score files when resumed into that output directory.
+Use a new directory if the scoring rules or inputs change. If the winner changes,
+rerun without `--selection-only` and provide `--trials` to evaluate its five
+checkpoints with both test court sets. If it stays the same, reuse the existing
+test predictions. HitNet training and its own validation-loss selection are unchanged.
 
 The commands below describe the individual runners and the annotator baseline.
 
