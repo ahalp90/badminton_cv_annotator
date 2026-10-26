@@ -172,7 +172,14 @@ def progress(output: Path, stage: str, **details: Any) -> None:
 
 
 def load_prepared(directory: Path, identity: str) -> PreparedVideo:
-    return joblib.load(directory / 'videos' / f'{identity}.joblib')
+    from annotator.training.label_quality import mark_unjudgeable_rallies
+
+    prepared: PreparedVideo = joblib.load(directory / 'videos' / f'{identity}.joblib')
+    video = prepared.video
+    if video.dataset == 'ShuttleSet':
+        rallies = mark_unjudgeable_rallies(video.rallies, int(identity.removeprefix('sset_')))
+        prepared = replace(prepared, video=replace(video, rallies=rallies))
+    return prepared
 
 
 def require_raw_features(prepared_root: Path) -> None:

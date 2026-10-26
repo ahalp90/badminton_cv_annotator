@@ -7,6 +7,7 @@ from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_ch
 from annotator.sequence.rally_options import RallyOptions, sequence_key
 from annotator.training.sequences import (
     SequenceTrainingVideo,
+    rally_overlaps,
     whole_rally_correctness,
 )
 
@@ -45,7 +46,7 @@ def option_targets(
         label_start = min(sequence.start_frame for sequence in ordered) - padding - tolerance
         label_end = max(sequence.end_frame for sequence in ordered) + padding + tolerance + 1
         rallies = tuple(
-            rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
+            rally for rally in video.rallies if rally_overlaps(rally, label_start, label_end)
         )
         for row in rows:
             finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)

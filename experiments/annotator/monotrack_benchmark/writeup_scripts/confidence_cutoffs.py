@@ -46,7 +46,7 @@ ENDPOINT_LIMITS = ContactEndpointLimits(2, 3)
 def validation_found(
     validation: Path, shots_master: Path, endpoint_limits: ContactEndpointLimits = ENDPOINT_LIMITS,
 ) -> tuple[pd.DataFrame, int]:
-    """Judge fresh validation streams against every labelled development rally."""
+    """Judge validation rallies, retaining unreliable labels only for merge checks."""
     videos = [video for video in load_original_videos(shots_master) if video.split == 'validation']
     rows = []
     for seed in SEEDS:
@@ -58,9 +58,11 @@ def validation_found(
                 endpoint_limits=endpoint_limits,
             )
             for record in judged:
+                if record['outcome'] == 'unjudgeable_rally':
+                    continue
                 rows.append({'seed': seed, 'video': video.identity, **record,
                              'confidence': stream['confidence'][str(record['span_id'])]})
-    return pd.DataFrame(rows), sum(len(video.rallies) for video in videos)
+    return pd.DataFrame(rows), sum(rally.judgeable for video in videos for rally in video.rallies)
 
 
 def attainable_thresholds(found: pd.DataFrame) -> np.ndarray:

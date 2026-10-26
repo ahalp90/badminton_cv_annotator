@@ -52,7 +52,7 @@ def judge_section(
         "overlapping_rallies": boundary.overlapping_rallies, "rally_id": None, "matched": None, "missing": None,
         "extra": None, "wrong_player": None, "boundary_error": False, "exact_sequence": False,
     }
-    if boundary.outcome == 'no_labelled_rally':
+    if boundary.outcome in ('no_labelled_rally', 'unjudgeable_rally'):
         return {**record, "outcome": -1}
     if boundary.outcome == 'merged_rallies':
         return {**record, "outcome": 0}
@@ -137,6 +137,8 @@ def score_video(
     reached = {contact["rally_id"] for contact in contacts if contact["matched"]}
     rally_rows = []
     for rally in rallies:
+        if not rally.judgeable:
+            continue
         own = [row for row in proposals if row["rally_id"] == rally.identity]
         touching = [sequence for sequence in sequences
                     if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)]

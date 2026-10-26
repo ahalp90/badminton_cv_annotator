@@ -18,6 +18,8 @@ class LabelledRally:
     identity: str
     frames: tuple[int, ...]
     sides: tuple[Half | None, ...]
+    judgeable: bool = True
+    unjudgeable_span: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
         if len(self.frames) != len(self.sides) or tuple(sorted(self.frames)) != self.frames:
@@ -158,11 +160,19 @@ def match_contacts(
     return matches
 
 
+def rally_overlaps(rally: LabelledRally, start: int, end: int) -> bool:
+    """Use the full original extent of unreliable rallies, including dropped hits."""
+    if not rally.judgeable:
+        first, last = rally.unjudgeable_span or (rally.frames[0], rally.frames[-1] + 1)
+        return start < last and first < end
+    return any(start <= frame < end for frame in rally.frames)
+
+
 def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
     """Find labelled rallies with any contact inside a half-open sequence."""
     return tuple(
         rally for rally in rallies
-        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
+        if rally_overlaps(rally, sequence.start_frame, sequence.end_frame)
     )
 
 
@@ -172,13 +182,13 @@ def whole_rally_correctness(
 ) -> int:
     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
 
-    Missing contacts, merged/partial rallies, extra events and known side
-    contradictions are wrong even when another human side label is unavailable.
+    Merged rallies are wrong even when their labels are unreliable. A single
+    unreliable rally is unjudgeable, including partial or incomplete detections.
     """
     boundary = judge_rally_boundaries(
         sequence, rallies, tolerance=scale_frames(tolerance_at_30_fps, fps),
     )
-    if boundary.outcome == 'no_labelled_rally':
+    if boundary.outcome in ('no_labelled_rally', 'unjudgeable_rally'):
         return -1
     if boundary.outcome != 'boundaries_right':
         return 0
@@ -211,12 +221,14 @@ def judge_rally_boundaries(
     end = sequence.end_frame + tolerance
     overlaps = overlapping_rallies(sequence, rallies)
     if not overlaps:
-        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
+        overlaps = tuple(rally for rally in rallies if rally_overlaps(rally, start, end))
     if not overlaps:
         return RallyBoundaryJudgement('no_labelled_rally', None, 0)
     if len(overlaps) > 1:
         return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
     rally = overlaps[0]
+    if not rally.judgeable:
+        return RallyBoundaryJudgement('unjudgeable_rally', rally, 1)
     first, last = rally.frames[0], rally.frames[-1]
     if not start <= first or not last < end:
         return RallyBoundaryJudgement('part_of_rally', rally, 1)

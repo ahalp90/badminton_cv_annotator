@@ -195,7 +195,9 @@ def judge_found_rallies(
         record = {'span_id': sequence.span_id, 'rally_id': None, 'hits': len(frames)}
         if not supplied:
             if not frames:
-                judged.append(record | {'outcome': 'no_contacts'})
+                boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
+                outcome = 'unjudgeable_rally' if boundary.outcome == 'unjudgeable_rally' else 'no_contacts'
+                judged.append(record | {'outcome': outcome})
                 continue
             sequence = replace(sequence, start_frame=frames[0], end_frame=frames[-1] + 1)
         boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
@@ -237,9 +239,9 @@ def judge_found_rallies(
 
 def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
     """Count labelled rallies reaching each rung through any one found rally."""
-    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies}
+    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies if rally.judgeable}
     for record in judged:
-        if record['rally_id'] is not None:
+        if record['rally_id'] in best:
             best[record['rally_id']].add(record['outcome'])
     return {
         'boundaries_right': sum(bool(outcomes & BOUNDARY_RIGHT) for outcomes in best.values()),
@@ -294,7 +296,7 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
         'exact_hits_strict': sum(bool(row['exact_sequence']) for row in rally_rows),
         'predicted_outside_windows': outside,
         'ignored_predictions': ignored,
-        'found_rallies': len(sequences),
+        'found_rallies': sum(record['outcome'] != 'unjudgeable_rally' for record in judged),
         'found_rallies_before_ignore': len(unmasked['sequences']),
         'boundaries_right_no_allowance': no_allowance,
         **rally_ladder(judged, labels),

@@ -17,6 +17,7 @@ from annotator.outcomes.point_winner import (
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.shuttle_track import validate_shuttle_track
+from annotator.training.label_quality import mark_unjudgeable_rallies
 from annotator.training.sequences import (
     LabelledRally,
 )
@@ -85,7 +86,7 @@ def load_original_videos(shots_master: Path, split_path: Path = TRACKED_SPLIT) -
             rallies.append(LabelledRally(identity, tuple(frames), tuple(sides)))
         videos.append(SearchVideo(
             row['fixture'], 'ShuttleSet', row['role'], float(row['fps']),
-            (float(row['width']), float(row['height'])), tuple(rallies),
+            (float(row['width']), float(row['height'])), mark_unjudgeable_rallies(tuple(rallies), int(row['video_id'])),
         ))
     return tuple(videos)
 

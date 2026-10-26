@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +27,10 @@ from threadpoolctl import threadpool_limits
 from annotator.contacts.model import ContactModelConfig
 from annotator.sequence.contacts import ContactSequence
 from annotator.training import rally_targets
+from annotator.training.label_quality import (
+    load_rally_exclusions,
+    mark_unjudgeable_rallies,
+)
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator.tree_simplification.data import PreparedVideo
@@ -132,9 +136,11 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
             saved: LabelledOptions = joblib.load(job.reuse_options)
             if saved.video.identity != job.video or saved.video.group != job.group:
                 raise ValueError(f'{job.video}: reused proposal identity or group differs')
-            options = saved
+            rallies = mark_unjudgeable_rallies(saved.video.rallies, int(job.video.removeprefix('sset_')))
+            options = replace(saved, video=replace(saved.video, rallies=rallies))
+            options = replace(options, targets=rally_targets.option_targets(options.video, options.runtime))
         else:
-            prepared: PreparedVideo = joblib.load(job.prepared_path)
+            prepared: PreparedVideo = experiment.load_prepared(job.prepared_path.parent.parent, job.video)
             if prepared.video.identity != job.video or prepared.group != job.group:
                 raise ValueError(f'{job.video}: prepared identity or group differs from its record')
             if prepared.video.split != job.split:
@@ -207,6 +213,7 @@ def prepare_pools(
         expected = {
             'schema': SCHEMA, 'prepared': str(prepared_root), 'contact_run': str(contact_run_output),
             'settings': settings, 'max_edits': max_edits, 'deletion_candidates': deletion_candidates,
+            'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
         }
         if original != expected:
             raise ValueError('Reused validation pools use different preparation or proposal settings')
@@ -234,6 +241,7 @@ def prepare_pools(
 
     manifest = {
         'schema': SCHEMA,
+        'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
         'prepared': str(prepared_root),
         'contact_run': str(contact_run_output),
         'settings': settings,

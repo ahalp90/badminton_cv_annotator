@@ -10,6 +10,7 @@ from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
 from annotator.training.sequences import (
+    LabelledRally,
     SequenceTrainingVideo,
 )
 from experiments.annotator.tree_simplification import pools
@@ -109,18 +110,23 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
     assert '--only' in help_text
 
 
-def test_reusing_options_keeps_saved_features_and_targets(tmp_path: Path) -> None:
+def test_reusing_options_keeps_features_and_refreshes_targets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     saved = example_pool()
+    rally = LabelledRally('first', (10, 20), (Half.TOP, Half.BOT))
+    saved = replace(saved, video=replace(saved.video, identity='sset_01', rallies=(rally,)))
+    monkeypatch.setattr('annotator.training.label_quality.unjudgeable_spans', lambda: {(1, 'first'): (10, 21)})
     source = tmp_path / 'source.joblib'
     joblib.dump(saved, source)
     output = tmp_path / 'reused'
-    job = pools.PoolJob('fixture', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 3, 6,
+    job = pools.PoolJob('sset_01', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 3, 6,
                        source)
 
     pools._prepare_pool(job)
 
-    actual = joblib.load(output / 'videos/fixture.joblib')
+    actual = joblib.load(output / 'videos/sset_01.joblib')
     assert actual.sequences == saved.sequences
-    assert actual.video.rallies == saved.video.rallies
+    assert actual.video.rallies[0].frames == saved.video.rallies[0].frames
+    assert not actual.video.rallies[0].judgeable
     np.testing.assert_array_equal(actual.matrix, saved.matrix)
-    np.testing.assert_array_equal(actual.targets, saved.targets)
+    assert saved.targets[0] == 1
+    assert actual.targets[0] == -1

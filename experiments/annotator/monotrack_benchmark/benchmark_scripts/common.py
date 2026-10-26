@@ -63,11 +63,15 @@ def load_manifest(root: Path) -> dict[str, Any]:
 
 def labels_for_item(item: dict[str, Any]) -> tuple[Any, ...]:
     from annotator.outcomes.point_winner import Half
+    from annotator.training.label_quality import mark_unjudgeable_rallies
     from annotator.training.sequences import LabelledRally
 
-    return tuple(LabelledRally(span['rally_id'], tuple(span['label_frames']),
-                              tuple(None if side is None else Half(side) for side in span['label_sides']))
-                 for span in item['spans'])
+    rallies = tuple(LabelledRally(span['rally_id'], tuple(span['label_frames']),
+                                 tuple(None if side is None else Half(side) for side in span['label_sides']))
+                    for span in item['spans'])
+    if item.get('item_id', '').startswith('sset_'):
+        return mark_unjudgeable_rallies(rallies, int(item['item_id'].removeprefix('sset_')))
+    return rallies
 
 
 def fixed_stream(events: list[list[Any]], spans: list[dict[str, Any]]) -> dict[str, Any]:

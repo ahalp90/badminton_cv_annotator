@@ -167,7 +167,7 @@ def videos_for_split(manifest: TrainingManifest, split: Split) -> tuple[VideoInp
 
 
 def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
-    """Read rally_id,frame,side CSV rows, grouped by rally and increasing in frame.
+    """Read rally_id,frame,side rows with an optional whole-rally judgeable flag.
 
     Empty sides remain unknown. Each rally must occupy one contiguous CSV block.
     All frames must lie inside the source video timeline.
@@ -177,24 +177,32 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
     current = None
     frames: list[int] = []
     sides: list[Half | None] = []
+    judgeable = True
     with path.open(newline='') as handle:
         reader = csv.DictReader(handle)
         expected_columns = {'rally_id', 'frame', 'side'}
-        if reader.fieldnames is None or len(reader.fieldnames) != 3 or set(reader.fieldnames) != expected_columns:
-            raise ValueError(f'{path}: labels need rally_id,frame,side columns')
+        columns = set(reader.fieldnames or ())
+        if columns not in (expected_columns, expected_columns | {'judgeable'}) or len(reader.fieldnames or ()) != len(columns):
+            raise ValueError(f'{path}: labels need rally_id,frame,side and optionally judgeable columns')
         for line, row in enumerate(reader, start=2):
             if None in row or any(value is None for value in row.values()):
                 raise ValueError(f'{path}:{line}: label row has the wrong column count')
             identity = row['rally_id'].strip()
             if not identity:
                 raise ValueError(f'{path}:{line}: rally_id is empty')
+            flag = row.get('judgeable', '1').strip()
+            if flag not in ('0', '1'):
+                raise ValueError(f'{path}:{line}: judgeable must be 0 or 1')
             if identity != current:
                 if identity in seen:
                     raise ValueError(f'{path}:{line}: rally rows must form a contiguous block')
                 if current is not None:
-                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
+                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides), judgeable=judgeable))
                 seen.add(identity)
                 current, frames, sides = identity, [], []
+                judgeable = flag == '1'
+            elif judgeable != (flag == '1'):
+                raise ValueError(f'{path}:{line}: judgeable must be constant within a rally')
             try:
                 frame = int(row['frame'])
                 side_text = row['side'].strip()
@@ -208,7 +216,7 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
             frames.append(frame)
             sides.append(side)
     if current is not None:
-        rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
+        rallies.append(LabelledRally(current, tuple(frames), tuple(sides), judgeable=judgeable))
     return tuple(rallies)
 
 
