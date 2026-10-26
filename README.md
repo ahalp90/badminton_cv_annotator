@@ -32,10 +32,18 @@ flowchart LR
 We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Rallies are then refined and assigned confidence scores by three gradient-boosted tree models (XGBoost).
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
+For our whole-rally models, we exclude unreliable training and validation
+rallies while keeping every labelled contact for contact fitting and scoring.
 
 ![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v7/fig1_headline.png)
 
 *MonoTrack needs rally boundaries provided*
+
+With boundaries provided, our refitted annotator gets 55.7% of test rallies
+fully correct, against MonoTrack's 47.8%. The refit improves correctness on
+the 347 judgeable validation rallies from 64.0% to 65.5%, while test
+correctness falls from 60.3% to 55.7% with boundaries provided and from 55.0%
+to 51.9% when our annotator finds the rallies itself.
 
 Our annotator can discover rally boundaries in a raw video (figure above,
 bottom row). Each rally gets a confidence score, so you can trade recall for
@@ -43,11 +51,11 @@ less manual review:
 
 | Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| 0.50 | 1,589 | 85.8% | 73.7% |
-| 0.70 | 821 | 89.4% | 80.9% |
-| 0.75 | 560 | 90.8% | 83.5% |
-| 0.80 | 265 | 93.0% | 87.5% |
-| 0.85 | 58 | 94.5% | 91.8% |
+| 0.50 | 2,164 | 80.4% | 66.8% |
+| 0.70 | 1,356 | 85.6% | 75.8% |
+| 0.75 | 1,070 | 87.2% | 78.8% |
+| 0.80 | 718 | 88.5% | 81.9% |
+| 0.85 | 306 | 91.5% | 85.4% |
 
 *Indicative performance on the test set, averaged over five seeds. “Right start
 and end” allows up to 2 seconds early or 10 frames late for the first contact,
