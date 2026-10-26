@@ -11,8 +11,9 @@ baseline is documented in the [rally-model report](../../experiments/annotator/r
 
 ## The selected model
 
-These settings describe the saved `raw_baseline-seed-0` bundle. The five benchmark
-runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
+These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/discovery_context/README.md).
+The baseline has no maximum outward context limit in training or discovery.
+The five benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -55,8 +56,12 @@ Each row contains:
 - evidence from unused candidates and the gaps between contacts.
 
 The highest score wins within each initial rally. Equal scores preserve the
-proposal order. The finishing rules then adjust boundaries without changing
-contact membership and choose the better-fitting alternating player pattern.
+proposal order. The chosen window keeps its outward context. Finishing can add
+10 frames of contact margin at 30 FPS, subject to neighbour, video-edge and
+contact-membership checks. The chosen contacts are final inside each chosen
+span; detector contacts outside all chosen spans remain in the full stream.
+The finishing step also fits the hitter order from the retained contacts.
+Supplied rally bounds stay fixed.
 
 With additional layers, each layer receives the preceding scores, winning score,
 margin, rank, choice and contact differences. All layers score the same ordered
@@ -74,15 +79,21 @@ proposal's final selector score supplies the ranking instead.
 
 ## What the training labels mean
 
-Contact training marks frames close to a human-labelled hit as positive. It
-omits an uncertain band around those positives, keeps nearby negatives and
-samples more distant negatives. Sampling order and fit-row order are recorded
-separately because both can affect reproducibility.
+Contact training labels frames inside broad search regions: within one base-30
+frame of a labelled contact is positive, distances of two to four frames are
+ignored, and five or more frames are negative candidates. It keeps nearby
+negatives and samples more distant ones. See the
+[worked example and measured contact coverage](how_it_works.md#how-contact-training-uses-ground-truth).
+Sampling order and fit-row order are recorded separately because both can
+affect reproducibility.
 
 Rally training judges each proposal after applying the boundary rules with its
 initial neighbours. A proposal is wrong if it merges rallies, misses or adds
-contacts, or contradicts known player sides. Missing labels can make a proposal
-unjudgeable; these rows are excluded from fitting.
+contacts, contradicts known player sides, or cuts into a labelled rally beyond
+the contact-timing allowance. Outward context is unlimited. Training judges the
+proposal's window; benchmark discovery assessment uses its first and last
+accepted contacts.
+Missing labels can make a proposal unjudgeable; these rows are excluded from fitting.
 
 The selector prefers labels matched within five frames at 30 FPS when a rally
 has a positive option at that tolerance. Otherwise it uses the ten-frame labels.

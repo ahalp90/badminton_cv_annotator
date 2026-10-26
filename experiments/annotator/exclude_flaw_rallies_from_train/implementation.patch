@@ -1,0 +1,1568 @@
+diff --git a/data/shuttleset/rally_exclusions.csv.gz b/data/shuttleset/rally_exclusions.csv.gz
+new file mode 100644
+index 0000000000000000000000000000000000000000..7bcbc740e797f55b8ab9d42ffd168f9a6a2fc0c0
+GIT binary patch
+literal 4826
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/experiments/annotator/annotator_closeout_new_courts/scripts/evaluate_saved.py b/experiments/annotator/annotator_closeout_new_courts/scripts/evaluate_saved.py
+index 3ee732c2..75fa2030 100644
+--- a/experiments/annotator/annotator_closeout_new_courts/scripts/evaluate_saved.py
++++ b/experiments/annotator/annotator_closeout_new_courts/scripts/evaluate_saved.py
+@@ -52,7 +52,7 @@ def judge_section(
+         "overlapping_rallies": boundary.overlapping_rallies, "rally_id": None, "matched": None, "missing": None,
+         "extra": None, "wrong_player": None, "boundary_error": False, "exact_sequence": False,
+     }
+-    if boundary.outcome == 'no_labelled_rally':
++    if boundary.outcome in ('no_labelled_rally', 'unjudgeable_rally'):
+         return {**record, "outcome": -1}
+     if boundary.outcome == 'merged_rallies':
+         return {**record, "outcome": 0}
+@@ -137,6 +137,8 @@ def score_video(
+     reached = {contact["rally_id"] for contact in contacts if contact["matched"]}
+     rally_rows = []
+     for rally in rallies:
++        if not rally.judgeable:
++            continue
+         own = [row for row in proposals if row["rally_id"] == rally.identity]
+         touching = [sequence for sequence in sequences
+                     if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)]
+diff --git a/experiments/annotator/development.py b/experiments/annotator/development.py
+index bc7024e8..91474978 100644
+--- a/experiments/annotator/development.py
++++ b/experiments/annotator/development.py
+@@ -115,7 +115,8 @@ def score_stream(
+             correct_rallies.append(overlapping_rallies(sequence, rallies)[0].identity)
+         score = None if confidence is None else confidence[str(sequence.span_id)]
+         sections.append([sequence.span_id, correctness, score])
+-    return {**counts, 'labelled_rallies': len(rallies), 'correct_rallies': correct_rallies, 'sections': sections}
++    return {**counts, 'labelled_rallies': sum(rally.judgeable for rally in rallies),
++            'correct_rallies': correct_rallies, 'sections': sections}
+ 
+ 
+ def development_for(videos: tuple[SearchVideo, ...], groups_file: Path = GROUPS_FILE) -> Development:
+@@ -172,7 +173,14 @@ def progress(output: Path, stage: str, **details: Any) -> None:
+ 
+ 
+ def load_prepared(directory: Path, identity: str) -> PreparedVideo:
+-    return joblib.load(directory / 'videos' / f'{identity}.joblib')
++    from annotator.training.label_quality import mark_unjudgeable_rallies
++
++    prepared: PreparedVideo = joblib.load(directory / 'videos' / f'{identity}.joblib')
++    video = prepared.video
++    if video.dataset == 'ShuttleSet':
++        rallies = mark_unjudgeable_rallies(video.rallies, int(identity.removeprefix('sset_')))
++        prepared = replace(prepared, video=replace(video, rallies=rallies))
++    return prepared
+ 
+ 
+ def require_raw_features(prepared_root: Path) -> None:
+diff --git a/experiments/annotator/heuristic_only_tune/data.py b/experiments/annotator/heuristic_only_tune/data.py
+index 1f0c9c13..95ce087f 100644
+--- a/experiments/annotator/heuristic_only_tune/data.py
++++ b/experiments/annotator/heuristic_only_tune/data.py
+@@ -17,6 +17,7 @@ from annotator.outcomes.point_winner import (
+ from annotator.run_video import AnnotatorResult, RunCapture, run_video
+ from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
+ from annotator.shuttle_track import validate_shuttle_track
++from annotator.training.label_quality import mark_unjudgeable_rallies
+ from annotator.training.sequences import (
+     LabelledRally,
+ )
+@@ -85,7 +86,7 @@ def load_original_videos(shots_master: Path, split_path: Path = TRACKED_SPLIT) -
+             rallies.append(LabelledRally(identity, tuple(frames), tuple(sides)))
+         videos.append(SearchVideo(
+             row['fixture'], 'ShuttleSet', row['role'], float(row['fps']),
+-            (float(row['width']), float(row['height'])), tuple(rallies),
++            (float(row['width']), float(row['height'])), mark_unjudgeable_rallies(tuple(rallies), int(row['video_id'])),
+         ))
+     return tuple(videos)
+ 
+diff --git a/experiments/annotator/monotrack_benchmark/benchmark_scripts/common.py b/experiments/annotator/monotrack_benchmark/benchmark_scripts/common.py
+index a5a4b6b8..138c1ccf 100644
+--- a/experiments/annotator/monotrack_benchmark/benchmark_scripts/common.py
++++ b/experiments/annotator/monotrack_benchmark/benchmark_scripts/common.py
+@@ -63,11 +63,15 @@ def load_manifest(root: Path) -> dict[str, Any]:
+ 
+ def labels_for_item(item: dict[str, Any]) -> tuple[Any, ...]:
+     from annotator.outcomes.point_winner import Half
++    from annotator.training.label_quality import mark_unjudgeable_rallies
+     from annotator.training.sequences import LabelledRally
+ 
+-    return tuple(LabelledRally(span['rally_id'], tuple(span['label_frames']),
+-                              tuple(None if side is None else Half(side) for side in span['label_sides']))
+-                 for span in item['spans'])
++    rallies = tuple(LabelledRally(span['rally_id'], tuple(span['label_frames']),
++                                 tuple(None if side is None else Half(side) for side in span['label_sides']))
++                    for span in item['spans'])
++    if item.get('item_id', '').startswith('sset_'):
++        return mark_unjudgeable_rallies(rallies, int(item['item_id'].removeprefix('sset_')))
++    return rallies
+ 
+ 
+ def fixed_stream(events: list[list[Any]], spans: list[dict[str, Any]]) -> dict[str, Any]:
+diff --git a/experiments/annotator/monotrack_benchmark/benchmark_scripts/five_seed.py b/experiments/annotator/monotrack_benchmark/benchmark_scripts/five_seed.py
+index 2caa464a..d977f87d 100644
+--- a/experiments/annotator/monotrack_benchmark/benchmark_scripts/five_seed.py
++++ b/experiments/annotator/monotrack_benchmark/benchmark_scripts/five_seed.py
+@@ -7,8 +7,9 @@ import math
+ import os
+ import shutil
+ import subprocess
+-from concurrent.futures import ThreadPoolExecutor, as_completed
++from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+ from pathlib import Path
++from typing import Any
+ 
+ import pandas as pd
+ from common import HERE, load_config, read_json, write_json
+@@ -93,6 +94,108 @@ def select_configuration(candidates: list[dict]) -> dict:
+             'mean_validation': winner['mean_validation'], 'candidates': ranked}
+ 
+ 
++def validation_directory(root: Path, arm: str, l2: float, interpolation: str, seed: int) -> Path:
++    return root / 'validation' / f'{training_name(arm, l2)}_{interpolation}' / f'seed-{seed}'
++
++
++def _score_path(output: Path, arm: str, l2: float, interpolation: str, seed: int) -> Path:
++    return validation_directory(output, arm, l2, interpolation, seed) / 'report_scores.json.gz'
++
++
++def _rescore_validation_setting(source: Path, output: Path, items: list[dict[str, Any]], arm: str,
++                                l2: float, interpolation: str, seed: int) -> None:
++    windows = {item['item_id']: [] for item in items}
++    result = report_scores(
++        items, validation_directory(source, arm, l2, interpolation, seed), windows,
++    )
++    write_json(_score_path(output, arm, l2, interpolation, seed), result)
++
++
++def _load_rescored_candidates(output: Path) -> list[dict[str, Any]]:
++    candidates = []
++    for arm, l2, interpolation in SETTINGS:
++        seeds = []
++        for seed in SEEDS:
++            scores = read_json(_score_path(output, arm, l2, interpolation, seed))
++            seeds.append({'seed': seed, **scores['by_tolerance']['10']})
++        candidates.append({'arm': arm, 'l2': l2, 'interpolation': interpolation, 'seeds': seeds})
++    return candidates
++
++
++def rescore_saved_validation(config: dict[str, Any], source: Path, output: Path,
++                             parallel: int) -> tuple[dict[str, Any], bool]:
++    """Rescore saved validation streams and select a configuration without inference."""
++    if not 1 <= parallel <= 28:
++        raise ValueError('parallel must be between 1 and 28')
++    source, output = source.resolve(), output.resolve()
++    if source == output:
++        raise ValueError('Rescoring output must be separate from its saved prediction root')
++    items = evaluation_items(config, 'validation')
++    output.mkdir(parents=True, exist_ok=True)
++    jobs = []
++    for arm, l2, interpolation in SETTINGS:
++        for seed in SEEDS:
++            score_path = _score_path(output, arm, l2, interpolation, seed)
++            if not score_path.is_file():
++                jobs.append((source, output, items, arm, l2, interpolation, seed))
++    if jobs:
++        with ProcessPoolExecutor(max_workers=min(parallel, len(jobs))) as pool:
++            futures = [pool.submit(_rescore_validation_setting, *job) for job in jobs]
++            for future in as_completed(futures):
++                future.result()
++
++    selected = select_configuration(_load_rescored_candidates(output))
++    original = read_json(source / 'selected.json.gz')
++    write_json(output / 'selected.json.gz', selected)
++    changed = any(selected[key] != original[key] for key in ('arm', 'l2', 'interpolation'))
++    return selected, changed
++
++
++def run_reselected_test(config_file: Path, config: dict[str, Any], trials: Path, output: Path,
++                        selected: dict[str, Any], parallel: int) -> None:
++    """Run and score only missing test conditions for the selected setting."""
++    items = evaluation_items(config, 'test')
++    settings = []
++    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
++        directory = output / 'test' / court / f'seed-{seed}'
++        if not directory.exists():
++            settings.append((selected['arm'], selected['l2'], selected['interpolation'], court, seed))
++            continue
++        for item in items:
++            if not (directory / f'{item["item_id"]}.json.gz').is_file():
++                raise ValueError(f'{directory}: incomplete video output; missing {item["item_id"]}')
++    if settings:
++        (output / 'logs').mkdir(exist_ok=True)
++        run_grid(config_file, config, trials.resolve(), output, 'test', settings, parallel)
++
++    windows = {item: left_out_windows(rallies) for item, rallies in test_left_out().items()}
++    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
++        directory = output / 'test' / court / f'seed-{seed}'
++        if not (directory / 'report_scores.json.gz').is_file():
++            write_json(directory / 'report_scores.json.gz', report_scores(items, directory, windows))
++        if not (directory / 'scores.json.gz').is_file():
++            score_run(config['paths']['inputs'], directory)
++
++
++def reselect_saved_validation(config_file: Path, trials: Path | None, source: Path, output: Path,
++                              parallel: int, selection_only: bool) -> tuple[dict[str, Any], bool]:
++    """Rescore cached validation predictions and optionally run the selected test setting."""
++    config_file = config_file.resolve()
++    source, output = source.resolve(), output.resolve()
++    config = load_config(config_file)
++    selected, changed = rescore_saved_validation(config, source, output, parallel)
++    print(f'SELECTED {selected["arm"]}/l2={selected["l2"]:g}/{selected["interpolation"]}: '
++          f'{selected["mean_validation"]}', flush=True)
++    if not changed:
++        print(f'TEST RESULTS reuse saved runs at {source}', flush=True)
++    elif selection_only or trials is None:
++        print('TEST RESULTS pending; rerun with --trials to test the changed selection', flush=True)
++    else:
++        run_reselected_test(config_file, config, trials, output, selected, parallel)
++        print(f'TEST RESULTS inferred at {output}', flush=True)
++    return selected, changed
++
++
+ def infer(config_file: Path, config: dict, trials: Path, output: Path,
+           split: str, arm: str, l2: float, interpolation: str, court: str, seed: int) -> Path:
+     if split == 'validation':
+@@ -161,15 +264,30 @@ def evaluate(config_file: Path, trials: Path, output: Path, parallel: int) -> No
+ 
+ def main() -> None:
+     parser = argparse.ArgumentParser(description=__doc__)
+-    parser.add_argument('--config', type=Path, required=True)
+-    parser.add_argument('--trials', type=Path, required=True, help='ARM_l2VALUE/seed-N training directories')
++    parser.add_argument('--config', type=Path)
++    parser.add_argument('--trials', type=Path, help='ARM_l2VALUE/seed-N training directories')
+     parser.add_argument('--output', type=Path, required=True)
+     parser.add_argument('--parallel', type=int, default=16)
++    parser.add_argument('--rescore-validation', type=Path,
++                        help='saved run root with all validation predictions and its original selection')
++    parser.add_argument('--selection-only', action='store_true',
++                        help='rescore/select without running test inference; rerun to continue from the saved result')
+     args = parser.parse_args()
+-    if args.parallel < 1:
+-        parser.error('--parallel must be positive')
++    if not 1 <= args.parallel <= 28:
++        parser.error('--parallel must be between 1 and 28')
+     for variable in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
+         os.environ[variable] = '1'
++    if args.rescore_validation is not None:
++        if args.config is None:
++            parser.error('--config is required when rescoring saved validation predictions')
++        reselect_saved_validation(
++            args.config, args.trials, args.rescore_validation, args.output, args.parallel, args.selection_only,
++        )
++        return
++    if args.selection_only:
++        parser.error('--selection-only requires --rescore-validation')
++    if args.config is None or args.trials is None:
++        parser.error('--config and --trials are required for a fresh benchmark run')
+     evaluate(args.config.resolve(), args.trials.resolve(), args.output.resolve(), args.parallel)
+ 
+ 
+diff --git a/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_five_seed.py b/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_five_seed.py
+index 1b49a5d5..620e0ef7 100644
+--- a/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_five_seed.py
++++ b/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_five_seed.py
+@@ -78,8 +78,8 @@ def test_validation_uses_report_overlap_judgement_and_keeps_failed_rallies(tmp_p
+     assert result['counts']['labelled_rallies'] == 3
+     assert result['counts']['labelled_contacts'] == 6
+     assert result['counts']['fully_correct_strict'] == 2
+-    assert result['counts']['fully_correct_matched'] == 1
+-    assert result['rates']['fully_correct'] == pytest.approx(100 / 3)
++    assert result['counts']['fully_correct_matched'] == 2
++    assert result['rates']['fully_correct'] == pytest.approx(200 / 3)
+     write_json(tmp_path / 'report_scores.json.gz', result)
+ 
+ 
+diff --git a/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_monotrack_reselection.py b/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_monotrack_reselection.py
+new file mode 100644
+index 00000000..afefd863
+--- /dev/null
++++ b/experiments/annotator/monotrack_benchmark/benchmark_scripts/tests/test_monotrack_reselection.py
+@@ -0,0 +1,163 @@
++"""Rescore saved validation predictions without repeating inference."""
++from __future__ import annotations
++
++import itertools
++import sys
++from concurrent.futures import ThreadPoolExecutor
++from pathlib import Path
++
++import pytest
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
++
++import five_seed
++from common import fixed_stream, write_json
++from five_seed import SEEDS, SETTINGS
++
++
++def make_source(root: Path, original: tuple[str, float, str]) -> None:
++    write_json(root / 'selected.json.gz', {
++        'arm': original[0], 'l2': original[1], 'interpolation': original[2],
++    })
++    for arm, l2, interpolation in SETTINGS:
++        for seed in SEEDS:
++            run = five_seed.validation_directory(root, arm, l2, interpolation, seed)
++            write_json(run / 'validation-fixture.json.gz', {'saved': True})
++    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
++        run = root / 'test' / court / f'seed-{seed}'
++        write_json(run / 'test-fixture.json.gz', {'saved': True})
++        write_json(run / 'report_scores.json.gz', {'saved': True})
++        write_json(run / 'scores.json.gz', {'saved': True})
++
++
++def report_result(fully_correct: float = 50.0) -> dict:
++    return {'by_tolerance': {'10': {
++        'counts': {'labelled_rallies': 1, 'labelled_contacts': 2, 'predicted_contacts': 2,
++                   'matched_contacts': 2, 'correct_side_contacts': 2, 'fully_correct_matched': 1},
++        'rates': {'fully_correct': fully_correct, 'player_f1': 90.0},
++    }}}
++
++
++def setup_reselection(monkeypatch, source: Path, *, changed: bool) -> tuple[list, list, list]:
++    validation = {'item_id': 'validation-fixture', 'fps': 30, 'spans': []}
++    test = {'item_id': 'test-fixture', 'fps': 30, 'spans': []}
++    config = {'paths': {'inputs': source}}
++    monkeypatch.setattr(five_seed, 'load_config', lambda _: config)
++    monkeypatch.setattr(five_seed, 'evaluation_items',
++                        lambda _config, split: [validation] if split == 'validation' else [test])
++    monkeypatch.setattr(five_seed, 'test_left_out', lambda: {'test-fixture': []})
++    monkeypatch.setattr(five_seed, 'ProcessPoolExecutor', ThreadPoolExecutor)
++    scored_paths, inference_calls, score_calls = [], [], []
++
++    def fake_report(items, run, windows):
++        scored_paths.append(run)
++        if changed and run.name == 'seed-0' and run.parent.name == 'zeroed_l20.0001_on':
++            return report_result(80.0)
++        return report_result()
++
++    def fake_run_grid(_config_file, _config, _trials, output, split, settings, _parallel):
++        inference_calls.append((split, settings))
++        for *_model, court, seed in settings:
++            run = output / split / court / f'seed-{seed}'
++            write_json(run / 'test-fixture.json.gz', {'item_id': 'test-fixture', 'status': 'completed'})
++
++    def fake_score_run(_inputs, run):
++        score_calls.append(run)
++        write_json(run / 'scores.json.gz', {'scored': True})
++
++    monkeypatch.setattr(five_seed, 'report_scores', fake_report)
++    monkeypatch.setattr(five_seed, 'run_grid', fake_run_grid)
++    monkeypatch.setattr(five_seed, 'score_run', fake_score_run)
++    return scored_paths, inference_calls, score_calls
++
++
++def test_unchanged_selection_reuses_saved_test_runs(tmp_path: Path, monkeypatch) -> None:
++    source, output = tmp_path / 'source', tmp_path / 'selection'
++    make_source(source, SETTINGS[0])
++    scored_paths, inference_calls, score_calls = setup_reselection(monkeypatch, source, changed=False)
++
++    selected, changed = five_seed.reselect_saved_validation(
++        tmp_path / 'config.toml', None, source, output, 8, selection_only=False,
++    )
++
++    assert not changed
++    assert (selected['arm'], selected['l2'], selected['interpolation']) == SETTINGS[0]
++    assert len(scored_paths) == len(SETTINGS) * len(SEEDS)
++    assert len(list(output.glob('validation/*/seed-*/report_scores.json.gz'))) == 60
++    assert not (output / 'test').exists()
++    assert inference_calls == []
++    assert score_calls == []
++
++
++def test_changed_selection_resumes_scores_and_runs_only_its_test_grid(
++    tmp_path: Path, monkeypatch,
++) -> None:
++    source, output, trials = tmp_path / 'source', tmp_path / 'selection', tmp_path / 'trials'
++    make_source(source, SETTINGS[0])
++    trials.mkdir()
++    # One completed score survives an interrupted rescore and is not recomputed.
++    cached = five_seed._score_path(output, *SETTINGS[0], SEEDS[-1])
++    write_json(cached, report_result())
++    scored_paths, inference_calls, score_calls = setup_reselection(monkeypatch, source, changed=True)
++
++    selected, changed = five_seed.reselect_saved_validation(
++        tmp_path / 'config.toml', None, source, output, 8, selection_only=True,
++    )
++    expected = ('zeroed', 1e-4, 'on')
++    assert changed
++    assert (selected['arm'], selected['l2'], selected['interpolation']) == expected
++    assert len(scored_paths) == 59
++    assert inference_calls == []
++
++    five_seed.reselect_saved_validation(
++        tmp_path / 'config.toml', trials, source, output, 8, selection_only=False,
++    )
++
++    assert len(scored_paths) == 69
++    assert len(inference_calls) == 1
++    split, grid = inference_calls[0]
++    assert split == 'test'
++    assert grid == [(*expected, court, seed) for court in ('monotrack', 'ours') for seed in SEEDS]
++    assert len(score_calls) == 10
++
++    five_seed.reselect_saved_validation(
++        tmp_path / 'config.toml', trials, source, output, 8, selection_only=False,
++    )
++    assert len(scored_paths) == 69
++    assert len(inference_calls) == 1
++    assert len(score_calls) == 10
++
++
++def test_incomplete_test_condition_reports_the_missing_video(tmp_path: Path, monkeypatch) -> None:
++    output = tmp_path / 'selection'
++    (output / 'test' / 'monotrack' / 'seed-0').mkdir(parents=True)
++    monkeypatch.setattr(five_seed, 'evaluation_items', lambda _config, _split: [{'item_id': 'missing-video'}])
++
++    with pytest.raises(ValueError, match='incomplete video output; missing missing-video'):
++        five_seed.run_reselected_test(
++            tmp_path / 'config.toml', {'paths': {'inputs': tmp_path}}, tmp_path / 'trials', output,
++            {'arm': 'kept', 'l2': 0.0, 'interpolation': 'off'}, 1,
++        )
++
++
++def test_report_scoring_preserves_flagged_rally_contact_counts(tmp_path: Path) -> None:
++    item = {'item_id': 'sset_1', 'fps': 30, 'spans': [
++        {'span_id': 0, 'rally_id': 'set1:30', 'start_frame': 70, 'end_frame': 151,
++         'label_frames': [100, 120], 'label_sides': ['Bot', 'Top']},
++        {'span_id': 1, 'rally_id': 'clean-rally', 'start_frame': 160, 'end_frame': 241,
++         'label_frames': [180, 200], 'label_sides': ['Bot', 'Top']},
++    ]}
++    events = [[frame, 1.0, side] for frame, side in (
++        (100, 'Bot'), (120, 'Top'), (180, 'Bot'), (200, 'Top'),
++    )]
++    write_json(tmp_path / 'sset_1.json.gz', {
++        'item_id': 'sset_1', 'status': 'completed', 'stream': fixed_stream(events, item['spans']),
++    })
++
++    result = five_seed.report_scores([item], tmp_path, {'sset_1': []})['by_tolerance']['10']
++
++    assert result['counts']['labelled_rallies'] == 1
++    assert result['counts']['fully_correct_matched'] == 1
++    assert result['counts']['labelled_contacts'] == 4
++    assert result['counts']['predicted_contacts'] == 4
++    assert result['counts']['matched_contacts'] == 4
+diff --git a/experiments/annotator/monotrack_benchmark/writeup_scripts/compare_discovery_context.py b/experiments/annotator/monotrack_benchmark/writeup_scripts/compare_discovery_context.py
+index 72d1e047..e78705be 100644
+--- a/experiments/annotator/monotrack_benchmark/writeup_scripts/compare_discovery_context.py
++++ b/experiments/annotator/monotrack_benchmark/writeup_scripts/compare_discovery_context.py
+@@ -1,4 +1,4 @@
+-"""Select discovery training on complete validation rallies, with a separate flaw view."""
++"""Compare discovery configurations on judgeable validation rallies."""
+ 
+ from __future__ import annotations
+ 
+@@ -33,17 +33,14 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
+     contact_endpoint_stream,
+     judge_found_rallies,
+ )
+-from experiments.annotator.monotrack_benchmark.writeup_scripts.validation_label_sensitivity import (
+-    flaw_labels,
+-)
+ 
+ PROTOCOL = {
+     'selection_split': 'validation', 'tolerance_base30': 10,
+     'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
+     'boundary_policy': {'before_seconds': None, 'after_seconds': None},
+-    'primary': 'five-seed mean fully correct rally percentage across all 668 validation rallies',
++    'primary': 'five-seed mean fully correct rally percentage across judgeable validation rallies',
+     'tie_breaks': ['correct-player F1', 'contact F1'],
+-    'flaw_view': 'exclude marked rallies after judgement; retain all contacts and labels during scoring',
++    'exclusions': 'original flaws, missing master rows and repeated players; merge check before exclusion',
+     'boundary_survey_stage': 'discovery output before dataset export',
+ }
+ 
+@@ -54,13 +51,12 @@ class ValidationJob:
+     seed: int
+     video: SearchVideo
+     stream: Path
+-    flagged: frozenset[str]
+     output: Path
+     reuse_contact_counts: Path | None = None
+ 
+ 
+ def score_validation(job: ValidationJob) -> dict:
+-    """Score all labels once, then filter only the rally reporting view."""
++    """Retain all contact labels and exclude unreliable whole-rally judgements."""
+     output = job.output / 'videos' / job.name / f'seed-{job.seed}' / f'{job.video.identity}.json.gz'
+     if output.exists():
+         saved = read_json(output)
+@@ -87,9 +83,8 @@ def score_validation(job: ValidationJob) -> dict:
+     sequences, _events = stream_from_payload(stream)
+     judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps)
+     correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
+-    unflagged = {rally.identity for rally in video.rallies} - job.flagged
+-    counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
+-               'unflagged_rallies': len(unflagged), 'unflagged_fully_correct': len(correct & unflagged)}
++    counts |= {'rallies': sum(rally.judgeable for rally in video.rallies), 'fully_correct': len(correct),
++               'excluded_rallies': sum(not rally.judgeable for rally in video.rallies)}
+     record = {'name': job.name, 'seed': job.seed, 'video': video.identity, 'protocol': PROTOCOL,
+               'stream': str(job.stream.resolve()), 'counts': counts}
+     write_json(output, record)
+@@ -107,10 +102,8 @@ def summarise(records: list[dict]) -> dict:
+             'contact_f1': 200 * totals['matched_contacts'] / denominator,
+             'correct_player_f1': 200 * totals['correct_player_contacts'] / denominator,
+             'fully_correct_percent': 100 * totals['fully_correct'] / totals['rallies'],
+-            'unflagged_fully_correct_percent': 100 * totals['unflagged_fully_correct'] / totals['unflagged_rallies'],
+         })
+-    measures = ('contact_f1', 'correct_player_f1', 'fully_correct', 'fully_correct_percent',
+-                'unflagged_fully_correct', 'unflagged_fully_correct_percent')
++    measures = ('contact_f1', 'correct_player_f1', 'fully_correct', 'fully_correct_percent')
+     return {'per_seed': per_seed,
+             'mean': {measure: float(np.mean([row[measure] for row in per_seed])) for measure in measures}}
+ 
+@@ -138,11 +131,8 @@ def main() -> None:
+     if not args.score_only and len(runs) != 2:
+         parser.error('selection requires both comparison arms')
+     videos = [video for video in load_original_videos(args.shots_master) if video.split == 'validation']
+-    flagged, _windows, mapping = flaw_labels(videos)
+-    population = sum(len(video.rallies) for video in videos)
+-    flagged_count = mapping['rallies_with_flaw_eq_1']
+-    if (population, flagged_count, population - flagged_count) != (668, 314, 354):
+-        raise ValueError(f'Unexpected validation population: {population} total, {flagged_count} marked')
++    population = sum(rally.judgeable for video in videos for rally in video.rallies)
++    flagged_count = sum(not rally.judgeable for video in videos for rally in video.rallies)
+     args.output.mkdir(parents=True, exist_ok=True)
+     write_json(args.output / 'selection_protocol.json.gz', PROTOCOL)
+     jobs = []
+@@ -150,12 +140,11 @@ def main() -> None:
+         for seed in SEEDS:
+             for video in videos:
+                 jobs.append(ValidationJob(name, seed, video, directory / f'seed-{seed}' / f'{video.identity}.json.gz',
+-                                          frozenset(flagged[video.identity]), args.output, args.reuse_contact_counts))
++                                          args.output, args.reuse_contact_counts))
+     with ProcessPoolExecutor(max_workers=args.workers) as executor:
+         records = list(executor.map(score_validation, jobs))
+     comparison = {name: summarise([record for record in records if record['name'] == name]) for name in runs}
+-    result = {'protocol': PROTOCOL, 'rallies': population, 'flagged_rallies': flagged_count,
+-              'unflagged_rallies': population - flagged_count, 'comparison': comparison}
++    result = {'protocol': PROTOCOL, 'rallies': population, 'excluded_rallies': flagged_count, 'comparison': comparison}
+     if not args.score_only:
+         winner = max(comparison, key=lambda name: selection_key(comparison[name]))
+         result['best_validation_coverage'] = winner
+diff --git a/experiments/annotator/monotrack_benchmark/writeup_scripts/confidence_cutoffs.py b/experiments/annotator/monotrack_benchmark/writeup_scripts/confidence_cutoffs.py
+index 6e287ec0..84e82fc6 100644
+--- a/experiments/annotator/monotrack_benchmark/writeup_scripts/confidence_cutoffs.py
++++ b/experiments/annotator/monotrack_benchmark/writeup_scripts/confidence_cutoffs.py
+@@ -46,7 +46,7 @@ ENDPOINT_LIMITS = ContactEndpointLimits(2, 3)
+ def validation_found(
+     validation: Path, shots_master: Path, endpoint_limits: ContactEndpointLimits = ENDPOINT_LIMITS,
+ ) -> tuple[pd.DataFrame, int]:
+-    """Judge fresh validation streams against every labelled development rally."""
++    """Judge validation rallies, retaining unreliable labels only for merge checks."""
+     videos = [video for video in load_original_videos(shots_master) if video.split == 'validation']
+     rows = []
+     for seed in SEEDS:
+@@ -58,9 +58,11 @@ def validation_found(
+                 endpoint_limits=endpoint_limits,
+             )
+             for record in judged:
++                if record['outcome'] == 'unjudgeable_rally':
++                    continue
+                 rows.append({'seed': seed, 'video': video.identity, **record,
+                              'confidence': stream['confidence'][str(record['span_id'])]})
+-    return pd.DataFrame(rows), sum(len(video.rallies) for video in videos)
++    return pd.DataFrame(rows), sum(rally.judgeable for video in videos for rally in video.rallies)
+ 
+ 
+ def attainable_thresholds(found: pd.DataFrame) -> np.ndarray:
+diff --git a/experiments/annotator/monotrack_benchmark/writeup_scripts/metrics.py b/experiments/annotator/monotrack_benchmark/writeup_scripts/metrics.py
+index 3745e481..cc772a98 100644
+--- a/experiments/annotator/monotrack_benchmark/writeup_scripts/metrics.py
++++ b/experiments/annotator/monotrack_benchmark/writeup_scripts/metrics.py
+@@ -195,7 +195,9 @@ def judge_found_rallies(
+         record = {'span_id': sequence.span_id, 'rally_id': None, 'hits': len(frames)}
+         if not supplied:
+             if not frames:
+-                judged.append(record | {'outcome': 'no_contacts'})
++                boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
++                outcome = 'unjudgeable_rally' if boundary.outcome == 'unjudgeable_rally' else 'no_contacts'
++                judged.append(record | {'outcome': outcome})
+                 continue
+             sequence = replace(sequence, start_frame=frames[0], end_frame=frames[-1] + 1)
+         boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
+@@ -237,9 +239,9 @@ def judge_found_rallies(
+ 
+ def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
+     """Count labelled rallies reaching each rung through any one found rally."""
+-    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies}
++    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies if rally.judgeable}
+     for record in judged:
+-        if record['rally_id'] is not None:
++        if record['rally_id'] in best:
+             best[record['rally_id']].add(record['outcome'])
+     return {
+         'boundaries_right': sum(bool(outcomes & BOUNDARY_RIGHT) for outcomes in best.values()),
+@@ -285,6 +287,7 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
+     outside = 0 if supplied else sum(
+         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
+         for event in scored['events'])
++    unjudgeable = sum(record['outcome'] == 'unjudgeable_rally' for record in judged)
+     counts = {
+         'labelled_rallies': len(rally_rows), 'labelled_contacts': len(contacts),
+         'predicted_contacts': len(predictions),
+@@ -294,8 +297,9 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
+         'exact_hits_strict': sum(bool(row['exact_sequence']) for row in rally_rows),
+         'predicted_outside_windows': outside,
+         'ignored_predictions': ignored,
+-        'found_rallies': len(sequences),
+-        'found_rallies_before_ignore': len(unmasked['sequences']),
++        'found_rallies': len(sequences) - unjudgeable,
++        # Subtract the same unjudgeable detections so the difference counts masking only.
++        'found_rallies_before_ignore': len(unmasked['sequences']) - unjudgeable,
+         'boundaries_right_no_allowance': no_allowance,
+         **rally_ladder(judged, labels),
+     }
+diff --git a/experiments/annotator/monotrack_benchmark/writeup_scripts/validation_label_sensitivity.py b/experiments/annotator/monotrack_benchmark/writeup_scripts/validation_label_sensitivity.py
+index 813c0cbd..fcaba8a7 100644
+--- a/experiments/annotator/monotrack_benchmark/writeup_scripts/validation_label_sensitivity.py
++++ b/experiments/annotator/monotrack_benchmark/writeup_scripts/validation_label_sensitivity.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ import argparse
+ import sys
+ from collections.abc import Sequence
++from dataclasses import replace
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -91,7 +92,12 @@ def main() -> None:
+     parser.add_argument('--out', type=Path, required=True, help='output JSON.gz path')
+     args = parser.parse_args()
+ 
+-    videos = [video for video in load_original_videos(args.shots_master) if video.split == 'validation']
++    videos = []
++    for video in load_original_videos(args.shots_master):
++        if video.split == 'validation':
++            # This counterfactual starts with every label, before applying its flaw-only mask.
++            rallies = tuple(replace(rally, judgeable=True, unjudgeable_span=None) for rally in video.rallies)
++            videos.append(replace(video, rallies=rallies))
+     flagged_rallies, windows, label_counts = flaw_labels(videos)
+     clean_labels = {
+         video.identity: tuple(rally for rally in video.rallies
+diff --git a/experiments/annotator/tree_simplification/pools.py b/experiments/annotator/tree_simplification/pools.py
+index 8163f67a..9c5af808 100644
+--- a/experiments/annotator/tree_simplification/pools.py
++++ b/experiments/annotator/tree_simplification/pools.py
+@@ -9,7 +9,7 @@ import sys
+ from collections import Counter
+ from collections.abc import Mapping, Sequence
+ from concurrent.futures import ProcessPoolExecutor, as_completed
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -27,6 +27,10 @@ from threadpoolctl import threadpool_limits
+ from annotator.contacts.model import ContactModelConfig
+ from annotator.sequence.contacts import ContactSequence
+ from annotator.training import rally_targets
++from annotator.training.label_quality import (
++    load_rally_exclusions,
++    mark_unjudgeable_rallies,
++)
+ from annotator.training.sequences import SequenceTrainingVideo
+ from annotator.training.workflow import TrainingSettings
+ from experiments.annotator.tree_simplification.data import PreparedVideo
+@@ -132,9 +136,11 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
+             saved: LabelledOptions = joblib.load(job.reuse_options)
+             if saved.video.identity != job.video or saved.video.group != job.group:
+                 raise ValueError(f'{job.video}: reused proposal identity or group differs')
+-            options = saved
++            rallies = mark_unjudgeable_rallies(saved.video.rallies, int(job.video.removeprefix('sset_')))
++            options = replace(saved, video=replace(saved.video, rallies=rallies))
++            options = replace(options, targets=rally_targets.option_targets(options.video, options.runtime))
+         else:
+-            prepared: PreparedVideo = joblib.load(job.prepared_path)
++            prepared: PreparedVideo = experiment.load_prepared(job.prepared_path.parent.parent, job.video)
+             if prepared.video.identity != job.video or prepared.group != job.group:
+                 raise ValueError(f'{job.video}: prepared identity or group differs from its record')
+             if prepared.video.split != job.split:
+@@ -207,6 +213,7 @@ def prepare_pools(
+         expected = {
+             'schema': SCHEMA, 'prepared': str(prepared_root), 'contact_run': str(contact_run_output),
+             'settings': settings, 'max_edits': max_edits, 'deletion_candidates': deletion_candidates,
++            'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
+         }
+         if original != expected:
+             raise ValueError('Reused validation pools use different preparation or proposal settings')
+@@ -234,6 +241,7 @@ def prepare_pools(
+ 
+     manifest = {
+         'schema': SCHEMA,
++        'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
+         'prepared': str(prepared_root),
+         'contact_run': str(contact_run_output),
+         'settings': settings,
+diff --git a/scripts/build_rally_exclusions.py b/scripts/build_rally_exclusions.py
+new file mode 100644
+index 00000000..db260cba
+--- /dev/null
++++ b/scripts/build_rally_exclusions.py
+@@ -0,0 +1,88 @@
++"""List ShuttleSet rallies with flaws or contacts lost from the shots master.
++
++The original set annotations are the source of the rally population and shot order.
++Each distinct reason gets one row, including for rallies absent from the master.
++"""
++from __future__ import annotations
++
++import argparse
++from pathlib import Path
++
++import pandas as pd
++
++REPO_ROOT = Path(__file__).resolve().parent.parent
++DEFAULT_ORIGINALS = REPO_ROOT / 'data' / 'shuttleset' / 'set'
++DEFAULT_MASTER = REPO_ROOT / 'training' / 'data' / 'shuttleset' / 'annotations' / 'shots_master.csv'
++DEFAULT_OUTPUT = REPO_ROOT / 'data' / 'shuttleset' / 'rally_exclusions.csv.gz'
++KEY_COLUMNS = ['vid', 'set', 'rally']
++OUTPUT_COLUMNS = [*KEY_COLUMNS, 'reason']
++
++
++def load_original_contacts(originals: Path) -> pd.DataFrame:
++    """Read all original contacts before any master filtering."""
++    matches = pd.read_csv(originals / 'match.csv', usecols=['id', 'video'])
++    if matches['id'].duplicated().any():
++        raise ValueError('match.csv contains duplicate video IDs')
++
++    parts = []
++    for match in matches.itertuples(index=False):
++        match_dir = originals / match.video
++        set_paths = sorted(match_dir.glob('set[0-9]*.csv'))
++        if not set_paths:
++            raise FileNotFoundError(f'no set annotations for vid={match.id}: {match_dir}')
++        for set_path in set_paths:
++            set_number = int(set_path.stem.removeprefix('set'))
++            contacts = pd.read_csv(set_path, usecols=['rally', 'ball_round', 'player', 'flaw'])
++            contacts.insert(0, 'set', set_number)
++            contacts.insert(0, 'vid', int(match.id))
++            parts.append(contacts)
++
++    originals_df = pd.concat(parts, ignore_index=True)
++    originals_df[['vid', 'set', 'rally']] = originals_df[KEY_COLUMNS].astype(int)
++    return originals_df
++
++
++def build_exclusions(originals: Path, master_path: Path) -> pd.DataFrame:
++    """Return one row per distinct rally exclusion reason."""
++    contacts = load_original_contacts(originals)
++    master = pd.read_csv(master_path, usecols=['vid', 'set_id', 'rally'])
++    master['set'] = master['set_id'].str.removeprefix('set').astype(int)
++    master[KEY_COLUMNS] = master[KEY_COLUMNS].astype(int)
++
++    original_counts = contacts.groupby(KEY_COLUMNS, sort=False).size().rename('original_rows')
++    master_counts = master.groupby(KEY_COLUMNS).size().rename('master_rows')
++    counts = original_counts.to_frame().join(master_counts).fillna({'master_rows': 0})
++    missing_rows = counts.index[counts['original_rows'] > counts['master_rows']]
++
++    flaw_marked = contacts['flaw'].notna() & contacts['flaw'].astype(str).str.strip().ne('')
++    flawed = contacts.loc[flaw_marked, KEY_COLUMNS].drop_duplicates()
++
++    # A/B identify players throughout a rally, even when their court sides swap later.
++    ordered = contacts.sort_values([*KEY_COLUMNS, 'ball_round'], kind='stable')
++    previous = ordered.groupby(KEY_COLUMNS, sort=False)['player'].shift()
++    same_player = ordered['player'].isin(['A', 'B']) & ordered['player'].eq(previous)
++    repeated = ordered.loc[same_player, KEY_COLUMNS].drop_duplicates()
++
++    parts = [flawed.assign(reason='flaw')]
++    parts.append(missing_rows.to_frame(index=False).assign(reason='missing_master_rows'))
++    parts.append(repeated.assign(reason='consecutive_same_player'))
++    result = pd.concat(parts, ignore_index=True)[OUTPUT_COLUMNS]
++    return result.drop_duplicates().sort_values(OUTPUT_COLUMNS, kind='stable').reset_index(drop=True)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--originals', type=Path, default=DEFAULT_ORIGINALS)
++    parser.add_argument('--master', type=Path, default=DEFAULT_MASTER)
++    parser.add_argument('--output', type=Path, default=DEFAULT_OUTPUT)
++    arguments = parser.parse_args()
++
++    exclusions = build_exclusions(arguments.originals, arguments.master)
++    arguments.output.parent.mkdir(parents=True, exist_ok=True)
++    exclusions.to_csv(arguments.output, index=False, compression={'method': 'gzip', 'mtime': 0})
++    print(f'Wrote {len(exclusions)} reasons for {exclusions[KEY_COLUMNS].drop_duplicates().shape[0]} rallies '
++          f'to {arguments.output}')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/src/annotator/training/label_quality.py b/src/annotator/training/label_quality.py
+new file mode 100644
+index 00000000..836e4c7b
+--- /dev/null
++++ b/src/annotator/training/label_quality.py
+@@ -0,0 +1,50 @@
++"""Rallies whose contact labels cannot support whole-rally supervision."""
++
++import csv
++import gzip
++from dataclasses import replace
++from functools import cache
++from pathlib import Path
++
++from annotator.training.sequences import LabelledRally
++
++RALLY_EXCLUSIONS = Path(__file__).resolve().parents[3] / 'data/shuttleset/rally_exclusions.csv.gz'
++ORIGINAL_SETS = RALLY_EXCLUSIONS.parent / 'set'
++
++
++@cache
++def load_rally_exclusions(path: Path = RALLY_EXCLUSIONS) -> frozenset[tuple[int, str]]:
++    """Read the original ShuttleSet video and set:rally keys, retaining all reasons on disk."""
++    with gzip.open(path, 'rt', newline='') as handle:
++        return frozenset((int(row['vid']), f"set{int(row['set'])}:{int(row['rally'])}")
++                         for row in csv.DictReader(handle))
++
++
++def mark_unjudgeable_rallies(rallies: tuple[LabelledRally, ...], video_id: int) -> tuple[LabelledRally, ...]:
++    """Attach whole-rally reliability without removing any contact supervision."""
++    spans = unjudgeable_spans()
++    return tuple(replace(rally, judgeable=(video_id, rally.identity) not in spans,
++                         unjudgeable_span=spans.get((video_id, rally.identity))) for rally in rallies)
++
++
++@cache
++def unjudgeable_spans() -> dict[tuple[int, str], tuple[int, int]]:
++    """Read original contact extents without restoring dropped contact targets."""
++    exclusions = load_rally_exclusions()
++    spans = {}
++    with (ORIGINAL_SETS / 'match.csv').open(newline='') as handle:
++        matches = list(csv.DictReader(handle))
++    for match in matches:
++        video = int(match['id'])
++        for path in sorted((ORIGINAL_SETS / match['video']).glob('set*.csv')):
++            with path.open(newline='') as handle:
++                for row in csv.DictReader(handle):
++                    key = (video, f"{path.stem}:{int(row['rally'])}")
++                    if key not in exclusions:
++                        continue
++                    frame = int(float(row['frame_num']))
++                    first, last = spans.get(key, (frame, frame + 1))
++                    spans[key] = (min(first, frame), max(last, frame + 1))
++    if set(spans) != exclusions:
++        raise ValueError('Rally exclusions do not match the original ShuttleSet annotations')
++    return spans
+diff --git a/src/annotator/training/rally_targets.py b/src/annotator/training/rally_targets.py
+index 3e297e41..29e436d0 100644
+--- a/src/annotator/training/rally_targets.py
++++ b/src/annotator/training/rally_targets.py
+@@ -7,6 +7,7 @@ from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_ch
+ from annotator.sequence.rally_options import RallyOptions, sequence_key
+ from annotator.training.sequences import (
+     SequenceTrainingVideo,
++    rally_overlaps,
+     whole_rally_correctness,
+ )
+ 
+@@ -45,7 +46,7 @@ def option_targets(
+         label_start = min(sequence.start_frame for sequence in ordered) - padding - tolerance
+         label_end = max(sequence.end_frame for sequence in ordered) + padding + tolerance + 1
+         rallies = tuple(
+-            rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
++            rally for rally in video.rallies if rally_overlaps(rally, label_start, label_end)
+         )
+         for row in rows:
+             finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
+diff --git a/src/annotator/training/sequences.py b/src/annotator/training/sequences.py
+index e535953a..e0cf6876 100644
+--- a/src/annotator/training/sequences.py
++++ b/src/annotator/training/sequences.py
+@@ -18,6 +18,8 @@ class LabelledRally:
+     identity: str
+     frames: tuple[int, ...]
+     sides: tuple[Half | None, ...]
++    judgeable: bool = True
++    unjudgeable_span: tuple[int, int] | None = None
+ 
+     def __post_init__(self) -> None:
+         if len(self.frames) != len(self.sides) or tuple(sorted(self.frames)) != self.frames:
+@@ -158,11 +160,19 @@ def match_contacts(
+     return matches
+ 
+ 
++def rally_overlaps(rally: LabelledRally, start: int, end: int) -> bool:
++    """Use the full original extent of unreliable rallies, including dropped hits."""
++    if not rally.judgeable:
++        first, last = rally.unjudgeable_span or (rally.frames[0], rally.frames[-1] + 1)
++        return start < last and first < end
++    return any(start <= frame < end for frame in rally.frames)
++
++
+ def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
+     """Find labelled rallies with any contact inside a half-open sequence."""
+     return tuple(
+         rally for rally in rallies
+-        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
++        if rally_overlaps(rally, sequence.start_frame, sequence.end_frame)
+     )
+ 
+ 
+@@ -172,13 +182,13 @@ def whole_rally_correctness(
+ ) -> int:
+     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
+ 
+-    Missing contacts, merged/partial rallies, extra events and known side
+-    contradictions are wrong even when another human side label is unavailable.
++    Merged rallies are wrong even when their labels are unreliable. A single
++    unreliable rally is unjudgeable, including partial or incomplete detections.
+     """
+     boundary = judge_rally_boundaries(
+         sequence, rallies, tolerance=scale_frames(tolerance_at_30_fps, fps),
+     )
+-    if boundary.outcome == 'no_labelled_rally':
++    if boundary.outcome in ('no_labelled_rally', 'unjudgeable_rally'):
+         return -1
+     if boundary.outcome != 'boundaries_right':
+         return 0
+@@ -211,12 +221,14 @@ def judge_rally_boundaries(
+     end = sequence.end_frame + tolerance
+     overlaps = overlapping_rallies(sequence, rallies)
+     if not overlaps:
+-        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
++        overlaps = tuple(rally for rally in rallies if rally_overlaps(rally, start, end))
+     if not overlaps:
+         return RallyBoundaryJudgement('no_labelled_rally', None, 0)
+     if len(overlaps) > 1:
+         return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
+     rally = overlaps[0]
++    if not rally.judgeable:
++        return RallyBoundaryJudgement('unjudgeable_rally', rally, 1)
+     first, last = rally.frames[0], rally.frames[-1]
+     if not start <= first or not last < end:
+         return RallyBoundaryJudgement('part_of_rally', rally, 1)
+diff --git a/src/annotator/training/workflow.py b/src/annotator/training/workflow.py
+index 992c1ed6..a5a572d3 100644
+--- a/src/annotator/training/workflow.py
++++ b/src/annotator/training/workflow.py
+@@ -167,7 +167,7 @@ def videos_for_split(manifest: TrainingManifest, split: Split) -> tuple[VideoInp
+ 
+ 
+ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
+-    """Read rally_id,frame,side CSV rows, grouped by rally and increasing in frame.
++    """Read rally_id,frame,side rows with an optional whole-rally judgeable flag.
+ 
+     Empty sides remain unknown. Each rally must occupy one contiguous CSV block.
+     All frames must lie inside the source video timeline.
+@@ -177,24 +177,32 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
+     current = None
+     frames: list[int] = []
+     sides: list[Half | None] = []
++    judgeable = True
+     with path.open(newline='') as handle:
+         reader = csv.DictReader(handle)
+         expected_columns = {'rally_id', 'frame', 'side'}
+-        if reader.fieldnames is None or len(reader.fieldnames) != 3 or set(reader.fieldnames) != expected_columns:
+-            raise ValueError(f'{path}: labels need rally_id,frame,side columns')
++        columns = set(reader.fieldnames or ())
++        if columns not in (expected_columns, expected_columns | {'judgeable'}) or len(reader.fieldnames or ()) != len(columns):
++            raise ValueError(f'{path}: labels need rally_id,frame,side and optionally judgeable columns')
+         for line, row in enumerate(reader, start=2):
+             if None in row or any(value is None for value in row.values()):
+                 raise ValueError(f'{path}:{line}: label row has the wrong column count')
+             identity = row['rally_id'].strip()
+             if not identity:
+                 raise ValueError(f'{path}:{line}: rally_id is empty')
++            flag = row.get('judgeable', '1').strip()
++            if flag not in ('0', '1'):
++                raise ValueError(f'{path}:{line}: judgeable must be 0 or 1')
+             if identity != current:
+                 if identity in seen:
+                     raise ValueError(f'{path}:{line}: rally rows must form a contiguous block')
+                 if current is not None:
+-                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
++                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides), judgeable=judgeable))
+                 seen.add(identity)
+                 current, frames, sides = identity, [], []
++                judgeable = flag == '1'
++            elif judgeable != (flag == '1'):
++                raise ValueError(f'{path}:{line}: judgeable must be constant within a rally')
+             try:
+                 frame = int(row['frame'])
+                 side_text = row['side'].strip()
+@@ -208,7 +216,7 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
+             frames.append(frame)
+             sides.append(side)
+     if current is not None:
+-        rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
++        rallies.append(LabelledRally(current, tuple(frames), tuple(sides), judgeable=judgeable))
+     return tuple(rallies)
+ 
+ 
+diff --git a/tests/test_build_rally_exclusions.py b/tests/test_build_rally_exclusions.py
+new file mode 100644
+index 00000000..fcb4485d
+--- /dev/null
++++ b/tests/test_build_rally_exclusions.py
+@@ -0,0 +1,87 @@
++"""The exclusions use every original rally and keep independent reasons."""
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++import pandas as pd
++
++from scripts.build_rally_exclusions import build_exclusions, main
++
++
++def write_fixture(tmp_path: Path) -> tuple[Path, Path]:
++    originals = tmp_path / 'set'
++    originals.mkdir()
++    pd.DataFrame([
++        {'id': 1, 'video': 'first'},
++        {'id': 2, 'video': 'second'},
++    ]).to_csv(originals / 'match.csv', index=False)
++
++    first = originals / 'first'
++    first.mkdir()
++    pd.DataFrame([
++        # The file order differs from ball_round order. A hits twice in sequence.
++        {'rally': 1, 'ball_round': 3, 'player': 'A', 'flaw': ''},
++        {'rally': 1, 'ball_round': 1, 'player': 'B', 'flaw': '1'},
++        {'rally': 1, 'ball_round': 2, 'player': 'A', 'flaw': ''},
++        # An unknown player interrupts the pair of A contacts.
++        {'rally': 2, 'ball_round': 1, 'player': 'A', 'flaw': ''},
++        {'rally': 2, 'ball_round': 2, 'player': '', 'flaw': ''},
++        {'rally': 2, 'ball_round': 3, 'player': 'A', 'flaw': ''},
++        # This original rally is wholly absent from the master.
++        {'rally': 3, 'ball_round': 1, 'player': 'A', 'flaw': ''},
++        {'rally': 3, 'ball_round': 2, 'player': 'B', 'flaw': ''},
++        # The lost contact has no flaw mark.
++        {'rally': 4, 'ball_round': 1, 'player': 'A', 'flaw': ''},
++        {'rally': 4, 'ball_round': 2, 'player': 'B', 'flaw': ''},
++    ]).to_csv(first / 'set1.csv', index=False)
++
++    second = originals / 'second'
++    second.mkdir()
++    pd.DataFrame([
++        {'rally': 1, 'ball_round': 1, 'player': 'B', 'flaw': ''},
++        {'rally': 1, 'ball_round': 2, 'player': 'B', 'flaw': ''},
++    ]).to_csv(second / 'set2.csv', index=False)
++
++    master = tmp_path / 'shots_master.csv'
++    pd.DataFrame([
++        {'vid': 1, 'set_id': 'set1', 'rally': 1},
++        {'vid': 1, 'set_id': 'set1', 'rally': 1},
++        {'vid': 1, 'set_id': 'set1', 'rally': 2},
++        {'vid': 1, 'set_id': 'set1', 'rally': 2},
++        {'vid': 1, 'set_id': 'set1', 'rally': 2},
++        {'vid': 1, 'set_id': 'set1', 'rally': 4},
++    ]).to_csv(master, index=False)
++    return originals, master
++
++
++def test_build_exclusions_preserves_all_original_rallies_and_reasons(tmp_path: Path) -> None:
++    originals, master = write_fixture(tmp_path)
++
++    actual = set(build_exclusions(originals, master).itertuples(index=False, name=None))
++
++    assert actual == {
++        (1, 1, 1, 'flaw'),
++        (1, 1, 1, 'missing_master_rows'),
++        (1, 1, 1, 'consecutive_same_player'),
++        (1, 1, 3, 'missing_master_rows'),
++        (1, 1, 4, 'missing_master_rows'),
++        (2, 2, 1, 'missing_master_rows'),
++        (2, 2, 1, 'consecutive_same_player'),
++    }
++
++
++def test_cli_writes_gzip_csv_with_requested_paths(tmp_path: Path, monkeypatch) -> None:
++    originals, master = write_fixture(tmp_path)
++    output = tmp_path / 'nested' / 'exclusions.csv.gz'
++    monkeypatch.setattr(sys, 'argv', [
++        'build_rally_exclusions', '--originals', str(originals),
++        '--master', str(master), '--output', str(output),
++    ])
++
++    main()
++
++    assert output.read_bytes().startswith(b'\x1f\x8b')
++    written = pd.read_csv(output)
++    assert list(written.columns) == ['vid', 'set', 'rally', 'reason']
++    assert len(written) == 7
+diff --git a/tests/test_discovery_context_comparison.py b/tests/test_discovery_context_comparison.py
+index 5c50716d..1569b7df 100644
+--- a/tests/test_discovery_context_comparison.py
++++ b/tests/test_discovery_context_comparison.py
+@@ -80,14 +80,14 @@ def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path
+     path = tmp_path / 'stream.json.gz'
+     write_json(path, stream)
+     video = SearchVideo('video', 'test', 'validation', 30, (1920, 1080), labels)
+-    job = ValidationJob('5_5', 0, video, path, frozenset(('second',)), tmp_path / 'original')
++    job = ValidationJob('5_5', 0, video, path, tmp_path / 'original')
+     full = score_validation(job)
+     assert full['counts']['fully_correct'] == 1
+-    assert full['counts']['unflagged_fully_correct'] == 1
++    assert full['counts']['rallies'] == 2
+     assert full['counts']['predicted_contacts'] == 3
+     assert full['counts']['matched_contacts'] == 2
+     cached = job.output / 'videos/5_5/seed-0/video.json.gz'
+-    write_json(cached, full | {'counts': full['counts'] | {'fully_correct': 0, 'unflagged_fully_correct': 0}})
++    write_json(cached, full | {'counts': full['counts'] | {'fully_correct': 0}})
+     reused = score_validation(replace(job, output=tmp_path / 'reused', reuse_contact_counts=job.output))
+     assert reused['counts'] == full['counts']
+ 
+diff --git a/tests/test_tree_simplification_contact_folds.py b/tests/test_tree_simplification_contact_folds.py
+index 37d8e243..114b6f67 100644
+--- a/tests/test_tree_simplification_contact_folds.py
++++ b/tests/test_tree_simplification_contact_folds.py
+@@ -10,6 +10,7 @@ import numpy as np
+ import pytest
+ 
+ from annotator.training.contact import ContactFitConfig
++from annotator.training.label_quality import load_rally_exclusions
+ from experiments.annotator import development as experiment
+ from experiments.annotator.tree_simplification import contact_folds, pools
+ 
+@@ -46,13 +47,14 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
+     manifest = {
+         'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
+         'max_edits': 3, 'deletion_candidates': 6,
++        'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
+     }
+     experiment.write_json(original / 'pools.json.gz', manifest)
+     (prepared / 'videos').mkdir()
+     (original / 'videos').mkdir()
+     for identity, group in groups.items():
+         split = 'validation' if group == 'V' else 'train'
+-        video = SimpleNamespace(identity=identity, split=split, fps=30.0,
++        video = SimpleNamespace(identity=identity, dataset='fixture', split=split, fps=30.0,
+                                 rallies=(SimpleNamespace(frames=(30, 10)),))
+         joblib.dump(SimpleNamespace(video=video, group=group, features=SimpleNamespace(rows=np.zeros(2))),
+                     prepared / 'videos' / f'{identity}.joblib')
+diff --git a/tests/test_tree_simplification_pools.py b/tests/test_tree_simplification_pools.py
+index 362d096b..87533d6e 100644
+--- a/tests/test_tree_simplification_pools.py
++++ b/tests/test_tree_simplification_pools.py
+@@ -10,6 +10,7 @@ from annotator.outcomes.point_winner import Half
+ from annotator.sequence.contacts import ContactEvent, ContactSequence
+ from annotator.sequence.repairs import RallyRepairs
+ from annotator.training.sequences import (
++    LabelledRally,
+     SequenceTrainingVideo,
+ )
+ from experiments.annotator.tree_simplification import pools
+@@ -109,18 +110,23 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
+     assert '--only' in help_text
+ 
+ 
+-def test_reusing_options_keeps_saved_features_and_targets(tmp_path: Path) -> None:
++def test_reusing_options_keeps_features_and_refreshes_targets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+     saved = example_pool()
++    rally = LabelledRally('first', (10, 20), (Half.TOP, Half.BOT))
++    saved = replace(saved, video=replace(saved.video, identity='sset_01', rallies=(rally,)))
++    monkeypatch.setattr('annotator.training.label_quality.unjudgeable_spans', lambda: {(1, 'first'): (10, 21)})
+     source = tmp_path / 'source.joblib'
+     joblib.dump(saved, source)
+     output = tmp_path / 'reused'
+-    job = pools.PoolJob('fixture', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 3, 6,
++    job = pools.PoolJob('sset_01', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 3, 6,
+                        source)
+ 
+     pools._prepare_pool(job)
+ 
+-    actual = joblib.load(output / 'videos/fixture.joblib')
++    actual = joblib.load(output / 'videos/sset_01.joblib')
+     assert actual.sequences == saved.sequences
+-    assert actual.video.rallies == saved.video.rallies
++    assert actual.video.rallies[0].frames == saved.video.rallies[0].frames
++    assert not actual.video.rallies[0].judgeable
+     np.testing.assert_array_equal(actual.matrix, saved.matrix)
+-    np.testing.assert_array_equal(actual.targets, saved.targets)
++    assert saved.targets[0] == 1
++    assert actual.targets[0] == -1
+diff --git a/tests/test_unjudgeable_rallies.py b/tests/test_unjudgeable_rallies.py
+new file mode 100644
+index 00000000..1da73199
+--- /dev/null
++++ b/tests/test_unjudgeable_rallies.py
+@@ -0,0 +1,82 @@
++"""Unreliable rally labels must not change individual-contact assessment."""
++
++from dataclasses import replace
++from pathlib import Path
++
++import pandas as pd
++import pytest
++
++from annotator.outcomes.point_winner import Half
++from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
++from annotator.training.sequences import LabelledRally, whole_rally_correctness
++from annotator.training.workflow import load_labels
++from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
++    score_video,
++)
++from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
++
++
++@pytest.mark.parametrize('frames', [(100, 130), (100,), (110, 115, 120)])
++def test_unreliable_rally_abstains_before_contact_or_boundary_errors(frames: tuple[int, ...]) -> None:
++    rally = LabelledRally('first', (100, 130), (Half.TOP, Half.BOT), judgeable=False)
++    events = tuple(ContactEvent(frame, .8, Half.TOP) for frame in frames)
++    sequence = ContactSequence(0, 90, 121, events)
++    assert whole_rally_correctness(sequence, (rally,), 30) == -1
++    assert metrics.judge_found_rallies((sequence,), (rally,), 10, fps=30, supplied=True)[0]['outcome'] == (
++        'unjudgeable_rally'
++    )
++
++
++def test_merged_rallies_remain_wrong_when_one_or_both_are_unreliable() -> None:
++    first = LabelledRally('first', (100, 130), (Half.TOP, Half.BOT), judgeable=False)
++    second = LabelledRally('second', (200, 230), (Half.TOP, Half.BOT))
++    sequence = ContactSequence(0, 90, 240, ())
++    for neighbour in (second, replace(second, judgeable=False)):
++        assert whole_rally_correctness(sequence, (first, neighbour), 30) == 0
++
++
++def test_rally_exclusion_preserves_contact_rows_and_matching() -> None:
++    rally = LabelledRally('first', (100, 130), (Half.TOP, Half.BOT))
++    events = (ContactEvent(100, .8, Half.TOP), ContactEvent(130, .8, Half.BOT))
++    stream = stream_payload((ContactSequence(0, 90, 140, events),), events)
++    original = score_video('fixture', 'validation', stream, (rally,), 30, 10)
++    excluded = score_video('fixture', 'validation', stream, (replace(rally, judgeable=False),), 30, 10)
++    assert original[1:3] == excluded[1:3]
++    assert len(original[3]) == 1
++    assert excluded[3] == []
++    assert excluded[0][0]['outcome'] == 'unknown'
++
++
++@pytest.mark.parametrize('events', [(), (ContactEvent(100, .8, Half.TOP),)])
++def test_original_extent_excludes_dropped_endpoints_and_empty_detections(events: tuple) -> None:
++    rally = LabelledRally('first', (130, 160), (Half.TOP, Half.BOT), judgeable=False, unjudgeable_span=(90, 201))
++    sequence = ContactSequence(0, 95, 111, events)
++    assert whole_rally_correctness(sequence, (rally,), 30) == -1
++    assert metrics.judge_found_rallies((sequence,), (rally,), 10, fps=30)[0]['outcome'] == 'unjudgeable_rally'
++    between = ContactSequence(0, 140, 145, ())
++    assert whole_rally_correctness(between, (rally,), 30) == -1
++
++
++def test_label_csv_can_mark_a_whole_rally_without_losing_contacts(tmp_path: Path) -> None:
++    labels = tmp_path / 'labels.csv'
++    labels.write_text('rally_id,frame,side,judgeable\nfirst,100,Top,0\nfirst,130,Bot,0\n')
++    assert load_labels(labels, 200) == (LabelledRally('first', (100, 130), (Half.TOP, Half.BOT), judgeable=False),)
++    labels.write_text('rally_id,frame,side,judgeable\nfirst,100,Top,0\nfirst,130,Bot,1\n')
++    with pytest.raises(ValueError, match='constant within a rally'):
++        load_labels(labels, 200)
++
++
++def test_unjudgeable_detections_are_not_counted_as_masked(monkeypatch: pytest.MonkeyPatch) -> None:
++    rallies = (LabelledRally('first', (100, 130), (Half.TOP, Half.BOT), judgeable=False),
++               LabelledRally('second', (200, 230), (Half.TOP, Half.BOT)))
++    spans = [{'span_id': 0, 'start_frame': 90, 'end_frame': 141},
++             {'span_id': 1, 'start_frame': 190, 'end_frame': 241}]
++    events = (ContactEvent(100, .8, Half.TOP), ContactEvent(130, .8, Half.BOT),
++              ContactEvent(200, .8, Half.TOP), ContactEvent(230, .8, Half.BOT))
++    sequences = (ContactSequence(0, 90, 141, events[:2]), ContactSequence(1, 190, 241, events[2:]))
++    monkeypatch.setattr(metrics, 'labels_for_item', lambda _item: rallies)
++    counts, _ = metrics.score_stream_for_item({'item_id': 'fixture', 'fps': 30, 'spans': spans},
++                                             stream_payload(sequences, events), 10, [], supplied=True)
++    assert counts['found_rallies'] == counts['found_rallies_before_ignore'] == 1
++    assert metrics.rates(pd.Series(counts))['ignored_found_rallies'] == 0
++    assert counts['labelled_contacts'] == counts['matched_contacts'] == 4
+diff --git a/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reused_pools.py b/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reused_pools.py
+new file mode 100644
+--- /dev/null
++++ b/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reused_pools.py
+@@ -0,0 +1,53 @@
++"""Convert the saved no-max pools once, retaining evidence and refreshing labels."""
++
++import argparse
++from concurrent.futures import ProcessPoolExecutor
++from pathlib import Path
++
++from annotator.training import sequences
++from annotator.training.label_quality import load_rally_exclusions
++from experiments.annotator.development import read_json, write_json
++from experiments.annotator.tree_simplification.pools import SCHEMA, PoolJob, _prepare_pool
++
++
++# Only this one-off reader opens the retired boundary-policy pickle. Replacing
++# the dataclasses below discards the retired field before writing current pools.
++class RetiredBoundaryPolicy:
++    pass
++
++
++setattr(sequences, 'RallyBoundaryPolicy', RetiredBoundaryPolicy)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--source', type=Path, required=True)
++    parser.add_argument('--output', type=Path, required=True)
++    parser.add_argument('--workers', type=int, default=28)
++    args = parser.parse_args()
++    jobs = []
++    for source in sorted(args.source.glob('test-run/candidates/*/seed-*/pools')):
++        output = args.output / source.relative_to(args.source)
++        old = read_json(source / 'pools.json.gz')
++        assert old['schema'] == 'tree-simplification-option-pools/1'
++        assert old['boundary_policy'] == {'before_seconds': None, 'after_seconds': None}
++        manifest = {key: old[key] for key in ('prepared', 'contact_run', 'settings', 'max_edits', 'deletion_candidates')}
++        manifest.update(schema=SCHEMA, unjudgeable_rallies=sorted([vid, rally] for vid, rally in load_rally_exclusions()))
++        output.mkdir(parents=True, exist_ok=True)
++        write_json(output / 'pools.json.gz', manifest)
++        for path in sorted((source / 'videos').glob('*.joblib')):
++            destination = output / 'videos' / path.name
++            if destination.exists() and destination.with_suffix('.json.gz').exists():
++                continue
++            record = read_json(path.with_suffix('.json.gz'))
++            jobs.append(PoolJob(path.stem, record['group'], record['split'],
++                                Path(old['prepared']) / 'videos' / path.name, Path('unused'), output,
++                                old['settings']['contact_prediction'], old['max_edits'], old['deletion_candidates'], path))
++    print(f'Refreshing {len(jobs)} cached pools with {args.workers} workers', flush=True)
++    with ProcessPoolExecutor(max_workers=args.workers) as executor:
++        for number, summary in enumerate(executor.map(_prepare_pool, jobs), 1):
++            print(f'{number}/{len(jobs)} {summary["video"]}: {summary["options"]} options', flush=True)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reporting.py b/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reporting.py
+new file mode 100644
+--- /dev/null
++++ b/experiments/annotator/exclude_flaw_rallies_from_train/prepare_reporting.py
+@@ -0,0 +1,44 @@
++"""Reuse validation exports and the existing 40-video contact trees."""
++
++import argparse
++from dataclasses import replace
++from pathlib import Path
++
++from annotator.models import load_models, save_models
++from experiments.annotator.monotrack_benchmark.writeup_scripts.annotator_batch_runs import BatchPaths, prepare_run_policy
++
++
++def link(source: Path, destination: Path) -> None:
++    destination.parent.mkdir(parents=True, exist_ok=True)
++    if destination.exists():
++        assert destination.resolve() == source.resolve()
++    else:
++        destination.symlink_to(source, target_is_directory=True)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--run', type=Path, required=True)
++    args = parser.parse_args()
++    run = args.run.resolve()
++    training = run / 'training'
++    models_40 = run / 'reporting/models_40'
++    aliases = run / 'reporting/training'
++    predictions = run / 'reporting/annotator_runs'
++    link(training, aliases / 'no_max')
++    prepare_run_policy(BatchPaths(aliases, models_40, predictions, {}, ('no_max',)), 'no_max')
++    old = Path('experiments/annotator/tree_simplification/results/discovery_context/no_max')
++    for seed in (0, 100, 200, 300, 400):
++        models = load_models(training / 'models' / f'raw_baseline-seed-{seed}')
++        previous = load_models(old / 'models_40' / f'seed-{seed}')
++        assert (models.preprocessing, models.contact_settings, models.side_geometry) == (
++            previous.preprocessing, previous.contact_settings, previous.side_geometry)
++        save_models(replace(models, contact=previous.contact), models_40 / 'no_max' / f'seed-{seed}')
++        streams = training / f'test-run/candidates/raw_baseline/seed-{seed}/export/streams'
++        assert len(list(streams.glob('sset_*.json.gz'))) == 8
++        link(streams, predictions / 'no_max/validation/32_videos' / f'seed-{seed}')
++    print('Reused 40 validation streams and five 40-video contact trees.', flush=True)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/experiments/annotator/exclude_flaw_rallies_from_train/score_results.py b/experiments/annotator/exclude_flaw_rallies_from_train/score_results.py
+new file mode 100644
+--- /dev/null
++++ b/experiments/annotator/exclude_flaw_rallies_from_train/score_results.py
+@@ -0,0 +1,97 @@
++"""Score new annotator predictions and reuse unchanged benchmark reference results."""
++
++import argparse
++import json
++import shutil
++from concurrent.futures import ProcessPoolExecutor
++from pathlib import Path
++
++import pandas as pd
++
++from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import load_manifest, read_json, write_json
++from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
++
++CONDITIONS = {
++    'annotator_our_courts': ('our_courts/32_videos', True),
++    'annotator_monotrack_courts': ('monotrack_courts/32_videos', True),
++    'annotator40_our_courts': ('our_courts/40_videos', True),
++    'annotator40_monotrack_courts': ('monotrack_courts/40_videos', True),
++    'annotator_body_window_36_our_courts': ('our_courts/body_window_36', True),
++    'annotator_discovery': ('discovery/32_videos', False),
++    'annotator40_discovery': ('discovery/40_videos', False),
++}
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--predictions', type=Path, required=True)
++    parser.add_argument('--baseline', type=Path, required=True)
++    parser.add_argument('--out', type=Path, required=True)
++    parser.add_argument('--workers', type=int, default=28)
++    args = parser.parse_args()
++    if not args.out.exists():
++        shutil.copytree(args.baseline, args.out)
++    summary = json.loads((args.baseline / 'contact_summary.json').read_text())['summary']
++    items = load_manifest(metrics.INPUTS)['items']
++    windows = {key: metrics.left_out_windows(rallies) for key, rallies in metrics.test_left_out().items()}
++    per_video = {}
++    with ProcessPoolExecutor(max_workers=args.workers) as executor:
++        for name, (relative, supplied) in CONDITIONS.items():
++            runs = []
++            for seed in metrics.SEEDS:
++                cache = args.out / 'cache' / name / f'seed-{seed}.json.gz'
++                if cache.exists():
++                    stored = read_json(cache)
++                else:
++                    root = args.predictions / 'test' / relative / f'seed-{seed}'
++                    tasks = []
++                    for item in items:
++                        result = read_json(root / f'{item["item_id"]}.json.gz')
++                        stream = result['stream'] if supplied else result
++                        for tolerance in metrics.TOLERANCES:
++                            tasks.append((item, stream, tolerance, windows[item['item_id']], supplied))
++                    rows, found = [], []
++                    for task, (counts, judged) in zip(tasks, executor.map(metrics.score_task, tasks), strict=True):
++                        item, _, tolerance, _, _ = task
++                        rows.append({'video': int(item['video_id']), 'tolerance': tolerance, **counts})
++                        if tolerance == 10:
++                            found.extend(row | {'video': int(item['video_id'])} for row in judged)
++                    stored = {'per_video': rows, 'found': found}
++                    write_json(cache, stored)
++                run = {key: pd.DataFrame(value) for key, value in stored.items()}
++                scores = args.predictions / 'test' / relative / f'seed-{seed}/scores.json.gz'
++                metrics.check_against_saved(name, run['per_video'], read_json(scores))
++                runs.append(run)
++                if not supplied:
++                    run['found'].to_csv(args.out / f'found_rallies_{name}_seed{seed}.csv.gz', index=False)
++                print(f'{name}/seed-{seed} scored', flush=True)
++            condition = {'name': name, 'supplied': supplied, 'runs': runs}
++            summary[name] = metrics.summarise(condition)
++            per_video[name] = metrics.per_video_mean(condition)
++            per_video[name].to_csv(args.out / f'per_video_{name}.csv')
++            if name == 'annotator_discovery':
++                curves = metrics.confidence_curve(condition, 3327)
++                for seed, frame in zip(metrics.SEEDS, curves['runs'], strict=True):
++                    frame.to_csv(args.out / f'confidence_curve_seed{seed}.csv', index=False)
++    for name in ('monotrack_own_courts', 'monotrack_our_courts', 'heuristic_our_courts'):
++        per_video[name] = pd.read_csv(args.baseline / f'per_video_{name}.csv', index_col='video')
++    pairs = {
++        'annotator_minus_monotrack_own_courts': ('annotator_our_courts', 'monotrack_own_courts'),
++        'annotator_minus_monotrack_on_monotrack_courts': ('annotator_monotrack_courts', 'monotrack_own_courts'),
++        'annotator_own_minus_monotrack_courts': ('annotator_our_courts', 'annotator_monotrack_courts'),
++        'monotrack_own_minus_our_courts': ('monotrack_own_courts', 'monotrack_our_courts'),
++        'heuristic_minus_monotrack_own_courts': ('heuristic_our_courts', 'monotrack_own_courts'),
++    }
++    paired = {name: metrics.paired_bootstrap(per_video[first], per_video[second])
++              for name, (first, second) in pairs.items()}
++    (args.out / 'contact_summary.json').write_text(json.dumps({'summary': summary, 'paired': paired}, indent=1))
++    write_json(args.out / 'evaluation-policy.json.gz', {
++        'training_labels': 'whole-rally exclusions; all contacts retained',
++        'boundary_basis': metrics.DISCOVERY_BOUNDARY_BASIS,
++        'boundary_policy': {'before_seconds': None, 'after_seconds': None},
++    })
++    print('All seven annotator conditions scored; reference systems reused.', flush=True)
++
++
++if __name__ == '__main__':
++    main()

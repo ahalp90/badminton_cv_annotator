@@ -12,7 +12,7 @@ from experiments.annotator.good_court_refit.compare import (
 
 def stream(events: list[list]) -> dict:
     return {'events': events, 'sequences': [
-        {'span_id': 0, 'start_frame': 0, 'end_frame': 200, 'events': events},
+        {'span_id': 0, 'start_frame': 0, 'end_frame': 110, 'events': events},
     ]}
 
 

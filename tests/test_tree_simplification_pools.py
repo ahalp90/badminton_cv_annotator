@@ -2,13 +2,16 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import joblib
 import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    SequenceTrainingVideo,
+)
 from experiments.annotator.tree_simplification import pools
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
@@ -94,6 +97,7 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
         'only': 'fixture',
         'max_edits': 2,
         'deletion_candidates': 4,
+        'reuse_options': None,
     }
 
     with pytest.raises(SystemExit) as error:
@@ -103,3 +107,20 @@ def test_cli_wires_pool_arguments_and_help(monkeypatch: pytest.MonkeyPatch, caps
     assert '--prepared' in help_text
     assert '--contact-run' in help_text
     assert '--only' in help_text
+
+
+def test_reusing_options_keeps_saved_features_and_targets(tmp_path: Path) -> None:
+    saved = example_pool()
+    source = tmp_path / 'source.joblib'
+    joblib.dump(saved, source)
+    output = tmp_path / 'reused'
+    job = pools.PoolJob('fixture', 'A', 'train', tmp_path / 'unused', tmp_path / 'unused', output, {}, 3, 6,
+                       source)
+
+    pools._prepare_pool(job)
+
+    actual = joblib.load(output / 'videos/fixture.joblib')
+    assert actual.sequences == saved.sequences
+    assert actual.video.rallies == saved.video.rallies
+    np.testing.assert_array_equal(actual.matrix, saved.matrix)
+    np.testing.assert_array_equal(actual.targets, saved.targets)

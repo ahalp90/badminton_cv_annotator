@@ -194,7 +194,7 @@ def compare_runs(before: Path, after: Path) -> dict[str, Any]:
 
 def main() -> None:
     heuristic_one_second = RESULTS / 'known_our_courts'
-    full_one_second = BENCHMARK / 'comparison' / 'ours_our_courts'
+    full_one_second = BENCHMARK.parent / 'archive' / 'results' / 'comparison' / 'ours_our_courts'
     report = {
         'RESULTS: heuristic discovered sequences': boundary_failures('test'),
         'RESULTS: full annotator discovered sequences': boundary_failures('test_full'),

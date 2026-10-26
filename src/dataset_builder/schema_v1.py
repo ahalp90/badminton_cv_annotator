@@ -11,7 +11,7 @@ inefficiency, once the dataset moved onto human ShuttleSet contacts; and
 ``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped;
 rally-dataset/1.2: player degradation trends and their tanh temperature; and
 rally-dataset/1.3: the commentary-to-rally link, aligned times from issue
-#136).
+#136; rally-dataset/1.4: annotator intervals anchored to accepted contacts).
 See ``docs/dataset_v1_schema.md``.
 """
 
@@ -27,8 +27,8 @@ from uuid import uuid4
 
 import pandas as pd
 
-DATASET_SCHEMA = "rally-dataset/1.3"
-SCHEMA_FROZEN_ON = "2026-09-04"
+DATASET_SCHEMA = "rally-dataset/1.4"
+SCHEMA_FROZEN_ON = "2026-10-26"
 DATASET_MANIFEST_FILENAME = "dataset_manifest.json.gz"
 PLAYER_SIGNALS_DIRECTORY = "player_signals"
 
@@ -221,11 +221,13 @@ RALLIES = TableSpec(
         ),
         ColumnSpec(
             "start_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
-            "First frame of the rally, zero-based on the whole source video, included.",
+            "First contact frame of the rally, zero-based on the whole source video, "
+            "included. Annotator rows use the first accepted contact.",
         ),
         ColumnSpec(
             "end_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
-            "One past the last frame of the rally. Intervals are half-open.",
+            "One past the last contact frame of the rally. Intervals are half-open; "
+            "annotator rows use the last accepted contact.",
         ),
         ColumnSpec(
             "duration_frames", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
@@ -247,7 +249,7 @@ RALLIES = TableSpec(
         ColumnSpec(
             "clip_start_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,
             "start_frame minus 2 s of lead-in at the source frame rate, clamped at 0. "
-            "Issue #32 context for the serve setup.",
+            "Issue #32 context for the serve setup. Clips may overlap neighbouring rallies.",
         ),
         ColumnSpec(
             "clip_end_frame", ColumnType.INTEGER, False, ReliabilityClass.BY_RALLY_ORIGIN,

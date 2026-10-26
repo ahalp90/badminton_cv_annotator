@@ -146,7 +146,7 @@ The court loader checks that scene intervals cover the full video timeline and t
 The `--models` argument points to a directory:
 
 ```text
-experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/
+experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/
 ├── models.joblib
 └── metadata.json
 ```

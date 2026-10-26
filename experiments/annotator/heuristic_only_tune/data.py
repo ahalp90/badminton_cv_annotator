@@ -17,7 +17,9 @@ from annotator.outcomes.point_winner import (
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.shuttle_track import validate_shuttle_track
-from annotator.training.sequences import LabelledRally
+from annotator.training.sequences import (
+    LabelledRally,
+)
 from annotator.types import ServeStartConfig
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
@@ -205,7 +207,9 @@ def run_configuration(
     return stream_payload(prediction.refined.sequences, prediction.refined.events)
 
 
-def score_stream(video: SearchVideo, stream: dict[str, Any]) -> dict[str, dict[str, int]]:
+def score_stream(
+    video: SearchVideo, stream: dict[str, Any],
+) -> dict[str, dict[str, int]]:
     """Count full-video contact matches and whole rallies using discovered spans."""
     scores = {}
     for tolerance in (5, 10):

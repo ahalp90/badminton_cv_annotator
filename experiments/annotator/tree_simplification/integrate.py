@@ -69,26 +69,33 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptio
     return pools
 
 
-def fit_review(run: Path, depth: int, targets: Path, output: Path, settings: dict) -> Any:
+def fit_review(run: Path, depth: int, targets: Path, output: Path, settings: dict, *, device: str = 'cpu') -> Any:
     pools = load_training(settings, targets)
     sample = next(iter(pools))
     saved = joblib.load(Path(settings['pools']) / 'videos' / f'{sample}.joblib')
     rebuilt = build_rally_options(saved.runtime.context, settings['pool_settings']['max_edits'],
                                  settings['pool_settings']['deletion_candidates'])
     verify_pool(rebuilt, saved)
-    np.testing.assert_array_equal(option_targets(saved.video, rebuilt), saved.targets)
+    np.testing.assert_array_equal(
+        option_targets(saved.video, rebuilt), saved.targets,
+    )
     progress(output, 'training-pool-parity', video=sample, rows=len(saved.targets))
     # Reuse completed selector fits; new held-group review fits stay in this export.
     fits = output / 'review-fits'
     shutil.copytree(run / 'fits', fits / 'fits', dirs_exist_ok=True)
-    trainer = LayerTrainer(pools, TreeFitConfig(**xgboost_settings(settings['tree'])), fits, settings['span_weight'])
+    selector_config = replace(TreeFitConfig(**xgboost_settings(settings['tree'])), device=device)
+    trainer = LayerTrainer(pools, selector_config, fits, settings['span_weight'])
     groups = tuple(sorted({pool.video.group for pool in pools.values()}))
     predictions = {}
     for identity, pool in pools.items():
         held = tuple(group for group in groups if group != pool.video.group)
         models = RallyLayerModels(trainer.fit(held, depth))
         predictions[identity] = predict_rally_options(models, pool.runtime)
-    config = TreeFitConfig(**xgboost_settings(settings['pool_settings']['settings']['confidence']))
-    review = fit_rally_review_model([pool.video for pool in pools.values()], predictions, config)
+    config = replace(
+        TreeFitConfig(**xgboost_settings(settings['pool_settings']['settings']['confidence'])), device=device,
+    )
+    review = fit_rally_review_model(
+        [pool.video for pool in pools.values()], predictions, config,
+    )
     dump_atomically(review, output / 'review-model.joblib')
     return review

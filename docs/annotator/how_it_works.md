@@ -76,6 +76,41 @@ for the next stage, which can recognise a useful contact from the rally as a who
 This produces both an initial contact stream and the scored candidates that could
 repair it. Initial contacts outside every rough rally remain part of that stream.
 
+### How contact training uses ground truth
+
+The contact model learns from frames in these broad heuristic-defined search
+regions, labelled against the human-annotated contacts. It is not restricted to
+the heuristic's final hit predictions.
+
+For example, at 30 fps, a heuristic seed at frame 95 creates a search region
+extending about 15 frames either side. If ground truth says the contact was at
+frame 100, frames **99–101 can become positive examples**, even though the
+heuristic seed was five frames off.
+
+Within those regions:
+
+- Frames within **±1 frame** of a labelled contact are positive.
+- Frames **2–4 frames away** are ignored.
+- Frames **5+ frames away** are negative candidates. Nearby negatives are kept,
+  while farther ones are sampled.
+
+These distances scale with the video's frame rate. Class balancing gives the
+positive and negative examples equal total weight. The narrow positive window
+teaches the model to locate the contact precisely; the benchmark's ±10-frame
+evaluation tolerance is a separate allowance.
+
+Ground truth does not force a frame into the candidate set. A labelled contact
+with no eligible candidate within ±1 frame contributes no positive example.
+In the selected model's 32 training videos, **26,893 of 27,571 labelled contacts
+(97.5%)** have at least one positive candidate frame, providing **80,651 positive
+frame examples**. The remaining 678 contacts have no feature/search rows within
+that radius. None were lost solely to the candidate-region filter once feature
+rows were available.
+
+The [saved coverage counts and measurement command](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md#contact-training-coverage)
+give the per-video breakdown. The training implementation is in
+[`training/contact.py`](../../src/annotator/training/contact.py).
+
 ## Choose a contact sequence for each rally
 
 The rally model compares alternative sequences, each containing a concrete set
@@ -104,9 +139,37 @@ instead of reconstructed from the final bounds.
 
 ## Finish boundaries and court halves
 
-Boundary padding gives the first and last contacts some surrounding video. It
-stops at neighbouring rallies and video limits. An extension is accepted only
-when it preserves the rally's contact membership.
+Boundaries and contacts are separate, interacting parts of the prediction.
+The initial window helps determine which contacts belong to a rally. Candidate
+revisions can change both the contacts and the window; the selector chooses
+one revision for each rally.
+
+The chosen window keeps its context: there is no maximum number of seconds
+before the first contact or after the last. The final step can extend it to
+provide 10 frames of context at 30 FPS, where neighbouring rallies, video edges
+and contact membership allow. Supplied boundaries stay fixed.
+
+The window still matters. Inside it, the selector's chosen contacts are the
+rally's accepted contacts; rejected candidates stay rejected. Detector contacts
+outside every chosen window remain in the full contact stream.
+
+Training also allows unlimited outward context. It judges whether a proposal's
+window covers one complete labelled rally, then checks its contacts and player
+sides. A window that merges neighbouring rallies or cuts into the rally beyond
+the timing allowance is still wrong.
+
+When we assess discovery, we use the first and last accepted contacts as the
+rally's endpoints. We allow up to 10 frames inward at 30 FPS and unlimited
+outward extension, while still rejecting merged rallies. The boundary-only
+confidence assessment adds an outward limit of 2 seconds before the first
+labelled contact and 3 seconds after the last. It keeps the same inward
+allowance and ignores errors in the interior contacts and player sides.
+
+Dataset export is a separate step. It uses the first through last accepted
+contact as the core rally interval, then adds exactly 2 seconds before and
+3 seconds after, except at video edges. These clips may overlap. A detected
+rally with no accepted contacts stops export so it can be reviewed. Export
+does not change the discovery predictions used for evaluation.
 
 Each contact initially has an individual court-half guess: `Top` for the far
 half, `Bot` for the near half, or unknown. The finishing rule chooses the

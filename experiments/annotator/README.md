@@ -37,9 +37,10 @@ finished rallies for review. The normal annotation and retraining commands live
 in `src/annotator`; the code here runs experiments around that implementation.
 
 The default is the **raw-baseline XGBoost bundle, seed 0**, in
-[the committed model directory](tree_simplification/results/models/raw_baseline-seed-0/).
-It uses a contact classifier, one rally selector and a review ranker. The
-[reproduction guide](tree_simplification/README.md) covers the fixed split and
+[the committed model directory](tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/).
+The selected bundle uses 5-second / 5-second training allowances and the original
+2-second / 3-second discovery finishing rule. It uses a contact classifier, one rally selector and a review
+ranker. The [reproduction guide](tree_simplification/README.md) covers the fixed split and
 five seeded fits. The former eight-model bundles are historical records; the
 current annotator no longer loads or fits them. Heuristic-only annotation remains
 available.

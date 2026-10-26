@@ -102,6 +102,7 @@ def select_rally_sequences(
     spans: Sequence[tuple[int, int]], events: tuple[ContactEvent, ...], scores: CandidateScores,
     features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
     side_for_frame: Callable[[int], Half | None], models: RallyLayerModels, frame_count: int | None = None,
+    bounds_supplied: bool = False,
 ) -> RallyLayerPrediction:
     """Build rally alternatives from detector evidence and apply the fitted selectors."""
     check_events_match_kept_candidates(events, scores)
@@ -109,7 +110,7 @@ def select_rally_sequences(
     repairs = build_rally_repairs(
         initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
     )
-    context = RallyContext(fps, initial, events, repairs, frame_count)
+    context = RallyContext(fps, initial, events, repairs, frame_count, bounds_supplied)
     pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
     return predict_rally_options(models, pool)
 
@@ -143,12 +144,29 @@ def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
 def finish_rows(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Apply selected contacts, extend rally bounds and fit alternating sides."""
+    """Finish the chosen rallies through the same path used for training labels."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     context = pool.context
-    sequences, events = apply_choices(context.initial, context.events, choices)
-    extended = extend_boundaries(sequences, events, context.fps, frame_count=context.frame_count)
-    return alternate_sides(extended, events)
+    sequences, events = finish_choices(
+        context.initial, context.events, choices, context.fps,
+        frame_count=context.frame_count, bounds_supplied=context.bounds_supplied,
+    )
+    return alternate_sides(sequences, events)
+
+
+def finish_choices(
+    initial: Sequence[ContactSequence], events: Sequence[ContactEvent], choices: dict[int, ContactSequence], fps: float,
+    *, frame_count: int | None = None, bounds_supplied: bool = False,
+) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
+    """Rebuild owned contacts, then extend discovery bounds around chosen contacts.
+
+    Chosen spans retain their context. Dataset clip padding belongs to export;
+    discovery only adds the small contact margin checked against neighbours.
+    """
+    sequences, stream = apply_choices(initial, events, choices)
+    if not bounds_supplied:
+        sequences = extend_boundaries(sequences, stream, fps, frame_count=frame_count)
+    return sequences, stream
 
 
 def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:

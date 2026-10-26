@@ -113,10 +113,10 @@ def test_edit_only_five_frame_positive_does_not_change_original_span_targets() -
 @pytest.mark.parametrize(('fps', 'shift', 'expected'), [(30.0, 6, 0), (60.0, 10, 1)])
 def test_raw_targets_use_scaled_five_frame_canonical_matching(fps: float, shift: int, expected: int) -> None:
     exact = ContactSequence(
-        0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
+        0, 0, 120, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
     )
     shifted = ContactSequence(
-        0, 0, 200,
+        0, 0, 120,
         (ContactEvent(20 + shift, 0.9, Half.TOP), ContactEvent(60 + shift, 0.9, Half.BOT)),
     )
     pool = make_pool((exact, shifted), (0, 0), fps=fps)
@@ -163,7 +163,9 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
 
     def observe(sequence, labels, fps, *, tolerance_at_30_fps):
         observed_rallies.append(tuple(rally.identity for rally in labels))
-        return original(sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps)
+        return original(
+            sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps,
+        )
 
     stream_frames = np.asarray([event.frame for event in events], dtype=np.int64)
     reference = np.empty(len(pool.sequences), dtype=np.int8)
@@ -179,7 +181,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     assert len(observed_rallies) == len(pool.sequences)
     assert all('remote' not in labels for labels in observed_rallies)
     assert all('boundary' in labels for labels in observed_rallies[:2])
-    assert all('boundary' not in labels for labels in observed_rallies[2:])
+    assert all('boundary' in labels for labels in observed_rallies[2:])
 
 
 def test_five_frame_row_mismatch_fails() -> None:
@@ -204,7 +206,8 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
     pool_path = pools_root / 'videos' / 'video.joblib'
     pool_path.parent.mkdir(parents=True)
     joblib.dump(pool, pool_path)
-    job = TargetJob('video', 'group', 'train', pool_path, pools_root, {'schema': 'pools/1'}, tmp_path / 'targets')
+    manifest = {'schema': targets.POOL_SCHEMA}
+    job = TargetJob('video', 'group', 'train', pool_path, pools_root, manifest, tmp_path / 'targets')
 
     summary = _target_job(job)
 
@@ -237,7 +240,7 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     video_path = pools_root / 'videos' / 'video.joblib'
     video_path.parent.mkdir(parents=True)
     joblib.dump(pool, video_path)
-    experiment.write_json(pools_root / 'pools.json.gz', {'schema': 'pools/1'})
+    experiment.write_json(pools_root / 'pools.json.gz', {'schema': targets.POOL_SCHEMA})
     experiment.write_json(video_path.with_suffix('.json.gz'), {
         'video': 'video', 'group': 'group', 'split': 'train',
     })
@@ -249,3 +252,11 @@ def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> No
     assert summaries[0]['video'] == 'video'
     assert (output / 'videos' / 'video.npy.xz').is_file()
     assert prepare_targets(pools_root, output, workers=1, only='video') == []
+
+
+def test_target_stage_rejects_pools_from_the_old_target_rule(tmp_path: Path) -> None:
+    pools_root = tmp_path / 'pools'
+    pools_root.mkdir()
+    experiment.write_json(pools_root / 'pools.json.gz', {'schema': 'tree-simplification-option-pools/1'})
+    with pytest.raises(ValueError, match='unsupported target rule'):
+        prepare_targets(pools_root, tmp_path / 'targets', workers=1)

@@ -255,7 +255,10 @@ def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path) -
     experiment.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
     experiment.write_json(run / 'result.json.gz', {'complete': True})
     experiment.write_json(run / 'settings.json.gz', {
-        'layers': 1, 'target_policy': {}, 'pool_settings': {'prepared': str(prepared), 'contact_run': str(tmp_path)},
+        'layers': 1, 'target_policy': {},
+        'pool_settings': {
+            'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(tmp_path),
+        },
     })
     with pytest.raises(ValueError, match='production bundles use raw units'):
         input_stages.export_run(run, tmp_path / 'targets', output)

@@ -246,7 +246,7 @@ The new per-video streams and pooled scores are saved under
 [known_our_courts](results/known_our_courts/), [known_mono_courts](results/known_mono_courts/)
 and [discovery_benchmark](results/discovery_benchmark/). They reuse the committed
 [benchmark manifest and courts](../monotrack_benchmark/benchmark_results/inputs/).
-The [published comparison](../monotrack_benchmark/benchmark_results/comparison/)
+The [published comparison](../monotrack_benchmark/archive/results/comparison/)
 contains the reference streams and full precision/recall tables at both tolerances.
 [diagnostics.py](diagnostics.py) recomputes the rally gains and losses, failure
 reasons and extra-contact counts quoted in this report from these committed files.

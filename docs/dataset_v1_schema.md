@@ -2,8 +2,8 @@
 
 | Item | Value |
 | --- | --- |
-| Schema | `rally-dataset/1.3` |
-| Frozen on | 2026-09-04 |
+| Schema | `rally-dataset/1.4` |
+| Frozen on | 2026-10-26 |
 | Status | Frozen |
 | Owner | Issues [#18](https://github.com/ahalp90/badminton_cv_annotator/issues/18), [#138](https://github.com/ahalp90/badminton_cv_annotator/issues/138) |
 | Builds on | [`rally_dataset_contract.md`](rally_dataset_contract.md) version 0.2 |
@@ -29,7 +29,7 @@ more videos can be processed at any time. The second is the raw primitive
 layer, which is versioned by the pipeline run that produced it.
 
 Changing anything on the frozen surface is a breaking change. It bumps the
-schema string away from `rally-dataset/1.3` and it updates the freeze test in
+schema string away from `rally-dataset/1.4` and it updates the freeze test in
 `tests/test_dataset_builder_schema_v1.py`. That rule lets a reader tell a
 changed schema from a bigger export.
 
@@ -57,6 +57,14 @@ boundaries under issue #136. Nothing already frozen in 1.2 changed, so 1.2
 code that ignores unknown tables and values still reads a 1.3 export
 correctly. `rally-dataset/1.1`, `1.2`, and `1.3` merged onto main in that
 order.
+
+`rally-dataset/1.4` anchors annotator rally intervals to their first and last
+accepted contacts. Export adds 2 seconds before and 3 seconds after that
+interval, limited only by video edges; neighbouring clips may overlap. A detected
+span with no accepted contacts stops export and identifies the video and rally
+for review. The input records retain the discovery windows and all detected spans.
+A rally with one accepted contact has a one-frame core interval. Its player
+features summarise that frame; its clip still includes the fixed video context.
 
 ## How to read reliability
 
@@ -300,8 +308,9 @@ Each `rallies` row carries its span in frames and in seconds, plus the frame
 rate those two are related by.
 
 - `start_frame` and `end_frame` are zero-based frame indices on the whole
-  source video. The interval is half-open, so `start_frame` is inside the
-  rally and `end_frame` is the first frame after it. `duration_frames` is
+  source video. The interval includes the first through last contact:
+  `start_frame` is the first contact and `end_frame` is one frame past the last.
+  Annotator rows use accepted contacts. `duration_frames` is
   `end_frame - start_frame`.
 - `start_seconds`, `end_seconds`, and `duration_seconds` are those frame
   numbers divided by `fps`.
@@ -320,9 +329,9 @@ measured from the final contact plus an offset, and issue #32 fixed the
 offsets: 2 seconds before the first contact for the serve setup, and 3 seconds
 after the last contact for the shuttle to land. `clip_start_frame` and
 `clip_end_frame` store those bounds at the row's own `fps`, clamped to the
-video, so `clip_end_frame - start_frame` is that rally duration on a
-`source_contacts` row. On an `annotator` row `end_frame` is a predicted end
-rather than a final contact, so the same columns are only a padded span.
+video. Both rally origins use contact-anchored intervals, so context is added
+exactly once. Clips may overlap; the contact interval still identifies the rally
+within each clip.
 
 ### Interpolation and its provenance
 
@@ -817,13 +826,13 @@ One row per rally. Annotator rows come from the production rally records. source
 | `rally_id` | int64 | no | observed | Zero-based list position within one (run_id, source_dataset, video_id, rally_origin) group. Not stable across runs or origins. |
 | `fps` | float64 | no | observed | Probed constant frame rate of the decoded source. Stored per row so time normalisation is explicit: base-30 frames = frames * 30 / fps. |
 | `frame_count` | int64 | no | observed | Decoded frame total of the source video. Every frame-aligned array has this many rows. |
-| `start_frame` | int64 | no | by_rally_origin | First frame of the rally, zero-based on the whole source video, included. |
-| `end_frame` | int64 | no | by_rally_origin | One past the last frame of the rally. Intervals are half-open. |
+| `start_frame` | int64 | no | by_rally_origin | First contact frame of the rally, zero-based on the whole source video, included. Annotator rows use the first accepted contact. |
+| `end_frame` | int64 | no | by_rally_origin | One past the last contact frame of the rally. Intervals are half-open; annotator rows use the last accepted contact. |
 | `duration_frames` | int64 | no | by_rally_origin | end_frame - start_frame at the source frame rate. |
 | `start_seconds` | float64 | no | by_rally_origin | start_frame / fps on the source-video timeline. |
 | `end_seconds` | float64 | no | by_rally_origin | end_frame / fps on the source-video timeline. |
 | `duration_seconds` | float64 | no | by_rally_origin | duration_frames / fps. This is the span length, not the issue #22 rally duration from the final contact plus an offset. |
-| `clip_start_frame` | int64 | no | by_rally_origin | start_frame minus 2 s of lead-in at the source frame rate, clamped at 0. Issue #32 context for the serve setup. |
+| `clip_start_frame` | int64 | no | by_rally_origin | start_frame minus 2 s of lead-in at the source frame rate, clamped at 0. Issue #32 context for the serve setup. Clips may overlap neighbouring rallies. |
 | `clip_end_frame` | int64 | no | by_rally_origin | end_frame plus 3 s of tail at the source frame rate, clamped at frame_count; one past the last clip frame. On source_contacts rows the issue #22 rally duration from the final contact plus offset is clip_end_frame - start_frame. |
 | `source_set` | int64 | yes | source_annotation | ShuttleSet set number for source_contacts rows. Null for annotator rows. |
 | `source_rally` | int64 | yes | source_annotation | ShuttleSet rally number within its set for source_contacts rows. Null for annotator rows. |

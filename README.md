@@ -33,22 +33,28 @@ We use physical rules to find the court, skip replays and other broadcast events
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
 
-![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v6/fig1_headline.png)
+![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v7/fig1_headline.png)
 
 *MonoTrack needs rally boundaries provided*
 
-Our model, unlike most systems, can reliably discover its own rally boundaries to automate annotation of a raw video (figure above, bottom row).
+Our annotator can discover rally boundaries in a raw video (figure above,
+bottom row). Each rally gets a confidence score, so you can trade recall for
+less manual review:
 
-Each rally gets a confidence score, so you can trade recall for less manual review:
-
-| Confidence threshold | Rallies kept / 3,327 | Right start and end | Need no fixes |
+| Confidence threshold | Found rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: |
-| 0.675 | 926 | 99.0% | 80.5% |
-| 0.50 | 1,558 | 98.0% | 73.3% |
+| 0.50 | 1,589 | 85.8% | 73.7% |
+| 0.70 | 821 | 89.4% | 80.9% |
+| 0.75 | 560 | 90.8% | 83.5% |
+| 0.80 | 265 | 93.0% | 87.5% |
+| 0.85 | 58 | 94.5% | 91.8% |
 
-*Most fixes are a single contact per rally*
+*Indicative performance on the test set, averaged over five seeds. “Right start
+and end” allows up to 2 seconds early or 10 frames late for the first contact,
+and 10 frames early or 3 seconds late for the last contact (at 30 fps). These
+buffers match our dataset format and give useful context.*
 
-Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v6.md), or [get started](docs/annotator/quickstart.md) with the annotator.
+Read the full [benchmark report](experiments/annotator/monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md), or [get started](docs/annotator/quickstart.md) with the annotator.
 
 ## Court detector
 

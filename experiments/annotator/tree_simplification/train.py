@@ -27,7 +27,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.sequence.contacts import stream_payload
 from annotator.training.trees import TreeFitConfig
-from dataset_builder.vision import load_npy_xz
+from dataset_builder.vision import load_npy_xz, save_npy_xz
 from experiments.annotator.development import dump_atomically, pooled_scores, progress
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
@@ -41,6 +41,9 @@ from experiments.annotator.tree_simplification.layers import (
     predict_layer,
 )
 from experiments.annotator.tree_simplification.options import LabelledOptions
+from experiments.annotator.tree_simplification.pools import (
+    SCHEMA as POOL_SCHEMA,
+)
 from experiments.annotator.tree_simplification.pools import (
     edit_kind,
     original_options,
@@ -163,6 +166,8 @@ def main() -> None:
         device=args.device, min_child_weight=args.min_child_weight,
     )
     manifest = read_json(args.pools / 'pools.json.gz')
+    if manifest['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     target_manifest = None
     if args.five_frame_targets:
         target_manifest = read_json(args.five_frame_targets / 'targets.json.gz')
@@ -202,6 +207,7 @@ def main() -> None:
                 five = five[selected]
         if five is not None:
             pool = replace(pool, targets=five_frame_preferred_targets(pool, five))
+        save_npy_xz(args.output / 'targets' / f'{identity}.npy.xz', pool.targets)
         (training if video.split == 'train' else validation)[identity] = pool
     if len(training) != 32 or len(validation) != 8:
         raise ValueError('Comparison requires the original 32 training and 8 validation videos')

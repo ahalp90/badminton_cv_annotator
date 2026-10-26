@@ -92,6 +92,28 @@ def test_prepared_source_must_match_before_contact_fitting(tmp_path: Path, monke
         input_stages.fit_contacts(tmp_path, tmp_path / 'fit')
 
 
+def test_export_explicitly_reuses_older_preparation_and_contact_fits(tmp_path: Path, monkeypatch) -> None:
+    prepared, contact, run, targets = (tmp_path / name for name in ('prepared', 'contact', 'run', 'targets'))
+    for directory in (prepared, contact, run, targets):
+        directory.mkdir()
+    inputs = {'groups': {f'video-{index}': 'A' for index in range(40)},
+              'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
+    pool_settings = {'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(contact),
+                     'settings': {'preprocessing': inputs['preprocessing']}}
+    write_json(prepared / 'preparation.json.gz', {'source': {'revision': 'prepared'}, 'inputs': inputs})
+    write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
+    write_json(contact / 'contact-stage.json.gz', {'source': {'revision': 'contacts'}})
+    write_json(targets / 'targets.json.gz', {'fixture': True})
+    settings = {'layers': 1, 'target_policy': {'manifest': {'fixture': True}},
+                'pool_settings': pool_settings}
+    write_json(run / 'settings.json.gz', settings)
+    write_json(run / 'result.json.gz', {'complete': True, 'source': {'revision': 'selector'}})
+    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'export'})
+    with pytest.raises(ValueError, match='Prepared source differs'):
+        input_stages._export_inputs(run, targets)
+    assert input_stages._export_inputs(run, targets, reuse_upstream=True) == (settings, inputs, prepared, contact, 1)
+
+
 @pytest.mark.parametrize('changed_stage', ['contact', 'selector'])
 def test_export_rejects_mixed_stage_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_stage: str,
@@ -107,6 +129,7 @@ def test_export_rejects_mixed_stage_sources(
         'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
     }
     pool_settings = {
+        'schema': input_stages.POOL_SCHEMA,
         'prepared': str(prepared), 'contact_run': str(contact),
         'settings': {'preprocessing': inputs['preprocessing']},
     }
@@ -203,6 +226,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     inputs = {'groups': {identity: 'V' for identity in identities},
               'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
     pool_settings = {
+        'schema': input_stages.POOL_SCHEMA,
         'prepared': str(prepared_root),
         'contact_run': str(contact_run_root),
         'max_edits': 3,
@@ -240,16 +264,25 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
-        lambda *_args: (settings, inputs, prepared_root, contact_run_root, 1),
+        lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root, 1),
     )
+    prepared_root.mkdir()
+    contact_run_root.mkdir()
+    write_json(prepared_root / 'preparation.json.gz', {'source': {'revision': 'upstream'}})
+    write_json(contact_run_root / 'contact-stage.json.gz', {'source': {'revision': 'upstream'}})
+    saved_scores = {identity: {'5': {}, '10': {}} for identity in identities}
+    write_json(run / 'layers-1/validation.json.gz', {'per_video': saved_scores})
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
-    monkeypatch.setattr(input_stages.integrate, 'fit_review', lambda *_args: object())
+    def fit_review(*_args, device):
+        assert device == 'cuda'
+        return object()
+
+    monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
     monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
     monkeypatch.setattr(input_stages, 'score_rally_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
-    monkeypatch.setattr(input_stages, 'score_stream', lambda *_args: {'5': {}, '10': {}})
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})
     monkeypatch.setattr(input_stages.experiment, 'load_prepared', lambda _root, identity: fake_videos[identity])
     monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)
@@ -271,6 +304,10 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     assert result['complete'] is True
     assert result['replay_streams_match'] is True
     assert set(result['per_video']) == set(identities)
+    assert result['per_video'] == saved_scores
+    for identity in identities:
+        saved_stream = read_json(tmp_path / 'export/streams' / f'{identity}.json.gz')
+        assert saved_stream == expected_stream | {'confidence': {'4': .7}}
     assert {row['ranking'] for row in rows} == {'selector', 'fitted'}
     assert len(rows) == 8 * 2 * 2
     assert all(row['correct'] == -1 for row in rows)
@@ -285,3 +322,32 @@ def test_preprocessing_record_rejects_the_retired_threshold_preset() -> None:
     record['thresholds'] = []
     with pytest.raises(ValueError, match='Saved preprocessing fields differ'):
         prepare.preprocessing_from_record(record)
+
+
+@pytest.mark.parametrize('device', ['cpu', 'cuda'])
+def test_export_passes_device_to_confidence_fit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, device: str,
+) -> None:
+    settings = {}
+    inputs = {'preprocessing': {'fixture': True}}
+    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path, 1))
+    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'fixture'})
+    for name in ('preparation', 'contact-stage'):
+        write_json(tmp_path / f'{name}.json.gz', {'source': {'revision': 'upstream'}})
+
+    class StopAfterFit(Exception):
+        pass
+
+    captured: dict[str, object] = {}
+
+    def fit_review(*_args, **kwargs) -> None:
+        captured.update(kwargs)
+        raise StopAfterFit
+
+    monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
+    output = tmp_path / 'export'
+    with pytest.raises(StopAfterFit):
+        input_stages.export_run(tmp_path / 'run', tmp_path / 'targets', output, device=device)
+    assert captured['device'] == device
+    receipt = read_json(output / 'settings.json.gz')
+    assert receipt['device'] == device

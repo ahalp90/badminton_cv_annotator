@@ -4,9 +4,9 @@ The test set scores 3,327 rallies. 524 more rallies in the same videos were left
 because a hit in them is marked ``flaw`` (523) or listed out of time order (1). Discovery
 mode searches whole videos, so it finds them. Three treatments:
 
-- standard: the current scoring. Left-out rallies have no labels, so predictions on them
+- standard: retain all predictions. Left-out rallies have no labels, so predictions on them
   count as extras.
-- ignore: predictions inside a left-out rally's window are dropped before scoring, and a
+- ignore: the headline scoring. Predictions inside a left-out rally's window are dropped, and a
   found rally left with no hits is dropped. Denominators stay at 3,327 rallies.
 - count: left-out rallies join the labels as ordinary rallies (3,851 in all).
 
@@ -126,7 +126,7 @@ def detection_near_hits(streams: dict[str, dict], items: list[dict], hits: dict[
 def score(item: dict, stream: dict, labels: tuple) -> dict:
     _, contacts, predictions, _ = score_video(item['item_id'], 'test', stream, labels, item['fps'], TOLERANCE)
     sequences, _ = stream_from_payload(stream)
-    judged = judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps']))
+    judged = judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps']), fps=item['fps'])
     ladder = rally_ladder(judged, labels)
     left_out = {rally.identity for rally in labels if rally.identity.startswith('left_out:')}
     reached: dict[str, set[str]] = {}
@@ -182,6 +182,7 @@ def rates(totals: pd.Series) -> dict[str, float]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--annotator-runs', type=Path, required=True)
     args = parser.parse_args()
     items = load_manifest(INPUTS)['items']
     left_out, checks, hits = {}, [], {}
@@ -193,7 +194,7 @@ def main() -> None:
     if check['scored_sides_agree'] != check['scored_sides']:
         raise ValueError('side rule does not reproduce the scored labels')
 
-    runs = {'annotator': [{item['item_id']: read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
+    runs = {'annotator': [{item['item_id']: read_json(annotator_run('discovery', '32_videos', seed, args.annotator_runs) / f'{item["item_id"]}.json.gz')
                            for item in items} for seed in SEEDS],
             'trees_off': [read_json(HEURISTIC / 'test/predictions.json.gz')['streams']]}
     result = {'label_checks': {key: int(value) for key, value in check.items()}}

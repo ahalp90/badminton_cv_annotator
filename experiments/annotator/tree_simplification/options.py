@@ -38,10 +38,12 @@ class LabelledOptions:
 
 
 def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
+    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
 
 
-def expand_pool(video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6) -> LabelledOptions:
+def expand_pool(
+    video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6,
+) -> LabelledOptions:
     """Build label-free options, then judge them with initial neighbouring spans."""
     options = build_rally_options(rally_context(video), max_edits, deletion_candidates)
     targets = option_targets(video, options)

@@ -14,10 +14,12 @@ There are two common cases:
 The selected model is the XGBoost `raw_baseline` bundle from the current rally-model
 benchmark. It contains the contact classifier, one rally selector and a review
 model. The commands below use the tracked seed-0 bundle in
-[`experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/).
+[`experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/).
 It requires scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
-rule is off. The [comparison report](../../experiments/annotator/reports/tree_simplification.md)
-explains the selection and remaining errors.
+rule is off. The [refit record](../../experiments/annotator/tree_simplification/results/discovery_context/README.md)
+explains the boundary-policy selection; the earlier
+[comparison report](../../experiments/annotator/reports/tree_simplification.md)
+covers the tree settings.
 
 **Contents**
 
@@ -95,7 +97,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0 \
+  --models experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0 \
   --output-dir data/annotations/match-name
 ```
 
@@ -137,7 +139,7 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0"
+annotator = "experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0"
 ```
 
 The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.

@@ -2,10 +2,13 @@
 
 import numpy as np
 
-from annotator.sequence.contacts import ContactSequence, apply_choices, scale_frames
-from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, extend_boundaries
+from annotator.sequence.contacts import ContactSequence, scale_frames
+from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_choices
 from annotator.sequence.rally_options import RallyOptions, sequence_key
-from annotator.training.sequences import SequenceTrainingVideo, whole_rally_correctness
+from annotator.training.sequences import (
+    SequenceTrainingVideo,
+    whole_rally_correctness,
+)
 
 
 def finish_in_initial_context(
@@ -14,28 +17,33 @@ def finish_in_initial_context(
     """Apply canonical boundaries in a three-span window with initial neighbours."""
     before = video.initial[position]
     start_position = max(0, position - 1)
-    window = list(video.initial[start_position:position + 2])
+    window = video.initial[start_position:position + 2]
     local_position = position - start_position
-    window[local_position] = after
     padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
     left = min(window[0].start_frame, after.start_frame) - padding
     right = max(window[-1].end_frame, after.end_frame) + padding + 1
     first, last = np.searchsorted(stream_frames, (left, right))
     local_events = video.events[first:last]
-    _chosen, stream = apply_choices((before,), local_events, {before.span_id: after})
-    finished = extend_boundaries(window, stream, video.fps, frame_count=video.frame_count)
+    choices = {sequence.span_id: sequence for sequence in window}
+    choices[before.span_id] = after
+    finished, _stream = finish_choices(
+        window, local_events, choices, video.fps, frame_count=video.frame_count, bounds_supplied=video.bounds_supplied,
+    )
     return finished[local_position]
 
 
-def option_targets(video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10) -> np.ndarray:
+def option_targets(
+    video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
+) -> np.ndarray:
     targets = np.empty(len(pool.sequences), dtype=np.int8)
     stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
     padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
     for position, before in enumerate(video.initial):
         rows = pool.span_rows[before.span_id]
         ordered = tuple(pool.sequences[row] for row in rows)
-        label_start = min(sequence.start_frame for sequence in ordered) - padding
-        label_end = max(sequence.end_frame for sequence in ordered) + padding + 1
+        tolerance = scale_frames(tolerance_at_30_fps, video.fps)
+        label_start = min(sequence.start_frame for sequence in ordered) - padding - tolerance
+        label_end = max(sequence.end_frame for sequence in ordered) + padding + tolerance + 1
         rallies = tuple(
             rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
         )

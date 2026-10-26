@@ -180,6 +180,9 @@ def test_pool_override_copies_validation_bytes_and_binds_resume_identity(
         name = 'v_32' if job.split == 'validation' else f'held_{job.group}'
         assert job.contact_path == fixture.reference / 'contacts' / f'{name}.joblib'
     swapped = {**contact_paths, 'sset_01': contact_paths['sset_05']}
+    with pytest.raises(ValueError, match='Reused proposal contact_paths differs'):
+        pools.prepare_pools(fixture.prepared, fixture.reference, tmp_path / 'invalid-reuse',
+                            **{**options, 'contact_paths': swapped, 'reuse_options': output})
     with pytest.raises(ValueError, match='Pool settings changed'):
         pools.prepare_pools(fixture.prepared, fixture.reference, output, **{**options, 'contact_paths': swapped})
     changed = dict(contact_folds.CONTACT_FOLDS)

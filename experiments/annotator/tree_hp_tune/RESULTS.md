@@ -170,7 +170,7 @@ Conditions:
 - B: labelled rallies, padded by 1 second at each end, with video-robust courts.
 - C: as B, with MonoTrack's courts.
 
-B and C are the `ours_our_courts` and `ours_mono_courts` conditions of the [MonoTrack benchmark](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup.md). They drop predictions outside the padded windows and judge each rally inside its window. Their scores run higher than A's for that reason, so A can't be compared with B or C directly.
+B and C are the `ours_our_courts` and `ours_mono_courts` conditions of the [MonoTrack benchmark](../monotrack_benchmark/archive/reports/v1.md). They drop predictions outside the padded windows and judge each rally inside its window. Their scores run higher than A's for that reason, so A can't be compared with B or C directly.
 
 Check: under B and C, shipped seed 0 with the 40-video tree matched the benchmark's production scores exactly.
 
@@ -309,7 +309,7 @@ IDs:
 
 - Fully correct rally: one discovered sequence holding exactly one complete labelled rally, with every contact and player right. Splitting or merging a rally fails. The annotator finds its own rally boundaries.
 
-The [MonoTrack benchmark](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup.md) scores rallies inside supplied labelled windows instead, so its rally percentages can't be compared with these.
+The [MonoTrack benchmark](../monotrack_benchmark/archive/reports/v1.md) scores rallies inside supplied labelled windows instead, so its rally percentages can't be compared with these.
 
 Scoring code: `score_stream` in [heuristic_only_tune/data.py](../heuristic_only_tune/data.py).
 

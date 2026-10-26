@@ -216,7 +216,7 @@ _EXPECTED_KEYS: dict[str, tuple[str, ...]] = {
 
 
 def test_frozen_schema_surface():
-    assert DATASET_SCHEMA == "rally-dataset/1.3"
+    assert DATASET_SCHEMA == "rally-dataset/1.4"
     assert frozen_column_names() == _EXPECTED_COLUMN_NAMES
 
     for table in TABLES:

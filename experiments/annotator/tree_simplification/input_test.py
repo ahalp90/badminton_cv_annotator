@@ -333,7 +333,9 @@ def evaluate(
                 raise ValueError(f'{video.identity}: fitted annotation did not return its hybrid prediction')
             stream = stream_payload(prediction.refined.sequences, prediction.refined.events)
             score = score_stream(video, stream)
-            review, rows = input_stages._review_rows(video, video.identity, prediction)
+            review, rows = input_stages._review_rows(
+                video, video.identity, prediction,
+            )
             write_json(stream_path, stream)
             metadata = {
                 'complete': True,

@@ -24,13 +24,13 @@ from annotator.sequence.rally_model import RallyLayerModels
 @pytest.mark.parametrize('name', [
     *(f'{variant}-seed-{seed}' for variant in ('raw_baseline', 'body_window_36')
       for seed in (0, 100, 200, 300, 400)),
-    'selected',
 ])
 def test_shipped_bundle_loads_and_predicts(name):
     models = load_models(DEFAULT_MODEL_DIRECTORY.parent / name)
     assert 'thresholds' not in vars(models.preprocessing)
     assert isinstance(models.sequences, RallyLayerModels)
     for estimator in fitted_trees(models):
+        assert estimator.get_params()['n_jobs'] == 2
         probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
         assert probabilities.shape == (1, 2)
         assert np.isfinite(probabilities).all()

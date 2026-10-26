@@ -258,6 +258,7 @@ def sequence_training_video(
     )
     return SequenceTrainingVideo(
         entry.identity, entry.group, evidence.fps, initial, events, repairs, rallies, len(evidence.track),
+        evidence.bounds_supplied,
     )
 
 
@@ -308,7 +309,9 @@ def fit_from_manifest(
         ))
     del evidence, features
     layer_fit = fit_rally_models(training_videos, settings.rally_layers)
-    review_model = fit_rally_review_model(training_videos, layer_fit.cross_fitted, settings.confidence)
+    review_model = fit_rally_review_model(
+        training_videos, layer_fit.cross_fitted, settings.confidence,
+    )
     models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)
     save_models(models, output)

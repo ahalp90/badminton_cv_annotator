@@ -15,7 +15,9 @@ from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
 from annotator.training import rally_layers as production_training
-from annotator.training.sequences import SequenceTrainingVideo
+from annotator.training.sequences import (
+    SequenceTrainingVideo,
+)
 from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import LabelledOptions
@@ -211,13 +213,15 @@ def test_cli_passes_only_training_pools_to_fitter_and_all_validation_pools_to_ev
 
     def read(path: Path) -> Any:
         if path == pool_dir / 'pools.json.gz':
-            return {'prepared': str(prepared_dir)}
+            return {'schema': train.POOL_SCHEMA, 'prepared': str(prepared_dir)}
         if path == prepared_dir / 'preparation.json.gz':
             return {'inputs': {'paths': {'shots_master': str(tmp_path / 'shots.csv')},
                                'groups': {identity: pool.video.group for identity, pool in pools.items()}}}
         if path.parent == pool_dir / 'videos':
             identity = path.name.removesuffix('.json.gz')
-            return {'split': 'train' if identity in training else 'validation'}
+            return {
+                'split': 'train' if identity in training else 'validation',
+            }
         return original_read(path)
 
     def load(path: Path, *args: Any, **kwargs: Any) -> Any:

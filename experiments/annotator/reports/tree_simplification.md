@@ -44,7 +44,7 @@ with baseline preprocessing and review filtering off.
 
 ## Comparing with the MonoTrack write-up
 
-The [MonoTrack write-up](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v4.md)
+The [MonoTrack write-up](../monotrack_benchmark/archive/reports/v4.md)
 reports 90.2% correct-player F1 for the old annotator. That does not compare
 with 86.24%, because the two use different rules for one group of predictions.
 
@@ -388,7 +388,7 @@ The old annotator's test predictions are tracked in
 [`tree_hp_tune/results/test_rerun/A/v32/grid-017/`](../tree_hp_tune/results/test_rerun/A/v32/grid-017/).
 The scoring rules come from the write-up's
 [`flaw_scoring.py`](../monotrack_benchmark/writeup_scripts/flaw_scoring.py) and
-its [appendix on flawed labels](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v4.md#appendix-g-rallies-with-flawed-labels).
+its [appendix on flawed labels](../monotrack_benchmark/archive/reports/v4.md#appendix-g-rallies-with-flawed-labels).
 
 **What the repository alone supports.** With tracked files only, you can load
 all ten test bundles and pass them through the test runner's own checks, using

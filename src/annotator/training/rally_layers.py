@@ -141,7 +141,7 @@ def prepare_training_pools(
     pools = {}
     judged_original_rows = judged_original_spans = 0
     for video in videos:
-        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
+        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
         pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
         wide = option_targets(video, pool)
         five = option_targets(video, pool, tolerance_at_30_fps=5)

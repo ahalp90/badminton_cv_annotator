@@ -1,6 +1,7 @@
 """Manifest contracts, held-out isolation and the runnable retune workflow."""
 
 import json
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
@@ -288,3 +289,38 @@ def test_unknown_side_abstains_only_after_known_contradictions() -> None:
     missing = ContactSequence(0, 80, 150, (ContactEvent(100, .8, Half.TOP),))
     assert workflow.whole_rally_correctness(complete, (rally,), 30) == -1
     assert workflow.whole_rally_correctness(missing, (rally,), 30) == 0
+
+
+def test_short_inward_errors_and_neighbouring_rallies_use_shared_rule() -> None:
+    rally = LabelledRally('rally', (300, 400), (Half.TOP, Half.BOT))
+    sequence = ContactSequence(0, 305, 397, (ContactEvent(305, .9, Half.TOP), ContactEvent(395, .9, Half.BOT)))
+    assert workflow.whole_rally_correctness(sequence, (rally,), 30) == 1
+    neighbour = LabelledRally('neighbour', (420, 440), (Half.TOP, Half.BOT))
+    merged = replace(sequence, end_frame=441)
+    assert workflow.whole_rally_correctness(merged, (rally, neighbour), 30) == 0
+
+
+def test_timing_allowance_does_not_merge_a_neighbour_outside_the_span() -> None:
+    rally = LabelledRally('rally', (100, 200, 300), (Half.TOP, Half.BOT, Half.TOP))
+    neighbour = LabelledRally('neighbour', (398, 450), (Half.BOT, Half.TOP))
+    events = tuple(ContactEvent(frame, .9, side) for frame, side in zip(rally.frames, rally.sides, strict=True))
+    sequence = ContactSequence(0, 40, 391, events)
+    for tolerance in (5, 10):
+        assert workflow.whole_rally_correctness(sequence, (rally, neighbour), 30, tolerance_at_30_fps=tolerance) == 1
+
+
+def test_unlimited_context_preserves_rally_and_contact_checks() -> None:
+    rally = LabelledRally('rally', (300, 400, 500), (Half.TOP, Half.BOT, Half.TOP))
+    events = tuple(ContactEvent(frame, .9, side) for frame, side in zip(rally.frames, rally.sides, strict=True))
+    sequence = ContactSequence(0, 0, 1000, events)
+    assert workflow.whole_rally_correctness(sequence, (rally,), 30) == 1
+    neighbour = LabelledRally('neighbour', (800, 900), (Half.BOT, Half.TOP))
+    assert workflow.whole_rally_correctness(sequence, (rally, neighbour), 30) == 0
+    for changed in (
+        replace(sequence, start_frame=350),
+        replace(sequence, events=events[:-1]),
+        replace(sequence, events=(*events, ContactEvent(600, .9, Half.BOT))),
+        replace(sequence, events=tuple(replace(event, side=Half.BOT if event.side == Half.TOP else Half.TOP)
+                                       for event in events)),
+    ):
+        assert workflow.whole_rally_correctness(changed, (rally,), 30) == 0

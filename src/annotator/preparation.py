@@ -37,6 +37,7 @@ class AnnotationEvidence:
     heuristic_contacts: list[ContactCandidate]
     shuttle_hallucination_mask: np.ndarray
     source_codes: np.ndarray | None
+    bounds_supplied: bool = False
 
     @property
     def fps(self) -> float:
@@ -161,6 +162,7 @@ def prepare_annotation(
         resolved=resolved, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=final_spans, heuristic_contacts=raw_contacts,
         shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,
+        bounds_supplied=spans is not None,
     )
 
 

@@ -30,8 +30,9 @@ from annotator.training import rally_targets
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
 )
+from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 
-SCHEMA = 'tree-simplification-five-frame-targets/1'
+SCHEMA = 'tree-simplification-five-frame-targets/2'
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,9 @@ class TargetJob:
 
 def raw_five_targets(pool: LabelledOptions) -> np.ndarray:
     """Return canonical five-frame whole-rally targets aligned to pool rows."""
-    return rally_targets.option_targets(pool.video, pool.runtime, tolerance_at_30_fps=5)
+    return rally_targets.option_targets(
+        pool.video, pool.runtime, tolerance_at_30_fps=5,
+    )
 
 
 def five_frame_preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
@@ -129,6 +132,8 @@ def prepare_targets(
         raise ValueError('workers must be between 1 and 28')
     pools_root = pools_root.resolve()
     pools_manifest = experiment.read_json(pools_root / 'pools.json.gz')
+    if pools_manifest['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     records = {}
     for pool_path in sorted((pools_root / 'videos').glob('*.joblib')):
         identity = pool_path.stem

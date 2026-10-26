@@ -1,7 +1,7 @@
 # Historical annotator model — 3 October 2026
 
 This is the retired eight-model new-court **base** bundle. The current annotator
-no longer loads it. Use the [current XGBoost bundle](../../../experiments/annotator/tree_simplification/results/models/raw_baseline-seed-0/)
+no longer loads it. Use the [current XGBoost bundle](../../../experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/)
 for annotation; this directory preserves the historical result.
 
 Loading it with its original code requires **scikit-learn 1.9.1**. It was fitted

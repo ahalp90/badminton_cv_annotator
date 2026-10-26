@@ -16,10 +16,11 @@ from dataset_builder.cli import main
 from dataset_builder.export_v1 import (
     ExportInputs,
     VideoInputs,
+    annotator_spans_by_video,
     build_video_tables,
     export_dataset_v1,
 )
-from dataset_builder.features import PlayerFeatureInputs
+from dataset_builder.features import PlayerFeatureInputs, clip_frames
 from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.players import MatchPlayers, Player
@@ -241,7 +242,7 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     rallies = tables[RALLIES.name]
     annotator = rallies[rallies["rally_origin"] == "annotator"]
     source = rallies[rallies["rally_origin"] == "source_contacts"]
-    assert list(zip(annotator["start_frame"], annotator["end_frame"])) == [(0, 50), (60, 100)]
+    assert list(zip(annotator["start_frame"], annotator["end_frame"])) == [(20, 31), (70, 71)]
     assert annotator["source_set"].isna().all()
     assert annotator["source_rally"].isna().all()
     assert list(zip(source["start_frame"], source["end_frame"])) == [(5, 21), (61, 71)]
@@ -256,10 +257,10 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     assert not rallies["flaw_marked"].any()
     assert (rallies["fps"] == 25.0).all()
     assert (rallies["frame_count"] == FRAME_COUNT).all()
-    assert rallies["duration_seconds"].tolist() == [2.0, 1.6, 0.64, 0.4]
+    assert rallies["duration_seconds"].tolist() == [0.44, 0.04, 0.64, 0.4]
     # 25 fps: 50 frames of lead-in and 75 of tail, clamped to [0, frame_count).
     assert list(zip(rallies["clip_start_frame"], rallies["clip_end_frame"])) == [
-        (0, 100), (10, 100), (0, 96), (11, 100),
+        (0, 100), (20, 100), (0, 96), (11, 100),
     ]
 
     players = tables[PLAYER_RALLIES.name]
@@ -307,7 +308,7 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
         assert vision.load_npy_xz(signals / signal.filename).shape == SIGNAL_SHAPES[signal.name]
 
     assert manifest == vision.load_json_gz(output_dir / DATASET_MANIFEST_FILENAME)
-    assert manifest["schema"] == DATASET_SCHEMA == "rally-dataset/1.3"
+    assert manifest["schema"] == DATASET_SCHEMA == "rally-dataset/1.4"
     assert manifest["run_id"] == RUN_ID
     assert manifest["code_version"] == CODE_VERSION
     assert manifest["tables"] == {
@@ -646,3 +647,25 @@ def test_annotator_rows_get_null_derived_columns(tmp_path: Path) -> None:
     for row in annotator_players:
         assert row["recovery_distance_median"] is None
         assert row["movement_inefficiency_median"] is None
+
+
+def test_export_contact_intervals_get_context_once_and_clips_may_overlap() -> None:
+    records = [
+        {"key": {"video_id": "fixture"}, "rally": {"rally_id": 0, "start_frame": 200, "end_frame": 420},
+         "contacts": {"accepted": [{"contact_frame": 300}, {"contact_frame": 400}]}},
+        {"key": {"video_id": "fixture"}, "rally": {"rally_id": 1, "start_frame": 420, "end_frame": 600},
+         "contacts": {"accepted": [{"contact_frame": 430}, {"contact_frame": 500}]}},
+    ]
+    spans = annotator_spans_by_video(records)["fixture"]
+    assert spans == ((300, 401), (430, 501))
+    clips = [clip_frames(start, end, Fraction(30), 1000) for start, end in spans]
+    assert clips == [(240, 491), (370, 591)]
+    assert clips[0][1] > clips[1][0]
+    assert records[0]["rally"]["start_frame"] == 200
+
+
+def test_export_stops_at_a_contactless_rally_without_dropping_it() -> None:
+    records = [{"key": {"video_id": "fixture"}, "rally": {"rally_id": 0, "start_frame": 100, "end_frame": 200},
+                "contacts": {"accepted": []}}]
+    with pytest.raises(ValueError, match="fixture rally 0: no accepted contacts"):
+        annotator_spans_by_video(records)

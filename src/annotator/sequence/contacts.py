@@ -84,11 +84,9 @@ def apply_choices(
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Swap in each chosen sequence and rebuild the full contact stream.
 
-    Contacts an initial sequence owned survive only if its chosen sequence keeps
-    them. Contacts outside every initial sequence always survive, so an edit
-    that deletes an absorbed out-of-span contact leaves it in the full stream.
+    Each chosen rally owns the contacts inside its bounds. Detector contacts
+    outside every chosen rally survive in the full stream.
     """
-    owned = {event.frame for sequence in initial for event in sequence.events}
     by_frame: dict[int, ContactEvent] = {}
     sequences = []
     for sequence in initial:
@@ -97,7 +95,7 @@ def apply_choices(
         for event in after.events:
             by_frame[event.frame] = event
     for event in events:
-        if event.frame not in owned:
+        if not any(sequence.start_frame <= event.frame < sequence.end_frame for sequence in sequences):
             by_frame[event.frame] = event
     return tuple(sequences), tuple(by_frame[frame] for frame in sorted(by_frame))
 

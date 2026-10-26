@@ -189,7 +189,8 @@ def export_dataset_v1(inputs: ExportInputs) -> dict[str, object]:
     video_ids = [str(source["video_id"]) for source in sources]
     annotation_dirs, fixed_manifest = _annotation_directories(inputs, video_ids)
     annotation_root = _optional_resolved(inputs.ground_truth_root)
-    spans_by_video = annotator_spans_by_video(records)
+    selected_records = [record for record in records if _mapping(record["key"], "record key")["video_id"] in video_ids]
+    spans_by_video = annotator_spans_by_video(selected_records)
     run_id = str(collection["run_id"])
     players_path = Path(inputs.players)
     players = load_players(players_path)
@@ -638,14 +639,23 @@ def derive_player_inputs(
 def annotator_spans_by_video(
     records: Sequence[Mapping[str, object]],
 ) -> dict[str, tuple[tuple[int, int], ...]]:
-    """Return each video's half-open rally spans in rally_id order."""
+    """Return first-to-last accepted-contact intervals in rally_id order.
+
+    Discovery windows remain in the input records. Export adds its fixed video
+    context to these contact intervals, so existing discovery padding is not
+    added twice. Contact-less spans need review before they can be exported.
+    """
     grouped: dict[str, list[tuple[int, int, int]]] = {}
     for record in records:
         key = _mapping(record["key"], "record key")
         rally = _mapping(record["rally"], "rally")
-        grouped.setdefault(str(key["video_id"]), []).append(
-            (int(rally["rally_id"]), int(rally["start_frame"]), int(rally["end_frame"]))
-        )
+        video_id, rally_id = str(key["video_id"]), int(rally["rally_id"])
+        contacts = _list(_mapping(record["contacts"], "contacts")["accepted"])
+        if not contacts:
+            raise ValueError(f"Cannot export {video_id} rally {rally_id}: no accepted contacts; review this span")
+        first = int(_mapping(contacts[0], "first accepted contact")["contact_frame"])
+        last = int(_mapping(contacts[-1], "last accepted contact")["contact_frame"])
+        grouped.setdefault(video_id, []).append((rally_id, first, last + 1))
     spans: dict[str, tuple[tuple[int, int], ...]] = {}
     for video_id, rows in grouped.items():
         if [row[0] for row in rows] != list(range(len(rows))):

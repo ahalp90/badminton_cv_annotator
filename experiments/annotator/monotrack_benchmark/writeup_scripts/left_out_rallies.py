@@ -2,7 +2,7 @@
 
 The test set scores 3,327 of the ShuttleSet22 rallies in its 46 videos. The other 524 were left
 out upstream because a hit in them is flagged ``flaw`` (or, once, out of time order). ``metrics.py``
-ignores them in every condition. This script counts them, checks that validation has none, and
+ignores them in every condition. This script counts them, checks for raw validation rallies absent from scored labels, and
 records how many discovery predictions they would add as extras if they were not ignored.
 
 Usage: python left_out_rallies.py --data DIR --shots-master CSV
@@ -75,11 +75,12 @@ def extras_split(streams: dict[str, dict], left_out: dict[str, list[dict]]) -> d
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, required=True, help='metrics.py output folder')
+    parser.add_argument('--annotator-runs', type=Path, required=True)
     parser.add_argument('--shots-master', type=Path, required=True)
     args = parser.parse_args()
     manifest = load_manifest(INPUTS)
     test = test_left_out()
-    annotator = [extras_split({item['item_id']: read_json(annotator_run('discovery', '32_videos', seed) / f'{item["item_id"]}.json.gz')
+    annotator = [extras_split({item['item_id']: read_json(annotator_run('discovery', '32_videos', seed, args.annotator_runs) / f'{item["item_id"]}.json.gz')
                                for item in manifest['items']}, test) for seed in SEEDS]
     trees_off = extras_split(read_json(HEURISTIC / 'test/predictions.json.gz')['streams'], test)
     validation = validation_left_out(args.shots_master)
