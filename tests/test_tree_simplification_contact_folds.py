@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from annotator.training.contact import ContactFitConfig
+from annotator.training.label_quality import load_rally_exclusions
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools
 
@@ -46,13 +47,14 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
     manifest = {
         'schema': pools.SCHEMA, 'prepared': str(prepared), 'contact_run': str(reference), 'settings': settings,
         'max_edits': 3, 'deletion_candidates': 6,
+        'unjudgeable_rallies': sorted([video, rally] for video, rally in load_rally_exclusions()),
     }
     experiment.write_json(original / 'pools.json.gz', manifest)
     (prepared / 'videos').mkdir()
     (original / 'videos').mkdir()
     for identity, group in groups.items():
         split = 'validation' if group == 'V' else 'train'
-        video = SimpleNamespace(identity=identity, split=split, fps=30.0,
+        video = SimpleNamespace(identity=identity, dataset='fixture', split=split, fps=30.0,
                                 rallies=(SimpleNamespace(frames=(30, 10)),))
         joblib.dump(SimpleNamespace(video=video, group=group, features=SimpleNamespace(rows=np.zeros(2))),
                     prepared / 'videos' / f'{identity}.joblib')

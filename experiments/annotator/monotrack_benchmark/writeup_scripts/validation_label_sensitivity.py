@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +92,12 @@ def main() -> None:
     parser.add_argument('--out', type=Path, required=True, help='output JSON.gz path')
     args = parser.parse_args()
 
-    videos = [video for video in load_original_videos(args.shots_master) if video.split == 'validation']
+    videos = []
+    for video in load_original_videos(args.shots_master):
+        if video.split == 'validation':
+            # This counterfactual starts with every label, before applying its flaw-only mask.
+            rallies = tuple(replace(rally, judgeable=True, unjudgeable_span=None) for rally in video.rallies)
+            videos.append(replace(video, rallies=rallies))
     flagged_rallies, windows, label_counts = flaw_labels(videos)
     clean_labels = {
         video.identity: tuple(rally for rally in video.rallies

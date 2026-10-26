@@ -1,4 +1,4 @@
-"""Select discovery training on complete validation rallies, with a separate flaw view."""
+"""Compare discovery configurations on judgeable validation rallies."""
 
 from __future__ import annotations
 
@@ -33,17 +33,14 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
     contact_endpoint_stream,
     judge_found_rallies,
 )
-from experiments.annotator.monotrack_benchmark.writeup_scripts.validation_label_sensitivity import (
-    flaw_labels,
-)
 
 PROTOCOL = {
     'selection_split': 'validation', 'tolerance_base30': 10,
     'boundary_basis': DISCOVERY_BOUNDARY_BASIS,
     'boundary_policy': {'before_seconds': None, 'after_seconds': None},
-    'primary': 'five-seed mean fully correct rally percentage across all 668 validation rallies',
+    'primary': 'five-seed mean fully correct rally percentage across judgeable validation rallies',
     'tie_breaks': ['correct-player F1', 'contact F1'],
-    'flaw_view': 'exclude marked rallies after judgement; retain all contacts and labels during scoring',
+    'exclusions': 'original flaws, missing master rows and repeated players; merge check before exclusion',
     'boundary_survey_stage': 'discovery output before dataset export',
 }
 
@@ -54,13 +51,12 @@ class ValidationJob:
     seed: int
     video: SearchVideo
     stream: Path
-    flagged: frozenset[str]
     output: Path
     reuse_contact_counts: Path | None = None
 
 
 def score_validation(job: ValidationJob) -> dict:
-    """Score all labels once, then filter only the rally reporting view."""
+    """Retain all contact labels and exclude unreliable whole-rally judgements."""
     output = job.output / 'videos' / job.name / f'seed-{job.seed}' / f'{job.video.identity}.json.gz'
     if output.exists():
         saved = read_json(output)
@@ -87,9 +83,8 @@ def score_validation(job: ValidationJob) -> dict:
     sequences, _events = stream_from_payload(stream)
     judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps)
     correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
-    unflagged = {rally.identity for rally in video.rallies} - job.flagged
-    counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
-               'unflagged_rallies': len(unflagged), 'unflagged_fully_correct': len(correct & unflagged)}
+    counts |= {'rallies': sum(rally.judgeable for rally in video.rallies), 'fully_correct': len(correct),
+               'excluded_rallies': sum(not rally.judgeable for rally in video.rallies)}
     record = {'name': job.name, 'seed': job.seed, 'video': video.identity, 'protocol': PROTOCOL,
               'stream': str(job.stream.resolve()), 'counts': counts}
     write_json(output, record)
@@ -107,10 +102,8 @@ def summarise(records: list[dict]) -> dict:
             'contact_f1': 200 * totals['matched_contacts'] / denominator,
             'correct_player_f1': 200 * totals['correct_player_contacts'] / denominator,
             'fully_correct_percent': 100 * totals['fully_correct'] / totals['rallies'],
-            'unflagged_fully_correct_percent': 100 * totals['unflagged_fully_correct'] / totals['unflagged_rallies'],
         })
-    measures = ('contact_f1', 'correct_player_f1', 'fully_correct', 'fully_correct_percent',
-                'unflagged_fully_correct', 'unflagged_fully_correct_percent')
+    measures = ('contact_f1', 'correct_player_f1', 'fully_correct', 'fully_correct_percent')
     return {'per_seed': per_seed,
             'mean': {measure: float(np.mean([row[measure] for row in per_seed])) for measure in measures}}
 
@@ -138,11 +131,8 @@ def main() -> None:
     if not args.score_only and len(runs) != 2:
         parser.error('selection requires both comparison arms')
     videos = [video for video in load_original_videos(args.shots_master) if video.split == 'validation']
-    flagged, _windows, mapping = flaw_labels(videos)
-    population = sum(len(video.rallies) for video in videos)
-    flagged_count = mapping['rallies_with_flaw_eq_1']
-    if (population, flagged_count, population - flagged_count) != (668, 314, 354):
-        raise ValueError(f'Unexpected validation population: {population} total, {flagged_count} marked')
+    population = sum(rally.judgeable for video in videos for rally in video.rallies)
+    flagged_count = sum(not rally.judgeable for video in videos for rally in video.rallies)
     args.output.mkdir(parents=True, exist_ok=True)
     write_json(args.output / 'selection_protocol.json.gz', PROTOCOL)
     jobs = []
@@ -150,12 +140,11 @@ def main() -> None:
         for seed in SEEDS:
             for video in videos:
                 jobs.append(ValidationJob(name, seed, video, directory / f'seed-{seed}' / f'{video.identity}.json.gz',
-                                          frozenset(flagged[video.identity]), args.output, args.reuse_contact_counts))
+                                          args.output, args.reuse_contact_counts))
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
         records = list(executor.map(score_validation, jobs))
     comparison = {name: summarise([record for record in records if record['name'] == name]) for name in runs}
-    result = {'protocol': PROTOCOL, 'rallies': population, 'flagged_rallies': flagged_count,
-              'unflagged_rallies': population - flagged_count, 'comparison': comparison}
+    result = {'protocol': PROTOCOL, 'rallies': population, 'excluded_rallies': flagged_count, 'comparison': comparison}
     if not args.score_only:
         winner = max(comparison, key=lambda name: selection_key(comparison[name]))
         result['best_validation_coverage'] = winner

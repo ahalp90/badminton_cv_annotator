@@ -78,8 +78,8 @@ def test_validation_uses_report_overlap_judgement_and_keeps_failed_rallies(tmp_p
     assert result['counts']['labelled_rallies'] == 3
     assert result['counts']['labelled_contacts'] == 6
     assert result['counts']['fully_correct_strict'] == 2
-    assert result['counts']['fully_correct_matched'] == 1
-    assert result['rates']['fully_correct'] == pytest.approx(100 / 3)
+    assert result['counts']['fully_correct_matched'] == 2
+    assert result['rates']['fully_correct'] == pytest.approx(200 / 3)
     write_json(tmp_path / 'report_scores.json.gz', result)
 
 

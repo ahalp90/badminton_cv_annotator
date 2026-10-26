@@ -80,14 +80,14 @@ def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path
     path = tmp_path / 'stream.json.gz'
     write_json(path, stream)
     video = SearchVideo('video', 'test', 'validation', 30, (1920, 1080), labels)
-    job = ValidationJob('5_5', 0, video, path, frozenset(('second',)), tmp_path / 'original')
+    job = ValidationJob('5_5', 0, video, path, tmp_path / 'original')
     full = score_validation(job)
     assert full['counts']['fully_correct'] == 1
-    assert full['counts']['unflagged_fully_correct'] == 1
+    assert full['counts']['rallies'] == 2
     assert full['counts']['predicted_contacts'] == 3
     assert full['counts']['matched_contacts'] == 2
     cached = job.output / 'videos/5_5/seed-0/video.json.gz'
-    write_json(cached, full | {'counts': full['counts'] | {'fully_correct': 0, 'unflagged_fully_correct': 0}})
+    write_json(cached, full | {'counts': full['counts'] | {'fully_correct': 0}})
     reused = score_validation(replace(job, output=tmp_path / 'reused', reuse_contact_counts=job.output))
     assert reused['counts'] == full['counts']
 

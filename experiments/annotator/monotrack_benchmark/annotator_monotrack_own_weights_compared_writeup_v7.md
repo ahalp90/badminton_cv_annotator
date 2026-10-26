@@ -420,28 +420,34 @@ calibration.
 
 The final configuration is chosen on the eight validation videos using the same
 rally judgement as the report: highest mean fully correct rally percentage at
-±10 frames, with mean Correct-player F1 breaking a tie. All 668 validation
-rallies and 5,696 contacts count, including failures in court fitting or hit detection.
+±10 frames, with mean Correct-player F1 breaking a tie. Whole-rally selection
+uses the 347 judgeable validation rallies; contact scores retain all 5,696
+contacts. Court-fitting and hit-detection failures remain failures on the
+judgeable rallies. The 321 unreliable rallies are excluded after checking for
+merged rallies (Appendix G).
 
 Table A3. Validation scores with MonoTrack courts for all twelve shuttle, L2
 and inference-interpolation combinations. Values are five-seed means (min–max).
 
 | Shuttle input | L2 | Interpolation at inference | Contact F1 | Correct-player F1 | Fully correct rallies |
 |---|---:|---|---:|---:|---:|
-| kept | 0 | Off | 94.54% (94.45–94.71) | 94.07% (93.98–94.24) | 39.49% (38.62–40.27) |
-| kept | 0 | On | 94.36% (94.27–94.50) | 93.82% (93.73–93.94) | 39.55% (38.62–40.27) |
-| kept | 1e-6 | Off | 94.60% (94.47–94.72) | 94.11% (93.93–94.27) | 39.40% (38.47–40.27) |
-| kept | 1e-6 | On | 94.49% (94.39–94.58) | 93.99% (93.87–94.07) | 40.00% (39.67–40.42) |
-| kept | 1e-4 | Off | 94.42% (94.26–94.58) | 93.96% (93.79–94.22) | 38.02% (36.68–39.37) |
-| kept | 1e-4 | On | 94.27% (94.13–94.37) | 93.78% (93.60–94.00) | 38.11% (37.13–39.07) |
-| zeroed (selected) | 0 | Off | 94.62% (94.51–94.83) | 94.11% (94.01–94.31) | 40.06% (39.37–41.77) |
-| zeroed | 0 | On | 94.31% (94.22–94.43) | 93.72% (93.54–93.87) | 38.32% (36.83–39.97) |
-| zeroed | 1e-6 | Off | 94.61% (94.35–94.77) | 94.13% (93.88–94.33) | 39.37% (37.57–40.72) |
-| zeroed | 1e-6 | On | 94.16% (94.00–94.42) | 93.55% (93.34–93.83) | 38.17% (36.68–39.67) |
-| zeroed | 1e-4 | Off | 94.44% (94.33–94.58) | 94.00% (93.90–94.11) | 38.26% (37.87–38.77) |
-| zeroed | 1e-4 | On | 93.92% (93.69–94.05) | 93.32% (93.03–93.57) | 35.99% (34.73–37.28) |
+| kept | 0 | Off | 94.54% (94.45–94.71) | 94.07% (93.98–94.24) | 67.32% (66.28–68.59) |
+| kept | 0 | On | 94.36% (94.27–94.50) | 93.82% (93.73–93.94) | 66.74% (65.99–67.15) |
+| kept | 1e-6 | Off | 94.60% (94.47–94.72) | 94.11% (93.93–94.27) | 67.72% (67.15–68.59) |
+| kept | 1e-6 | On | 94.49% (94.39–94.58) | 93.99% (93.87–94.07) | 67.55% (66.86–68.30) |
+| kept | 1e-4 | Off | 94.42% (94.26–94.58) | 93.96% (93.79–94.22) | 65.48% (63.69–67.44) |
+| kept | 1e-4 | On | 94.27% (94.13–94.37) | 93.78% (93.60–94.00) | 64.96% (63.40–67.15) |
+| zeroed (selected) | 0 | Off | 94.62% (94.51–94.83) | 94.11% (94.01–94.31) | 68.18% (67.15–69.16) |
+| zeroed | 0 | On | 94.31% (94.22–94.43) | 93.72% (93.54–93.87) | 63.05% (60.81–65.13) |
+| zeroed | 1e-6 | Off | 94.61% (94.35–94.77) | 94.13% (93.88–94.33) | 67.03% (64.55–68.30) |
+| zeroed | 1e-6 | On | 94.16% (94.00–94.42) | 93.55% (93.34–93.83) | 62.65% (60.52–65.71) |
+| zeroed | 1e-4 | Off | 94.44% (94.33–94.58) | 94.00% (93.90–94.11) | 65.42% (64.84–65.99) |
+| zeroed | 1e-4 | On | 93.92% (93.69–94.05) | 93.32% (93.03–93.57) | 58.73% (55.91–61.38) |
 
-The selected configuration is **zeroed, L2 0, interpolation off**.
+The selected configuration remains **zeroed, L2 0, interpolation off** after
+rescoring all 60 saved validation runs. Its mean fully-correct score is 68.18%
+on the judgeable rallies. Contact counts are unchanged in every run at both
+timing tolerances, so the existing test predictions are reused.
 Test results use all five checkpoints with dropout 0 and initial learning rate 1e-3.
 Both court conditions use those same checkpoints and settings.
 

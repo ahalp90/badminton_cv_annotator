@@ -17,7 +17,7 @@ Run every command from the repository root.
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
 | [annotator_runs.py](annotator_runs.py) | Runs our annotator's bundles on test (whole videos, and given rally bounds on both court sets) and in discovery mode on validation. Keeps each found rally's confidence score. |
 | [annotator_batch_runs.py](annotator_batch_runs.py) | Runs the `no_max` bundles by default, sharing preparation and compatible rally options across seeds and optional configurations. Resumes completed video predictions in place. |
-| [compare_discovery_context.py](compare_discovery_context.py) | Selects between two discovery configurations on all 668 validation rallies under a common no-maximum-context rule, with a separate 354-rally unflagged view. |
+| [compare_discovery_context.py](compare_discovery_context.py) | Compares discovery configurations on 347 judgeable validation rallies, retaining all 5,696 contacts for contact scoring. |
 | [discovery_boundary_surveys.py](discovery_boundary_surveys.py) | Judges saved discovery outputs under both 1/1 and 2/3 context limits and searches every unique validation confidence threshold. |
 | [compare_training_targets.py](compare_training_targets.py) | Compares the actual consumed selector targets after checking that proposal rows and features align. |
 | [confidence_cutoffs.py](confidence_cutoffs.py) | Searches every distinct validation confidence score for the three operating objectives, then reports test results at those cut-offs. |
@@ -136,9 +136,9 @@ $PY $W/compare_discovery_context.py \
   --output COMPARISON --workers 8
 ```
 
-The comparison uses five-seed mean fully correct coverage on all 668 validation
-rallies and separately reports the 354 unflagged rallies. All labels remain in
-contact matching and neighbouring-rally checks. Reuse saved full-video contact
+The comparison uses five-seed mean fully correct coverage on 347 judgeable
+validation rallies. The 321 excluded rallies remain in contact matching and
+neighbouring-rally checks; merging into one still counts as wrong. Reuse saved full-video contact
 counts with `--reuse-contact-counts PREVIOUS_COMPARISON` when predictions and
 timing tolerances are unchanged. Confidence thresholds are selected on validation
 and applied unchanged to test.

@@ -7,8 +7,9 @@ import math
 import os
 import shutil
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from common import HERE, load_config, read_json, write_json
@@ -93,6 +94,135 @@ def select_configuration(candidates: list[dict]) -> dict:
             'mean_validation': winner['mean_validation'], 'candidates': ranked}
 
 
+def selection_key(selection: dict[str, Any]) -> tuple[str, float, str]:
+    return selection['arm'], selection['l2'], selection['interpolation']
+
+
+def validation_directory(root: Path, arm: str, l2: float, interpolation: str, seed: int) -> Path:
+    return root / 'validation' / f'{training_name(arm, l2)}_{interpolation}' / f'seed-{seed}'
+
+
+def _score_path(output: Path, arm: str, l2: float, interpolation: str, seed: int) -> Path:
+    return validation_directory(output, arm, l2, interpolation, seed) / 'report_scores.json.gz'
+
+
+def _rescore_validation_setting(
+    source: Path,
+    output: Path,
+    items: list[dict[str, Any]],
+    arm: str,
+    l2: float,
+    interpolation: str,
+    seed: int,
+) -> None:
+    windows = {item['item_id']: [] for item in items}
+    result = report_scores(
+        items, validation_directory(source, arm, l2, interpolation, seed), windows,
+    )
+    write_json(_score_path(output, arm, l2, interpolation, seed), result)
+
+
+def _load_rescored_candidates(output: Path) -> list[dict[str, Any]]:
+    candidates = []
+    for arm, l2, interpolation in SETTINGS:
+        seeds = []
+        for seed in SEEDS:
+            scores = read_json(_score_path(output, arm, l2, interpolation, seed))
+            seeds.append({'seed': seed, **scores['by_tolerance']['10']})
+        candidates.append({'arm': arm, 'l2': l2, 'interpolation': interpolation, 'seeds': seeds})
+    return candidates
+
+
+def rescore_saved_validation(
+    config: dict[str, Any],
+    source: Path,
+    output: Path,
+    parallel: int,
+) -> tuple[dict[str, Any], bool]:
+    """Rescore saved validation streams and select a configuration without inference."""
+    if not 1 <= parallel <= 28:
+        raise ValueError('parallel must be between 1 and 28')
+    source, output = source.resolve(), output.resolve()
+    if source == output:
+        raise ValueError('Rescoring output must be separate from its saved prediction root')
+    items = evaluation_items(config, 'validation')
+    output.mkdir(parents=True, exist_ok=True)
+    jobs = []
+    for arm, l2, interpolation in SETTINGS:
+        for seed in SEEDS:
+            score_path = _score_path(output, arm, l2, interpolation, seed)
+            if not score_path.is_file():
+                jobs.append((source, output, items, arm, l2, interpolation, seed))
+    if jobs:
+        with ProcessPoolExecutor(max_workers=min(parallel, len(jobs))) as pool:
+            futures = [pool.submit(_rescore_validation_setting, *job) for job in jobs]
+            for future in as_completed(futures):
+                future.result()
+
+    selected = select_configuration(_load_rescored_candidates(output))
+    original = read_json(source / 'selected.json.gz')
+    write_json(output / 'selected.json.gz', selected)
+    changed = selection_key(selected) != selection_key(original)
+    return selected, changed
+
+
+def run_reselected_test(
+    config_file: Path,
+    config: dict[str, Any],
+    trials: Path,
+    output: Path,
+    selected: dict[str, Any],
+    parallel: int,
+) -> None:
+    """Run and score only missing test conditions for the selected setting."""
+    items = evaluation_items(config, 'test')
+    settings = []
+    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
+        directory = output / 'test' / court / f'seed-{seed}'
+        if not directory.exists():
+            settings.append((selected['arm'], selected['l2'], selected['interpolation'], court, seed))
+            continue
+        for item in items:
+            if not (directory / f'{item["item_id"]}.json.gz').is_file():
+                raise ValueError(f'{directory}: incomplete video output; missing {item["item_id"]}')
+    if settings:
+        (output / 'logs').mkdir(exist_ok=True)
+        run_grid(config_file, config, trials.resolve(), output, 'test', settings, parallel)
+
+    windows = {item: left_out_windows(rallies) for item, rallies in test_left_out().items()}
+    for court, seed in itertools.product(('monotrack', 'ours'), SEEDS):
+        directory = output / 'test' / court / f'seed-{seed}'
+        if not (directory / 'report_scores.json.gz').is_file():
+            write_json(directory / 'report_scores.json.gz', report_scores(items, directory, windows))
+        if not (directory / 'scores.json.gz').is_file():
+            score_run(config['paths']['inputs'], directory)
+
+
+def reselect_saved_validation(
+    config_file: Path,
+    trials: Path | None,
+    source: Path,
+    output: Path,
+    parallel: int,
+    selection_only: bool,
+) -> tuple[dict[str, Any], bool]:
+    """Rescore cached validation predictions and optionally run the selected test setting."""
+    config_file = config_file.resolve()
+    source, output = source.resolve(), output.resolve()
+    config = load_config(config_file)
+    selected, changed = rescore_saved_validation(config, source, output, parallel)
+    print(f'SELECTED {selected["arm"]}/l2={selected["l2"]:g}/{selected["interpolation"]}: '
+          f'{selected["mean_validation"]}', flush=True)
+    if not changed:
+        print(f'TEST RESULTS reuse saved runs at {source}', flush=True)
+    elif selection_only or trials is None:
+        print('TEST RESULTS pending; rerun with --trials to test the changed selection', flush=True)
+    else:
+        run_reselected_test(config_file, config, trials, output, selected, parallel)
+        print(f'TEST RESULTS inferred at {output}', flush=True)
+    return selected, changed
+
+
 def infer(config_file: Path, config: dict, trials: Path, output: Path,
           split: str, arm: str, l2: float, interpolation: str, court: str, seed: int) -> Path:
     if split == 'validation':
@@ -161,15 +291,30 @@ def evaluate(config_file: Path, trials: Path, output: Path, parallel: int) -> No
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', type=Path, required=True)
-    parser.add_argument('--trials', type=Path, required=True, help='ARM_l2VALUE/seed-N training directories')
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--trials', type=Path, help='ARM_l2VALUE/seed-N training directories')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--parallel', type=int, default=16)
+    parser.add_argument('--rescore-validation', type=Path,
+                        help='saved run root with all validation predictions and its original selection')
+    parser.add_argument('--selection-only', action='store_true',
+                        help='rescore/select without running test inference; rerun to continue from the saved result')
     args = parser.parse_args()
-    if args.parallel < 1:
-        parser.error('--parallel must be positive')
+    if not 1 <= args.parallel <= 28:
+        parser.error('--parallel must be between 1 and 28')
     for variable in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS'):
         os.environ[variable] = '1'
+    if args.rescore_validation is not None:
+        if args.config is None:
+            parser.error('--config is required when rescoring saved validation predictions')
+        reselect_saved_validation(
+            args.config, args.trials, args.rescore_validation, args.output, args.parallel, args.selection_only,
+        )
+        return
+    if args.selection_only:
+        parser.error('--selection-only requires --rescore-validation')
+    if args.config is None or args.trials is None:
+        parser.error('--config and --trials are required for a fresh benchmark run')
     evaluate(args.config.resolve(), args.trials.resolve(), args.output.resolve(), args.parallel)
 
 
