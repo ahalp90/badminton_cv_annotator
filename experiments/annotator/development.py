@@ -115,7 +115,8 @@ def score_stream(
             correct_rallies.append(overlapping_rallies(sequence, rallies)[0].identity)
         score = None if confidence is None else confidence[str(sequence.span_id)]
         sections.append([sequence.span_id, correctness, score])
-    return {**counts, 'labelled_rallies': len(rallies), 'correct_rallies': correct_rallies, 'sections': sections}
+    return {**counts, 'labelled_rallies': sum(rally.judgeable for rally in rallies),
+            'correct_rallies': correct_rallies, 'sections': sections}
 
 
 def development_for(videos: tuple[SearchVideo, ...], groups_file: Path = GROUPS_FILE) -> Development:

@@ -287,6 +287,7 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     outside = 0 if supplied else sum(
         not any(span['start_frame'] <= event[0] < span['end_frame'] for span in item['spans'])
         for event in scored['events'])
+    unjudgeable = sum(record['outcome'] == 'unjudgeable_rally' for record in judged)
     counts = {
         'labelled_rallies': len(rally_rows), 'labelled_contacts': len(contacts),
         'predicted_contacts': len(predictions),
@@ -296,8 +297,9 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
         'exact_hits_strict': sum(bool(row['exact_sequence']) for row in rally_rows),
         'predicted_outside_windows': outside,
         'ignored_predictions': ignored,
-        'found_rallies': sum(record['outcome'] != 'unjudgeable_rally' for record in judged),
-        'found_rallies_before_ignore': len(unmasked['sequences']),
+        'found_rallies': len(sequences) - unjudgeable,
+        # Subtract the same unjudgeable detections so the difference counts masking only.
+        'found_rallies_before_ignore': len(unmasked['sequences']) - unjudgeable,
         'boundaries_right_no_allowance': no_allowance,
         **rally_ladder(judged, labels),
     }

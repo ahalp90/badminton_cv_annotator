@@ -3,6 +3,7 @@
 from dataclasses import replace
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from annotator.outcomes.point_winner import Half
@@ -63,3 +64,19 @@ def test_label_csv_can_mark_a_whole_rally_without_losing_contacts(tmp_path: Path
     labels.write_text('rally_id,frame,side,judgeable\nfirst,100,Top,0\nfirst,130,Bot,1\n')
     with pytest.raises(ValueError, match='constant within a rally'):
         load_labels(labels, 200)
+
+
+def test_unjudgeable_detections_are_not_counted_as_masked(monkeypatch: pytest.MonkeyPatch) -> None:
+    rallies = (LabelledRally('first', (100, 130), (Half.TOP, Half.BOT), judgeable=False),
+               LabelledRally('second', (200, 230), (Half.TOP, Half.BOT)))
+    spans = [{'span_id': 0, 'start_frame': 90, 'end_frame': 141},
+             {'span_id': 1, 'start_frame': 190, 'end_frame': 241}]
+    events = (ContactEvent(100, .8, Half.TOP), ContactEvent(130, .8, Half.BOT),
+              ContactEvent(200, .8, Half.TOP), ContactEvent(230, .8, Half.BOT))
+    sequences = (ContactSequence(0, 90, 141, events[:2]), ContactSequence(1, 190, 241, events[2:]))
+    monkeypatch.setattr(metrics, 'labels_for_item', lambda _item: rallies)
+    counts, _ = metrics.score_stream_for_item({'item_id': 'fixture', 'fps': 30, 'spans': spans},
+                                             stream_payload(sequences, events), 10, [], supplied=True)
+    assert counts['found_rallies'] == counts['found_rallies_before_ignore'] == 1
+    assert metrics.rates(pd.Series(counts))['ignored_found_rallies'] == 0
+    assert counts['labelled_contacts'] == counts['matched_contacts'] == 4
