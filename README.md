@@ -43,7 +43,9 @@ With boundaries provided, our refitted annotator gets 55.7% of test rallies
 fully correct, against MonoTrack's 47.8%. The refit improves correctness on
 the 347 judgeable validation rallies from 64.0% to 65.5%, while test
 correctness falls from 60.3% to 55.7% with boundaries provided and from 55.0%
-to 51.9% when our annotator finds the rallies itself.
+to 51.9% when our annotator finds the rallies itself. Each before-and-after
+comparison uses the same scoring population; validation and test use different
+label-exclusion rules, so their absolute percentages are not directly comparable.
 
 Our annotator can discover rally boundaries in a raw video (figure above,
 bottom row). Each rally gets a confidence score, so you can trade recall for

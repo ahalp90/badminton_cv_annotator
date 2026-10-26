@@ -214,7 +214,8 @@ and hitter to be right, with no missing or extra contacts.
 Before filtering, 51.9% of all 3,327 scored test rallies are fully correct.
 On validation, the refitted annotator gets 65.5% of the 347 rallies with
 reliable labels fully correct. Contact F1 still uses all 5,696 validation
-hits. Appendices B and G give the validation results and label exclusions;
+hits. Validation and test use different label-exclusion rules, so their absolute
+percentages are not directly comparable. Appendices B and G give the validation results and label exclusions;
 Appendix B also gives the validation-selected thresholds.
 
 ![Confidence threshold against kept-rally shares, and the trade-off between accuracy and rallies handed over](writeup_figures/v7/fig6_confidence.png)
@@ -543,11 +544,13 @@ Values are five-seed means.
 | Refitted model | 227.2 | 65.48% | 90.21% | 85.41% |
 
 The refit raises validation coverage by 5.0 fully correct rallies per seed, or
-1.44 percentage points. This is a limited validation gain, not evidence that
+1.44 percentage points. All five seeds improve, by 1, 7, 9, 5 and 3 rallies
+respectively. This is a limited validation gain, not evidence that
 the refit improves the test results. Under the unchanged test rules, supplied-
 boundary correctness falls from 60.3% for the earlier model to 55.7% for the
 refit. Discovery correctness falls from 55.0% to 51.9%. The contact tree is
-unchanged, but the refitted rally layers change the final predictions. The
+unchanged, but the refitted rally layers change the final predictions. This run
+does not establish why the validation gain fails to carry over to test. The
 [validation comparison](benchmark_results/discovery_context/policy_selection.json.gz)
 has each seed's scores; the [primary results](benchmark_results/discovery_context/primary/)
 have the current test scores.
