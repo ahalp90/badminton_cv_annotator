@@ -34,10 +34,13 @@ Two `sam3` quirks: the PyPI release (0.1.4) is missing its tokenizer file, so in
 | `central_bbox` | Bounding box of the line network nearest the frame centre |
 | `central_hull` | Filled convex hull of that network |
 | `largest_network_hull` | Filled convex hull of the line network with the most line pixels |
+| `largest_network_quad` | That hull simplified to a quadrilateral when the court is fully visible |
 
 The network methods first join pieces across small breaks, up to about 0.6% of frame width. A court's lines form one connected network, and neighbouring courts sit across a gap of floor, so each network approximates one court. "Nearest the frame centre" means the network holding the line pixel closest to the centre. That approximates "the most central court" without per-video hints.
 
 Hulls follow a perspective court better than axis-aligned boxes. The two box methods are kept for comparison.
+
+`largest_network_quad` simplifies the hull with `cv2.approxPolyDP`, trying fixed tolerances (1–5% of the perimeter) until it gets four convex corners. A hull touching the frame edge is a partly visible court, and stays as it is. The visible lines can't pin down a missing side: many perspective views of a 13.4 × 6.1 m court share the same visible part, so extrapolating would need the internal lines matched to a court model, which is a detector in its own right. For IoU against the detector's court clipped to the frame, the clipped hull is the fair comparison.
 
 ## Outputs
 

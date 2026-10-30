@@ -22,6 +22,10 @@ RED_BGR = np.array([0, 0, 255], dtype=np.float32)
 # along thin lines of up to twice this.
 BRIDGE_FRACTION = 0.003
 GRID_CELL_WIDTH = 480
+# Hull simplification tolerances, tried in order, as fractions of the hull perimeter.
+QUAD_TOLERANCES = np.linspace(0.01, 0.05, 9)
+# A hull this close to the frame edge is treated as a partly visible court.
+BORDER_MARGIN_PX = 2
 
 
 def bbox_region(lines: np.ndarray) -> np.ndarray:
@@ -70,6 +74,33 @@ def largest_network(lines: np.ndarray) -> np.ndarray:
     return lines & (networks == line_pixels_per_network.argmax())
 
 
+def quadrilateral_region(hull: np.ndarray) -> np.ndarray:
+    """Simplify a fully visible court hull to a quadrilateral where the hull supports one.
+
+    A hull touching the frame edge is a partly visible court. It is kept as it is,
+    because the visible lines can't pin down a missing side. A hull that no tolerance
+    reduces to four convex corners is also kept.
+
+    :return: (height, width) bool region.
+    """
+    contours, _ = cv2.findContours(hull.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contour = max(contours, key=cv2.contourArea)
+    height, width = hull.shape
+    xs, ys = contour[:, 0].T
+    is_near_left_or_right = (xs <= BORDER_MARGIN_PX) | (xs >= width - 1 - BORDER_MARGIN_PX)
+    is_near_top_or_bottom = (ys <= BORDER_MARGIN_PX) | (ys >= height - 1 - BORDER_MARGIN_PX)
+    if (is_near_left_or_right | is_near_top_or_bottom).any():
+        return hull
+    perimeter = cv2.arcLength(contour, True)
+    for tolerance in QUAD_TOLERANCES:
+        corners = cv2.approxPolyDP(contour, tolerance * perimeter, True)
+        if len(corners) == 4 and cv2.isContourConvex(corners):
+            region = np.zeros(hull.shape, dtype=np.uint8)
+            cv2.fillConvexPoly(region, corners, 1)
+            return region.astype(bool)
+    return hull
+
+
 def top_piece_hull(masks: np.ndarray, scores: np.ndarray) -> np.ndarray:
     return hull_region(masks[scores.argmax()])
 
@@ -94,6 +125,10 @@ def largest_network_hull(masks: np.ndarray, scores: np.ndarray) -> np.ndarray:
     return hull_region(largest_network(masks.any(axis=0)))
 
 
+def largest_network_quad(masks: np.ndarray, scores: np.ndarray) -> np.ndarray:
+    return quadrilateral_region(largest_network_hull(masks, scores))
+
+
 # Each method takes masks (pieces, height, width) bool and scores (pieces,) and
 # returns one (height, width) bool region.
 METHODS: dict[str, Callable[[np.ndarray, np.ndarray], np.ndarray]] = {
@@ -103,6 +138,7 @@ METHODS: dict[str, Callable[[np.ndarray, np.ndarray], np.ndarray]] = {
     "central_bbox": central_bbox,
     "central_hull": central_hull,
     "largest_network_hull": largest_network_hull,
+    "largest_network_quad": largest_network_quad,
 }
 
 
