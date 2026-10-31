@@ -40,6 +40,53 @@ cutoffs listed above used scores strictly greater than each value.
 
 ## Running
 
+### ShuttleSet22 rally benchmark
+
+`benchmark_rallies.py` runs detection, fitting and numeric evaluation in one process.
+It uses the MonoTrack benchmark's committed input manifest: **3,327 rally windows
+from 46 videos**, with video 15 already excluded by that benchmark. Each input is
+the zero-based frame `(start_frame + end_frame) // 2`; the window end is exclusive.
+The SAM model loads once, and each video is opened once. Frames and masks stay in
+memory; only numerical predictions and progress are saved.
+
+From the repository root, with the SAM 3 environment and checkpoint available:
+
+```bash
+PYTHONPATH=. python experiments/court_detector/benchmark/sam3/benchmark_rallies.py \
+    --manifest experiments/annotator/monotrack_benchmark/benchmark_results/inputs/manifest.json.gz \
+    --references data/shuttleset22/set/homography.csv.gz \
+    --videos <ShuttleSet22 video directory> \
+    --out <new results directory>
+```
+
+Reference corners come from ShuttleSet22's official homography table, scaled from
+1280×720 to each video's native resolution. These are main-camera references;
+an alternate-camera midpoint can score poorly even if its detected court is right.
+All manifest rallies remain in the evaluation.
+
+- **Corner error:** mean Euclidean distance in native pixels at true reference
+  corners inside the image, minimised over the eight cyclic order/orientation
+  matches. A matched predicted corner can be outside the image. Frame-edge
+  intersections are not reference corners. Each rally contributes one mean.
+- **Resolution:** reports use 1080p-equivalent corner error (`native error ×
+  1080 / image height`), preserving aspect ratio. All ShuttleSet22 videos are
+  1920×1080, so their native and normalised errors are identical.
+- **IoU:** intersection area divided by union area after clipping both court
+  polygons to `[0, width] × [0, height]`. Missing predictions receive zero IoU.
+- **Missing predictions:** counted separately. Corner-error statistics include
+  only predictions with visible reference corners. IoU is reported both over all
+  rallies and conditionally on a prediction. Aggregation gives each rally equal
+  weight; repeated views are not independent samples of camera geometry.
+
+`rallies.json.gz` contains every rally's frame, reference and predicted corners,
+retained-pixel count and scores. It is checkpointed after each video.
+`summary.json.gz` contains aggregate scores, settings and package versions.
+`status.json.gz` updates after every rally and records completion or failure.
+Existing predictions are protected from accidental overwrite; use a new output
+directory for a fresh run.
+
+### Individual images
+
 Segmentation requires a CUDA GPU, Meta's
 [SAM 3 package](https://github.com/facebookresearch/sam3) and the `facebook/sam3`
 checkpoint:
@@ -66,10 +113,8 @@ the right, at the same scale and crop. Markings are thickened for display.
 four cyclic `(x, y)` corners in original-image pixels, or `null` for no prediction.
 The saved corners are unclipped.
 
-The planned benchmark measures IoU within the image and mean pixel error at true
-reference corners visible onscreen. Corner order is matched to the reference;
-corresponding predictions can be offscreen. Missing predictions count as detection
-failures.
+The [comparison report](../court_det_benchmark.md) gives the completed broadcast
+and manual-court results for this method, our detector and MonoTrack.
 
 ## References and comparisons
 
