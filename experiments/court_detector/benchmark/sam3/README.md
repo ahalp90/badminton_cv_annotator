@@ -20,6 +20,24 @@ The fit encloses the selected markings, including any stray pixels. Cropped
 courts can retain an image-edge side, and fitted corners can lie outside the
 image. Empty masks and hulls with fewer than four vertices return no prediction.
 
+## Settings trialled
+
+The initial prompt trials included `court lines`, `court markings`,
+`court boundary lines`, `badminton court`, `badminton doubles court`,
+`sport court` and `court floor`. The three line-based prompts picked out the
+painted markings most consistently. The badminton-court prompts mostly scored
+below 0.1, while the broader floor prompts tended to segment the whole floor.
+
+`court lines`, `court markings` and `court boundary lines` were compared across
+nine trial frames at instance confidence cutoffs of **0.3 and 0.5**. A later
+sweep used `court markings` at **0.5, 0.6, 0.7 and 0.8**, comparing direct
+mask-to-quadrilateral fits with Hough-based fits. Higher cutoffs progressively
+removed useful markings; the selected setting remained `court markings` at 0.5.
+
+The early caches retained predictions above **0.1**, allowing these cutoffs to
+be applied without rerunning SAM 3. This was the cache threshold; the comparison
+cutoffs listed above used scores strictly greater than each value.
+
 ## Running
 
 Segmentation requires a CUDA GPU, Meta's
