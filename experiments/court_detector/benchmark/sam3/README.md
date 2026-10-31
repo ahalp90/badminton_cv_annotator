@@ -34,13 +34,20 @@ Two `sam3` quirks: the PyPI release (0.1.4) is missing its tokenizer file, so in
 | `central_bbox` | Bounding box of the line network nearest the frame centre |
 | `central_hull` | Filled convex hull of that network |
 | `largest_network_hull` | Filled convex hull of the line network with the most line pixels |
-| `largest_network_quad` | That hull simplified to a quadrilateral when the court is fully visible |
+| `largest_network_quad` | That hull fitted to a quadrilateral, clipped to the frame |
 
 The network methods first join pieces across small breaks, up to about 0.6% of frame width. A court's lines form one connected network, and neighbouring courts sit across a gap of floor, so each network approximates one court. "Nearest the frame centre" means the network holding the line pixel closest to the centre. That approximates "the most central court" without per-video hints.
 
 Hulls follow a perspective court better than axis-aligned boxes. The two box methods are kept for comparison.
 
-`largest_network_quad` simplifies the hull with `cv2.approxPolyDP`, trying fixed tolerances (1–5% of the perimeter) until it gets four convex corners. A hull touching the frame edge is a partly visible court, and stays as it is. The visible lines can't pin down a missing side: many perspective views of a 13.4 × 6.1 m court share the same visible part, so extrapolating would need the internal lines matched to a court model, which is a detector in its own right. For IoU against the detector's court clipped to the frame, the clipped hull is the fair comparison.
+`largest_network_quad` fits the hull to four corners in two steps:
+
+1. Where the frame cuts a corner off the court, the hull gets an extra side along the frame edge. The method extends the court sides either side of it until they meet beyond the frame, and uses that point as the corner. Straight lines stay straight under perspective, so this finds the true corner whenever both of its sides are visible.
+2. `cv2.approxPolyN` (OpenCV 4.11+) removes any remaining sides beyond four, such as kinks where a player hides the lines. It extends neighbouring sides until they meet, choosing the removal that adds the least area, so the quadrilateral always encloses the hull.
+
+Filling the quadrilateral clips it to the frame. When a whole court side is out of frame, the frame edge stands in for it. The visible lines can't pin down that side: many perspective views of a 13.4 × 6.1 m court share the same visible part. For IoU against the detector's court clipped to the frame, the clipped region is the fair comparison, and corners outside the frame shouldn't count as measured.
+
+The quadrilateral can only be as good as the hull. If the largest network is the wrong court, or only part of one, the quadrilateral fits that.
 
 ## Outputs
 

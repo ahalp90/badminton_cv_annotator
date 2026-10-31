@@ -22,9 +22,10 @@ RED_BGR = np.array([0, 0, 255], dtype=np.float32)
 # along thin lines of up to twice this.
 BRIDGE_FRACTION = 0.003
 GRID_CELL_WIDTH = 480
-# Hull simplification tolerances, tried in order, as fractions of the hull perimeter.
-QUAD_TOLERANCES = np.linspace(0.01, 0.05, 9)
-# A hull this close to the frame edge is treated as a partly visible court.
+# Smoothing applied to the hull outline before finding its sides, so each straight
+# side is one side rather than a run of pixel steps.
+HULL_SMOOTHING_PX = 2
+# A hull corner this close to a frame edge counts as lying on it.
 BORDER_MARGIN_PX = 2
 
 
@@ -74,31 +75,78 @@ def largest_network(lines: np.ndarray) -> np.ndarray:
     return lines & (networks == line_pixels_per_network.argmax())
 
 
-def quadrilateral_region(hull: np.ndarray) -> np.ndarray:
-    """Simplify a fully visible court hull to a quadrilateral where the hull supports one.
+def frame_edge_along(start: np.ndarray, end: np.ndarray, width: int, height: int) -> str | None:
+    """:return: the frame edge a hull side runs along ("left", "right", "top" or "bottom"), or None."""
+    xs, ys = np.stack([start, end]).T
+    is_on_edge = {
+        "left": xs <= BORDER_MARGIN_PX,
+        "right": xs >= width - 1 - BORDER_MARGIN_PX,
+        "top": ys <= BORDER_MARGIN_PX,
+        "bottom": ys >= height - 1 - BORDER_MARGIN_PX,
+    }
+    for edge, is_corner_on_edge in is_on_edge.items():
+        if is_corner_on_edge.all():
+            return edge
+    return None
 
-    A hull touching the frame edge is a partly visible court. It is kept as it is,
-    because the visible lines can't pin down a missing side. A hull that no tolerance
-    reduces to four convex corners is also kept.
+
+def hidden_corner(corners: list[np.ndarray], index: int, width: int, height: int) -> np.ndarray | None:
+    """Find the court corner the frame cuts off behind one hull side.
+
+    When the frame cuts a corner off a court, the hull gets an extra side along the frame
+    edge. The court sides either side of it, extended, meet at the hidden corner.
+
+    :param corners: hull corners in order, each (x, y).
+    :param index: the side from corners[index] to the next corner.
+    :return: (x, y) of the hidden corner, or None if the side doesn't run along the frame
+        edge or its neighbours don't meet beyond that edge. They don't when a whole court
+        side is out of frame: two sidelines then meet at their vanishing point instead.
+    """
+    start, end = corners[index], corners[(index + 1) % len(corners)]
+    edge = frame_edge_along(start, end, width, height)
+    if edge is None:
+        return None
+    before, after = corners[index - 1], corners[(index + 2) % len(corners)]
+    # In homogeneous coordinates, the line through two points is their cross product, and
+    # so is the meeting point of two lines. A zero scale means the lines are parallel.
+    x, y, scale = np.cross(np.cross([*before, 1], [*start, 1]), np.cross([*end, 1], [*after, 1]))
+    if scale == 0:
+        return None
+    x, y = x / scale, y / scale
+    is_beyond_edge = {"left": x < 0, "right": x > width - 1, "top": y < 0, "bottom": y > height - 1}
+    return np.array([x, y]) if is_beyond_edge[edge] else None
+
+
+def quadrilateral_region(hull: np.ndarray) -> np.ndarray:
+    """Fit a quadrilateral to the court hull, clipped to the frame.
+
+    First, each hull side along the frame edge is replaced by the hidden court corner
+    beyond it. Then cv2.approxPolyN removes any sides beyond four, such as kinks where a
+    player hides the lines. It extends neighbouring sides until they meet, choosing the
+    removal that adds the least area, so the result encloses the hull. Corners can lie
+    outside the frame; filling clips the region to it.
 
     :return: (height, width) bool region.
     """
     contours, _ = cv2.findContours(hull.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contour = max(contours, key=cv2.contourArea)
+    corners = list(cv2.approxPolyDP(contour, HULL_SMOOTHING_PX, True)[:, 0].astype(float))  # each (x, y)
     height, width = hull.shape
-    xs, ys = contour[:, 0].T
-    is_near_left_or_right = (xs <= BORDER_MARGIN_PX) | (xs >= width - 1 - BORDER_MARGIN_PX)
-    is_near_top_or_bottom = (ys <= BORDER_MARGIN_PX) | (ys >= height - 1 - BORDER_MARGIN_PX)
-    if (is_near_left_or_right | is_near_top_or_bottom).any():
-        return hull
-    perimeter = cv2.arcLength(contour, True)
-    for tolerance in QUAD_TOLERANCES:
-        corners = cv2.approxPolyDP(contour, tolerance * perimeter, True)
-        if len(corners) == 4 and cv2.isContourConvex(corners):
-            region = np.zeros(hull.shape, dtype=np.uint8)
-            cv2.fillConvexPoly(region, corners, 1)
-            return region.astype(bool)
-    return hull
+    # Stop at four corners: when a whole court side is out of frame, the frame edge stands in for it.
+    while len(corners) > 4:
+        hidden_corners = [hidden_corner(corners, index, width, height) for index in range(len(corners))]
+        frame_sides = [index for index, corner in enumerate(hidden_corners) if corner is not None]
+        if not frame_sides:
+            break
+        index = frame_sides[0]
+        corners[index] = hidden_corners[index]
+        del corners[(index + 1) % len(corners)]
+    corners = np.array(corners, dtype=np.float32)  # (corners, 2)
+    if len(corners) > 4:
+        corners = cv2.approxPolyN(corners, 4).reshape(4, 2)
+    region = np.zeros(hull.shape, dtype=np.uint8)
+    cv2.fillPoly(region, [np.round(corners).astype(np.int32)], 1)
+    return region.astype(bool)
 
 
 def top_piece_hull(masks: np.ndarray, scores: np.ndarray) -> np.ndarray:
