@@ -61,3 +61,6 @@ simplify SAM mask contours with Douglas–Peucker to initialise vector curves.
 fit minimum-perimeter enclosing quadrilaterals to Mask R-CNN masks. These are
 examples of geometric fitting after segmentation. This baseline uses OpenCV's
 [greedy enclosing-polygon approximation](https://docs.opencv.org/4.x/d3/dc0/group__imgproc__shape.html).
+
+[Alternate fits](alternate_fits/README.md) contains the trial contact sheets,
+polygon results and the script that reproduces them.
