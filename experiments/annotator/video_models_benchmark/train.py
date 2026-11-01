@@ -212,8 +212,11 @@ def fit(
             best_loss = loss
             save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": asdict(settings),
                                                 "scheme": scheme, "step": step, "validation_loss": loss})
-            with lzma.open(output / "validation_probabilities.npy.xz", "wb", preset=9) as stream:
+            predictions_path = output / "validation_probabilities.npy.xz"
+            temporary = predictions_path.with_name(predictions_path.name + ".partial")
+            with lzma.open(temporary, "wb", preset=9) as stream:
                 np.save(stream, probabilities)
+            temporary.replace(predictions_path)
             write_json(output / "validation_events.json.gz", event_scores)
         row = {"steps": step, "train_loss": float(training_loss / (step - first_step)),
                "validation": result, "events": event_scores["metrics"],

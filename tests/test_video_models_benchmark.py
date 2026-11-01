@@ -1,4 +1,5 @@
 """Check contact alignment, clip transformations and the existing event-score boundary."""
+import lzma
 from pathlib import Path
 
 import numpy as np
@@ -232,6 +233,8 @@ def test_fit_saves_strict_best_at_update_boundaries(tmp_path: Path, monkeypatch:
     train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
     best = torch.load(output / "best.pt", weights_only=True)
     assert best["step"] == 4
+    with lzma.open(output / "validation_probabilities.npy.xz", "rb") as stream:
+        np.testing.assert_array_equal(np.load(stream), np.ones((8, 3)))
     assert rates[:2] == pytest.approx([0.002, 0.02])
     assert rates[-1] == 0.0
     assert [row["steps"] for row in train.read_json(output / "history.json.gz")] == [2, 4, 6]
