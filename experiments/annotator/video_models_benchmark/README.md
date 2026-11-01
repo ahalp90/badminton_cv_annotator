@@ -224,6 +224,40 @@ waiting runner and automatically switches to continuation results afterwards.
 unfinished, then run `grid extend` again. It resumes unfinished continuations
 and skips completed ones. Operational failures stop the continuation queue.
 
+## Queue scheme B from the completed scheme-A results
+
+After starting the scheme-A continuation runner, queue the wider-label comparison:
+
+```bash
+nohup python -u -m experiments.annotator.video_models_benchmark.grid scheme-b \
+  --output /path/to/grid >> /path/to/grid/scheme-b-queue.log 2>&1 </dev/null &
+```
+
+This waits for all eight scheme-A continuations to finish successfully. For each
+run it takes the global lowest-validation-CE checkpoint, including the original
+phase, and reads the event scores at ±10 frames (scaled by fps). It ranks the four
+configurations by mean fully correct rally percentage across seeds 0 and 1,
+breaking ties by mean correct-player F1, then original grid order for exact ties.
+The full ranking and selected configurations are saved in `scheme-b/grid.json.gz`.
+Selection stays fixed when resuming.
+Compare schemes using event scores: A and B validation CE use different target
+labels, so their CE values should not rank the label schemes.
+
+The top two configurations each run at seeds 0 and 1: four fresh K400 starts with
+scheme B (±2 positive labels), copied hyperparameters and unchanged uniform
+sampling across positive clip centres. The positive/background batch fraction
+is unchanged. These runs complete their original 30k phase, then automatically
+use the same cosine continuation and three-check historical patience. Results
+are under `scheme-b/` and `scheme-b/continuation/`; scheme-A results are retained.
+
+The root `status`, `status --watch`, `pause` and `continue` commands follow all
+stages. A paused or unsuccessful dependency prevents B training. After a pause
+or failure, inspect logs, clear pause markers with `grid continue`, and restart
+unfinished A stages as above. Then rerun `grid scheme-b --output /path/to/grid`
+with the same detached command. It resumes incomplete B runs and skips completed
+ones. Its own lock prevents duplicate selection runners. Start it only after
+the A continuation runner has acquired its lock, or after A has completed.
+
 ## Progress and recovery
 
 `status.json.gz` updates about every 30 seconds and at phase changes. It shows

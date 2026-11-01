@@ -177,10 +177,106 @@ def extend_grid(output: Path) -> None:
             raise
 
 
+def rank_configurations(output: Path) -> list[dict]:
+    """Rank paired seeds using event scores at each run's lowest-CE checkpoint."""
+    groups: dict[tuple[float, float], list[dict]] = {}
+    for run in read_record(output / "grid.json.gz")["runs"]:
+        if run["scheme"] != "A" or not completed_run(output / run["name"]):
+            raise ValueError("Selection requires completed scheme-A runs")
+        history = read_record(output / run["name"] / "history.json.gz")
+        best = min(history, key=lambda row: row["validation"]["loss"])
+        events = best["events"]["10"]
+        key = run["contact_fraction"], run["learning_rate"]
+        groups.setdefault(key, []).append({
+            **run, "best_step": best["steps"], "validation_loss": best["validation"]["loss"],
+            "fully_correct_percent": events["fully_correct_percent"],
+            "correct_player_f1": events["correct_player_f1"],
+        })
+    ranking = []
+    for (contact_fraction, learning_rate), runs in groups.items():
+        if sorted(run["seed"] for run in runs) != [0, 1]:
+            raise ValueError("Each configuration needs exactly seeds 0 and 1")
+        ranking.append({
+            "contact_fraction": contact_fraction, "learning_rate": learning_rate, "runs": runs,
+            "mean_fully_correct_percent": sum(run["fully_correct_percent"] for run in runs) / 2,
+            "mean_correct_player_f1": sum(run["correct_player_f1"] for run in runs) / 2,
+        })
+    if len(ranking) != 4:
+        raise ValueError("Selection requires all four scheme-A configurations")
+    # Stable sorting preserves the original grid order for exact ties.
+    return sorted(ranking, key=lambda row: (-row["mean_fully_correct_percent"], -row["mean_correct_player_f1"]))
+
+
+def initialise_scheme_b(source: Path, destination: Path) -> None:
+    """Freeze the top two settings; B starts afresh with the same per-seed config."""
+    ranking = rank_configurations(source)
+    manifest = read_record(source / "grid.json.gz")
+    runs = []
+    for seed in (0, 1):
+        for configuration in ranking[:2]:
+            original = next(run for run in configuration["runs"] if run["seed"] == seed)
+            name = "B" + original["name"][1:]
+            shutil.copy2(source / f"{original['name']}.toml", destination / f"{name}.toml")
+            runs.append({"name": name, "seed": seed, "scheme": "B",
+                         "contact_fraction": configuration["contact_fraction"],
+                         "learning_rate": configuration["learning_rate"]})
+    write_record(destination / "grid.json.gz", {
+        **manifest, "stage": "scheme-b", "source_grid": str(source), "created_at": time.time(),
+        "runs": runs, "max_steps": manifest["validation_steps"][-1], "selection": ranking,
+    })
+
+
+def run_scheme_b(output: Path) -> None:
+    """Wait for A's continuation, then train and continue four selected B runs."""
+    source, destination = output / "continuation", output / "scheme-b"
+    destination.mkdir(exist_ok=True)
+    with (destination / "wait.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        state = {"pid": os.getpid(), "phase": "waiting", "updated_at": time.time()}
+        status_path = destination / "runner-status.json.gz"
+        write_record(status_path, state)
+        print(f"Waiting for all scheme-A continuations: {source}", flush=True)
+        try:
+            # The continuation runner holds wait.lock through its full queue,
+            # including the period before its training grid.lock is acquired.
+            with (source / "wait.lock").open("r+") as source_wait:
+                fcntl.flock(source_wait, fcntl.LOCK_EX)
+                with (source / "grid.lock").open("a") as source_grid:
+                    fcntl.flock(source_grid, fcntl.LOCK_EX)
+                    if (output / "PAUSE").exists() or (destination / "PAUSE").exists():
+                        state.update(phase="paused")
+                        return
+                    manifest = read_record(source / "grid.json.gz")
+                    if read_record(source / "grid-status.json.gz")["phase"] != "complete" or not all(
+                        completed_run(source / run["name"]) for run in manifest["runs"]
+                    ):
+                        raise RuntimeError("Scheme-A continuation did not complete successfully; B will not start")
+                    if not (destination / "grid.json.gz").exists():
+                        initialise_scheme_b(source, destination)
+            state.update(phase="running", updated_at=time.time())
+            write_record(status_path, state)
+            execute(destination, resume=True)
+            if ((destination / "PAUSE").exists()
+                    or read_record(destination / "grid-status.json.gz")["phase"] == "paused"):
+                state.update(phase="paused")
+                return
+            extend_grid(destination)
+            state.update(phase=read_record(destination / "continuation/grid-status.json.gz")["phase"])
+        except BaseException:
+            state.update(phase="stopped")
+            raise
+        finally:
+            state.update(updated_at=time.time())
+            write_record(status_path, state)
+
+
 def pause(output: Path) -> None:
-    if (output / "continuation/grid.json.gz").exists():
-        pause(output / "continuation")
     (output / "PAUSE").touch()
+    for child in ("continuation", "scheme-b"):
+        if (output / child).is_dir():
+            pause(output / child)
+    if not (output / "grid.json.gz").exists():
+        return
     # All unfinished runs receive the marker, including a run just being launched.
     for run in read_record(output / "grid.json.gz")["runs"]:
         directory = output / run["name"]
@@ -191,12 +287,15 @@ def pause(output: Path) -> None:
 
 
 def continue_queue(output: Path) -> None:
-    if (output / "continuation/grid.json.gz").exists():
-        continue_queue(output / "continuation")
+    for child in ("continuation", "scheme-b"):
+        if (output / child).is_dir():
+            continue_queue(output / child)
+    (output / "PAUSE").unlink(missing_ok=True)
+    if not (output / "grid.json.gz").exists():
+        return
     for run in read_record(output / "grid.json.gz")["runs"]:
         (output / run["name"] / "PAUSE").unlink(missing_ok=True)
-    (output / "PAUSE").unlink(missing_ok=True)
-    print("Pause markers cleared. Start the queue with run --resume.")
+    print("Pause markers cleared. Restart the relevant runner (run --resume, extend, or scheme-b); see README.")
 
 
 def live_phase(state: dict) -> str:
@@ -214,10 +313,19 @@ def display(output: Path) -> bool:
     state_path = output / "grid-status.json.gz"
     state = read_record(state_path) if state_path.exists() else {"phase": "not started"}
     phase = live_phase(state)
+    scheme_b = output / "scheme-b"
+    scheme_b_running = False
+    if (scheme_b / "runner-status.json.gz").exists():
+        pending = read_record(scheme_b / "runner-status.json.gz")
+        pending_phase = live_phase(pending)
+        scheme_b_running = pending_phase in ("waiting", "running") and not (output / "PAUSE").exists()
+        print(f"Scheme B runner: {pending_phase} | {scheme_b}")
+        if (scheme_b / "grid.json.gz").exists():
+            return display(scheme_b) and not scheme_b_running
     continuation = output / "continuation"
     if (continuation / "grid.json.gz").exists() and phase == "complete":
         print(f"Original 30k grid complete. Continuation: {continuation}")
-        return display(continuation)
+        return display(continuation) and not scheme_b_running
     finished = 0
     updates = 0
     print(f"GRID {phase.upper()} | {output}")
@@ -254,12 +362,12 @@ def display(output: Path) -> bool:
     if phase == "running" and "current" in state:
         print()
         show(output / state["current"])
-    return phase not in ("running", "starting", "waiting")
+    return phase not in ("running", "starting", "waiting") and not scheme_b_running
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("init", "run", "extend", "status", "pause", "continue"))
+    parser.add_argument("command", choices=("init", "run", "extend", "scheme-b", "status", "pause", "continue"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path)
     parser.add_argument("--resume", action="store_true")
@@ -274,6 +382,8 @@ def main() -> None:
         execute(output, resume=args.resume)
     elif args.command == "extend":
         extend_grid(output)
+    elif args.command == "scheme-b":
+        run_scheme_b(output)
     elif args.command == "pause":
         pause(output)
     elif args.command == "continue":
