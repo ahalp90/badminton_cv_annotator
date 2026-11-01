@@ -146,3 +146,35 @@ python -m experiments.annotator.video_models_benchmark.infer \
   --checkpoint /path/to/scheme-A-seed-0/best.pt \
   --cache /path/to/rgb256-cache --output /path/to/evaluation
 ```
+
+## Progress and recovery
+
+`status.json.gz` updates about every 30 seconds and at phase changes. It shows
+the current epoch and training/validation batch percentage, ETA for that phase,
+learning rate, losses and stopping counter. Total training time depends on
+validation, so the display does not invent an overall completion percentage.
+
+For a detached run, use the supplied wrapper from the repository root:
+
+```bash
+nohup bash experiments/annotator/video_models_benchmark/launch.sh \
+  /path/to/python /path/to/rgb256-cache /path/to/scheme-A-seed-0 A "$WARMUP_STEPS" \
+  > /path/to/launcher.log 2>&1 < /dev/null &
+```
+
+Check once, or add `--watch` to refresh inside the same terminal session:
+
+```bash
+python -m experiments.annotator.video_models_benchmark.status \
+  --output /path/to/scheme-A-seed-0
+```
+
+`last.pt` saves recovery state after every completed epoch: weights, optimiser
+momentum, scheduler, warm-up/update position, stopping counters and Torch/data-loader
+random state. Add `--resume` to the same launch command to continue from there.
+An interrupted epoch is repeated; completed epochs are retained. Each resumed
+epoch remains shuffled. `best.pt` separately holds the strict lowest-CE model.
+Checkpoints and progress snapshots replace their previous files atomically.
+
+Recovery requires a completed epoch and its `last.pt`. If interrupted before
+the first checkpoint, start a fresh output directory with the same configuration.

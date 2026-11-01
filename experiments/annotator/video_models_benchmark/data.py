@@ -26,9 +26,11 @@ def read_json(path: Path) -> Any:
 
 
 def write_json(path: Path, value: Any) -> None:
-    with gzip.open(path, "wt") as stream:
+    temporary = path.with_name(path.name + ".partial")
+    with gzip.open(temporary, "wt") as stream:
         json.dump(value, stream, indent=2)
         stream.write("\n")
+    temporary.replace(path)
 
 
 def development_videos(spans: Path) -> list[dict[str, Any]]:

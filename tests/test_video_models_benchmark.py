@@ -190,3 +190,91 @@ def test_fit_saves_strict_best_and_uses_plateau_patience(tmp_path: Path, monkeyp
     assert rates[10:12] == pytest.approx([0.002, 0.002])  # Fourth bad check reduces the LR.
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, best["model"][name])
+
+
+def test_resume_restores_momentum_scheduler_and_update_position(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from torch.utils.data import DataLoader, TensorDataset
+
+    from experiments.annotator.video_models_benchmark import train
+
+    dataset = TensorDataset(torch.ones(4, 1), torch.zeros(4, dtype=torch.long))
+    loader = DataLoader(dataset, batch_size=2, generator=torch.Generator().manual_seed(11))
+    model = torch.nn.Linear(1, 3)
+    settings = train.Settings(max_epochs=2, workers=0, precision="float32")
+    output = tmp_path / "recover"
+    calls = 0
+
+    def interrupt_after_epoch(model, batch, optimiser, device, precision) -> torch.Tensor:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise RuntimeError("simulated interruption")
+        optimiser.zero_grad()
+        loss = model(batch[0]).square().mean()
+        loss.backward()
+        optimiser.step()
+        return loss.detach()
+
+    monkeypatch.setattr(train, "train_batch", interrupt_after_epoch)
+    monkeypatch.setattr(train, "validate", lambda *args: {"loss": 1.0, "probabilities": np.ones((4, 3))})
+    monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
+    with pytest.raises(RuntimeError, match="simulated"):
+        train.fit(model, loader, loader, settings, torch.device("cpu"), 2, output, "A")
+    saved = torch.load(output / "last.pt", weights_only=True)
+    assert saved["epoch"] == 1 and saved["step"] == 2
+    assert saved["scheduler"]["best"] == 1.0
+    momentum = saved["optimiser"]["state"][0]["momentum_buffer"]
+    assert torch.count_nonzero(momentum) > 0
+    observed = []
+
+    def resumed_step(model, batch, optimiser, device, precision) -> torch.Tensor:
+        if not observed:
+            first_parameter = next(model.parameters())
+            torch.testing.assert_close(optimiser.state[first_parameter]["momentum_buffer"], momentum)
+        observed.append(optimiser.param_groups[0]["lr"])
+        return torch.tensor(0.5)
+
+    monkeypatch.setattr(train, "train_batch", resumed_step)
+    train.fit(torch.nn.Linear(1, 3), loader, loader, settings, torch.device("cpu"), 2, output, "A", resume=True)
+    resumed = torch.load(output / "last.pt", weights_only=True)
+    assert resumed["epoch"] == 2 and resumed["step"] == 4
+    assert resumed["scheduler"]["num_bad_epochs"] == 1
+    assert resumed["bad_epochs"] == 1
+    assert observed == pytest.approx([0.02, 0.02])
+    assert train.read_json(output / "status.json.gz")["phase"] == "complete"
+
+
+def test_launcher_termination_records_failure_and_stops_child(tmp_path: Path) -> None:
+    import os
+    import signal
+    import subprocess
+    import time
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/bash\nprintf '%s\\n' \"$$\" > \"$BENCHMARK_TEST_CHILD\"\nexec sleep 120\n")
+    fake_python.chmod(0o755)
+    child_path = tmp_path / "child.pid"
+    output = tmp_path / "run"
+    wrapper = Path(__file__).resolve().parents[1] / "experiments/annotator/video_models_benchmark/launch.sh"
+    process = subprocess.Popen(["bash", str(wrapper), str(fake_python), "/unused", str(output), "A", "1000"],
+                               env={**os.environ, "BENCHMARK_TEST_CHILD": str(child_path)}, start_new_session=True)
+    try:
+        deadline = time.monotonic() + 5
+        while not child_path.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert child_path.exists()
+        process.send_signal(signal.SIGTERM)
+        assert process.wait(timeout=5) == 143
+        assert (output / "exit-code.txt").read_text().strip() == "143"
+        child = int(child_path.read_text())
+        deadline = time.monotonic() + 5
+        while Path(f"/proc/{child}/stat").exists() and time.monotonic() < deadline:
+            if Path(f"/proc/{child}/stat").read_text().split()[2] == "Z":
+                break
+            time.sleep(0.02)
+        stat = Path(f"/proc/{child}/stat")
+        assert not stat.exists() or stat.read_text().split()[2] == "Z"
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
