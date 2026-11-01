@@ -1,0 +1,2 @@
+# Install alongside the repository's PyTorch stack; keep torch/torchvision paired.
+pytorchvideo==0.1.5
