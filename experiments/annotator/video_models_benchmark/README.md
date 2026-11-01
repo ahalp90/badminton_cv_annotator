@@ -201,6 +201,20 @@ update count, training/validation progress, current learning rate and losses.
 For one run, use `python -m experiments.annotator.video_models_benchmark.status
 --output /path/to/run --watch`.
 
+`training_progress.json.gz` retains the training-loss readings from those
+roughly 30-second updates, including during warm-up. Each record stores the
+step, learning rate, timestamp, session start and training interval start.
+`train_loss` is the mean since that interval began; the interval restarts after
+each validation. To recover the mean between two readings in the same interval
+and session, difference their cumulative losses (`train_loss` multiplied by
+`step - interval_start_step`) and divide by the number of intervening updates.
+The file is replaced atomically and retained across resumes. Replayed updates
+remain recorded under their new session, so use the latest attempt when plotting
+a resumed run. Logging reuses the existing CPU loss readings and adds no model
+passes or GPU synchronisation. The first reading follows training; there is no
+step-zero loss evaluation. Older runs started before this logger was added have
+only the validation-interval averages in `history.json.gz`.
+
 `last.pt` saves the training state at validation boundaries, including optimiser
 momentum, update count and random-number state. The sampler regenerates its
 seeded index sequence and skips completed updates. An interrupted interval is

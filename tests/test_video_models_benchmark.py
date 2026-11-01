@@ -270,6 +270,7 @@ def test_resume_replays_batches_augmentation_momentum_and_schedule(
     model, loader = fresh_model_and_loader()
     train.fit(model, loader, loader, settings, torch.device("cpu"), tmp_path / "reference", "A")
     reference = torch.load(tmp_path / "reference/last.pt", weights_only=True)
+    monkeypatch.setattr(train.Progress, "due", lambda self: True)
     original_batch = train.train_batch
     calls = 0
 
@@ -302,6 +303,39 @@ def test_resume_replays_batches_augmentation_momentum_and_schedule(
     assert torch.equal(recovered["torch_rng"], reference["torch_rng"])
     assert torch.equal(recovered["loader_rng"], reference["loader_rng"])
     assert train.read_json(output / "status.json.gz")["phase"] == "complete"
+    assert train.read_json(output / "training_progress.json.gz")[-1]["step"] == 8
+
+
+def test_training_progress_retains_loss_intervals_and_resume_sessions(tmp_path: Path) -> None:
+    from experiments.annotator.video_models_benchmark.data import read_json
+    from experiments.annotator.video_models_benchmark.run_state import Progress
+
+    progress = Progress(tmp_path)
+    progress.write("training", step=0, completed=0, lr=0.002)
+    progress.write("training", step=100, completed=100, lr=0.003, train_loss=0.8)
+    progress.write("training", step=200, completed=200, lr=0.004, train_loss=0.6)
+    progress.write("validation", completed=0)
+    progress.write("training", step=2500, completed=0, lr=0.02)
+    progress.write("training", step=2600, completed=100, lr=0.019, train_loss=0.3)
+
+    records = read_json(tmp_path / "training_progress.json.gz")
+    assert [row["step"] for row in records] == [100, 200, 2600]
+    assert [row["interval_start_step"] for row in records] == [0, 0, 2500]
+    assert [row["train_loss"] for row in records] == [0.8, 0.6, 0.3]
+    first_sum = records[0]["train_loss"] * 100
+    second_sum = records[1]["train_loss"] * 200
+    assert (second_sum - first_sum) / 100 == pytest.approx(0.4)
+
+    resumed = Progress(tmp_path)
+    resumed.write("training", step=2500, completed=0, lr=0.02)
+    resumed.write("training", step=2550, completed=50, lr=0.0195, train_loss=0.4)
+    continued = read_json(tmp_path / "training_progress.json.gz")
+    assert continued[:3] == records
+    assert continued[-1]["step"] == 2550
+    assert continued[-1]["interval_start_step"] == 2500
+    assert continued[-1]["session_started"] == resumed.state["session_started"]
+    assert continued[-1]["session_started"] != records[-1]["session_started"]
+    assert read_json(tmp_path / "status.json.gz")["step"] == 2550
 
 
 def test_fit_can_pause_and_resume_at_validation_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
