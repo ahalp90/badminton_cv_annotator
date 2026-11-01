@@ -29,7 +29,11 @@ def show(output: Path) -> bool:
             os.kill(state["pid"], 0)
         except ProcessLookupError:
             phase, finished = "stopped (no exit code)", True
-    print(f"{phase.upper()} | update {state.get('step', '—')}/{state.get('max_steps', '—')}")
+    if state.get("stage") == "continuation":
+        print(f"{phase.upper()} | update {state.get('step', '—')} | continuation")
+        print(f"Checks without improvement: {state.get('bad_checks', 0)}/{state['patience']}")
+    else:
+        print(f"{phase.upper()} | update {state.get('step', '—')}/{state.get('max_steps', '—')}")
     completed, total = state.get("completed", 0), state.get("total", 0)
     if total:
         elapsed = time.time() - state["phase_started"]

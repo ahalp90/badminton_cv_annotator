@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from itertools import islice
 
 import numpy as np
 from torch.utils.data import Sampler
@@ -19,10 +20,18 @@ def shuffled_cycles(indices: np.ndarray, count: int, rng: np.random.Generator) -
     return np.concatenate(pieces)
 
 
-class ContactBatchSampler(Sampler[list[int]]):
-    """Precompute the complete run so recovery skips batches without redrawing them."""
+def shuffled_centres(indices: np.ndarray, rng: np.random.Generator) -> Iterator[int]:
+    while True:
+        yield from rng.permutation(indices)
 
-    def __init__(self, labels: np.ndarray, batch_size: int, contact_fraction: float, steps: int, seed: int) -> None:
+
+class ContactBatchSampler(Sampler[list[int]]):
+    """Precompute fixed runs or continue the same seeded stream without an end."""
+
+    def __init__(
+        self, labels: np.ndarray, batch_size: int, contact_fraction: float, steps: int, seed: int,
+        *, continuous: bool = False,
+    ) -> None:
         contact_count = round(batch_size * contact_fraction)
         if not 0 < contact_count < batch_size or contact_count != batch_size * contact_fraction:
             raise ValueError("contact_fraction must give a whole, non-zero count of both classes per batch")
@@ -30,6 +39,13 @@ class ContactBatchSampler(Sampler[list[int]]):
         background_indices = np.flatnonzero(labels == 0)
         if not len(contact_indices) or not len(background_indices):
             raise ValueError("Training needs eligible contact and background centres")
+        self.start_step = 0
+        self.batch_size, self.contact_count = batch_size, contact_count
+        self.contact_indices, self.background_indices = contact_indices, background_indices
+        self.seed = seed
+        self.batches: np.ndarray | None = None
+        if continuous:
+            return
         contact_seed, background_seed, order_seed = np.random.SeedSequence(seed).spawn(3)
         contacts = shuffled_cycles(contact_indices, steps * contact_count, np.random.default_rng(contact_seed))
         backgrounds = shuffled_cycles(
@@ -39,11 +55,26 @@ class ContactBatchSampler(Sampler[list[int]]):
                                   backgrounds.reshape(steps, batch_size - contact_count)), axis=1)
         order = np.random.default_rng(order_seed).random(batches.shape).argsort(axis=1)
         self.batches = np.take_along_axis(batches, order, axis=1)
-        self.start_step = 0
 
     def __iter__(self) -> Iterator[list[int]]:
-        for batch in self.batches[self.start_step:]:
-            yield batch.tolist()
+        if self.batches is None:
+            yield from islice(self.continuous_batches(), self.start_step, None)
+        else:
+            for batch in self.batches[self.start_step:]:
+                yield batch.tolist()
+
+    def continuous_batches(self) -> Iterator[list[int]]:
+        contact_seed, background_seed, order_seed = np.random.SeedSequence(self.seed).spawn(3)
+        contacts = shuffled_centres(self.contact_indices, np.random.default_rng(contact_seed))
+        backgrounds = shuffled_centres(self.background_indices, np.random.default_rng(background_seed))
+        order_rng = np.random.default_rng(order_seed)
+        while True:
+            batch = list(islice(contacts, self.contact_count))
+            batch.extend(islice(backgrounds, self.batch_size - self.contact_count))
+            order = order_rng.random(self.batch_size).argsort()
+            yield [int(batch[index]) for index in order]
 
     def __len__(self) -> int:
+        if self.batches is None:
+            raise TypeError("Continuous training has no fixed batch count")
         return len(self.batches) - self.start_step

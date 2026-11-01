@@ -194,6 +194,36 @@ A failed run stops the queue. Inspect its log, fix the cause, then restart with
 configs when changing scientific settings: use a new grid/run directory so
 partial experiments remain interpretable.
 
+## Continue the completed grid
+
+To queue continuation behind the original grid, run this from the same checkout:
+
+```bash
+nohup python -u -m experiments.annotator.video_models_benchmark.grid extend \
+  --output /path/to/grid >> /path/to/grid/continuation-queue.log 2>&1 </dev/null &
+```
+
+The runner waits on the original queue's lock. It starts only after all original
+runs complete successfully, and stops if that queue fails or is paused. Results
+go into `grid/continuation/`, starting from copies of the original recovery
+checkpoints, best models and histories. Original results remain intact.
+
+Each run resumes at 30,000 updates with model, optimiser momentum and RNG state.
+Its LR rises smoothly from zero to its original step-20,000 rate at step 40,000,
+returns to zero at 50,000, then repeats. Validate every 5,000 updates and stop
+after three consecutive checks without a strictly lower validation CE. Carry
+the original non-improvement count forward: a best at 25k followed by worse
+checks at 30k, 35k and 40k stops at 40k. Improvements reset patience. There is
+no requirement to complete a cycle and no fixed end while CE keeps improving.
+The best checkpoint and event reports cover both training phases.
+
+The existing `grid status --output /path/to/grid [--watch]` command shows the
+waiting runner and automatically switches to continuation results afterwards.
+`grid pause` pauses both phases. To restart after a pause, clear markers with
+`grid continue`; restart the original queue with `grid run --resume` if it is
+unfinished, then run `grid extend` again. It resumes unfinished continuations
+and skips completed ones. Operational failures stop the continuation queue.
+
 ## Progress and recovery
 
 `status.json.gz` updates about every 30 seconds and at phase changes. It shows

@@ -9,7 +9,8 @@ import time
 import tomllib
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field, replace
-from itertools import islice
+from functools import partial
+from itertools import count, islice
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +24,13 @@ from .evaluate import score_probabilities
 from .model import build_model, prepare_clips
 from .run_state import Progress, save_checkpoint
 from .sampling import ContactBatchSampler
+from .schedule import (
+    HALF_CYCLE_STEPS,
+    PATIENCE,
+    VALIDATION_INTERVAL,
+    checks_without_improvement,
+    continuation_rate,
+)
 
 
 @dataclass(frozen=True)
@@ -67,9 +75,9 @@ def seed_everything(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def make_loader(dataset: ClipDataset, settings: Settings, *, training: bool) -> DataLoader:
+def make_loader(dataset: ClipDataset, settings: Settings, *, training: bool, extend: bool = False) -> DataLoader:
     batching = ({"batch_sampler": ContactBatchSampler(dataset.labels, settings.batch_size, settings.contact_fraction,
-                                                     settings.max_steps, settings.seed)}
+                                                     settings.max_steps, settings.seed, continuous=extend)}
                 if training else {"batch_size": settings.batch_size, "shuffle": False})
     return DataLoader(
         dataset, **batching, num_workers=settings.workers, pin_memory=True,
@@ -139,7 +147,7 @@ def save_recovery(
 
 def fit(
     model: nn.Module, train_loader: DataLoader, val_loader: DataLoader, settings: Settings,
-    device: torch.device, output: Path, scheme: str, *, resume: bool = False,
+    device: torch.device, output: Path, scheme: str, *, resume: bool = False, extend: bool = False,
 ) -> None:
     output.mkdir(parents=True, exist_ok=True)
     run_settings = {**asdict(settings), "scheme": scheme}
@@ -147,6 +155,10 @@ def fit(
         raise FileExistsError("Run already exists; use --resume or a new output directory")
     if resume and read_json(output / "settings.json.gz") != run_settings:
         raise ValueError("Resume settings differ from the saved run")
+    if extend and not resume:
+        raise ValueError("Continuation requires a saved 30k run and --resume")
+    if not extend and (output / "continuation.json.gz").exists():
+        raise ValueError("This run is a continuation; resume with --extend")
     write_json(output / "settings.json.gz", run_settings)
     progress = Progress(output)
     optimiser = torch.optim.SGD(model.parameters(), lr=settings.learning_rate,
@@ -170,26 +182,46 @@ def fit(
     else:
         write_json(output / "history.json.gz", [])
         save_recovery(output, model, optimiser, train_loader, device, 0, best_loss, 0)
+    rate_at_step = partial(learning_rate_at_step, settings)
+    targets = iter(settings.validation_steps)
+    unsuccessful = checks_without_improvement(history)
+    if extend:
+        if step < settings.max_steps:
+            raise ValueError("Complete the original training budget before continuing")
+        peak = learning_rate_at_step(settings, settings.max_steps - HALF_CYCLE_STEPS)
+        protocol = {"start_step": settings.max_steps, "peak_lr": peak, "half_cycle_steps": HALF_CYCLE_STEPS,
+                    "validation_interval": VALIDATION_INTERVAL, "patience": PATIENCE}
+        protocol_path = output / "continuation.json.gz"
+        if protocol_path.exists() and read_json(protocol_path) != protocol:
+            raise ValueError("Continuation protocol differs from the saved run")
+        write_json(protocol_path, protocol)
+        rate_at_step = partial(continuation_rate, start_step=settings.max_steps, peak=peak)
+        targets = count(step + VALIDATION_INTERVAL, VALIDATION_INTERVAL)
+        progress.state.update(stage="continuation", patience=PATIENCE, bad_checks=unsuccessful)
     sampler = train_loader.batch_sampler
     if not isinstance(sampler, ContactBatchSampler):
         raise TypeError("Training requires ContactBatchSampler for update-boundary recovery")
+    if extend and sampler.batches is not None:
+        raise ValueError("Continuation requires the continuous contact sampler")
     sampler.start_step = step
     loader_rng = train_loader.generator.get_state() if train_loader.generator is not None else None
     iterator = iter(train_loader)
     # Workers only load pixels; augmentations use the restored main-process GPU RNG.
     if resume and step > 0 and train_loader.generator is not None:
         train_loader.generator.set_state(loader_rng)
-    for target_step in settings.validation_steps:
+    for target_step in targets:
+        if extend and unsuccessful >= PATIENCE:
+            break
         if target_step <= step:
             continue
         started, first_step = time.perf_counter(), step
         model.train()
         training_loss = torch.zeros((), device=device)
-        progress.write("training", step=step, max_steps=settings.max_steps, completed=0,
-                       total=target_step - step, phase_started=time.time(), lr=learning_rate_at_step(settings, step))
+        progress.write("training", step=step, max_steps=None if extend else settings.max_steps, completed=0,
+                       total=target_step - step, phase_started=time.time(), lr=rate_at_step(step))
         for batch in islice(iterator, target_step - step):
             for group in optimiser.param_groups:
-                group["lr"] = learning_rate_at_step(settings, step)
+                group["lr"] = rate_at_step(step)
             training_loss += train_batch(model, batch, optimiser, device, settings.precision)
             step += 1
             if progress.due():
@@ -220,17 +252,22 @@ def fit(
             write_json(output / "validation_events.json.gz", event_scores)
         row = {"steps": step, "train_loss": float(training_loss / (step - first_step)),
                "validation": result, "events": event_scores["metrics"],
-               "next_lr": learning_rate_at_step(settings, step), "seconds": time.perf_counter() - started}
+               "next_lr": rate_at_step(step), "seconds": time.perf_counter() - started}
         history.append(row)
+        unsuccessful = checks_without_improvement(history)
         write_json(output / "history.json.gz", history)
         save_recovery(output, model, optimiser, train_loader, device, step, best_loss, len(history))
-        progress.write("validation complete", total=0, best_loss=best_loss, val_loss=loss)
+        progress.write("validation complete", total=0, best_loss=best_loss, val_loss=loss,
+                       bad_checks=unsuccessful)
         print(row, flush=True)
-        if (output / "PAUSE").exists() and step < settings.max_steps:
+        if extend and unsuccessful >= PATIENCE:
+            break
+        if (output / "PAUSE").exists() and (extend or step < settings.max_steps):
             progress.write("paused", total=0)
             return
     model.load_state_dict(torch.load(output / "best.pt", map_location=device, weights_only=True)["model"])
-    progress.write("complete", step=step, max_steps=settings.max_steps, total=0)
+    progress.write("complete", step=step, max_steps=None if extend else settings.max_steps, total=0,
+                   best_loss=best_loss, bad_checks=unsuccessful)
 
 
 def time_pipeline(
@@ -300,7 +337,10 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("pilot.toml"))
     parser.add_argument("--warmup-steps", type=int)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--extend", action="store_true", help="Continue a completed run with cosine cycling and patience")
     args = parser.parse_args()
+    if args.extend and (not args.resume or args.command != "train"):
+        parser.error("--extend requires train --resume")
     settings = Settings(**tomllib.loads(args.config.read_text()))
     if args.warmup_steps is not None:
         settings = replace(settings, warmup_steps=args.warmup_steps)
@@ -311,13 +351,14 @@ def main() -> None:
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda")
     model = build_model(pretrained=not args.resume).to(device)
-    train_loader = make_loader(ClipDataset(args.cache, "train", args.scheme, training=True), settings, training=True)
+    train_loader = make_loader(ClipDataset(args.cache, "train", args.scheme, training=True), settings,
+                               training=True, extend=args.extend)
     val_loader = make_loader(ClipDataset(args.cache, "validation", args.scheme, training=False), settings, training=False)
     if args.command == "time":
         time_pipeline(model, train_loader, val_loader, settings, device, args.output)
     else:
         fit(model, train_loader, val_loader, settings, device, args.output, args.scheme,
-            resume=args.resume)
+            resume=args.resume, extend=args.extend)
 
 
 if __name__ == "__main__":

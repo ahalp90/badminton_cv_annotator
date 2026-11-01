@@ -6,6 +6,7 @@ import fcntl
 import gzip
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -93,6 +94,8 @@ def execute(output: Path, *, resume: bool) -> None:
                 config = output / f"{run['name']}.toml"
                 command = ["bash", str(Path(__file__).with_name("launch.sh")), sys.executable,
                            manifest["cache"], str(directory), run["scheme"], "2000", "--config", str(config)]
+                if manifest.get("stage") == "continuation":
+                    command.append("--extend")
                 if (directory / "settings.json.gz").exists():
                     if not resume:
                         raise FileExistsError(f"Unfinished run {directory}; inspect it, then use run --resume")
@@ -127,7 +130,56 @@ def execute(output: Path, *, resume: bool) -> None:
             write_record(output / "grid-status.json.gz", active)
 
 
+def extend_grid(output: Path) -> None:
+    """Wait for the original queue lock, then continue copies of its finished runs."""
+    destination = output / "continuation"
+    destination.mkdir(exist_ok=True)
+    with (destination / "wait.lock").open("w") as wait_lock:
+        fcntl.flock(wait_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        manifest = read_record(output / "grid.json.gz")
+        if not (destination / "grid.json.gz").exists():
+            for run in manifest["runs"]:
+                config = f"{run['name']}.toml"
+                shutil.copy2(output / config, destination / config)
+            write_record(destination / "grid.json.gz", {
+                **manifest, "stage": "continuation", "source_grid": str(output), "max_steps": None,
+            })
+        waiting = {"pid": os.getpid(), "phase": "waiting", "updated_at": time.time()}
+        write_record(destination / "grid-status.json.gz", waiting)
+        print(f"Waiting for the original grid to complete: {output}", flush=True)
+        try:
+            with (output / "grid.lock").open("w") as original_lock:
+                fcntl.flock(original_lock, fcntl.LOCK_EX)
+                if (output / "PAUSE").exists() or (destination / "PAUSE").exists():
+                    write_record(destination / "grid-status.json.gz", {**waiting, "phase": "paused"})
+                    return
+                original = read_record(output / "grid-status.json.gz")
+                if original["phase"] != "complete" or not all(
+                    completed_run(output / run["name"]) for run in manifest["runs"]
+                ):
+                    raise RuntimeError("Original grid did not complete successfully; continuation will not start")
+                for run in manifest["runs"]:
+                    source, target = output / run["name"], destination / run["name"]
+                    target.mkdir(exist_ok=True)
+                    if (target / "settings.json.gz").exists():
+                        continue
+                    # Settings is copied last so an interrupted initial copy can be repeated.
+                    filenames = ["last.pt", "best.pt", "history.json.gz", "validation_events.json.gz",
+                                 "validation_probabilities.npy.xz", "settings.json.gz"]
+                    if (source / "training_progress.json.gz").exists():
+                        filenames.insert(0, "training_progress.json.gz")
+                    for filename in filenames:
+                        shutil.copy2(source / filename, target / filename)
+            execute(destination, resume=True)
+        except BaseException:
+            state = read_record(destination / "grid-status.json.gz")
+            write_record(destination / "grid-status.json.gz", {**state, "phase": "stopped", "updated_at": time.time()})
+            raise
+
+
 def pause(output: Path) -> None:
+    if (output / "continuation/grid.json.gz").exists():
+        pause(output / "continuation")
     (output / "PAUSE").touch()
     # All unfinished runs receive the marker, including a run just being launched.
     for run in read_record(output / "grid.json.gz")["runs"]:
@@ -139,22 +191,33 @@ def pause(output: Path) -> None:
 
 
 def continue_queue(output: Path) -> None:
+    if (output / "continuation/grid.json.gz").exists():
+        continue_queue(output / "continuation")
     for run in read_record(output / "grid.json.gz")["runs"]:
         (output / run["name"] / "PAUSE").unlink(missing_ok=True)
     (output / "PAUSE").unlink(missing_ok=True)
     print("Pause markers cleared. Start the queue with run --resume.")
 
 
-def display(output: Path) -> bool:
-    manifest = read_record(output / "grid.json.gz")
-    state_path = output / "grid-status.json.gz"
-    state = read_record(state_path) if state_path.exists() else {"phase": "not started"}
+def live_phase(state: dict) -> str:
     phase = state["phase"]
-    if phase in ("running", "starting"):
+    if phase in ("running", "starting", "waiting"):
         try:
             os.kill(state["pid"], 0)
         except ProcessLookupError:
             phase = "stopped (queue process absent)"
+    return phase
+
+
+def display(output: Path) -> bool:
+    manifest = read_record(output / "grid.json.gz")
+    state_path = output / "grid-status.json.gz"
+    state = read_record(state_path) if state_path.exists() else {"phase": "not started"}
+    phase = live_phase(state)
+    continuation = output / "continuation"
+    if (continuation / "grid.json.gz").exists() and phase == "complete":
+        print(f"Original 30k grid complete. Continuation: {continuation}")
+        return display(continuation)
     finished = 0
     updates = 0
     print(f"GRID {phase.upper()} | {output}")
@@ -178,19 +241,25 @@ def display(output: Path) -> bool:
                            f"{events['correct_player_f1']:9.2f} {ratio:8.2f}")
         run_phase = "complete" if done else status.get("phase", "queued")
         print(f"{run['name']:36} {run_phase:14} {step:7,d}    {metrics}")
-    total = len(manifest["runs"]) * manifest["max_steps"]
-    print(f"\n{finished}/{len(manifest['runs'])} runs complete | {updates:,}/{total:,} updates ({100 * updates / total:.1f}%)")
-    print(f"Initial estimate: {len(manifest['runs']) * manifest['estimated_run_hours']:.1f}h excluding frame preparation/startup/scoring.")
+    if manifest.get("stage") == "continuation":
+        print(f"\n{finished}/{len(manifest['runs'])} continuations complete | stop after 3 unsuccessful validation checks")
+    else:
+        total = len(manifest["runs"]) * manifest["max_steps"]
+        print(f"\n{finished}/{len(manifest['runs'])} runs complete | {updates:,}/{total:,} updates ({100 * updates / total:.1f}%)")
+        print(f"Initial estimate: {len(manifest['runs']) * manifest['estimated_run_hours']:.1f}h excluding frame preparation/startup/scoring.")
+    if (continuation / "grid-status.json.gz").exists():
+        pending = read_record(continuation / "grid-status.json.gz")
+        print(f"Continuation runner: {live_phase(pending)} | {continuation}")
     print("Metrics use the lowest-CE checkpoint at ±10 frames (scaled by fps). Partial runs can change.")
     if phase == "running" and "current" in state:
         print()
         show(output / state["current"])
-    return phase != "running" and phase != "starting"
+    return phase not in ("running", "starting", "waiting")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("init", "run", "status", "pause", "continue"))
+    parser.add_argument("command", choices=("init", "run", "extend", "status", "pause", "continue"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path)
     parser.add_argument("--resume", action="store_true")
@@ -203,6 +272,8 @@ def main() -> None:
         initialise(output, args.cache)
     elif args.command == "run":
         execute(output, resume=args.resume)
+    elif args.command == "extend":
+        extend_grid(output)
     elif args.command == "pause":
         pause(output)
     elif args.command == "continue":
