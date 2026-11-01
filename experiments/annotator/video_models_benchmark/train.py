@@ -8,7 +8,7 @@ import random
 import time
 import tomllib
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from itertools import islice
 from pathlib import Path
 
@@ -22,6 +22,7 @@ from .data import ClipDataset, read_json, write_json
 from .evaluate import score_probabilities
 from .model import build_model, prepare_clips
 from .run_state import Progress, save_checkpoint
+from .sampling import ContactBatchSampler
 
 
 @dataclass(frozen=True)
@@ -30,15 +31,33 @@ class Settings:
     batch_size: int = 16
     workers: int = 12
     learning_rate: float = 0.02
-    warmup_start_lr: float = 0.002
+    warmup_start_lr: float | None = None
     momentum: float = 0.9
     weight_decay: float = 1e-5
-    plateau_factor: float = 0.1
-    plateau_patience: int = 3
-    early_stop_patience: int = 15
-    improvement_threshold: float = 1e-4
-    max_epochs: int = 1000
+    max_steps: int = 30_000
+    warmup_steps: int = 2_000
+    validation_steps: list[int] = field(default_factory=lambda: [2500, 5000, 10000, 15000, 20000, 25000, 30000])
+    contact_fraction: float = 0.5
     precision: str = "bf16"
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.warmup_steps < self.max_steps:
+            raise ValueError("warmup_steps must be non-negative and smaller than max_steps")
+        if (not self.validation_steps or self.validation_steps != sorted(set(self.validation_steps))
+                or self.validation_steps[0] < 1 or self.validation_steps[-1] != self.max_steps):
+            raise ValueError("validation_steps must increase strictly from a positive step through max_steps")
+
+
+def learning_rate_at_step(settings: Settings, step: int) -> float:
+    """Return the LR for a zero-based optimiser update, including the final decay."""
+    if step < settings.warmup_steps:
+        start = settings.warmup_start_lr
+        if start is None:
+            start = settings.learning_rate * 0.1
+        fraction = step / max(settings.warmup_steps - 1, 1)
+        return start + fraction * (settings.learning_rate - start)
+    fraction = (step - settings.warmup_steps) / max(settings.max_steps - settings.warmup_steps - 1, 1)
+    return settings.learning_rate * 0.5 * (1 + math.cos(math.pi * min(fraction, 1.0)))
 
 
 def seed_everything(seed: int) -> None:
@@ -49,9 +68,11 @@ def seed_everything(seed: int) -> None:
 
 
 def make_loader(dataset: ClipDataset, settings: Settings, *, training: bool) -> DataLoader:
+    batching = ({"batch_sampler": ContactBatchSampler(dataset.labels, settings.batch_size, settings.contact_fraction,
+                                                     settings.max_steps, settings.seed)}
+                if training else {"batch_size": settings.batch_size, "shuffle": False})
     return DataLoader(
-        dataset, batch_size=settings.batch_size, shuffle=training,
-        num_workers=settings.workers, pin_memory=True,
+        dataset, **batching, num_workers=settings.workers, pin_memory=True,
         persistent_workers=settings.workers > 0,
         **({"prefetch_factor": 2} if settings.workers else {}),
         generator=torch.Generator().manual_seed(settings.seed),
@@ -104,12 +125,24 @@ def validate(
             "macro_f1": float(class_f1.mean()), "confusion": matrix.tolist()}
 
 
+def save_recovery(
+    output: Path, model: nn.Module, optimiser: torch.optim.Optimizer, loader: DataLoader,
+    device: torch.device, step: int, best_loss: float, history_length: int,
+) -> None:
+    save_checkpoint(output / "last.pt", {
+        "model": model.state_dict(), "optimiser": optimiser.state_dict(), "step": step,
+        "best_loss": best_loss, "history_length": history_length, "torch_rng": torch.get_rng_state(),
+        "cuda_rng": torch.cuda.get_rng_state_all() if device.type == "cuda" else [],
+        "loader_rng": loader.generator.get_state() if loader.generator is not None else None,
+    })
+
+
 def fit(
     model: nn.Module, train_loader: DataLoader, val_loader: DataLoader, settings: Settings,
-    device: torch.device, warmup_steps: int, output: Path, scheme: str, *, resume: bool = False,
+    device: torch.device, output: Path, scheme: str, *, resume: bool = False,
 ) -> None:
     output.mkdir(parents=True, exist_ok=True)
-    run_settings = {**asdict(settings), "scheme": scheme, "warmup_steps": warmup_steps}
+    run_settings = {**asdict(settings), "scheme": scheme}
     if not resume and (output / "settings.json.gz").exists():
         raise FileExistsError("Run already exists; use --resume or a new output directory")
     if resume and read_json(output / "settings.json.gz") != run_settings:
@@ -118,49 +151,55 @@ def fit(
     progress = Progress(output)
     optimiser = torch.optim.SGD(model.parameters(), lr=settings.learning_rate,
                                 momentum=settings.momentum, weight_decay=settings.weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimiser, factor=settings.plateau_factor, patience=settings.plateau_patience,
-        threshold=settings.improvement_threshold, threshold_mode="abs",
-    )
-    best_loss, stopping_best, bad_epochs, step = float("inf"), float("inf"), 0, 0
-    history, first_epoch = [], 0
+    best_loss, step, history = float("inf"), 0, []
     if resume:
         saved = torch.load(output / "last.pt", map_location="cpu", weights_only=True)
         model.load_state_dict(saved["model"])
         optimiser.load_state_dict(saved["optimiser"])
-        scheduler.load_state_dict(saved["scheduler"])
-        first_epoch, step = saved["epoch"], saved["step"]
-        best_loss, stopping_best, bad_epochs = saved["best_loss"], saved["stopping_best"], saved["bad_epochs"]
-        # A valid best model can have been saved just before an interrupted epoch commit.
-        best_loss = min(best_loss, torch.load(output / "best.pt", map_location="cpu", weights_only=True)["validation_loss"])
+        step, best_loss = saved["step"], saved["best_loss"]
+        # The best checkpoint may have been saved just before an interrupted commit.
+        if (output / "best.pt").exists():
+            best_loss = min(best_loss, torch.load(output / "best.pt", map_location="cpu",
+                                                weights_only=True)["validation_loss"])
         torch.set_rng_state(saved["torch_rng"])
         if device.type == "cuda":
             torch.cuda.set_rng_state_all(saved["cuda_rng"])
         if train_loader.generator is not None:
             train_loader.generator.set_state(saved["loader_rng"])
-        history = read_json(output / "history.json.gz")[:first_epoch]
-    for epoch in range(first_epoch, settings.max_epochs):
-        if bad_epochs >= settings.early_stop_patience:
-            break
-        started = time.perf_counter()
+        history = read_json(output / "history.json.gz")[:saved["history_length"]]
+    else:
+        write_json(output / "history.json.gz", [])
+        save_recovery(output, model, optimiser, train_loader, device, 0, best_loss, 0)
+    sampler = train_loader.batch_sampler
+    if not isinstance(sampler, ContactBatchSampler):
+        raise TypeError("Training requires ContactBatchSampler for update-boundary recovery")
+    sampler.start_step = step
+    loader_rng = train_loader.generator.get_state() if train_loader.generator is not None else None
+    iterator = iter(train_loader)
+    # Workers only load pixels; augmentations use the restored main-process GPU RNG.
+    if resume and step > 0 and train_loader.generator is not None:
+        train_loader.generator.set_state(loader_rng)
+    for target_step in settings.validation_steps:
+        if target_step <= step:
+            continue
+        started, first_step = time.perf_counter(), step
         model.train()
         training_loss = torch.zeros((), device=device)
-        seen = 0
-        progress.write("training", epoch=epoch + 1, step=step, completed=0, total=len(train_loader),
-                       phase_started=time.time(), lr=optimiser.param_groups[0]["lr"], bad_epochs=bad_epochs,
-                       early_stop_patience=settings.early_stop_patience)
-        for batch_index, batch in enumerate(train_loader, start=1):
-            if step < warmup_steps:
-                warmup_fraction = step / max(warmup_steps - 1, 1)
-                learning_rate = settings.warmup_start_lr + warmup_fraction * (settings.learning_rate - settings.warmup_start_lr)
-                for group in optimiser.param_groups:
-                    group["lr"] = learning_rate
-            training_loss += train_batch(model, batch, optimiser, device, settings.precision) * len(batch[1])
+        progress.write("training", step=step, max_steps=settings.max_steps, completed=0,
+                       total=target_step - step, phase_started=time.time(), lr=learning_rate_at_step(settings, step))
+        for batch in islice(iterator, target_step - step):
+            for group in optimiser.param_groups:
+                group["lr"] = learning_rate_at_step(settings, step)
+            training_loss += train_batch(model, batch, optimiser, device, settings.precision)
             step += 1
-            seen += len(batch[1])
             if progress.due():
-                progress.write("training", completed=batch_index, step=step,
-                               train_loss=float(training_loss / seen), lr=optimiser.param_groups[0]["lr"])
+                if not torch.isfinite(training_loss):
+                    raise ValueError("Non-finite training loss")
+                progress.write("training", completed=step - first_step, step=step,
+                               train_loss=float(training_loss / (step - first_step)),
+                               lr=optimiser.param_groups[0]["lr"])
+        if step != target_step:
+            raise RuntimeError("Training loader ended before the configured update budget")
         progress.write("validation", completed=0, total=len(val_loader), phase_started=time.time(), step=step)
         result = validate(model, val_loader, device, settings.precision, progress)
         probabilities = result.pop("probabilities")
@@ -171,35 +210,24 @@ def fit(
             raise ValueError("Non-finite training or validation loss")
         if loss < best_loss:
             best_loss = loss
-            save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": asdict(settings), "scheme": scheme,
-                        "epoch": epoch + 1, "step": step, "validation_loss": loss})
+            save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": asdict(settings),
+                                                "scheme": scheme, "step": step, "validation_loss": loss})
             with lzma.open(output / "validation_probabilities.npy.xz", "wb", preset=9) as stream:
                 np.save(stream, probabilities)
             write_json(output / "validation_events.json.gz", event_scores)
-        if step >= warmup_steps:
-            scheduler.step(loss)
-            if loss < stopping_best - settings.improvement_threshold:
-                stopping_best, bad_epochs = loss, 0
-            else:
-                bad_epochs += 1
-        row = {"epoch": epoch + 1, "steps": step, "train_loss": float(training_loss / len(train_loader.dataset)),
-               "validation": result, "events": event_scores["metrics"], "next_lr": optimiser.param_groups[0]["lr"],
-               "bad_epochs": bad_epochs, "seconds": time.perf_counter() - started}
+        row = {"steps": step, "train_loss": float(training_loss / (step - first_step)),
+               "validation": result, "events": event_scores["metrics"],
+               "next_lr": learning_rate_at_step(settings, step), "seconds": time.perf_counter() - started}
         history.append(row)
         write_json(output / "history.json.gz", history)
-        save_checkpoint(output / "last.pt", {
-            "model": model.state_dict(), "optimiser": optimiser.state_dict(), "scheduler": scheduler.state_dict(),
-            "epoch": epoch + 1, "step": step, "best_loss": best_loss, "stopping_best": stopping_best,
-            "bad_epochs": bad_epochs, "torch_rng": torch.get_rng_state(),
-            "cuda_rng": torch.cuda.get_rng_state_all() if device.type == "cuda" else [],
-            "loader_rng": train_loader.generator.get_state() if train_loader.generator is not None else None,
-        })
-        progress.write("epoch complete", total=0, best_loss=best_loss, bad_epochs=bad_epochs, val_loss=loss)
+        save_recovery(output, model, optimiser, train_loader, device, step, best_loss, len(history))
+        progress.write("validation complete", total=0, best_loss=best_loss, val_loss=loss)
         print(row, flush=True)
-        if bad_epochs >= settings.early_stop_patience:
-            break
+        if (output / "PAUSE").exists() and step < settings.max_steps:
+            progress.write("paused", total=0)
+            return
     model.load_state_dict(torch.load(output / "best.pt", map_location=device, weights_only=True)["model"])
-    progress.write("complete", total=0)
+    progress.write("complete", step=step, max_steps=settings.max_steps, total=0)
 
 
 def time_pipeline(
@@ -271,8 +299,8 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     settings = Settings(**tomllib.loads(args.config.read_text()))
-    if args.command == "train" and (args.warmup_steps is None or args.warmup_steps < 1):
-        parser.error("Training requires an explicitly agreed positive --warmup-steps")
+    if args.warmup_steps is not None:
+        settings = replace(settings, warmup_steps=args.warmup_steps)
     if args.command == "train" and read_json(args.cache / "index.json.gz")["smoke_rallies"] is not None:
         parser.error("The bounded smoke cache cannot be used for benchmark training")
     seed_everything(settings.seed)
@@ -285,7 +313,7 @@ def main() -> None:
     if args.command == "time":
         time_pipeline(model, train_loader, val_loader, settings, device, args.output)
     else:
-        fit(model, train_loader, val_loader, settings, device, args.warmup_steps, args.output, args.scheme,
+        fit(model, train_loader, val_loader, settings, device, args.output, args.scheme,
             resume=args.resume)
 
 

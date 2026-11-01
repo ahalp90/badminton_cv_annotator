@@ -1,14 +1,11 @@
-# Warm-up duration is supplied explicitly after the throughput check.
 seed = 0
 batch_size = 16
 workers = 12
 learning_rate = 0.02
-warmup_start_lr = 0.002
 momentum = 0.9
 weight_decay = 0.00001
-plateau_factor = 0.1
-plateau_patience = 3
-early_stop_patience = 15
-improvement_threshold = 0.0001
-max_epochs = 1000
+max_steps = 30000
+warmup_steps = 2000
+validation_steps = [2500, 5000, 10000, 15000, 20000, 25000, 30000]
+contact_fraction = 0.5
 precision = "bf16"

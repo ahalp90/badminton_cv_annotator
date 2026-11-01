@@ -158,16 +158,64 @@ def test_validation_ignores_loss_band_but_predicts_every_centre() -> None:
     assert np.asarray(result["confusion"]).sum() == 2
 
 
-def test_fit_saves_strict_best_and_uses_plateau_patience(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_contact_batches_balance_cover_and_resume() -> None:
+    from experiments.annotator.video_models_benchmark.sampling import (
+        ContactBatchSampler,
+    )
+
+    labels = np.array([0] * 12 + [1, 1, 2, 2])
+    sampler = ContactBatchSampler(labels, batch_size=4, contact_fraction=0.5, steps=8, seed=9)
+    batches = np.asarray(list(sampler))
+    assert np.all((labels[batches] > 0).sum(axis=1) == 2)
+    contacts = batches[labels[batches] > 0]
+    backgrounds = batches[labels[batches] == 0]
+    for start in range(0, 16, 4):
+        assert sorted(contacts[start:start + 4]) == [12, 13, 14, 15]
+    assert sorted(backgrounds[:12]) == list(range(12))
+    assert not np.array_equal(contacts[:4], contacts[4:8])
+    recovered = ContactBatchSampler(labels, 4, 0.5, 8, 9)
+    recovered.start_step = 3
+    np.testing.assert_array_equal(list(recovered), batches[3:])
+    assert len(recovered) == 5
+    with pytest.raises(ValueError, match="whole"):
+        ContactBatchSampler(labels, 4, 0.3, 8, 9)
+
+
+def test_update_schedule_warms_up_then_decays() -> None:
+    from experiments.annotator.video_models_benchmark.train import (
+        Settings,
+        learning_rate_at_step,
+    )
+
+    settings = Settings(learning_rate=0.005, max_steps=6, warmup_steps=2, validation_steps=[2, 4, 6])
+    rates = [learning_rate_at_step(settings, step) for step in range(6)]
+    assert rates[:3] == pytest.approx([0.0005, 0.005, 0.005])
+    assert rates[3:] == pytest.approx([0.00375, 0.00125, 0.0])
+
+
+def tiny_train_loader(settings):
     from torch.utils.data import DataLoader, TensorDataset
 
+    from experiments.annotator.video_models_benchmark.sampling import (
+        ContactBatchSampler,
+    )
+
+    labels = np.array([0, 0, 0, 0, 1, 2, 1, 2])
+    dataset = TensorDataset(torch.arange(16, dtype=torch.float32).reshape(8, 2) / 16, torch.from_numpy(labels))
+    sampler = ContactBatchSampler(labels, settings.batch_size, settings.contact_fraction,
+                                  settings.max_steps, settings.seed)
+    return DataLoader(dataset, batch_sampler=sampler, generator=torch.Generator().manual_seed(11))
+
+
+def test_fit_saves_strict_best_at_update_boundaries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from experiments.annotator.video_models_benchmark import train
 
-    model = torch.nn.Linear(1, 3)
-    dataset = TensorDataset(torch.ones(4, 1), torch.zeros(4, dtype=torch.long))
-    loader = DataLoader(dataset, batch_size=2)
+    model = torch.nn.Linear(2, 3)
+    settings = train.Settings(batch_size=4, max_steps=6, warmup_steps=2, validation_steps=[2, 4, 6],
+                              workers=0, precision="float32")
+    loader = tiny_train_loader(settings)
     rates = []
-    losses = iter([1.0, 0.99995, 1.1, 1.1, 1.1, 1.1])
+    losses = iter([1.0, 0.99995, 1.1])
 
     def batch_step(model, batch, optimiser, device, precision) -> torch.Tensor:
         rates.append(optimiser.param_groups[0]["lr"])
@@ -178,69 +226,98 @@ def test_fit_saves_strict_best_and_uses_plateau_patience(tmp_path: Path, monkeyp
         return loss.detach()
 
     monkeypatch.setattr(train, "train_batch", batch_step)
-    monkeypatch.setattr(train, "validate", lambda *args: {"loss": next(losses), "probabilities": np.ones((4, 3))})
+    monkeypatch.setattr(train, "validate", lambda *args: {"loss": next(losses), "probabilities": np.ones((8, 3))})
     monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
-    settings = train.Settings(max_epochs=10, early_stop_patience=5, workers=0, precision="float32")
     output = tmp_path / "run"
-    train.fit(model, loader, loader, settings, torch.device("cpu"), 2, output, "A")
+    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
     best = torch.load(output / "best.pt", weights_only=True)
-    assert best["epoch"] == 2  # Strict CE improvement still saves below the stopping threshold.
+    assert best["step"] == 4
     assert rates[:2] == pytest.approx([0.002, 0.02])
-    assert rates[8:10] == pytest.approx([0.02, 0.02])
-    assert rates[10:12] == pytest.approx([0.002, 0.002])  # Fourth bad check reduces the LR.
+    assert rates[-1] == 0.0
+    assert [row["steps"] for row in train.read_json(output / "history.json.gz")] == [2, 4, 6]
     for name, value in model.state_dict().items():
         torch.testing.assert_close(value, best["model"][name])
 
 
-def test_resume_restores_momentum_scheduler_and_update_position(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from torch.utils.data import DataLoader, TensorDataset
-
+@pytest.mark.parametrize("interrupt_call,committed_step", [(1, 0), (5, 4)])
+def test_resume_replays_batches_augmentation_momentum_and_schedule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt_call: int, committed_step: int,
+) -> None:
     from experiments.annotator.video_models_benchmark import train
 
-    dataset = TensorDataset(torch.ones(4, 1), torch.zeros(4, dtype=torch.long))
-    loader = DataLoader(dataset, batch_size=2, generator=torch.Generator().manual_seed(11))
-    model = torch.nn.Linear(1, 3)
-    settings = train.Settings(max_epochs=2, workers=0, precision="float32")
-    output = tmp_path / "recover"
+    settings = train.Settings(batch_size=4, max_steps=8, warmup_steps=2, validation_steps=[2, 4, 6, 8],
+                              workers=0, precision="float32", seed=7)
+    monkeypatch.setattr(train, "prepare_clips", lambda clips, training: clips + torch.rand_like(clips) * 0.01)
+
+    def validation(model, *args):
+        model.eval()
+        with torch.inference_mode():
+            logits = model(torch.ones(8, 2))
+            return {"loss": float(logits.square().mean()), "probabilities": logits.softmax(1).numpy()}
+
+    monkeypatch.setattr(train, "validate", validation)
+    monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
+
+    def fresh_model_and_loader():
+        train.seed_everything(settings.seed)
+        model = torch.nn.Sequential(torch.nn.Linear(2, 8), torch.nn.ReLU(), torch.nn.Dropout(0.2),
+                                    torch.nn.Linear(8, 3))
+        return model, tiny_train_loader(settings)
+
+    model, loader = fresh_model_and_loader()
+    train.fit(model, loader, loader, settings, torch.device("cpu"), tmp_path / "reference", "A")
+    reference = torch.load(tmp_path / "reference/last.pt", weights_only=True)
+    original_batch = train.train_batch
     calls = 0
 
-    def interrupt_after_epoch(model, batch, optimiser, device, precision) -> torch.Tensor:
+    def interrupt_after_checkpoint(model, batch, optimiser, device, precision) -> torch.Tensor:
         nonlocal calls
         calls += 1
-        if calls == 3:
+        if calls == interrupt_call:
             raise RuntimeError("simulated interruption")
-        optimiser.zero_grad()
-        loss = model(batch[0]).square().mean()
-        loss.backward()
-        optimiser.step()
-        return loss.detach()
+        return original_batch(model, batch, optimiser, device, precision)
 
-    monkeypatch.setattr(train, "train_batch", interrupt_after_epoch)
-    monkeypatch.setattr(train, "validate", lambda *args: {"loss": 1.0, "probabilities": np.ones((4, 3))})
-    monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
+    monkeypatch.setattr(train, "train_batch", interrupt_after_checkpoint)
+    model, loader = fresh_model_and_loader()
+    output = tmp_path / "recover"
     with pytest.raises(RuntimeError, match="simulated"):
-        train.fit(model, loader, loader, settings, torch.device("cpu"), 2, output, "A")
+        train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
     saved = torch.load(output / "last.pt", weights_only=True)
-    assert saved["epoch"] == 1 and saved["step"] == 2
-    assert saved["scheduler"]["best"] == 1.0
-    momentum = saved["optimiser"]["state"][0]["momentum_buffer"]
-    assert torch.count_nonzero(momentum) > 0
-    observed = []
+    assert saved["step"] == committed_step
+    assert bool(saved["optimiser"]["state"]) == (committed_step > 0)
+    monkeypatch.setattr(train, "train_batch", original_batch)
+    model, loader = fresh_model_and_loader()
+    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A", resume=True)
+    recovered = torch.load(output / "last.pt", weights_only=True)
+    assert recovered["step"] == 8
+    for name, value in reference["model"].items():
+        torch.testing.assert_close(recovered["model"][name], value, rtol=0, atol=0)
+    for index, state in reference["optimiser"]["state"].items():
+        torch.testing.assert_close(recovered["optimiser"]["state"][index]["momentum_buffer"],
+                                   state["momentum_buffer"], rtol=0, atol=0)
+    assert recovered["optimiser"]["param_groups"] == reference["optimiser"]["param_groups"]
+    assert torch.equal(recovered["torch_rng"], reference["torch_rng"])
+    assert torch.equal(recovered["loader_rng"], reference["loader_rng"])
+    assert train.read_json(output / "status.json.gz")["phase"] == "complete"
 
-    def resumed_step(model, batch, optimiser, device, precision) -> torch.Tensor:
-        if not observed:
-            first_parameter = next(model.parameters())
-            torch.testing.assert_close(optimiser.state[first_parameter]["momentum_buffer"], momentum)
-        observed.append(optimiser.param_groups[0]["lr"])
-        return torch.tensor(0.5)
 
-    monkeypatch.setattr(train, "train_batch", resumed_step)
-    train.fit(torch.nn.Linear(1, 3), loader, loader, settings, torch.device("cpu"), 2, output, "A", resume=True)
-    resumed = torch.load(output / "last.pt", weights_only=True)
-    assert resumed["epoch"] == 2 and resumed["step"] == 4
-    assert resumed["scheduler"]["num_bad_epochs"] == 1
-    assert resumed["bad_epochs"] == 1
-    assert observed == pytest.approx([0.02, 0.02])
+def test_fit_can_pause_and_resume_at_validation_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from experiments.annotator.video_models_benchmark import train
+
+    settings = train.Settings(batch_size=4, max_steps=4, warmup_steps=2, validation_steps=[2, 4], workers=0)
+    loader = tiny_train_loader(settings)
+    monkeypatch.setattr(train, "train_batch", lambda *args: torch.tensor(0.5))
+    monkeypatch.setattr(train, "validate", lambda *args: {"loss": 1.0, "probabilities": np.ones((8, 3))})
+    monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
+    output = tmp_path / "pause"
+    output.mkdir()
+    (output / "PAUSE").touch()
+    model = torch.nn.Linear(2, 3)
+    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
+    assert torch.load(output / "last.pt", weights_only=True)["step"] == 2
+    assert train.read_json(output / "status.json.gz")["phase"] == "paused"
+    (output / "PAUSE").unlink()
+    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A", resume=True)
     assert train.read_json(output / "status.json.gz")["phase"] == "complete"
 
 

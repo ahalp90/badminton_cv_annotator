@@ -18,6 +18,20 @@ from .data import (
 )
 
 
+def selection_expression(intervals: list[list[int]]) -> str:
+    """Keep FFmpeg's expression depth logarithmic in the number of rally intervals."""
+    terms = [f"between(n,{start},{end - 1})" for start, end in intervals]
+    while len(terms) > 1:
+        paired = []
+        for index in range(0, len(terms), 2):
+            if index + 1 < len(terms):
+                paired.append(f"({terms[index]}+{terms[index + 1]})")
+            else:
+                paired.append(terms[index])
+        terms = paired
+    return terms[0]
+
+
 def prepare_video(video: dict, videos_root: Path, cache: Path) -> dict:
     directory = cache / video["item_id"]
     directory.mkdir(parents=True, exist_ok=True)
@@ -31,7 +45,7 @@ def prepare_video(video: dict, videos_root: Path, cache: Path) -> dict:
         if read_json(receipt) != metadata or destination.stat().st_size != expected_bytes:
             raise ValueError(f"{directory}: incompatible or incomplete cache; use a new directory")
         return {"item_id": video["item_id"], "reused": True, "frames": frames}
-    selection = "+".join(f"between(n,{start},{end - 1})" for start, end in intervals)
+    selection = selection_expression(intervals)
     filters = (
         f"select='{selection}',scale={IMAGE_SIZE}:{IMAGE_SIZE}:force_original_aspect_ratio=decrease,"
         f"pad={IMAGE_SIZE}:{IMAGE_SIZE}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"

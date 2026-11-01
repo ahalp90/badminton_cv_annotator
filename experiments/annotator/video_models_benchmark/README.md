@@ -38,20 +38,25 @@ players have contacts within the positive band, TOP takes precedence,
 following HitNet's class-ID ordering. Both schemes use the original event
 annotations for evaluation.
 
-Fine-tune the full network from the pretrained weights, beginning with a short
-linear learning-rate warm-up. Each epoch visits the eligible training windows
-in shuffled order, followed by evaluation on the complete validation set.
-Reduce the learning rate tenfold when validation loss plateaus and use early
-stopping, retaining the best validation checkpoint. Use cross-entropy without
-label smoothing and retain X3D's training-time classifier dropout of 0.5.
+Fine-tune the full network from the pretrained weights for 30,000 updates,
+with batch size 16. Warm up linearly from one tenth of the peak learning rate
+for 2,000 updates, then use cosine decay. Retain the checkpoint with the lowest
+cross-entropy on the complete, naturally distributed validation set.
+Use SGD with momentum 0.9 and weight decay `1e-5`, cross-entropy without label
+smoothing, and X3D's classifier dropout of 0.5.
 
-Start with batch size 16 and SGD with learning rate 0.02, momentum 0.9 and
-weight decay `1e-5`. Warm up from learning rate 0.002; determine the duration
-after measuring throughput. Use ReduceLROnPlateau patience 3 and early-stopping
-patience 15, with a maximum of 1,000 epochs. Confirm these intervals against
-measured epoch duration before training. The first pilot uses one seed and
-no class weighting or background resampling; the final comparison uses five
-seeds.
+The initial grid compares learning rates 0.005 and 0.02 with contact shares of
+25% and 50%, using target scheme A. Every training batch contains exactly four
+or eight contact centres, respectively. Contact and background streams each
+visit a seeded permutation of their centres before independently reshuffling.
+TOP and BOT contact centres share one stream. Augmentations remain freshly
+randomised on every visit. Each run sees 480,000 centre-labelled clips.
+
+Run all four settings on seed 0, then repeat them on seed 1. This grid informs
+the eventual target-scheme and five-seed comparison; it does not choose a winner
+automatically. Validation occurs at updates 2,500, 5,000, 10,000, 15,000, 20,000,
+25,000 and 30,000. A poor early event score does not automatically terminate a
+run. Non-finite loss fails the run and stops the queue for inspection.
 
 ## Evaluation
 
@@ -119,25 +124,22 @@ statistics are restored afterwards. No trained checkpoint is written. A small
 cache measures steady-state throughput; full-cache startup and event-scoring
 time are additional to its epoch estimate.
 
-`pilot.toml` specifies batch 16, SGD at 0.02, momentum 0.9, weight decay 1e-5,
-bfloat16 mixed precision and one seed. Warm-up duration must be supplied
-explicitly after measuring runtime. For an agreed number of warm-up updates:
+`pilot.toml` specifies the 30,000-update schedule, batch 16, SGD at 0.02,
+50% contact sampling, bfloat16 mixed precision and seed 0:
 
 ```bash
 python -m experiments.annotator.video_models_benchmark.train train \
   --cache /path/to/rgb256-cache --output /path/to/scheme-A-seed-0 \
-  --scheme A --warmup-steps "$WARMUP_STEPS"
+  --scheme A
 ```
 
-Training visits every eligible centre once per epoch. Validation predicts all
-centres in one pass, excludes ignored targets from CE and frame diagnostics,
-and reuses those probabilities for both event tolerances. Strict CE
-improvements save `best.pt`, validation probabilities and decoded events.
-After warm-up, the scheduler and stopping rule use an absolute CE improvement
-of 0.0001. The scheduler drops LR after four bad checks; stopping follows 15
-bad checks. The maximum is 1,000 epochs. Training restores the best checkpoint.
-Choose between A and B using fully correct validation rallies and correct-player
-F1, rather than comparing their different frame losses.
+Validation predicts all centres in one pass, excludes ignored targets from CE
+and frame diagnostics, and reuses those probabilities for both event tolerances.
+Strict CE improvements save `best.pt`, validation probabilities and decoded
+events. Training restores the best checkpoint after the fixed update budget.
+Choose configurations using fully correct validation rallies and correct-player
+F1. Use the same rule for the later A/B comparison; their frame losses have
+different target definitions.
 
 To evaluate a saved checkpoint without fitting again:
 
@@ -147,34 +149,70 @@ python -m experiments.annotator.video_models_benchmark.infer \
   --cache /path/to/rgb256-cache --output /path/to/evaluation
 ```
 
+## Running and reviewing the grid
+
+Initialise the eight-run queue once, then launch it from the repository root:
+
+```bash
+python -m experiments.annotator.video_models_benchmark.grid init \
+  --cache /path/to/rgb256-cache --output /path/to/grid
+nohup python -u -m experiments.annotator.video_models_benchmark.grid run \
+  --output /path/to/grid > /path/to/grid/queue.log 2>&1 </dev/null &
+python -m experiments.annotator.video_models_benchmark.grid status \
+  --output /path/to/grid --watch
+```
+
+The queue uses one GPU sequentially. Every run keeps its own configuration,
+checkpoints, learning history, best validation predictions and event scores.
+The status table shows completed runs and provisional results from the current
+run. Metrics in that table belong to each run's lowest-CE checkpoint, not its
+highest event score. Both event tolerances are in `history.json.gz`.
+
+Measured on an L40, training took 0.209 seconds per batch and complete validation
+about 10.4 minutes. This projects about 3 hours per run and 24 hours for the grid,
+plus preparation, startup and event scoring. Full-cache loading may change the
+observed throughput. The first validation result is expected about 19 minutes
+after training starts.
+
+To review a setting before spending the remaining budget, request a pause:
+
+```bash
+python -m experiments.annotator.video_models_benchmark.grid pause --output /path/to/grid
+```
+
+The active run pauses after saving its next validation checkpoint and the queue
+starts no further runs. Check status for `paused` before restarting. To continue:
+
+```bash
+python -m experiments.annotator.video_models_benchmark.grid continue --output /path/to/grid
+nohup python -u -m experiments.annotator.video_models_benchmark.grid run \
+  --output /path/to/grid --resume >> /path/to/grid/queue.log 2>&1 </dev/null &
+```
+
+A failed run stops the queue. Inspect its log, fix the cause, then restart with
+`run --resume`; successful runs are skipped. Preserve the original queue and
+configs when changing scientific settings: use a new grid/run directory so
+partial experiments remain interpretable.
+
 ## Progress and recovery
 
 `status.json.gz` updates about every 30 seconds and at phase changes. It shows
-the current epoch and training/validation batch percentage, ETA for that phase,
-learning rate, losses and stopping counter. Total training time depends on
-validation, so the display does not invent an overall completion percentage.
+update count, training/validation progress, current learning rate and losses.
+For one run, use `python -m experiments.annotator.video_models_benchmark.status
+--output /path/to/run --watch`.
 
-For a detached run, use the supplied wrapper from the repository root:
+`last.pt` saves the training state at validation boundaries, including optimiser
+momentum, update count and random-number state. The sampler regenerates its
+seeded index sequence and skips completed updates. An interrupted interval is
+replayed from its preceding checkpoint. `best.pt` separately retains the
+lowest-validation-loss model. Checkpoints and progress files are written
+atomically. Training options must match the saved run when resuming.
+
+The standalone launcher records its PID and exit code, and prevents duplicate
+launches in one run directory:
 
 ```bash
 nohup bash experiments/annotator/video_models_benchmark/launch.sh \
-  /path/to/python /path/to/rgb256-cache /path/to/scheme-A-seed-0 A "$WARMUP_STEPS" \
-  > /path/to/launcher.log 2>&1 < /dev/null &
+  /path/to/python /path/to/rgb256-cache /path/to/run A 2000 \
+  > /path/to/launcher.log 2>&1 </dev/null &
 ```
-
-Check once, or add `--watch` to refresh inside the same terminal session:
-
-```bash
-python -m experiments.annotator.video_models_benchmark.status \
-  --output /path/to/scheme-A-seed-0
-```
-
-`last.pt` saves recovery state after every completed epoch: weights, optimiser
-momentum, scheduler, warm-up/update position, stopping counters and Torch/data-loader
-random state. Add `--resume` to the same launch command to continue from there.
-An interrupted epoch is repeated; completed epochs are retained. Each resumed
-epoch remains shuffled. `best.pt` separately holds the strict lowest-CE model.
-Checkpoints and progress snapshots replace their previous files atomically.
-
-Recovery requires a completed epoch and its `last.pt`. If interrupted before
-the first checkpoint, start a fresh output directory with the same configuration.

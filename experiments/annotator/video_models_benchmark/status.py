@@ -29,7 +29,7 @@ def show(output: Path) -> bool:
             os.kill(state["pid"], 0)
         except ProcessLookupError:
             phase, finished = "stopped (no exit code)", True
-    print(f"{phase.upper()} | epoch {state.get('epoch', '—')} | update {state.get('step', '—')}")
+    print(f"{phase.upper()} | update {state.get('step', '—')}/{state.get('max_steps', '—')}")
     completed, total = state.get("completed", 0), state.get("total", 0)
     if total:
         elapsed = time.time() - state["phase_started"]
@@ -37,7 +37,7 @@ def show(output: Path) -> bool:
         eta = f"{remaining / 60:.1f} min" if remaining is not None else "estimating"
         print(f"Current phase: {completed:,}/{total:,} batches ({100 * completed / total:.1f}%) | ETA {eta}")
     print(f"LR {state.get('lr', '—')} | train CE {state.get('train_loss', '—')} | val CE {state.get('val_loss', '—')}")
-    print(f"Best val CE {state.get('best_loss', '—')} | bad checks {state.get('bad_epochs', 0)}/{state.get('early_stop_patience', '—')}")
+    print(f"Best val CE {state.get('best_loss', '—')}")
     if "updated_at" in state:
         print(f"Status age {time.time() - state['updated_at']:.0f}s | session elapsed {(time.time() - state['session_started']) / 3600:.2f}h")
     print(f"Run: {output}\nLog: {output / 'train.log'}\nRecovery: {output / 'last.pt'}")
