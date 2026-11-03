@@ -5,6 +5,10 @@ annotator and MonoTrack. Models predict contact times and hitters inside
 supplied rally windows, using the existing training, validation and test
 splits.
 
+[Read the X3D-M pilot results](x3d_results.md) for the selected configuration,
+comparison figures and training histories. The two selected model-only
+checkpoints are in [`weights/`](weights/README.md).
+
 ## X3D-M experiment
 
 The first experiment adapts Kinetics-400 X3D-M with a three-class classifier:
