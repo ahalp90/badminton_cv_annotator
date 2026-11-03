@@ -1,4 +1,4 @@
-# X3D-M pilot results
+# X3D-M validation and test results
 
 Each directory under [`x3d_pilot/`](x3d_pilot/) is one training run, named
 `{scheme}-contact{percent}-lr{rate}-seed{seed}`. We keep all 12 runs,
@@ -21,8 +21,22 @@ contact F1, correct-player F1 and the fully correct percentage. Every check
 covers the same 668 validation rallies and 5,696 labelled hits.
 
 The two selected checkpoints are in [`../weights/`](../weights/README.md).
-Other checkpoints, per-frame probabilities and decoded predictions are not
-included.
+Other checkpoints and per-frame probabilities are not included.
+
+## Held-out test results
+
+[`x3d_test/`](x3d_test/) contains `seed0/` and `seed1/`, evaluated using the
+selected ±1-frame-positive, 50%-contact, LR 0.02 checkpoints at 25,000 and
+35,000 updates respectively. Both cover 46 videos, 3,327 rallies and 37,184
+labelled hits. Settings and checkpoint selection were fixed before testing.
+
+| File in each seed directory | Contents |
+|---|---|
+| `events.json.gz` | Aggregate contact F1, correct-player F1 and fully correct rally scores at ±5 and ±10 frames, with supporting counts; decoded event predictions grouped by video and rally. |
+| `frame_metrics.json.gz` | Test cross-entropy, macro F1 and frame confusion matrix, using the same class order as the validation histories. |
+
+The [report](../x3d_results.md#held-out-test-comparison) compares the two seeds
+with the five-seed supplied-boundary annotator and MonoTrack results.
 
 ## Other files
 

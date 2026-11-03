@@ -5,8 +5,8 @@ annotator and MonoTrack. Models predict contact times and hitters inside
 supplied rally windows, using the existing training, validation and test
 splits.
 
-[Read the X3D-M pilot results](x3d_results.md) for the selected configuration,
-comparison figures and training histories. The two selected model-only
+[Read the X3D-M results](x3d_results.md) for the held-out test comparison,
+pilot selection and training histories. The two selected model-only
 checkpoints are in [`weights/`](weights/README.md).
 
 See [the VideoMAE run guide](VIDEOMAE.md) for the four-run Base pilot and batch-size timing.
