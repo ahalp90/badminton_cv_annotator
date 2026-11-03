@@ -10,9 +10,8 @@ import torch
 
 from .data import ClipDataset, write_json
 from .evaluate import score_probabilities
-from .model import build_model
 from .run_state import Progress
-from .train import Settings, make_loader, validate
+from .train import Settings, make_loader, model_from_settings, validate
 
 
 def main() -> None:
@@ -25,14 +24,14 @@ def main() -> None:
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
     settings = Settings(**checkpoint["settings"])
     device = torch.device("cuda")
-    model = build_model(pretrained=False).to(device)
+    model = model_from_settings(settings, pretrained=False).to(device)
     model.load_state_dict(checkpoint["model"])
     dataset = ClipDataset(args.cache, args.role, checkpoint["scheme"], training=False)
     loader = make_loader(dataset, settings, training=False)
     args.output.mkdir(parents=True, exist_ok=False)
     progress = Progress(args.output)
     progress.write("inference", role=args.role, checkpoint=str(args.checkpoint), total=len(loader), completed=0)
-    result = validate(model, loader, device, settings.precision, progress)
+    result = validate(model, loader, device, settings.precision, progress, model_name=settings.model_name)
     probabilities = result.pop("probabilities")
     progress.write("scoring", completed=len(loader))
     write_json(args.output / "frame_metrics.json.gz", result)

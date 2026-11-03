@@ -1,4 +1,4 @@
-"""Fine-tune X3D-M; measure the same path without creating a trained checkpoint."""
+"""Fine-tune video contact models with shared sampling, scoring and recovery."""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +31,7 @@ from .schedule import (
     checks_without_improvement,
     continuation_rate,
 )
+from .videomae import CHECKPOINT_REVISION, VideoMAE, parameter_groups
 
 
 @dataclass(frozen=True)
@@ -47,13 +48,68 @@ class Settings:
     validation_steps: list[int] = field(default_factory=lambda: [2500, 5000, 10000, 15000, 20000, 25000, 30000])
     contact_fraction: float = 0.5
     precision: str = "bf16"
+    model_name: str = "x3d"
+    microbatch_size: int | None = None
+    checkpoint_revision: str = CHECKPOINT_REVISION
+    layer_decay: float = 0.75
+    stochastic_depth: float = 0.2
+    continuation_half_cycle_steps: int | None = None
+    continuation_validation_interval: int | None = None
 
     def __post_init__(self) -> None:
+        if self.model_name not in ("x3d", "videomae"):
+            raise ValueError("model_name must be x3d or videomae")
+        if self.batch_size < 2 or self.workers < 0:
+            raise ValueError("batch_size must be at least two and workers non-negative")
+        if self.microbatch_size is not None and (
+            self.model_name != "videomae" or not 1 <= self.microbatch_size <= self.batch_size
+        ):
+            raise ValueError("microbatch_size requires VideoMAE and must be between one and batch_size")
+        if not 0 < self.layer_decay <= 1 or not 0 <= self.stochastic_depth < 1:
+            raise ValueError("layer_decay must be in (0, 1] and stochastic_depth in [0, 1)")
+        if self.continuation_half_cycle_steps is not None and not 0 < self.continuation_half_cycle_steps < self.max_steps:
+            raise ValueError("continuation_half_cycle_steps must be positive and smaller than max_steps")
+        if self.continuation_validation_interval is not None and self.continuation_validation_interval < 1:
+            raise ValueError("continuation_validation_interval must be positive")
         if not 0 <= self.warmup_steps < self.max_steps:
             raise ValueError("warmup_steps must be non-negative and smaller than max_steps")
         if (not self.validation_steps or self.validation_steps != sorted(set(self.validation_steps))
                 or self.validation_steps[0] < 1 or self.validation_steps[-1] != self.max_steps):
             raise ValueError("validation_steps must increase strictly from a positive step through max_steps")
+
+
+def settings_record(settings: Settings) -> dict:
+    """Keep X3D records compatible with the existing training and inference tools."""
+    record = asdict(settings)
+    if settings.model_name == "x3d":
+        for name in ("model_name", "microbatch_size", "checkpoint_revision", "layer_decay", "stochastic_depth"):
+            del record[name]
+    for name in ("continuation_half_cycle_steps", "continuation_validation_interval"):
+        if record[name] is None:
+            del record[name]
+    return record
+
+
+def model_from_settings(settings: Settings, *, pretrained: bool) -> nn.Module:
+    return build_model(pretrained=pretrained, model_name=settings.model_name,
+                       checkpoint_revision=settings.checkpoint_revision, stochastic_depth=settings.stochastic_depth)
+
+
+def make_optimiser(model: nn.Module, settings: Settings) -> torch.optim.Optimizer:
+    if settings.model_name == "videomae":
+        if not isinstance(model, VideoMAE):
+            raise TypeError("VideoMAE settings require a VideoMAE model")
+        optimiser = torch.optim.AdamW(parameter_groups(model, settings.layer_decay, settings.weight_decay),
+                                      lr=settings.learning_rate, betas=(0.9, 0.999), eps=1e-8)
+        set_learning_rate(optimiser, settings.learning_rate)
+        return optimiser
+    return torch.optim.SGD(model.parameters(), lr=settings.learning_rate,
+                           momentum=settings.momentum, weight_decay=settings.weight_decay)
+
+
+def set_learning_rate(optimiser: torch.optim.Optimizer, rate: float) -> None:
+    for group in optimiser.param_groups:
+        group["lr"] = rate * group.get("lr_scale", 1.0)
 
 
 def learning_rate_at_step(settings: Settings, step: int) -> float:
@@ -78,7 +134,7 @@ def seed_everything(seed: int) -> None:
 def make_loader(dataset: ClipDataset, settings: Settings, *, training: bool, extend: bool = False) -> DataLoader:
     batching = ({"batch_sampler": ContactBatchSampler(dataset.labels, settings.batch_size, settings.contact_fraction,
                                                      settings.max_steps, settings.seed, continuous=extend)}
-                if training else {"batch_size": settings.batch_size, "shuffle": False})
+                if training else {"batch_size": settings.microbatch_size or settings.batch_size, "shuffle": False})
     return DataLoader(
         dataset, **batching, num_workers=settings.workers, pin_memory=True,
         persistent_workers=settings.workers > 0,
@@ -93,21 +149,31 @@ def autocast(device: torch.device, precision: str):
 
 def train_batch(
     model: nn.Module, batch: tuple, optimiser: torch.optim.Optimizer, device: torch.device, precision: str,
+    *, model_name: str = "x3d", microbatch_size: int | None = None,
 ) -> torch.Tensor:
-    clips, targets = (value.to(device, non_blocking=True) for value in batch)
+    clips, targets = batch
     optimiser.zero_grad(set_to_none=True)
-    clips = prepare_clips(clips, training=True)
-    with autocast(device, precision):
-        logits = model(clips)
-        loss = F.cross_entropy(logits, targets)
-    loss.backward()
+    total_loss = torch.zeros((), device=device)
+    batch_size = len(targets)
+    for start in range(0, batch_size, microbatch_size or batch_size):
+        stop = min(start + (microbatch_size or batch_size), batch_size)
+        part = clips[start:stop].to(device, non_blocking=True)
+        labels = targets[start:stop].to(device, non_blocking=True)
+        part = (prepare_clips(part, training=True) if model_name == "x3d"
+                else prepare_clips(part, training=True, model_name=model_name))
+        with autocast(device, precision):
+            logits = model(part)
+            loss = F.cross_entropy(logits, labels) * ((stop - start) / batch_size)
+        loss.backward()
+        total_loss += loss.detach()
     optimiser.step()
-    return loss.detach()
+    return total_loss
 
 
 @torch.inference_mode()
 def validate(
     model: nn.Module, loader: DataLoader, device: torch.device, precision: str, progress: Progress | None = None,
+    *, model_name: str = "x3d",
 ) -> dict:
     model.eval()
     probabilities = []
@@ -117,7 +183,9 @@ def validate(
     for batch_index, (clips, targets) in enumerate(loader, start=1):
         clips, targets = clips.to(device, non_blocking=True), targets.to(device, non_blocking=True)
         with autocast(device, precision):
-            logits = model(prepare_clips(clips, training=False))
+            prepared = (prepare_clips(clips, training=False) if model_name == "x3d"
+                        else prepare_clips(clips, training=False, model_name=model_name))
+            logits = model(prepared)
             loss_sum += F.cross_entropy(logits, targets, reduction="sum")
         eligible = targets != -100
         eligible_count += eligible.sum()
@@ -150,19 +218,27 @@ def fit(
     device: torch.device, output: Path, scheme: str, *, resume: bool = False, extend: bool = False,
 ) -> None:
     output.mkdir(parents=True, exist_ok=True)
-    run_settings = {**asdict(settings), "scheme": scheme}
+    model_settings = settings_record(settings)
+    run_settings = {**model_settings, "scheme": scheme}
     if not resume and (output / "settings.json.gz").exists():
         raise FileExistsError("Run already exists; use --resume or a new output directory")
-    if resume and read_json(output / "settings.json.gz") != run_settings:
-        raise ValueError("Resume settings differ from the saved run")
+    if resume:
+        saved_settings = read_json(output / "settings.json.gz")
+        saved_scheme = saved_settings.pop("scheme")
+        if Settings(**saved_settings) != settings or saved_scheme != scheme:
+            raise ValueError("Resume settings differ from the saved run")
     if extend and not resume:
         raise ValueError("Continuation requires a saved 30k run and --resume")
     if not extend and (output / "continuation.json.gz").exists():
         raise ValueError("This run is a continuation; resume with --extend")
     write_json(output / "settings.json.gz", run_settings)
     progress = Progress(output)
-    optimiser = torch.optim.SGD(model.parameters(), lr=settings.learning_rate,
-                                momentum=settings.momentum, weight_decay=settings.weight_decay)
+    optimiser = make_optimiser(model, settings)
+    update_batch = train_batch
+    validate_model = validate
+    if settings.model_name == "videomae":
+        update_batch = partial(train_batch, model_name=settings.model_name, microbatch_size=settings.microbatch_size)
+        validate_model = partial(validate, model_name=settings.model_name)
     best_loss, step, history = float("inf"), 0, []
     if resume:
         saved = torch.load(output / "last.pt", map_location="cpu", weights_only=True)
@@ -188,15 +264,17 @@ def fit(
     if extend:
         if step < settings.max_steps:
             raise ValueError("Complete the original training budget before continuing")
-        peak = learning_rate_at_step(settings, settings.max_steps - HALF_CYCLE_STEPS)
-        protocol = {"start_step": settings.max_steps, "peak_lr": peak, "half_cycle_steps": HALF_CYCLE_STEPS,
-                    "validation_interval": VALIDATION_INTERVAL, "patience": PATIENCE}
+        half_cycle = settings.continuation_half_cycle_steps or HALF_CYCLE_STEPS
+        interval = settings.continuation_validation_interval or VALIDATION_INTERVAL
+        peak = learning_rate_at_step(settings, settings.max_steps - half_cycle)
+        protocol = {"start_step": settings.max_steps, "peak_lr": peak, "half_cycle_steps": half_cycle,
+                    "validation_interval": interval, "patience": PATIENCE}
         protocol_path = output / "continuation.json.gz"
         if protocol_path.exists() and read_json(protocol_path) != protocol:
             raise ValueError("Continuation protocol differs from the saved run")
         write_json(protocol_path, protocol)
-        rate_at_step = partial(continuation_rate, start_step=settings.max_steps, peak=peak)
-        targets = count(step + VALIDATION_INTERVAL, VALIDATION_INTERVAL)
+        rate_at_step = partial(continuation_rate, start_step=settings.max_steps, peak=peak, half_cycle_steps=half_cycle)
+        targets = count(step + interval, interval)
         progress.state.update(stage="continuation", patience=PATIENCE, bad_checks=unsuccessful)
     sampler = train_loader.batch_sampler
     if not isinstance(sampler, ContactBatchSampler):
@@ -220,20 +298,19 @@ def fit(
         progress.write("training", step=step, max_steps=None if extend else settings.max_steps, completed=0,
                        total=target_step - step, phase_started=time.time(), lr=rate_at_step(step))
         for batch in islice(iterator, target_step - step):
-            for group in optimiser.param_groups:
-                group["lr"] = rate_at_step(step)
-            training_loss += train_batch(model, batch, optimiser, device, settings.precision)
+            set_learning_rate(optimiser, rate_at_step(step))
+            training_loss += update_batch(model, batch, optimiser, device, settings.precision)
             step += 1
             if progress.due():
                 if not torch.isfinite(training_loss):
                     raise ValueError("Non-finite training loss")
                 progress.write("training", completed=step - first_step, step=step,
                                train_loss=float(training_loss / (step - first_step)),
-                               lr=optimiser.param_groups[0]["lr"])
+                               lr=rate_at_step(step - 1))
         if step != target_step:
             raise RuntimeError("Training loader ended before the configured update budget")
         progress.write("validation", completed=0, total=len(val_loader), phase_started=time.time(), step=step)
-        result = validate(model, val_loader, device, settings.precision, progress)
+        result = validate_model(model, val_loader, device, settings.precision, progress)
         probabilities = result.pop("probabilities")
         progress.write("event scoring", completed=0, total=0, val_loss=result["loss"])
         event_scores = score_probabilities(val_loader.dataset, probabilities)
@@ -242,7 +319,7 @@ def fit(
             raise ValueError("Non-finite training or validation loss")
         if loss < best_loss:
             best_loss = loss
-            save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": asdict(settings),
+            save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": model_settings,
                                                 "scheme": scheme, "step": step, "validation_loss": loss})
             predictions_path = output / "validation_probabilities.npy.xz"
             temporary = predictions_path.with_name(predictions_path.name + ".partial")
@@ -317,7 +394,7 @@ def time_pipeline(
         train_batches = math.ceil(counts["train"][scheme] / settings.batch_size)
         epoch_hours[scheme] = (train_batches * train_seconds + val_batches * val_seconds) / 3600
     write_json(output / "timing.json.gz", {
-        "settings": asdict(settings), "gpu": torch.cuda.get_device_name(device), "torch": torch.__version__,
+        "settings": settings_record(settings), "gpu": torch.cuda.get_device_name(device), "torch": torch.__version__,
         "warmup_batches": warmup_batches, "measured_train_batches": measured_batches,
         "measured_val_batches": count, "train_batch_seconds": train_seconds, "val_batch_seconds": val_seconds,
         "peak_allocated_gib": peak_gib, "timed_train_centres": len(train_loader.dataset),
@@ -336,12 +413,18 @@ def main() -> None:
     parser.add_argument("--scheme", choices=("A", "B"), default="A")
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("pilot.toml"))
     parser.add_argument("--warmup-steps", type=int)
+    parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--microbatch-size", type=int)
+    parser.add_argument("--workers", type=int)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--extend", action="store_true", help="Continue a completed run with cosine cycling and patience")
     args = parser.parse_args()
     if args.extend and (not args.resume or args.command != "train"):
         parser.error("--extend requires train --resume")
     settings = Settings(**tomllib.loads(args.config.read_text()))
+    overrides = {name: getattr(args, name) for name in ("batch_size", "microbatch_size", "workers")
+                 if getattr(args, name) is not None}
+    settings = replace(settings, **overrides)
     if args.warmup_steps is not None:
         settings = replace(settings, warmup_steps=args.warmup_steps)
     if args.command == "train" and read_json(args.cache / "index.json.gz")["smoke_rallies"] is not None:
@@ -350,12 +433,17 @@ def main() -> None:
     torch.set_num_threads(4)
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda")
-    model = build_model(pretrained=not args.resume).to(device)
+    model = model_from_settings(settings, pretrained=not args.resume).to(device)
     train_loader = make_loader(ClipDataset(args.cache, "train", args.scheme, training=True), settings,
                                training=True, extend=args.extend)
     val_loader = make_loader(ClipDataset(args.cache, "validation", args.scheme, training=False), settings, training=False)
     if args.command == "time":
-        time_pipeline(model, train_loader, val_loader, settings, device, args.output)
+        if settings.model_name == "videomae":
+            from .timing import time_videomae
+
+            time_videomae(model, train_loader, val_loader, settings, device, args.output)
+        else:
+            time_pipeline(model, train_loader, val_loader, settings, device, args.output)
     else:
         fit(model, train_loader, val_loader, settings, device, args.output, args.scheme,
             resume=args.resume, extend=args.extend)
