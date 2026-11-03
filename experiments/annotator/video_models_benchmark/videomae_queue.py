@@ -10,7 +10,6 @@ import subprocess
 import sys
 import time
 import tomllib
-from functools import partial
 from pathlib import Path
 
 from .grid import (
@@ -18,7 +17,6 @@ from .grid import (
     continue_queue,
     read_record,
     run_state,
-    terminate_child,
     write_record,
 )
 
@@ -51,16 +49,27 @@ def initialise(output: Path, cache: Path, config: Path, *, test_cache: Path | No
 
 
 def wait_for_child(process: subprocess.Popen) -> int:
+    received_signal = None
+
+    def forward_termination(signum: int, _frame: object) -> None:
+        nonlocal received_signal
+        received_signal = signum
+        os.killpg(process.pid, signal.SIGTERM)
+
     signals = [signal.SIGTERM, signal.SIGINT]
     # Preserve nohup's ignored hangup signal for unattended queues.
     if signal.getsignal(signal.SIGHUP) != signal.SIG_IGN:
         signals.append(signal.SIGHUP)
-    previous_handlers = {signum: signal.signal(signum, partial(terminate_child, process)) for signum in signals}
+    previous_handlers = {signum: signal.signal(signum, forward_termination) for signum in signals}
     try:
-        return process.wait()
+        # Reap here: calling wait again inside the signal handler deadlocks.
+        return_code = process.wait()
     finally:
         for signum, handler in previous_handlers.items():
             signal.signal(signum, handler)
+    if received_signal is not None:
+        raise SystemExit(128 + received_signal)
+    return return_code
 
 
 def launch_run(output: Path, manifest: dict, run: dict, *, extend: bool, resume: bool) -> None:

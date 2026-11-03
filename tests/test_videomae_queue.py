@@ -1,6 +1,9 @@
 """Run the VideoMAE queue logic without launching training or a GPU."""
 import fcntl
 import signal
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -113,6 +116,8 @@ def test_hangup_respects_nohup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
     terminations = []
 
     class Child:
+        pid = 123456
+
         def wait(self) -> int:
             signal.raise_signal(signal.SIGHUP)
             finish_run(output, runs[0])
@@ -120,15 +125,42 @@ def test_hangup_respects_nohup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, 
 
     child = Child()
     monkeypatch.setattr(queue.subprocess, "Popen", lambda *_args, **_kwargs: child)
-    monkeypatch.setattr(queue, "terminate_child", lambda _child, signum, _frame: terminations.append(signum))
+    monkeypatch.setattr(queue.os, "killpg", lambda _pid, signum: terminations.append(signum))
     inherited = signal.SIG_IGN if under_nohup else signal.SIG_DFL
     original = signal.signal(signal.SIGHUP, inherited)
     try:
-        queue.launch_run(output, {"cache": str(tmp_path / "cache")}, runs[0], extend=False, resume=False)
-        assert terminations == ([] if under_nohup else [signal.SIGHUP])
+        if under_nohup:
+            queue.launch_run(output, {"cache": str(tmp_path / "cache")}, runs[0], extend=False, resume=False)
+        else:
+            with pytest.raises(SystemExit) as stopped:
+                queue.launch_run(output, {"cache": str(tmp_path / "cache")}, runs[0], extend=False, resume=False)
+            assert stopped.value.code == 128 + signal.SIGHUP
+        assert terminations == ([] if under_nohup else [signal.SIGTERM])
         assert signal.getsignal(signal.SIGHUP) == inherited
     finally:
         signal.signal(signal.SIGHUP, original)
+
+
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
+def test_signal_during_real_child_wait_exits_without_hanging(signum: signal.Signals) -> None:
+    script = textwrap.dedent("""
+        import os
+        import signal
+        import subprocess
+        import sys
+        import threading
+        from experiments.annotator.video_models_benchmark.videomae_queue import wait_for_child
+
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(2)'], start_new_session=True)
+        threading.Timer(0.2, os.kill, args=(os.getpid(), int(sys.argv[1]))).start()
+        try:
+            wait_for_child(child)
+        finally:
+            assert child.poll() == -signal.SIGTERM
+    """)
+    result = subprocess.run([sys.executable, "-c", script, str(int(signum))],
+                            check=False, capture_output=True, text=True, timeout=5)
+    assert result.returncode == 128 + signum, result.stderr
 
 
 def test_finished_runs_are_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
