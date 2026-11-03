@@ -181,3 +181,58 @@ def test_selection_refuses_to_rank_before_all_runs_finish(tmp_path: Path) -> Non
     output, _runs = initialise(tmp_path)
     with pytest.raises(ValueError, match="Both learning rates"):
         queue.rank_runs(output)
+
+
+def test_queue_tests_only_after_all_training_and_continuations_finish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "queue"
+    test_cache = tmp_path / "test-cache"
+    queue.initialise(output, tmp_path / "cache", Path(queue.__file__).with_name("videomae.toml"), test_cache=test_cache)
+    runs = read_record(output / "grid.json.gz")["runs"]
+
+    def finish(output: Path, _manifest: dict, run: dict, *, extend: bool, resume: bool) -> None:
+        finish_run(output, run, continuation=extend)
+
+    def test_finished_runs(directory: Path, cache: Path) -> None:
+        assert directory == output and cache == test_cache
+        assert all((directory / run["name"] / "continuation.json.gz").exists() for run in runs)
+        assert read_record(output / "grid-status.json.gz")["phase"] == "testing"
+
+    monkeypatch.setattr(queue, "launch_run", finish)
+    monkeypatch.setattr(queue, "evaluate_selected", test_finished_runs)
+    queue.execute(output, resume=False)
+    assert read_record(output / "grid-status.json.gz")["phase"] == "complete"
+
+
+def test_automatic_test_uses_validation_winner_and_skips_completed_seeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output, runs = initialise(tmp_path)
+    for run in runs:
+        finish_run(output, run, continuation=True)
+        events = {"fully_correct_percent": 70 if run["learning_rate"] == 1e-4 else 50, "correct_player_f1": 80}
+        write_record(output / run["name"] / "history.json.gz", [
+            {"steps": 30000, "validation": {"loss": 0.4}, "events": {"10": events}},
+        ])
+    commands = []
+
+    class Inference:
+        def __init__(self, command: list[str], **_kwargs) -> None:
+            commands.append(command)
+            self.directory = Path(command[command.index("--output") + 1])
+
+        def wait(self) -> int:
+            self.directory.mkdir()
+            write_record(self.directory / "status.json.gz", {"phase": "complete"})
+            return 0
+
+    monkeypatch.setattr(queue.subprocess, "Popen", Inference)
+    queue.evaluate_selected(output, tmp_path / "test-cache")
+    queue.evaluate_selected(output, tmp_path / "test-cache")
+    assert len(commands) == 2
+    for command, run in zip(commands, (runs[1], runs[3]), strict=True):
+        assert command[command.index("--checkpoint") + 1] == str(output / run["name"] / "best.pt")
+        assert command[command.index("--role") + 1] == "test"
+        assert command[command.index("--cache") + 1] == str(tmp_path / "test-cache")
+    assert read_record(output / "selection.json.gz")["ranking"][0]["learning_rate"] == 1e-4
