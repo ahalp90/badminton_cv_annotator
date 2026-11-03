@@ -8,8 +8,9 @@ HALF_CYCLE_STEPS = 10_000
 PATIENCE = 3
 
 
-def continuation_rate(step: int, start_step: int, peak: float) -> float:
-    return peak * 0.5 * (1 - math.cos(math.pi * (step - start_step) / HALF_CYCLE_STEPS))
+def continuation_rate(step: int, start_step: int, peak: float, *, half_cycle_steps: int | None = None) -> float:
+    half_cycle = HALF_CYCLE_STEPS if half_cycle_steps is None else half_cycle_steps
+    return peak * 0.5 * (1 - math.cos(math.pi * (step - start_step) / half_cycle))
 
 
 def checks_without_improvement(history: list[dict]) -> int:

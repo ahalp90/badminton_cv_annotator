@@ -9,6 +9,8 @@ splits.
 comparison figures and training histories. The two selected model-only
 checkpoints are in [`weights/`](weights/README.md).
 
+See [the VideoMAE run guide](VIDEOMAE.md) for the four-run Base pilot and batch-size timing.
+
 ## X3D-M experiment
 
 The first experiment adapts Kinetics-400 X3D-M with a three-class classifier:
