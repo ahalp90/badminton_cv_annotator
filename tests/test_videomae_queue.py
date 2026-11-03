@@ -1,5 +1,6 @@
 """Run the VideoMAE queue logic without launching training or a GPU."""
 import fcntl
+import signal
 from pathlib import Path
 
 import pytest
@@ -104,6 +105,30 @@ def test_operational_failure_stops_the_queue(tmp_path: Path, monkeypatch: pytest
         queue.execute(output, resume=False)
     assert calls == [runs[0]["name"]]
     assert read_record(output / "grid-status.json.gz")["phase"] == "stopped"
+
+
+@pytest.mark.parametrize("under_nohup", [False, True])
+def test_hangup_respects_nohup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, under_nohup: bool) -> None:
+    output, runs = initialise(tmp_path)
+    terminations = []
+
+    class Child:
+        def wait(self) -> int:
+            signal.raise_signal(signal.SIGHUP)
+            finish_run(output, runs[0])
+            return 0
+
+    child = Child()
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda *_args, **_kwargs: child)
+    monkeypatch.setattr(queue, "terminate_child", lambda _child, signum, _frame: terminations.append(signum))
+    inherited = signal.SIG_IGN if under_nohup else signal.SIG_DFL
+    original = signal.signal(signal.SIGHUP, inherited)
+    try:
+        queue.launch_run(output, {"cache": str(tmp_path / "cache")}, runs[0], extend=False, resume=False)
+        assert terminations == ([] if under_nohup else [signal.SIGHUP])
+        assert signal.getsignal(signal.SIGHUP) == inherited
+    finally:
+        signal.signal(signal.SIGHUP, original)
 
 
 def test_finished_runs_are_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

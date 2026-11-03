@@ -63,8 +63,12 @@ def launch_run(output: Path, manifest: dict, run: dict, *, extend: bool, resume:
             raise FileExistsError(f"Unfinished run {directory}; inspect it, then use run --resume")
         command.append("--resume")
     process = subprocess.Popen(command, start_new_session=True)
+    signals = [signal.SIGTERM, signal.SIGINT]
+    # Preserve nohup's ignored hangup signal for unattended queues.
+    if signal.getsignal(signal.SIGHUP) != signal.SIG_IGN:
+        signals.append(signal.SIGHUP)
     previous_handlers = {signum: signal.signal(signum, partial(terminate_child, process))
-                         for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+                         for signum in signals}
     try:
         return_code = process.wait()
     finally:
