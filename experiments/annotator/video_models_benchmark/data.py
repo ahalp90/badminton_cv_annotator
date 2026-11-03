@@ -64,6 +64,9 @@ def target_labels(span: dict, scheme: str) -> np.ndarray:
     for frame in span["label_frames"]:
         labels[np.abs(centres - frame) <= 2] = -100
     for frame, side in zip(span["label_frames"], span["label_sides"], strict=True):
+        # Unknown test hitters retain their ignored band for frame loss.
+        if side is None:
+            continue
         positive = np.abs(centres - frame) <= radius
         labels[positive] = np.maximum(labels[positive], SIDE_CLASSES[side])
     return labels

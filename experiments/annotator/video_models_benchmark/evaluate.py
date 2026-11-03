@@ -59,7 +59,7 @@ def score_probabilities(dataset: ClipDataset, probabilities: np.ndarray) -> dict
             count = span["end_frame"] - span["start_frame"]
             sequences.append(decode_span(span, probabilities[offset:offset + count], video["fps"]))
             rallies.append(LabelledRally(span["rally_id"], tuple(span["label_frames"]),
-                                        tuple(Half(side) for side in span["label_sides"])))
+                                        tuple(None if side is None else Half(side) for side in span["label_sides"])))
             offset += count
         stream = stream_payload(sequences, [event for sequence in sequences for event in sequence.events])
         streams[video["item_id"]] = stream

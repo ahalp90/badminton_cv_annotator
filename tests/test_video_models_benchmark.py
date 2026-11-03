@@ -22,7 +22,7 @@ from experiments.annotator.video_models_benchmark.model import prepare_clips
 from experiments.annotator.video_models_benchmark.prepare import prepare_video
 
 
-def span(start: int, end: int, frames: list[int], sides: list[str], span_id: int = 0) -> dict:
+def span(start: int, end: int, frames: list[int], sides: list[str | None], span_id: int = 0) -> dict:
     return {"start_frame": start, "end_frame": end, "label_frames": frames, "label_sides": sides,
             "span_id": span_id, "rally_id": str(span_id)}
 
@@ -33,6 +33,12 @@ def test_positive_priority_and_ignored_band() -> None:
     assert target_labels(rally, "B").tolist() == [0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0]
     reversed_contacts = span(0, 14, [7, 4], ["Bot", "Top"])
     np.testing.assert_array_equal(target_labels(rally, "B"), target_labels(reversed_contacts, "B"))
+
+
+@pytest.mark.parametrize("scheme", ["A", "B"])
+def test_unknown_test_hitter_is_ignored_for_frame_loss(scheme: str) -> None:
+    rally = span(0, 12, [5], [None])
+    assert target_labels(rally, scheme).tolist() == [0, 0, 0, -100, -100, -100, -100, -100, 0, 0, 0, 0]
 
 
 def write_cache(root: Path, video: dict) -> None:
@@ -92,8 +98,9 @@ def test_decoder_background_suppression_ties_and_alternation() -> None:
     assert decode_span(rally, probabilities, 25).events[0].frame == 102  # Six exceeds scaled distance five.
 
 
-def test_supplied_rallies_reuse_existing_scorer() -> None:
-    rally = span(0, 50, [10, 30], ["Bot", "Top"])
+@pytest.mark.parametrize("second_side", ["Top", None])
+def test_supplied_rallies_reuse_existing_scorer(second_side: str | None) -> None:
+    rally = span(0, 50, [10, 30], ["Bot", second_side])
     video = {"item_id": "one", "role": "validation", "fps": 30, "spans": [rally]}
     class FakeDataset:
         def __init__(self) -> None:
@@ -107,8 +114,9 @@ def test_supplied_rallies_reuse_existing_scorer() -> None:
     probabilities[30] = [0, 0, 1]
     result = score_probabilities(FakeDataset(), probabilities)
     for counts in result["metrics"].values():
-        assert counts["fully_correct"] == 1
-        assert counts["contact_f1"] == counts["correct_player_f1"] == 100
+        assert counts["fully_correct"] == (1 if second_side is not None else 0)
+        assert counts["contact_f1"] == 100
+        assert counts["correct_player_f1"] == (100 if second_side is not None else 50)
     probabilities[20] = [0, 1, 0]
     counts = score_probabilities(FakeDataset(), probabilities)["metrics"]["10"]
     assert counts["fully_correct"] == 0

@@ -8,6 +8,10 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
+    load_manifest,
+)
+
 from .data import (
     IMAGE_SIZE,
     context_intervals,
@@ -68,14 +72,21 @@ def prepare_video(video: dict, videos_root: Path, cache: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--spans", type=Path, required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--spans", type=Path, help="Frozen development spans")
+    inputs.add_argument("--test-inputs", type=Path, help="Directory containing the frozen test manifest")
     parser.add_argument("--videos", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--smoke-rallies", type=int, help="Separate bounded cache: first N rallies of each video")
     args = parser.parse_args()
-    videos = development_videos(args.spans)
-    counts = {"train": {}, "validation": {}}
+    if args.test_inputs is not None:
+        videos = [{**item, "role": "test", "source_video": item["source_filename"]}
+                  for item in load_manifest(args.test_inputs)["items"]]
+        counts = {"test": {}}
+    else:
+        videos = development_videos(args.spans)
+        counts = {"train": {}, "validation": {}}
     for role, role_counts in counts.items():
         selected = [video for video in videos if video["role"] == role]
         role_counts["centres"] = sum(span["end_frame"] - span["start_frame"] for video in selected for span in video["spans"])

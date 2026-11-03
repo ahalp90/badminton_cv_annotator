@@ -110,7 +110,12 @@ The raw `.rgb` files support memory mapping and share the operating system's
 RAM cache between workers. Completed videos are reused on restart. The same
 cache serves both target schemes and every seed. A separate cache made with
 `--smoke-rallies 2` supports bounded timing; training rejects that partial cache.
-The preparation command currently accepts the frozen development split only.
+For the frozen test split, replace `--spans` with `--test-inputs` pointing to
+`experiments/annotator/monotrack_benchmark/benchmark_results/inputs`, use the
+ShuttleSet22 video directory and a separate cache. Evaluate selected checkpoints
+with `infer --role test`. The one contact with an unknown hitter remains in event
+scoring under the shared scorer's rules; its nearby centres are ignored for
+frame loss.
 
 ```bash
 python -m experiments.annotator.video_models_benchmark.train time \
