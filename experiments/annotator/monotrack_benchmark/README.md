@@ -8,6 +8,9 @@ limit in training, discovery or headline scoring. Boundary-only confidence
 assessment allows 2 seconds before and 3 seconds after the labelled contacts;
 the main contact tolerance is ±10 frames, with ±5 in Appendix E.
 
+The [X3D-M validation pilot](../video_models_benchmark/x3d_results.md) uses the
+same data split and event scorer for an RGB video-model baseline.
+
 ## Results and models
 
 | Find | Location |
