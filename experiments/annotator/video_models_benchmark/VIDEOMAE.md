@@ -33,10 +33,23 @@ offline from saved settings and weights. Transformers is pinned in
 `requirements.txt` because the stochastic-depth placement depends on its
 residual-branch structure.
 
-## Measure batch size before training
+## Batch size and timing
 
-The supplied configuration uses batch 16 as a timing reference. Increasing
-batch size while retaining 30,000 updates increases the number of sampled
+The pilot uses batch 16. On an NVIDIA L40 with BF16 and 12 loading workers,
+batch 16 processed more clips per second than batch 32:
+
+| Batch | GPU-only clips/s | Clips/s including loading | Peak training memory |
+|---|---:|---:|---:|
+| 16 | 62.15 | 59.06 | 10.41 GiB |
+| 32 | 57.04 | 56.27 | 19.66 GiB |
+
+The [saved measurements](results/videomae_timing/) include the settings and timings.
+
+At batch 16, full validation over 180,179 clip centres took 16.6 minutes,
+with another 5 seconds for event scoring. The initial 30,000 updates and seven
+validation checks take about 4.2 hours per run, before continuation.
+
+Increasing batch size while retaining 30,000 updates increases the number of sampled
 clips. When changing batch size, choose the total training exposure, learning
 rate and schedule together.
 
@@ -71,8 +84,7 @@ individual microbatches need not have equal class proportions.
 
 ## Run the four configurations
 
-Finalise the batch and schedule in a copy of `videomae.toml` after timing.
-The reference configuration uses 30,000 updates, 2,000 warm-up updates and
+The pilot configuration uses batch 16, 30,000 updates, 2,000 warm-up updates and
 validation at 2.5k, 5k, then every 5k through 30k. The learning rate warms up
 from one tenth of its peak, then decays to zero. Continued training uses the
 shared 20k-update cosine cycle and stops after three validation checks without
@@ -87,7 +99,8 @@ the discrete schedule introduces a one-update rounding difference.
 ```bash
 python -m experiments.annotator.video_models_benchmark.videomae_queue init \
   --config /path/to/chosen-videomae.toml \
-  --cache /path/to/rgb256-cache --output /path/to/videomae-runs
+  --cache /path/to/rgb256-cache --test-cache /path/to/test-rgb256-cache \
+  --output /path/to/videomae-runs
 
 nohup python -u -m experiments.annotator.video_models_benchmark.videomae_queue run \
   --output /path/to/videomae-runs \
@@ -107,6 +120,11 @@ with their optimiser state, random state and accumulated validation history.
 `rank --output /path/to/videomae-runs` writes `selection.json.gz` after all four
 runs finish. Each checkpoint is the earliest minimum-validation-CE checkpoint.
 Learning rates are ranked by mean fully correct validation rallies, then mean
-correct-player F1; an exact tie chooses the lower LR. Test results remain
-outside selection. The existing `infer` command reconstructs either model
-from its checkpoint settings.
+correct-player F1; an exact tie chooses the lower LR.
+
+With `--test-cache` set at initialisation, the queue writes the selection and
+evaluates both seeds of the winning learning rate after all four runs finish.
+Each seed uses its minimum-validation-CE checkpoint. Test outputs go to
+`test/seed0/` and `test/seed1/`; test scores do not affect selection. A resumed
+queue skips completed test seeds. Preserve an incomplete test directory elsewhere
+before resuming so inference can start that seed again.

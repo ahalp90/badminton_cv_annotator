@@ -25,7 +25,7 @@ from .grid import (
 LEARNING_RATES = (3.125e-5, 1e-4)
 
 
-def initialise(output: Path, cache: Path, config: Path) -> None:
+def initialise(output: Path, cache: Path, config: Path, *, test_cache: Path | None = None) -> None:
     from .train import Settings
 
     settings = tomllib.loads(config.read_text())
@@ -47,7 +47,20 @@ def initialise(output: Path, cache: Path, config: Path) -> None:
             runs.append({"name": name, "seed": seed, "learning_rate": learning_rate})
     write_record(manifest, {"cache": str(cache.resolve()), "created_at": time.time(), "runs": runs,
                             "labels": "positive within ±1 frame; distance-two centres ignored",
-                            "settings": settings})
+                            "settings": settings, "test_cache": str(test_cache.resolve()) if test_cache else None})
+
+
+def wait_for_child(process: subprocess.Popen) -> int:
+    signals = [signal.SIGTERM, signal.SIGINT]
+    # Preserve nohup's ignored hangup signal for unattended queues.
+    if signal.getsignal(signal.SIGHUP) != signal.SIG_IGN:
+        signals.append(signal.SIGHUP)
+    previous_handlers = {signum: signal.signal(signum, partial(terminate_child, process)) for signum in signals}
+    try:
+        return process.wait()
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
 
 
 def launch_run(output: Path, manifest: dict, run: dict, *, extend: bool, resume: bool) -> None:
@@ -63,21 +76,33 @@ def launch_run(output: Path, manifest: dict, run: dict, *, extend: bool, resume:
             raise FileExistsError(f"Unfinished run {directory}; inspect it, then use run --resume")
         command.append("--resume")
     process = subprocess.Popen(command, start_new_session=True)
-    signals = [signal.SIGTERM, signal.SIGINT]
-    # Preserve nohup's ignored hangup signal for unattended queues.
-    if signal.getsignal(signal.SIGHUP) != signal.SIG_IGN:
-        signals.append(signal.SIGHUP)
-    previous_handlers = {signum: signal.signal(signum, partial(terminate_child, process))
-                         for signum in signals}
-    try:
-        return_code = process.wait()
-    finally:
-        for signum, handler in previous_handlers.items():
-            signal.signal(signum, handler)
+    return_code = wait_for_child(process)
     if return_code:
         raise RuntimeError(f"{run['name']} stopped with exit {return_code}; see {directory / 'train.log'}")
     if run_state(directory).get("phase") != "paused" and not completed_run(directory):
         raise RuntimeError(f"{run['name']} exited without completing or pausing")
+
+
+def evaluate_selected(output: Path, cache: Path) -> None:
+    ranking = rank_runs(output)
+    write_record(output / "selection.json.gz", {"ranking": ranking})
+    test_root = output / "test"
+    test_root.mkdir(exist_ok=True)
+    for run in ranking[0]["runs"]:
+        directory = test_root / f"seed{run['seed']}"
+        if run_state(directory).get("phase") == "complete":
+            continue
+        if directory.exists():
+            raise FileExistsError(f"Incomplete test output {directory}; preserve it elsewhere before resuming")
+        command = [sys.executable, "-u", "-m", "experiments.annotator.video_models_benchmark.infer",
+                   "--checkpoint", str(output / run["name"] / "best.pt"), "--cache", str(cache),
+                   "--role", "test", "--output", str(directory)]
+        print(f"Testing {run['name']}", flush=True)
+        with (test_root / f"seed{run['seed']}.log").open("a") as log:
+            process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            return_code = wait_for_child(process)
+        if return_code or run_state(directory).get("phase") != "complete":
+            raise RuntimeError(f"Test seed {run['seed']} failed; see {log.name}")
 
 
 def execute(output: Path, *, resume: bool) -> None:
@@ -103,6 +128,13 @@ def execute(output: Path, *, resume: bool) -> None:
                     if run_state(directory).get("phase") == "paused":
                         state["phase"] = "paused"
                         return
+            if manifest.get("test_cache"):
+                if (output / "PAUSE").exists():
+                    state["phase"] = "paused"
+                    return
+                state.update(phase="testing", continuation=False)
+                write_record(output / "grid-status.json.gz", state)
+                evaluate_selected(output, Path(manifest["test_cache"]))
             state["phase"] = "complete"
         except BaseException:
             state["phase"] = "stopped"
@@ -143,13 +175,14 @@ def main() -> None:
     parser.add_argument("command", choices=("init", "run", "pause", "continue", "status", "rank"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path)
+    parser.add_argument("--test-cache", type=Path, help="After training, test both seeds of the validation-selected LR")
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("videomae.toml"))
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     if args.command == "init":
         if args.cache is None:
             parser.error("init requires --cache")
-        initialise(args.output, args.cache, args.config)
+        initialise(args.output, args.cache, args.config, test_cache=args.test_cache)
     elif args.command == "run":
         execute(args.output, resume=args.resume)
     elif args.command == "continue":

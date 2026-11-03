@@ -1,4 +1,4 @@
-# Batch 16 is the timing reference. Choose the pilot batch after GPU measurements.
+# Batch 16 gave better clip throughput than batch 32 on the L40.
 model_name = "videomae"
 checkpoint_revision = "488eb9a0565f257b32866000305c8178965eb9f6"
 seed = 0
