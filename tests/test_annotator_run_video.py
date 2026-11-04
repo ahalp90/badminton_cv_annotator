@@ -535,6 +535,22 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
     assert result.geometric_verdict_rows[0].window_closed_by_mask is True
 
 
+def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
+    inputs = _synthetic_inputs()
+    inputs['raw_exclusion_mask'][15:28] = True  # 13-frame run survives filtering at 25 fps
+    inputs['track'][14, 1] = 0.5
+    inputs['track'][14, 2] = 1.0
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP)
+    monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
+
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
+        spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
+    )
+
+    assert result.geometric_verdict_rows[0].window_closed_by_mask is False
+
+
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(

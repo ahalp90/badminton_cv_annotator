@@ -203,7 +203,7 @@ def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
 
     window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
 
-    assert window == LandingWindow(5, ('next_rally',))
+    assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
 
 
 def test_landing_window_labels_final_rally_video_end():
@@ -220,7 +220,7 @@ def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
 
     window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
 
-    assert window == LandingWindow(5, ('next_rally',))
+    assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
 
 
 def test_landing_window_reports_sustained_loss_and_exclusion_tie():
@@ -231,7 +231,7 @@ def test_landing_window_reports_sustained_loss_and_exclusion_tie():
 
     window = landing_window(0, len(track), track, dead, sustained_loss_frames=3)
 
-    assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'))
+    assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'), window_closed_by_mask=False)
 
 
 def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
@@ -241,7 +241,7 @@ def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
 
     window = landing_window(4, len(track), track, dead, sustained_loss_frames=10)
 
-    assert window == LandingWindow(5, ('definitive_exclusion',))
+    assert window == LandingWindow(5, ('definitive_exclusion',), window_closed_by_mask=True)
 
 
 # ---------------------------------------------------------------------------

@@ -74,7 +74,6 @@ class LandingSelection:
     search_start: int
     safe_window: point_winner.LandingWindow
     landing: point_winner.Landing | None
-    window_closed_by_mask: bool
 
 
 @dataclass(frozen=True)
@@ -214,15 +213,6 @@ def select_landing(
                 context.shuttle_hallucination_mask,
                 context.source_codes,
             )
-    all_false_exclusion_mask = np.zeros_like(context.definitive_exclusion_mask)
-    window_end_without_exclusion_mask = point_winner.window_end(
-        search_start,
-        next_start,
-        context.track,
-        all_false_exclusion_mask,
-        context.resolved.thresholds.sustained_loss_frames,
-        context.shuttle_hallucination_mask,
-    )
     landing_rejections: list[tuple[int, int]] = []
     landing = point_winner.pick_landing_to_end(
         search_start,
@@ -255,9 +245,6 @@ def select_landing(
         search_start=search_start,
         safe_window=safe_window,
         landing=landing,
-        window_closed_by_mask=(
-            safe_window.end_frame < window_end_without_exclusion_mask
-        ),
     )
 
 
@@ -390,7 +377,7 @@ def build_rally_outcome(
         geometric,
         geometric_winner,
         agreement,
-        selection.window_closed_by_mask,
+        selection.safe_window.window_closed_by_mask,
     )
     build_horizon_rows(
         rally_id, striker, next_server, selection, verdict, strict_winner, context, scene,

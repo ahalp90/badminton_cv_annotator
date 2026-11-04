@@ -188,6 +188,7 @@ class LandingWindow:
 
     end_frame: int
     closure_reasons: tuple[str, ...]
+    window_closed_by_mask: bool
 
 
 def gap_after_top_exit(
@@ -251,7 +252,13 @@ def landing_window(
         reason for reason in reason_order
         if boundaries.get(reason) == safe_end
     )
-    return LandingWindow(end_frame=safe_end, closure_reasons=reasons)
+    end_without_mask = max(final_contact + 1, min(
+        end for reason, end in boundaries.items() if reason != 'definitive_exclusion'
+    ))
+    return LandingWindow(
+        end_frame=safe_end, closure_reasons=reasons,
+        window_closed_by_mask=safe_end < end_without_mask,
+    )
 
 
 def window_end(
