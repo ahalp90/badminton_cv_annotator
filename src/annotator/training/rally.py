@@ -18,7 +18,6 @@ from annotator.sequence.rally_model import (
     predict_rally_options,
 )
 from annotator.sequence.rally_options import (
-    RallyContext,
     RallyOptions,
     build_rally_options,
 )
@@ -106,8 +105,7 @@ def prepare_training_pools(
 ) -> dict[str, RallyTrainingPool]:
     pools = {}
     for video in videos:
-        context = RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count, video.bounds_supplied)
-        pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
+        pool = build_rally_options(video.context, config.max_edits, config.deletion_candidates)
         wide, preferred = option_targets_at_tolerances(
             video, pool, (config.fallback_tolerance_at_30_fps, config.preferred_tolerance_at_30_fps),
         )
@@ -172,7 +170,7 @@ def fit_rally_review_model(
         matrices.append(features.matrix)
         sequences = {sequence.span_id: sequence for sequence in prediction.sequences}
         correctness.extend(whole_rally_correctness(
-            sequences[span_id], video.rallies, video.fps, tolerance_at_30_fps=tolerance_at_30_fps,
+            sequences[span_id], video.rallies, video.context.fps, tolerance_at_30_fps=tolerance_at_30_fps,
         ) for span_id in features.span_ids)
     matrix = np.concatenate(matrices)
     features = RallyReviewFeatures(tuple(range(len(matrix))), matrix)

@@ -69,7 +69,7 @@ def edit_kind(sequence: ContactSequence, initial_by_span: dict[int, ContactSeque
 
 def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
     """Summarise target balance and positive-target span coverage."""
-    initial_by_span = {sequence.span_id: sequence for sequence in options.video.initial}
+    initial_by_span = {sequence.span_id: sequence for sequence in options.video.context.initial}
     target_counts = {kind: Counter() for kind in EDIT_KINDS}
     for sequence, target in zip(options.sequences, options.targets, strict=True):
         target_counts[edit_kind(sequence, initial_by_span)][str(int(target))] += 1

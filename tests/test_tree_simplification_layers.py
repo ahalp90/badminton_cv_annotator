@@ -13,6 +13,7 @@ from annotator.sequence import rally_model
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import positive_probabilities
+from annotator.sequence.rally_options import RallyContext
 from annotator.training import rally as rally_training
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.trees import TreeFitConfig
@@ -32,9 +33,7 @@ def example_pool() -> LabelledOptions:
         replace(initial[0], events=(last,)), initial[1],
     )
     original_pool = RallyCandidates({}, {})
-    original = SequenceTrainingVideo(
-        'fixture', 'group', 30.0, initial, (first, last, neighbour, outside), original_pool, (), 110,
-    )
+    original = SequenceTrainingVideo('fixture', 'group', RallyContext(30.0, initial, (first, last, neighbour, outside), original_pool, 110), ())
     return LabelledOptions(
         sequences, np.asarray([[0, 1], [1, 1], [0, 0], [2, 1]], dtype=np.float32),
         np.asarray([0, 1, -1, 0], dtype=np.int8), {0: np.asarray([0, 1, 2]), 1: np.asarray([3])}, original,

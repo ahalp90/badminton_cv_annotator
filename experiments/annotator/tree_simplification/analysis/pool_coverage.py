@@ -45,15 +45,15 @@ TOLERANCE_AT_30_FPS = 10
 def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
     """Coverage with initial neighbours, then the two generous reachability checks, for one video."""
     video = pool.video
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
-    tolerance = scale_frames(TOLERANCE_AT_30_FPS, video.fps)
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
+    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.context.fps)
+    tolerance = scale_frames(TOLERANCE_AT_30_FPS, video.context.fps)
+    stream_frames = np.asarray([event.frame for event in video.context.events], dtype=np.int64)
     covered: set[str] = set()
     sections_with_correct_option = 0
     # One (earliest start, latest end, all option frames) per initial rally section.
     envelopes: list[tuple[int, int, list[int]]] = []
     previous_end = 0
-    for position, before in enumerate(video.initial):
+    for position, before in enumerate(video.context.initial):
         rows = pool.span_rows[before.span_id]
         correct_rows = rows[pool.targets[rows] == 1]
         sections_with_correct_option += bool(len(correct_rows))

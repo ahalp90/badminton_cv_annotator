@@ -22,18 +22,16 @@ from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import ContactFeatures
 from annotator.contacts.model import ContactModelConfig, score_contact_features
 from annotator.hybrid import (
+    build_rally_context,
     features_from_evidence,
     predict_contacts,
-    sequence_inputs,
 )
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
 from annotator.outcomes.point_winner import Half
 from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.candidates import build_rally_candidates
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
-    initial_sequences,
     scale_frames,
 )
 from annotator.shuttle_track import validate_shuttle_track
@@ -242,23 +240,15 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
 
 
 def sequence_training_video(
-    entry: VideoInput, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
+    identity: str, group: str, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
     contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
 ) -> SequenceTrainingVideo:
     """Score contacts and prepare candidate sequences for rally fitting."""
     scored = score_contact_features(
         features.rows, contact_model, evidence.fps, settings,
     )
-    scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
-    initial = initial_sequences(evidence.heuristic_spans, events)
-    candidates = build_rally_candidates(
-        initial, events, scores, features.rows, features.search_intervals,
-        fps=evidence.fps, side_for_frame=side_for_frame,
-    )
-    return SequenceTrainingVideo(
-        entry.identity, entry.group, evidence.fps, initial, events, candidates, rallies, len(evidence.track),
-        evidence.bounds_supplied,
-    )
+    context = build_rally_context(evidence, scored, features.search_intervals, side_geometry)
+    return SequenceTrainingVideo(identity, group, context, rallies)
 
 
 def fit_from_manifest(
@@ -303,7 +293,7 @@ def fit_from_manifest(
         evidence = evidence_by_video.pop(entry.identity)
         features = features_by_video.pop(entry.identity)
         training_videos.append(sequence_training_video(
-            entry, evidence, features, labels_by_video[entry.identity],
+            entry.identity, entry.group, evidence, features, labels_by_video[entry.identity],
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
     del evidence, features

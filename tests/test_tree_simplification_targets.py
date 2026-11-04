@@ -11,6 +11,7 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.rally_options import RallyContext
 from annotator.training.rally import RallyFitConfig, prepare_training_pools
 from annotator.training.rally_targets import option_targets_at_tolerances
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
@@ -37,7 +38,7 @@ def make_pool(
     events = initial.events
     option_pool = RallyCandidates({}, {})
     rally = LabelledRally('rally', (20, 60), (Half.TOP, Half.BOT))
-    video = SequenceTrainingVideo('video', 'group', fps, (initial,), events, option_pool, (rally,), 210)
+    video = SequenceTrainingVideo('video', 'group', RallyContext(fps, (initial,), events, option_pool, 210), (rally,))
     return LabelledOptions(
         sequences,
         np.zeros((len(sequences), 1), dtype=np.float32),
@@ -158,7 +159,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         LabelledRally('second', (110, 130), (Half.TOP, Half.BOT)),
         LabelledRally('remote', (500,), (None,)),
     )
-    video = SequenceTrainingVideo('video', 'group', 30.0, (first, second), events, option_pool, rallies, 220)
+    video = SequenceTrainingVideo('video', 'group', RallyContext(30.0, (first, second), events, option_pool, 220), rallies)
     pool = LabelledOptions(
         sequences,
         np.zeros((4, 1), dtype=np.float32),
@@ -178,9 +179,9 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     stream_frames = np.asarray([event.frame for event in events], dtype=np.int64)
     reference = np.empty(len(pool.sequences), dtype=np.int8)
     for row, sequence in enumerate(pool.sequences):
-        position = next(index for index, initial in enumerate(video.initial) if initial.span_id == sequence.span_id)
+        position = next(index for index, initial in enumerate(video.context.initial) if initial.span_id == sequence.span_id)
         finished = targets.rally_targets.finish_in_initial_context(video, position, sequence, stream_frames)
-        reference[row] = original(finished, video.rallies, video.fps, tolerance_at_30_fps=5)
+        reference[row] = original(finished, video.rallies, video.context.fps, tolerance_at_30_fps=5)
 
     monkeypatch.setattr(targets.rally_targets, 'whole_rally_correctness', observe)
     actual = raw_five_targets(pool)

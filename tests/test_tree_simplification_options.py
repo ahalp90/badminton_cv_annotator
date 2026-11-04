@@ -35,7 +35,7 @@ def example_video() -> SequenceTrainingVideo:
     pool = RallyCandidates(candidates, physical)
     rallies = tuple(LabelledRally(str(sequence.span_id), tuple(event.frame for event in sequence.events),
                                  tuple(event.side for event in sequence.events)) for sequence in initial)
-    return SequenceTrainingVideo('fixture', 'group', 30.0, initial, events, pool, rallies, 430)
+    return SequenceTrainingVideo('fixture', 'group', RallyContext(30.0, initial, events, pool, 430), rallies)
 
 
 def test_toggle_proposals_cover_multiple_edits_and_keep_no_edit() -> None:
@@ -47,12 +47,12 @@ def test_toggle_proposals_cover_multiple_edits_and_keep_no_edit() -> None:
     assert (150, 180) in frame_lists
     assert (52, 60, 150, 180) in frame_lists
     restricted = expand_pool(video, max_edits=0, deletion_candidates=0)
-    assert restricted.sequences == video.initial
+    assert restricted.sequences == video.context.initial
 
 
 def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
     video = example_video()
-    context = RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count)
+    context = video.context
     runtime = build_rally_options(context)
     labelled = expand_pool(video)
     unlabelled = expand_pool(replace(video, rallies=()))
@@ -69,7 +69,7 @@ def test_new_combinations_obey_spacing_bounds_and_do_not_resurrect_deletions() -
     options = expand_pool(video)
     for sequence in options.sequences:
         frames = tuple(event.frame for event in sequence.events)
-        previous_end = video.initial[sequence.span_id - 1].end_frame if sequence.span_id else -1
+        previous_end = video.context.initial[sequence.span_id - 1].end_frame if sequence.span_id else -1
         assert sequence.start_frame >= previous_end
         assert all(sequence.start_frame <= frame < sequence.end_frame for frame in frames)
         assert np.all(np.diff(frames) > 6)
@@ -92,7 +92,7 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
     assert first.matrix.shape == (len(first.sequences), len(FEATURE_NAMES))
     assert first.targets.dtype == np.int8
     assert set(first.targets.tolist()) <= {-1, 0, 1}
-    for before in video.initial:
+    for before in video.context.initial:
         rows = first.span_rows[before.span_id]
         assert first.sequences[rows[0]] == before
         frame_set = {event.frame for event in before.events}
@@ -111,16 +111,16 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
 def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_spans() -> None:
     video = example_video()
     options = expand_pool(video)
-    stream_frames = np.asarray([event.frame for event in video.events])
+    stream_frames = np.asarray([event.frame for event in video.context.events])
     for after in options.sequences:
-        chosen = {sequence.span_id: sequence for sequence in video.initial}
+        chosen = {sequence.span_id: sequence for sequence in video.context.initial}
         chosen[after.span_id] = after
-        expected, events = finish_choices(video.initial, video.events, chosen, video.fps, frame_count=video.frame_count)
+        expected, events = finish_choices(video.context.initial, video.context.events, chosen, video.context.fps, frame_count=video.context.frame_count)
         actual = finish_in_initial_context(video, after.span_id, after, stream_frames)
         assert actual == expected[after.span_id]
         finished, _events = fit_rally_sides(expected, events)
-        assert whole_rally_correctness(actual, video.rallies, video.fps) == whole_rally_correctness(
-            finished[after.span_id].sequence, video.rallies, video.fps,
+        assert whole_rally_correctness(actual, video.rallies, video.context.fps) == whole_rally_correctness(
+            finished[after.span_id].sequence, video.rallies, video.context.fps,
         )
     merged_labels = (
         LabelledRally('first', (90, 120), (None, None)),
@@ -133,9 +133,10 @@ def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_
 
 
 def test_supplied_bounds_reject_earlier_contacts_and_keep_original_extent() -> None:
-    video = replace(example_video(), bounds_supplied=True)
+    original = example_video()
+    video = replace(original, context=replace(original.context, bounds_supplied=True))
     options = expand_pool(video)
-    initial = {sequence.span_id: sequence for sequence in video.initial}
+    initial = {sequence.span_id: sequence for sequence in video.context.initial}
     for sequence in options.sequences:
         before = initial[sequence.span_id]
         assert (sequence.start_frame, sequence.end_frame) == (before.start_frame, before.end_frame)

@@ -1,7 +1,6 @@
 """Scene attribution permits serve candidates before tracked court evidence begins."""
 
 from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -16,18 +15,16 @@ from annotator.contacts.model import (
     ScoredContacts,
 )
 from annotator.courts.scenes import SceneCourt
-from annotator.hybrid import sequence_inputs
+from annotator.hybrid import build_rally_context
 from annotator.models import SideGeometry
 from annotator.preparation import AnnotationEvidence
-from annotator.sequence.candidates import build_rally_candidates
-from annotator.sequence.contacts import initial_sequences
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
     RallyPrediction,
     RallySelector,
 )
 from annotator.sequence.rally_options import FEATURE_NAMES
-from annotator.training.workflow import Split, VideoInput, sequence_training_video
+from annotator.training.workflow import sequence_training_video
 from annotator.types import ContactCandidate, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
 
@@ -76,14 +73,13 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
 
     pools = []
     for geometry in (SideGeometry.VIDEO, SideGeometry.SCENE):
-        scores, events, side_for_frame = sequence_inputs(evidence, contacts, geometry)
-        assert side_for_frame(160) is None
-        assert side_for_frame(170) is None
-        assert side_for_frame(220) is not None
-        initial = initial_sequences(evidence.heuristic_spans, events)
-        pools.append(build_rally_candidates(
-            initial, events, scores, rows, search_intervals, fps=30.0, side_for_frame=side_for_frame,
-        ))
+        context = build_rally_context(evidence, contacts, search_intervals, geometry)
+        selected = {event.frame: event for event in context.events}
+        assert selected[220].side is not None
+        earlier = {event.frame: event for event in context.candidates.by_span[0]}
+        assert earlier[160].side is None
+        assert earlier[170].side is None
+        pools.append(context.candidates)
     video_pool, scene_pool = pools
     assert scene_pool.by_span[0]
     assert scene_pool.by_span == video_pool.by_span
@@ -125,7 +121,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     config = ContactModelConfig()
     models = replace(annotator_models, contact=SimpleNamespace(predict_proba=predict), contact_settings=config)
     training = sequence_training_video(
-        VideoInput('masked', 'group', Split.TRAIN, Path('unused.csv')), evidence, features, (),
+        'masked', 'group', evidence, features, (),
         models.contact, config, models.side_geometry,
     )
 
@@ -133,9 +129,9 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     inference = hybrid.predict_contacts(evidence, models)
     expected_candidates = [1, 10, 16, 40, 60, 80]
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
-    assert [event.frame for event in training.events] == list(inference.contacts.frames)
+    assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == [10, 80]
-    for pool in (training.candidates, inference.refined.pool.context.candidates):
+    for pool in (training.context.candidates, inference.refined.pool.context.candidates):
         candidate_frames = [event.frame for event in pool.by_span[0]]
         assert candidate_frames == [1, 40, 60]
         assert 1 in pool.physical

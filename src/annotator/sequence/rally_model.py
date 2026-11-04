@@ -3,7 +3,7 @@
 The final sequences also supply features for review ranking.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -14,18 +14,12 @@ from annotator.outcomes.point_winner import (
     alternating_player_sides,
     fit_alternation,
 )
-from annotator.sequence.candidates import (
-    build_rally_candidates,
-    check_events_match_kept_candidates,
-)
 from annotator.sequence.contacts import (
-    CandidateScores,
     ContactEvent,
     ContactSequence,
     FinishedRally,
     apply_choices,
     events_between,
-    initial_sequences,
     scale_frames,
 )
 from annotator.sequence.features import (
@@ -36,9 +30,7 @@ from annotator.sequence.features import (
 )
 from annotator.sequence.rally_options import (
     FEATURE_NAMES,
-    RallyContext,
     RallyOptions,
-    build_rally_options,
 )
 
 BOUNDARY_PADDING_AT_30_FPS = 10
@@ -100,23 +92,6 @@ class RallyReview:
 
     features: RallyReviewFeatures
     scores: np.ndarray
-
-
-def select_rally_sequences(
-    spans: Sequence[tuple[int, int]], events: tuple[ContactEvent, ...], scores: CandidateScores,
-    features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
-    side_for_frame: Callable[[int], Half | None], models: RallySelector, frame_count: int | None = None,
-    bounds_supplied: bool = False,
-) -> RallyPrediction:
-    """Build rally alternatives from detector evidence and apply the fitted selectors."""
-    check_events_match_kept_candidates(events, scores)
-    initial = initial_sequences(spans, events)
-    candidates = build_rally_candidates(
-        initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
-    )
-    context = RallyContext(fps, initial, events, candidates, frame_count, bounds_supplied)
-    pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
-    return predict_rally_options(models, pool)
 
 
 def predict_rally_options(models: RallySelector, pool: RallyOptions) -> RallyPrediction:

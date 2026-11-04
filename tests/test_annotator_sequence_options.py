@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
+from annotator.contacts.features import contact_feature_dtype
+from annotator.contacts.model import ScoredContacts
 from annotator.sequence.candidates import (
-    check_events_match_kept_candidates,
-    shortlist_later_frames,
-    shortlist_serve_frames,
+    shortlist_later_rows,
+    shortlist_serve_rows,
 )
 from annotator.sequence.contacts import (
-    CandidateScores,
     ContactEvent,
     ContactSequence,
     apply_choices,
@@ -18,10 +18,13 @@ from annotator.sequence.contacts import (
 from annotator.sequence.rally_options import toggle_proposals
 
 
-def _scores(rows: list[tuple[int, int, float, bool]]) -> CandidateScores:
+def _scores(rows: list[tuple[int, int, float, bool]]) -> ScoredContacts:
     """Build candidate scores from (frame, interval ID, probability, kept) rows."""
     frames, interval_ids, probabilities, kept = zip(*rows, strict=True)
-    return CandidateScores(np.asarray(frames), np.asarray(interval_ids), np.asarray(probabilities), np.asarray(kept))
+    candidates = np.zeros(len(rows), dtype=contact_feature_dtype())
+    candidates['frame'] = frames
+    candidates['interval_id'] = interval_ids
+    return ScoredContacts(candidates, np.asarray(probabilities), np.flatnonzero(kept))
 
 
 def _frames(sequence: ContactSequence) -> list[int]:
@@ -56,8 +59,8 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
     ])
     events = [ContactEvent(40, .9, None), ContactEvent(180, .8, None)]
     sequences = initial_sequences([(20, 120), (150, 250), (260, 290)], events)
-    shortlists = shortlist_serve_frames(sequences, scores, [(0, 100), (100, 300)], fps=30.0)
-    frames_by_span = {span_id: scores.frames[rows].tolist() for span_id, rows in shortlists.items()}
+    shortlists = shortlist_serve_rows(sequences, scores, [(0, 100), (100, 300)], fps=30.0)
+    frames_by_span = {span_id: scores.candidates['frame'][rows].tolist() for span_id, rows in shortlists.items()}
     assert frames_by_span == {0: [30, 5], 1: [130, 170]}
 
 
@@ -68,7 +71,7 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
 def test_serve_shortlist_uses_available_candidates(rows, expected):
     scores = _scores(rows)
     sequences = initial_sequences([(0, 100)], [ContactEvent(40, .9, None)])
-    assert shortlist_serve_frames(sequences, scores, [(0, 100)], fps=30.0) == {0: expected}
+    assert shortlist_serve_rows(sequences, scores, [(0, 100)], fps=30.0) == {0: expected}
 
 
 def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
@@ -89,8 +92,9 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
         (200, 0, .8, False),
     ])
     sequence = ContactSequence(0, 0, 200, (ContactEvent(20, .9, None), ContactEvent(100, .7, None)))
-    assert shortlist_later_frames(sequence, scores, fps=30.0) == [50, 170, 160, 140, 130, 120]
-    assert shortlist_later_frames(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
+    rows = shortlist_later_rows(sequence, scores, fps=30.0)
+    assert scores.candidates['frame'][rows].tolist() == [50, 170, 160, 140, 130, 120]
+    assert shortlist_later_rows(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
 
 
 def test_applied_choices_keep_out_of_span_contacts():
@@ -110,13 +114,6 @@ def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
     replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
     _sequences, stream = apply_choices(initial, events, {0: initial[0], 1: replaced})
     assert [event.frame for event in stream] == [20, 110, 170, 200]
-
-
-def test_initial_events_must_be_exactly_the_kept_candidates():
-    scores = _scores([(20, 0, .9, True), (40, 0, .8, False)])
-    check_events_match_kept_candidates((ContactEvent(20, .9, None),), scores)
-    with pytest.raises(ValueError, match='exactly the kept candidates'):
-        check_events_match_kept_candidates((ContactEvent(40, .8, None),), scores)
 
 
 def test_toggle_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:

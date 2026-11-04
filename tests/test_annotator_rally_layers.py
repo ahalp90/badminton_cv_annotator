@@ -47,12 +47,12 @@ def training_video(identity: str, group: str, correct: bool) -> SequenceTraining
         {40: np.zeros(len(PHYSICAL_FEATURE_NAMES))},
     )
     label = LabelledRally('rally', (40 if correct else 60,), (Half.TOP,))
-    return SequenceTrainingVideo(identity, group, 30.0, (sequence,), (event,), pool, (label,), 100)
+    return SequenceTrainingVideo(identity, group, RallyContext(30.0, (sequence,), (event,), pool, 100), (label,))
 
 
 def runtime_options():
     video = training_video('validation', 'held', True)
-    return build_rally_options(RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count))
+    return build_rally_options(video.context)
 
 
 def dummy_layers() -> RallySelector:
@@ -134,8 +134,8 @@ def test_review_cross_fitting_requires_an_extra_group() -> None:
 @pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
 def test_review_tolerance_changes_correctness_labels(fps, shift, monkeypatch):
     video = training_video('video', 'A', True)
-    video = replace(video, fps=fps, rallies=(LabelledRally('rally', (40 + shift,), (Half.TOP,)),))
-    options = build_rally_options(RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count))
+    video = replace(video, context=replace(video.context, fps=fps), rallies=(LabelledRally('rally', (40 + shift,), (Half.TOP,)),))
+    options = build_rally_options(video.context)
     prediction = predict_rally_options(dummy_layers(), options)
     monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _features, labels, _config: labels)
     strict = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=3)

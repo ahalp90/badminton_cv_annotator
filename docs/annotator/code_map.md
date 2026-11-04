@@ -21,9 +21,10 @@ intermediate results are unfamiliar.
 | Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and fit alternating player sides, or carry model-selected sides forward |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
 
-In `rally_model.py`, start with `select_rally_sequences()` and
-`predict_rally_options()`. The scoring, ranking and finalisation helpers follow
-in the same file.
+In `hybrid.py`, `build_rally_context()` prepares the initial rallies and
+shortlisted contacts for both inference and training. In `rally_model.py`,
+`predict_rally_options()` chooses and finishes the rallies. The scoring and
+finalisation helpers follow in the same file.
 
 `heuristic_only=True` uses the same preparation, then selects rule-based contacts
 and fits their player order before outcome estimation. Supplying `spans` lets
@@ -44,7 +45,9 @@ player or court evidence.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.
 - `ContactSequence` is a rally's bounds and the contacts it owns.
 - `RallyCandidates`: shortlisted contacts by rally and their physical evidence.
-- `RallyOptions` holds the ordered alternatives and model-feature rows.
+- `RallyContext` groups the initial rallies, full contact stream and shortlisted evidence.
+- `RallyOptions` groups the ordered alternatives and model-feature rows.
+- `SequenceTrainingVideo` adds a video identity, training group and human labels to that same context.
 - `RallyPrediction` retains the selected sequences, full contact stream and scores.
 - `AnnotatorResult` is the public result saved by the dataset builder.
 

@@ -26,9 +26,7 @@ from annotator.training.sequences import (
 )
 from annotator.training.workflow import (
     DEFAULT_TRAINING_SETTINGS,
-    Split,
     TrainingSettings,
-    VideoInput,
     evaluation_counts,
     sequence_training_video,
 )
@@ -184,7 +182,7 @@ def require_raw_features(prepared_root: Path) -> None:
 def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSettings) -> SequenceTrainingVideo:
     video = prepared.video
     return sequence_training_video(
-        VideoInput(video.identity, prepared.group, Split(video.split), Path('unused-labels.csv')),
+        video.identity, prepared.group,
         prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction, SideGeometry.VIDEO,
     )
 

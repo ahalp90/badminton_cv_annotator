@@ -9,6 +9,7 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.rally_options import RallyContext
 from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
@@ -34,10 +35,7 @@ def example_pool() -> LabelledOptions:
         initial[1],
         replace(initial[1], events=(other_addition, other)),
     )
-    original = SequenceTrainingVideo(
-        'fixture', 'A', 30.0, initial, (first, second, other),
-        RallyCandidates({}, {}), (), 50,
-    )
+    original = SequenceTrainingVideo('fixture', 'A', RallyContext(30.0, initial, (first, second, other), RallyCandidates({}, {}), 50), ())
     return LabelledOptions(
         sequences,
         np.arange(12, dtype=np.float32).reshape(6, 2),

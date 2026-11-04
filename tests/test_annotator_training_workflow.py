@@ -113,13 +113,13 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         contact_training_identities[model] = identities
         return SimpleNamespace(model=model)
 
-    def sequence_input(entry: Any, captured: Any, _features: Any, rallies: Any,
+    def sequence_input(identity: str, group: str, captured: Any, _features: Any, rallies: Any,
                        model: Any, _settings: Any, geometry: Any) -> Any:
-        expected = [identity for identity in training_order if group_by_video[identity] != entry.group]
+        expected = [identity for identity in training_order if group_by_video[identity] != group]
         assert contact_training_identities[model] == expected
         assert model is not contact_model and geometry is SideGeometry.SCENE
-        pool_models[entry.identity] = model
-        return SimpleNamespace(identity=entry.identity, group=entry.group, fps=captured.fps, rallies=rallies)
+        pool_models[identity] = model
+        return SimpleNamespace(identity=identity, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
 
     def sequence_fit(videos: list, _settings: Any) -> Any:
         assert [video.identity for video in videos] == training_order

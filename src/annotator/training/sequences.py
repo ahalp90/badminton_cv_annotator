@@ -6,9 +6,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.candidates import RallyCandidates
-from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
+from annotator.sequence.contacts import ContactSequence, scale_frames
 from annotator.sequence.rally_model import fit_rally_sides
+from annotator.sequence.rally_options import RallyContext
 
 
 @dataclass(frozen=True)
@@ -37,13 +37,8 @@ class SequenceTrainingVideo:
 
     identity: str
     group: str
-    fps: float
-    initial: tuple[ContactSequence, ...]
-    events: tuple[ContactEvent, ...]
-    candidates: RallyCandidates
+    context: RallyContext
     rallies: tuple[LabelledRally, ...]
-    frame_count: int | None = None
-    bounds_supplied: bool = False
 
 
 MATCH_CONTACT = np.uint8(1)

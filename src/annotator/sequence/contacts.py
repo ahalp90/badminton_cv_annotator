@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, NamedTuple
-
-import numpy as np
+from typing import Any
 
 from annotator.config import ScalingKind
 from annotator.outcomes.point_winner import Half
@@ -37,19 +35,6 @@ class FinishedRally:
 
     sequence: ContactSequence
     final_half: Half | None
-
-
-class CandidateScores(NamedTuple):
-    """Every scored contact candidate in one video, in frame order.
-
-    ``kept`` marks the candidates the contact detector selected. Those rows are
-    the full-stream contact events, including any outside a rally interval.
-    """
-
-    frames: np.ndarray  # (candidate,) int
-    interval_ids: np.ndarray  # (candidate,) index into the search intervals
-    probabilities: np.ndarray  # (candidate,) float
-    kept: np.ndarray  # (candidate,) bool
 
 
 def scale_frames(frames_at_30_fps: int, fps: float) -> int:

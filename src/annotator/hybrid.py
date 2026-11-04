@@ -1,6 +1,5 @@
 """Apply the contact tree and sequence refinements to one video's evidence."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
 
@@ -12,16 +11,15 @@ from annotator.courts.scenes import court_at_frame
 from annotator.models import AnnotatorModels, SideGeometry
 from annotator.outcomes.point_winner import Half, attribute_half
 from annotator.preparation import AnnotationEvidence
-from annotator.sequence import (
-    CandidateScores,
-    ContactEvent,
-)
+from annotator.sequence.candidates import build_rally_candidates
+from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.rally_model import (
     RallyPrediction,
     RallyReview,
+    predict_rally_options,
     score_rally_review,
-    select_rally_sequences,
 )
+from annotator.sequence.rally_options import RallyContext, build_rally_options
 from shared.progress import report
 
 
@@ -51,10 +49,11 @@ def features_from_evidence(evidence: AnnotationEvidence) -> ContactFeatures:
     )
 
 
-def sequence_inputs(
-    evidence: AnnotationEvidence, contacts: ScoredContacts, side_geometry: SideGeometry,
-) -> tuple[CandidateScores, tuple[ContactEvent, ...], Callable[[int], Half | None]]:
-    """Share scored candidates and cached raw side guesses between fitting and inference."""
+def build_rally_context(
+    evidence: AnnotationEvidence, contacts: ScoredContacts, search_intervals: list[tuple[int, int]],
+    side_geometry: SideGeometry,
+) -> RallyContext:
+    """Prepare the same initial rallies and candidate contacts for fitting and inference."""
     @cache
     def side_for_frame(frame: int) -> Half | None:
         net_band = evidence.net_band
@@ -65,16 +64,15 @@ def sequence_inputs(
             net_band = court_at_frame(evidence.scene_courts, frame).net_band
         return attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, net_band)
 
-    kept = np.zeros(len(contacts.candidates), dtype=bool)
-    kept[contacts.kept_indices] = True
-    scores = CandidateScores(
-        contacts.candidates['frame'], contacts.candidates['interval_id'], contacts.probabilities, kept,
-    )
     events = tuple(
-        ContactEvent(int(scores.frames[row]), float(scores.probabilities[row]), side_for_frame(int(scores.frames[row])))
-        for row in contacts.kept_indices
+        ContactEvent(int(frame), float(contacts.probabilities[row]), side_for_frame(int(frame)))
+        for row, frame in zip(contacts.kept_indices, contacts.frames, strict=True)
     )
-    return scores, events, side_for_frame
+    initial = initial_sequences(evidence.heuristic_spans, events)
+    candidates = build_rally_candidates(
+        initial, events, contacts, search_intervals, fps=evidence.fps, side_for_frame=side_for_frame,
+    )
+    return RallyContext(evidence.fps, initial, events, candidates, len(evidence.track), evidence.bounds_supplied)
 
 
 def predict_contacts(evidence: AnnotationEvidence, models: AnnotatorModels) -> HybridPrediction:
@@ -92,13 +90,10 @@ def predict_contact_features(
     contacts = score_contact_features(
         features.rows, models.contact, evidence.fps, models.contact_settings,
     )
-    scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     report("refining rally sequences")
-    refined = select_rally_sequences(
-        evidence.heuristic_spans, events, scores, features.rows, features.search_intervals,
-        fps=evidence.fps, side_for_frame=side_for_frame, models=models.sequences, frame_count=len(evidence.track),
-        bounds_supplied=evidence.bounds_supplied,
-    )
+    context = build_rally_context(evidence, contacts, features.search_intervals, models.side_geometry)
+    pool = build_rally_options(context, models.sequences.max_edits, models.sequences.deletion_candidates)
+    refined = predict_rally_options(models.sequences, pool)
     report("scoring rally confidence")
     confidence = score_rally_review(refined, models.confidence)
     return HybridPrediction(features, contacts, refined, confidence)

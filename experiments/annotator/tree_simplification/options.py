@@ -12,7 +12,6 @@ import numpy as np
 from annotator.sequence.contacts import ContactSequence
 from annotator.sequence.rally_options import (
     FEATURE_NAMES,
-    RallyContext,
     RallyOptions,
     build_rally_options,
     sequence_key,
@@ -34,17 +33,13 @@ class LabelledOptions:
     @property
     def runtime(self) -> RallyOptions:
         """Share proposal arrays with the label-free inference path."""
-        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.video))
-
-
-def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count, video.bounds_supplied)
+        return RallyOptions(self.sequences, self.matrix, self.span_rows, self.video.context)
 
 
 def expand_pool(
     video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6,
 ) -> LabelledOptions:
     """Build label-free options, then judge them with initial neighbouring spans."""
-    options = build_rally_options(rally_context(video), max_edits, deletion_candidates)
+    options = build_rally_options(video.context, max_edits, deletion_candidates)
     targets = option_targets(video, options)
     return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video)

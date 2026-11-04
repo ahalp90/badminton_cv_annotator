@@ -92,7 +92,7 @@ def evaluate(
         stream = stream_payload(prediction.sequences, prediction.events)
         write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(videos[identity], stream)
-        initial = {sequence.span_id: sequence for sequence in pool.video.initial}
+        initial = {sequence.span_id: sequence for sequence in pool.video.context.initial}
         picks[identity] = [
             {'span': span, 'row': row, 'score': float(prediction.scores[row]), 'target': int(pool.targets[row]),
              'edit_kind': edit_kind(pool.sequences[row], initial)}

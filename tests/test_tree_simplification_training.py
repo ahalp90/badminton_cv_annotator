@@ -11,6 +11,7 @@ from annotator.outcomes.point_winner import Half
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import positive_probabilities
+from annotator.sequence.rally_options import RallyContext
 from annotator.training import rally as production_training
 from annotator.training.sequences import (
     SequenceTrainingVideo,
@@ -25,7 +26,7 @@ def make_pool(identity: str, group: str) -> LabelledOptions:
     initial = ContactSequence(0, 0, 20, (event,))
     deleted = ContactSequence(0, 0, 20, ())
     original_pool = RallyCandidates({}, {})
-    original = SequenceTrainingVideo(identity, group, 30.0, (initial,), (event,), original_pool, (), 30)
+    original = SequenceTrainingVideo(identity, group, RallyContext(30.0, (initial,), (event,), original_pool, 30), ())
     return LabelledOptions(
         (initial, deleted), np.asarray([[0, 1], [1, 0]], dtype=np.float32),
         np.asarray([0, 1], dtype=np.int8), {0: np.asarray([0, 1])}, original,
