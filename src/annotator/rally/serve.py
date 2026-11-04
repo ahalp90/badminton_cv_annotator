@@ -87,45 +87,16 @@ def series_drift(points: np.ndarray) -> tuple[float, int]:
 PLAYER_PRESENT_MIN_FRAC = 0.5
 
 
-def serve_setup_still(
-    inputs: ServeSetupInputs,
-    claimed_serve_frame: int,
-    window_frames: int,
-    threshold_bh: float,
-    slots: tuple[Slot, ...],
-) -> bool:
-    """Return whether every requested player is still through the serve frame."""
-    inputs.validate()
-    if isinstance(window_frames, bool) or not isinstance(window_frames, (int, np.integer)) or window_frames <= 0:
-        raise ValueError('window_frames must be a positive integer')
-    t = len(inputs.count)
-    if isinstance(claimed_serve_frame, bool) or not isinstance(claimed_serve_frame, (int, np.integer)):
-        raise TypeError('claimed_serve_frame must be an integer in range [0, t)')
-    if not 0 <= claimed_serve_frame < t:
-        raise ValueError('claimed_serve_frame must be in range [0, t)')
-    if not np.isfinite(threshold_bh) or threshold_bh < 0:
-        raise ValueError('threshold_bh must be finite and nonnegative')
-    # Element check before set(): an unhashable member must ValueError, not TypeError.
-    if (not isinstance(slots, tuple) or not slots or
-            any(not isinstance(slot, Slot) for slot in slots) or
-            len(set(slots)) != len(slots)):
-        raise ValueError('slots must be a nonempty duplicate-free tuple of Slot values')
-
-    end = int(claimed_serve_frame) + 1
-    window = slice(max(0, end - int(window_frames)), end)
-    for slot in slots:
-        ankles = inputs.top_ankles[window] if slot is Slot.TOP else inputs.bot_ankles[window]
-        heights = inputs.top_height[window] if slot is Slot.TOP else inputs.bot_height[window]
-        drift, _ = series_drift(ankles)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=RuntimeWarning)
-            body_unit = float(np.nanmean(heights))
-        if not np.isfinite(body_unit) or body_unit <= 0:
-            return False
-        ratio = drift / body_unit
-        if not np.isfinite(ratio) or ratio > threshold_bh:
-            return False
-    return True
+def player_is_still(ankles: np.ndarray, heights: np.ndarray, threshold_bh: float) -> bool:
+    """Compare one window's ankle movement with the player's mean body height."""
+    drift, _ = series_drift(ankles)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        body_unit = float(np.nanmean(heights))
+    if not np.isfinite(body_unit) or body_unit <= 0:
+        return False
+    ratio = drift / body_unit
+    return bool(np.isfinite(ratio) and ratio <= threshold_bh)
 
 
 def build_serve_setup_inputs(
@@ -262,10 +233,10 @@ def sticky_serve_setup_before(
     count = setup.count[setup_window]
     median_count = float(np.median(count))
     distances = setup.wrist_dist[setup_window]
-    heights = (setup.top_height[setup_window], setup.bot_height[setup_window])
+    setup_heights = (setup.top_height[setup_window], setup.bot_height[setup_window])
     valid = np.empty(distances.shape, dtype=bool)
     for slot in Slot:
-        valid[:, slot] = np.isfinite(distances[:, slot]) & np.isfinite(heights[slot])
+        valid[:, slot] = np.isfinite(distances[:, slot]) & np.isfinite(setup_heights[slot])
 
     if median_count >= 2:
         # Each player needs measurements in at least half the window. The two-frame
@@ -274,40 +245,40 @@ def sticky_serve_setup_before(
                np.count_nonzero(valid[:, slot]) < 2 for slot in Slot):
             return False
         if not any(
-            serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold)
+            serve_distance_ratio_passes(distances[:, slot], setup_heights[slot], threshold)
             for slot in Slot
         ):
             return False
-        return stillness_threshold_bh is None or serve_setup_still(
-            setup, burst, stillness_window_frames, stillness_threshold_bh, (Slot.TOP, Slot.BOTTOM),
-        )
+        if stillness_threshold_bh is None:
+            return True
+        for slot in Slot:
+            ankle_window = setup.top_ankles[stillness_window] if slot is Slot.TOP else setup.bot_ankles[stillness_window]
+            height_window = setup.top_height[stillness_window] if slot is Slot.TOP else setup.bot_height[stillness_window]
+            if not player_is_still(ankle_window, height_window, stillness_threshold_bh):
+                return False
+        return True
 
     if median_count >= 1:
         for slot in Slot:
             slot_valid = valid[:, slot]
             if np.mean(slot_valid) < PLAYER_PRESENT_MIN_FRAC or np.count_nonzero(slot_valid) < 2:
                 continue
-            if not serve_distance_ratio_passes(distances[:, slot], heights[slot], threshold):
+            if not serve_distance_ratio_passes(distances[:, slot], setup_heights[slot], threshold):
                 continue
             if stillness_threshold_bh is None:
                 return True
-            masked = setup._replace(
-                top_ankles=setup.top_ankles.copy(), bot_ankles=setup.bot_ankles.copy(),
-                top_height=setup.top_height.copy(), bot_height=setup.bot_height.copy(),
-            )
-            ankles_out = masked.top_ankles if slot is Slot.TOP else masked.bot_ankles
-            heights_out = masked.top_height if slot is Slot.TOP else masked.bot_height
+            ankles = setup.top_ankles if slot is Slot.TOP else setup.bot_ankles
+            heights = setup.top_height if slot is Slot.TOP else setup.bot_height
             stillness_distances = setup.wrist_dist[stillness_window, slot]
-            stillness_ankles = ankles_out[stillness_window]
-            stillness_heights = heights_out[stillness_window]
+            stillness_ankles = ankles[stillness_window]
+            stillness_heights = heights[stillness_window]
             stillness_valid = (
                 np.isfinite(stillness_distances) & np.all(np.isfinite(stillness_ankles), axis=1) &
                 np.isfinite(stillness_heights)
             )
-            stillness_indexes = np.arange(stillness_window.start, stillness_window.stop)
-            ankles_out[stillness_indexes[~stillness_valid]] = np.nan
-            heights_out[stillness_indexes[~stillness_valid]] = np.nan
-            if serve_setup_still(masked, burst, stillness_window_frames, stillness_threshold_bh, (slot,)):
+            if player_is_still(
+                stillness_ankles[stillness_valid], stillness_heights[stillness_valid], stillness_threshold_bh,
+            ):
                 return True
         return False
 

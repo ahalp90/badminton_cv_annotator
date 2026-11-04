@@ -162,18 +162,31 @@ def assemble_contacts(
     *, smoothing_mode: SmoothingMode,
 ) -> list[ContactCandidate]:
     """Detect, gate, and suppress contacts for already-selected spans."""
-    raw_flags = [(rally_id, frame, impulse) for rally_id, (start, end) in enumerate(spans)
-                 for frame, impulse in impulse_cell_candidates(
-                     track, start, end, thresholds, smoothing_mode=smoothing_mode,
-                 )]
+    raw_flags = []
+    for rally_id, (start, end) in enumerate(spans):
+        candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+        for frame, impulse in candidates:
+            raw_flags.append((rally_id, frame, impulse))
+
     if sticky_distances is None:
-        return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), None, None)
-                for r, f, _ in raw_flags]
+        contacts = []
+        for rally_id, frame, _impulse in raw_flags:
+            near_player = contact_proximity_ok(track, positions, frame)
+            contacts.append(ContactCandidate(rally_id, frame, near_player, None, None))
+        return contacts
+
     wrist_distance = thresholds.wrist_distance_body_heights
-    gated = [(f, impulse) for _r, f, impulse in raw_flags if wrist_contact_near(sticky_distances, f, wrist_distance)]
+    gated = []
+    for _rally_id, frame, impulse in raw_flags:
+        if wrist_contact_near(sticky_distances, frame, wrist_distance):
+            gated.append((frame, impulse))
     radius = thresholds.contact_suppression_radius_frames
     accepted = set(suppress_contact_flags(gated, radius=radius))
     gate_frames = {frame for frame, _ in gated}
-    return [ContactCandidate(r, f, contact_proximity_ok(track, positions, f), f in gate_frames,
-                             f in gate_frames and f not in accepted)
-            for r, f, _ in raw_flags]
+    contacts = []
+    for rally_id, frame, _impulse in raw_flags:
+        near_player = contact_proximity_ok(track, positions, frame)
+        near_wrist = frame in gate_frames
+        suppressed = near_wrist and frame not in accepted
+        contacts.append(ContactCandidate(rally_id, frame, near_player, near_wrist, suppressed))
+    return contacts

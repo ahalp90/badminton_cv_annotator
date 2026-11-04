@@ -129,6 +129,30 @@ def test_standard_lane_stillness_rejects_a_player_even_when_distance_passes(make
     assert not sticky_serve_setup_before(setup, 3, 0.3, 4, 0.1, 4)
 
 
+@pytest.mark.parametrize('burst_observed', (False, True))
+def test_partial_lane_stillness_uses_observed_frames_without_mutating_inputs(make_setup, burst_observed) -> None:
+    ankles = np.full((4, 2), (0.2, 0.3))
+    ankles[3] = (0.9, 0.3)
+    distances = np.column_stack([np.full(4, 0.02), np.full(4, np.nan)])
+    if not burst_observed:
+        distances[3, Slot.TOP] = np.nan
+    setup = make_setup(1.0)._replace(top_ankles=ankles, wrist_dist=distances)
+    for values in setup:
+        values.setflags(write=False)
+
+    assert sticky_serve_setup_before(setup, 3, 0.3, 4, 0.1, 4) is not burst_observed
+
+
+def test_partial_lane_checks_bottom_player_when_top_player_moves(make_setup) -> None:
+    setup = make_setup(1.0, n=6)._replace(
+        wrist_dist=np.full((6, 2), 0.02),
+        top_height=np.full(6, 0.2), bot_height=np.full(6, 0.2),
+    )
+    setup.top_ankles[4:] = (0.9, 0.3)
+
+    assert sticky_serve_setup_before(setup, 5, 0.3, 4, 0.1, 4)
+
+
 def test_builder_converts_and_preserves_sentinels() -> None:
     # Frame 0: both slots picked (real ankles, positive heights). Frame 1: analysed,
     # no picks (all-NaN row). Frame 2: outside segments (+inf distance sentinel).
