@@ -1,9 +1,8 @@
-"""Judge rally options using labelled training videos and initial neighbours."""
+"""Judge proposed contacts directly against labelled rallies."""
 
 import numpy as np
 
-from annotator.sequence.contacts import ContactSequence, scale_frames
-from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_choices
+from annotator.sequence.contacts import scale_frames
 from annotator.sequence.rally_options import RallyOptions
 from annotator.training.sequences import (
     SequenceTrainingVideo,
@@ -11,58 +10,27 @@ from annotator.training.sequences import (
 )
 
 
-def finish_in_initial_context(
-    video: SequenceTrainingVideo, position: int, after: ContactSequence, stream_frames: np.ndarray,
-) -> ContactSequence:
-    """Apply canonical boundaries in a three-span window with initial neighbours."""
-    context = video.context
-    before = context.initial[position]
-    start_position = max(0, position - 1)
-    window = context.initial[start_position:position + 2]
-    local_position = position - start_position
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, context.fps)
-    left = min(window[0].start_frame, after.start_frame) - padding
-    right = max(window[-1].end_frame, after.end_frame) + padding + 1
-    first, last = np.searchsorted(stream_frames, (left, right))
-    local_events = context.events[first:last]
-    choices = {sequence.span_id: sequence for sequence in window}
-    choices[before.span_id] = after
-    finished, _stream = finish_choices(
-        window, local_events, choices, context.fps,
-        frame_count=context.frame_count, bounds_supplied=context.bounds_supplied,
-    )
-    return finished[local_position]
-
-
 def option_targets_at_tolerances(
     video: SequenceTrainingVideo, pool: RallyOptions, tolerances_at_30_fps: tuple[int, ...],
 ) -> tuple[np.ndarray, ...]:
-    """Finish each option once, then judge it at each requested tolerance."""
-    context = video.context
+    """Judge proposals at each tolerance; boundary padding belongs to inference."""
+    fps = video.context.fps
     targets = tuple(np.empty(len(pool.sequences), dtype=np.int8) for _ in tolerances_at_30_fps)
-    stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, context.fps)
-    for position, before in enumerate(context.initial):
-        rows = pool.span_rows[before.span_id]
-        ordered = tuple(pool.sequences[row] for row in rows)
-        first_start = min(sequence.start_frame for sequence in ordered)
-        last_end = max(sequence.end_frame for sequence in ordered)
-        rallies_by_tolerance = []
-        for tolerance_at_30_fps in tolerances_at_30_fps:
-            tolerance_frames = scale_frames(tolerance_at_30_fps, context.fps)
-            label_start = first_start - padding - tolerance_frames
-            label_end = last_end + padding + tolerance_frames + 1
-            rallies = tuple(
-                rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
-            )
-            rallies_by_tolerance.append(rallies)
+    tolerance_frames = [scale_frames(tolerance, fps) for tolerance in tolerances_at_30_fps]
+    margin = max(tolerance_frames, default=0)
+    for rows in pool.span_rows.values():
+        options = tuple(pool.sequences[row] for row in rows)
+        start = min(sequence.start_frame for sequence in options) - margin
+        end = max(sequence.end_frame for sequence in options) + margin
+        # All options for this span use the same nearby labels. Retain each
+        # complete labelled rally so partial and merged proposals remain wrong.
+        nearby_rallies = tuple(
+            rally for rally in video.rallies if any(start <= frame < end for frame in rally.frames)
+        )
         for row in rows:
-            finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
-            for targets_at_tolerance, tolerance_at_30_fps, nearby_rallies in zip(
-                targets, tolerances_at_30_fps, rallies_by_tolerance, strict=True,
-            ):
-                targets_at_tolerance[row] = whole_rally_correctness(
-                    finished, nearby_rallies, context.fps, tolerance_at_30_fps=tolerance_at_30_fps,
+            for values, tolerance in zip(targets, tolerances_at_30_fps, strict=True):
+                values[row] = whole_rally_correctness(
+                    pool.sequences[row], nearby_rallies, fps, tolerance_at_30_fps=tolerance,
                 )
     return targets
 

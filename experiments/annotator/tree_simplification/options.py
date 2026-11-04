@@ -16,10 +16,10 @@ from annotator.sequence.rally_options import (
     build_rally_options,
     sequence_key,
 )
-from annotator.training.rally_targets import finish_in_initial_context, option_targets
+from annotator.training.rally_targets import option_targets
 from annotator.training.sequences import SequenceTrainingVideo
 
-__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'finish_in_initial_context', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'sequence_key']
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class LabelledOptions:
 def expand_pool(
     video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6,
 ) -> LabelledOptions:
-    """Build label-free options, then judge them with initial neighbouring spans."""
+    """Build label-free options, then judge their proposed contacts against labels."""
     options = build_rally_options(video.context, max_edits, deletion_candidates)
     targets = option_targets(video, options)
     return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video)

@@ -10,14 +10,11 @@ from annotator.sequence.candidates import (
 )
 from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
-from annotator.sequence.rally_model import finish_choices, fit_rally_sides
 from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
-from annotator.training.workflow import whole_rally_correctness
 from experiments.annotator.tree_simplification.options import (
     FEATURE_NAMES,
     expand_pool,
-    finish_in_initial_context,
 )
 
 
@@ -108,20 +105,8 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
     assert first.matrix[repaired_row, FEATURE_NAMES.index(f'new_first__{PHYSICAL_FEATURE_NAMES[0]}')] == 52
 
 
-def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_spans() -> None:
+def test_proposal_targets_keep_merged_and_partial_rallies_wrong() -> None:
     video = example_video()
-    options = expand_pool(video)
-    stream_frames = np.asarray([event.frame for event in video.context.events])
-    for after in options.sequences:
-        chosen = {sequence.span_id: sequence for sequence in video.context.initial}
-        chosen[after.span_id] = after
-        expected, events = finish_choices(video.context.initial, video.context.events, chosen, video.context.fps, frame_count=video.context.frame_count)
-        actual = finish_in_initial_context(video, after.span_id, after, stream_frames)
-        assert actual == expected[after.span_id]
-        finished, _events = fit_rally_sides(expected, events)
-        assert whole_rally_correctness(actual, video.rallies, video.context.fps) == whole_rally_correctness(
-            finished[after.span_id].sequence, video.rallies, video.context.fps,
-        )
     merged_labels = (
         LabelledRally('first', (90, 120), (None, None)),
         LabelledRally('second', (150, 180), (None, None)),

@@ -33,7 +33,7 @@ from experiments.annotator.tree_simplification.options import (
     expand_pool,
 )
 
-SCHEMA = 'tree-simplification-option-pools/2'
+SCHEMA = 'tree-simplification-option-pools/3'
 TARGET_VALUES = (-1, 0, 1)
 EDIT_KINDS = ('keep', 'add', 'delete', 'mixed')
 

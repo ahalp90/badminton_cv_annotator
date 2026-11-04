@@ -78,8 +78,8 @@ negatives and samples more distant ones. See the
 Sampling order and fit-row order are recorded separately because both can
 affect reproducibility.
 
-Rally training judges each proposal after applying the boundary rules with its
-initial neighbours. A proposal is wrong if it merges rallies, misses or adds
+Rally training judges each proposal directly. Boundary padding happens after
+selection during inference. A proposal is wrong if it merges rallies, misses or adds
 contacts, contradicts known player sides, or cuts into a labelled rally beyond
 the contact-timing allowance. Outward context is unlimited. Training judges the
 proposal's window; benchmark discovery assessment uses its first and last

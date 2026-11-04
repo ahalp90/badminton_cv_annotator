@@ -194,3 +194,6 @@ an exact reproduction; a new generic manifest run is a separate fit.
 Older eight-model results remain historical records. Their model bundles and
 training commands are no longer supported by the current annotator. Use the
 corresponding repository revision to reproduce that earlier architecture.
+
+Rebuild staged option pools and target sidecars created before direct proposal
+judgement. Their schema versions changed because the target policy changed.

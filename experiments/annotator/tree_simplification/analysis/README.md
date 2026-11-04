@@ -36,7 +36,7 @@ fields instead of rebuilding them. The last column lists them by key name.
 | `screening_evidence.py` | `screening-evidence.json.gz`: the search arms the report describes but the repo does not hold | archived run records | yes: the local archive | none |
 | `plot_target_screen.py` | `target-screen.svg` | `screening-evidence.json.gz` | no | none |
 | `profile_selected.py` | an inference profile like `selected-profile.json.gz` | `models/selected/` and one video's prepared arrays | yes: prepared arrays, which `prepare` rebuilds from the video fixtures | not a checker |
-| `pool_coverage.py` | the option-list probe behind the ceiling in `screening-evidence.json.gz` | an option-list folder written by `pools`, and the labels | yes: option lists from a fresh run | not a checker |
+| `pool_coverage.py` | validation coverage from current proposal targets | an option-list folder written by `pools`, and the labels | yes: option lists from a fresh run | not a checker |
 | `contact_training_coverage.py` | GT contacts represented by positive contact-training frames, with per-video counts | saved prepared videos and the contact-fit count record | yes: `--training NEW_RUN/training` | none |
 
 "The labels" means `training/data/shuttleset/annotations/shots_master.csv` and

@@ -32,7 +32,7 @@ from experiments.annotator.tree_simplification.options import (
 )
 from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 
-SCHEMA = 'tree-simplification-five-frame-targets/2'
+SCHEMA = 'tree-simplification-five-frame-targets/3'
 
 
 @dataclass(frozen=True)

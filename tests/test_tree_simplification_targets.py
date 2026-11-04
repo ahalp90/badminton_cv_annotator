@@ -49,23 +49,14 @@ def make_pool(
 
 
 @pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
-def test_two_tolerances_finish_each_option_once_and_scale_labels(fps, shift, monkeypatch):
+def test_two_tolerances_scale_labels(fps, shift):
     exact = ContactSequence(0, 0, 120, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
     shifted = replace(exact, events=(ContactEvent(20 + shift, 0.9, Half.TOP),
                                      ContactEvent(60 + shift, 0.9, Half.BOT)))
     pool = make_pool((exact, shifted), (0, 0), fps=fps)
-    original = targets.rally_targets.finish_in_initial_context
-    finished = []
-
-    def finish(*args):
-        finished.append(args[2])
-        return original(*args)
-
-    monkeypatch.setattr(targets.rally_targets, 'finish_in_initial_context', finish)
     wide, tight = option_targets_at_tolerances(pool.video, pool.runtime, (6, 3))
     np.testing.assert_array_equal(wide, [1, 1])
     np.testing.assert_array_equal(tight, [1, 0])
-    assert finished == [exact, shifted]
 
 
 def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
@@ -155,7 +146,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     option_pool = RallyCandidates({}, {})
     rallies = (
         LabelledRally('first', (10, 30), (Half.TOP, Half.BOT)),
-        LabelledRally('boundary', (85,), (None,)),
+        LabelledRally('boundary', (97,), (None,)),
         LabelledRally('second', (110, 130), (Half.TOP, Half.BOT)),
         LabelledRally('remote', (500,), (None,)),
     )
@@ -176,12 +167,9 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
             sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps,
         )
 
-    stream_frames = np.asarray([event.frame for event in events], dtype=np.int64)
     reference = np.empty(len(pool.sequences), dtype=np.int8)
     for row, sequence in enumerate(pool.sequences):
-        position = next(index for index, initial in enumerate(video.context.initial) if initial.span_id == sequence.span_id)
-        finished = targets.rally_targets.finish_in_initial_context(video, position, sequence, stream_frames)
-        reference[row] = original(finished, video.rallies, video.context.fps, tolerance_at_30_fps=5)
+        reference[row] = original(sequence, video.rallies, video.context.fps, tolerance_at_30_fps=5)
 
     monkeypatch.setattr(targets.rally_targets, 'whole_rally_correctness', observe)
     actual = raw_five_targets(pool)
@@ -189,7 +177,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     np.testing.assert_array_equal(actual, reference)
     assert len(observed_rallies) == len(pool.sequences)
     assert all('remote' not in labels for labels in observed_rallies)
-    assert all('boundary' in labels for labels in observed_rallies[:2])
+    assert all('boundary' not in labels for labels in observed_rallies[:2])
     assert all('boundary' in labels for labels in observed_rallies[2:])
 
 
@@ -269,3 +257,12 @@ def test_target_stage_rejects_pools_from_the_old_target_rule(tmp_path: Path) -> 
     experiment.write_json(pools_root / 'pools.json.gz', {'schema': 'tree-simplification-option-pools/1'})
     with pytest.raises(ValueError, match='unsupported target rule'):
         prepare_targets(pools_root, tmp_path / 'targets', workers=1)
+
+
+@pytest.mark.parametrize(('tolerance', 'next_label'), [(5, 109), (10, 114)])
+def test_proposal_targets_do_not_use_padding_to_reach_another_rally(tolerance, next_label):
+    sequence = ContactSequence(0, 0, 100, (ContactEvent(95, .9, Half.TOP),))
+    pool = make_pool((sequence,), (0,))
+    video = replace(pool.video, rallies=(LabelledRally('next', (next_label,), (Half.TOP,)),))
+    (actual,) = option_targets_at_tolerances(video, pool.runtime, (tolerance,))
+    np.testing.assert_array_equal(actual, [-1])
