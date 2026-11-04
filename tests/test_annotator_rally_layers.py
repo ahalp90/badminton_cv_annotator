@@ -99,9 +99,13 @@ def test_empty_video_keeps_empty_annotation_and_review_shapes() -> None:
 def test_review_features_keep_raw_sides_when_finished_sides_change() -> None:
     prediction = predict_rally_options(dummy_layers(), runtime_options())
     features = build_layer_review_features(prediction)
-    changed = tuple(replace(sequence, events=tuple(replace(event, side=Half.BOT) for event in sequence.events))
-                    for sequence in prediction.sequences)
-    revised = build_layer_review_features(replace(prediction, sequences=changed))
+    changed = tuple(
+        replace(rally, sequence=replace(
+            rally.sequence, events=tuple(replace(event, side=Half.BOT) for event in rally.sequence.events),
+        ))
+        for rally in prediction.rallies
+    )
+    revised = build_layer_review_features(replace(prediction, rallies=changed))
     np.testing.assert_array_equal(features.matrix, revised.matrix)
     assert features.matrix.shape[1] == len(review_feature_names(2))
 

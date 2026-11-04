@@ -15,6 +15,7 @@ from annotator.sequence.rally_model import (
     alternate_sides,
     extend_boundaries,
     finish_choices,
+    fit_rally_sides,
 )
 
 TOP = Half.TOP
@@ -87,6 +88,17 @@ def test_tied_alternation_keeps_raw_sides_and_out_of_span_contacts_keep_theirs()
     assert [(event.frame, event.side) for event in events] == [
         (10, TOP), (20, TOP), (100, None), (150, TOP), (200, TOP), (210, BOT), (220, TOP),
     ]
+
+
+def test_selected_contacts_carry_final_fit_and_preserve_outside_events():
+    original = _sided(0, [10, 20, 30], [TOP, TOP, BOT])
+    chosen = replace(original, events=original.events[1:])
+    outside = ContactEvent(50, .7, TOP)
+    selected, stream = finish_choices((original,), (*original.events, outside), {0: chosen}, 30, bounds_supplied=True)
+    rallies, events = fit_rally_sides(selected, stream)
+    assert rallies[0].final_half is BOT
+    assert [(event.frame, event.side) for event in rallies[0].sequence.events] == [(20, TOP), (30, BOT)]
+    assert [(event.frame, event.side) for event in events] == [(20, TOP), (30, BOT), (50, TOP)]
 
 
 def test_padding_stops_at_video_end_without_losing_last_contact():

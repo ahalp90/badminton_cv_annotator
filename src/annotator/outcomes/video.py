@@ -429,27 +429,24 @@ def build_verdict_data(
     verdict_rows: dict[int, point_winner.VerdictRow] = {}
     landings: dict[int, point_winner.Landing | None] = {}
     geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow] = {}
-    for rally_id, span in enumerate(progress_iter(contact_data.spans, "resolving outcomes", unit="rallies")):
-        striker = contact_data.striker_halves[rally_id]
+    for rally_id, rally in enumerate(progress_iter(contact_data.rallies, "resolving outcomes", unit="rallies")):
+        striker = rally.final_half
         if striker is None:
-            scored_frames = contact_data.scored_by_rally.get(rally_id, [])
-            if scored_frames and not contact_data.filtered_by_rally.get(rally_id):
+            if rally.frames_before_mask and not rally.frames:
                 record_trusted_mask_contact_rejection(
-                    rejection_diagnostics, rally_id, span, scored_frames,
+                    rejection_diagnostics, rally_id, rally.span, rally.frames_before_mask,
                 )
             continue
-        next_start = (
-            contact_data.spans[rally_id + 1][0]
-            if rally_id + 1 < len(contact_data.spans) else len(evidence.track)
-        )
+        next_rally = contact_data.rallies[rally_id + 1] if rally_id + 1 < len(contact_data.rallies) else None
+        next_start = next_rally.span[0] if next_rally is not None else len(evidence.track)
         outcome = build_rally_outcome(
             rally_id,
             striker,
-            contact_data.next_servers[rally_id],
+            next_rally.first_half if next_rally is not None else None,
             next_start,
-            contact_data.filtered_by_rally[rally_id],
+            rally.frames,
             context,
-            rally_end=span[1],
+            rally_end=rally.span[1],
         )
         verdict_rows[rally_id] = outcome.verdict
         landings[rally_id] = outcome.landing
@@ -463,8 +460,8 @@ def build_hit_heights(
     """Build hit-height outputs without coupling them to landing verdicts."""
     hit_height_by_frame: dict[int, int] = {}
     hit_height_failures: list[tuple[int, int, int, str]] = []
-    for rally_id in range(len(contact_data.spans)):
-        for stroke_idx, contact_frame in enumerate(contact_data.filtered_by_rally.get(rally_id, [])):
+    for rally_id, rally in enumerate(contact_data.rallies):
+        for stroke_idx, contact_frame in enumerate(rally.frames):
             try:
                 frame_net_band = court_at_frame(evidence.scene_courts, contact_frame).net_band
                 rows = point_winner.build_hit_height_rows(

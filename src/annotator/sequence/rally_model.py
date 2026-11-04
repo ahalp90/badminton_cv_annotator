@@ -18,6 +18,7 @@ from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
     ContactSequence,
+    FinishedRally,
     apply_choices,
     events_between,
     initial_sequences,
@@ -75,11 +76,16 @@ class RallyLayerModels:
 class RallyLayerPrediction:
     """Final annotations and the option scores that produced them."""
 
-    sequences: tuple[ContactSequence, ...]
+    rallies: tuple[FinishedRally, ...]
     events: tuple[ContactEvent, ...]
     pool: RallyOptions
     scores: tuple[np.ndarray, ...]
     chosen: dict[int, int]
+
+    @property
+    def sequences(self) -> tuple[ContactSequence, ...]:
+        """Selected sequences for scoring and stream export."""
+        return tuple(rally.sequence for rally in self.rallies)
 
 
 @dataclass(frozen=True)
@@ -119,8 +125,8 @@ def predict_rally_options(models: RallyLayerModels, pool: RallyOptions) -> Rally
     """Choose one option per rally, then finish its bounds and player sides."""
     scores = score_layers(models.layers, pool)
     chosen = choose_rows(pool, scores[-1])
-    sequences, events = finish_rows(pool, chosen)
-    return RallyLayerPrediction(sequences, events, pool, scores, chosen)
+    rallies, events = finish_rallies(pool, chosen)
+    return RallyLayerPrediction(rallies, events, pool, scores, chosen)
 
 
 def score_layers(models: tuple[Any, ...], pool: RallyOptions) -> tuple[np.ndarray, ...]:
@@ -145,13 +151,21 @@ def finish_rows(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     """Finish the chosen rallies through the same path used for training labels."""
+    rallies, events = finish_rallies(pool, rows)
+    return tuple(rally.sequence for rally in rallies), events
+
+
+def finish_rallies(
+    pool: RallyOptions, rows: dict[int, int],
+) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
+    """Finish selected rallies and retain the result of fitting their sides."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     context = pool.context
     sequences, events = finish_choices(
         context.initial, context.events, choices, context.fps,
         frame_count=context.frame_count, bounds_supplied=context.bounds_supplied,
     )
-    return alternate_sides(sequences, events)
+    return fit_rally_sides(sequences, events)
 
 
 def finish_choices(
@@ -235,9 +249,19 @@ def alternate_sides(
     :param events: Full-stream contact events in frame order.
     :return: Sequences and full-stream events with the fitted sides.
     """
+    rallies, revised = fit_rally_sides(sequences, events)
+    return tuple(rally.sequence for rally in rallies), revised
+
+
+def fit_rally_sides(
+    sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
+) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
+    """Fit each rally once and keep its resolved final side with its sequence."""
     side_by_frame: dict[int, Half | None] = {}
+    final_halves = []
     for sequence in sequences:
         final_half = fit_alternation([event.side for event in sequence.events])
+        final_halves.append(final_half)
         if final_half is None:
             continue
         fitted = alternating_player_sides(final_half, len(sequence.events))
@@ -248,7 +272,11 @@ def alternate_sides(
     revised_sequences = tuple(
         replace(sequence, events=tuple(by_frame[event.frame] for event in sequence.events)) for sequence in sequences
     )
-    return revised_sequences, revised
+    rallies = tuple(
+        FinishedRally(sequence, final_half)
+        for sequence, final_half in zip(revised_sequences, final_halves, strict=True)
+    )
+    return rallies, revised
 
 
 def layer_features(pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:

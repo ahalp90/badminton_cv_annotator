@@ -258,7 +258,8 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     }
     sequence = SimpleNamespace(span_id=4)
     layer_prediction = RallyLayerPrediction(
-        sequences=(sequence,), events=(), pool=object(), scores=(np.asarray([0.8]),), chosen={4: 0},
+        rallies=(SimpleNamespace(sequence=sequence, final_half=None),),
+        events=(), pool=object(), scores=(np.asarray([0.8]),), chosen={4: 0},
     )
     confidence = RallyReview(LayerReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
     prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)

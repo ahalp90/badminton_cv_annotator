@@ -28,6 +28,7 @@ from annotator.run_video import (
     run_video,
 )
 from annotator.sequence import ContactEvent, ContactSequence
+from annotator.sequence.contacts import FinishedRally
 from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
 
 
@@ -37,7 +38,7 @@ def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, an
     final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, Half.TOP), ContactEvent(17, .8, Half.TOP))
     sequence = ContactSequence(0, 8, 23, final_events[1:])
     prediction = SimpleNamespace(
-        refined=SimpleNamespace(sequences=(sequence,), events=final_events),
+        refined=SimpleNamespace(rallies=(FinishedRally(sequence, None),), events=final_events),
         confidence=SimpleNamespace(scores=np.array([.73])),
     )
 
@@ -849,7 +850,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
     def predict(evidence, models):
         assert evidence.shuttle_hallucination_mask is mask_calls[0]
         return SimpleNamespace(
-            refined=SimpleNamespace(sequences=(), events=()),
+            refined=SimpleNamespace(rallies=(), events=()),
             confidence=SimpleNamespace(scores=np.empty(0)),
         )
 

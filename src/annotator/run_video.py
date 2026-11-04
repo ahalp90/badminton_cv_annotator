@@ -129,7 +129,7 @@ def run_video(
         prediction = predict_contacts(evidence, models)
         if capture is not None:
             capture.hybrid = prediction
-        contact_data = contacts_from_sequences(prediction.refined.sequences)
+        contact_data = contacts_from_sequences(prediction.refined.rallies)
         final_contacts = contact_data.filtered_contacts
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
@@ -141,15 +141,19 @@ def run_video(
     )
     report("calculating hit heights")
     hit_height_by_frame, hit_height_failures = build_hit_heights(evidence, contact_data)
+    filtered_by_rally: dict[int, list[int]] = {}
+    for contact in contact_data.filtered_contacts:
+        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
+    first_halves = [rally.first_half for rally in contact_data.rallies]
     return AnnotatorResult(
-        spans=contact_data.spans,
+        spans=[rally.span for rally in contact_data.rallies],
         contacts=final_contacts,
         filtered_contacts=contact_data.filtered_contacts,
-        filtered_by_rally=contact_data.filtered_by_rally,
-        striker_halves=contact_data.striker_halves,
-        n_strokes_list=contact_data.n_strokes_list,
-        next_servers=contact_data.next_servers,
-        fitted_first_all=contact_data.fitted_first_all,
+        filtered_by_rally=filtered_by_rally,
+        striker_halves=[rally.final_half for rally in contact_data.rallies],
+        n_strokes_list=[len(rally.frames) for rally in contact_data.rallies],
+        next_servers=[*first_halves[1:], None] if first_halves else [],
+        fitted_first_all=first_halves,
         verdict_rows=verdict_data.verdict_rows,
         landings=verdict_data.landings,
         geometric_verdict_rows=verdict_data.geometric_verdict_rows,

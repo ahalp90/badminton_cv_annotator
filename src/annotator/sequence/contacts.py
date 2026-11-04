@@ -31,6 +31,14 @@ class ContactSequence:
     events: tuple[ContactEvent, ...]
 
 
+@dataclass(frozen=True)
+class FinishedRally:
+    """A selected sequence and its fitted final striker, including ties."""
+
+    sequence: ContactSequence
+    final_half: Half | None
+
+
 class CandidateScores(NamedTuple):
     """Every scored contact candidate in one video, in frame order.
 
