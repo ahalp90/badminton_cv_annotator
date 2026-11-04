@@ -129,9 +129,8 @@ Rally controls also include the proposal budgets.
 Contact fitting also exposes positive and ignored radii. Rally fitting exposes
 preferred, fallback and review correctness tolerances. These frame counts use
 30 fps as their reference and scale to each video's frame rate.
-`settings.contact_prediction` holds the contact probability cutoff and the optional
-`reject_masked_without_player` rule. Change it with `replace()` in the same way;
-the resulting setting is saved with the fitted bundle.
+`settings.contact_prediction` holds the contact probability cutoff. Change it
+with `replace()` in the same way; the setting is saved with the fitted bundle.
 
 For a five-seed comparison, keep the data, settings and order fixed and vary the
 seeds deliberately. The current benchmark uses offsets 0, 100, 200, 300 and 400

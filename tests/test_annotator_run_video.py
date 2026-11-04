@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 
 import annotator.run_video as run_video_module
-from annotator import preparation, rally_segmentation
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator import preparation
+from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.selection import scoring_filter
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.outcomes.point_winner import (
@@ -19,9 +19,7 @@ from annotator.outcomes.point_winner import (
     LandingFilterOptions,
     Verdict,
 )
-from annotator.preparation import build_serve_options
 from annotator.rally import evidence as rally_evidence
-from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import (
     AnnotatorResult,
     RunCapture,
@@ -29,7 +27,7 @@ from annotator.run_video import (
 )
 from annotator.sequence import ContactEvent, ContactSequence
 from annotator.sequence.contacts import FinishedRally
-from annotator.types import ContactCandidate, ServeStartConfig, StickyResult
+from annotator.types import ContactCandidate
 
 
 def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
@@ -114,34 +112,6 @@ def test_scoring_filter_keeps_only_unfailed_unsuppressed_rows():
     assert scoring_filter(rows) == [rows[0], rows[3]]
 
 
-def test_build_serve_options_wires_sticky_setup() -> None:
-    n_frames = 40
-    sticky = StickyResult(
-        distances=np.full(n_frames, np.nan), picks=np.full((n_frames, 2), -1),
-        standing_count=np.full(n_frames, 2),
-        ankle_pos=np.full((n_frames, 2, 2), (0.2, 0.3)),
-        bbox_height=np.full((n_frames, 2), 100.0),
-        distances_per_slot=np.full((n_frames, 2), 0.1),
-        wrist_dist_px=np.full((n_frames, 2), 100.0), analysed=np.ones(n_frames, dtype=bool),
-    )
-    resolution = (1920.0, 1080.0)
-    options = build_serve_options(
-        ServeStartConfig(threshold_bh=0.75, mode=ServeStartMode.TRIM, stillness_threshold_bh=0.2),
-        sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
-    )
-    assert options.setup is not None
-    assert options.stillness_threshold_bh == 0.2
-    assert options.lookback_frames == 25
-    assert options.stillness_window_frames == 15
-    assert options.setup.top_height[0] == pytest.approx(100.0 / 1080.0)
-
-    with pytest.raises(ValueError, match='serve_start.close is unsupported with BACK_FILL'):
-        build_serve_options(
-            ServeStartConfig(threshold_bh=0.1, mode=ServeStartMode.TRIM, close=ServeStartClose.BURST),
-            sticky, resolve(BaseAnnotatorConfig(), 30.0).thresholds, resolution,
-        )
-
-
 def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     inputs = _synthetic_inputs()
     injected = [(10, 20)]
@@ -198,62 +168,6 @@ def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
     run_video(**inputs, court_present=court_present, homography_rows=homography_rows, heuristic_only=True)
 
     assert received == [expected]
-
-
-def test_run_video_builds_serve_sticky_from_original_track_before_replay_mask(monkeypatch):
-    inputs = _synthetic_inputs()
-    original_track = inputs['track'].copy()
-    del inputs['raw_exclusion_mask']
-    real_build_sticky = rally_evidence.build_sticky_result
-    real_build_options = preparation.build_serve_options
-    sticky_tracks = []
-    option_stickies = []
-    segment_tracks = []
-
-    def spy_build_sticky(track, *args, **kwargs):
-        sticky_tracks.append(track.copy())
-        return real_build_sticky(track, *args, **kwargs)
-
-    def spy_build_options(*args, **kwargs):
-        option_stickies.append(args[1])
-        return real_build_options(*args, **kwargs)
-
-    def fake_dead_mask(*args, **kwargs):
-        mask = np.zeros(len(original_track), dtype=bool)
-        mask[0] = True
-        return mask
-
-    real_segment_video = rally_segmentation.segment_video
-
-    def spy_segment_video(track, *args, **kwargs):
-        segment_tracks.append((track.copy(), kwargs['exclusion_mask'].copy()))
-        return real_segment_video(track, *args, **kwargs)
-
-    monkeypatch.setattr(rally_evidence, 'build_sticky_result', spy_build_sticky)
-    monkeypatch.setattr(preparation, 'build_serve_options', spy_build_options)
-    monkeypatch.setattr(preparation, 'build_dead_mask', fake_dead_mask)
-    monkeypatch.setattr(rally_segmentation, 'segment_video', spy_segment_video)
-
-    run_video(
-        **inputs, **_default_scene_inputs(len(original_track)),
-        serve_start=ServeStartConfig(threshold_bh=0.8, mode=ServeStartMode.TRIM), heuristic_only=True,
-    )
-
-    assert len(sticky_tracks) == 1
-    np.testing.assert_array_equal(sticky_tracks[0], original_track)
-    assert len(option_stickies) == 1
-    assert len(segment_tracks) == 1
-    np.testing.assert_array_equal(segment_tracks[0][0], original_track)
-    assert not segment_tracks[0][1][0]  # the one-frame raw flag is cleared by duration filtering
-
-
-def test_run_video_rejects_serve_start_with_injected_spans() -> None:
-    inputs = _synthetic_inputs()
-    with pytest.raises(ValueError, match='serve_start cannot be combined with injected spans'):
-        run_video(
-            **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
-            serve_start=ServeStartConfig(threshold_bh=0.5, mode=ServeStartMode.TRIM), heuristic_only=True,
-        )
 
 
 def test_run_video_injected_contacts_are_unmeasured_and_scored():

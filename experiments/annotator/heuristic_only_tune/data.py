@@ -20,7 +20,6 @@ from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.sequences import (
     LabelledRally,
 )
-from annotator.types import ServeStartConfig
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     TRACK_FILENAME,
@@ -187,14 +186,14 @@ def heuristic_stream(result: AnnotatorResult) -> dict[str, Any]:
 
 def run_configuration(
     inputs: OldVideoInputs, base: BaseAnnotatorConfig, *,
-    serve_start: ServeStartConfig | None = None, models: AnnotatorModels | None = None,
+    models: AnnotatorModels | None = None,
 ) -> dict[str, Any]:
     """Run the complete annotator with discovered boundaries and optional fitted models."""
     capture = RunCapture()
     pose = inputs.pose
     result = run_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        base=base, heuristic_only=models is None, models=models, serve_start=serve_start,
+        base=base, heuristic_only=models is None, models=models,
         capture=capture, **run_video_kwargs(inputs),
     )
     if models is None:

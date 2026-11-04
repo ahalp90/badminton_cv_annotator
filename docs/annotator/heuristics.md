@@ -16,7 +16,7 @@ new model fit.
 | [Exclusions and shuttle flags](#frame-exclusions-and-shuttle-flags) | [Frame-rate scaling](#frame-rate-scaling) | [Contact search regions](#contact-search-regions) |
 | [Frame exclusion mask](#frame-exclusion-mask) | [Sticky player evidence](#sticky-player-evidence) | [Contact-tree features](#what-reaches-the-contact-tree) |
 | [Shuttle guard grades](#shuttle-guard-grades) | [Rough rally spans](#rough-rally-spans) | [Rule locations](#where-the-main-rules-live) |
-| [Optional candidate rule](#optional-rule-for-guarded-candidates) | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
+|  | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
 
 ![Rule-based front end](figures/heuristics.svg)
 
@@ -77,21 +77,6 @@ The saved `*_inpaint_mask.json.gz` has a different role. It records which positi
 
 Relevant code: `masks/inpaint.py`, `run_video.py::build_shuttle_hallucination_mask()`, `outcomes/video.py`, `dataset_builder/shuttle_evidence.py`.
 
-### Optional rule for guarded candidates
-
-`ContactModelConfig.reject_masked_without_player` is off by default. When it is on, a candidate frame is dropped before the contact tree scores it if both of these hold:
-
-- the frame's shuttle guard grade is flagged as unreliable (`1`, `2` and `3` by default, as set by `rejected_grades`);
-- the player tracker has selected no detected person on either court half at any of the five feature offsets (`-10`, `-5`, `0`, `+5` and `+10` frames at 30 FPS, scaled to the video).
-
-A picked player counts even when its wrists were not measured. An offset that falls outside the candidate's search interval counts as no player.
-
-Dropped rows leave the candidate pool completely. They cannot be selected as initial contacts, and the sequence stage cannot shortlist them later as a serve or a missed contact.
-
-The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#python-fit-settings) covers how it is set for a fit.
-
-Relevant code: `contacts/model.py::score_contact_features()`, `hybrid.py`, `training/workflow.py`.
-
 ## Frame-rate scaling
 
 Most time-based constants are written as 30 FPS reference values and scaled once for the source video.
@@ -148,8 +133,6 @@ At the current defaults:
 4. `SpanOpen.BACK_FILL` opens the rally at the start of that active region once a qualifying burst has been found.
 
 This gives deliberately broad rally spans. The fitted sequence stage later has room to repair the first contact, and final bounds can move again after contacts are selected.
-
-The code also contains optional serve-gated and quiet-start span modes. The normal dataset-builder annotation call does not pass those options.
 
 Relevant code: `rally/spans.py`, `rally/trajectory.py`, `config.py`.
 

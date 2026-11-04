@@ -16,7 +16,7 @@ from experiments.annotator.heuristic_only_tune.run import load_candidates, write
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import (
     CandidateSpec,
-    _base_and_serve,
+    base_config,
     serialise_spec,
 )
 from tests.annotator_config import burst_config
@@ -91,8 +91,7 @@ def test_sweep_routes_and_saves_wrist_distance_without_changing_its_identity(tmp
     spec = CandidateSpec('wider wrist gate', {'wrist_distance_body_heights': 2.0}, {})
     identity = candidate_id(spec)
     payload = serialise_spec(spec)
-    base, serve = _base_and_serve(spec)
-    assert serve is None
+    base = base_config(spec)
     assert resolve(base, 60.0).thresholds.wrist_distance_body_heights == 2.0
     assert payload['overrides_base30']['wrist_distance_body_heights'] == 2.0
     path = tmp_path / 'candidates.json.gz'

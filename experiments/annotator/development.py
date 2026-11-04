@@ -40,7 +40,7 @@ from experiments.annotator.heuristic_only_tune.run import (
     read_json,
     write_json,
 )
-from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, _base_and_serve
+from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, base_config
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -148,10 +148,7 @@ def development_for(videos: tuple[SearchVideo, ...], groups_file: Path = GROUPS_
 
 
 def preprocessing(spec: CandidateSpec) -> Any:
-    base, serve = _base_and_serve(spec)
-    if serve is not None:
-        raise ValueError('serve configurations cannot be preserved in the fitted bundle')
-    return base
+    return base_config(spec)
 
 
 def pooled_scores(per_video: dict[str, Any]) -> dict[str, Any]:

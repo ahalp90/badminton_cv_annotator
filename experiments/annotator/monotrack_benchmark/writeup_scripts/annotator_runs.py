@@ -111,7 +111,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
         capture = RunCapture()
         pose = inputs.pose
         run_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                  base=models.preprocessing, heuristic_only=False, models=models, serve_start=None,
+                  base=models.preprocessing, heuristic_only=False, models=models,
                   capture=capture, **data.run_video_kwargs(inputs))
     prediction = capture.hybrid
     if prediction is None:

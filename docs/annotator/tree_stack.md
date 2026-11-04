@@ -33,10 +33,6 @@ cutoff determines the initial contact stream.
 The scored candidates remain available after that cutoff. A lower-scoring frame
 may still be selected when the rally model compares whole sequences.
 
-The optional guarded-candidate rule removes unreliable shuttle frames without
-nearby player evidence before scoring. It is off in the selected bundle. See
-[Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates).
-
 ## Rally selector
 
 For each rough rally, the proposal builder keeps the initial contacts and

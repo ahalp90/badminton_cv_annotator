@@ -36,7 +36,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SSET_01,
@@ -309,6 +309,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     classifications = classify_all(result.spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps))
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
     )
@@ -334,7 +335,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             "first_assigned_accepted_contact"
             if first_accepted_frame is not None else "gt_serve_fallback"
         )
-        lookback_start = max(0, lookback_anchor - constants.serve_start_lookback_frames)
+        lookback_start = max(0, lookback_anchor - lookback_frames)
         window_half = round(WINDOW_SECONDS * fixture.fps)
         window_start = max(0, serve_frame - window_half)
         window_end = min(len(track), serve_frame + window_half + 1)
@@ -403,7 +404,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             "serve_on_believed_mask": bool(believed_mask[serve_frame]),
             "court_present_at_serve": bool(court_present[serve_frame]),
             "replay_mask_min_frames": constants.replay_mask_min_frames,
-            "serve_start_lookback_frames": constants.serve_start_lookback_frames,
+            "serve_start_lookback_frames": lookback_frames,
             "clean_run_min_frames": clean_run_min_frames,
             **pose,
         }
@@ -421,7 +422,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
         "n_raw_contacts": len(result.contacts),
         "n_accepted_contacts": len(result.filtered_contacts),
         "replay_mask_min_frames": constants.replay_mask_min_frames,
-        "serve_start_lookback_frames": constants.serve_start_lookback_frames,
+        "serve_start_lookback_frames": lookback_frames,
         "clean_run_min_frames": clean_run_min_frames,
     }
     array = np.empty(len(rows), dtype=ARRAY_DTYPE)

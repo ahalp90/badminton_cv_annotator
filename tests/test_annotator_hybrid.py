@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-import pytest
 from sklearn.dummy import DummyClassifier
 
 from annotator import hybrid
@@ -92,8 +91,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         np.testing.assert_array_equal(physical, video_pool.physical[frame])
 
 
-@pytest.mark.parametrize('enabled', [False, True])
-def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeypatch, annotator_models, enabled):
+def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlists(monkeypatch, annotator_models):
     frame_count = 100
     rows = np.zeros(frame_count, dtype=contact_feature_dtype())
     rows['frame'] = np.arange(frame_count)
@@ -124,7 +122,7 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
         probabilities = matrix[:, probability_column]
         return np.column_stack((1.0 - probabilities, probabilities))
 
-    config = ContactModelConfig(reject_masked_without_player=enabled)
+    config = ContactModelConfig()
     models = replace(annotator_models, contact=SimpleNamespace(predict_proba=predict), contact_settings=config)
     training = sequence_training_video(
         VideoInput('masked', 'group', Split.TRAIN, Path('unused.csv')), evidence, features, (),
@@ -133,17 +131,14 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
 
     monkeypatch.setattr(hybrid, 'features_from_evidence', lambda _evidence: features)
     inference = hybrid.predict_contacts(evidence, models)
-    expected_candidates = [16, 80] if enabled else [1, 10, 16, 40, 60, 80]
+    expected_candidates = [1, 10, 16, 40, 60, 80]
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.events] == list(inference.contacts.frames)
-    assert list(inference.contacts.frames) == ([16, 80] if enabled else [10, 80])
+    assert list(inference.contacts.frames) == [10, 80]
     for pool in (training.repairs, inference.refined.pool.context.repairs):
         candidate_frames = [event.frame for event in pool.candidates[0]]
-        assert candidate_frames == ([] if enabled else [1, 40, 60])
-        if enabled:
-            assert set(pool.physical).isdisjoint({1, 10, 40, 60})
-        else:
-            assert 1 in pool.physical
+        assert candidate_frames == [1, 40, 60]
+        assert 1 in pool.physical
 
     selector = DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES))), [0, 1])
     review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])

@@ -28,8 +28,6 @@ _FIELDS = {
     'impulse_floor_half_window_frames': (12.0, ScalingKind.FRAME_COUNT),
     'contact_dedup_radius_frames': (3.0, ScalingKind.FRAME_COUNT),
     'contact_suppression_radius_frames': (9.0, ScalingKind.FRAME_COUNT),
-    'serve_start_lookback_frames': (25.0, ScalingKind.FRAME_COUNT),
-    'serve_stillness_window_frames': (15.0, ScalingKind.FRAME_COUNT),
     'sustained_loss_frames': (10.0, ScalingKind.FRAME_COUNT),
     'min_descend_samples': (3.0, ScalingKind.FRAME_COUNT),
     'body_unit_half_window': (12.0, ScalingKind.FRAME_COUNT),

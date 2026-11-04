@@ -14,7 +14,6 @@ from annotator.config import resolve
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.gt_scoring import RunVideoInputs
 from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
-from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.types import ContactCandidate, SpanOpen
 from experiments.annotator.heuristic_tuning import sweep
 from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
@@ -77,18 +76,15 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
     assert len(sweep.build_contact_grid(boundary)) == 108
     spec = sweep.CandidateSpec(
-        "grid",
-        {**boundary, "smooth_window": 4, "gap_state_demotion_bound": 2,
-         "quiet_start_window": 3, "threshold_bh": 0.1,
-         "stillness_threshold_bh": 0.2, "serve_stillness_window_frames": 4},
-        {"span_open": "BACK_FILL", "mode": "TRIM", "close": "BURST"},
+        "grid", {**boundary, "smooth_window": 4, "gap_state_demotion_bound": 2},
+        {"span_open": "BACK_FILL"},
     )
-    base, serve = sweep._base_and_serve(spec)
+    base = sweep.base_config(spec)
     assert base.overrides_base30 is not None
     assert base.overrides_base30["smooth_window"] == 4
     assert base.gap_state_demotion_bound == 2
-    assert serve is not None and serve.threshold_bh == 0.1
-    assert sweep.serialise_spec(spec)["overrides_base30"]["threshold_bh"] == 0.1
+    assert base.span_open is SpanOpen.BACK_FILL
+    assert sweep.serialise_spec(spec)["overrides_base30"]["gap_state_demotion_bound"] == 2
 
 
 @pytest.mark.parametrize("key", ("unrelated_field", "rest_widnow"))
@@ -96,7 +92,7 @@ def test_sweep_rejects_unrelated_and_misspelled_fps_fields(key: str) -> None:
     spec = sweep.CandidateSpec("invalid", {key: 1.0}, {})
 
     with pytest.raises(ValueError, match=f"cannot route numeric sweep key {key!r}"):
-        sweep._base_and_serve(spec)
+        sweep.base_config(spec)
 
 
 def test_quality_floor_uses_greatest_coverage(tmp_path, monkeypatch, capsys) -> None:
@@ -263,25 +259,14 @@ def test_alignment_split_log_and_csv_serialisation_rules(tmp_path) -> None:
 
 
 def test_routing_depth_enums_and_changed_defaults() -> None:
-    spec = sweep.CandidateSpec("grid", {
-        "gap_state_demotion_bound": 2, "quiet_start_window": 3,
-        "threshold_bh": 0.1, "stillness_threshold_bh": 0.2,
-        "serve_stillness_window_frames": 4,
-    }, {"span_open": "BACK_FILL", "mode": "TRIM", "close": "BURST"})
-    base, serve = sweep._base_and_serve(spec)
-    assert base.gap_state_demotion_bound == 2 and base.quiet_start_window == 3
-    assert base.span_open is SpanOpen.BACK_FILL
-    assert serve == sweep.ServeStartConfig(0.1, ServeStartMode.TRIM, ServeStartClose.BURST, 0.2)
-    assert sweep._base_and_serve(sweep.CandidateSpec("grid", {}, {}))[0].span_open is SpanOpen.BACK_FILL
-    quiet_base, quiet_serve = sweep._base_and_serve(
-        sweep.CandidateSpec("quiet", {"quiet_start_window": 3}, {})
-    )
-    assert quiet_base.quiet_start_window == 3
-    assert quiet_base.span_open is None
-    assert quiet_serve is None
-    for strategies in ({"unknown": "TRIM"}, {"mode": "bad"}, {"close": "bad"}, {"span_open": "bad"}):
+    spec = sweep.CandidateSpec("grid", {"gap_state_demotion_bound": 2}, {"span_open": "REGION_START"})
+    base = sweep.base_config(spec)
+    assert base.gap_state_demotion_bound == 2
+    assert base.span_open is SpanOpen.REGION_START
+    assert sweep.base_config(sweep.CandidateSpec("grid", {}, {})).span_open is SpanOpen.BACK_FILL
+    for strategies in ({"unknown": "TRIM"}, {"mode": "TRIM"}, {"close": "BURST"}, {"span_open": "bad"}):
         with pytest.raises(ValueError):
-            sweep._base_and_serve(sweep.CandidateSpec("grid", {}, strategies))
+            sweep.base_config(sweep.CandidateSpec("grid", {}, strategies))
     shipped = sweep._shipped_base30_values()
     assert sweep._changed_from_defaults(sweep.CandidateSpec("grid", {
         "rest_speed": shipped["rest_speed"], "start_speed": shipped["start_speed"],
@@ -290,18 +275,14 @@ def test_routing_depth_enums_and_changed_defaults() -> None:
     }, {})) == 1
     for key, values in sweep.CONTACT_VALUES.items():
         for value in values:
-            sweep._base_and_serve(sweep.CandidateSpec("grid", {key: value}, {}))
+            sweep.base_config(sweep.CandidateSpec("grid", {key: value}, {}))
 
 
-def test_serve_threshold_bh_routes_and_old_threshold_is_closed() -> None:
-    old_spec = sweep.CandidateSpec("named", {"threshold": 0.8}, {"mode": "TRIM"})
-    with pytest.raises(ValueError, match="cannot route numeric sweep key 'threshold'"):
-        sweep._base_and_serve(old_spec)
-
-    new_spec = sweep.CandidateSpec("named", {"threshold_bh": 0.8}, {"mode": "TRIM"})
-    _base, serve = sweep._base_and_serve(new_spec)
-    assert serve is not None and serve.threshold_bh == 0.8
-    assert sweep.ServeStartConfig(threshold_bh=0.8, mode=ServeStartMode.TRIM).threshold_bh == 0.8
+@pytest.mark.parametrize('key', ['quiet_start_window', 'threshold_bh', 'stillness_threshold_bh',
+                                 'serve_stillness_window_frames'])
+def test_removed_rally_start_settings_are_rejected(key: str) -> None:
+    with pytest.raises(ValueError, match='cannot route numeric sweep key'):
+        sweep.base_config(sweep.CandidateSpec('retired', {key: 0.8}, {}))
 
 
 def _valid_winner() -> dict[str, object]:

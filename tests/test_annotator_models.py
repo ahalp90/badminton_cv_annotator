@@ -1,15 +1,12 @@
 """A fitted bundle carries its preprocessing rules into the current runtime."""
 
 import json
-from dataclasses import replace
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pytest
 from sklearn.dummy import DummyClassifier
 
-from annotator.contacts.model import ContactModelConfig
 from annotator.models import (
     DEFAULT_MODEL_DIRECTORY,
     AnnotatorModels,
@@ -63,22 +60,6 @@ def test_library_version_metadata_does_not_block_loading(tmp_path, annotator_mod
     metadata_path.write_text(json.dumps(metadata))
 
     assert load_models(tmp_path).preprocessing == annotator_models.preprocessing
-
-
-@pytest.mark.parametrize('enabled', [False, True])
-def test_bundle_keeps_masked_candidate_policy(tmp_path, annotator_models, enabled):
-    models = replace(annotator_models, contact_settings=ContactModelConfig(reject_masked_without_player=enabled))
-    save_models(models, tmp_path)
-    restored = load_models(tmp_path)
-    assert restored.contact_settings.reject_masked_without_player is enabled
-
-
-def test_bundle_without_new_policy_field_defaults_to_baseline(tmp_path, annotator_models):
-    save_models(annotator_models, tmp_path)
-    old_models = joblib.load(tmp_path / 'models.joblib')
-    object.__delattr__(old_models.contact_settings, 'reject_masked_without_player')
-    joblib.dump(old_models, tmp_path / 'models.joblib')
-    assert not load_models(tmp_path).contact_settings.reject_masked_without_player
 
 
 @pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1'])

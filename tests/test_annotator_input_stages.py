@@ -48,7 +48,6 @@ def test_preprocessing_record_round_trips_default_and_nondefault_settings() -> N
         span_open=SpanOpen.REGION_START,
         reentry_guard_variant=ReentryGuardVariant.REENTRY_ONLY,
         reentry_guard_buffer=0.1,
-        quiet_start_window=0.25,
         rejected_grades=frozenset({1, 3}),
     )
 

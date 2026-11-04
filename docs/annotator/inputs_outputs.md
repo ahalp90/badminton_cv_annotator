@@ -88,7 +88,7 @@ Shape:
 
 These codes mark shuttle positions considered unreliable because of repeated or fabricated-looking track patterns. The standalone command recomputes the codes from `shuttle_track.npy.xz` and requires an exact match with the saved file.
 
-The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. They are removed from contact candidates only when the model directory turns on the optional rule described in [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates).
+The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
 
 ### `*_inpaint_mask.json.gz`
 
@@ -159,7 +159,7 @@ Loading checks:
 - that `models.joblib` contains an `AnnotatorModels` object;
 - that the side-geometry mode in the object and metadata agree.
 
-`models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact-selection settings used with the fitted trees: the score cutoff and the optional rule for guarded candidates.
+`models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact probability cutoff used with the fitted trees.
 
 Library versions are recorded in the metadata for reference. A version difference
 alone does not prevent loading.

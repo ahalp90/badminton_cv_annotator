@@ -33,7 +33,12 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import SLOWMO_SPEED_FRAC, BaseAnnotatorConfig, resolve
+from annotator.config import (
+    SLOWMO_SPEED_FRAC,
+    BaseAnnotatorConfig,
+    ScalingKind,
+    resolve,
+)
 from annotator.evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -66,6 +71,8 @@ from annotator.review.broadcast_labels import (
 )
 from annotator.run_video import RunCapture, run_video
 from annotator.types import compute_speed, rolling_nanmedian
+
+SERVE_LOOKBACK_AT_30_FPS = 25
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_LABELS = SCRIPT_DIR / "data/sset_01_broadcast_timeline_labels.csv.gz"
@@ -388,6 +395,7 @@ def evaluate_serve_candidates(
     """Measure one fixed recording-only serve-lookback candidate rule."""
     resolved = resolve(BaseAnnotatorConfig(), fps)
     tolerance = canonical_tolerance(fps)
+    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(SERVE_LOOKBACK_AT_30_FPS, fps))
     distance = nearest_replay_or_cutaway_distance(truth)
     gt_serve_frames = [rally.stroke_frames[0] for rally in gt_rallies]
     target_indexes = [int(row["rally_index"]) for row in statuses if row["target_miss"]]
@@ -400,7 +408,7 @@ def evaluate_serve_candidates(
         if not accepted:
             continue
         anchor = accepted[0]
-        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
+        lookback_start = max(0, anchor - lookback_frames)
         flags = impulse_cell_candidates(
             track,
             lookback_start,
@@ -503,7 +511,7 @@ def evaluate_serve_candidates(
     policy_selected = [int(row["candidate_frame"]) for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
+            "lookback_frames": lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
             "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,

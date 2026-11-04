@@ -69,7 +69,6 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
             if record['reentry_guard_variant'] is not None else None
         ),
         reentry_guard_buffer=record['reentry_guard_buffer'],
-        quiet_start_window=record['quiet_start_window'],
         rejected_grades=frozenset(rejected_grades),
     )
     if preprocessing_record(config) != record:

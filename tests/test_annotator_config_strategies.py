@@ -6,11 +6,9 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator import preparation
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.preparation import build_serve_options, prepare_annotation
-from annotator.rally.spans import gap_state_rest_mask, quiet_start_rally_spans
-from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.rally.spans import gap_state_rest_mask
+from annotator.types import ReentryGuardVariant, SmoothingMode
 from tests.annotator_config import burst_config
 
 
@@ -36,8 +34,6 @@ def test_shipped_tracking_strategies_resolve_at_video_fps() -> None:
     assert resolved30.reentry_guard_buffer == 0.05
 
 
-
-
 def test_unknown_base30_override_fails_loudly() -> None:
     with pytest.raises(ValueError, match='unknown base-30'):
         resolve(BaseAnnotatorConfig(overrides_base30={'not_a_row': 1.0}), 30.0)
@@ -59,17 +55,6 @@ def test_rejected_grades_are_validated_and_copied_to_resolved_config() -> None:
         BaseAnnotatorConfig(rejected_grades=frozenset({1, False}))
     with pytest.raises(ValueError, match='frozenset'):
         BaseAnnotatorConfig(rejected_grades={1})
-
-
-def test_span_open_default_and_close_guard_are_aware_of_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    assert resolve(BaseAnnotatorConfig(), 30.0).span_open is SpanOpen.BACK_FILL
-    config = type('Config', (), {'close': object(), 'threshold_bh': 0.1, 'mode': None,
-                                  'stillness_threshold_bh': None})()
-    with pytest.raises(ValueError, match='unsupported with BACK_FILL'):
-        build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0))
-    monkeypatch.setattr(preparation, 'build_serve_setup_inputs', lambda *_args: None)
-    options = build_serve_options(config, None, resolve(BaseAnnotatorConfig(), 30.0).thresholds, (1.0, 1.0), None)
-    assert options.close is config.close
 
 
 @pytest.mark.parametrize('kwargs', [
@@ -111,22 +96,6 @@ def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
     assert resolved.reentry_guard_buffer is None
 
 
-def test_quiet_start_and_serve_start_fail_before_preparation() -> None:
-    with pytest.raises(ValueError, match='quiet_start_window'):
-        prepare_annotation(
-            None, None, None, None, None,
-            resolved=resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=None), 30.0),
-            net_band=None, resolution=None, video_id=None, gate_court_info=None,
-            gate_resolution_table=None, court_present=None, homography_rows=None, serve_start=object(),
-        )
-
-
-@pytest.mark.parametrize('span_open', (SpanOpen.REGION_START, SpanOpen.BACK_FILL))
-def test_quiet_start_and_span_open_fail_during_resolution(span_open: SpanOpen) -> None:
-    with pytest.raises(ValueError, match='quiet_start_window cannot be combined with span_open'):
-        resolve(BaseAnnotatorConfig(quiet_start_window=10.0, span_open=span_open), 30.0)
-
-
 def test_gap_state_with_and_without_reentry_guard() -> None:
     pre_y = np.linspace(0.5, 0.05, 6)
     y = np.concatenate([pre_y, np.zeros(12), [0.5, 0.6, 0.7]])
@@ -138,16 +107,6 @@ def test_gap_state_with_and_without_reentry_guard() -> None:
     guarded = gap_state_rest_mask(speed, track, thresholds, 75, ReentryGuardVariant.REENTRY_ONLY, 0.1)
     assert not unguarded[10]
     assert guarded[10]
-
-
-def test_quiet_start_selects_later_quiet_preceded_burst() -> None:
-    speed = np.zeros(30)
-    speed[3:6] = 1.0
-    speed[15:18] = 1.0
-    at_rest = np.zeros(30, dtype=bool)
-    at_rest[10:15] = True
-    thresholds = replace(burst_config().thresholds, start_speed=0.5, start_min_frames=3, end_rest_frames=100)
-    assert quiet_start_rally_spans(speed, at_rest, thresholds, 5) == [(15, 30)]
 
 
 def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:

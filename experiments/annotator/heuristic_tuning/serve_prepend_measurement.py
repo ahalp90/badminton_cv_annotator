@@ -8,7 +8,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
 from annotator.evaluation.fixtures import Fixture
 from annotator.evaluation.gt_scoring import canonical_tolerance
 from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
@@ -27,6 +27,8 @@ POSE_BANDS = {
     "middle-two-thirds": 2.0 / 3.0,
 }
 TRUTH_ORDER = tuple(SceneTruth)
+
+SERVE_LOOKBACK_AT_30_FPS = 25
 
 CANDIDATE_COLUMNS = (
     "fixture", "band", "span_id", "span_start", "span_end", "anchor_frame",
@@ -426,6 +428,7 @@ def evaluate_serve_candidates(
     """Score every bounded raw candidate before each claimed rally start."""
     resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
     tolerance = canonical_tolerance(fixture.fps)
+    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(SERVE_LOOKBACK_AT_30_FPS, fixture.fps))
     natural_raw = {
         (span_id, frame) for span_id, frames in raw_by_span.items() for frame in frames
     }
@@ -439,7 +442,7 @@ def evaluate_serve_candidates(
         accepted = accepted_by_span.get(span_id, [])
         anchor = min(accepted) if accepted else span[0]
         anchor_source = "first-accepted-contact" if accepted else "span-start-fallback"
-        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
+        lookback_start = max(0, anchor - lookback_frames)
         flags = impulse_cell_candidates(
             arrays[0],
             lookback_start,
@@ -510,7 +513,7 @@ def evaluate_serve_candidates(
     policy_selected = [row for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
+            "lookback_frames": lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
             "central_band_fraction": band_fraction,
             "pose_selection": "largest valid bbox area, then score, then earliest slot",

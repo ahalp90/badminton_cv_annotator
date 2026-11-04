@@ -7,7 +7,6 @@ import pytest
 
 from annotator.contacts.features import (
     REGION_FIELDS,
-    WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     build_contact_features,
 )
@@ -81,103 +80,6 @@ def test_model_schema_and_empty_candidates() -> None:
     result = score_contact_features(rows, SimpleNamespace(), 30.0, ContactModelConfig())
     assert len(result.frames) == 0
     assert result.probabilities.dtype == np.float64
-
-
-@pytest.mark.parametrize('side', ['top', 'bot'])
-@pytest.mark.parametrize('offset', WINDOW_OFFSETS_BASE30)
-def test_masked_rejection_requires_missing_nominated_players(side: str, offset: int) -> None:
-    rows = _rows()
-    for name in CONTACT_FEATURE_NAMES:
-        rows[name] = np.nan
-    rows[f'pose_valid_{side}_t{offset:+d}'][1] = 1.0
-    # Impulse and wrist evidence do not substitute for a nominated player.
-    rows['shuttle_impulse_ratio_t+0'] = 100.0
-    rows['wrist_valid_top_t+0'] = 1.0
-    mask = np.zeros(51, dtype=bool)
-    mask[[10, 16]] = True
-    model = SimpleNamespace(predict_proba=lambda matrix: np.tile([.05, .95], (len(matrix), 1)))
-    result = score_contact_features(
-        rows, model, 30.0, ContactModelConfig(reject_masked_without_player=True),
-        shuttle_hallucination_mask=mask,
-    )
-    np.testing.assert_array_equal(result.candidates['frame'], [16, 23])
-    np.testing.assert_array_equal(result.frames, [16, 23])
-    baseline = score_contact_features(rows, model, 30.0, shuttle_hallucination_mask=mask)
-    np.testing.assert_array_equal(baseline.candidates['frame'], [10, 16, 23])
-
-
-def test_masked_rejection_promotes_neighbour_before_suppression() -> None:
-    rows = _rows()
-    for side in ('top', 'bot'):
-        for offset in WINDOW_OFFSETS_BASE30:
-            rows[f'pose_valid_{side}_t{offset:+d}'] = 0.0
-    rows['shuttle_speed_t+0'] = [.99, .95, .8, 0.0]
-    index = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
-    observed = []
-
-    def predict(matrix: np.ndarray) -> np.ndarray:
-        observed.append(matrix)
-        probability = matrix[:, index]
-        return np.column_stack((1.0 - probability, probability))
-
-    mask = np.zeros(51, dtype=bool)
-    mask[10] = True
-    result = score_contact_features(
-        rows, SimpleNamespace(predict_proba=predict), 30.0,
-        ContactModelConfig(reject_masked_without_player=True), shuttle_hallucination_mask=mask,
-    )
-    np.testing.assert_array_equal(result.frames, [16])
-    np.testing.assert_array_equal(result.candidates['frame'], [16, 23])
-    assert observed[0].shape == (2, 85)
-
-
-def test_masked_policy_requires_mask_and_handles_all_rejected_rows() -> None:
-    rows = _rows()
-    for side in ('top', 'bot'):
-        for offset in WINDOW_OFFSETS_BASE30:
-            rows[f'pose_valid_{side}_t{offset:+d}'] = 0.0
-    config = ContactModelConfig(reject_masked_without_player=True)
-    with pytest.raises(ValueError, match='requires the shuttle hallucination mask'):
-        score_contact_features(rows, SimpleNamespace(), 30.0, config)
-    result = score_contact_features(
-        rows, SimpleNamespace(), 30.0, config, shuttle_hallucination_mask=np.ones(51, dtype=bool),
-    )
-    assert len(result.candidates) == 0
-    assert len(result.frames) == 0
-
-
-@pytest.mark.parametrize(('fps', 'nomination_frame', 'survives'), [
-    (30.0, 75, True), (60.0, 75, False), (30.0, 90, False), (60.0, 90, True),
-])
-def test_masked_policy_reuses_fps_scaled_feature_offsets(
-    fps: float, nomination_frame: int, survives: bool,
-) -> None:
-    features = _nomination_features(fps, nomination_frame)
-    rows = features.rows[features.rows['frame'] == 70]
-    rows['region_current_raw'] = 1
-    model = SimpleNamespace(predict_proba=lambda matrix: np.tile([.05, .95], (len(matrix), 1)))
-    result = score_contact_features(
-        rows, model, fps, ContactModelConfig(reject_masked_without_player=True),
-        shuttle_hallucination_mask=np.ones(180, dtype=bool),
-    )
-    assert bool(len(result.frames)) is survives
-
-
-@pytest.mark.parametrize('fps', [30.0, 60.0])
-@pytest.mark.parametrize('boundary', ['start', 'end'])
-def test_masked_policy_cannot_borrow_player_from_outside_search_interval(fps: float, boundary: str) -> None:
-    features = _nomination_features(fps, 0)
-    start, end = features.search_intervals[0]
-    offset = 5 if fps == 30.0 else 10
-    target, nominee = (start, start - offset) if boundary == 'start' else (end - 1, end - 1 + offset)
-    features = _nomination_features(fps, nominee)
-    rows = features.rows[features.rows['frame'] == target]
-    rows['region_current_raw'] = 1
-    result = score_contact_features(
-        rows, SimpleNamespace(), fps, ContactModelConfig(reject_masked_without_player=True),
-        shuttle_hallucination_mask=np.ones(180, dtype=bool),
-    )
-    assert len(result.frames) == 0
 
 
 def _nomination_features(fps: float, nomination_frame: int) -> ContactFeatures:

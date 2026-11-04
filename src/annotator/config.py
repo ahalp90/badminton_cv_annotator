@@ -91,8 +91,6 @@ class Thresholds:
     impulse_floor_half_window_frames: int
     contact_dedup_radius_frames: int
     contact_suppression_radius_frames: int
-    serve_start_lookback_frames: int
-    serve_stillness_window_frames: int
     sustained_loss_frames: int
     min_descend_samples: int
     body_unit_half_window: int
@@ -129,7 +127,6 @@ class BaseAnnotatorConfig:
     gap_state_demotion_bound: float | None = 75.0
     reentry_guard_variant: ReentryGuardVariant | None = ReentryGuardVariant.TWO_SIDED
     reentry_guard_buffer: float | None = 0.05
-    quiet_start_window: float | None = None
     # Reject contacts and landings on uncertain or fabricated shuttle tracks.
     rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
@@ -164,14 +161,11 @@ class ResolvedAnnotatorConfig:
     gap_state_demotion_bound: int | None = None
     reentry_guard_variant: ReentryGuardVariant | None = None
     reentry_guard_buffer: float | None = None
-    quiet_start_window: int | None = None
     rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
     """Convert saved settings for a video's frame rate."""
-    if base.quiet_start_window is not None and base.span_open is not None:
-        raise ValueError('quiet_start_window cannot be combined with span_open')
     overrides = base.overrides_base30
     if overrides is not None:
         unknown_settings = sorted(set(overrides) - _OVERRIDABLE_THRESHOLD_FIELDS)
@@ -190,7 +184,6 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
         gap_state_demotion_bound=frame_count(base.gap_state_demotion_bound),
         reentry_guard_variant=base.reentry_guard_variant,
         reentry_guard_buffer=base.reentry_guard_buffer,
-        quiet_start_window=frame_count(base.quiet_start_window),
         rejected_grades=base.rejected_grades,
     )
 
@@ -219,8 +212,6 @@ def _resolve_thresholds(fps: float, overrides_base30: Mapping[str, float] | None
         impulse_floor_half_window_frames=frame_count('impulse_floor_half_window_frames', 12.0),
         contact_dedup_radius_frames=frame_count('contact_dedup_radius_frames', 3.0),
         contact_suppression_radius_frames=frame_count('contact_suppression_radius_frames', 9.0),
-        serve_start_lookback_frames=frame_count('serve_start_lookback_frames', 25.0),
-        serve_stillness_window_frames=frame_count('serve_stillness_window_frames', 15.0),
         sustained_loss_frames=frame_count('sustained_loss_frames', 10.0),
         min_descend_samples=frame_count('min_descend_samples', 3.0),
         body_unit_half_window=frame_count('body_unit_half_window', 12.0),

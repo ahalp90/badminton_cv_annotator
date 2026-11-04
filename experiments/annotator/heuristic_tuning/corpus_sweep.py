@@ -105,7 +105,6 @@ def search_space_document() -> dict[str, object]:
                 {key: sweep.BOUNDARY_VALUES[key][0] for key in sweep.BOUNDARY_KEYS}
             )
         ),
-        "serve_start": None,
     }
 
 
@@ -277,9 +276,9 @@ def run_production_candidate(
     try:
         rows: dict[str, Mapping[str, Any]] = {}
         for item in fixtures:
-            base, serve_start = sweep._base_and_serve(spec)
+            base = sweep.base_config(spec)
             keyword = dict(item.inputs.keyword)
-            keyword.update(base=base, serve_start=serve_start)
+            keyword.update(base=base)
             result = run_video(*item.inputs.positional, **keyword, heuristic_only=True)
             row = sweep._row_for_result(
                 item.fixture,

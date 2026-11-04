@@ -1,6 +1,4 @@
-"""Rally-span detection from shuttle motion and optional serve evidence."""
-
-import itertools
+"""Rally-span detection from shuttle movement and rest."""
 
 import numpy as np
 
@@ -12,17 +10,10 @@ from ..types import (
     rolling_nanmedian,
     true_runs,
 )
-from .serve import (
-    ServeStartClose,
-    ServeStartMode,
-    ServeStartOptions,
-    resolve_serve_gate,
-)
 from .trajectory import _rolling_mean
 
 # Minimum tracked fraction of a window before shuttle speed can rule out rest.
 VISIBILITY_REST_FRAC = 0.5
-QUIET_START_REST_FRACTION = 0.8
 
 
 def gap_is_high_shot_outside_frame(track: np.ndarray, gap_start: int, thresholds: Thresholds) -> bool:
@@ -172,7 +163,7 @@ def burst_rally_spans(
 def active_region_rally_spans(
     speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds, span_open: SpanOpen,
 ) -> list[tuple[int, int]]:
-    """Span finder under a SpanOpen rule (no serve gating).
+    """Find spans using the selected active-region opening rule.
 
     REGION_START drops the qualifying-burst gate: every active region yields one span
     `(region_start, region_end)`. BACK_FILL keeps the gate (a region needs a qualifying
@@ -197,122 +188,8 @@ def active_region_rally_spans(
     return spans
 
 
-def quiet_start_rally_spans(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds, window: int,
-) -> list[tuple[int, int]]:
-    fast_runs, _rest_runs, regions = rally_regions(speed, at_rest, thresholds)
-    spans: list[tuple[int, int]] = []
-    for region_start, region_end in regions:
-        bursts = [start for start, _end in fast_runs if region_start <= start < region_end]
-        if not bursts:
-            continue
-        quiet_burst = next(
-            (start for start in bursts if len(at_rest[max(0, start - window):start])
-             and at_rest[max(0, start - window):start].mean() >= QUIET_START_REST_FRACTION),
-            None,
-        )
-        spans.append((int(bursts[0] if quiet_burst is None else quiet_burst), int(region_end)))
-    return spans
-
-
-def last_rest_close(rest_runs: list[tuple[int, int]], open_frame: int, next_burst: int) -> int:
-    """End a rally at the start of the last rest period before the next serve.
-
-    The rest must start after this rally opens and end at or before the next
-    qualifying burst. If no rest fits, end the rally at that next burst.
-
-    :param rest_runs: every `(start, end)` at_rest run, ascending (true_runs order).
-    :param open_frame: this span's opening (qualifying) burst frame.
-    :param next_burst: the next qualifying burst frame (where close='burst' would cut).
-    :return: the close frame (half-open span end).
-    """
-    rest_starts = [rest_start for rest_start, rest_end in rest_runs
-                   if rest_end <= next_burst and rest_start > open_frame]
-    return rest_starts[-1] if rest_starts else next_burst  # ascending, so [-1] is the last run
-
-
-def serve_qualified_rally_spans(
-    speed: np.ndarray, at_rest: np.ndarray, thresholds: Thresholds,
-    options: ServeStartOptions, span_open: SpanOpen | None,
-) -> list[tuple[int, int]]:
-    """Find rallies by checking for serve preparation before fast shuttle bursts.
-
-    A burst qualifies when its preceding frames show serve preparation. If none
-    qualify in a region, TRIM starts a rally at its first burst and REJECT drops
-    the region. Regions with no fast bursts yield no rally.
-
-    With ``options.close=None``, start at the first qualifying burst and end at
-    the region's end. BURST and LAST_REST instead open a rally at each qualifying
-    burst and choose where the previous rally ends. BACK_FILL overrides splitting
-    and opens one rally at the region's start. REGION_START is incompatible with
-    serve detection and is rejected by ``segment_video`` before this call.
-
-    :param speed: (t,) per-frame speed (NaN on non-visible steps).
-    :param at_rest: (t,) per-frame rest flag.
-    :param thresholds: final per-video numeric thresholds.
-    :param options: the serve-start gate inputs and mode.
-    :param span_open: None (burst-open) or BACK_FILL (open qualifying regions at region_start).
-    :return: list of `(start_frame, end_frame)` half-open rally spans.
-    """
-    gate = resolve_serve_gate(options)
-
-    mode = options.mode
-    close = options.close
-
-    fast_runs, rest_runs, regions = rally_regions(speed, at_rest, thresholds)
-
-    spans: list[tuple[int, int]] = []
-    no_qualify_regions: list[tuple[int, int]] = []
-    n_regions_with_burst = 0
-    # Closely spaced serve detections can split one rally in two. Record their
-    # spacing for diagnostics without changing which bursts qualify.
-    qualifying_counts: list[int] = []
-    qualifying_spacings: list[int] = []
-    for region_start, region_end in regions:
-        bursts = [start for start, _ in fast_runs if region_start <= start < region_end]
-        if not bursts:
-            continue
-        n_regions_with_burst += 1
-        # Check every burst for splitting and diagnostics, even in single-span mode.
-        qualifying = [start for start in bursts if gate.qualifies(start)]
-        qualifying_counts.append(len(qualifying))
-        qualifying_spacings.extend(int(later - earlier)
-                                   for earlier, later in itertools.pairwise(qualifying))
-
-        if not qualifying:
-            if mode is ServeStartMode.TRIM:
-                spans.append((int(bursts[0]), int(region_end)))
-            no_qualify_regions.append((int(region_start), int(region_end)))
-        elif span_open is SpanOpen.BACK_FILL:
-            spans.append((int(region_start), int(region_end)))
-        elif close is None:
-            spans.append((int(qualifying[0]), int(region_end)))
-        else:
-            for idx, open_frame in enumerate(qualifying):
-                if idx + 1 < len(qualifying):
-                    next_burst = qualifying[idx + 1]
-                    close_frame = (next_burst if close is ServeStartClose.BURST
-                                   else last_rest_close(rest_runs, open_frame, next_burst))
-                else:
-                    close_frame = region_end
-                spans.append((int(open_frame), int(close_frame)))
-
-    if options.diagnostics is not None:
-        options.diagnostics.clear()
-        options.diagnostics.update({
-            'n_regions_with_burst': n_regions_with_burst,
-            'n_qualified': n_regions_with_burst - len(no_qualify_regions),
-            'n_no_qualify': len(no_qualify_regions),
-            'no_qualify_regions': no_qualify_regions,
-            'qualifying_counts': qualifying_counts,
-            'qualifying_spacings': qualifying_spacings,
-        })
-    return spans
-
-
 def find_rally_spans(
     track: np.ndarray, resolved: ResolvedAnnotatorConfig,
-    serve_start: ServeStartOptions | None = None,
 ) -> list[tuple[int, int]]:
     """Find spans using one video's resolved numeric values and opening policy."""
     thresholds = resolved.thresholds
@@ -322,10 +199,6 @@ def find_rally_spans(
         reentry_guard_variant=resolved.reentry_guard_variant,
         reentry_guard_buffer=resolved.reentry_guard_buffer,
     )
-    if serve_start is not None:
-        return serve_qualified_rally_spans(speed, at_rest, thresholds, serve_start, resolved.span_open)
-    if resolved.quiet_start_window is not None:
-        return quiet_start_rally_spans(speed, at_rest, thresholds, resolved.quiet_start_window)
     if resolved.span_open is not None:
         return active_region_rally_spans(speed, at_rest, thresholds, resolved.span_open)
     return burst_rally_spans(speed, at_rest, thresholds)

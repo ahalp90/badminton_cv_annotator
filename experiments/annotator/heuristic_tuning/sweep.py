@@ -2,8 +2,8 @@
 
 The routing rule is deliberately centralised: numeric names in
 ``_OVERRIDABLE_THRESHOLD_FIELDS`` become ``BaseAnnotatorConfig.overrides_base30``;
-the two segmentation fields are direct base fields; serve numerics belong to
-``ServeStartConfig``.  Strategy names are enum names, never enum values.
+``gap_state_demotion_bound`` is a direct base field. Strategy names are enum
+names, never enum values.
 """
 from __future__ import annotations
 
@@ -46,9 +46,8 @@ from annotator.evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
-from annotator.rally.serve import ServeStartClose, ServeStartMode
 from annotator.run_video import run_video
-from annotator.types import ServeStartConfig, SpanOpen
+from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import selection
 from experiments.annotator.heuristic_tuning.schemas import (
     CSV_COLUMNS_BY_FILENAME,
@@ -69,8 +68,7 @@ WINNER_SCHEMA_VERSION = 1
 LEGACY_MIN_CONTACT_SPEED = 0.005
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
-DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound", "quiet_start_window"})
-SERVE_NUMERIC_KEYS = frozenset({"threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames"})
+DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound"})
 
 BOUNDARY_VALUES = {
     "rest_speed": (1 / 600, 1 / 400, 1 / 240, 1 / 120, 1 / 60),
@@ -238,61 +236,37 @@ def shipped_spec() -> CandidateSpec:
     return CandidateSpec(LABEL_SHIPPED, {}, {})
 
 
-def _base_and_serve(spec: CandidateSpec) -> tuple[BaseAnnotatorConfig, ServeStartConfig | None]:
-    """Apply the module routing rule shared by serialisation and execution."""
+def base_config(spec: CandidateSpec) -> BaseAnnotatorConfig:
+    """Convert a sweep candidate into the supported preprocessing settings."""
     overrides: dict[str, float] = {}
     direct: dict[str, float] = {}
-    serve: dict[str, float] = {}
     for key, value in spec.overrides_base30.items():
         if key in _OVERRIDABLE_THRESHOLD_FIELDS:
             overrides[key] = value
         elif key in DIRECT_BASE_KEYS:
             direct[key] = value
-        elif key in SERVE_NUMERIC_KEYS:
-            serve[key] = value
         else:
             raise ValueError(f"cannot route numeric sweep key {key!r}")
-    strategies: dict[str, str] = {}
-    span_open: SpanOpen | None = None
+    strategies: dict[str, Any] = {}
     for key, name in spec.strategies.items():
+        if key != "span_open":
+            raise ValueError(f"cannot route strategy key {key!r}")
         try:
-            if key == "span_open":
-                span_open = SpanOpen[name]
-            elif key == "mode":
-                ServeStartMode[name]
-            elif key == "close":
-                ServeStartClose[name]
-            else:
-                raise ValueError(f"cannot route strategy key {key!r}")
+            strategies[key] = SpanOpen[name]
         except KeyError as error:
             raise ValueError(f"invalid strategy value for key {key!r}: {name!r}") from error
-        if key in {"span_open", "mode", "close"}:
-            strategies[key] = name
-        else:
-            raise ValueError(f"cannot route strategy key {key!r}")
-    base_kwargs: dict[str, Any] = {"overrides_base30": overrides or None, **direct}
-    if "span_open" in strategies:
-        base_kwargs["span_open"] = span_open
-    elif "quiet_start_window" in direct:
-        base_kwargs["span_open"] = None
-    base = BaseAnnotatorConfig(**base_kwargs)
-    if not serve and "mode" not in spec.strategies and "close" not in spec.strategies:
-        return base, None
-    if "threshold_bh" not in serve or "mode" not in spec.strategies:
-        raise ValueError("serve request requires threshold_bh and mode")
-    close = ServeStartClose[spec.strategies["close"]] if "close" in spec.strategies else None
-    return base, ServeStartConfig(serve["threshold_bh"], ServeStartMode[spec.strategies["mode"]], close, serve.get("stillness_threshold_bh"))
+    return BaseAnnotatorConfig(overrides_base30=overrides or None, **direct, **strategies)
 
 
 def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
     """Serialise using the same closed routing validation as application."""
-    _base_and_serve(spec)
+    base_config(spec)
     return winner_spec(spec.overrides_base30, spec.strategies)
 
 
 def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
-    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "quiet_start_window", "threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames", "span_open", "mode", "close")
-    ranks = {"span_open": {None: 0, "REGION_START": 1, "BACK_FILL": 2}, "mode": {None: 0, "TRIM": 1, "REJECT": 2}, "close": {None: 0, "BURST": 1, "LAST_REST": 2}}
+    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "span_open")
+    ranks = {"span_open": {None: 0, "REGION_START": 1, "BACK_FILL": 2}}
     values: list[tuple[int, object]] = []
     for key in keys:
         value = spec.strategies.get(key) if key in ranks else spec.overrides_base30.get(key)
@@ -306,39 +280,16 @@ def _shipped_base30_values() -> dict[str, float]:
 
 
 def _changed_from_defaults(spec: CandidateSpec) -> int:
-    """Count applied axes that differ from the complete shipped configuration."""
-    base, serve = _base_and_serve(spec)
+    """Count applied axes that differ from the shipped configuration."""
+    base = base_config(spec)
     shipped = BaseAnnotatorConfig()
     shipped_base30 = _shipped_base30_values()
     changed = 0
     for key, value in spec.overrides_base30.items():
-        if key in _OVERRIDABLE_THRESHOLD_FIELDS:
-            if value != shipped_base30[key]:
-                changed += 1
-        elif key in DIRECT_BASE_KEYS:
-            if value != getattr(shipped, key):
-                changed += 1
-        elif key in SERVE_NUMERIC_KEYS:
-            changed += 1
-        else:
-            raise ValueError(f"cannot route numeric sweep key {key!r}")
-    for key, value in spec.strategies.items():
-        shipped_value = getattr(shipped, key, None)
-        if key == "span_open":
-            applied = base.span_open
-            if applied != shipped_value:
-                changed += 1
-        else:
-            # There is no shipped serve configuration. Any requested serve
-            # axis is therefore a real configuration change.
-            if key in {"mode", "close"}:
-                changed += 1
-            else:
-                raise ValueError(f"cannot route strategy key {key!r}")
-    if serve is not None:
-        # Numeric serve axes were counted above. This assertion keeps the
-        # complete application and counting paths aligned.
-        assert any(key in SERVE_NUMERIC_KEYS for key in spec.overrides_base30)
+        default = shipped_base30[key] if key in _OVERRIDABLE_THRESHOLD_FIELDS else getattr(shipped, key)
+        changed += value != default
+    if "span_open" in spec.strategies:
+        changed += base.span_open != shipped.span_open
     return changed
 
 
@@ -426,9 +377,9 @@ def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spe
         for fixture in FIXTURES
         if fixture.video_id == video_id or fixture.name == video_id
     )
-    base, serve_start = _base_and_serve(candidate_spec)
+    base = base_config(candidate_spec)
     keyword = dict(fixture_inputs.keyword)
-    keyword.update(base=base, serve_start=serve_start)
+    keyword.update(base=base)
     result = run_video(*fixture_inputs.positional, **keyword, heuristic_only=True)
     return _row_for_result(fixture, candidate_spec, result, fixture_inputs.master)
 

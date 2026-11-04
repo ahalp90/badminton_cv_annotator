@@ -169,7 +169,6 @@ explains which changes require refitting.
 | Setting | Current default | Where it lives | What it changes |
 | --- | ---: | --- | --- |
 | Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/model.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
-| Rule for guarded candidates | off | `ContactModelConfig.reject_masked_without_player` | When on, drops candidate frames that have a shuttle guard grade flagged as unreliable and no picked player nearby in time; see [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) |
 | Side geometry | `video` | model directory / `--side-geometry` during fitting | Whether player halves use one net band per video or per-scene geometry |
 | Rally/contact rules | `BaseAnnotatorConfig` | saved in the model directory | Rough rallies, masks and contact search regions seen by the fitted stages |
 | Shuttle/pose/court extraction | dataset-builder config | `configs/dataset_builder/*.toml` | Upstream evidence supplied to annotation |

@@ -7,14 +7,13 @@ import numpy as np
 import pandas as pd
 
 from annotator import rally_segmentation
-from annotator.config import ResolvedAnnotatorConfig, Thresholds
+from annotator.config import ResolvedAnnotatorConfig
 from annotator.courts.scenes import SceneCourt, build_scene_courts
 from annotator.masks.dead import build_dead_mask
 from annotator.masks.replay import filter_exclusion_mask
 from annotator.rally import evidence as rally_evidence
-from annotator.rally.serve import ServeStartOptions, build_serve_setup_inputs
 from annotator.rally.spans import find_rally_spans
-from annotator.types import ContactCandidate, ServeStartConfig, SpanOpen, StickyResult
+from annotator.types import ContactCandidate, StickyResult
 
 
 @dataclass(frozen=True)
@@ -69,7 +68,6 @@ def prepare_annotation(
     raw_exclusion_mask: np.ndarray | None = None,
     cut_frames: Sequence[int] | np.ndarray | None = None,
     keep_vote: np.ndarray | None = None,
-    serve_start: ServeStartConfig | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
@@ -81,17 +79,13 @@ def prepare_annotation(
     Supplied contacts bypass candidate detection and retain their input order.
     Supplied spans bypass span finding. Neither changes the original shuttle track.
     """
-    if serve_start is not None and spans is not None:
-        raise ValueError('serve_start cannot be combined with injected spans')
-    if serve_start is not None and resolved.quiet_start_window is not None:
-        raise ValueError('quiet_start_window cannot be combined with serve_start')
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
     shuttle_hallucination_mask, source_codes = build_shuttle_hallucination_mask(
         len(track), resolved.rejected_grades, inpaint_codes, shuttle_hallucination_mask,
     )
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
-    # Tracker and serve evidence need the original track before dead-time masking.
+    # Player tracking needs the original track before dead-time masking.
     segments = rally_evidence.tracker_segments(homography_rows, court_present, len(track))
     sticky = rally_evidence.build_sticky_result(
         track, segments, bboxes, scores, kps, ndet,
@@ -116,11 +110,6 @@ def prepare_annotation(
             cut_frames=cut_frames, keep_vote=keep_vote,
             shuttle_hallucination_mask=shuttle_hallucination_mask,
         )
-    serve_options = None
-    if contacts is None and serve_start is not None:
-        serve_options = build_serve_options(
-            serve_start, sticky, resolved.thresholds, resolution, resolved.span_open,
-        )
     exclusion_mask = filter_exclusion_mask(raw_exclusion_mask, len(track), resolved.thresholds.replay_mask_min_frames)
     usable_court_frames = np.zeros(len(track), dtype=bool)
     for scene in scene_courts:
@@ -135,7 +124,7 @@ def prepare_annotation(
     if contacts is None:
         final_spans, raw_contacts = rally_segmentation.segment_video(
             track, exclusion_mask=exclusion_mask, sticky_distances=sticky.distances,
-            serve_start=serve_options, spans=final_spans, resolved=resolved,
+            spans=final_spans, resolved=resolved,
         )
     return AnnotationEvidence(
         identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
@@ -165,25 +154,3 @@ def build_shuttle_hallucination_mask(
             raise ValueError('shuttle_hallucination_mask must be a frame-aligned boolean array')
         return shuttle_hallucination_mask, None
     return np.zeros(n_frames, dtype=bool), None
-
-
-def build_serve_options(
-    config: ServeStartConfig,
-    sticky: StickyResult,
-    constants: Thresholds,
-    resolution: tuple[float, float],
-    span_open: SpanOpen | None = SpanOpen.BACK_FILL,
-) -> ServeStartOptions:
-    """Build serve detection inputs from player measurements before replay masking.
-
-    Replay masking can remove the quiet setup frames needed to recognise a serve.
-    """
-    if config.close is not None and span_open is not None:
-        raise ValueError('serve_start.close is unsupported with BACK_FILL')
-    return ServeStartOptions(
-        threshold=config.threshold_bh, mode=config.mode, close=config.close,
-        setup=build_serve_setup_inputs(sticky, resolution),
-        stillness_threshold_bh=config.stillness_threshold_bh,
-        lookback_frames=constants.serve_start_lookback_frames,
-        stillness_window_frames=constants.serve_stillness_window_frames,
-    )

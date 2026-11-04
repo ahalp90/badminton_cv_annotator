@@ -64,7 +64,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     model_paths = []
     models = SimpleNamespace(
         preprocessing=BaseAnnotatorConfig(), side_geometry=SideGeometry.VIDEO,
-        contact_settings=SimpleNamespace(score_cutoff=0.9, reject_masked_without_player=False),
+        contact_settings=SimpleNamespace(score_cutoff=0.9),
     )
 
     def load_array(path: Path) -> np.ndarray:
@@ -118,7 +118,6 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         resolved = resolve(kwargs['base'], kwargs['fps'])
         assert resolved.thresholds.wrist_distance_body_heights == 1.8
         assert resolved.thresholds.smooth_window == 5
-        assert kwargs['serve_start'] is None
         assert kwargs['landing_options'] is SHIPPED_LANDING_FILTER_OPTIONS
         assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['inpaint_codes'] is inputs.guards
@@ -159,7 +158,6 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
         assert kwargs['models'] is inputs.models
         assert kwargs['base'] is inputs.models.preprocessing
         assert kwargs['heuristic_only'] is False
-        assert kwargs['serve_start'] is None
         assert kwargs['spans'] == (None if condition == 'ours_discovery' else [(0, 45)])
         kwargs['capture'].hybrid = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
         return empty_annotation([], [])

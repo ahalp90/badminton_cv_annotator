@@ -72,7 +72,7 @@ from experiments.annotator.heuristic_tuning.corpus_sweep import (
 )
 from experiments.annotator.heuristic_tuning.sweep import (
     CandidateSpec,
-    _base_and_serve,
+    base_config,
     serialise_spec,
 )
 from experiments.annotator.old_court_regression.old_inputs import (
@@ -299,7 +299,7 @@ def run_one_job(job: SearchJob) -> bool:
     if len(_WORKER.inputs) > INPUT_CACHE_SIZE:
         _WORKER.inputs.popitem(last=False)
     load_seconds = time.perf_counter() - started
-    base, serve_start = _base_and_serve(spec)
+    base = base_config(spec)
     models = _WORKER.models
     if models is not None:
         base = models.preprocessing
@@ -308,7 +308,7 @@ def run_one_job(job: SearchJob) -> bool:
     failure = None
     try:
         with cache_sticky_result(_WORKER.output / 'cache' / 'sticky', video.identity):
-            stream = run_configuration(inputs, base, serve_start=serve_start, models=models)
+            stream = run_configuration(inputs, base, models=models)
     except StickyCacheError:
         raise
     except Exception as error:  # noqa: BLE001 -- retain failed inference in the scored population.

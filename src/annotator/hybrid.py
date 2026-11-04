@@ -91,7 +91,6 @@ def predict_contact_features(
     report("scoring contact candidates")
     contacts = score_contact_features(
         features.rows, models.contact, evidence.fps, models.contact_settings,
-        shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
     )
     scores, events, side_for_frame = sequence_inputs(evidence, contacts, models.side_geometry)
     report("refining rally sequences")

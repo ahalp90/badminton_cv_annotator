@@ -7,13 +7,10 @@ from __future__ import annotations
 
 import warnings
 from enum import IntEnum, StrEnum
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
-
-if TYPE_CHECKING:
-    from .rally.serve import ServeStartClose, ServeStartMode
 
 
 class DeadMaskMode(StrEnum):
@@ -63,15 +60,6 @@ class ContactCandidate(NamedTuple):
     proximity_ok: bool | None
     wrist_near: bool | None
     suppressed: bool | None
-
-
-class ServeStartConfig(NamedTuple):
-    """Serve detection settings, with distance thresholds in player body heights."""
-
-    threshold_bh: float
-    mode: ServeStartMode
-    close: ServeStartClose | None = None
-    stillness_threshold_bh: float | None = None
 
 
 class Slot(IntEnum):

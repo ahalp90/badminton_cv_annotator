@@ -658,7 +658,6 @@ def _configuration_values(dead_mask_mode: DeadMaskMode) -> dict[str, object]:
         "injected_positions": False,
         "injected_spans": False,
         "injected_contacts": False,
-        "serve_start": None,
         "court_invalid_is_excluded": True,
         "person_margin": PERSON_COURT_MARGIN,
         "scene_threshold": SCENE_VALID_MIN_FRACTION,

@@ -44,19 +44,18 @@ def run_item(
     paths = config['paths']
     if heuristic_spec is None:
         models = load_models(paths['bundle'])
-        base, serve_start = models.preprocessing, None
+        base = models.preprocessing
         if base.dead_mask_mode is not DeadMaskMode.REPLAY:
             raise ValueError('This comparison requires the selected REPLAY mask, without a person-vote mask')
         if (base.rejected_grades != frozenset({1, 2, 3})
                 or models.contact_settings.score_cutoff != 0.9
-                or models.contact_settings.reject_masked_without_player
                 or models.side_geometry.value != 'video'):
             raise ValueError('Model bundle settings differ from the selected annotator')
     else:
-        from experiments.annotator.heuristic_tuning.sweep import _base_and_serve
+        from experiments.annotator.heuristic_tuning.sweep import base_config
 
         models = None
-        base, serve_start = _base_and_serve(heuristic_spec)
+        base = base_config(heuristic_spec)
     frame_count = item['frame_count']
     track_root = paths['inpaint_root'] / item['directory']
     track = read_array(track_root / 'shuttle_track_inpainted.npy.xz')
@@ -85,7 +84,6 @@ def run_item(
         result = run_video(
             track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
-            serve_start=serve_start,
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS, net_band=court.net_band,
             resolution=court.resolution, video_id=item['item_id'],
             gate_court_info=court.gate_court_info, gate_resolution_table=court.gate_resolution_table,

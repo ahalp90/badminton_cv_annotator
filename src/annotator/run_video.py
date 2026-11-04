@@ -25,7 +25,7 @@ from annotator.outcomes.video import (
 )
 from annotator.preparation import prepare_annotation
 from annotator.sequence import ContactEvent
-from annotator.types import ContactCandidate, ServeStartConfig
+from annotator.types import ContactCandidate
 from shared.progress import report
 
 DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
@@ -54,7 +54,6 @@ def run_video(
     raw_exclusion_mask: np.ndarray | None = None,
     cut_frames: Sequence[int] | np.ndarray | None = None,
     keep_vote: np.ndarray | None = None,
-    serve_start: ServeStartConfig | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
@@ -73,7 +72,6 @@ def run_video(
     (frames, detections, 4), ``scores`` (frames, detections), ``kps`` (frames,
     detections, 17, 2) and ``ndet`` counts (frames,). Preparation uses the original
     arrays and scene geometry. ``spans`` and ``contacts`` can supply prior research results.
-    ``serve_start`` cannot be combined with supplied spans.
 
     Preparation requires all five arrays, ``resolution``, ``video_id``,
     ``net_band``, both ``gate_*`` inputs, ``court_present`` booleans (frames,) and scene
@@ -113,7 +111,7 @@ def run_video(
         gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask, cut_frames=cut_frames, keep_vote=keep_vote,
-        serve_start=serve_start, spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
+        spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
         shuttle_hallucination_mask=shuttle_hallucination_mask,
         court_invalid_is_excluded=court_invalid_is_excluded,
     )

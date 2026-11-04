@@ -248,7 +248,6 @@ def sequence_training_video(
     """Score contacts and prepare candidate sequences for rally fitting."""
     scored = score_contact_features(
         features.rows, contact_model, evidence.fps, settings,
-        shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
     )
     scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
     initial = initial_sequences(evidence.heuristic_spans, events)
