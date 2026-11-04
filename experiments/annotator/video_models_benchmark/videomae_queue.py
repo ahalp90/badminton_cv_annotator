@@ -105,7 +105,7 @@ def evaluate_selected(output: Path, cache: Path) -> None:
             raise FileExistsError(f"Incomplete test output {directory}; preserve it elsewhere before resuming")
         command = [sys.executable, "-u", "-m", "experiments.annotator.video_models_benchmark.infer",
                    "--checkpoint", str(output / run["name"] / "best.pt"), "--cache", str(cache),
-                   "--role", "test", "--output", str(directory)]
+                   "--role", "test", "--stride", "3", "--offset", "0", "--output", str(directory)]
         print(f"Testing {run['name']}", flush=True)
         with (test_root / f"seed{run['seed']}.log").open("a") as log:
             process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)

@@ -128,3 +128,18 @@ Each seed uses its minimum-validation-CE checkpoint. Test outputs go to
 `test/seed0/` and `test/seed1/`; test scores do not affect selection. A resumed
 queue skips completed test seeds. Preserve an incomplete test directory elsewhere
 before resuming so inference can start that seed again.
+
+Test inference evaluates centres at **stride 3, offset 0**: original video frames
+0, 3, 6… across rally boundaries. Each centre still uses 16 consecutive frames.
+This setting was chosen from the validation stride comparison before test scoring.
+Training and full validation remain unchanged, including checkpoint and learning-rate
+selection. The queue passes `--stride 3 --offset 0`; these are also the inference
+defaults for VideoMAE tests. Other inference defaults remain dense, and explicit
+`--stride` and `--offset` arguments override them.
+
+The test frame loss and confusion matrix cover evaluated centres only. Event
+scoring still covers all labelled contacts and rallies. Saved probability arrays
+retain one row per original centre; skipped rows contain `(1, 0, 0)` so they emit
+no contacts. Both `events.json.gz` and `frame_metrics.json.gz` record `sampling`
+with stride, offset and centre counts. These arrays support the measured offset
+only; dense prediction and the other offsets require additional model evaluation.

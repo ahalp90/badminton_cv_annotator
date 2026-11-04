@@ -103,8 +103,7 @@ TEST_COMPARISON_NOTES = (
 TEST_STRIDE_NOTES = (
     ('Both seeds of the validation-selected learning rate, each tested once at its lowest-validation-loss '
      'checkpoint; a hit counts within ±10 frames at 30 fps.'),
-    ('Offsets are three samplings of one model, not extra seeds. Test scores did not choose any setting. '
-     'Axes do not start at zero.'),
+    ('Test scores did not choose any setting. Axes do not start at zero.'),
 )
 # Fixed SVG dates keep regenerated figures byte-stable.
 os.environ.setdefault('SOURCE_DATE_EPOCH', '0')
@@ -391,22 +390,78 @@ def read_scores(path: Path, runs: list[PilotRun]) -> dict[tuple[str, int, int, s
     return rows
 
 
+def available_samplings(scores: dict, members: list[PilotRun], tolerance: str) -> list[tuple[int, int]]:
+    """Return sampling conditions present for every run and hitter rule at this tolerance."""
+    expected: set[tuple[int, int]] | None = None
+    for run in members:
+        conditions_by_rule = {
+            rule: {(stride, offset) for name, stride, offset, row_rule, row_tolerance in scores
+                   if name == run.name and row_rule == rule and row_tolerance == tolerance}
+            for rule in ('raw', 'alternating')
+        }
+        if conditions_by_rule['raw'] != conditions_by_rule['alternating']:
+            raise ValueError(f'{run.name}: raw and alternating scores have different sampling conditions at '
+                             f'±{tolerance} frames')
+        conditions = conditions_by_rule['raw']
+        if not conditions:
+            raise ValueError(f'{run.name}: no scores at ±{tolerance} frames')
+        if expected is not None and conditions != expected:
+            raise ValueError(f'{run.name}: sampling conditions {sorted(conditions)} differ from '
+                             f'{sorted(expected)} for the other runs')
+        expected = conditions
+    return sorted(expected or set())
+
+
+def test_sampling(paths: list[Path]) -> tuple[int, int]:
+    """Read test sampling metadata, treating historical events without it as dense."""
+    metadata = [read_json(path).get('sampling') for path in paths]
+    if any(value is None for value in metadata) and not all(value is None for value in metadata):
+        raise ValueError('VideoMAE test seeds disagree: some events have sampling metadata and others do not')
+    if all(value is None for value in metadata):
+        return 1, 0
+    if any(value != metadata[0] for value in metadata[1:]):
+        raise ValueError(f'VideoMAE test seeds have inconsistent sampling metadata: {metadata}')
+    sampling = metadata[0]
+    return int(sampling['stride']), int(sampling['offset'])
+
+
+def sampling_label(sampling: tuple[int, int]) -> str:
+    stride, offset = sampling
+    if stride == 1:
+        return 'dense (every frame)'
+    return f'stride {stride}, offset {offset}'
+
+
+def video_system_label(rate: float, seed_count: int, sampling: tuple[int, int]) -> str:
+    return f'VideoMAE-B test, {sampling_label(sampling)}\nLR {rate_label(rate)} ({seed_count} seeds)'
+
+
 def stride_figure(scores: dict, members: list[PilotRun], colours: dict[float, str], group_labels: list[str],
                   title: str, notes: tuple[str, ...], out: Path, stem: str) -> None:
-    """One group per run: dense prediction beside the three stride-three offsets, kept separate."""
+    """Compare only the dense and stride conditions present in the score file."""
     figure, axes_grid = plt.subplots(3, 2, figsize=(12, 11.5), facecolor=SURFACE)
     groups = np.arange(len(members))
-    offset_shifts = (0.02, 0.13, 0.24)
+    samplings = available_samplings(scores, members, TOLERANCE)
+    stride_samplings = [sampling for sampling in samplings if sampling != (1, 0)]
+    if len(stride_samplings) == 3:
+        stride_shifts = (0.02, 0.13, 0.24)
+    elif len(stride_samplings) == 1 and (1, 0) not in samplings:
+        stride_shifts = (0.0,)
+    else:
+        first_shift, last_shift = ((0.02, 0.24) if (1, 0) in samplings else (-0.12, 0.12))
+        stride_shifts = np.linspace(first_shift, last_shift, len(stride_samplings))
     for panel_row, panels in zip(axes_grid, STRIDE_PANELS, strict=True):
         for axes, (metric, rule, panel_title) in zip(panel_row, panels, strict=True):
             style_axes(axes, 'y')
             for group, run in zip(groups, members, strict=True):
                 colour = colours[run.learning_rate]
-                dense = scores[run.name, 1, 0, rule, TOLERANCE][metric]
-                axes.plot([group - 0.32, group + 0.32], [dense, dense], color=MUTED, linewidth=0.9, linestyle=':')
-                axes.scatter(group - 0.16, dense, s=80, color=colour, marker='o', edgecolor=SURFACE, zorder=3)
-                for offset, shift in enumerate(offset_shifts):
-                    value = scores[run.name, 3, offset, rule, TOLERANCE][metric]
+                if (1, 0) in samplings:
+                    dense = scores[run.name, 1, 0, rule, TOLERANCE][metric]
+                    axes.plot([group - 0.32, group + 0.32], [dense, dense], color=MUTED, linewidth=0.9,
+                              linestyle=':')
+                    axes.scatter(group - 0.16, dense, s=80, color=colour, marker='o', edgecolor=SURFACE, zorder=3)
+                for (stride, offset), shift in zip(stride_samplings, stride_shifts, strict=True):
+                    value = scores[run.name, stride, offset, rule, TOLERANCE][metric]
                     axes.scatter(group + shift, value, s=48, facecolor=SURFACE, edgecolor=colour, marker='^',
                                  linewidth=1.6, zorder=3)
             axes.set_xticks(groups, group_labels, fontsize=9.5)
@@ -417,12 +472,19 @@ def stride_figure(scores: dict, members: list[PilotRun], colours: dict[float, st
         margin = 0.08 * (high - low)
         for axes in panel_row:
             axes.set_ylim(low - margin, high + margin)
-    handles = [
-        Line2D([], [], color=MUTED, marker='o', markersize=8, linestyle='none', label='Dense: every frame'),
-        Line2D([], [], color=MUTED, marker='^', markersize=7, markerfacecolor=SURFACE, linestyle='none',
-               label='Stride 3: offsets 0, 1 and 2, left to right'),
-        Line2D([], [], color=MUTED, linestyle=':', label='Dense level, for reference'),
-    ]
+    handles = []
+    if (1, 0) in samplings:
+        handles.append(Line2D([], [], color=MUTED, marker='o', markersize=8, linestyle='none',
+                              label='Dense: every frame'))
+    if stride_samplings == [(3, 0), (3, 1), (3, 2)]:
+        handles.append(Line2D([], [], color=MUTED, marker='^', markersize=7, markerfacecolor=SURFACE,
+                              linestyle='none', label='Stride 3: offsets 0, 1 and 2, left to right'))
+    else:
+        handles.extend(Line2D([], [], color=MUTED, marker='^', markersize=7, markerfacecolor=SURFACE,
+                               linestyle='none', label=f'Stride {stride}, offset {offset}')
+                       for stride, offset in stride_samplings)
+    if (1, 0) in samplings:
+        handles.append(Line2D([], [], color=MUTED, linestyle=':', label='Dense level, for reference'))
     rates = sorted({run.learning_rate for run in members})
     handles += [Line2D([], [], color=colours[rate], marker='s', linestyle='none', label=f'Head LR {rate_label(rate)}')
                 for rate in rates]
@@ -448,11 +510,11 @@ def seed_scores(paths: list[Path], tolerance: str) -> dict[str, list[float]]:
 
 
 def test_systems(videomae_paths: list[Path], results: Path, monotrack_summary: Path, rate: float,
-                 tolerance: str) -> list[DotRow]:
+                 sampling: tuple[int, int], tolerance: str) -> list[DotRow]:
     """VideoMAE's selected seeds beside X3D-M, our annotator and MonoTrack, all given the rally bounds."""
     summary = read_json(monotrack_summary)['summary']
     systems = [
-        DotRow(f'VideoMAE-B, LR {rate_label(rate)} ({len(videomae_paths)} seeds)', VIDEOMAE_COLOUR, '^',
+        DotRow(video_system_label(rate, len(videomae_paths), sampling), VIDEOMAE_COLOUR, '^',
                seed_scores(videomae_paths, tolerance)),
         DotRow('X3D-M, selected configuration (2 seeds)', X3D_COLOUR, 'D',
                seed_scores(sorted((results / 'x3d_test').glob('seed*/events.json.gz')), tolerance)),
@@ -491,12 +553,16 @@ def print_validation_tables(runs: list[PilotRun], ranking: list[list[PilotRun]],
 
 
 def print_stride_table(scores: dict, members: list[PilotRun], tolerance: str) -> None:
-    print(f'\nDense and stride-three scores (%) at ±{tolerance} frames:\n')
+    samplings = available_samplings(scores, members, tolerance)
+    labels = ', '.join(SAMPLING_LABELS.get(sampling, f'Stride {sampling[0]}, offset {sampling[1]}')
+                       for sampling in samplings)
+    print(f'\nAvailable sampling scores (%) at ±{tolerance} frames: {labels}\n')
     print('| Run | Sampling | Contact recall | Contact precision | Contact F1 | Raw player F1 | Alternating player F1 '
           '| Raw fully correct | Alternating fully correct |')
     print('|---|---|---:|---:|---:|---:|---:|---:|---:|')
     for run in members:
-        for (stride, offset), sampling in SAMPLING_LABELS.items():
+        for stride, offset in samplings:
+            sampling = SAMPLING_LABELS.get((stride, offset), f'Stride {stride}, offset {offset}')
             raw = scores[run.name, stride, offset, 'raw', tolerance]
             alternating = scores[run.name, stride, offset, 'alternating', tolerance]
             print(f"| {run.label} | {sampling} | {raw['contact_recall']:.2f} | {raw['contact_precision']:.2f} "
@@ -553,7 +619,9 @@ def main() -> None:
         raise ValueError('Test results exist without the queue selection that chose their checkpoints')
     chosen = ranking[0]
     paths = [test_directory / f'seed{run.seed}' / 'events.json.gz' for run in chosen]
-    systems = {tolerance: test_systems(paths, args.results, args.monotrack_summary, chosen[0].learning_rate, tolerance)
+    test_sampling_condition = test_sampling(paths)
+    systems = {tolerance: test_systems(paths, args.results, args.monotrack_summary, chosen[0].learning_rate,
+                                       test_sampling_condition, tolerance)
                for tolerance in (TOLERANCE, '5')}
     print_test_table(systems)
     for suffix in ('.png', '.svg'):
@@ -565,7 +633,8 @@ def main() -> None:
         print_stride_table(test_scores, chosen, tolerance)
     stride_figure(test_scores, chosen, lr_colours(runs),
                   [f'Seed {run.seed}\nselected at {run.selected["steps"] // 1000}k' for run in chosen],
-                  f'VideoMAE-B held-out test: dense versus every third frame, {TEST_RALLIES:,} rallies',
+                  f'VideoMAE-B held-out test: {sampling_label(test_sampling_condition)}, '
+                  f'{TEST_RALLIES:,} rallies',
                   TEST_STRIDE_NOTES, args.out, 'videomae_fig6_stride_test')
 
 
