@@ -821,8 +821,6 @@ def run_full_annotation_stage(
         net_band=court_inputs.net_band,
         resolution=court_inputs.resolution,
         video_id=video_id,
-        court_info=court_inputs.court_info,
-        homo_df=None,
         gate_court_info=court_inputs.gate_court_info,
         gate_resolution_table=court_inputs.gate_resolution_table,
         ref_err_px=ref_err_px,
@@ -833,7 +831,6 @@ def run_full_annotation_stage(
         keep_vote=court.evidence.keep_vote,
         inpaint_codes=guard_codes,
         court_invalid_is_excluded=True,
-        landing_error_band_m=court_inputs.landing_error_band_m,
         capture=capture,
     )
     raw_mask = _validated_mask(

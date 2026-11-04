@@ -121,7 +121,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         source_codes=None, scene_courts=scenes,
     )
     result = video_outcomes.build_verdict_data(
-        evidence, contact_data, court_info={'scene': 'global'}, landing_options=None, band_m=99.0,
+        evidence, contact_data, landing_options=None,
         rejection_diagnostics=None, landing_horizons_s=(), horizon_rows=None,
     )
 

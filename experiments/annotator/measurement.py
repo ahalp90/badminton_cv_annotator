@@ -1018,8 +1018,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             net_band=input_values.net_band,
             resolution=input_values.resolution,
             video_id=case.fixture.video_id,
-            court_info=input_values.court_info,
-            homo_df=driver.homo_df if parent == "static_shuttleset_homography" else None,
             gate_court_info=gate_court_info,
             gate_resolution_table=input_values.gate_resolution_table,
             ref_err_px=REF_ERR_PX,
@@ -1029,7 +1027,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             cut_frames=cut_frames,
             keep_vote=court_result.keep_vote,
             court_invalid_is_excluded=True,
-            landing_error_band_m=input_values.landing_error_band_m,
             landing_horizons_s=LANDING_HORIZONS,
             capture=capture,
         )

@@ -82,15 +82,6 @@ def test_run_video_no_play_returns_empty_result():
         "border_U": 0.0,
         "border_D": 720.0,
     }
-    homo_df = pd.DataFrame(
-        {
-            "upleft_x": [0.0], "upright_x": [1280.0],
-            "downleft_x": [0.0], "downright_x": [1280.0],
-            "upleft_y": [0.0], "upright_y": [0.0],
-            "downleft_y": [720.0], "downright_y": [720.0],
-        },
-        index=[video_id],
-    )
     gate_resolution_table = pd.DataFrame(
         {"width": [1920.0], "height": [1080.0]}, index=[str(video_id)],
     )
@@ -102,8 +93,6 @@ def test_run_video_no_play_returns_empty_result():
         net_band=(664.6, 703.7),
         resolution=resolution,
         video_id=video_id,
-        court_info=court_info,
-        homo_df=homo_df,
         gate_court_info={str(video_id): court_info},
         gate_resolution_table=gate_resolution_table,
         raw_exclusion_mask=dead,
@@ -165,29 +154,15 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
     assert result.spans == injected
 
 
-@pytest.mark.parametrize('field', ['bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id',
-                                   'gate_court_info', 'gate_resolution_table'])
-def test_run_video_requires_player_and_court_inputs(field):
-    inputs = _synthetic_inputs()
-    del inputs['raw_exclusion_mask']
-    inputs[field] = None
-    with pytest.raises(ValueError, match=rf'requires .*\b{field}\b'):
-        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), heuristic_only=True)
-
-
-@pytest.mark.parametrize('field', ['landing_options', 'net_band', 'court_info', 'homo_df'])
-def test_run_video_requires_outcome_inputs(field):
-    inputs = _synthetic_inputs()
-    del inputs['raw_exclusion_mask']
-    inputs[field] = None
-    with pytest.raises(ValueError, match=rf'requires? .*\b{field}\b'):
-        run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), heuristic_only=True)
-
-
-@pytest.mark.parametrize('kwargs', [{}, {'spans': [(10, 20)]}, {'spans': [(10, 20)], 'contacts': {0: [14]}}])
-def test_run_video_requires_scene_inputs_for_every_sticky_consumer(kwargs):
-    with pytest.raises(ValueError, match='^scene-gated sticky needs homography_rows and court_present$'):
-        run_video(**_synthetic_inputs(), **kwargs, heuristic_only=True)
+@pytest.mark.parametrize('field', [
+    'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options', 'net_band',
+    'gate_court_info', 'gate_resolution_table', 'court_present', 'homography_rows',
+])
+def test_run_video_requires_player_and_scene_inputs(field):
+    inputs = {**_synthetic_inputs(), **_default_scene_inputs(300)}
+    del inputs[field]
+    with pytest.raises(TypeError, match=field):
+        run_video(**inputs, heuristic_only=True)
 
 
 def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
@@ -628,12 +603,13 @@ def test_run_video_capture_resets_and_copies_masks() -> None:
 
 
 def test_run_video_rejects_invalid_horizon_configuration():
+    inputs = {**_synthetic_inputs(), **_default_scene_inputs(300)}
     with pytest.raises(ValueError, match='requires capture'):
-        run_video(np.zeros((10, 3)), fps=25.0, landing_horizons_s=(1.0,), heuristic_only=True)
+        run_video(**inputs, landing_horizons_s=(1.0,), heuristic_only=True)
 
     with pytest.raises(ValueError, match='strictly increasing'):
         run_video(
-            np.zeros((10, 3)), fps=25.0, capture=RunCapture(),
+            **inputs, capture=RunCapture(),
             landing_horizons_s=(1.0, 1.0), heuristic_only=True,
         )
 
@@ -770,22 +746,6 @@ def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
         )
 
 
-def test_run_video_uses_supplied_landing_error_band_without_static_homography(monkeypatch) -> None:
-    inputs = _synthetic_inputs()
-    inputs['homo_df'] = None
-    monkeypatch.setattr(
-        run_video_module.point_winner,
-        'corner_error_band_m',
-        lambda *args, **kwargs: pytest.fail('static homography should not be read'),
-    )
-    result = run_video(
-        **inputs,
-        **_default_scene_inputs(len(inputs['track'])),
-        landing_error_band_m=0.12, heuristic_only=True,
-    )
-    assert result.verdict_rows == {}
-
-
 def _synthetic_inputs():
     video_id = 1
     n_frames = 300
@@ -803,13 +763,7 @@ def _synthetic_inputs():
         'fps': 25.0,
         'landing_options': LandingFilterOptions(7, 0.004, 5, 7, 0.75),
         'net_band': (664.6, 703.7), 'resolution': resolution,
-        'video_id': video_id, 'court_info': court_info,
-        'homo_df': pd.DataFrame({
-            'upleft_x': [0.0], 'upright_x': [1280.0],
-            'downleft_x': [0.0], 'downright_x': [1280.0],
-            'upleft_y': [0.0], 'upright_y': [0.0],
-            'downleft_y': [720.0], 'downright_y': [720.0],
-        }, index=[video_id]),
+        'video_id': video_id,
         'gate_court_info': {str(video_id): court_info},
         'gate_resolution_table': pd.DataFrame(
             {'width': [1920.0], 'height': [1080.0]}, index=[str(video_id)],

@@ -33,27 +33,25 @@ DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
 
 def run_video(
     track: np.ndarray,
-    bboxes: np.ndarray | None = None,
-    scores: np.ndarray | None = None,
-    kps: np.ndarray | None = None,
-    ndet: np.ndarray | None = None,
+    bboxes: np.ndarray,
+    scores: np.ndarray,
+    kps: np.ndarray,
+    ndet: np.ndarray,
     *,
     fps: float,
+    landing_options: point_winner.LandingFilterOptions,
+    net_band: tuple[float, float],
+    resolution: tuple[float, float],
+    video_id: int | str,
+    gate_court_info: dict[str, dict[str, object]],
+    gate_resolution_table: pd.DataFrame,
+    court_present: np.ndarray,
+    homography_rows: pd.DataFrame | list[dict[str, object]],
     base: BaseAnnotatorConfig | None = None,
     models: AnnotatorModels | None = None,
     heuristic_only: bool = False,
-    landing_options: point_winner.LandingFilterOptions | None = None,
-    net_band: tuple[float, float] | None = None,
-    resolution: tuple[float, float] | None = None,
-    video_id: int | str | None = None,
-    court_info: dict[str, object] | None = None,
-    homo_df: pd.DataFrame | None = None,
-    gate_court_info: dict[str, dict[str, object]] | None = None,
-    gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
     raw_exclusion_mask: np.ndarray | None = None,
-    court_present: np.ndarray | None = None,
-    homography_rows: pd.DataFrame | list[dict[str, object]] | None = None,
     cut_frames: Sequence[int] | np.ndarray | None = None,
     keep_vote: np.ndarray | None = None,
     serve_start: ServeStartConfig | None = None,
@@ -64,7 +62,6 @@ def run_video(
     rejection_diagnostics: list[dict[str, object]] | None = None,
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
-    landing_error_band_m: float | None = None,
     landing_horizons_s: tuple[float, ...] = (),
 ) -> AnnotatorResult:
     """Find rallies and contacts, assign player halves, then estimate outcomes.
@@ -81,8 +78,7 @@ def run_video(
     Preparation requires all five arrays, ``resolution``, ``video_id``,
     ``net_band``, both ``gate_*`` inputs, ``court_present`` booleans (frames,) and scene
     ``homography_rows`` as a DataFrame or a list of row dictionaries. Outcomes
-    also require ``landing_options``, ``court_info`` and either ``homo_df`` or
-    ``landing_error_band_m``.
+    use ``landing_options`` and the selected scene's court geometry.
 
     ``raw_exclusion_mask`` supplies the dead-time mask before short-run filtering.
     ``inpaint_codes`` and ``shuttle_hallucination_mask`` are mutually exclusive
@@ -110,17 +106,6 @@ def run_video(
     if base is None:
         base = DEFAULT_PREPROCESSING
     validate_landing_horizons(capture, landing_horizons_s)
-    required_outcome_inputs = {
-        'landing_options': landing_options, 'court_info': court_info,
-    }
-    missing = [name for name, value in required_outcome_inputs.items() if value is None]
-    if landing_error_band_m is None and homo_df is None:
-        missing.append('homo_df or landing_error_band_m')
-    if missing:
-        raise ValueError(f'annotation outcomes require {", ".join(missing)}')
-    assert landing_options is not None
-    assert court_info is not None
-
     report("finding rallies")
     evidence = prepare_annotation(
         track, bboxes, scores, kps, ndet,
@@ -149,13 +134,8 @@ def run_video(
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
     report("resolving outcomes")
-    # The static homography table may use integer keys; preserve the caller's ID.
-    band_m = (
-        landing_error_band_m if landing_error_band_m is not None
-        else point_winner.corner_error_band_m(video_id, homo_df, court_info, ref_err_px)
-    )
     verdict_data = build_verdict_data(
-        evidence, contact_data, court_info=court_info, landing_options=landing_options, band_m=band_m,
+        evidence, contact_data, landing_options=landing_options,
         rejection_diagnostics=rejection_diagnostics, landing_horizons_s=landing_horizons_s,
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
     )

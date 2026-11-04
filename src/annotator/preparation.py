@@ -52,19 +52,19 @@ class AnnotationEvidence:
 
 def prepare_annotation(
     track: np.ndarray,
-    bboxes: np.ndarray | None,
-    scores: np.ndarray | None,
-    kps: np.ndarray | None,
-    ndet: np.ndarray | None,
+    bboxes: np.ndarray,
+    scores: np.ndarray,
+    kps: np.ndarray,
+    ndet: np.ndarray,
     *,
     resolved: ResolvedAnnotatorConfig,
-    resolution: tuple[float, float] | None,
-    video_id: int | str | None,
-    net_band: tuple[float, float] | None,
-    gate_court_info: dict[str, dict[str, object]] | None,
-    gate_resolution_table: pd.DataFrame | None,
-    court_present: np.ndarray | None,
-    homography_rows: pd.DataFrame | list[dict[str, object]] | None,
+    resolution: tuple[float, float],
+    video_id: int | str,
+    net_band: tuple[float, float],
+    gate_court_info: dict[str, dict[str, object]],
+    gate_resolution_table: pd.DataFrame,
+    court_present: np.ndarray,
+    homography_rows: pd.DataFrame | list[dict[str, object]],
     ref_err_px: float = 3.5,
     raw_exclusion_mask: np.ndarray | None = None,
     cut_frames: Sequence[int] | np.ndarray | None = None,
@@ -85,25 +85,6 @@ def prepare_annotation(
         raise ValueError('serve_start cannot be combined with injected spans')
     if serve_start is not None and resolved.quiet_start_window is not None:
         raise ValueError('quiet_start_window cannot be combined with serve_start')
-    if homography_rows is None or court_present is None:
-        raise ValueError('scene-gated sticky needs homography_rows and court_present')
-    required_inputs = {
-        'bboxes': bboxes, 'scores': scores, 'kps': kps, 'ndet': ndet,
-        'resolution': resolution, 'video_id': video_id, 'net_band': net_band,
-        'gate_court_info': gate_court_info, 'gate_resolution_table': gate_resolution_table,
-    }
-    missing = [name for name, value in required_inputs.items() if value is None]
-    if missing:
-        raise ValueError(f'annotation preparation requires {", ".join(missing)}')
-    assert bboxes is not None
-    assert scores is not None
-    assert kps is not None
-    assert ndet is not None
-    assert resolution is not None
-    assert video_id is not None
-    assert net_band is not None
-    assert gate_court_info is not None
-    assert gate_resolution_table is not None
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
     shuttle_hallucination_mask, source_codes = build_shuttle_hallucination_mask(

@@ -205,8 +205,6 @@ def _direct_annotation(
         net_band=inputs.net_band,
         resolution=inputs.resolution,
         video_id=video_id,
-        court_info=inputs.court_info,
-        homo_df=None,
         gate_court_info=inputs.gate_court_info,
         gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present,
@@ -215,7 +213,6 @@ def _direct_annotation(
         keep_vote=court.evidence.keep_vote,
         inpaint_codes=guard_codes,
         court_invalid_is_excluded=True,
-        landing_error_band_m=inputs.landing_error_band_m,
         capture=capture,
     )
     return result, capture

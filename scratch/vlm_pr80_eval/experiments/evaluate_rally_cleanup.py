@@ -82,8 +82,6 @@ def _build_artifact_inputs(
         "net_band": court_inputs.net_band,
         "resolution": court_inputs.resolution,
         "video_id": video_id,
-        "court_info": court_inputs.court_info,
-        "homo_df": None,
         "gate_court_info": court_inputs.gate_court_info,
         "gate_resolution_table": court_inputs.gate_resolution_table,
         "ref_err_px": 3.5,
@@ -94,7 +92,6 @@ def _build_artifact_inputs(
         "keep_vote": keep_vote,
         "inpaint_codes": guard_codes,
         "court_invalid_is_excluded": True,
-        "landing_error_band_m": court_inputs.landing_error_band_m,
     }
     return RunVideoInputs(
         (track, pose.bboxes, pose.scores, pose.kps, pose.ndet),

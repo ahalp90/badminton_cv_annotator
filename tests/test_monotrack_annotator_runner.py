@@ -128,7 +128,6 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
         assert kwargs['gate_court_info'] is inputs.court.gate_court_info
         assert kwargs['cut_frames'] == [30]
-        assert kwargs['landing_error_band_m'] == 0.05
         return empty_annotation(kwargs['spans'], [])._replace(filtered_by_rally={0: [10, 20]}, striker_halves=[Half.BOT])
 
     monkeypatch.setattr(video_module, 'run_video', infer)

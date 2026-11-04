@@ -36,10 +36,10 @@ def returning_view_context() -> LandingContext:
         track=track, fps=30.0,
         kinematics=LandingKinematics(np.full(25, np.nan), np.full(25, np.nan), compute_speed(track)),
         landing_options=LandingFilterOptions(3, 0.01, 2, 3, 0.5, use_settle=False, use_carry=False),
-        net_band=(0.0, 1.0), resolution=resolution, court_info={},
+        resolution=resolution,
         resolved=resolve(BaseAnnotatorConfig(), 30.0), definitive_exclusion_mask=exclusions,
         shuttle_hallucination_mask=np.zeros(25, dtype=bool), source_codes=None,
-        rejection_diagnostics=[], band_m=0.1, landing_horizons_s=(0.1, 0.5), horizon_rows=[],
+        rejection_diagnostics=[], landing_horizons_s=(0.1, 0.5), horizon_rows=[],
         scene_courts=(SceneCourt(10, 16, court, (340.0, 380.0), 0.1),
                       SceneCourt(16, 25, court, (340.0, 380.0), 0.1)),
     )

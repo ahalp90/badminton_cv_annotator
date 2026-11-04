@@ -768,7 +768,7 @@ class GeometricVerdictRow(NamedTuple):
 
 def rally_verdict(
     rally_id: int, striker_half: Half, next_server: Half | None, landing: Landing | None,
-    band_m: float,
+    band_m: float | None,
 ) -> VerdictRow:
     """Use the next server to identify the winner, falling back to the landing.
 
@@ -788,6 +788,7 @@ def rally_verdict(
     margin_m = None
     within_line = within_net = False
     if landing is not None:
+        assert band_m is not None
         margins = landing_margins(landing.norm, OTHER_HALF[striker_half])
         margin_m = margins.margin_m
         within_line = margins.line_clear_m < band_m

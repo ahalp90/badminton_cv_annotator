@@ -55,15 +55,12 @@ class LandingContext:
     fps: float
     kinematics: point_winner.LandingKinematics
     landing_options: point_winner.LandingFilterOptions
-    net_band: tuple[float, float]
     resolution: tuple[float, float]
-    court_info: dict
     resolved: ResolvedAnnotatorConfig
     definitive_exclusion_mask: np.ndarray
     shuttle_hallucination_mask: np.ndarray
     source_codes: np.ndarray | None
     rejection_diagnostics: list[dict[str, object]] | None
-    band_m: float
     landing_horizons_s: tuple[float, ...]
     horizon_rows: list[LandingHorizonRow] | None
     scene_courts: tuple[SceneCourt, ...]
@@ -187,6 +184,7 @@ def select_landing(
     striker: point_winner.Half,
     next_start: int,
     context: LandingContext,
+    scene: SceneCourt,
     *, search_start: int,
 ) -> LandingSelection:
     """Select one landing and record event-mask rejections around its window."""
@@ -233,9 +231,9 @@ def select_landing(
         context.kinematics,
         context.landing_options,
         striker,
-        context.net_band,
+        scene.net_band,
         context.resolution,
-        context.court_info,
+        scene.court_info,
         context.resolved.thresholds,
         context.fps,
         shuttle_hallucination_mask=context.shuttle_hallucination_mask,
@@ -271,6 +269,7 @@ def build_horizon_rows(
     strict_verdict: point_winner.VerdictRow,
     strict_winner: point_winner.Half | None,
     context: LandingContext,
+    scene: SceneCourt,
 ) -> None:
     """Append capped-landing comparisons in requested horizon order."""
     if context.landing_horizons_s:
@@ -296,16 +295,16 @@ def build_horizon_rows(
                 context.kinematics,
                 context.landing_options,
                 striker,
-                context.net_band,
+                scene.net_band,
                 context.resolution,
-                context.court_info,
+                scene.court_info,
                 context.resolved.thresholds,
                 context.fps,
                 shuttle_hallucination_mask=context.shuttle_hallucination_mask,
                 infer_net_fault=selection.search_start == selection.final_contact,
             )
         capped_verdict = point_winner.rally_verdict(
-            rally_id, striker, next_server, capped_landing, context.band_m,
+            rally_id, striker, next_server, capped_landing, scene.landing_error_band_m,
         )
         capped_winner = winner_from_verdict(capped_verdict, striker)
         context.horizon_rows.append(LandingHorizonRow(
@@ -354,7 +353,7 @@ def build_rally_outcome(
     if final_contact is None:
         landing = None
         verdict = point_winner.rally_verdict(
-            rally_id, striker, next_server, landing, context.band_m,
+            rally_id, striker, next_server, landing, None,
         )
         geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
         geometric_verdict = point_winner.GeometricVerdictRow(
@@ -364,10 +363,6 @@ def build_rally_outcome(
 
     search_start = final_contact
     assert scene is not None
-    context = replace(
-        context, court_info=scene.court_info, net_band=scene.net_band,
-        band_m=scene.landing_error_band_m,
-    )
     # A landing search cannot carry one camera's geometry across a scene cut.
     next_start = min(next_start, scene.end_frame)
     if scene.start_frame > final_contact:
@@ -378,10 +373,10 @@ def build_rally_outcome(
         speed[search_start] = np.nan
         context = replace(context, kinematics=context.kinematics._replace(speed=speed))
     selection = select_landing(
-        rally_id, final_contact, striker, next_start, context, search_start=search_start,
+        rally_id, final_contact, striker, next_start, context, scene, search_start=search_start,
     )
     verdict = point_winner.rally_verdict(
-        rally_id, striker, next_server, selection.landing, context.band_m,
+        rally_id, striker, next_server, selection.landing, scene.landing_error_band_m,
     )
     geometric, geometric_winner, _source = point_winner.geometric_verdict(
         striker, selection.landing,
@@ -398,7 +393,7 @@ def build_rally_outcome(
         selection.window_closed_by_mask,
     )
     build_horizon_rows(
-        rally_id, striker, next_server, selection, verdict, strict_winner, context,
+        rally_id, striker, next_server, selection, verdict, strict_winner, context, scene,
     )
     return RallyOutcome(verdict, selection.landing, geometric_verdict)
 
@@ -407,9 +402,7 @@ def build_verdict_data(
     evidence: AnnotationEvidence,
     contact_data: ContactData,
     *,
-    court_info: dict,
     landing_options: point_winner.LandingFilterOptions,
-    band_m: float,
     rejection_diagnostics: list[dict[str, object]] | None,
     landing_horizons_s: tuple[float, ...],
     horizon_rows: list[LandingHorizonRow] | None,
@@ -423,15 +416,12 @@ def build_verdict_data(
         fps=evidence.fps,
         kinematics=kinematics,
         landing_options=landing_options,
-        net_band=evidence.net_band,
         resolution=evidence.resolution,
-        court_info=court_info,
         resolved=evidence.resolved,
         definitive_exclusion_mask=evidence.exclusion_mask,
         shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
         source_codes=evidence.source_codes,
         rejection_diagnostics=rejection_diagnostics,
-        band_m=band_m,
         landing_horizons_s=landing_horizons_s,
         horizon_rows=horizon_rows,
         scene_courts=evidence.scene_courts,
