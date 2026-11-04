@@ -110,10 +110,10 @@ from annotator.training.workflow import (
 
 settings = TrainingSettings()
 rally = replace(
-    settings.rally_layers,
-    tree=replace(settings.rally_layers.tree, max_leaf_nodes=15, max_iter=200),
+    settings.rally,
+    tree=replace(settings.rally.tree, max_leaf_nodes=15, max_iter=200),
 )
-settings = replace(settings, rally_layers=rally)
+settings = replace(settings, rally=rally)
 
 fit_from_manifest(
     load_manifest(Path("retune/manifest.json")),
@@ -125,7 +125,8 @@ fit_from_manifest(
 The settings separate contact fitting, contact selection, rally fitting, review
 fitting and heuristic preprocessing. Tree controls include learning rate, rounds,
 maximum leaves, minimum child weight, regularisation, seed and CPU/CUDA device.
-Rally controls also include the proposal budgets.
+Rally controls also include the proposal budgets and total weight per judged
+rally (`span_weight`, default 372).
 Contact fitting also exposes positive and ignored radii. Rally fitting exposes
 preferred, fallback and review correctness tolerances. These frame counts use
 30 fps as their reference and scale to each video's frame rate.

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from annotator.contacts.features import (
-    REGION_FIELDS,
+    build_candidate_mask,
     build_contact_features,
     build_eligible_intervals,
 )
@@ -52,7 +52,7 @@ def test_feature_values_match_reference(fps: float) -> None:
         expected = reference[f'fps_{int(fps)}']
     intervals = json.loads(gzip.decompress((REFERENCE_DIR / 'contact_intervals.json.gz').read_bytes()))[str(int(fps))]
     actual = build_contact_features(**feature_inputs(), fps=fps)
-    expected_fields = ("interval_id", "frame", *REGION_FIELDS, *CONTACT_FEATURE_NAMES)
+    expected_fields = ("interval_id", "frame", *CONTACT_FEATURE_NAMES)
     assert actual.rows.dtype.names == expected_fields
     for name in expected_fields:
         np.testing.assert_array_equal(actual.rows[name], expected[name], err_msg=name)
@@ -78,6 +78,53 @@ def test_invisible_motion_and_window_edges() -> None:
     rows = build_contact_features(**feature_inputs(), fps=30.0).rows
     invisible = np.isin(rows['frame'], [30, 31, 32, 33, 34])
     assert np.isnan(rows['shuttle_vx_t+0'][invisible]).all()
-    assert np.isnan(rows['shuttle_vx_t-10'][:10]).all()
-    assert np.isnan(rows['shuttle_vx_t+10'][-10:]).all()
+    assert np.isnan(rows['shuttle_vx_t-10'][rows['frame'] < 15]).all()
+    assert np.isnan(rows['shuttle_vx_t+10'][rows['frame'] >= 150]).all()
     assert rows['shuttle_visible_t+0'][rows['frame'] == 30] == 0
+
+
+def test_sparse_candidates_read_offsets_from_video_frames(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidates = np.zeros(180, dtype=bool)
+    candidates[[25, 60, 155]] = True
+    monkeypatch.setattr('annotator.contacts.features.build_candidate_mask', lambda *_args: candidates)
+    rows = build_contact_features(**feature_inputs(), fps=30.0).rows
+    np.testing.assert_array_equal(rows['frame'], [25, 60, 155])
+    np.testing.assert_array_equal(rows['shuttle_visible_t+5'], [0, 1, np.nan])
+
+
+def test_search_interval_ids_survive_an_interval_without_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    candidates = np.zeros(180, dtype=bool)
+    candidates[155] = True
+    monkeypatch.setattr('annotator.contacts.features.build_candidate_mask', lambda *_args: candidates)
+    inputs = feature_inputs() | {'tracker_intervals': [(50, 75), (140, 160)]}
+    features = build_contact_features(**inputs, fps=30.0)
+    assert features.search_intervals == [(5, 75), (95, 160)]
+    np.testing.assert_array_equal(features.rows['interval_id'], [1])
+
+
+@pytest.mark.parametrize(('prior', 'expected_start', 'expected_end'), [
+    ('heuristic', 135, 166), ('impulse', 135, 166), ('wrist', 140, 161),
+    ('visibility', 135, 166), ('rally_start', 105, 196), ('scene_start', 135, 166),
+])
+def test_each_prior_nominates_its_contact_window(prior: str, expected_start: int, expected_end: int) -> None:
+    signals = {
+        'shuttle_visible': np.ones(250),
+        'shuttle_impulse_ratio': np.full(250, np.nan),
+        'wrist_gap_min': np.full(250, np.nan),
+    }
+    raw_contacts, rallies, scenes = [], [], []
+    if prior == 'heuristic':
+        raw_contacts = [150]
+    elif prior == 'impulse':
+        signals['shuttle_impulse_ratio'][150] = 2
+    elif prior == 'wrist':
+        signals['wrist_gap_min'][150] = 1
+    elif prior == 'visibility':
+        signals['shuttle_visible'][150:] = 0
+    elif prior == 'rally_start':
+        rallies = [(150, 180)]
+    else:
+        scenes = [(150, 200)]
+    candidates = build_candidate_mask(signals, [(100, 200)], rallies, raw_contacts, scenes, 30.0)
+    expected = np.concatenate((np.arange(55, 100), np.arange(expected_start, expected_end)))
+    np.testing.assert_array_equal(np.flatnonzero(candidates), expected)

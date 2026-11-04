@@ -9,13 +9,12 @@ import argparse
 import time
 from pathlib import Path
 
-import joblib
 from threadpoolctl import threadpool_limits
 
 from annotator.hybrid import predict_contact_features
 from annotator.models import fitted_trees, load_models
 from annotator.sequence.contacts import stream_payload
-from experiments.annotator.development import progress
+from experiments.annotator.development import load_prepared, progress
 from experiments.annotator.heuristic_only_tune.run import (
     read_json,
     source_record,
@@ -45,7 +44,7 @@ def main() -> None:
         for path in sorted((args.prepared / 'videos').glob('*.joblib')):
             if read_json(path.with_suffix('.json.gz'))['split'] != 'validation':
                 continue
-            prepared = joblib.load(path)
+            prepared = load_prepared(args.prepared, path.stem)
             identity = prepared.video.identity
             videos.append(identity)
             expected = {name: read_json(folder / f'{identity}.json.gz') for name, folder in streams.items()}

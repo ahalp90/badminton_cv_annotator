@@ -7,6 +7,7 @@ from itertools import combinations
 import numpy as np
 
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
 from annotator.sequence.features import (
     PHYSICAL_FEATURE_NAMES,
@@ -16,7 +17,6 @@ from annotator.sequence.features import (
     sequence_summary,
     side_agreement,
 )
-from annotator.sequence.repairs import RallyRepairs
 
 FEATURE_NAMES = (
     *(f'before__{name}' for name in SUMMARY_FEATURE_NAMES),
@@ -44,7 +44,7 @@ class RallyContext:
     fps: float
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
-    repairs: RallyRepairs
+    candidates: RallyCandidates
     frame_count: int | None = None
     bounds_supplied: bool = False
 
@@ -116,22 +116,27 @@ def toggle_proposals(
 def unused_evidence(
     after: ContactSequence, candidates: tuple[ContactEvent, ...], fps: float,
 ) -> tuple[tuple[float, ...], int | None]:
+    """Measure omitted contacts and the gaps where another contact could fit.
+
+    A usable candidate lies inside the rally and far enough from selected contacts.
+    Gaps include the intervals before the first and after the last contact.
+    """
     frames = np.asarray([event.frame for event in after.events], dtype=np.int64)
     chosen = set(frames.tolist())
     unused = tuple(event for event in candidates if event.frame not in chosen)
     durations = np.diff([after.start_frame, *frames.tolist(), after.end_frame])
     positive_gaps = set(np.flatnonzero(durations > 0).tolist())
     distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
-    by_gap: dict[int, list[float]] = {}
-    usable = []
+    probabilities_by_gap: dict[int, list[float]] = {}
+    usable_count = 0
     for event in unused:
         inside = after.start_frame <= event.frame < after.end_frame
         spaced = not np.any(np.abs(frames - event.frame) <= distance)
         if inside and spaced:
             gap = int(np.searchsorted(frames, event.frame))
-            by_gap.setdefault(gap, []).append(event.probability)
-            usable.append(event)
-    present = positive_gaps & set(by_gap)
+            probabilities_by_gap.setdefault(gap, []).append(event.probability)
+            usable_count += 1
+    gaps_with_candidates = positive_gaps & set(probabilities_by_gap)
     strongest = min(unused, key=lambda event: (-event.probability, event.frame)) if unused else None
     left_gap = right_gap = np.nan
     if strongest is not None and after.start_frame <= strongest.frame < after.end_frame:
@@ -140,10 +145,18 @@ def unused_evidence(
         right = int(frames[position]) if position < len(frames) else after.end_frame
         left_gap, right_gap = (strongest.frame - left) / fps, (right - strongest.frame) / fps
     values = (
-        float(len(unused)), *probability_summary(unused), float(len(usable)), float(len(unused) - len(usable)),
-        float(len(present)), float(len(positive_gaps)), float(len(positive_gaps - present)),
-        float(max(durations) / fps), float(len(durations) - 1 in present),
-        *summarise_gap_maxima(list(by_gap.values())), left_gap, right_gap,
+        float(len(unused)),
+        *probability_summary(unused),
+        float(usable_count),
+        float(len(unused) - usable_count),
+        float(len(gaps_with_candidates)),
+        float(len(positive_gaps)),
+        float(len(positive_gaps - gaps_with_candidates)),
+        float(max(durations) / fps),
+        float(len(durations) - 1 in gaps_with_candidates),
+        *summarise_gap_maxima(list(probabilities_by_gap.values())),
+        left_gap,
+        right_gap,
     )
     return values, None if strongest is None else strongest.frame
 
@@ -164,12 +177,18 @@ def option_features(
         after.events[0].frame if after.events else None,
         None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
     )
-    raw, unused_frame = unused_evidence(after, candidates, context.fps)
+    unused_features, unused_frame = unused_evidence(after, candidates, context.fps)
     return np.concatenate((
-        before_summary, sequence_summary(after, context.fps), before_sides, side_agreement(after),
-        (len(added), len(deleted)), probability_summary(added), probability_summary(deleted),
-        *(physical_or_nan(context.repairs.physical, frame) for frame in physical_frames),
-        raw, physical_or_nan(context.repairs.physical, unused_frame),
+        before_summary,
+        sequence_summary(after, context.fps),
+        before_sides,
+        side_agreement(after),
+        (len(added), len(deleted)),
+        probability_summary(added),
+        probability_summary(deleted),
+        *(physical_or_nan(context.candidates.physical, frame) for frame in physical_frames),
+        unused_features,
+        physical_or_nan(context.candidates.physical, unused_frame),
     ))
 
 
@@ -181,26 +200,24 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     matrices = []
     span_rows = {}
     stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
-    repairs_by_span: dict[int, list[ContactSequence]] = {}
-    for sequence in context.repairs.sequences:
-        repairs_by_span.setdefault(sequence.span_id, []).append(sequence)
     distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
     for before in context.initial:
-        candidates = context.repairs.candidates.get(before.span_id, ())
+        candidates = context.candidates.by_span.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in candidates)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
-        combined_sequences = toggle_proposals(
+        proposals = toggle_proposals(
             before, candidates, context.events[first:last], previous_end, distance, max_edits, deletion_candidates,
         )
         unique = {sequence_key(before): before}
-        for sequence in (*repairs_by_span.get(before.span_id, ()), *combined_sequences):
+        for sequence in proposals:
             if context.bounds_supplied:
                 if any(not before.start_frame <= event.frame < before.end_frame for event in sequence.events):
                     continue
                 sequence = replace(sequence, start_frame=before.start_frame, end_frame=before.end_frame)
             unique.setdefault(sequence_key(sequence), sequence)
         original_frames = {event.frame for event in before.events}
+        # Score ties prefer the unchanged rally, then fewer contact edits.
         ordered = sorted(unique.values(), key=lambda sequence: (
             sequence_key(sequence) != sequence_key(before),
             len(original_frames ^ {event.frame for event in sequence.events}),

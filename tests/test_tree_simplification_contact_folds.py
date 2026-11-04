@@ -9,6 +9,7 @@ import joblib
 import numpy as np
 import pytest
 
+from annotator.contacts.features import contact_feature_dtype
 from annotator.training.contact import ContactFitConfig
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools
@@ -54,7 +55,8 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
         split = 'validation' if group == 'V' else 'train'
         video = SimpleNamespace(identity=identity, split=split, fps=30.0,
                                 rallies=(SimpleNamespace(frames=(30, 10)),))
-        joblib.dump(SimpleNamespace(video=video, group=group, features=SimpleNamespace(rows=np.zeros(2))),
+        joblib.dump(SimpleNamespace(video=video, group=group,
+                                   features=SimpleNamespace(rows=np.zeros(2, dtype=contact_feature_dtype()))),
                     prepared / 'videos' / f'{identity}.joblib')
         metadata = {'video': identity, 'group': group, 'split': split}
         experiment.write_json(prepared / 'videos' / f'{identity}.json.gz', metadata)

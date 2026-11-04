@@ -1,7 +1,7 @@
-"""Fit rally selectors and their review ranker with downstream groups held out.
+"""Fit rally selectors and their review ranker.
 
-Contact predictions are supplied by the caller. Their inherited indirect paths
-between training groups remain; only separate validation data measures quality.
+Review training uses predictions from selectors fitted without each video's group.
+These selector fits reuse the contact predictions supplied by the caller.
 """
 
 from collections.abc import Sequence
@@ -24,7 +24,6 @@ from annotator.sequence.rally_options import (
 )
 from annotator.training.rally_targets import (
     option_targets_at_tolerances,
-    original_option_rows,
     preferred_targets,
 )
 from annotator.training.sequences import (
@@ -36,13 +35,17 @@ from annotator.training.trees import TreeFitConfig, fit_binary_tree
 
 @dataclass(frozen=True)
 class RallyFitConfig:
-    """Selected development settings for one rally selector."""
+    """Selected development settings for one rally selector.
+
+    ``span_weight`` is each judged rally's total weight, shared by its options.
+    """
 
     tree: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(
         max_iter=400, max_leaf_nodes=31,
     ))
     max_edits: int = 3
     deletion_candidates: int = 6
+    span_weight: float = 372.0
     preferred_tolerance_at_30_fps: int = 5
     fallback_tolerance_at_30_fps: int = 10
     review_tolerance_at_30_fps: int = 10
@@ -58,8 +61,8 @@ class RallyTrainingPool:
 
 @dataclass(frozen=True)
 class RallyModelFit:
-    models: RallySelector
-    cross_fitted: dict[str, RallyPrediction]
+    selector: RallySelector
+    held_group_predictions: dict[str, RallyPrediction]
 
 
 def judged_weights(pool: RallyOptions, targets: np.ndarray) -> np.ndarray:
@@ -88,7 +91,7 @@ def fit_selector(
         raise ValueError('supply at least one training pool')
     labelled = np.concatenate(labels)
     if set(labelled.tolist()) != {0, 1}:
-        raise ValueError('layer training needs both correct and incorrect judged options')
+        raise ValueError('selector training needs both correct and incorrect judged options')
     return fit_binary_tree(
         np.concatenate(matrices), labelled, sample_weight=np.concatenate(weights) * span_weight, balanced=False,
         max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
@@ -100,49 +103,46 @@ def fit_selector(
 
 def prepare_training_pools(
     videos: Sequence[SequenceTrainingVideo], config: RallyFitConfig,
-) -> tuple[dict[str, RallyTrainingPool], float]:
+) -> dict[str, RallyTrainingPool]:
     pools = {}
-    judged_original_rows = judged_original_spans = 0
     for video in videos:
-        context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
+        context = RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count, video.bounds_supplied)
         pool = build_rally_options(context, config.max_edits, config.deletion_candidates)
         wide, preferred = option_targets_at_tolerances(
             video, pool, (config.fallback_tolerance_at_30_fps, config.preferred_tolerance_at_30_fps),
         )
-        original = original_option_rows(pool)
-        included = original[wide[original] >= 0]
-        judged_original_rows += len(included)
-        judged_original_spans += len({pool.sequences[row].span_id for row in included})
         targets = preferred_targets(pool, wide, preferred)
         pools[video.identity] = RallyTrainingPool(video.identity, video.group, pool, targets)
-    if not judged_original_spans:
-        raise ValueError('rally training needs judged original-option spans to anchor option weights')
-    return pools, judged_original_rows / judged_original_spans
+    return pools
 
 
 def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitConfig) -> RallyModelFit:
+    """Fit the deployed selector on all videos and predictions for review training.
+
+    Each group's review-training predictions use a selector fitted without that group.
+    """
     groups = tuple(sorted({video.group for video in videos}))
     if len(groups) < 2:
         raise ValueError('rally training needs at least two groups for held-group review predictions')
     if len({video.identity for video in videos}) != len(videos):
         raise ValueError('rally training video identities must be unique')
-    pools, span_weight = prepare_training_pools(videos, config)
+    pools = prepare_training_pools(videos, config)
 
     def fit(selected: list[RallyTrainingPool]) -> RallySelector:
         selector = fit_selector(
             [pool.options for pool in selected], [pool.targets for pool in selected],
-            config.tree, span_weight=span_weight,
+            config.tree, span_weight=config.span_weight,
         )
         return RallySelector(selector, config.max_edits, config.deletion_candidates)
 
-    models = fit(list(pools.values()))
-    predictions = {}
-    for group in groups:
-        held_model = fit([pool for pool in pools.values() if pool.group != group])
+    selector = fit(list(pools.values()))
+    held_group_predictions = {}
+    for held_group in groups:
+        held_model = fit([pool for pool in pools.values() if pool.group != held_group])
         for identity, pool in pools.items():
-            if pool.group == group:
-                predictions[identity] = predict_rally_options(held_model, pool.options)
-    return RallyModelFit(models, predictions)
+            if pool.group == held_group:
+                held_group_predictions[identity] = predict_rally_options(held_model, pool.options)
+    return RallyModelFit(selector, held_group_predictions)
 
 
 def fit_review_model(features: RallyReviewFeatures, correctness: np.ndarray, config: TreeFitConfig) -> Any:

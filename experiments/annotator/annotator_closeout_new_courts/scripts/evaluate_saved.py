@@ -18,7 +18,7 @@ from annotator.sequence.contacts import (
     scale_frames,
     stream_from_payload,
 )
-from annotator.sequence.rally_model import alternate_sides
+from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import (
     LabelledRally,
     judge_rally_boundaries,
@@ -60,7 +60,7 @@ def judge_section(
     assert rally is not None
     contained = boundary.outcome == 'boundaries_right'
     matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
-    revised = alternate_sides((sequence,), sequence.events)[0][0]
+    revised = fit_rally_sides((sequence,), sequence.events)[0][0].sequence
     wrong_player = sum(rally.sides[label] is not None and revised.events[prediction].side != rally.sides[label]
                        for label, prediction, _offset in matches)
     missing = len(rally.frames) - len(matches)

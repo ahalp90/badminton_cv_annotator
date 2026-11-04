@@ -66,7 +66,10 @@ See [Fixed heuristics](heuristics.md) for the individual rules and research cont
 The contact search includes impulse peaks, wrist-distance minima, visibility
 changes, rough rally starts, scene starts and a serve look-back window.
 [`contacts/features.py`](../../src/annotator/contacts/features.py) measures
-85 values per searched frame: 17 shuttle/player signals at five time offsets.
+85 values per candidate frame: 17 shuttle/player signals at five time offsets.
+It applies the search-region priors once and returns only candidate rows. Both
+training and inference use those rows directly. Time offsets still refer to the
+full video timeline, including frames outside the candidate set.
 
 [`contacts/model.py`](../../src/annotator/contacts/model.py) scores candidates
 with the contact classifier. Candidates compete by probability and temporal
@@ -103,9 +106,9 @@ Ground truth does not force a frame into the candidate set. A labelled contact
 with no eligible candidate within ±1 frame contributes no positive example.
 In the selected model's 32 training videos, **26,893 of 27,571 labelled contacts
 (97.5%)** have at least one positive candidate frame, providing **80,651 positive
-frame examples**. The remaining 678 contacts have no feature/search rows within
-that radius. None were lost solely to the candidate-region filter once feature
-rows were available.
+frame examples**. The remaining 678 contacts fall outside the feature search
+intervals by more than that radius. The candidate-region rules excluded no
+additional labelled contacts within those intervals.
 
 The [saved coverage counts and measurement command](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md#contact-training-coverage)
 give the per-video breakdown. The training implementation is in
@@ -113,15 +116,12 @@ give the per-video breakdown. The training implementation is in
 
 ## Choose a contact sequence for each rally
 
-The rally model compares alternative sequences, each containing a concrete set
-of contact frames. The proposal builder shortlists up to two earlier serve frames
-and six later-contact frames. It retains the original sequence and proposes serve
-repairs, deletions and additions. The selected model allows up to three combined
-changes and considers up to six contacts for deletion.
-
-Some proposals come from the earlier serve/deletion rules. Those rules remain
-because they contribute choices the current model was trained to score. The
-retired sequence classifiers are no longer involved.
+The rally model compares alternative contact sequences. Shortlist up to two
+earlier serve candidates and six later-contact candidates. Keep the initial
+sequence, then generate alternatives by adding shortlisted contacts and deleting
+from the first contact plus the five weakest remaining contacts. The selected
+model allows up to three combined changes. Spacing and neighbouring-rally bounds
+restrict those combinations.
 
 Each proposal describes the original and proposed contacts, their timing and
 probabilities, raw court-half guesses, physical contact evidence and unused

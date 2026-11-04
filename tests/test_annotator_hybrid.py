@@ -19,6 +19,7 @@ from annotator.courts.scenes import SceneCourt
 from annotator.hybrid import sequence_inputs
 from annotator.models import SideGeometry
 from annotator.preparation import AnnotationEvidence
+from annotator.sequence.candidates import build_rally_candidates
 from annotator.sequence.contacts import initial_sequences
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -26,7 +27,6 @@ from annotator.sequence.rally_model import (
     RallySelector,
 )
 from annotator.sequence.rally_options import FEATURE_NAMES
-from annotator.sequence.repairs import build_rally_repairs
 from annotator.training.workflow import Split, VideoInput, sequence_training_video
 from annotator.types import ContactCandidate, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
@@ -81,12 +81,12 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         assert side_for_frame(170) is None
         assert side_for_frame(220) is not None
         initial = initial_sequences(evidence.heuristic_spans, events)
-        pools.append(build_rally_repairs(
+        pools.append(build_rally_candidates(
             initial, events, scores, rows, search_intervals, fps=30.0, side_for_frame=side_for_frame,
         ))
     video_pool, scene_pool = pools
-    assert scene_pool.candidates[0]
-    assert scene_pool.sequences == video_pool.sequences
+    assert scene_pool.by_span[0]
+    assert scene_pool.by_span == video_pool.by_span
     for frame, physical in scene_pool.physical.items():
         np.testing.assert_array_equal(physical, video_pool.physical[frame])
 
@@ -95,9 +95,9 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     frame_count = 100
     rows = np.zeros(frame_count, dtype=contact_feature_dtype())
     rows['frame'] = np.arange(frame_count)
-    rows['region_current_raw'][[1, 10, 16, 40, 60, 80]] = 1
     rows['shuttle_speed_t+0'][[1, 10, 16, 40, 60, 80]] = [.8, .99, .95, .8, .7, .95]
     rows['pose_valid_top_t+0'][16] = 1
+    rows = rows[[1, 10, 16, 40, 60, 80]]
     features = ContactFeatures(rows, [(0, frame_count)], [(0, frame_count)])
     mask = np.zeros(frame_count, dtype=bool)
     mask[[1, 10, 40, 60]] = True
@@ -135,8 +135,8 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == [10, 80]
-    for pool in (training.repairs, inference.refined.pool.context.repairs):
-        candidate_frames = [event.frame for event in pool.candidates[0]]
+    for pool in (training.candidates, inference.refined.pool.context.candidates):
+        candidate_frames = [event.frame for event in pool.by_span[0]]
         assert candidate_frames == [1, 40, 60]
         assert 1 in pool.physical
 

@@ -9,18 +9,16 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import Half
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.repairs import RallyRepairs
-from annotator.training.rally_layers import RallyFitConfig, prepare_training_pools
+from annotator.training.rally import RallyFitConfig, prepare_training_pools
 from annotator.training.rally_targets import option_targets_at_tolerances
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import targets
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
-    sequence_key,
 )
-from experiments.annotator.tree_simplification.pools import original_options
 from experiments.annotator.tree_simplification.targets import (
     TargetJob,
     _target_job,
@@ -37,10 +35,7 @@ def make_pool(
         0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
     )
     events = initial.events
-    original_option_sequence = ContactSequence(
-        0, 0, 200, (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT)),
-    )
-    option_pool = RallyRepairs((initial, original_option_sequence), {}, {})
+    option_pool = RallyCandidates({}, {})
     rally = LabelledRally('rally', (20, 60), (Half.TOP, Half.BOT))
     video = SequenceTrainingVideo('video', 'group', fps, (initial,), events, option_pool, (rally,), 210)
     return LabelledOptions(
@@ -76,11 +71,11 @@ def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
     exact = ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
     shifted = replace(exact, events=(ContactEvent(25, 0.9, Half.TOP), ContactEvent(65, 0.9, Half.BOT)))
     pool = make_pool((exact, shifted), (0, 0))
-    monkeypatch.setattr('annotator.training.rally_layers.build_rally_options', lambda *_args: pool.runtime)
+    monkeypatch.setattr('annotator.training.rally.build_rally_options', lambda *_args: pool.runtime)
     strict = RallyFitConfig(preferred_tolerance_at_30_fps=3, fallback_tolerance_at_30_fps=6)
     relaxed = replace(strict, preferred_tolerance_at_30_fps=6)
-    strict_pools, _ = prepare_training_pools([pool.video], strict)
-    relaxed_pools, _ = prepare_training_pools([pool.video], relaxed)
+    strict_pools = prepare_training_pools([pool.video], strict)
+    relaxed_pools = prepare_training_pools([pool.video], relaxed)
     np.testing.assert_array_equal(strict_pools['video'].targets, [1, 0])
     np.testing.assert_array_equal(relaxed_pools['video'].targets, [1, 1])
 
@@ -121,28 +116,6 @@ def test_unknown_ten_frame_row_cannot_supply_five_frame_positive() -> None:
     np.testing.assert_array_equal(actual, pool.targets)
 
 
-def test_edit_only_five_frame_positive_does_not_change_original_span_targets() -> None:
-    initial = ContactSequence(
-        0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
-    )
-    original_sequence = ContactSequence(
-        0, 0, 200, (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT)),
-    )
-    edit_only = ContactSequence(
-        0, 0, 200,
-        (ContactEvent(20, 0.8, Half.TOP), ContactEvent(60, 0.8, Half.BOT), ContactEvent(100, 0.7, Half.TOP)),
-    )
-    pool = make_pool((initial, original_sequence, edit_only), (0, 0, 0))
-    five = np.asarray([0, 0, 1], dtype=np.int8)
-
-    all_option_targets = preferred_targets(pool, five)
-    original = original_options(pool)
-    original_five = five[[row for row, sequence in enumerate(pool.sequences)
-                          if sequence_key(sequence) in {sequence_key(initial), sequence_key(original.sequences[1])}]]
-    original_targets = preferred_targets(original, original_five)
-
-    assert all_option_targets[2] == 1
-    np.testing.assert_array_equal(original_targets, (0, 0))
 
 
 @pytest.mark.parametrize(('fps', 'shift', 'expected'), [(30.0, 6, 0), (60.0, 10, 1)])
@@ -178,7 +151,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         ContactSequence(1, 100, 180, (ContactEvent(116, 0.9, Half.TOP), ContactEvent(136, 0.9, Half.BOT))),
     )
     events = (*first.events, *second.events)
-    option_pool = RallyRepairs((), {}, {})
+    option_pool = RallyCandidates({}, {})
     rallies = (
         LabelledRally('first', (10, 30), (Half.TOP, Half.BOT)),
         LabelledRally('boundary', (85,), (None,)),

@@ -23,7 +23,7 @@ class ContactEvent:
 
 @dataclass(frozen=True)
 class ContactSequence:
-    """One half-open rally interval and the contacts it currently owns."""
+    """One half-open rally interval and its contacts in chronological order."""
 
     span_id: int
     start_frame: int

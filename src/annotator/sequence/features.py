@@ -54,7 +54,7 @@ def positive_probabilities(model: Any, matrix: np.ndarray) -> np.ndarray:
 def physical_rows(contact_features: np.ndarray, frames: Iterable[int]) -> dict[int, np.ndarray]:
     """Index the physical contact features of each requested frame.
 
-    :param contact_features: Structured feature rows for one video, one per frame.
+    :param contact_features: Structured feature rows for the video's candidate frames.
     :param frames: Frames whose physical evidence the rally model uses.
     :return: One float64 row per frame, in PHYSICAL_FEATURE_NAMES order, NaNs kept.
     """

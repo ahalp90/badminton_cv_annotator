@@ -3,8 +3,11 @@
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.candidates import shortlist_later_frames, shortlist_serve_frames
+from annotator.sequence.candidates import (
+    check_events_match_kept_candidates,
+    shortlist_later_frames,
+    shortlist_serve_frames,
+)
 from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
@@ -12,11 +15,7 @@ from annotator.sequence.contacts import (
     apply_choices,
     initial_sequences,
 )
-from annotator.sequence.repairs import (
-    add_later_contacts,
-    check_events_match_kept_candidates,
-    serve_and_deletion_repairs,
-)
+from annotator.sequence.rally_options import toggle_proposals
 
 
 def _scores(rows: list[tuple[int, int, float, bool]]) -> CandidateScores:
@@ -113,27 +112,6 @@ def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
     assert [event.frame for event in stream] == [20, 110, 170, 200]
 
 
-def test_serve_and_deletion_repairs_keep_order_and_skip_redundant_combinations():
-    before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    earlier = [ContactEvent(frame, .5, None) for frame in (105, 110)]
-    seeds = serve_and_deletion_repairs(before, earlier, before.events, previous_end=-1)
-    assert [_frames(seed) for seed in seeds] == [
-        [120, 160], [105, 120, 160], [105, 160], [110, 120, 160], [110, 160],
-        [160], [120], [105, 120], [105], [110, 120], [110],
-    ]
-    assert seeds[1].start_frame == 100
-
-
-def test_earlier_serve_absorbs_gap_contacts_and_stops_at_previous_rally():
-    gap = ContactEvent(98, .7, Half.BOT)
-    before = ContactSequence(1, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    earlier = [ContactEvent(frame, .5, None) for frame in (90, 97)]
-    seeds = serve_and_deletion_repairs(before, earlier, [gap, *before.events], previous_end=95)
-    assert not any(90 in _frames(seed) for seed in seeds)
-    added = next(seed for seed in seeds if _frames(seed) == [97, 98, 120, 160])
-    assert added.start_frame == 97 and added.events[1] is gap
-
-
 def test_initial_events_must_be_exactly_the_kept_candidates():
     scores = _scores([(20, 0, .9, True), (40, 0, .8, False)])
     check_events_match_kept_candidates((ContactEvent(20, .9, None),), scores)
@@ -141,11 +119,21 @@ def test_initial_events_must_be_exactly_the_kept_candidates():
         check_events_match_kept_candidates((ContactEvent(40, .8, None),), scores)
 
 
-def test_later_contacts_are_checked_against_each_repaired_sequence():
-    kept = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
-    deleted_first = ContactSequence(0, 100, 200, kept.events[1:])
-    candidates = [ContactEvent(125, .6, None), ContactEvent(140, .5, None), ContactEvent(250, .9, None)]
-    repaired = add_later_contacts((kept, deleted_first), candidates, distance=6)
-    assert [_frames(sequence) for sequence in repaired] == [
-        [120, 160], [120, 140, 160], [160], [125, 160], [140, 160],
-    ]
+def test_toggle_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:
+    before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    candidates = tuple(ContactEvent(frame, .7, None) for frame in (125, 140, 250))
+    options = toggle_proposals(before, candidates, before.events, -1, 6, 2, 2)
+    frames = [_frames(sequence) for sequence in options]
+    assert [125, 160] in frames
+    assert not any(120 in selected and 125 in selected for selected in frames)
+    assert not any(250 in selected for selected in frames)
+
+
+def test_toggle_earlier_start_absorbs_stream_and_respects_previous_rally() -> None:
+    before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    gap = ContactEvent(100, .7, None)
+    candidates = tuple(ContactEvent(frame, .6, None) for frame in (80, 90))
+    options = toggle_proposals(before, candidates, (gap, *before.events), 85, 6, 1, 0)
+    assert not any(80 in _frames(sequence) for sequence in options)
+    expanded = next(sequence for sequence in options if _frames(sequence) == [90, 100, 120, 160])
+    assert expanded.start_frame == 90 and expanded.events[1] is gap

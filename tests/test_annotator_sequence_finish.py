@@ -12,7 +12,6 @@ from annotator.sequence.contacts import (
     events_between,
 )
 from annotator.sequence.rally_model import (
-    alternate_sides,
     extend_boundaries,
     finish_choices,
     fit_rally_sides,
@@ -70,8 +69,8 @@ def _sided(span_id: int, frames: list[int], sides: list[Half | None]) -> Contact
 
 def test_alternation_replaces_raw_sides_with_the_better_phase():
     sequence = _sided(0, [10, 20, 30], [TOP, TOP, BOT])
-    sequences, events = alternate_sides([sequence], sequence.events)
-    assert [event.side for event in sequences[0].events] == [BOT, TOP, BOT]
+    sequences, events = fit_rally_sides([sequence], sequence.events)
+    assert [event.side for event in sequences[0].sequence.events] == [BOT, TOP, BOT]
     assert [event.side for event in events] == [BOT, TOP, BOT]
 
 
@@ -81,8 +80,8 @@ def test_tied_alternation_keeps_raw_sides_and_out_of_span_contacts_keep_theirs()
     fitted = _sided(2, [200, 210, 220], [TOP, BOT, BOT])
     stray = ContactEvent(150, .7, TOP)
     stream = [*tied.events, *unknown.events, stray, *fitted.events]
-    sequences, events = alternate_sides([tied, unknown, fitted], stream)
-    assert [[event.side for event in sequence.events] for sequence in sequences] == [
+    sequences, events = fit_rally_sides([tied, unknown, fitted], stream)
+    assert [[event.side for event in rally.sequence.events] for rally in sequences] == [
         [TOP, TOP], [None], [TOP, BOT, TOP],
     ]
     assert [(event.frame, event.side) for event in events] == [

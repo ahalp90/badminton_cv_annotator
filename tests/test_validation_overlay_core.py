@@ -15,9 +15,7 @@ import pytest
 import annotator.video_metadata as video_metadata_module
 from annotator.validation_overlay.core.cli import make_render_plan, render
 from annotator.validation_overlay.core.decode import (
-    VideoInfo,
     iter_span_frames,
-    probe_video,
 )
 from annotator.validation_overlay.core.timeline import (
     Segment,
@@ -156,9 +154,6 @@ def test_canonical_metadata_round_trips_exact_values(tmp_path: Path) -> None:
     assert VideoMetadata.from_dict(metadata.to_dict()) == metadata
 
 
-def test_validation_overlay_metadata_names_remain_compatible() -> None:
-    assert VideoInfo is VideoMetadata
-    assert probe_video is probe_video_metadata
 
 
 def test_canonical_metadata_rejects_conflicting_frame_counts(

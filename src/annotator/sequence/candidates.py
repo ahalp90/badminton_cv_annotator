@@ -1,11 +1,28 @@
 """Shortlist possible serves and missed contacts from detector scores."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
 import numpy as np
 
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
-from annotator.sequence.contacts import CandidateScores, ContactSequence, scale_frames
+from annotator.outcomes.point_winner import Half
+from annotator.sequence.contacts import (
+    CandidateScores,
+    ContactEvent,
+    ContactSequence,
+    scale_frames,
+)
+from annotator.sequence.features import physical_rows
+
+
+@dataclass(frozen=True)
+class RallyCandidates:
+    """Shortlisted contacts by rally and their shared physical evidence."""
+
+    by_span: dict[int, tuple[ContactEvent, ...]]
+    physical: dict[int, np.ndarray]
+
 
 EARLIER_SERVE_CANDIDATES = 2
 
@@ -90,3 +107,57 @@ def shortlist_later_frames(sequence: ContactSequence, scores: CandidateScores, f
             if len(selected) == LATER_CONTACT_CANDIDATES:
                 break
     return selected
+
+
+def check_events_match_kept_candidates(events: Sequence[ContactEvent], scores: CandidateScores) -> None:
+    if np.any(np.diff(scores.frames) <= 0):
+        raise ValueError('candidate scores must be in strictly increasing frame order')
+    kept_frames = scores.frames[scores.kept].tolist()
+    kept_probabilities = scores.probabilities[scores.kept].tolist()
+    event_frames = [event.frame for event in events]
+    event_probabilities = [event.probability for event in events]
+    if event_frames != kept_frames or event_probabilities != kept_probabilities:
+        raise ValueError('initial events must be exactly the kept candidates')
+
+
+def build_rally_candidates(
+    initial: Sequence[ContactSequence], events: Sequence[ContactEvent], scores: CandidateScores,
+    contact_features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
+    side_for_frame: Callable[[int], Half | None],
+) -> RallyCandidates:
+    """Gather shortlisted contacts and their physical evidence for rally proposals.
+
+    :param initial: Initial rallies in chronological order.
+    :param events: Detector-selected contacts, exactly the kept candidates.
+    :param scores: All scored contact candidates, in frame order.
+    :param contact_features: Structured physical evidence for candidate frames.
+    :param search_intervals: Half-open intervals indexed by candidate interval IDs.
+    :param fps: Video frame rate.
+    :param side_for_frame: Raw court-half guess for a shortlisted new contact.
+    :return: Shortlisted contacts by rally, with physical evidence for contact features.
+    """
+    events_by_frame = {event.frame: event for event in events}
+    serve_rows = shortlist_serve_frames(initial, scores, search_intervals, fps)
+    later_frames = {sequence.span_id: shortlist_later_frames(sequence, scores, fps) for sequence in initial}
+    serve_frames = {int(scores.frames[row]) for rows in serve_rows.values() for row in rows}
+    later_frame_set = {frame for frames in later_frames.values() for frame in frames}
+    sides = {}
+    for frame in sorted((serve_frames | later_frame_set) - set(events_by_frame)):
+        side = side_for_frame(frame)
+        sides[frame] = None if side is None else Half(side)
+    probability_by_frame = dict(zip(scores.frames.tolist(), scores.probabilities.tolist()))
+    physical = physical_rows(contact_features, set(events_by_frame) | serve_frames | later_frame_set)
+    candidates_by_span = {}
+    for before in initial:
+        candidates = {}
+        for frame in later_frames[before.span_id]:
+            candidates[frame] = ContactEvent(frame, probability_by_frame[frame], sides[frame])
+        for row in serve_rows.get(before.span_id, ()):
+            frame = int(scores.frames[row])
+            if scores.kept[row]:
+                event = events_by_frame[frame]
+            else:
+                event = ContactEvent(frame, probability_by_frame[frame], sides[frame])
+            candidates[frame] = event
+        candidates_by_span[before.span_id] = tuple(candidates[frame] for frame in sorted(candidates))
+    return RallyCandidates(candidates_by_span, physical)

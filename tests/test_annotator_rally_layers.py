@@ -10,6 +10,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.outcomes.point_winner import Half
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import (
     PHYSICAL_FEATURE_NAMES,
@@ -26,8 +27,7 @@ from annotator.sequence.rally_options import (
     RallyContext,
     build_rally_options,
 )
-from annotator.sequence.repairs import RallyRepairs
-from annotator.training.rally_layers import (
+from annotator.training.rally import (
     RallyFitConfig,
     fit_rally_models,
     fit_rally_review_model,
@@ -42,8 +42,8 @@ from annotator.training.trees import TreeFitConfig
 def training_video(identity: str, group: str, correct: bool) -> SequenceTrainingVideo:
     event = ContactEvent(40, .9, Half.TOP)
     sequence = ContactSequence(7, 10, 80, (event,))
-    pool = RallyRepairs(
-        (), {},
+    pool = RallyCandidates(
+        {},
         {40: np.zeros(len(PHYSICAL_FEATURE_NAMES))},
     )
     label = LabelledRally('rally', (40 if correct else 60,), (Half.TOP,))
@@ -52,7 +52,7 @@ def training_video(identity: str, group: str, correct: bool) -> SequenceTraining
 
 def runtime_options():
     video = training_video('validation', 'held', True)
-    return build_rally_options(RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count))
+    return build_rally_options(RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count))
 
 
 def dummy_layers() -> RallySelector:
@@ -112,14 +112,14 @@ def test_real_layer_fit_and_review_use_one_prediction_per_training_video() -> No
     config = RallyFitConfig(tree=TreeFitConfig(max_iter=3, min_child_weight=0))
     with threadpool_limits(limits=1):
         result = fit_rally_models(videos, config)
-        assert set(result.cross_fitted) == {video.identity for video in videos}
-        assert result.models.selector.n_features_in_ == len(FEATURE_NAMES)
+        assert set(result.held_group_predictions) == {video.identity for video in videos}
+        assert result.selector.selector.n_features_in_ == len(FEATURE_NAMES)
         # The shared contact evidence cannot recover the deliberately absent label.
         ranker = fit_rally_review_model(
-            videos, result.cross_fitted,
+            videos, result.held_group_predictions,
             TreeFitConfig(max_iter=3, min_child_weight=0),
         )
-        prediction = predict_rally_options(result.models, runtime_options())
+        prediction = predict_rally_options(result.selector, runtime_options())
         review = score_rally_review(prediction, ranker)
     assert review.scores.shape == (1,)
     assert np.isfinite(review.scores).all()
@@ -135,9 +135,9 @@ def test_review_cross_fitting_requires_an_extra_group() -> None:
 def test_review_tolerance_changes_correctness_labels(fps, shift, monkeypatch):
     video = training_video('video', 'A', True)
     video = replace(video, fps=fps, rallies=(LabelledRally('rally', (40 + shift,), (Half.TOP,)),))
-    options = build_rally_options(RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count))
+    options = build_rally_options(RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count))
     prediction = predict_rally_options(dummy_layers(), options)
-    monkeypatch.setattr('annotator.training.rally_layers.fit_review_model', lambda _features, labels, _config: labels)
+    monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _features, labels, _config: labels)
     strict = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=3)
     relaxed = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=6)
     np.testing.assert_array_equal(strict, [0])

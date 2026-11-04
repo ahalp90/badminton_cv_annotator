@@ -4,7 +4,7 @@ import numpy as np
 
 from annotator.sequence.contacts import ContactSequence, scale_frames
 from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_choices
-from annotator.sequence.rally_options import RallyOptions, sequence_key
+from annotator.sequence.rally_options import RallyOptions
 from annotator.training.sequences import (
     SequenceTrainingVideo,
     whole_rally_correctness,
@@ -80,16 +80,3 @@ def preferred_targets(pool: RallyOptions, wide: np.ndarray, preferred: np.ndarra
         if np.any(preferred[included] == 1):
             targets[included] = preferred[included]
     return targets
-
-
-def original_option_rows(pool: RallyOptions) -> np.ndarray:
-    """Locate the original options to anchor training weight across pool sizes."""
-    original_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
-    for sequence in pool.context.initial:
-        original_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
-    for sequence in pool.context.repairs.sequences:
-        original_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
-    return np.asarray([
-        row for row, sequence in enumerate(pool.sequences)
-        if sequence_key(sequence) in original_keys[sequence.span_id]
-    ], dtype=np.int64)

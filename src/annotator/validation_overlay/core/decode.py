@@ -10,13 +10,6 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
-
-# Kept as import-compatible names for existing overlay consumers. The probing
-# implementation and canonical field contract live outside this namespace.
-VideoInfo = VideoMetadata
-probe_video = probe_video_metadata
-
 
 def _decode_command(
     video: Path,

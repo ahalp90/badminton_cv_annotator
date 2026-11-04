@@ -1,8 +1,8 @@
 """Fit the contact tree on explicitly supplied training videos.
 
-Candidate regions, positive radii and negative sampling follow the fitted
-contact model's policy. Supply training videos in a stable order to reproduce
-sampling. Validation and test videos belong to the caller's evaluation path.
+Feature construction supplies candidate rows. Positive radii and negative sampling
+follow the fitted contact model's policy. Supply videos in a stable order to
+reproduce sampling. Validation and test videos belong to the caller's evaluation path.
 """
 
 from collections.abc import Sequence
@@ -12,7 +12,6 @@ from typing import Any, Literal
 import numpy as np
 
 from annotator.config import ScalingKind
-from annotator.contacts.features import REGION_FIELDS
 from annotator.contacts.model import contact_feature_matrix
 from annotator.training.trees import fit_binary_tree
 
@@ -112,10 +111,7 @@ def select_contact_training_rows(
             raise ValueError(f"training video appears more than once: {video.identity}")
         if video.contact_frames.ndim != 1 or np.any(np.diff(video.contact_frames) < 0):
             raise ValueError(f"{video.identity}: contact frames must be a sorted one-dimensional array")
-        candidate_mask = np.zeros(len(video.features), dtype=bool)
-        for name in REGION_FIELDS:
-            candidate_mask |= video.features[name].astype(bool)
-        rows = video.features[candidate_mask]
+        rows = video.features
         distances = nearest_contact_distances(rows['frame'], video.contact_frames)
         positive = distances <= ScalingKind.FRAME_COUNT.scale(config.positive_radius_at_30_fps, video.fps)
         ignored = (~positive) & (distances <= ScalingKind.FRAME_COUNT.scale(config.ignored_radius_at_30_fps, video.fps))

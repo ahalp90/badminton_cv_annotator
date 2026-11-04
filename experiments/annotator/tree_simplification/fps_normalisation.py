@@ -17,7 +17,6 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
@@ -34,7 +33,6 @@ from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.heuristic_only_tune.run import source_record
-from experiments.annotator.tree_simplification.data import PreparedVideo
 
 SCHEMA = 'contact-motion-base30/1'
 VELOCITY_SCHEMA = 'contact-velocity-base30/1'
@@ -125,7 +123,7 @@ def _prepare_one(arguments: tuple[Path, Path, bool]) -> dict[str, Any]:
         return cached
     with threadpool_limits(limits=1):
         started = time.perf_counter()
-        prepared: PreparedVideo = joblib.load(source)
+        prepared = experiment.load_prepared(source.parent.parent, source.stem)
         if prepared.video.identity != record['video'] or prepared.group != record['group']:
             raise ValueError('Prepared identity differs from its sidecar')
         if prepared.video.fps != prepared.evidence.fps:
@@ -179,7 +177,7 @@ def fit_contacts(prepared_root: Path, output: Path, seed_offset: int, threads: i
     preparation = units['preparation']
     settings = experiment.settings_for('cuda', 5.0, seed_offset=seed_offset)
     training_settings = asdict(settings)
-    training_settings.pop('rally_layers')
+    training_settings.pop('rally')
     config = json.loads(json.dumps({'settings': training_settings, 'prepared': str(prepared_root)}, default=sorted))
     output.mkdir(parents=True, exist_ok=True)
     receipt = output / 'settings.json.gz'

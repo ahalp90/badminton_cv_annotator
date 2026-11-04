@@ -19,7 +19,6 @@ def make_group(training, candidate='raw_baseline', seed=0):
         root = training / policy / 'test-run/candidates' / candidate / f'seed-{seed}'
         roots[policy] = root
         (root / 'selector').mkdir(parents=True)
-        comparison.write_json(root / 'selector/settings.json.gz', {'original_options': False})
         comparison.write_json(root / 'selector/pool-counts.json.gz', counts)
         (root / 'pools/videos').mkdir(parents=True)
         (root / 'selector/targets').mkdir()
@@ -59,11 +58,11 @@ def test_resume_reads_only_unfinished_videos(tmp_path, monkeypatch):
     original = comparison.compare_video
     calls = []
 
-    def interrupted(roots, settings, identity):
+    def interrupted(roots, identity):
         calls.append(identity)
         if identity == 'second':
             raise RuntimeError('interrupted')
-        return original(roots, settings, identity)
+        return original(roots, identity)
 
     monkeypatch.setattr(comparison, 'compare_video', interrupted)
     with pytest.raises(RuntimeError, match='interrupted'):
@@ -71,9 +70,9 @@ def test_resume_reads_only_unfinished_videos(tmp_path, monkeypatch):
     checkpoint = out / 'per_video/raw_baseline/seed-0/first.json.gz'
     saved = checkpoint.read_bytes()
 
-    def resumed(roots, settings, identity):
+    def resumed(roots, identity):
         assert identity == 'second'
-        return original(roots, settings, identity)
+        return original(roots, identity)
 
     monkeypatch.setattr(comparison, 'compare_video', resumed)
     records = comparison.compare_group(training, out, 'raw_baseline', 0)

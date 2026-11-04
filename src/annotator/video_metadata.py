@@ -45,15 +45,6 @@ class VideoMetadata:
         if not isinstance(self.sample_aspect_ratio, Fraction) or self.sample_aspect_ratio <= 0:
             raise ValueError(f"sample_aspect_ratio must be positive: {self.sample_aspect_ratio}")
 
-    @property
-    def path(self) -> Path:
-        """Compatibility name used by the validation-overlay renderer."""
-        return self.source_path
-
-    @property
-    def nb_frames(self) -> int:
-        """Compatibility name used by the validation-overlay renderer."""
-        return self.frame_count
 
     def to_dict(self) -> dict[str, str | int]:
         """Return the exact, JSON-compatible persisted metadata contract."""
@@ -147,7 +138,7 @@ def probe_video_metadata(video: Path) -> VideoMetadata:
 
 
 def probe_video_fps(video: Path) -> Fraction:
-    """Read only the exact CFR rate for legacy callers that do not need metadata."""
+    """Read the exact CFR rate when frame count and dimensions are not needed."""
     video = Path(video)
     command = [
         "ffprobe",
@@ -166,7 +157,6 @@ def probe_video_fps(video: Path) -> Fraction:
     if not isinstance(streams, list) or not streams or not isinstance(streams[0], dict):
         raise ValueError(f"ffprobe returned a malformed video stream: {video}")
     return _parse_cfr_rate(streams[0])
-
 
 
 def probe_fps(video_path: Path) -> float:

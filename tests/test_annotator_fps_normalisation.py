@@ -8,7 +8,6 @@ import pytest
 from annotator.config import BASE_FPS
 from annotator.contacts.features import (
     BASE_MISSINGNESS_SIGNALS,
-    REGION_FIELDS,
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     build_contact_features,
@@ -174,7 +173,7 @@ def test_conversion_preserves_geometry_regions_missingness_and_boundaries(fps: f
     track, raw = build_motion_features(fps, include_missing_run=True)
     converted = normalise_contact_features(raw, track, fps)
 
-    for field in ('interval_id', 'frame', *REGION_FIELDS):
+    for field in ('interval_id', 'frame'):
         np.testing.assert_array_equal(converted.rows[field], raw.rows[field], err_msg=field)
 
     for signal in GEOMETRY_SIGNALS + BASE_MISSINGNESS_SIGNALS:
@@ -193,13 +192,13 @@ def test_conversion_preserves_geometry_regions_missingness_and_boundaries(fps: f
 
     for interval_id, (start, end) in enumerate(raw.search_intervals):
         interval_rows = raw.rows[raw.rows['interval_id'] == interval_id]
-        first = row_at_frame(converted, start)
-        last = row_at_frame(converted, end - 1)
+        first = row_at_frame(converted, int(interval_rows['frame'][0]))
+        last = row_at_frame(converted, int(interval_rows['frame'][-1]))
         assert np.isnan(first['shuttle_vx_t-10'])
         assert np.isnan(last['shuttle_vx_t+10'])
         assert np.isnan(first['ankle_speed_top_t-10'])
         assert np.isnan(last['ankle_speed_bot_t+10'])
-        assert len(interval_rows) == end - start
+        assert np.all((interval_rows['frame'] >= start) & (interval_rows['frame'] < end))
 
     missing_frame = int(2 * fps)
     missing_row = row_at_frame(converted, missing_frame)
@@ -255,7 +254,7 @@ def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path) -
     experiment.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
     experiment.write_json(run / 'result.json.gz', {'complete': True})
     experiment.write_json(run / 'settings.json.gz', {
-        'layers': 1, 'target_policy': {},
+        'target_policy': {},
         'pool_settings': {
             'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(tmp_path),
         },

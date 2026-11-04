@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import Half
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.repairs import RallyRepairs
 from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
@@ -36,7 +36,7 @@ def example_pool() -> LabelledOptions:
     )
     original = SequenceTrainingVideo(
         'fixture', 'A', 30.0, initial, (first, second, other),
-        RallyRepairs((sequences[1],), {}, {}), (), 50,
+        RallyCandidates({}, {}), (), 50,
     )
     return LabelledOptions(
         sequences,
@@ -47,17 +47,6 @@ def example_pool() -> LabelledOptions:
     )
 
 
-def test_original_options_keep_choices_and_row_alignment() -> None:
-    options = example_pool()
-
-    original = pools.original_options(options)
-
-    assert original.sequences == (options.sequences[0], options.sequences[1], options.sequences[4])
-    np.testing.assert_array_equal(original.matrix, options.matrix[[0, 1, 4]])
-    np.testing.assert_array_equal(original.targets, options.targets[[0, 1, 4]])
-    np.testing.assert_array_equal(original.span_rows[0], [0, 1])
-    np.testing.assert_array_equal(original.span_rows[1], [2])
-    assert original.video is options.video
 
 
 def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
@@ -71,8 +60,7 @@ def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
         'mixed': {'-1': 0, '0': 0, '1': 1},
     }
     assert summary['positive_target_span_coverage'] == {
-        'original_options': 1,
-        'all_options': 2,
+        'positive_spans': 2,
         'total_spans': 2,
     }
 

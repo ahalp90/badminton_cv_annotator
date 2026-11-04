@@ -4,24 +4,20 @@ from dataclasses import replace
 
 import numpy as np
 
-from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.outcomes.point_winner import Half
+from annotator.sequence.candidates import (
+    RallyCandidates,
+)
 from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
-from annotator.sequence.rally_model import alternate_sides, finish_choices
+from annotator.sequence.rally_model import finish_choices, fit_rally_sides
 from annotator.sequence.rally_options import RallyContext, build_rally_options
-from annotator.sequence.repairs import (
-    RallyRepairs,
-    add_later_contacts,
-    serve_and_deletion_repairs,
-)
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from annotator.training.workflow import whole_rally_correctness
 from experiments.annotator.tree_simplification.options import (
     FEATURE_NAMES,
     expand_pool,
     finish_in_initial_context,
-    sequence_key,
 )
 
 
@@ -33,24 +29,16 @@ def example_video() -> SequenceTrainingVideo:
     serve = tuple(ContactEvent(frame, 0.8, Half.TOP) for frame in (52, 75))
     # The close and out-of-bound later rows exercise rejection in new combinations.
     later = tuple(ContactEvent(frame, 0.7, Half.BOT) for frame in (40, 105, 135, 149, 165, 195))
-    seeds = []
-    previous_end = -1
-    for sequence in initial:
-        repairs = serve_and_deletion_repairs(sequence, serve if sequence.span_id == 1 else (), events, previous_end)
-        seeds.extend(add_later_contacts(
-            repairs, later if sequence.span_id == 1 else (), NEARBY_CONTACT_DISTANCE_AT_30_FPS,
-        ))
-        previous_end = sequence.end_frame
     physical = {event.frame: np.full(len(PHYSICAL_FEATURE_NAMES), event.frame, dtype=float)
                 for event in (*events, *serve, *later)}
     candidates = {1: tuple(sorted((*serve, *later), key=lambda event: event.frame))}
-    pool = RallyRepairs(tuple(seeds), candidates, physical)
+    pool = RallyCandidates(candidates, physical)
     rallies = tuple(LabelledRally(str(sequence.span_id), tuple(event.frame for event in sequence.events),
                                  tuple(event.side for event in sequence.events)) for sequence in initial)
     return SequenceTrainingVideo('fixture', 'group', 30.0, initial, events, pool, rallies, 430)
 
 
-def test_multiple_additions_and_deletions_preserve_all_original_choices() -> None:
+def test_toggle_proposals_cover_multiple_edits_and_keep_no_edit() -> None:
     video = example_video()
     options = expand_pool(video)
     middle = [options.sequences[row] for row in options.span_rows[1]]
@@ -58,16 +46,13 @@ def test_multiple_additions_and_deletions_preserve_all_original_choices() -> Non
     assert (90, 105, 120, 135, 150, 180) in frame_lists
     assert (150, 180) in frame_lists
     assert (52, 60, 150, 180) in frame_lists
-    keys = {(sequence.span_id, sequence_key(sequence)) for sequence in options.sequences}
-    assert {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences} <= keys
     restricted = expand_pool(video, max_edits=0, deletion_candidates=0)
-    restricted_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in restricted.sequences}
-    assert {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences} <= restricted_keys
+    assert restricted.sequences == video.initial
 
 
 def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
     video = example_video()
-    context = RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count)
+    context = RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count)
     runtime = build_rally_options(context)
     labelled = expand_pool(video)
     unlabelled = expand_pool(replace(video, rallies=()))
@@ -82,10 +67,7 @@ def test_runtime_proposals_need_no_labels_and_match_training_order() -> None:
 def test_new_combinations_obey_spacing_bounds_and_do_not_resurrect_deletions() -> None:
     video = example_video()
     options = expand_pool(video)
-    original_keys = {(sequence.span_id, sequence_key(sequence)) for sequence in video.repairs.sequences}
     for sequence in options.sequences:
-        if (sequence.span_id, sequence_key(sequence)) in original_keys:
-            continue
         frames = tuple(event.frame for event in sequence.events)
         previous_end = video.initial[sequence.span_id - 1].end_frame if sequence.span_id else -1
         assert sequence.start_frame >= previous_end
@@ -136,9 +118,9 @@ def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_
         expected, events = finish_choices(video.initial, video.events, chosen, video.fps, frame_count=video.frame_count)
         actual = finish_in_initial_context(video, after.span_id, after, stream_frames)
         assert actual == expected[after.span_id]
-        finished, _events = alternate_sides(expected, events)
+        finished, _events = fit_rally_sides(expected, events)
         assert whole_rally_correctness(actual, video.rallies, video.fps) == whole_rally_correctness(
-            finished[after.span_id], video.rallies, video.fps,
+            finished[after.span_id].sequence, video.rallies, video.fps,
         )
     merged_labels = (
         LabelledRally('first', (90, 120), (None, None)),
@@ -148,3 +130,14 @@ def test_local_boundary_finishing_matches_full_video_and_targets_keep_known_bad_
     assert merged.targets[merged.span_rows[1][0]] == 0
     partial = expand_pool(replace(video, rallies=(LabelledRally('partial', (60, 90, 120), (None, None, None)),)))
     assert partial.targets[partial.span_rows[1][0]] == 0
+
+
+def test_supplied_bounds_reject_earlier_contacts_and_keep_original_extent() -> None:
+    video = replace(example_video(), bounds_supplied=True)
+    options = expand_pool(video)
+    initial = {sequence.span_id: sequence for sequence in video.initial}
+    for sequence in options.sequences:
+        before = initial[sequence.span_id]
+        assert (sequence.start_frame, sequence.end_frame) == (before.start_frame, before.end_frame)
+        assert all(before.start_frame <= event.frame < before.end_frame for event in sequence.events)
+    assert all(52 not in [event.frame for event in options.sequences[row].events] for row in options.span_rows[1])

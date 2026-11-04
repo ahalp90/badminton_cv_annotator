@@ -126,7 +126,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         predictions = {
             video.identity: SimpleNamespace(identity=video.identity, sequences=final_sequences()) for video in videos
         }
-        return SimpleNamespace(models=sequence_models, cross_fitted=predictions)
+        return SimpleNamespace(selector=sequence_models, held_group_predictions=predictions)
 
     def review_fit(videos: list, predictions: dict, _settings: Any, *, tolerance_at_30_fps: int) -> Any:
         assert [video.identity for video in videos] == training_order
@@ -145,7 +145,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     monkeypatch.setattr(workflow, 'save_models', lambda models, output: saved.append((models, output)))
     settings = replace(
         workflow.DEFAULT_TRAINING_SETTINGS,
-        rally_layers=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally_layers, review_tolerance_at_30_fps=6),
+        rally=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally, review_tolerance_at_30_fps=6),
     )
     result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', SideGeometry.SCENE, settings)
     assert seen == training_order
@@ -159,8 +159,8 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     assert saved == [(result, tmp_path / 'bundle')]
     fit_settings = load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')
     assert fit_settings['contact']['positive_radius_at_30_fps'] == 1
-    assert fit_settings['rally_layers']['preferred_tolerance_at_30_fps'] == 5
-    assert fit_settings['rally_layers']['review_tolerance_at_30_fps'] == 6
+    assert fit_settings['rally']['preferred_tolerance_at_30_fps'] == 5
+    assert fit_settings['rally']['review_tolerance_at_30_fps'] == 6
 
 
 def test_too_few_training_groups_fail_before_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -221,9 +221,9 @@ def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.M
         'fit', '--manifest', str(path), '--output', 'layer-bundle', '--device', 'cuda',
     ]) == 0
     settings = fitted[1][-1]
-    assert settings.rally_layers.tree.max_iter == 400
-    assert settings.rally_layers.tree.max_leaf_nodes == 31
-    assert settings.contact.device == settings.confidence.device == settings.rally_layers.tree.device == 'cuda'
+    assert settings.rally.tree.max_iter == 400
+    assert settings.rally.tree.max_leaf_nodes == 31
+    assert settings.contact.device == settings.confidence.device == settings.rally.tree.device == 'cuda'
     assert workflow.main(['evaluate', '--manifest', str(path), '--models', 'bundle', '--split', 'validation',
                           '--output', 'report.json.gz']) == 0
     assert evaluated[0][1:] == (model, workflow.Split.VALIDATION, Path('report.json.gz'))
@@ -281,6 +281,9 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
     ((100,), (Half.TOP,), 0),
     ((100, 115, 130), (Half.TOP, Half.TOP, Half.BOT), 0),
     ((100, 130), (Half.BOT, Half.TOP), 0),
+    ((90, 140), (Half.TOP, Half.BOT), 1),
+    ((100, 141), (Half.TOP, Half.BOT), 0),
+    ((100, 109), (Half.TOP, Half.BOT), 0),
 ])
 def test_whole_rally_correctness_matches_selected_judgement(
     frames: tuple, sides: tuple, expected: int,

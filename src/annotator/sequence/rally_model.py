@@ -14,6 +14,10 @@ from annotator.outcomes.point_winner import (
     alternating_player_sides,
     fit_alternation,
 )
+from annotator.sequence.candidates import (
+    build_rally_candidates,
+    check_events_match_kept_candidates,
+)
 from annotator.sequence.contacts import (
     CandidateScores,
     ContactEvent,
@@ -35,10 +39,6 @@ from annotator.sequence.rally_options import (
     RallyContext,
     RallyOptions,
     build_rally_options,
-)
-from annotator.sequence.repairs import (
-    build_rally_repairs,
-    check_events_match_kept_candidates,
 )
 
 BOUNDARY_PADDING_AT_30_FPS = 10
@@ -111,10 +111,10 @@ def select_rally_sequences(
     """Build rally alternatives from detector evidence and apply the fitted selectors."""
     check_events_match_kept_candidates(events, scores)
     initial = initial_sequences(spans, events)
-    repairs = build_rally_repairs(
+    candidates = build_rally_candidates(
         initial, events, scores, features, search_intervals, fps=fps, side_for_frame=side_for_frame,
     )
-    context = RallyContext(fps, initial, events, repairs, frame_count, bounds_supplied)
+    context = RallyContext(fps, initial, events, candidates, frame_count, bounds_supplied)
     pool = build_rally_options(context, models.max_edits, models.deletion_candidates)
     return predict_rally_options(models, pool)
 
@@ -129,15 +129,12 @@ def predict_rally_options(models: RallySelector, pool: RallyOptions) -> RallyPre
 
 def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
     """Choose each rally's highest-scoring option, retaining pool order for ties."""
-    return {span_id: int(rows[0]) for span_id, rows in ordered_span_rows(pool, scores).items()}
-
-
-def finish_rows(
-    pool: RallyOptions, rows: dict[int, int],
-) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Finish the chosen rallies through the same path used for training labels."""
-    rallies, events = finish_rallies(pool, rows)
-    return tuple(rally.sequence for rally in rallies), events
+    if scores.shape != (len(pool.sequences),) or not np.isfinite(scores).all():
+        raise ValueError('scores must be finite and align with every pool option')
+    chosen = {}
+    for span_id, rows in pool.span_rows.items():
+        chosen[span_id] = int(rows[np.argmax(scores[rows])])
+    return chosen
 
 
 def finish_rallies(
@@ -221,23 +218,6 @@ def extend_boundaries(
     return tuple(extended)
 
 
-def alternate_sides(
-    sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
-) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Fit alternating player sides to each sequence's per-contact guesses.
-
-    Choose the assignment that agrees with more guesses. A tie keeps the original
-    per-contact guesses.
-    Contacts outside every sequence keep their raw guesses.
-
-    :param sequences: Final sequences; each contact belongs to at most one.
-    :param events: Full-stream contact events in frame order.
-    :return: Sequences and full-stream events with the fitted sides.
-    """
-    rallies, revised = fit_rally_sides(sequences, events)
-    return tuple(rally.sequence for rally in rallies), revised
-
-
 def fit_rally_sides(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
@@ -264,15 +244,12 @@ def fit_rally_sides(
     return rallies, revised
 
 
-def ordered_span_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, np.ndarray]:
-    """Rank every span's rows by descending score, retaining pool order for ties."""
-    if scores.shape != (len(pool.sequences),) or not np.isfinite(scores).all():
-        raise ValueError('scores must be finite and align with every pool option')
-    return {span_id: rows[np.argsort(-scores[rows], kind='stable')] for span_id, rows in pool.span_rows.items()}
-
-
 def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
-    """Reuse raw option evidence; only the extra boundary summary uses final bounds."""
+    """Measure the selected proposal and its final rally bounds for review ranking.
+
+    Keep the proposed contact sides so the ranker sees uncertainty that final
+    player alternation may resolve. Use final bounds for the timing summaries.
+    """
     pool = prediction.pool
     span_ids = tuple(prediction.chosen)
     selected = np.asarray(list(prediction.chosen.values()), dtype=np.int64)
@@ -280,17 +257,19 @@ def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
     final_by_span = {sequence.span_id: sequence for sequence in prediction.sequences}
     summaries, scores = [], []
     for span_id, row in prediction.chosen.items():
-        raw = pool.sequences[row]
-        final = final_by_span[span_id]
-        bounded = replace(raw, start_frame=final.start_frame, end_frame=final.end_frame)
-        summaries.append(sequence_summary(bounded, pool.context.fps))
+        proposed_sequence = pool.sequences[row]
+        final_sequence = final_by_span[span_id]
+        proposal_with_final_bounds = replace(
+            proposed_sequence, start_frame=final_sequence.start_frame, end_frame=final_sequence.end_frame,
+        )
+        summaries.append(sequence_summary(proposal_with_final_bounds, pool.context.fps))
         values = prediction.scores[pool.span_rows[span_id]]
         best = np.partition(values, -2)[-2:] if len(values) > 1 else values
         margin = float(best.max() - best.min())
         scores.append((float(prediction.scores[row]), margin))
-    boundaries = np.asarray(summaries, dtype=np.float64).reshape(len(span_ids), len(SUMMARY_FEATURE_NAMES))
+    sequence_summaries = np.asarray(summaries, dtype=np.float64).reshape(len(span_ids), len(SUMMARY_FEATURE_NAMES))
     scores = np.asarray(scores, dtype=np.float64).reshape(len(span_ids), 2)
-    return RallyReviewFeatures(span_ids, np.column_stack((option_features, scores, boundaries)))
+    return RallyReviewFeatures(span_ids, np.column_stack((option_features, scores, sequence_summaries)))
 
 
 def score_rally_review(prediction: RallyPrediction, model: Any) -> RallyReview:

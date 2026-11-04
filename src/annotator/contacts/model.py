@@ -10,7 +10,6 @@ from annotator.config import ScalingKind
 from annotator.contacts.features import (
     BASE_MISSINGNESS_SIGNALS,
     BASE_PHYSICS_SIGNALS,
-    REGION_FIELDS,
     WINDOW_OFFSETS_BASE30,
 )
 
@@ -101,19 +100,15 @@ def score_contact_features(
     feature_count = getattr(model, "n_features_in_", None)
     if feature_count is not None and feature_count != len(CONTACT_FEATURE_NAMES):
         raise ValueError("model input count does not match the contact feature order")
-    selected = np.zeros(len(rows), dtype=bool)
-    for name in REGION_FIELDS:
-        selected |= rows[name].astype(bool)
-    candidates = rows[selected]
-    if not len(candidates):
-        return ScoredContacts(candidates, np.empty(0, dtype=np.float64), np.empty(0, dtype=np.int32))
-    probabilities = np.asarray(model.predict_proba(contact_feature_matrix(candidates))[:, 1], dtype=np.float64)
-    if probabilities.shape != (len(candidates),) or not np.isfinite(probabilities).all():
+    if not len(rows):
+        return ScoredContacts(rows, np.empty(0, dtype=np.float64), np.empty(0, dtype=np.int32))
+    probabilities = np.asarray(model.predict_proba(contact_feature_matrix(rows))[:, 1], dtype=np.float64)
+    if probabilities.shape != (len(rows),) or not np.isfinite(probabilities).all():
         raise ValueError("contact probabilities are incomplete or non-finite")
     if np.any((probabilities < 0.0) | (probabilities > 1.0)):
         raise ValueError("contact probabilities lie outside zero and one")
     distance = int(ScalingKind.FRAME_COUNT.scale(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps))
     kept = remove_nearby_contacts(
-        candidates["frame"], candidates["interval_id"], probabilities, config.score_cutoff, distance,
+        rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
     )
-    return ScoredContacts(candidates, probabilities, kept)
+    return ScoredContacts(rows, probabilities, kept)

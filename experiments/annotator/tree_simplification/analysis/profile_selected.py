@@ -20,12 +20,12 @@ import pstats
 import sys
 from pathlib import Path
 
-import joblib
 from threadpoolctl import threadpool_limits
 
 from annotator.hybrid import predict_contact_features
 from annotator.models import load_models
 from annotator.sequence.contacts import stream_payload
+from experiments.annotator.development import load_prepared
 from experiments.annotator.heuristic_only_tune.run import source_record
 from experiments.annotator.tree_simplification.analysis.common import (
     REPOSITORY,
@@ -56,7 +56,7 @@ def main() -> None:
     args = parser.parse_args()
 
     models = load_models(args.bundle)
-    prepared = joblib.load(args.prepared)
+    prepared = load_prepared(args.prepared.parent.parent, args.prepared.stem)
     saved_stream = args.saved_stream or SAVED_STREAMS / f'{prepared.video.identity}.json.gz'
     profiler = cProfile.Profile()
     with threadpool_limits(limits=THREADS):

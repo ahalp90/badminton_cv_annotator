@@ -10,15 +10,11 @@ import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from annotator.sequence.rally_model import RallySelector, predict_rally_options
-from annotator.sequence.rally_options import RallyOptions, build_rally_options
-from annotator.training.rally_layers import fit_rally_review_model
-from annotator.training.rally_targets import option_targets
+from annotator.training.rally import fit_rally_review_model
 from annotator.training.trees import TreeFitConfig
 from dataset_builder.vision import load_npy_xz
 from experiments.annotator.development import (
     dump_atomically,
-    progress,
-    xgboost_settings,
 )
 from experiments.annotator.heuristic_only_tune.run import read_json
 from experiments.annotator.tree_simplification.options import LabelledOptions
@@ -26,14 +22,6 @@ from experiments.annotator.tree_simplification.targets import (
     preferred_targets,
 )
 from experiments.annotator.tree_simplification.train import SelectorTrainer
-
-
-def verify_pool(actual: RallyOptions, expected: LabelledOptions) -> None:
-    if actual.sequences != expected.sequences or tuple(actual.span_rows) != tuple(expected.span_rows):
-        raise ValueError('Production proposal sequences or span order differ from the saved experiment')
-    np.testing.assert_array_equal(actual.matrix, expected.matrix)
-    for span_id, rows in actual.span_rows.items():
-        np.testing.assert_array_equal(rows, expected.span_rows[span_id])
 
 
 def ranking_metrics(labels: np.ndarray, scores: np.ndarray) -> dict[str, Any]:
@@ -71,21 +59,13 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptio
 
 def fit_review(
     run: Path, targets: Path, output: Path, settings: dict, *,
-    device: str = 'cpu', check_parity: bool = True,
+    device: str = 'cpu',
 ) -> Any:
     pools = load_training(settings, targets)
-    if check_parity:
-        sample = next(iter(pools))
-        saved = joblib.load(Path(settings['pools']) / 'videos' / f'{sample}.joblib')
-        rebuilt = build_rally_options(saved.runtime.context, settings['pool_settings']['max_edits'],
-                                      settings['pool_settings']['deletion_candidates'])
-        verify_pool(rebuilt, saved)
-        np.testing.assert_array_equal(option_targets(saved.video, rebuilt), saved.targets)
-        progress(output, 'training-pool-parity', video=sample, rows=len(saved.targets))
     # Reuse completed selector fits; new held-group review fits stay in this export.
     fits = output / 'review-fits'
     shutil.copytree(run / 'fits', fits / 'fits', dirs_exist_ok=True)
-    selector_config = replace(TreeFitConfig(**xgboost_settings(settings['tree'])), device=device)
+    selector_config = replace(TreeFitConfig(**settings['tree']), device=device)
     trainer = SelectorTrainer(pools, selector_config, fits, settings['span_weight'])
     groups = tuple(sorted({pool.video.group for pool in pools.values()}))
     predictions = {}
@@ -96,7 +76,7 @@ def fit_review(
             if pool.video.group == group:
                 predictions[identity] = predict_rally_options(models, pool.runtime)
     config = replace(
-        TreeFitConfig(**xgboost_settings(settings['pool_settings']['settings']['confidence'])), device=device,
+        TreeFitConfig(**settings['pool_settings']['settings']['confidence']), device=device,
     )
     review = fit_rally_review_model(
         [pool.video for pool in pools.values()], predictions, config,

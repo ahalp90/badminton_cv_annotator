@@ -83,70 +83,6 @@ def test_prepare_resume_rejects_preprocessing_identity_mismatch(tmp_path: Path) 
         prepare.prepare_video(SimpleNamespace(identity=identity), 'A', {}, tmp_path, requested)
 
 
-def test_prepared_source_must_match_before_contact_fitting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    write_json(tmp_path / 'preparation.json.gz', {'source': {'revision': 'old'}, 'inputs': {}})
-    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'new'})
-
-    with pytest.raises(ValueError, match='Prepared source differs'):
-        input_stages.fit_contacts(tmp_path, tmp_path / 'fit')
-
-
-def test_export_explicitly_reuses_older_preparation_and_contact_fits(tmp_path: Path, monkeypatch) -> None:
-    prepared, contact, run, targets = (tmp_path / name for name in ('prepared', 'contact', 'run', 'targets'))
-    for directory in (prepared, contact, run, targets):
-        directory.mkdir()
-    inputs = {'groups': {f'video-{index}': 'A' for index in range(40)},
-              'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig())}
-    pool_settings = {'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(contact),
-                     'settings': {'preprocessing': inputs['preprocessing']}}
-    write_json(prepared / 'preparation.json.gz', {'source': {'revision': 'prepared'}, 'inputs': inputs})
-    write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
-    write_json(contact / 'contact-stage.json.gz', {'source': {'revision': 'contacts'}})
-    write_json(targets / 'targets.json.gz', {'fixture': True})
-    settings = {'layers': 1, 'target_policy': {'manifest': {'fixture': True}},
-                'pool_settings': pool_settings}
-    write_json(run / 'settings.json.gz', settings)
-    write_json(run / 'result.json.gz', {'complete': True, 'source': {'revision': 'selector'}})
-    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'export'})
-    with pytest.raises(ValueError, match='Prepared source differs'):
-        input_stages._export_inputs(run, targets)
-    assert input_stages._export_inputs(run, targets, reuse_upstream=True) == (settings, inputs, prepared, contact)
-
-
-@pytest.mark.parametrize('changed_stage', ['contact', 'selector'])
-def test_export_rejects_mixed_stage_sources(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed_stage: str,
-) -> None:
-    prepared = tmp_path / 'prepared'
-    contact = tmp_path / 'contact'
-    run = tmp_path / 'selector'
-    for path in (prepared, contact, run):
-        path.mkdir()
-    source = {'revision': 'current'}
-    inputs = {
-        'groups': {f'video-{index}': 'V' if index < 8 else 'A' for index in range(40)},
-        'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
-    }
-    pool_settings = {
-        'schema': input_stages.POOL_SCHEMA,
-        'prepared': str(prepared), 'contact_run': str(contact),
-        'settings': {'preprocessing': inputs['preprocessing']},
-    }
-    write_json(prepared / 'preparation.json.gz', {'source': source, 'inputs': inputs})
-    write_json(contact / 'settings.json.gz', {'prepared': str(prepared), 'settings': pool_settings['settings']})
-    write_json(contact / 'contact-stage.json.gz', {
-        'source': {'revision': 'old'} if changed_stage == 'contact' else source,
-    })
-    write_json(run / 'settings.json.gz', {'layers': 1, 'target_policy': {}, 'pool_settings': pool_settings})
-    write_json(run / 'result.json.gz', {
-        'complete': True, 'source': {'revision': 'old'} if changed_stage == 'selector' else source,
-    })
-    monkeypatch.setattr(input_stages, 'source_record', lambda: source)
-
-    with pytest.raises(ValueError, match='sources differ'):
-        input_stages._export_inputs(run, tmp_path / 'targets')
-
-
 def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Development:
         def __init__(self) -> None:
@@ -186,7 +122,6 @@ def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkey
     monkeypatch.setattr(input_stages, 'development_for', lambda _: development)
     monkeypatch.setattr(input_stages, '_training_records', lambda *_: training)
     monkeypatch.setattr(input_stages.experiment, 'contact_fit_videos', lambda _: fit_orders)
-    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
     monkeypatch.setattr(input_stages.experiment, 'progress', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         input_stages.experiment, 'settings_for',
@@ -236,15 +171,13 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         },
     }
     settings = {
-        'layers': 1,
         'pools': str(pools_root),
         'pool_settings': pool_settings,
-        'original_options': False,
         'target_policy': {'manifest': {'targets': 'fixed'}},
     }
     expected_stream = {'events': [], 'sequences': []}
     for identity in identities:
-        path = run / 'layers-1' / 'streams' / f'{identity}.json.gz'
+        path = run / 'streams' / f'{identity}.json.gz'
         path.parent.mkdir(parents=True, exist_ok=True)
         write_json(path, expected_stream)
 
@@ -271,17 +204,13 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     write_json(prepared_root / 'preparation.json.gz', {'source': {'revision': 'upstream'}})
     write_json(contact_run_root / 'contact-stage.json.gz', {'source': {'revision': 'upstream'}})
     saved_scores = {identity: {'5': {'predicted_contacts': 99}} for identity in identities}
-    write_json(run / 'layers-1/validation.json.gz', {'per_video': saved_scores})
-    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
-    fitted_review_checks = []
+    write_json(run / 'validation.json.gz', {'per_video': saved_scores})
 
-    def fit_review(*_args, device, check_parity):
+    def fit_review(*_args, device):
         assert device == 'cuda'
-        fitted_review_checks.append(check_parity)
         return object()
 
     monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
-    monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
     monkeypatch.setattr(input_stages, 'score_selector_review', lambda *_args: confidence)
@@ -295,7 +224,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages, 'load_models', lambda _path: saved_models[-1])
 
     def load_artifact(path):
-        if path.name == 'rally-model.joblib':
+        if path.name == 'selector.joblib':
             return object()
         return object()
 
@@ -305,8 +234,6 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
 
     rows = read_json(tmp_path / 'export' / 'review-rows.json.gz')
     assert result['complete'] is True
-    assert result['replay_streams_match'] is True
-    assert result['replay_parity_checked'] is True
     assert set(result['per_video']) == set(identities)
     assert result['per_video'] == {
         identity: input_stages.score_stream(fake_videos[identity].video, expected_stream)
@@ -322,14 +249,9 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
 
     replay_stream = {'events': [[12, .7, 'Top']], 'sequences': []}
     monkeypatch.setattr(input_stages, 'stream_payload', lambda *_args: replay_stream)
-    with pytest.raises(ValueError, match='differs from the saved rally run'):
-        input_stages.export_run(run, targets, tmp_path / 'mismatched-export', threads=1)
     skipped = input_stages.export_run(
-        run, targets, tmp_path / 'unchecked-export', threads=1, check_parity=False,
+        run, targets, tmp_path / 'new-export', threads=1,
     )
-    assert fitted_review_checks == [True, True, False]
-    assert skipped['replay_parity_checked'] is False
-    assert 'replay_streams_match' not in skipped
     assert skipped['per_video'] == {
         identity: input_stages.score_stream(fake_videos[identity].video, replay_stream)
         for identity in identities
@@ -354,7 +276,6 @@ def test_export_passes_device_to_confidence_fit(
     settings = {}
     inputs = {'preprocessing': {'fixture': True}}
     monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path))
-    monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'fixture'})
     for name in ('preparation', 'contact-stage'):
         write_json(tmp_path / f'{name}.json.gz', {'source': {'revision': 'upstream'}})
 
@@ -374,17 +295,3 @@ def test_export_passes_device_to_confidence_fit(
     assert captured['device'] == device
     receipt = read_json(output / 'settings.json.gz')
     assert receipt['device'] == device
-
-
-def test_export_cli_can_skip_replay_parity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    captured: dict[str, object] = {}
-    monkeypatch.setattr(input_stages.sys, 'argv', [
-        'input_stages.py', 'export', '--run', str(tmp_path / 'run'),
-        '--five-frame-targets', str(tmp_path / 'targets'), '--output', str(tmp_path / 'export'),
-        '--skip-replay-parity',
-    ])
-    monkeypatch.setattr(input_stages, 'export_run', lambda *args, **kwargs: captured.update(kwargs))
-
-    input_stages.main()
-
-    assert captured['check_parity'] is False

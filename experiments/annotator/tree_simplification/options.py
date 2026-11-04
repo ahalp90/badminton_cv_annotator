@@ -38,7 +38,7 @@ class LabelledOptions:
 
 
 def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
+    return RallyContext(video.fps, video.initial, video.events, video.candidates, video.frame_count, video.bounds_supplied)
 
 
 def expand_pool(

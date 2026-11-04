@@ -15,6 +15,7 @@ from typing import Any
 
 import joblib
 
+from annotator.contacts.features import contact_feature_dtype
 from annotator.models import SideGeometry
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.training.sequences import (
@@ -169,7 +170,10 @@ def progress(output: Path, stage: str, **details: Any) -> None:
 
 
 def load_prepared(directory: Path, identity: str) -> PreparedVideo:
-    return joblib.load(directory / 'videos' / f'{identity}.joblib')
+    prepared = joblib.load(directory / 'videos' / f'{identity}.joblib')
+    if prepared.features.rows.dtype.names != contact_feature_dtype().names:
+        raise ValueError(f'{identity}: prepared contact columns differ; rebuild the prepared inputs')
+    return prepared
 
 
 def require_raw_features(prepared_root: Path) -> None:
@@ -193,38 +197,10 @@ def settings_for(device: str, min_child_weight: float, *, seed_offset: int = 0) 
         base,
         contact=replace(base.contact, **options, random_seed=base.contact.random_seed + seed_offset),
         confidence=replace(base.confidence, **options, random_seed=base.confidence.random_seed + seed_offset),
-        rally_layers=replace(
-            base.rally_layers,
+        rally=replace(
+            base.rally,
             tree=replace(
-                base.rally_layers.tree, **options, random_seed=base.rally_layers.tree.random_seed + seed_offset,
+                base.rally.tree, **options, random_seed=base.rally.tree.random_seed + seed_offset,
             ),
         ),
     )
-
-
-def xgboost_settings(record: dict) -> dict:
-    """Read saved XGBoost settings from before the HGB implementation retired.
-
-    The old row-count minimum never affected XGBoost. All effective settings
-    remain available to the current fit and its provenance comparisons.
-    """
-    settings = dict(record)
-    backend = settings.pop('backend', 'xgboost')
-    if backend != 'xgboost':
-        raise ValueError('HGB fitting is retired; use an XGBoost experiment record')
-    settings.pop('min_samples_leaf', None)
-    return settings
-
-
-def contact_stage_settings(record: dict[str, Any]) -> dict[str, Any]:
-    """Compare effective contact/review settings across saved experiment formats.
-
-    Retired chooser settings and rally fit settings do not affect contact fitting.
-    Meaningful preprocessing, sampling, prediction and review settings remain.
-    """
-    settings = dict(record)
-    settings.pop('sequences', None)
-    settings.pop('rally_layers', None)
-    for section in ('contact', 'confidence'):
-        settings[section] = xgboost_settings(settings[section])
-    return settings

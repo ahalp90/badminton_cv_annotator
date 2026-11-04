@@ -29,20 +29,20 @@ from annotator.hybrid import (
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
 from annotator.outcomes.point_winner import Half
 from annotator.preparation import AnnotationEvidence, prepare_annotation
+from annotator.sequence.candidates import build_rally_candidates
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     initial_sequences,
     scale_frames,
 )
-from annotator.sequence.repairs import build_rally_repairs
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
     fit_contact_model,
 )
-from annotator.training.rally_layers import (
+from annotator.training.rally import (
     RallyFitConfig,
     fit_rally_models,
     fit_rally_review_model,
@@ -114,7 +114,7 @@ class TrainingSettings:
     contact_prediction: ContactModelConfig = field(default_factory=ContactModelConfig)
     confidence: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(max_iter=100, max_leaf_nodes=7))
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
-    rally_layers: RallyFitConfig = field(default_factory=RallyFitConfig)
+    rally: RallyFitConfig = field(default_factory=RallyFitConfig)
 
 
 DEFAULT_TRAINING_SETTINGS = TrainingSettings()
@@ -251,12 +251,12 @@ def sequence_training_video(
     )
     scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
     initial = initial_sequences(evidence.heuristic_spans, events)
-    repairs = build_rally_repairs(
+    candidates = build_rally_candidates(
         initial, events, scores, features.rows, features.search_intervals,
         fps=evidence.fps, side_for_frame=side_for_frame,
     )
     return SequenceTrainingVideo(
-        entry.identity, entry.group, evidence.fps, initial, events, repairs, rallies, len(evidence.track),
+        entry.identity, entry.group, evidence.fps, initial, events, candidates, rallies, len(evidence.track),
         evidence.bounds_supplied,
     )
 
@@ -307,12 +307,12 @@ def fit_from_manifest(
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
     del evidence, features
-    layer_fit = fit_rally_models(training_videos, settings.rally_layers)
+    rally_fit = fit_rally_models(training_videos, settings.rally)
     review_model = fit_rally_review_model(
-        training_videos, layer_fit.cross_fitted, settings.confidence,
-        tolerance_at_30_fps=settings.rally_layers.review_tolerance_at_30_fps,
+        training_videos, rally_fit.held_group_predictions, settings.confidence,
+        tolerance_at_30_fps=settings.rally.review_tolerance_at_30_fps,
     )
-    models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
+    models = AnnotatorModels(contact_model, rally_fit.selector, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)
     save_models(models, output)
     save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
@@ -401,9 +401,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 defaults,
                 contact=replace(defaults.contact, device=arguments.device),
                 confidence=replace(defaults.confidence, device=arguments.device),
-                rally_layers=replace(
-                    defaults.rally_layers,
-                    tree=replace(defaults.rally_layers.tree, device=arguments.device),
+                rally=replace(
+                    defaults.rally,
+                    tree=replace(defaults.rally.tree, device=arguments.device),
                 ),
             )
             with threadpool_limits(limits=arguments.threads):

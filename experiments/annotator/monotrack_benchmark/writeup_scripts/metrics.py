@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.sequence.rally_model import alternate_sides
+from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import (
     judge_rally_boundaries,
     match_contacts,
@@ -213,7 +213,7 @@ def judge_found_rallies(
                 judged.append(record | {'outcome': 'overlong_rally'})
                 continue
         matches = match_contacts(rally.frames, frames, tolerance)
-        revised = alternate_sides((sequence,), sequence.events)[0][0]
+        revised = fit_rally_sides((sequence,), sequence.events)[0][0].sequence
         # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
         record |= {
             'missed': len(rally.frames) - len(matches),

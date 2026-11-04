@@ -15,8 +15,8 @@ intermediate results are unfamiliar.
 | Score and select contacts | [hybrid.py](../../src/annotator/hybrid.py) | Run the contact model, rally selector and review ranking |
 | Build contact evidence | [contacts/features.py](../../src/annotator/contacts/features.py) | Choose search regions and measure shuttle/player signals |
 | Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
-| Propose rally sequences | [sequence/repairs.py](../../src/annotator/sequence/repairs.py) | Shortlist earlier/later contacts and build serve/deletion repairs |
-| Describe all alternatives | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Add combined edits, order alternatives and build their features |
+| Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Gather earlier/later contacts and their physical evidence |
+| Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Combine contact additions/deletions, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
 | Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and fit alternating player sides, or carry model-selected sides forward |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
@@ -39,11 +39,11 @@ player or court evidence.
 
 - `AnnotationEvidence` contains original arrays, resolved settings, masks and initial rally/contact evidence.
 - `ContactData` contains final spans, selected contacts and fitted hitting order.
-- `ContactFeatures` contains searched frame rows and their intervals.
+- `ContactFeatures` contains candidate rows ready for scoring and their search intervals.
 - `ScoredContacts` adds candidate probabilities and selected row indices.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.
 - `ContactSequence` is a rally's bounds and the contacts it owns.
-- `RallyRepairs` holds rule-based repairs, shortlisted contacts and physical evidence.
+- `RallyCandidates`: shortlisted contacts by rally and their physical evidence.
 - `RallyOptions` holds the ordered alternatives and model-feature rows.
 - `RallyPrediction` retains the selected sequences, full contact stream and scores.
 - `AnnotatorResult` is the public result saved by the dataset builder.
@@ -76,7 +76,7 @@ fits rally selection and review. The production proposal and feature builders
 are also used during fitting.
 
 [`training/contact.py`](../../src/annotator/training/contact.py) owns contact
-sampling and fitting. [`training/rally_layers.py`](../../src/annotator/training/rally_layers.py)
+sampling and fitting. [`training/rally.py`](../../src/annotator/training/rally.py)
 owns grouped selector/review training. [`training/rally_targets.py`](../../src/annotator/training/rally_targets.py)
 judges candidate sequences. [`training/sequences.py`](../../src/annotator/training/sequences.py)
 holds labelled rally data, contact matching and rally correctness.

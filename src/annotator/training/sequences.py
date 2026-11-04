@@ -6,9 +6,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from annotator.outcomes.point_winner import Half
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
-from annotator.sequence.rally_model import alternate_sides
-from annotator.sequence.repairs import RallyRepairs
+from annotator.sequence.rally_model import fit_rally_sides
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class SequenceTrainingVideo:
     fps: float
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
-    repairs: RallyRepairs
+    candidates: RallyCandidates
     rallies: tuple[LabelledRally, ...]
     frame_count: int | None = None
     bounds_supplied: bool = False
@@ -175,25 +175,24 @@ def whole_rally_correctness(
     Missing contacts, merged/partial rallies, extra events and known side
     contradictions are wrong even when another human side label is unavailable.
     """
-    boundary = judge_rally_boundaries(
-        sequence, rallies, tolerance=scale_frames(tolerance_at_30_fps, fps),
-    )
+    tolerance = scale_frames(tolerance_at_30_fps, fps)
+    boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
     if boundary.outcome == 'no_labelled_rally':
         return -1
     if boundary.outcome != 'boundaries_right':
         return 0
     rally = boundary.rally
     assert rally is not None
-    tolerance = scale_frames(tolerance_at_30_fps, fps)
-    matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
-    if len(matches) < len(rally.frames):
+    if len(sequence.events) != len(rally.frames):
         return 0
-    revised, _events = alternate_sides((sequence,), sequence.events)
-    if any(rally.sides[label] is not None and revised[0].events[prediction].side != rally.sides[label]
-           for label, prediction, _offset in matches):
-        return 0
-    if len(sequence.events) > len(rally.frames):
-        return 0
+    # A fully correct rally pairs every contact in chronological order.
+    for labelled_frame, event in zip(rally.frames, sequence.events, strict=True):
+        if abs(event.frame - labelled_frame) > tolerance:
+            return 0
+    revised, _events = fit_rally_sides((sequence,), sequence.events)
+    for labelled_side, event in zip(rally.sides, revised[0].sequence.events, strict=True):
+        if labelled_side is not None and event.side != labelled_side:
+            return 0
     if any(side is None for side in rally.sides):
         return -1
     return 1

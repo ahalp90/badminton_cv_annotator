@@ -35,10 +35,11 @@ may still be selected when the rally model compares whole sequences.
 
 ## Rally selector
 
-For each rough rally, the proposal builder keeps the initial contacts and
-constructs alternatives from shortlisted earlier serves and later contacts.
-It includes serve repairs, deletions and combinations of additions/deletions.
-Temporal separation and neighbouring-rally rules restrict those alternatives.
+For each rough rally, keep the initial contact sequence as the first option.
+Generate alternatives by adding shortlisted earlier or later contacts and
+deleting from the first contact plus the five weakest remaining contacts. The
+default budget allows up to three additions/deletions combined. Temporal
+separation and neighbouring-rally bounds restrict those combinations.
 
 Each row contains:
 
@@ -87,9 +88,9 @@ Missing labels can make a proposal unjudgeable; these rows are excluded from fit
 
 By default, the selector prefers labels matched within five frames at 30 FPS
 when a rally has a positive option at that tolerance. Otherwise it uses the ten-frame labels.
-Both tolerances scale with frame rate. Each judged rally receives equal total
-row weight, then a fixed scale based on the rule-based repair set is applied.
-Expanding the proposal set therefore does not silently change that scale.
+Both tolerances scale with frame rate. Each judged rally receives total training
+weight 372 by default, divided equally among its judged options. Set
+`RallyFitConfig.span_weight` to retune that scale independently of proposal count.
 
 Review labels describe the final selected rally at the default ten-frame
 tolerance. Review training excludes unjudgeable rallies and uses held-group

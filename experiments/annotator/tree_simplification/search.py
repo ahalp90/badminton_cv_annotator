@@ -20,14 +20,13 @@ from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 
 
 def configurations() -> list[dict[str, Any]]:
-    runs = [{'name': 'original-options', 'leaves': 15, 'min_child_weight': 5.0, 'original_options': True}]
-    runs.extend([
-        {'name': f'leaves-{leaves}', 'leaves': leaves, 'min_child_weight': 5.0, 'original_options': False}
+    runs = [
+        {'name': f'leaves-{leaves}', 'leaves': leaves, 'min_child_weight': 5.0}
         for leaves in (15, 7, 31)
-    ])
+    ]
     runs.append({
         'name': 'minimum-child-weight-10', 'leaves': 15,
-        'min_child_weight': 10.0, 'original_options': False,
+        'min_child_weight': 10.0,
     })
     return runs
 
@@ -46,8 +45,6 @@ def run_configuration(
         '--threads', str(threads), '--leaves', str(run['leaves']),
         '--min-child-weight', str(run['min_child_weight']),
     ]
-    if run['original_options']:
-        command.append('--original-options')
     environment = {**os.environ, 'OMP_NUM_THREADS': str(threads), 'OPENBLAS_NUM_THREADS': str(threads),
                    'MKL_NUM_THREADS': str(threads)}
     started = time.perf_counter()

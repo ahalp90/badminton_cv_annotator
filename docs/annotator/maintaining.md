@@ -12,8 +12,13 @@ frame-rate-dependent settings scale before annotation. Player evidence must
 see the original shuttle track before replay masking.
 
 Candidate and proposal order affects equal-score choices. Feature columns,
-NaNs and dtypes form the model inputs. Moving code must preserve these values,
-not just the number of features or selected contact count.
+NaNs and dtypes form the model inputs. Preserve their meaning when reusing a
+fitted model; a changed feature definition requires a new fit.
+
+Contact feature construction applies the search priors and returns only candidate
+rows. Training and inference consume those rows directly. Rows can skip frames;
+feature offsets use the video timeline, and interval IDs refer to the original
+search intervals even when an interval has no candidates.
 
 Learned impulse features and replay-mask signals use the default thresholds for
 the video's frame rate. They ignore the saved `overrides_base30` adjustments used
@@ -30,14 +35,14 @@ individual side guesses to measure agreement. They use final boundaries only
 for the boundary summary.
 
 Contact sampling order and fit-row order are separate. Preserve both, together
-with seeds, target policies and the weight scale from rule-based repairs, when claiming
-that training behaviour is unchanged.
+with seeds, target policies and the configured total weight per judged rally
+when claiming that training behaviour is unchanged.
 
 ## Does a change require a new fit?
 
 | Change | Fit and evaluation needed? |
 | --- | --- |
-| Restructure code with exactly equal inputs and outputs | Existing bundles should remain valid; prove equality |
+| Rearrange code without changing model inputs or decisions | Keep the existing bundle; test the changed boundary |
 | Change contact search regions or physical features | Refit contact and downstream models |
 | Change initial contact selection or side evidence | Refit downstream rally/review models and compare end-to-end results |
 | Change proposal rules, feature order or proposal settings | Refit rally selection and review |
@@ -58,38 +63,30 @@ Both exclusion masks are persisted beside the result.
 Newly fitted model bundles use `annotator-three-models/1`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`
 converts it into one `Thresholds` value for the video's frame rate.
-The loader checks runtime versions, feature order, proposal settings and side geometry.
-Joblib also records Python class paths: moving `AnnotatorModels`,
-`RallySelector` or saved evidence classes needs an explicit migration.
+The loader checks feature order, proposal settings and side geometry. Runtime
+versions are recorded for reproduction, without requiring an exact version match.
+Joblib records Python class paths, so moving saved classes can require rebuilding
+their artefacts. Use the corresponding historical checkout for older bundles and
+settings.
 
-The existing tree-simplification bundles use the previous schema. Use their
-historical checkout and environment when reproducing those experiments.
-
-Old eight-model bundles are unsupported. Historical research results remain
-readable, but old proposal caches must be regenerated after the proposal
-representation change. Keep preparation provenance when reusing saved features;
-a current source revision alone does not describe how an older cache was made.
-
-Shared preparation returns `AnnotationEvidence` from
-[preparation.py](../../src/annotator/preparation.py). Training and inference use
-that same function. Prepared-video Joblib caches made with the former
-`hybrid.ContactEvidence` class must be regenerated in a fresh output directory.
-Fitted model bundles and their schema are unchanged by this preparation move.
+Training and inference share `prepare_annotation()` in
+[preparation.py](../../src/annotator/preparation.py). Rebuild prepared inputs in a
+fresh directory when their feature layout changes. The prepared-input loader
+checks the current candidate-row columns before training or scoring.
 
 ## Check a change at its boundary
 
-For contact changes, compare searched regions, feature rows, candidate scores
-and selected frames. For rally changes, compare ordered proposals, feature
-matrices, selected rows, final contacts/bounds/sides and review scores. Direct
-array comparison with matching NaNs makes the source of a difference visible.
+Test the decision that changed and its immediate consumers. Contact changes
+usually need numerical cases for candidate membership, time offsets and selected
+frames. Rally changes need cases for proposals, ownership, boundaries and sides.
+Use direct comparisons where they diagnose a specific calculation.
 
-For integration changes, exercise both dataset-builder persistence and
-MonoTrack supplied-boundary/discovery annotation. Compare every public result
-field and both masks when shared preparation or outcomes change.
+Exercise dataset-builder persistence and MonoTrack annotation when their shared
+interfaces change. Check the affected result fields and masks.
 
-A GPU retrain is useful after training changes. Compare the same seeded runs
-with fixed data, settings and row order. A small spread across seeds does not
-by itself establish that a refactor preserved the algorithm.
+Judge intentional model changes by whole-rally correctness on validation data;
+use contact and player F1 to diagnose the difference. Repeat paired seeds when
+fit variation could change the decision. Use the fixed test set for confirmation.
 
 Use the repository's relevant lint, type and test checks. Broaden testing when
 shared interfaces or pipeline behaviour change. The current tests cover contact

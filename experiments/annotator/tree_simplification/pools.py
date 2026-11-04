@@ -26,10 +26,8 @@ from threadpoolctl import threadpool_limits
 
 from annotator.contacts.model import ContactModelConfig
 from annotator.sequence.contacts import ContactSequence
-from annotator.training import rally_targets
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.workflow import TrainingSettings
-from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
     expand_pool,
@@ -54,32 +52,6 @@ class PoolJob:
     reuse_options: Path | None = None
 
 
-def _span_rows(sequences: Sequence[ContactSequence], span_ids: Sequence[int]) -> dict[int, np.ndarray]:
-    rows: dict[int, list[int]] = {span_id: [] for span_id in span_ids}
-    for row, sequence in enumerate(sequences):
-        rows[sequence.span_id].append(row)
-    return {span_id: np.asarray(indices, dtype=np.int64) for span_id, indices in rows.items()}
-
-
-def original_rows(options: LabelledOptions) -> np.ndarray:
-    """Locate the original options so features and alternate targets use identical rows."""
-    return rally_targets.original_option_rows(options.runtime)
-
-
-def original_options(options: LabelledOptions, *, selected: np.ndarray | None = None) -> LabelledOptions:
-    """Select the initial and original options, keeping their feature and target rows."""
-    if selected is None:
-        selected = original_rows(options)
-    sequences = tuple(options.sequences[row] for row in selected)
-    return LabelledOptions(
-        sequences,
-        options.matrix[selected],
-        options.targets[selected],
-        _span_rows(sequences, tuple(options.span_rows)),
-        options.video,
-    )
-
-
 def edit_kind(sequence: ContactSequence, initial_by_span: dict[int, ContactSequence]) -> str:
     """Classify a proposal by whether it adds or removes detector contacts."""
     before = {event.frame for event in initial_by_span[sequence.span_id].events}
@@ -102,8 +74,6 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
     for sequence, target in zip(options.sequences, options.targets, strict=True):
         target_counts[edit_kind(sequence, initial_by_span)][str(int(target))] += 1
 
-    original = original_options(options)
-
     def positive_spans(pool: LabelledOptions) -> int:
         return sum(bool(np.any(pool.targets[rows] == 1)) for rows in pool.span_rows.values())
 
@@ -118,8 +88,7 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
             for kind in EDIT_KINDS
         },
         'positive_target_span_coverage': {
-            'original_options': positive_spans(original),
-            'all_options': positive_spans(options),
+            'positive_spans': positive_spans(options),
             'total_spans': len(options.span_rows),
         },
     }
@@ -134,7 +103,7 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
                 raise ValueError(f'{job.video}: reused proposal identity or group differs')
             options = saved
         else:
-            prepared: PreparedVideo = joblib.load(job.prepared_path)
+            prepared = experiment.load_prepared(job.prepared_path.parent.parent, job.prepared_path.stem)
             if prepared.video.identity != job.video or prepared.group != job.group:
                 raise ValueError(f'{job.video}: prepared identity or group differs from its record')
             if prepared.video.split != job.split:

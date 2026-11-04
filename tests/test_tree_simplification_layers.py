@@ -9,11 +9,14 @@ import pytest
 from threadpoolctl import threadpool_limits
 
 from annotator.outcomes.point_winner import Half
+from annotator.sequence import rally_model
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.repairs import RallyRepairs
+from annotator.sequence.features import positive_probabilities
+from annotator.training import rally as rally_training
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.trees import TreeFitConfig
-from experiments.annotator.tree_simplification import layers, margins
+from experiments.annotator.tree_simplification import margins
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
@@ -28,7 +31,7 @@ def example_pool() -> LabelledOptions:
         initial[0], replace(initial[0], events=(first, added, last)),
         replace(initial[0], events=(last,)), initial[1],
     )
-    original_pool = RallyRepairs((), {}, {})
+    original_pool = RallyCandidates({}, {})
     original = SequenceTrainingVideo(
         'fixture', 'group', 30.0, initial, (first, last, neighbour, outside), original_pool, (), 110,
     )
@@ -41,7 +44,7 @@ def example_pool() -> LabelledOptions:
 def test_final_margin_uses_initial_keep_without_changing_scores() -> None:
     pool = example_pool()
     scores = np.asarray([0.50, 0.54, 0.2, 0.1])
-    assert margins.gated_rows(pool, scores, 0.0) == layers.choose_rows(pool, scores)
+    assert margins.gated_rows(pool, scores, 0.0) == rally_model.choose_rows(pool.runtime, scores)
     assert margins.gated_rows(pool, scores, 0.05) == {0: 0, 1: 3}
     np.testing.assert_array_equal(scores, [0.50, 0.54, 0.2, 0.1])
     scores[1] = 0.56
@@ -65,24 +68,25 @@ def test_margin_replay_rejects_an_incomplete_source(
 def test_selector_keeps_stable_ties() -> None:
     pool = example_pool()
     scores = np.asarray([0.5, 0.8, 0.8, 0.6])
-    assert layers.choose_rows(pool, scores) == {0: 1, 1: 3}
+    assert rally_model.choose_rows(pool.runtime, scores) == {0: 1, 1: 3}
 
 
 def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pytest.MonkeyPatch) -> None:
     pool = example_pool()
     unjudged = replace(pool, targets=np.full(4, -1, dtype=np.int8))
     sparse = replace(pool, targets=np.asarray([1, -1, -1, -1], dtype=np.int8))
-    np.testing.assert_array_equal(layers.judged_weights(pool), [0.5, 0.5, 0, 1])
-    np.testing.assert_array_equal(layers.judged_weights(unjudged), np.zeros(4))
+    np.testing.assert_array_equal(rally_training.judged_weights(pool.runtime, pool.targets), [0.5, 0.5, 0, 1])
+    np.testing.assert_array_equal(rally_training.judged_weights(unjudged.runtime, unjudged.targets), np.zeros(4))
     captured = {}
 
     def fit(matrix: np.ndarray, labels: np.ndarray, **kwargs: Any) -> object:
         captured.update(matrix=matrix, labels=labels, **kwargs)
         return captured
 
-    monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
-    model = layers.fit_selector(
-        [pool, sparse, unjudged], TreeFitConfig(max_iter=3), span_weight=1.5,
+    monkeypatch.setattr(rally_training, 'fit_binary_tree', fit)
+    model = rally_training.fit_selector(
+        [pool.runtime, sparse.runtime, unjudged.runtime], [pool.targets, sparse.targets, unjudged.targets],
+        TreeFitConfig(max_iter=3), span_weight=1.5,
     )
     assert model is captured
     np.testing.assert_array_equal(captured['labels'], [0, 1, 0, 1])
@@ -96,7 +100,7 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     assert captured['max_iter'] == 3
 
 
-def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fixed_span_weight_is_identical_across_pool_sizes(monkeypatch: pytest.MonkeyPatch) -> None:
     original = example_pool()
     all_options = replace(
         original,
@@ -105,15 +109,15 @@ def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch
         targets=np.concatenate((original.targets, original.targets[:2], original.targets[:2])),
         span_rows={0: np.asarray([0, 1, 2, 4, 5, 6, 7]), 1: np.asarray([3])},
     )
-    span_weight = float((original.targets >= 0).sum()) / len(original.span_rows)
+    span_weight = 2.5
 
     def fit(_matrix: np.ndarray, _labels: np.ndarray, **kwargs: Any) -> np.ndarray:
         return kwargs['sample_weight']
 
-    monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
+    monkeypatch.setattr(rally_training, 'fit_binary_tree', fit)
     for pool in (original, all_options):
         judged = pool.targets >= 0
-        passed = layers.fit_selector([pool], span_weight=span_weight)
+        passed = rally_training.fit_selector([pool.runtime], [pool.targets], TreeFitConfig(), span_weight=span_weight)
         full_weights = np.zeros(len(pool.targets))
         full_weights[judged] = passed
         assert len(passed) == int(judged.sum())
@@ -124,39 +128,44 @@ def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch
 @pytest.mark.parametrize('span_weight', [0.0, -1.0, np.nan, np.inf])
 def test_invalid_fixed_span_weight_fails_loudly(span_weight: float) -> None:
     with pytest.raises(ValueError, match='finite and positive'):
-        layers.fit_selector([example_pool()], span_weight=span_weight)
+        rally_training.fit_selector([example_pool().runtime], [example_pool().targets], TreeFitConfig(), span_weight=span_weight)
 
 
 def test_fitted_layer_predicts_all_options_and_can_change_earlier_choices() -> None:
     pool = example_pool()
     prior = np.asarray([0.9, 0.1, 0.8, 0.6])
     with threadpool_limits(limits=1):
-        model = layers.fit_selector([pool], TreeFitConfig(max_iter=15, min_child_weight=0), span_weight=1.5)
-        scores = layers.predict_selector(model, pool)
+        model = rally_training.fit_selector([pool.runtime], [pool.targets], TreeFitConfig(max_iter=15, min_child_weight=0), span_weight=1.5)
+        scores = positive_probabilities(model, pool.matrix)
     assert scores.shape == (4,)
     assert np.isfinite(scores).all()
-    assert layers.choose_rows(pool, prior)[0] == 0
-    assert layers.choose_rows(pool, scores)[0] == 1
+    assert rally_model.choose_rows(pool.runtime, prior)[0] == 0
+    assert rally_model.choose_rows(pool.runtime, scores)[0] == 1
 
 
 def test_joint_finishing_expands_bounds_alternates_sides_and_keeps_external_events() -> None:
     pool = example_pool()
-    sequences, events = layers.finish_selected(pool, np.asarray([0.2, 0.9, 0.1, 0.5]))
+    runtime = pool.runtime
+    rallies, events = rally_model.finish_rallies(runtime, rally_model.choose_rows(runtime, np.asarray([0.2, 0.9, 0.1, 0.5])))
+    sequences = tuple(rally.sequence for rally in rallies)
     assert [(sequence.start_frame, sequence.end_frame) for sequence in sequences] == [(10, 51), (60, 81)]
     assert tuple(event.frame for event in sequences[0].events) == (20, 30, 40)
     assert tuple(event.side for event in sequences[0].events) == (Half.TOP, Half.BOT, Half.TOP)
     assert tuple(event.frame for event in events) == (20, 30, 40, 70, 100)
-    deleted, deletion_events = layers.finish_selected(pool, np.asarray([0.2, 0.1, 0.9, 0.5]))
+    rallies, deletion_events = rally_model.finish_rallies(runtime, rally_model.choose_rows(runtime, np.asarray([0.2, 0.1, 0.9, 0.5])))
+    deleted = tuple(rally.sequence for rally in rallies)
     assert tuple(event.frame for event in deleted[0].events) == (40,)
     assert tuple(event.frame for event in deletion_events) == (40, 70, 100)
     earlier = ContactEvent(52, 0.8, Half.TOP)
     revised = replace(pool.sequences[3], start_frame=52, events=(earlier, *pool.sequences[3].events))
     interacting = replace(pool, sequences=(*pool.sequences[:3], revised))
-    joint, _events = layers.finish_selected(interacting, np.asarray([0.2, 0.9, 0.1, 0.5]))
+    runtime = interacting.runtime
+    rallies, _events = rally_model.finish_rallies(runtime, rally_model.choose_rows(runtime, np.asarray([0.2, 0.9, 0.1, 0.5])))
+    joint = tuple(rally.sequence for rally in rallies)
     assert joint[0].end_frame == joint[1].start_frame == 48
 
 
 @pytest.mark.parametrize('scores', [np.ones(3), np.asarray([0.2, np.nan, 0.1, 0.5])])
 def test_misaligned_or_nonfinite_scores_fail_loudly(scores: np.ndarray) -> None:
     with pytest.raises(ValueError, match='finite and align'):
-        layers.choose_rows(example_pool(), scores)
+        rally_model.choose_rows(example_pool().runtime, scores)

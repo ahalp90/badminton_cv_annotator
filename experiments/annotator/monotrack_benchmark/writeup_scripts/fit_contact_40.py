@@ -56,7 +56,7 @@ def training_settings_record(seed: int, models: AnnotatorModels, device: str) ->
     settings = replace(experiment.settings_for(device, 5.0, seed_offset=seed),
                        preprocessing=models.preprocessing)
     record = asdict(settings)
-    record = experiment.contact_stage_settings(record)
+    record.pop('rally')
     return json.loads(json.dumps(record, default=sorted))
 
 
@@ -88,7 +88,7 @@ def refit(seed: int, prepared: Path, output: Path, tree_results: Path, device: s
     preprocessing = preprocessing_record(models.preprocessing)
     stage = contact_stage(seed, tree_results)
     settings = training_settings_record(seed, models, device)
-    if stage['seed_offset'] != seed or experiment.contact_stage_settings(stage['settings']['settings']) != settings:
+    if stage['seed_offset'] != seed or stage['settings']['settings'] != settings:
         raise ValueError(f'seed {seed}: contact settings differ from the test bundle contact stage')
     contact_settings = experiment.settings_for(device, 5.0, seed_offset=seed).contact
     videos = load_training_videos(prepared, preprocessing)

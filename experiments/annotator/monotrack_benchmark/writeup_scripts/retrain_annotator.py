@@ -106,11 +106,8 @@ def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> li
                 ), fitted))
             else:
                 exported = root / 'export'
-                reuse_arguments = ('--reuse-upstream',) if args.reuse_training_root is not None else ()
-                parity_arguments = ('--skip-replay-parity',) if args.skip_replay_parity else ()
                 jobs.append(Job(command(stage, '--run', fitted, '--five-frame-targets', targets,
-                                        '--output', exported, '--threads', 2, '--device', args.device,
-                                        *reuse_arguments, *parity_arguments), exported))
+                                        '--output', exported, '--threads', 2, '--device', args.device), exported))
     return jobs
 
 
@@ -148,8 +145,6 @@ def main() -> None:
                         help='Reuse preparation and contact fits from an existing training run')
     parser.add_argument('--reuse-options', action='store_true',
                         help='Also reuse matching current-schema option pools from --reuse-training-root')
-    parser.add_argument('--skip-replay-parity', action='store_true',
-                        help='Skip equality replays during export')
     parser.add_argument('--plan-only', action='store_true')
     args = parser.parse_args()
     if not 2 <= args.workers <= 28:

@@ -30,15 +30,6 @@ REGION_RADII_BASE30 = {
     "region_scene_start": 15,
 }
 
-REGION_FIELDS = (
-    "region_current_raw",
-    "region_relaxed_impulse",
-    "region_wrist",
-    "region_visibility",
-    "region_rally_start",
-    "region_scene_start",
-    "region_serve_lookback",
-)
 BASE_PHYSICS_SIGNALS = (
     "shuttle_vx",
     "shuttle_vy",
@@ -246,17 +237,17 @@ def expand_seed_region(seed: np.ndarray, start: int, end: int, radius: int) -> n
     return expanded
 
 
-def build_region_masks(
+def build_candidate_mask(
     signals: Mapping[str, np.ndarray],
     eligible_intervals: Sequence[tuple[int, int]],
     rally_spans: Sequence[tuple[int, int]],
     raw_contact_frames: Sequence[int],
     scene_spans: Sequence[tuple[int, int]],
     fps: float,
-) -> dict[str, np.ndarray]:
-    """Build broad search regions without labels or GT-derived boundaries."""
+) -> np.ndarray:
+    """Nominate contact frames from motion, player proximity and rally context."""
     n_frames = len(signals["shuttle_visible"])
-    seeds = {name: np.zeros(n_frames, dtype=bool) for name in REGION_FIELDS}
+    seeds = {name: np.zeros(n_frames, dtype=bool) for name in REGION_RADII_BASE30}
     for frame in raw_contact_frames:
         if 0 <= frame < n_frames:
             seeds["region_current_raw"][frame] = True
@@ -279,14 +270,14 @@ def build_region_masks(
     for start, _end in scene_spans:
         seeds["region_scene_start"][start] = True
 
-    regions = {name: np.zeros(n_frames, dtype=bool) for name in REGION_FIELDS}
+    candidates = np.zeros(n_frames, dtype=bool)
     serve_lookback = _scaled_frames(SERVE_LOOKBACK_BASE30, fps)
     for start, end in eligible_intervals:
-        for name in REGION_FIELDS[:-1]:
-            radius = _scaled_frames(REGION_RADII_BASE30[name], fps)
-            regions[name] |= expand_seed_region(seeds[name], start, end, radius)
-        regions["region_serve_lookback"][max(0, start - serve_lookback) : start] = True
-    return regions
+        for name, radius_at_30_fps in REGION_RADII_BASE30.items():
+            radius = _scaled_frames(radius_at_30_fps, fps)
+            candidates |= expand_seed_region(seeds[name], start, end, radius)
+        candidates[max(0, start - serve_lookback) : start] = True
+    return candidates
 
 
 def shift_within_interval(
@@ -305,7 +296,6 @@ def shift_within_interval(
 
 def contact_feature_dtype() -> np.dtype:
     fields = [("interval_id", "<i4"), ("frame", "<i4")]
-    fields.extend((name, "u1") for name in REGION_FIELDS)
     fields.extend(
         (f"{signal}_t{offset:+d}", "<f4")
         for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS
@@ -346,7 +336,7 @@ def build_contact_features(
     :param scene_spans: Half-open scene spans in chronological order.
     :param fps: Source video frame rate.
     :param resolution: Source width and height in pixels.
-    :return: All search rows, including rows outside candidate regions, and intervals.
+    :return: Candidate rows ready for scoring or training, and their search intervals.
     """
     if exclusion_mask.shape != (len(track),) or exclusion_mask.dtype != np.bool_:
         raise ValueError("exclusion mask must match the shuttle timeline")
@@ -354,7 +344,7 @@ def build_contact_features(
     search_intervals = extend_intervals_with_lookback(eligible_intervals, len(track), fps)
     signals = build_shuttle_signals(track, search_intervals, fps)
     signals.update(build_player_signals(track, pose_kps, sticky, resolution))
-    regions = build_region_masks(
+    candidates = build_candidate_mask(
         signals,
         eligible_intervals,
         heuristic_spans,
@@ -366,12 +356,11 @@ def build_contact_features(
     chunks: list[np.ndarray] = []
     for interval_id, (start, end) in enumerate(progress_iter(search_intervals, "building contact features", unit="intervals")):
         frames = np.arange(start, end, dtype=np.int32)
+        frames = frames[candidates[start:end]]
         rows = np.zeros(len(frames), dtype=dtype)
         rows["interval_id"] = interval_id
         rows["frame"] = frames
-        for name in REGION_FIELDS:
-            rows[name] = regions[name][frames]
-
+        # Offsets refer to video frames, including frames we did not nominate.
         for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS:
             for offset_base30 in WINDOW_OFFSETS_BASE30:
                 offset = 0
