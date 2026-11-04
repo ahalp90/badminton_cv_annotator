@@ -10,6 +10,8 @@ pilot selection and training histories. The two selected model-only
 checkpoints are in [`weights/`](weights/README.md).
 
 See [the VideoMAE run guide](VIDEOMAE.md) for the four-run Base pilot and batch-size timing.
+[Read the VideoMAE-B results](videomae_results.md) for validation selection, training histories
+and the every-third-frame comparison.
 
 ## X3D-M experiment
 

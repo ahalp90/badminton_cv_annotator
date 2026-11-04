@@ -1,4 +1,6 @@
-# X3D-M validation and test results
+# Video-model validation and test results
+
+X3D-M records come first; [VideoMAE-B records](#videomae-b-pilot) follow.
 
 Each directory under [`x3d_pilot/`](x3d_pilot/) is one training run, named
 `{scheme}-contact{percent}-lr{rate}-seed{seed}`. We keep all 12 runs,
@@ -70,3 +72,35 @@ Validation loss compares within a scheme only, because schemes A and B label
 different frames as contacts. B-contact50-lr0.02-seed1 had already gone three
 checks without improvement at 30,000 updates, so its continuation stopped
 before any further training.
+
+## VideoMAE-B pilot
+
+Each directory under [`videomae_pilot/`](videomae_pilot/) is one training run,
+named `videomae-lr{rate}-seed{seed}`. Each holds the same four files as an X3D-M
+run: `settings.json.gz`, `history.json.gz`, `continuation.json.gz` and
+`training_progress.json.gz`. The settings add the VideoMAE fields described in
+the [run guide](../VIDEOMAE.md). Every check covers the same 668 validation
+rallies and 5,696 labelled hits as X3D-M. The write-up is
+[`../videomae_results.md`](../videomae_results.md).
+
+After all four runs finish, `videomae_pilot/selection.json.gz` records the
+queue's learning-rate ranking and each run's selected checkpoint. Test outputs
+for both selected seeds then go in `videomae_test/seed0/` and
+`videomae_test/seed1/`, with the same two files as `x3d_test/`.
+
+[`videomae_stride3/validation_scores.csv.gz`](videomae_stride3/validation_scores.csv.gz)
+has one row per run, sampling, hitter rule and tolerance. Columns:
+
+| Column | Meaning |
+|---|---|
+| `split`, `run`, `learning_rate`, `seed` | Which predictions were rescored |
+| `best_step` | Update count of the lowest-validation-loss checkpoint that made the predictions |
+| `stride`, `offset` | 1 and 0 for dense prediction; 3 and 0–2 for every third video frame, starting at that offset |
+| `hitter_rule` | `raw` keeps each hit's own most likely hitter; `alternating` is the reported rule |
+| `tolerance` | Timing allowance in frames at 30 fps, scaled to each video's frame rate |
+| `labelled`, `predicted`, `matched`, `correct_player`, `rallies`, `fully_correct` | Counts behind the scores |
+| `contact_recall`, `contact_precision`, `contact_f1`, `correct_player_f1`, `fully_correct_percent` | Scores in percent |
+
+`test_scores.csv.gz` will use the same columns for the two test seeds.
+[`videomae_timing/`](videomae_timing/) holds the batch-size throughput measurements.
+Checkpoints and per-frame probabilities are not included.
