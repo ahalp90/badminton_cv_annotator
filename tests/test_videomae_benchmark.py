@@ -259,6 +259,7 @@ def test_old_x3d_settings_resume_with_new_defaults(tmp_path: Path, monkeypatch: 
     (tmp_path / "PAUSE").touch()
     train.fit(model, loader, loader, settings, torch.device("cpu"), tmp_path, "A")
     saved_settings = train.read_json(tmp_path / "settings.json.gz")
+    del saved_settings["validation_stride"]
     for name in ("model_name", "microbatch_size", "checkpoint_revision", "layer_decay", "stochastic_depth",
                  "continuation_half_cycle_steps", "continuation_validation_interval"):
         assert name not in saved_settings
