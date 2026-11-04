@@ -69,17 +69,19 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptio
     return pools
 
 
-def fit_review(run: Path, depth: int, targets: Path, output: Path, settings: dict, *, device: str = 'cpu') -> Any:
+def fit_review(
+    run: Path, depth: int, targets: Path, output: Path, settings: dict, *,
+    device: str = 'cpu', check_parity: bool = True,
+) -> Any:
     pools = load_training(settings, targets)
-    sample = next(iter(pools))
-    saved = joblib.load(Path(settings['pools']) / 'videos' / f'{sample}.joblib')
-    rebuilt = build_rally_options(saved.runtime.context, settings['pool_settings']['max_edits'],
-                                 settings['pool_settings']['deletion_candidates'])
-    verify_pool(rebuilt, saved)
-    np.testing.assert_array_equal(
-        option_targets(saved.video, rebuilt), saved.targets,
-    )
-    progress(output, 'training-pool-parity', video=sample, rows=len(saved.targets))
+    if check_parity:
+        sample = next(iter(pools))
+        saved = joblib.load(Path(settings['pools']) / 'videos' / f'{sample}.joblib')
+        rebuilt = build_rally_options(saved.runtime.context, settings['pool_settings']['max_edits'],
+                                      settings['pool_settings']['deletion_candidates'])
+        verify_pool(rebuilt, saved)
+        np.testing.assert_array_equal(option_targets(saved.video, rebuilt), saved.targets)
+        progress(output, 'training-pool-parity', video=sample, rows=len(saved.targets))
     # Reuse completed selector fits; new held-group review fits stay in this export.
     fits = output / 'review-fits'
     shutil.copytree(run / 'fits', fits / 'fits', dirs_exist_ok=True)

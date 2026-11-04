@@ -270,11 +270,14 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     contact_run_root.mkdir()
     write_json(prepared_root / 'preparation.json.gz', {'source': {'revision': 'upstream'}})
     write_json(contact_run_root / 'contact-stage.json.gz', {'source': {'revision': 'upstream'}})
-    saved_scores = {identity: {'5': {}, '10': {}} for identity in identities}
+    saved_scores = {identity: {'5': {'predicted_contacts': 99}} for identity in identities}
     write_json(run / 'layers-1/validation.json.gz', {'per_video': saved_scores})
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'test'})
-    def fit_review(*_args, device):
+    fitted_review_checks = []
+
+    def fit_review(*_args, device, check_parity):
         assert device == 'cuda'
+        fitted_review_checks.append(check_parity)
         return object()
 
     monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
@@ -303,8 +306,13 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     rows = read_json(tmp_path / 'export' / 'review-rows.json.gz')
     assert result['complete'] is True
     assert result['replay_streams_match'] is True
+    assert result['replay_parity_checked'] is True
     assert set(result['per_video']) == set(identities)
-    assert result['per_video'] == saved_scores
+    assert result['per_video'] == {
+        identity: input_stages.score_stream(fake_videos[identity].video, expected_stream)
+        for identity in identities
+    }
+    assert result['per_video'] != saved_scores
     for identity in identities:
         saved_stream = read_json(tmp_path / 'export/streams' / f'{identity}.json.gz')
         assert saved_stream == expected_stream | {'confidence': {'4': .7}}
@@ -312,9 +320,24 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     assert len(rows) == 8 * 2 * 2
     assert all(row['correct'] == -1 for row in rows)
 
-    monkeypatch.setattr(input_stages, 'stream_payload', lambda *_args: {'events': ['mismatch']})
+    replay_stream = {'events': [[12, .7, 'Top']], 'sequences': []}
+    monkeypatch.setattr(input_stages, 'stream_payload', lambda *_args: replay_stream)
     with pytest.raises(ValueError, match='differs from the saved rally run'):
         input_stages.export_run(run, targets, tmp_path / 'mismatched-export', threads=1)
+    skipped = input_stages.export_run(
+        run, targets, tmp_path / 'unchecked-export', threads=1, check_parity=False,
+    )
+    assert fitted_review_checks == [True, True, False]
+    assert skipped['replay_parity_checked'] is False
+    assert 'replay_streams_match' not in skipped
+    assert skipped['per_video'] == {
+        identity: input_stages.score_stream(fake_videos[identity].video, replay_stream)
+        for identity in identities
+    }
+    assert all(
+        result['per_video'][identity] != skipped['per_video'][identity]
+        for identity in identities
+    )
 
 
 def test_preprocessing_record_rejects_the_retired_threshold_preset() -> None:
@@ -351,3 +374,17 @@ def test_export_passes_device_to_confidence_fit(
     assert captured['device'] == device
     receipt = read_json(output / 'settings.json.gz')
     assert receipt['device'] == device
+
+
+def test_export_cli_can_skip_replay_parity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(input_stages.sys, 'argv', [
+        'input_stages.py', 'export', '--run', str(tmp_path / 'run'),
+        '--five-frame-targets', str(tmp_path / 'targets'), '--output', str(tmp_path / 'export'),
+        '--skip-replay-parity',
+    ])
+    monkeypatch.setattr(input_stages, 'export_run', lambda *args, **kwargs: captured.update(kwargs))
+
+    input_stages.main()
+
+    assert captured['check_parity'] is False

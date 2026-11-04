@@ -49,6 +49,7 @@ from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for, pooled_scores
 from experiments.annotator.heuristic_only_tune.data import (
     load_original_videos,
+    score_stream,
 )
 from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.data import PreparedVideo
@@ -271,9 +272,10 @@ def _review_rows(
 
 
 def export_run(
-    run: Path, targets: Path, output: Path, *, threads: int = 2, device: str = 'cuda', reuse_upstream: bool = False,
+    run: Path, targets: Path, output: Path, *, threads: int = 2, device: str = 'cuda',
+    reuse_upstream: bool = False, check_parity: bool = True,
 ) -> dict[str, Any]:
-    """Fit review, build a production bundle, and verify all validation streams."""
+    """Fit review, build a production bundle, and replay validation streams."""
     if not 1 <= threads <= 28:
         raise ValueError('threads must be between 1 and 28')
     if device not in ('cpu', 'cuda'):
@@ -293,13 +295,15 @@ def export_run(
             'contacts': read_json(contact_run_root / 'contact-stage.json.gz')['source'],
         },
     }
+    if not check_parity:
+        receipt['check_parity'] = False
     output.mkdir(parents=True, exist_ok=True)
     receipt_path = output / 'settings.json.gz'
     if receipt_path.exists() and read_json(receipt_path) != receipt:
         raise ValueError('Export inputs changed; use a fresh output directory')
     write_json(receipt_path, receipt)
     with threadpool_limits(limits=threads):
-        review = integrate.fit_review(run, depth, targets, output, settings, device=device)
+        review = integrate.fit_review(run, depth, targets, output, settings, device=device, check_parity=check_parity)
     pool_settings = settings['pool_settings']
     layer_models = joblib.load(run / f'layers-{depth}' / 'rally-models.joblib')
     if len(layer_models) != depth:
@@ -325,7 +329,6 @@ def export_run(
     models = load_models(bundle)
 
     pools_root = Path(settings['pools']).resolve()
-    validation_scores = read_json(run / f'layers-{depth}' / 'validation.json.gz')['per_video']
     validation_ids = [identity for identity, group in inputs['groups'].items() if group == experiment.VALIDATION_GROUP]
     if len(validation_ids) != 8:
         raise ValueError('Prepared manifest must contain the fixed eight validation videos')
@@ -343,24 +346,26 @@ def export_run(
             layer_prediction = prediction.refined
             if not isinstance(layer_prediction, RallyLayerPrediction):
                 raise TypeError('Raw export requires a rally-layer prediction')
-            saved: LabelledOptions = joblib.load(pools_root / 'videos' / f'{identity}.joblib')
-            integrate.verify_pool(layer_prediction.pool, saved)
+            if check_parity:
+                saved: LabelledOptions = joblib.load(pools_root / 'videos' / f'{identity}.joblib')
+                integrate.verify_pool(layer_prediction.pool, saved)
             stream = stream_payload(layer_prediction.sequences, layer_prediction.events)
-            expected_path = run / f'layers-{depth}' / 'streams' / f'{identity}.json.gz'
-            if stream != read_json(expected_path):
-                raise ValueError(f'{identity}: raw production stream differs from the saved rally run')
+            if check_parity:
+                expected_path = run / f'layers-{depth}' / 'streams' / f'{identity}.json.gz'
+                if stream != read_json(expected_path):
+                    raise ValueError(f'{identity}: raw production stream differs from the saved rally run')
             confidence = dict(zip(prediction.confidence.features.span_ids, map(float, prediction.confidence.scores),
                                   strict=True))
             write_json(output / 'streams' / f'{identity}.json.gz', stream | {
                 'confidence': {str(sequence.span_id): confidence[sequence.span_id]
                                for sequence in layer_prediction.sequences},
             })
-            per_video[identity] = validation_scores[identity]
+            per_video[identity] = score_stream(video, stream)
             review_per_video[identity], video_rows = _review_rows(
                 video, identity, prediction,
             )
             rows.extend(video_rows)
-            experiment.progress(output, 'raw-replay-parity', video=identity, complete=len(per_video), planned=8)
+            experiment.progress(output, 'raw-replay', video=identity, complete=len(per_video), planned=8)
 
     pooled_review = {}
     for name in ('selector', 'fitted'):
@@ -375,12 +380,14 @@ def export_run(
         'complete': True,
         'source': receipt['source'],
         'preprocessing': inputs['preprocessing'],
-        'replay_streams_match': True,
+        'replay_parity_checked': check_parity,
         'per_video': per_video,
         'totals': pooled_scores(per_video),
         'review_per_video': review_per_video,
         'review': pooled_review,
     }
+    if check_parity:
+        result['replay_streams_match'] = True
     write_json(output / 'result.json.gz', result)
     experiment.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])
     return result
@@ -405,6 +412,8 @@ def main() -> None:
     export.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     export.add_argument('--reuse-upstream', action='store_true',
                         help='Reuse prepared inputs and contact fits from their recorded source revisions')
+    export.add_argument('--skip-replay-parity', action='store_true',
+                        help='Skip equality checks against saved training pools and validation streams')
 
     args = parser.parse_args()
     if args.command == 'contacts':
@@ -414,7 +423,7 @@ def main() -> None:
         )
     else:
         export_run(args.run, args.five_frame_targets, args.output, threads=args.threads, device=args.device,
-                   reuse_upstream=args.reuse_upstream)
+                   reuse_upstream=args.reuse_upstream, check_parity=not args.skip_replay_parity)
 
 
 if __name__ == '__main__':
