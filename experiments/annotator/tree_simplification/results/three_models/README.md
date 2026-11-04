@@ -16,7 +16,17 @@ all 668 rallies, including the 314 marked with flaws.
 | Correct-player F1 | 85.391% | 85.391% |
 | Fully correct unflagged rallies | 227/354 | 227/354 |
 
-These are validation results. Confirmation on the 46-video test set is pending.
+The fixed model also completed confirmation on the familiar 46-video test set.
+Scoring included 3,327 rallies and 37,184 labelled contacts, with 524 rally
+windows excluded under the existing test rules.
+
+| Test measure | One-selector implementation |
+| --- | ---: |
+| Fully correct rallies | 1,848/3,327 (55.545%) |
+| Contact F1 | 93.677% |
+| Correct-player F1 | 91.015% |
+
+The test confirms the selected model; it was not used to select a new variant.
 
 ## Runtime
 
