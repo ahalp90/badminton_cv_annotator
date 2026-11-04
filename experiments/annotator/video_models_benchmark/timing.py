@@ -45,7 +45,8 @@ def time_videomae(
             print(f"{mode}: {results[mode]}", flush=True)
             del optimiser, iterator, resident_batch
 
-        print(f"Validating all {len(val_loader.dataset):,} centres", flush=True)
+        evaluated_centres = len(val_loader.sampler)
+        print(f"Validating {evaluated_centres:,} of {len(val_loader.dataset):,} centres", flush=True)
         torch.cuda.reset_peak_memory_stats(device)
         torch.cuda.synchronize(device)
         started = time.perf_counter()
@@ -56,7 +57,7 @@ def time_videomae(
         score_probabilities(val_loader.dataset, validation["probabilities"])
         scoring_seconds = time.perf_counter() - started
         results["validation"] = {"seconds": validation_seconds, "event_scoring_seconds": scoring_seconds,
-                                 "centres": len(val_loader.dataset),
+                                 "centres": evaluated_centres, "total_centres": len(val_loader.dataset),
                                  "peak_allocated_gib": torch.cuda.max_memory_allocated(device) / 1024**3}
     finally:
         model.load_state_dict(initial)

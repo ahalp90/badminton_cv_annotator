@@ -49,7 +49,7 @@ annotations for evaluation.
 Fine-tune the full network from the pretrained weights for 30,000 updates,
 with batch size 16. Warm up linearly from one tenth of the peak learning rate
 for 2,000 updates, then use cosine decay. Retain the checkpoint with the lowest
-cross-entropy on the complete, naturally distributed validation set.
+cross-entropy on naturally distributed validation centres at the configured stride.
 Use SGD with momentum 0.9 and weight decay `1e-5`, cross-entropy without label
 smoothing, and X3D's classifier dropout of 0.5.
 
@@ -68,11 +68,27 @@ run. Non-finite loss fails the run and stops the queue for inspection.
 
 ## Evaluation
 
+New X3D and VideoMAE runs validate at **stride 3, offset 0**, evaluating absolute
+video frames 0, 3, 6… across rally boundaries. Each input still contains 16
+consecutive frames. Standalone validation and test inference use the same defaults;
+pass `--stride 1` to evaluate every centre.
+
+Training uses `validation_stride = 3` in the run configuration. Set it to 1 for
+a new dense-validation run. Resuming or extending a run preserves its saved
+validation stride; older runs without that setting retain dense validation.
+The original X3D and VideoMAE pilot results used dense validation.
+
+Validation loss and frame metrics use evaluated centres only. Event scores retain
+all labelled contacts and rallies. Saved arrays retain one row per original
+centre, with `(1, 0, 0)` placeholders for skipped frames. Validation histories and
+event records include the stride and centre counts in `sampling`; inference frame
+metrics include them too. Sparse arrays support only the evaluated offset.
+
 Supplied windows extend one second before the first labelled contact and one
 second after the last, using the stored benchmark bounds. Input clips can
 read surrounding video frames for context.
 
-At each centre frame, take argmax over the three classes and discard
+At each evaluated centre frame, take argmax over the three classes and discard
 NO_CONTACT predictions. Within each rally, greedily retain the strongest
 player-class probabilities, suppressing candidates within six frames at 30 fps,
 scaled to the source frame rate. Equal-score ties favour earlier frames.

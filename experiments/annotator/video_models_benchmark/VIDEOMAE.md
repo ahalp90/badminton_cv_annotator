@@ -48,6 +48,8 @@ The [saved measurements](results/videomae_timing/) include the settings and timi
 At batch 16, full validation over 180,179 clip centres took 16.6 minutes,
 with another 5 seconds for event scoring. The initial 30,000 updates and seven
 validation checks take about 4.2 hours per run, before continuation.
+These measurements used dense validation. New runs use stride 3, offset 0,
+which evaluates about one third of the validation centres.
 
 Increasing batch size while retaining 30,000 updates increases the number of sampled
 clips. When changing batch size, choose the total training exposure, learning
@@ -132,14 +134,20 @@ before resuming so inference can start that seed again.
 Test inference evaluates centres at **stride 3, offset 0**: original video frames
 0, 3, 6… across rally boundaries. Each centre still uses 16 consecutive frames.
 This setting was chosen from the validation stride comparison before test scoring.
-Training and full validation remain unchanged, including checkpoint and learning-rate
-selection. The queue passes `--stride 3 --offset 0`; these are also the inference
-defaults for VideoMAE tests. Other inference defaults remain dense, and explicit
-`--stride` and `--offset` arguments override them.
+The original pilot retains dense validation. New runs use `validation_stride = 3`
+with offset 0 for both checkpoint selection and validation event scores. Training
+clip sampling is unchanged. Resuming or extending an existing run preserves its
+saved validation stride, with missing settings interpreted as dense validation.
+Set `validation_stride = 1` to start a new run with dense validation.
 
-The test frame loss and confusion matrix cover evaluated centres only. Event
+The queue passes `--stride 3 --offset 0`; these are also the standalone inference
+defaults for both VideoMAE and X3D, for validation and test. Explicit `--stride`
+and `--offset` arguments override them.
+
+Validation and test frame loss and confusion matrices cover evaluated centres only. Event
 scoring still covers all labelled contacts and rallies. Saved probability arrays
 retain one row per original centre; skipped rows contain `(1, 0, 0)` so they emit
-no contacts. Both `events.json.gz` and `frame_metrics.json.gz` record `sampling`
-with stride, offset and centre counts. These arrays support the measured offset
+no contacts. Validation histories and `validation_events.json.gz`, plus test
+`events.json.gz` and `frame_metrics.json.gz`, record `sampling` with stride, offset
+and centre counts. These arrays support the measured offset
 only; dense prediction and the other offsets require additional model evaluation.

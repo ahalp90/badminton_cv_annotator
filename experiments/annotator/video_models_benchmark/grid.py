@@ -48,13 +48,14 @@ def initialise(output: Path, cache: Path) -> None:
                 f"learning_rate = {learning_rate}\nwarmup_start_lr = {learning_rate / 10}\n"
                 f"contact_fraction = {contact_fraction}\nmomentum = 0.9\nweight_decay = 0.00001\n"
                 f"max_steps = 30000\nwarmup_steps = 2000\nvalidation_steps = {VALIDATION_STEPS}\n"
-                'precision = "bf16"\n'
+                'validation_stride = 3\nprecision = "bf16"\n'
             )
             runs.append({"name": name, "seed": seed, "contact_fraction": contact_fraction,
                          "learning_rate": learning_rate, "scheme": "A"})
     write_record(manifest, {"cache": str(cache.resolve()), "created_at": time.time(), "runs": runs,
                             "max_steps": 30000, "validation_steps": VALIDATION_STEPS,
-                            "estimated_run_hours": (30000 * 0.209034 + 7 * 10.41 * 60) / 3600})
+                            "validation_stride": 3,
+                            "estimated_run_hours": (30000 * 0.209034 + 7 * 10.41 * 60 / 3) / 3600})
 
 
 def run_state(directory: Path) -> dict:

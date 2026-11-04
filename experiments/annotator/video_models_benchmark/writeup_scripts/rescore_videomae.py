@@ -17,7 +17,7 @@ sampling grid continues across rally boundaries. Raw hitters keep each retained
 peak's own most likely class; alternating hitters come from the benchmark's decoder
 unchanged. Duplicate suppression, matching and timing tolerances are the shared ones.
 
-For tests already evaluated sparsely, the event record's ``sampling`` metadata
+For validation or tests evaluated sparsely, the event record's ``sampling`` metadata
 restricts rescoring to that measured stride and offset. Background-filled skipped
 rows are not dense model predictions and cannot supply other offsets.
 """
@@ -162,7 +162,7 @@ def add_rates(counts: dict) -> dict:
     return {
         **counts,
         "contact_recall": 100 * counts["matched"] / counts["labelled"],
-        "contact_precision": 100 * counts["matched"] / counts["predicted"],
+        "contact_precision": 100 * counts["matched"] / counts["predicted"] if counts["predicted"] else 0.0,
         "contact_f1": 200 * counts["matched"] / denominator,
         "correct_player_f1": 200 * counts["correct_player"] / denominator,
         "fully_correct_percent": 100 * counts["fully_correct"] / counts["rallies"],
@@ -227,7 +227,8 @@ def validation_jobs(runs: Path, manifest: dict, videos: list[dict], streams: Pat
     for run in manifest["runs"]:
         directory = runs / run["name"]
         best = earliest_minimum(read_json(directory / "history.json.gz"))
-        saved = read_json(directory / "validation_events.json.gz")["metrics"]
+        events = read_json(directory / "validation_events.json.gz")
+        saved = events["metrics"]
         # fit writes best.pt, probabilities and events before appending the history row.
         if saved != best["events"]:
             raise ValueError(f"{run['name']}: saved validation outputs are not from the minimum-CE check at "
@@ -236,7 +237,8 @@ def validation_jobs(runs: Path, manifest: dict, videos: list[dict], streams: Pat
                  "seed": run["seed"], "best_step": best["steps"]}
         run_streams = None if streams is None else streams / "validation" / run["name"]
         jobs.append({"label": label, "videos": videos, "probabilities": directory / "validation_probabilities.npy.xz",
-                     "saved_metrics": saved, "streams": run_streams})
+                     "saved_metrics": saved, "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
+                     "streams": run_streams})
     return jobs
 
 

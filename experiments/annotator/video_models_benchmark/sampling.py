@@ -8,6 +8,22 @@ import numpy as np
 from torch.utils.data import Sampler
 
 
+class EvaluationSampler(Sampler[int]):
+    """Evaluate absolute video frames at a fixed stride, keeping the full dataset."""
+
+    def __init__(self, frames: np.ndarray, stride: int, offset: int = 0) -> None:
+        if stride < 1 or not 0 <= offset < stride:
+            raise ValueError("Stride must be positive and offset must be between zero and stride minus one")
+        self.indices = np.flatnonzero(frames % stride == offset)
+        self.stride, self.offset = stride, offset
+
+    def __iter__(self) -> Iterator[int]:
+        yield from self.indices.tolist()
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+
 def shuffled_cycles(indices: np.ndarray, count: int, rng: np.random.Generator) -> np.ndarray:
     """Draw a fixed stream, shuffling again only after every centre is consumed."""
     pieces = []

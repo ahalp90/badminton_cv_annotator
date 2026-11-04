@@ -27,6 +27,7 @@ def initialise(output: Path, cache: Path, config: Path, *, test_cache: Path | No
     from .train import Settings
 
     settings = tomllib.loads(config.read_text())
+    settings.setdefault("validation_stride", 3)
     Settings(**settings)
     if settings.get("model_name") != "videomae" or settings.get("contact_fraction") != 0.5:
         raise ValueError("The VideoMAE pilot requires VideoMAE and 50% contact sampling")

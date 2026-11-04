@@ -7,5 +7,6 @@ weight_decay = 0.00001
 max_steps = 30000
 warmup_steps = 2000
 validation_steps = [2500, 5000, 10000, 15000, 20000, 25000, 30000]
+validation_stride = 3
 contact_fraction = 0.5
 precision = "bf16"

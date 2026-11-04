@@ -19,6 +19,7 @@ def test_grid_crosses_two_rates_ratios_and_seeds(tmp_path: Path) -> None:
     ]
     assert all(config["warmup_start_lr"] == config["learning_rate"] / 10 for config in configs)
     assert all(config["validation_steps"][-1] == config["max_steps"] == 30000 for config in configs)
+    assert all(config["validation_stride"] == 3 for config in configs)
     with pytest.raises(FileExistsError):
         grid.initialise(tmp_path, tmp_path / "cache")
 

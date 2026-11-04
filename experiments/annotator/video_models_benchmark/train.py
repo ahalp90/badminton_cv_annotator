@@ -23,7 +23,7 @@ from .data import ClipDataset, read_json, write_json
 from .evaluate import score_probabilities
 from .model import build_model, prepare_clips
 from .run_state import Progress, save_checkpoint
-from .sampling import ContactBatchSampler
+from .sampling import ContactBatchSampler, EvaluationSampler
 from .schedule import (
     HALF_CYCLE_STEPS,
     PATIENCE,
@@ -55,8 +55,12 @@ class Settings:
     stochastic_depth: float = 0.2
     continuation_half_cycle_steps: int | None = None
     continuation_validation_interval: int | None = None
+    # Records predating stride selection used dense validation; new configs use 3.
+    validation_stride: int = 1
 
     def __post_init__(self) -> None:
+        if self.validation_stride < 1:
+            raise ValueError("validation_stride must be positive")
         if self.model_name not in ("x3d", "videomae"):
             raise ValueError("model_name must be x3d or videomae")
         if self.batch_size < 2 or self.workers < 0:
@@ -131,10 +135,16 @@ def seed_everything(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def make_loader(dataset: ClipDataset, settings: Settings, *, training: bool, extend: bool = False) -> DataLoader:
+def make_loader(
+    dataset: ClipDataset, settings: Settings, *, training: bool, extend: bool = False,
+    stride: int | None = None, offset: int = 0,
+) -> DataLoader:
     batching = ({"batch_sampler": ContactBatchSampler(dataset.labels, settings.batch_size, settings.contact_fraction,
                                                      settings.max_steps, settings.seed, continuous=extend)}
-                if training else {"batch_size": settings.microbatch_size or settings.batch_size, "shuffle": False})
+                if training else {"batch_size": settings.microbatch_size or settings.batch_size,
+                                  "sampler": EvaluationSampler(dataset.rows[:, 2],
+                                                               settings.validation_stride if stride is None else stride,
+                                                               offset)})
     return DataLoader(
         dataset, **batching, num_workers=settings.workers, pin_memory=True,
         persistent_workers=settings.workers > 0,
@@ -197,8 +207,20 @@ def validate(
     matrix = confusion.reshape(3, 3).cpu().numpy()
     denominator = matrix.sum(0) + matrix.sum(1)
     class_f1 = np.divide(2 * matrix.diagonal(), denominator, out=np.zeros(3), where=denominator > 0)
-    return {"loss": float(loss_sum / eligible_count), "probabilities": np.concatenate(probabilities),
-            "macro_f1": float(class_f1.mean()), "confusion": matrix.tolist()}
+    result = {"loss": float(loss_sum / eligible_count), "probabilities": np.concatenate(probabilities),
+              "macro_f1": float(class_f1.mean()), "confusion": matrix.tolist()}
+    if isinstance(loader.sampler, EvaluationSampler):
+        sampler = loader.sampler
+        sampled_probabilities = result["probabilities"]
+        # Event scoring keeps every rally/contact; skipped centres cannot emit events.
+        full_probabilities = np.zeros((len(loader.dataset), 3), dtype=sampled_probabilities.dtype)
+        full_probabilities[:, 0] = 1
+        full_probabilities[sampler.indices] = sampled_probabilities
+        result["probabilities"] = full_probabilities
+        result["sampling"] = {"stride": sampler.stride, "offset": sampler.offset,
+                              "total_centres": len(loader.dataset), "evaluated_centres": len(sampler),
+                              "unsampled_probabilities": "background"}
+    return result
 
 
 def save_recovery(
@@ -314,6 +336,8 @@ def fit(
         probabilities = result.pop("probabilities")
         progress.write("event scoring", completed=0, total=0, val_loss=result["loss"])
         event_scores = score_probabilities(val_loader.dataset, probabilities)
+        if "sampling" in result:
+            event_scores["sampling"] = result["sampling"]
         loss = result["loss"]
         if not np.isfinite(loss) or not torch.isfinite(training_loss):
             raise ValueError("Non-finite training or validation loss")
@@ -388,7 +412,7 @@ def time_pipeline(
     model.zero_grad(set_to_none=True)
     output.mkdir(parents=True, exist_ok=True)
     counts = read_json(train_loader.dataset.cache / "index.json.gz")["full_counts"]
-    val_batches = math.ceil(counts["validation"]["centres"] / settings.batch_size)
+    val_batches = math.ceil(counts["validation"]["centres"] / settings.validation_stride / settings.batch_size)
     epoch_hours = {}
     for scheme in ("A", "B"):
         train_batches = math.ceil(counts["train"][scheme] / settings.batch_size)
@@ -398,11 +422,21 @@ def time_pipeline(
         "warmup_batches": warmup_batches, "measured_train_batches": measured_batches,
         "measured_val_batches": count, "train_batch_seconds": train_seconds, "val_batch_seconds": val_seconds,
         "peak_allocated_gib": peak_gib, "timed_train_centres": len(train_loader.dataset),
-        "timed_validation_centres": len(val_loader.dataset),
+        "timed_validation_centres": len(val_loader.sampler),
         "full_epoch_hours": epoch_hours,
         "scope": "Shuffled cached clips, transfer, GPU augmentation, full forward/backward/SGD; weights restored",
     })
     print(read_json(output / "timing.json.gz"), flush=True)
+
+
+def load_settings(config: Path, output: Path, *, resume: bool) -> Settings:
+    """Default new runs to stride three and preserve a resumed run's validation."""
+    record = tomllib.loads(config.read_text())
+    if resume:
+        record["validation_stride"] = read_json(output / "settings.json.gz").get("validation_stride", 1)
+    else:
+        record.setdefault("validation_stride", 3)
+    return Settings(**record)
 
 
 def main() -> None:
@@ -421,7 +455,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.extend and (not args.resume or args.command != "train"):
         parser.error("--extend requires train --resume")
-    settings = Settings(**tomllib.loads(args.config.read_text()))
+    settings = load_settings(args.config, args.output, resume=args.resume)
     overrides = {name: getattr(args, name) for name in ("batch_size", "microbatch_size", "workers")
                  if getattr(args, name) is not None}
     settings = replace(settings, **overrides)
