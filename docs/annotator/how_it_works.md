@@ -128,8 +128,8 @@ probabilities, raw court-half guesses, physical contact evidence and unused
 candidates. The selector scores these rows and chooses the highest-scoring
 proposal for each initial rally. Stable proposal order resolves equal scores.
 
-The selected model has one rally selector. Experiments can fit more layers; each
-extra layer receives the earlier layers' scores and choices as additional inputs.
+The selected model has one rally selector. Its scores and the gap between the
+top two options also inform the separate review model.
 Training and inference share the same proposal and feature builders.
 
 An earlier serve can move a rally's start and absorb intervening contacts.

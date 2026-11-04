@@ -21,7 +21,11 @@ from annotator.hybrid import sequence_inputs
 from annotator.models import SideGeometry
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.contacts import initial_sequences
-from annotator.sequence.rally_model import RallyLayerModels, RallyLayerPrediction
+from annotator.sequence.rally_model import (
+    REVIEW_FEATURE_NAMES,
+    RallyPrediction,
+    RallySelector,
+)
 from annotator.sequence.rally_options import FEATURE_NAMES
 from annotator.sequence.repairs import build_rally_repairs
 from annotator.training.workflow import Split, VideoInput, sequence_training_video
@@ -141,11 +145,11 @@ def test_crossfit_and_inference_share_rejection_before_repair_shortlists(monkeyp
         else:
             assert 1 in pool.physical
 
-    layers = tuple(DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES) + 8 * depth)), [0, 1])
-                   for depth in range(2))
-    fitted_layers = replace(models, sequences=RallyLayerModels(layers), confidence=None)
+    selector = DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES))), [0, 1])
+    review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])
+    fitted_layers = replace(models, sequences=RallySelector(selector), confidence=review)
     layer_prediction = hybrid.predict_contact_features(evidence, features, fitted_layers)
-    assert isinstance(layer_prediction.refined, RallyLayerPrediction)
+    assert isinstance(layer_prediction.refined, RallyPrediction)
     expected_pool = expand_pool(training)
     assert layer_prediction.refined.pool.sequences == expected_pool.sequences
     np.testing.assert_array_equal(layer_prediction.refined.pool.matrix, expected_pool.matrix)

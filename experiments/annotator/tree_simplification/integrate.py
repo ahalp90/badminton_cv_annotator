@@ -9,7 +9,7 @@ import joblib
 import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from annotator.sequence.rally_model import RallyLayerModels, predict_rally_options
+from annotator.sequence.rally_model import RallySelector, predict_rally_options
 from annotator.sequence.rally_options import RallyOptions, build_rally_options
 from annotator.training.rally_layers import fit_rally_review_model
 from annotator.training.rally_targets import option_targets
@@ -23,9 +23,9 @@ from experiments.annotator.development import (
 from experiments.annotator.heuristic_only_tune.run import read_json
 from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.targets import (
-    five_frame_preferred_targets,
+    preferred_targets,
 )
-from experiments.annotator.tree_simplification.train import LayerTrainer
+from experiments.annotator.tree_simplification.train import SelectorTrainer
 
 
 def verify_pool(actual: RallyOptions, expected: LabelledOptions) -> None:
@@ -63,14 +63,14 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptio
             continue
         pool = joblib.load(path)
         five = load_npy_xz(targets_root / 'videos' / f'{pool.video.identity}.npy.xz')
-        pools[pool.video.identity] = replace(pool, targets=five_frame_preferred_targets(pool, five))
+        pools[pool.video.identity] = replace(pool, targets=preferred_targets(pool, five))
     if len(pools) != 32:
         raise ValueError('Development export requires all 32 training videos')
     return pools
 
 
 def fit_review(
-    run: Path, depth: int, targets: Path, output: Path, settings: dict, *,
+    run: Path, targets: Path, output: Path, settings: dict, *,
     device: str = 'cpu', check_parity: bool = True,
 ) -> Any:
     pools = load_training(settings, targets)
@@ -86,13 +86,15 @@ def fit_review(
     fits = output / 'review-fits'
     shutil.copytree(run / 'fits', fits / 'fits', dirs_exist_ok=True)
     selector_config = replace(TreeFitConfig(**xgboost_settings(settings['tree'])), device=device)
-    trainer = LayerTrainer(pools, selector_config, fits, settings['span_weight'])
+    trainer = SelectorTrainer(pools, selector_config, fits, settings['span_weight'])
     groups = tuple(sorted({pool.video.group for pool in pools.values()}))
     predictions = {}
-    for identity, pool in pools.items():
-        held = tuple(group for group in groups if group != pool.video.group)
-        models = RallyLayerModels(trainer.fit(held, depth))
-        predictions[identity] = predict_rally_options(models, pool.runtime)
+    for group in groups:
+        held = tuple(other for other in groups if other != group)
+        models = RallySelector(trainer.fit(held))
+        for identity, pool in pools.items():
+            if pool.video.group == group:
+                predictions[identity] = predict_rally_options(models, pool.runtime)
     config = replace(
         TreeFitConfig(**xgboost_settings(settings['pool_settings']['settings']['confidence'])), device=device,
     )

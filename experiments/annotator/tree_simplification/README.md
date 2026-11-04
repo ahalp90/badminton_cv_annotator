@@ -122,7 +122,7 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.targets \
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.train \
   --pools RUN/seed-0/pools --five-frame-targets RUN/seed-0/targets-five \
   --output RUN/seed-0/selector --device cuda --threads 2 \
-  --seed 20260905 --leaves 31 --rounds 400 --layers 1 \
+  --seed 20260905 --leaves 31 --rounds 400 \
   --learning-rate 0.05 --min-child-weight 5 --l2 1
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages export \
   --run RUN/seed-0/selector --five-frame-targets RUN/seed-0/targets-five \

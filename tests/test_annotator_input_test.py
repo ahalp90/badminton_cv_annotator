@@ -14,7 +14,7 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import SideGeometry, model_files
-from annotator.sequence.rally_model import RallyLayerModels
+from annotator.sequence.rally_model import RallySelector
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, input_test
@@ -98,6 +98,23 @@ def _write_selection(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict
     return selection_path, document, hashes
 
 
+@pytest.mark.parametrize('parity_checked', [False, True])
+def test_selected_export_respects_optional_replay_check(tmp_path, monkeypatch, parity_checked):
+    selection, _document, _hashes = _write_selection(tmp_path)
+    _runtime_patches(monkeypatch, tmp_path)
+    result_path = tmp_path / 'export/result.json.gz'
+    result = read_json(result_path)
+    result['replay_parity_checked'] = parity_checked
+    result.pop('replay_streams_match')
+    write_json(result_path, result)
+
+    if parity_checked:
+        with pytest.raises(ValueError, match='export replay is mismatched'):
+            input_test._load_test_bundle(selection, 'candidate-a', 0)
+    else:
+        input_test._load_test_bundle(selection, 'candidate-a', 0)
+
+
 def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_video: str | None = None):
     identities = tuple(f'test-{index:02d}' for index in range(46))
     videos = [
@@ -108,7 +125,7 @@ def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_vi
         for identity in identities
     ]
     models = SimpleNamespace(
-        sequences=RallyLayerModels((object(),)),
+        sequences=RallySelector(object()),
         confidence=object(),
         preprocessing=BaseAnnotatorConfig(),
         side_geometry=SideGeometry.VIDEO,

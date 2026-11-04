@@ -128,8 +128,9 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         }
         return SimpleNamespace(models=sequence_models, cross_fitted=predictions)
 
-    def review_fit(videos: list, predictions: dict, _settings: Any) -> Any:
+    def review_fit(videos: list, predictions: dict, _settings: Any, *, tolerance_at_30_fps: int) -> Any:
         assert [video.identity for video in videos] == training_order
+        assert tolerance_at_30_fps == 6
         assert set(predictions) == set(training_order)
         for video in videos:
             assert predictions[video.identity].identity == video.identity
@@ -142,7 +143,11 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     monkeypatch.setattr(workflow, 'fit_rally_models', sequence_fit)
     monkeypatch.setattr(workflow, 'fit_rally_review_model', review_fit)
     monkeypatch.setattr(workflow, 'save_models', lambda models, output: saved.append((models, output)))
-    result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', SideGeometry.SCENE)
+    settings = replace(
+        workflow.DEFAULT_TRAINING_SETTINGS,
+        rally_layers=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally_layers, review_tolerance_at_30_fps=6),
+    )
+    result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', SideGeometry.SCENE, settings)
     assert seen == training_order
     assert list(pool_models) == training_order
     assert pool_models['one'] is pool_models['four']
@@ -152,6 +157,10 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     assert result.contact is contact_model and result.sequences is sequence_models
     assert result.side_geometry is SideGeometry.SCENE
     assert saved == [(result, tmp_path / 'bundle')]
+    fit_settings = load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')
+    assert fit_settings['contact']['positive_radius_at_30_fps'] == 1
+    assert fit_settings['rally_layers']['preferred_tolerance_at_30_fps'] == 5
+    assert fit_settings['rally_layers']['review_tolerance_at_30_fps'] == 6
 
 
 def test_too_few_training_groups_fail_before_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -209,10 +218,9 @@ def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.M
     assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle', '--side-geometry', 'scene']) == 0
     assert fitted[0][1:] == (Path('bundle'), SideGeometry.SCENE, workflow.DEFAULT_TRAINING_SETTINGS)
     assert workflow.main([
-        'fit', '--manifest', str(path), '--output', 'layer-bundle', '--rally-layers', '1', '--device', 'cuda',
+        'fit', '--manifest', str(path), '--output', 'layer-bundle', '--device', 'cuda',
     ]) == 0
     settings = fitted[1][-1]
-    assert settings.rally_layers.depth == 1
     assert settings.rally_layers.tree.max_iter == 400
     assert settings.rally_layers.tree.max_leaf_nodes == 31
     assert settings.contact.device == settings.confidence.device == settings.rally_layers.tree.device == 'cuda'

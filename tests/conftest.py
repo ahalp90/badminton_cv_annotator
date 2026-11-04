@@ -16,10 +16,10 @@ def annotator_models():
     from sklearn.dummy import DummyClassifier
 
     from annotator.models import AnnotatorModels
-    from annotator.sequence.rally_model import RallyLayerModels
+    from annotator.sequence.rally_model import RallySelector
 
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 0, 1])
-    return AnnotatorModels(tree, RallyLayerModels((tree,)), tree)
+    return AnnotatorModels(tree, RallySelector(tree), tree)
 
 
 @pytest.fixture

@@ -45,7 +45,7 @@ player or court evidence.
 - `ContactSequence` is a rally's bounds and the contacts it owns.
 - `RallyRepairs` holds rule-based repairs, shortlisted contacts and physical evidence.
 - `RallyOptions` holds the ordered alternatives and model-feature rows.
-- `RallyLayerPrediction` retains the selected sequences, full contact stream and scores.
+- `RallyPrediction` retains the selected sequences, full contact stream and scores.
 - `AnnotatorResult` is the public result saved by the dataset builder.
 
 The full contact stream includes contacts outside every rally. A sequence's

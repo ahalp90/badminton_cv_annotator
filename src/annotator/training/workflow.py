@@ -10,7 +10,7 @@ import argparse
 import csv
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -311,10 +311,12 @@ def fit_from_manifest(
     layer_fit = fit_rally_models(training_videos, settings.rally_layers)
     review_model = fit_rally_review_model(
         training_videos, layer_fit.cross_fitted, settings.confidence,
+        tolerance_at_30_fps=settings.rally_layers.review_tolerance_at_30_fps,
     )
     models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
                              settings.preprocessing, side_geometry)
     save_models(models, output)
+    save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
     return models
 
 
@@ -376,7 +378,6 @@ def argument_parser() -> argparse.ArgumentParser:
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
     fit.add_argument('--side-geometry', choices=list(SideGeometry), default=SideGeometry.VIDEO, type=SideGeometry)
-    fit.add_argument('--rally-layers', type=int, choices=(1, 2, 3), default=1, help='Number of rally selector layers')
     fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
     fit.add_argument('--threads', type=int, default=2)
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
@@ -402,7 +403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 contact=replace(defaults.contact, device=arguments.device),
                 confidence=replace(defaults.confidence, device=arguments.device),
                 rally_layers=replace(
-                    defaults.rally_layers, depth=arguments.rally_layers,
+                    defaults.rally_layers,
                     tree=replace(defaults.rally_layers.tree, device=arguments.device),
                 ),
             )

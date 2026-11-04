@@ -125,9 +125,10 @@ def test_materialise_refuses_a_folder_in_use(tmp_path) -> None:
         test_run.materialise(common.RESULTS, tmp_path, use_current_checkout=False)
 
 
-def test_tracked_test_run_loads_all_ten_bundles(tmp_path) -> None:
+def test_tracked_test_run_needs_its_historical_bundle_loader(tmp_path) -> None:
     test_run.materialise(common.RESULTS, tmp_path / 'test-run', use_current_checkout=False)
-    test_run.check(tmp_path / 'test-run')
+    with pytest.raises(ValueError, match='Unsupported annotator model bundle'):
+        test_run.check(tmp_path / 'test-run')
 
 
 def test_flaw_scoring_pools_seeds_like_the_write_up() -> None:

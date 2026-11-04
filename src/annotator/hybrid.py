@@ -17,7 +17,7 @@ from annotator.sequence import (
     ContactEvent,
 )
 from annotator.sequence.rally_model import (
-    RallyLayerPrediction,
+    RallyPrediction,
     RallyReview,
     score_rally_review,
     select_rally_sequences,
@@ -31,7 +31,7 @@ class HybridPrediction:
 
     features: ContactFeatures
     contacts: ScoredContacts
-    refined: RallyLayerPrediction
+    refined: RallyPrediction
     confidence: RallyReview
 
 

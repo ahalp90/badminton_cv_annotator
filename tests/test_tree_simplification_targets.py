@@ -11,6 +11,8 @@ import pytest
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.repairs import RallyRepairs
+from annotator.training.rally_layers import RallyFitConfig, prepare_training_pools
+from annotator.training.rally_targets import option_targets_at_tolerances
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import targets
@@ -22,7 +24,7 @@ from experiments.annotator.tree_simplification.pools import original_options
 from experiments.annotator.tree_simplification.targets import (
     TargetJob,
     _target_job,
-    five_frame_preferred_targets,
+    preferred_targets,
     prepare_targets,
     raw_five_targets,
 )
@@ -50,6 +52,39 @@ def make_pool(
     )
 
 
+@pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
+def test_two_tolerances_finish_each_option_once_and_scale_labels(fps, shift, monkeypatch):
+    exact = ContactSequence(0, 0, 120, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
+    shifted = replace(exact, events=(ContactEvent(20 + shift, 0.9, Half.TOP),
+                                     ContactEvent(60 + shift, 0.9, Half.BOT)))
+    pool = make_pool((exact, shifted), (0, 0), fps=fps)
+    original = targets.rally_targets.finish_in_initial_context
+    finished = []
+
+    def finish(*args):
+        finished.append(args[2])
+        return original(*args)
+
+    monkeypatch.setattr(targets.rally_targets, 'finish_in_initial_context', finish)
+    wide, tight = option_targets_at_tolerances(pool.video, pool.runtime, (6, 3))
+    np.testing.assert_array_equal(wide, [1, 1])
+    np.testing.assert_array_equal(tight, [1, 0])
+    assert finished == [exact, shifted]
+
+
+def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
+    exact = ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
+    shifted = replace(exact, events=(ContactEvent(25, 0.9, Half.TOP), ContactEvent(65, 0.9, Half.BOT)))
+    pool = make_pool((exact, shifted), (0, 0))
+    monkeypatch.setattr('annotator.training.rally_layers.build_rally_options', lambda *_args: pool.runtime)
+    strict = RallyFitConfig(preferred_tolerance_at_30_fps=3, fallback_tolerance_at_30_fps=6)
+    relaxed = replace(strict, preferred_tolerance_at_30_fps=6)
+    strict_pools, _ = prepare_training_pools([pool.video], strict)
+    relaxed_pools, _ = prepare_training_pools([pool.video], relaxed)
+    np.testing.assert_array_equal(strict_pools['video'].targets, [1, 0])
+    np.testing.assert_array_equal(relaxed_pools['video'].targets, [1, 1])
+
+
 def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> None:
     sequences = tuple(
         ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, Half.TOP),))
@@ -57,7 +92,7 @@ def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> Non
     )
     pool = make_pool(sequences, (1, 0, -1))
 
-    actual = five_frame_preferred_targets(pool, np.asarray([0, 1, 1], dtype=np.int8))
+    actual = preferred_targets(pool, np.asarray([0, 1, 1], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, (0, 1, -1))
 
@@ -69,7 +104,7 @@ def test_without_known_five_frame_positive_span_keeps_ten_frame_targets() -> Non
     )
     pool = make_pool(sequences, (1, 0))
 
-    actual = five_frame_preferred_targets(pool, np.asarray([0, 0], dtype=np.int8))
+    actual = preferred_targets(pool, np.asarray([0, 0], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, pool.targets)
 
@@ -81,7 +116,7 @@ def test_unknown_ten_frame_row_cannot_supply_five_frame_positive() -> None:
     )
     pool = make_pool(sequences, (0, 0, -1))
 
-    actual = five_frame_preferred_targets(pool, np.asarray([0, 0, 1], dtype=np.int8))
+    actual = preferred_targets(pool, np.asarray([0, 0, 1], dtype=np.int8))
 
     np.testing.assert_array_equal(actual, pool.targets)
 
@@ -100,11 +135,11 @@ def test_edit_only_five_frame_positive_does_not_change_original_span_targets() -
     pool = make_pool((initial, original_sequence, edit_only), (0, 0, 0))
     five = np.asarray([0, 0, 1], dtype=np.int8)
 
-    all_option_targets = five_frame_preferred_targets(pool, five)
+    all_option_targets = preferred_targets(pool, five)
     original = original_options(pool)
     original_five = five[[row for row, sequence in enumerate(pool.sequences)
                           if sequence_key(sequence) in {sequence_key(initial), sequence_key(original.sequences[1])}]]
-    original_targets = five_frame_preferred_targets(original, original_five)
+    original_targets = preferred_targets(original, original_five)
 
     assert all_option_targets[2] == 1
     np.testing.assert_array_equal(original_targets, (0, 0))
@@ -189,7 +224,7 @@ def test_five_frame_row_mismatch_fails() -> None:
     pool = make_pool((sequence, sequence), (0, 0))
 
     with pytest.raises(ValueError, match='align'):
-        five_frame_preferred_targets(pool, np.asarray([1], dtype=np.int8))
+        preferred_targets(pool, np.asarray([1], dtype=np.int8))
 
 
 def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(

@@ -44,6 +44,8 @@ class ContactFitConfig:
     early_stopping: bool | Literal["auto"] = "auto"
     device: str = 'cpu'
     min_child_weight: float = 5.0
+    positive_radius_at_30_fps: int = POSITIVE_RADIUS_AT_30_FPS
+    ignored_radius_at_30_fps: int = IGNORED_RADIUS_AT_30_FPS
 
 
 DEFAULT_CONTACT_FIT_CONFIG = ContactFitConfig()
@@ -115,8 +117,8 @@ def select_contact_training_rows(
             candidate_mask |= video.features[name].astype(bool)
         rows = video.features[candidate_mask]
         distances = nearest_contact_distances(rows['frame'], video.contact_frames)
-        positive = distances <= ScalingKind.FRAME_COUNT.scale(POSITIVE_RADIUS_AT_30_FPS, video.fps)
-        ignored = (~positive) & (distances <= ScalingKind.FRAME_COUNT.scale(IGNORED_RADIUS_AT_30_FPS, video.fps))
+        positive = distances <= ScalingKind.FRAME_COUNT.scale(config.positive_radius_at_30_fps, video.fps)
+        ignored = (~positive) & (distances <= ScalingKind.FRAME_COUNT.scale(config.ignored_radius_at_30_fps, video.fps))
         negative = ~positive & ~ignored
         nearby_negative = negative & (
             distances <= ScalingKind.FRAME_COUNT.scale(NEARBY_NEGATIVE_RADIUS_AT_30_FPS, video.fps)

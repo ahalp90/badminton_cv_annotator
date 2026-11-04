@@ -16,7 +16,7 @@ with baseline preprocessing and review filtering off.
   sequence for each proposed rally section from a fixed list of options. A small
   review ranker (7 leaves, 100 rounds) orders the output for manual checking and
   never changes it. Production fitting now defaults to this three-model stack.
-  `--rally-layers` remains available for experiments with more selector layers.
+  The extra selector depths were subsequently removed from the maintained training path.
 - **Reading the numbers.** Correct-player F1 counts a predicted contact only
   when it matches a labelled contact within ±10 frames (or ±5) and names the
   right player. A fully correct rally has every labelled contact matched with

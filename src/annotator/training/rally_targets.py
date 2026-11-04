@@ -32,38 +32,53 @@ def finish_in_initial_context(
     return finished[local_position]
 
 
-def option_targets(
-    video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
-) -> np.ndarray:
-    targets = np.empty(len(pool.sequences), dtype=np.int8)
+def option_targets_at_tolerances(
+    video: SequenceTrainingVideo, pool: RallyOptions, tolerances_at_30_fps: tuple[int, ...],
+) -> tuple[np.ndarray, ...]:
+    """Finish each option once, then judge it at each requested tolerance."""
+    targets = tuple(np.empty(len(pool.sequences), dtype=np.int8) for _ in tolerances_at_30_fps)
     stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
     padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
     for position, before in enumerate(video.initial):
         rows = pool.span_rows[before.span_id]
         ordered = tuple(pool.sequences[row] for row in rows)
-        tolerance = scale_frames(tolerance_at_30_fps, video.fps)
-        label_start = min(sequence.start_frame for sequence in ordered) - padding - tolerance
-        label_end = max(sequence.end_frame for sequence in ordered) + padding + tolerance + 1
-        rallies = tuple(
-            rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
-        )
+        first_start = min(sequence.start_frame for sequence in ordered)
+        last_end = max(sequence.end_frame for sequence in ordered)
+        rallies_by_tolerance = []
+        for tolerance_at_30_fps in tolerances_at_30_fps:
+            tolerance_frames = scale_frames(tolerance_at_30_fps, video.fps)
+            label_start = first_start - padding - tolerance_frames
+            label_end = last_end + padding + tolerance_frames + 1
+            rallies = tuple(
+                rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
+            )
+            rallies_by_tolerance.append(rallies)
         for row in rows:
             finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
-            targets[row] = whole_rally_correctness(
-                finished, rallies, video.fps, tolerance_at_30_fps=tolerance_at_30_fps,
-            )
+            for targets_at_tolerance, tolerance_at_30_fps, nearby_rallies in zip(
+                targets, tolerances_at_30_fps, rallies_by_tolerance, strict=True,
+            ):
+                targets_at_tolerance[row] = whole_rally_correctness(
+                    finished, nearby_rallies, video.fps, tolerance_at_30_fps=tolerance_at_30_fps,
+                )
     return targets
 
 
-def five_frame_preferred_targets(pool: RallyOptions, wide: np.ndarray, five: np.ndarray) -> np.ndarray:
-    """Prefer five-frame labels only when a judged span retains a positive option."""
-    if wide.shape != (len(pool.sequences),) or five.shape != wide.shape:
-        raise ValueError('five-frame targets must align with every option row')
+def option_targets(
+    video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
+) -> np.ndarray:
+    return option_targets_at_tolerances(video, pool, (tolerance_at_30_fps,))[0]
+
+
+def preferred_targets(pool: RallyOptions, wide: np.ndarray, preferred: np.ndarray) -> np.ndarray:
+    """Prefer tighter labels only when a judged span retains a positive option."""
+    if wide.shape != (len(pool.sequences),) or preferred.shape != wide.shape:
+        raise ValueError('preferred targets must align with every option row')
     targets = wide.copy()
     for rows in pool.span_rows.values():
         included = rows[wide[rows] >= 0]
-        if np.any(five[included] == 1):
-            targets[included] = five[included]
+        if np.any(preferred[included] == 1):
+            targets[included] = preferred[included]
     return targets
 
 

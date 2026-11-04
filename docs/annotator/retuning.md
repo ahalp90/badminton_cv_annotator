@@ -62,7 +62,7 @@ its directory in the extraction run.
 Keep related footage in the same group. A group may contain several videos but
 must belong to only one split. Downstream training holds groups out when making
 predictions for training examples. Each fitted subset must contain both target
-classes. More selector layers require more training groups.
+classes. Use at least two training groups for held-group selector predictions.
 
 Use validation to choose settings, then test the chosen model separately.
 Repeated decisions based on test errors turn that test set into development data.
@@ -82,7 +82,7 @@ PYTHONPATH=src uv run python -m annotator.training fit \
 
 To fit on a CUDA GPU, add `--device cuda`. Saved models use CPU inference so they
 can be loaded on machines without a GPU. `--threads` controls fitting thread
-limits. `--rally-layers 2` or `3` requests additional selector layers.
+limits.
 
 `--side-geometry video` uses one net band per video for player-half guesses.
 `--side-geometry scene` uses each scene's geometry. This setting is saved in the
@@ -125,7 +125,10 @@ fit_from_manifest(
 The settings separate contact fitting, contact selection, rally fitting, review
 fitting and heuristic preprocessing. Tree controls include learning rate, rounds,
 maximum leaves, minimum child weight, regularisation, seed and CPU/CUDA device.
-Rally controls also include depth and the proposal budgets.
+Rally controls also include the proposal budgets.
+Contact fitting also exposes positive and ignored radii. Rally fitting exposes
+preferred, fallback and review correctness tolerances. These frame counts use
+30 fps as their reference and scale to each video's frame rate.
 `settings.contact_prediction` holds the contact probability cutoff and the optional
 `reject_masked_without_player` rule. Change it with `replace()` in the same way;
 the resulting setting is saved with the fitted bundle.
@@ -140,7 +143,8 @@ not five-fold cross-validation.
 `models.joblib` and `metadata.json` form one bundle. They retain preprocessing,
 contact selection, side geometry, proposal settings and fitted estimators.
 The metadata records runtime versions and feature order. Keep both files
-when moving a model.
+when moving a model. Training also saves the fit settings in
+`fit-settings.json.gz` beside the bundle.
 
 Record the manifest and full fit settings beside the model. Record input versions,
 seeds, sampling order and fit-row order when comparing runs. A seed alone does

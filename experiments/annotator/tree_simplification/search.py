@@ -20,13 +20,13 @@ from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 
 
 def configurations() -> list[dict[str, Any]]:
-    runs = [{'name': 'original-options', 'leaves': 15, 'layers': 3, 'min_child_weight': 5.0, 'original_options': True}]
+    runs = [{'name': 'original-options', 'leaves': 15, 'min_child_weight': 5.0, 'original_options': True}]
     runs.extend([
-        {'name': f'leaves-{leaves}', 'leaves': leaves, 'layers': 3, 'min_child_weight': 5.0, 'original_options': False}
+        {'name': f'leaves-{leaves}', 'leaves': leaves, 'min_child_weight': 5.0, 'original_options': False}
         for leaves in (15, 7, 31)
     ])
     runs.append({
-        'name': 'minimum-child-weight-10', 'leaves': 15, 'layers': 3,
+        'name': 'minimum-child-weight-10', 'leaves': 15,
         'min_child_weight': 10.0, 'original_options': False,
     })
     return runs
@@ -43,7 +43,7 @@ def run_configuration(
     command = [
         sys.executable, '-u', '-m', 'experiments.annotator.tree_simplification.train',
         '--pools', str(pools), '--output', str(destination), '--device', device,
-        '--threads', str(threads), '--leaves', str(run['leaves']), '--layers', str(run['layers']),
+        '--threads', str(threads), '--leaves', str(run['leaves']),
         '--min-child-weight', str(run['min_child_weight']),
     ]
     if run['original_options']:

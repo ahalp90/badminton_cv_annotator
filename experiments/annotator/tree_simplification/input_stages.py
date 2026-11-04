@@ -36,9 +36,9 @@ from annotator.models import (
 )
 from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import (
-    RallyLayerModels,
-    RallyLayerPrediction,
-    score_rally_review,
+    RallyPrediction,
+    RallySelector,
+    score_selector_review,
 )
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import (
@@ -207,16 +207,15 @@ def fit_contacts(
 
 def _export_inputs(
     run: Path, targets: Path, *, reuse_upstream: bool = False,
-) -> tuple[dict[str, Any], dict[str, Any], Path, Path, int]:
+) -> tuple[dict[str, Any], dict[str, Any], Path, Path]:
     result = read_json(run / 'result.json.gz')
     settings = read_json(run / 'settings.json.gz')
     if not result.get('complete'):
         raise ValueError('Export requires a complete fitted rally run')
     if settings.get('specialists') or settings.get('original_options') or 'target_policy' not in settings:
         raise ValueError('Export requires a rally selector trained on all options with five-frame targets')
-    depth = settings['layers']
-    if not isinstance(depth, int) or not 1 <= depth <= 3:
-        raise ValueError('Export requires a saved rally stack with one to three layers')
+    if settings['layers'] != 1:
+        raise ValueError('Export requires a single fitted rally selector')
     pools = settings['pool_settings']
     if pools['schema'] != POOL_SCHEMA:
         raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
@@ -235,7 +234,7 @@ def _export_inputs(
         raise ValueError('Preparation, contact and selector sources differ; refit from one clean checkout')
     if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
         raise ValueError('Five-frame target manifest differs from the fitted rally run')
-    return settings, inputs, prepared_root, contact_run_root, depth
+    return settings, inputs, prepared_root, contact_run_root
 
 
 def _review_rows(
@@ -244,9 +243,9 @@ def _review_rows(
     prediction: Any,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     layer_prediction = prediction.refined
-    if not isinstance(layer_prediction, RallyLayerPrediction):
+    if not isinstance(layer_prediction, RallyPrediction):
         raise TypeError('Raw export requires a rally-layer prediction')
-    selector = score_rally_review(layer_prediction, None)
+    selector = score_selector_review(layer_prediction)
     rankings: dict[str, Any] = {}
     rows: list[dict[str, Any]] = []
     by_span = {sequence.span_id: sequence for sequence in layer_prediction.sequences}
@@ -281,7 +280,7 @@ def export_run(
     if device not in ('cpu', 'cuda'):
         raise ValueError('device must be cpu or cuda')
     run, targets, output = run.resolve(), targets.resolve(), output.resolve()
-    settings, inputs, prepared_root, contact_run_root, depth = _export_inputs(run, targets, reuse_upstream=reuse_upstream)
+    settings, inputs, prepared_root, contact_run_root = _export_inputs(run, targets, reuse_upstream=reuse_upstream)
     receipt = {
         'schema': 'tree-simplification-raw-export/1',
         'run': str(run),
@@ -303,13 +302,11 @@ def export_run(
         raise ValueError('Export inputs changed; use a fresh output directory')
     write_json(receipt_path, receipt)
     with threadpool_limits(limits=threads):
-        review = integrate.fit_review(run, depth, targets, output, settings, device=device, check_parity=check_parity)
+        review = integrate.fit_review(run, targets, output, settings, device=device, check_parity=check_parity)
     pool_settings = settings['pool_settings']
-    layer_models = joblib.load(run / f'layers-{depth}' / 'rally-models.joblib')
-    if len(layer_models) != depth:
-        raise ValueError('Saved rally-layer model depth differs from the completed run')
-    sequences = RallyLayerModels(
-        tuple(layer_models), pool_settings['max_edits'], pool_settings['deletion_candidates'],
+    selector = joblib.load(run / 'layers-1' / 'rally-model.joblib')
+    sequences = RallySelector(
+        selector, pool_settings['max_edits'], pool_settings['deletion_candidates'],
     )
     contact = joblib.load(contact_run_root / 'contacts' / 'v_32.joblib')
     preprocessing = preprocessing_from_record(inputs['preprocessing'])
@@ -344,14 +341,14 @@ def export_run(
                 raise ValueError(f'{identity}: replay split or group differs from preparation')
             prediction = predict_contact_features(prepared.evidence, prepared.features, models)
             layer_prediction = prediction.refined
-            if not isinstance(layer_prediction, RallyLayerPrediction):
+            if not isinstance(layer_prediction, RallyPrediction):
                 raise TypeError('Raw export requires a rally-layer prediction')
             if check_parity:
                 saved: LabelledOptions = joblib.load(pools_root / 'videos' / f'{identity}.joblib')
                 integrate.verify_pool(layer_prediction.pool, saved)
             stream = stream_payload(layer_prediction.sequences, layer_prediction.events)
             if check_parity:
-                expected_path = run / f'layers-{depth}' / 'streams' / f'{identity}.json.gz'
+                expected_path = run / 'layers-1' / 'streams' / f'{identity}.json.gz'
                 if stream != read_json(expected_path):
                     raise ValueError(f'{identity}: raw production stream differs from the saved rally run')
             confidence = dict(zip(prediction.confidence.features.span_ids, map(float, prediction.confidence.scores),

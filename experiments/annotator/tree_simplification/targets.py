@@ -53,8 +53,8 @@ def raw_five_targets(pool: LabelledOptions) -> np.ndarray:
     )
 
 
-def five_frame_preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
-    return rally_targets.five_frame_preferred_targets(pool.runtime, pool.targets, five)
+def preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
+    return rally_targets.preferred_targets(pool.runtime, pool.targets, five)
 
 
 def _metadata_path(array_path: Path) -> Path:

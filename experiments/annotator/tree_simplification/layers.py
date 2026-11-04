@@ -1,4 +1,4 @@
-"""Fit experimental rally layers using the production feature and inference path."""
+"""Fit and apply the production rally selector to prepared option pools."""
 
 from collections.abc import Sequence
 from typing import Any
@@ -7,15 +7,10 @@ import numpy as np
 
 from annotator.sequence import rally_model
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_model import CONTEXT_FEATURE_NAMES
+from annotator.sequence.features import positive_probabilities
 from annotator.training import rally_layers as rally_training
 from annotator.training.trees import TreeFitConfig
 from experiments.annotator.tree_simplification.options import LabelledOptions
-
-__all__ = [
-    'CONTEXT_FEATURE_NAMES', 'choose_rows', 'finish_rows', 'finish_selected', 'fit_layer',
-    'judged_weights', 'layer_features', 'ordered_span_rows', 'predict_layer',
-]
 
 DEFAULT_LAYER_CONFIG = TreeFitConfig()
 
@@ -28,26 +23,20 @@ def choose_rows(pool: LabelledOptions, scores: np.ndarray) -> dict[int, int]:
     return rally_model.choose_rows(pool.runtime, scores)
 
 
-def layer_features(pool: LabelledOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    return rally_model.layer_features(pool.runtime, prior_scores)
-
-
 def judged_weights(pool: LabelledOptions) -> np.ndarray:
     return rally_training.judged_weights(pool.runtime, pool.targets)
 
 
-def fit_layer(
-    pools: Sequence[LabelledOptions], histories: Sequence[Sequence[np.ndarray]],
-    config: TreeFitConfig = DEFAULT_LAYER_CONFIG, *, span_weight: float,
+def fit_selector(
+    pools: Sequence[LabelledOptions], config: TreeFitConfig = DEFAULT_LAYER_CONFIG, *, span_weight: float,
 ) -> Any:
-    return rally_training.fit_layer(
-        [pool.runtime for pool in pools], [pool.targets for pool in pools], histories,
-        config, span_weight=span_weight,
+    return rally_training.fit_selector(
+        [pool.runtime for pool in pools], [pool.targets for pool in pools], config, span_weight=span_weight,
     )
 
 
-def predict_layer(model: Any, pool: LabelledOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    return rally_model.predict_layer(model, pool.runtime, prior_scores)
+def predict_selector(model: Any, pool: LabelledOptions) -> np.ndarray:
+    return positive_probabilities(model, pool.matrix)
 
 
 def finish_selected(

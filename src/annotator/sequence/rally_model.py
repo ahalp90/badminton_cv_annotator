@@ -43,11 +43,6 @@ from annotator.sequence.repairs import (
 
 BOUNDARY_PADDING_AT_30_FPS = 10
 
-CONTEXT_FEATURE_NAMES = (
-    'option_score', 'chosen_score', 'top_margin', 'option_minus_chosen',
-    'normalised_rank', 'is_chosen', 'added_vs_chosen', 'deleted_vs_chosen',
-)
-
 REVIEW_OPTION_NAMES = (
     'added_count', 'deleted_count', *(f'after__{name}' for name in SIDE_FEATURE_NAMES),
     'unused_candidate_count', 'usable_candidate_count', 'positive_gap_count',
@@ -55,31 +50,34 @@ REVIEW_OPTION_NAMES = (
     'gap_probability_max', 'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
 )
 REVIEW_OPTION_COLUMNS = tuple(FEATURE_NAMES.index(name) for name in REVIEW_OPTION_NAMES)
+REVIEW_FEATURE_NAMES = (
+    *REVIEW_OPTION_NAMES,
+    'option_score', 'top_margin',
+    *(f'final__{name}' for name in SUMMARY_FEATURE_NAMES),
+)
 
 
 @dataclass(frozen=True)
-class RallyLayerModels:
-    """Fitted selectors and the proposal budgets used during training."""
+class RallySelector:
+    """Fitted selector and the proposal budgets used during training."""
 
-    layers: tuple[Any, ...]
+    selector: Any
     max_edits: int = 3
     deletion_candidates: int = 6
 
     def __post_init__(self) -> None:
-        if not self.layers:
-            raise ValueError('a rally stack needs at least one fitted layer')
         if self.max_edits < 0 or self.deletion_candidates < 0:
             raise ValueError('edit and deletion budgets must be non-negative')
 
 
 @dataclass(frozen=True)
-class RallyLayerPrediction:
+class RallyPrediction:
     """Final annotations and the option scores that produced them."""
 
     rallies: tuple[FinishedRally, ...]
     events: tuple[ContactEvent, ...]
     pool: RallyOptions
-    scores: tuple[np.ndarray, ...]
+    scores: np.ndarray
     chosen: dict[int, int]
 
     @property
@@ -89,7 +87,7 @@ class RallyLayerPrediction:
 
 
 @dataclass(frozen=True)
-class LayerReviewFeatures:
+class RallyReviewFeatures:
     """Selected-option evidence with final boundaries, one row per output span."""
 
     span_ids: tuple[int, ...]
@@ -100,16 +98,16 @@ class LayerReviewFeatures:
 class RallyReview:
     """Review priority scores; they do not change annotations or approve rallies."""
 
-    features: LayerReviewFeatures
+    features: RallyReviewFeatures
     scores: np.ndarray
 
 
 def select_rally_sequences(
     spans: Sequence[tuple[int, int]], events: tuple[ContactEvent, ...], scores: CandidateScores,
     features: np.ndarray, search_intervals: Sequence[tuple[int, int]], *, fps: float,
-    side_for_frame: Callable[[int], Half | None], models: RallyLayerModels, frame_count: int | None = None,
+    side_for_frame: Callable[[int], Half | None], models: RallySelector, frame_count: int | None = None,
     bounds_supplied: bool = False,
-) -> RallyLayerPrediction:
+) -> RallyPrediction:
     """Build rally alternatives from detector evidence and apply the fitted selectors."""
     check_events_match_kept_candidates(events, scores)
     initial = initial_sequences(spans, events)
@@ -121,25 +119,12 @@ def select_rally_sequences(
     return predict_rally_options(models, pool)
 
 
-def predict_rally_options(models: RallyLayerModels, pool: RallyOptions) -> RallyLayerPrediction:
+def predict_rally_options(models: RallySelector, pool: RallyOptions) -> RallyPrediction:
     """Choose one option per rally, then finish its bounds and player sides."""
-    scores = score_layers(models.layers, pool)
-    chosen = choose_rows(pool, scores[-1])
+    scores = positive_probabilities(models.selector, pool.matrix)
+    chosen = choose_rows(pool, scores)
     rallies, events = finish_rallies(pool, chosen)
-    return RallyLayerPrediction(rallies, events, pool, scores, chosen)
-
-
-def score_layers(models: tuple[Any, ...], pool: RallyOptions) -> tuple[np.ndarray, ...]:
-    """Score every option, passing earlier selectors' scores to later selectors."""
-    scores = []
-    for model in models:
-        scores.append(predict_layer(model, pool, scores))
-    return tuple(scores)
-
-
-def predict_layer(model: Any, pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    """Estimate each option's probability using its evidence and earlier scores."""
-    return positive_probabilities(model, layer_features(pool, prior_scores))
+    return RallyPrediction(rallies, events, pool, scores, chosen)
 
 
 def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
@@ -279,33 +264,6 @@ def fit_rally_sides(
     return rallies, revised
 
 
-def layer_features(pool: RallyOptions, prior_scores: Sequence[np.ndarray] = ()) -> np.ndarray:
-    """Append each earlier layer's scores and choice context to the fixed evidence.
-
-    Rank runs from zero for the first choice to one for the last. Ties use pool
-    order. A singleton span has rank zero and margin zero. Added/deleted counts
-    compare this option's contact frames with that earlier layer's chosen frames.
-    """
-    if not prior_scores:
-        return pool.matrix
-    frames = tuple({event.frame for event in sequence.events} for sequence in pool.sequences)
-    blocks = [pool.matrix]
-    for scores in prior_scores:
-        choice_features = np.empty((len(pool.sequences), len(CONTEXT_FEATURE_NAMES)), dtype=np.float32)
-        for ranked in ordered_span_rows(pool, scores).values():
-            chosen = int(ranked[0])
-            chosen_score = scores[chosen]
-            margin = chosen_score - scores[ranked[1]] if len(ranked) > 1 else 0.0
-            for rank, row in enumerate(ranked):
-                choice_features[row] = (
-                    scores[row], chosen_score, margin, scores[row] - chosen_score,
-                    rank / max(1, len(ranked) - 1), float(row == chosen),
-                    len(frames[row] - frames[chosen]), len(frames[chosen] - frames[row]),
-                )
-        blocks.append(choice_features)
-    return np.column_stack(blocks)
-
-
 def ordered_span_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, np.ndarray]:
     """Rank every span's rows by descending score, retaining pool order for ties."""
     if scores.shape != (len(pool.sequences),) or not np.isfinite(scores).all():
@@ -313,43 +271,36 @@ def ordered_span_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, np.nd
     return {span_id: rows[np.argsort(-scores[rows], kind='stable')] for span_id, rows in pool.span_rows.items()}
 
 
-def review_feature_names(depth: int) -> tuple[str, ...]:
-    return (
-        *REVIEW_OPTION_NAMES,
-        *(f'layer_{layer}__{name}' for layer in range(1, depth + 1) for name in ('option_score', 'top_margin')),
-        *(f'final__{name}' for name in SUMMARY_FEATURE_NAMES),
-    )
-
-
-def build_layer_review_features(prediction: RallyLayerPrediction) -> LayerReviewFeatures:
+def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
     """Reuse raw option evidence; only the extra boundary summary uses final bounds."""
     pool = prediction.pool
     span_ids = tuple(prediction.chosen)
     selected = np.asarray(list(prediction.chosen.values()), dtype=np.int64)
     option_features = pool.matrix[np.ix_(selected, REVIEW_OPTION_COLUMNS)]
     final_by_span = {sequence.span_id: sequence for sequence in prediction.sequences}
-    summaries, histories = [], []
+    summaries, scores = [], []
     for span_id, row in prediction.chosen.items():
         raw = pool.sequences[row]
         final = final_by_span[span_id]
         bounded = replace(raw, start_frame=final.start_frame, end_frame=final.end_frame)
         summaries.append(sequence_summary(bounded, pool.context.fps))
-        history = []
-        for scores in prediction.scores:
-            values = scores[pool.span_rows[span_id]]
-            best = np.partition(values, -2)[-2:] if len(values) > 1 else values
-            margin = float(best.max() - best.min())
-            history.extend((float(scores[row]), margin))
-        histories.append(history)
+        values = prediction.scores[pool.span_rows[span_id]]
+        best = np.partition(values, -2)[-2:] if len(values) > 1 else values
+        margin = float(best.max() - best.min())
+        scores.append((float(prediction.scores[row]), margin))
     boundaries = np.asarray(summaries, dtype=np.float64).reshape(len(span_ids), len(SUMMARY_FEATURE_NAMES))
-    scores = np.asarray(histories, dtype=np.float64).reshape(len(span_ids), 2 * len(prediction.scores))
-    return LayerReviewFeatures(span_ids, np.column_stack((option_features, scores, boundaries)))
+    scores = np.asarray(scores, dtype=np.float64).reshape(len(span_ids), 2)
+    return RallyReviewFeatures(span_ids, np.column_stack((option_features, scores, boundaries)))
 
 
-def score_rally_review(prediction: RallyLayerPrediction, model: Any | None) -> RallyReview:
-    features = build_layer_review_features(prediction)
-    if model is None:
-        scores = prediction.scores[-1][list(prediction.chosen.values())]
-    else:
-        scores = positive_probabilities(model, features.matrix)
+def score_rally_review(prediction: RallyPrediction, model: Any) -> RallyReview:
+    features = build_review_features(prediction)
+    scores = positive_probabilities(model, features.matrix)
+    return RallyReview(features, scores)
+
+
+def score_selector_review(prediction: RallyPrediction) -> RallyReview:
+    """Expose selector scores for experimental ranking comparisons."""
+    features = build_review_features(prediction)
+    scores = prediction.scores[list(prediction.chosen.values())]
     return RallyReview(features, scores)

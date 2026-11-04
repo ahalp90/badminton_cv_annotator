@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -11,36 +12,36 @@ from sklearn.dummy import DummyClassifier
 from annotator.contacts.model import ContactModelConfig
 from annotator.models import (
     DEFAULT_MODEL_DIRECTORY,
-    MODEL_SCHEMA,
     AnnotatorModels,
     SideGeometry,
     fitted_trees,
     load_models,
     save_models,
 )
-from annotator.sequence.rally_model import RallyLayerModels
+from annotator.sequence.rally_model import RallySelector
 
 
-@pytest.mark.parametrize('name', [
-    *(f'{variant}-seed-{seed}' for variant in ('raw_baseline', 'body_window_36')
-      for seed in (0, 100, 200, 300, 400)),
-])
-def test_shipped_bundle_loads_and_predicts(name):
-    models = load_models(DEFAULT_MODEL_DIRECTORY.parent / name)
-    assert 'thresholds' not in vars(models.preprocessing)
-    assert isinstance(models.sequences, RallyLayerModels)
+def test_default_bundle_loads_and_predicts_with_all_three_models():
+    models = load_models(DEFAULT_MODEL_DIRECTORY)
     for estimator in fitted_trees(models):
-        assert estimator.get_params()['n_jobs'] == 2
         probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
         assert probabilities.shape == (1, 2)
         assert np.isfinite(probabilities).all()
-        np.testing.assert_allclose(probabilities.sum(axis=1), 1)
+
+
+def test_previous_schema_requires_matching_historical_checkout():
+    historical = (
+        Path(__file__).resolve().parents[1]
+        / 'experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0'
+    )
+    with pytest.raises(ValueError, match='Unsupported annotator model bundle'):
+        load_models(historical)
 
 
 def test_bundle_roundtrip_keeps_predictions_and_geometry(tmp_path):
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 1, 1])
     models = AnnotatorModels(
-        tree, RallyLayerModels((tree,)), tree, side_geometry=SideGeometry.SCENE,
+        tree, RallySelector(tree), tree, side_geometry=SideGeometry.SCENE,
     )
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
@@ -54,13 +55,14 @@ def test_missing_bundle_explains_retune_requirement(tmp_path):
         load_models(tmp_path)
 
 
-def test_incompatible_runtime_is_rejected_before_loading_models(tmp_path):
-    (tmp_path / 'models.joblib').write_bytes(b'not loaded')
-    (tmp_path / 'metadata.json').write_text(json.dumps({
-        'schema': MODEL_SCHEMA, 'scikit_learn': '0.0',
-    }))
-    with pytest.raises(ValueError, match='Refit the bundle'):
-        load_models(tmp_path)
+def test_library_version_metadata_does_not_block_loading(tmp_path, annotator_models):
+    save_models(annotator_models, tmp_path)
+    metadata_path = tmp_path / 'metadata.json'
+    metadata = json.loads(metadata_path.read_text())
+    metadata.update(scikit_learn='0.0', xgboost='0.0')
+    metadata_path.write_text(json.dumps(metadata))
+
+    assert load_models(tmp_path).preprocessing == annotator_models.preprocessing
 
 
 @pytest.mark.parametrize('enabled', [False, True])

@@ -10,9 +10,9 @@ from annotator.models import AnnotatorModels
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
-    LayerReviewFeatures,
-    RallyLayerModels,
     RallyReview,
+    RallyReviewFeatures,
+    RallySelector,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     annotator_batch_runs as batch,
@@ -35,14 +35,14 @@ class ContactTree:
 
 
 def models(identity=b'contact', selector='selector'):
-    return AnnotatorModels(ContactTree(identity), RallyLayerModels((selector,)), f'review-{selector}')
+    return AnnotatorModels(ContactTree(identity), RallySelector(selector), f'review-{selector}')
 
 
 def prediction(probability=0.8, pool=None):
     event = ContactEvent(100, 0.9, Half.BOT)
     sequence = ContactSequence(0, 90, 110, (event,))
     refined = SimpleNamespace(sequences=(sequence,), events=(event,), pool=pool)
-    review = RallyReview(LayerReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))
+    review = RallyReview(RallyReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))
     return HybridPrediction(None, None, refined, review)
 
 

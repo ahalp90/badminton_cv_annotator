@@ -12,9 +12,9 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.sequence.rally_model import (
-    LayerReviewFeatures,
-    RallyLayerPrediction,
+    RallyPrediction,
     RallyReview,
+    RallyReviewFeatures,
 )
 from annotator.training.contact import ContactTrainingVideo
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
@@ -111,7 +111,7 @@ def test_export_explicitly_reuses_older_preparation_and_contact_fits(tmp_path: P
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'export'})
     with pytest.raises(ValueError, match='Prepared source differs'):
         input_stages._export_inputs(run, targets)
-    assert input_stages._export_inputs(run, targets, reuse_upstream=True) == (settings, inputs, prepared, contact, 1)
+    assert input_stages._export_inputs(run, targets, reuse_upstream=True) == (settings, inputs, prepared, contact)
 
 
 @pytest.mark.parametrize('changed_stage', ['contact', 'selector'])
@@ -257,15 +257,15 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         for identity in identities
     }
     sequence = SimpleNamespace(span_id=4)
-    layer_prediction = RallyLayerPrediction(
+    layer_prediction = RallyPrediction(
         rallies=(SimpleNamespace(sequence=sequence, final_half=None),),
-        events=(), pool=object(), scores=(np.asarray([0.8]),), chosen={4: 0},
+        events=(), pool=object(), scores=np.asarray([0.8]), chosen={4: 0},
     )
-    confidence = RallyReview(LayerReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
+    confidence = RallyReview(RallyReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
     prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
-        lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root, 1),
+        lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root),
     )
     prepared_root.mkdir()
     contact_run_root.mkdir()
@@ -285,7 +285,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages.integrate, 'verify_pool', lambda *_args: None)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
     monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
-    monkeypatch.setattr(input_stages, 'score_rally_review', lambda *_args: confidence)
+    monkeypatch.setattr(input_stages, 'score_selector_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})
     monkeypatch.setattr(input_stages.experiment, 'load_prepared', lambda _root, identity: fake_videos[identity])
@@ -296,8 +296,8 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     monkeypatch.setattr(input_stages, 'load_models', lambda _path: saved_models[-1])
 
     def load_artifact(path):
-        if path.name == 'rally-models.joblib':
-            return (object(),)
+        if path.name == 'rally-model.joblib':
+            return object()
         return object()
 
     monkeypatch.setattr(joblib, 'load', load_artifact)
@@ -354,7 +354,7 @@ def test_export_passes_device_to_confidence_fit(
 ) -> None:
     settings = {}
     inputs = {'preprocessing': {'fixture': True}}
-    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path, 1))
+    monkeypatch.setattr(input_stages, '_export_inputs', lambda *_args, **_kwargs: (settings, inputs, tmp_path, tmp_path))
     monkeypatch.setattr(input_stages, 'source_record', lambda: {'revision': 'fixture'})
     for name in ('preparation', 'contact-stage'):
         write_json(tmp_path / f'{name}.json.gz', {'source': {'revision': 'upstream'}})

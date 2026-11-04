@@ -56,6 +56,30 @@ def test_sampling_matches_reference_for_multiple_fps_and_video_order() -> None:
     assert {name: asdict(counts) for name, counts in actual.video_counts.items()} == expected_counts
 
 
+@pytest.mark.parametrize(('fps', 'offset', 'ignored_offset'), [(25.0, 2, 3), (30.0, 2, 3), (60.0, 4, 6)])
+def test_custom_positive_radius_changes_contact_labels_at_each_fps(
+    fps: float, offset: int, ignored_offset: int,
+) -> None:
+    video = training_video('custom', fps, (100,))
+    config = replace(ContactFitConfig(), positive_radius_at_30_fps=2, ignored_radius_at_30_fps=4)
+    selection = select_contact_training_rows([video], config)
+    labels = dict(zip(selection.rows['frame'], selection.labels, strict=True))
+    assert labels[100 + offset] == 1
+    assert video.features['region_wrist'][100 + ignored_offset]
+    assert 100 + ignored_offset not in labels
+
+
+def test_custom_ignored_radius_removes_a_nearby_negative() -> None:
+    video = training_video('custom', 30.0, (100,))
+    default = select_contact_training_rows([video])
+    default_labels = dict(zip(default.rows['frame'], default.labels, strict=True))
+    assert default_labels[106] == 0
+
+    config = replace(ContactFitConfig(), ignored_radius_at_30_fps=6)
+    wider_ignore = select_contact_training_rows([video], config)
+    assert 106 not in wider_ignore.rows['frame']
+
+
 def test_small_fit_scores_only_supplied_training_video() -> None:
     train = training_video('train', 30.0)
     validation = training_video('validation', 30.0, (200,))

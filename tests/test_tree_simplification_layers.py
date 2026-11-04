@@ -62,28 +62,10 @@ def test_margin_replay_rejects_an_incomplete_source(
     assert not (tmp_path / 'replay').exists()
 
 
-def test_each_prior_layer_has_its_own_choice_context_and_stable_ties() -> None:
+def test_selector_keeps_stable_ties() -> None:
     pool = example_pool()
-    first = np.asarray([0.5, 0.8, 0.8, 0.6])
-    second = np.asarray([0.9, 0.2, 0.4, 0.1])
-    assert layers.choose_rows(pool, first) == {0: 1, 1: 3}
-    assert layers.choose_rows(pool, second) == {0: 0, 1: 3}
-    assert layers.layer_features(pool) is pool.matrix
-    actual = layers.layer_features(pool, (first, second))
-    np.testing.assert_array_equal(actual[:, :2], pool.matrix)
-    np.testing.assert_allclose(actual[:, 2:10], [
-        [0.5, 0.8, 0, -0.3, 1, 0, 0, 1],
-        [0.8, 0.8, 0, 0, 0, 1, 0, 0],
-        [0.8, 0.8, 0, 0, 0.5, 0, 0, 2],
-        [0.6, 0.6, 0, 0, 0, 1, 0, 0],
-    ], atol=1e-7)
-    np.testing.assert_allclose(actual[:, 10:], [
-        [0.9, 0.9, 0.5, 0, 0, 1, 0, 0],
-        [0.2, 0.9, 0.5, -0.7, 1, 0, 1, 0],
-        [0.4, 0.9, 0.5, -0.5, 0.5, 0, 0, 1],
-        [0.1, 0.1, 0, 0, 0, 1, 0, 0],
-    ], atol=1e-7)
-    assert actual.shape == (4, 2 + 2 * len(layers.CONTEXT_FEATURE_NAMES))
+    scores = np.asarray([0.5, 0.8, 0.8, 0.6])
+    assert layers.choose_rows(pool, scores) == {0: 1, 1: 3}
 
 
 def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -92,7 +74,6 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     sparse = replace(pool, targets=np.asarray([1, -1, -1, -1], dtype=np.int8))
     np.testing.assert_array_equal(layers.judged_weights(pool), [0.5, 0.5, 0, 1])
     np.testing.assert_array_equal(layers.judged_weights(unjudged), np.zeros(4))
-    prior = np.asarray([0.5, 0.8, 0.7, 0.6])
     captured = {}
 
     def fit(matrix: np.ndarray, labels: np.ndarray, **kwargs: Any) -> object:
@@ -100,8 +81,8 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
         return captured
 
     monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
-    model = layers.fit_layer(
-        [pool, sparse, unjudged], [(prior,), (prior,), (prior,)], TreeFitConfig(max_iter=3), span_weight=1.5,
+    model = layers.fit_selector(
+        [pool, sparse, unjudged], TreeFitConfig(max_iter=3), span_weight=1.5,
     )
     assert model is captured
     np.testing.assert_array_equal(captured['labels'], [0, 1, 0, 1])
@@ -110,7 +91,7 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     assert fitted_weights[:2].sum() == pytest.approx(1.5)
     assert fitted_weights[:2].sum() == pytest.approx(fitted_weights[2])
     assert fitted_weights[2] == pytest.approx(fitted_weights[3])
-    np.testing.assert_array_equal(captured['matrix'], layers.layer_features(pool, (prior,))[[0, 1, 3, 0]])
+    np.testing.assert_array_equal(captured['matrix'], pool.matrix[[0, 1, 3, 0]])
     assert captured['balanced'] is False
     assert captured['max_iter'] == 3
 
@@ -132,7 +113,7 @@ def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch
     monkeypatch.setattr(layers.rally_training, 'fit_binary_tree', fit)
     for pool in (original, all_options):
         judged = pool.targets >= 0
-        passed = layers.fit_layer([pool], [()], span_weight=span_weight)
+        passed = layers.fit_selector([pool], span_weight=span_weight)
         full_weights = np.zeros(len(pool.targets))
         full_weights[judged] = passed
         assert len(passed) == int(judged.sum())
@@ -143,15 +124,15 @@ def test_fixed_span_weight_is_identical_for_original_and_all_options(monkeypatch
 @pytest.mark.parametrize('span_weight', [0.0, -1.0, np.nan, np.inf])
 def test_invalid_fixed_span_weight_fails_loudly(span_weight: float) -> None:
     with pytest.raises(ValueError, match='finite and positive'):
-        layers.fit_layer([example_pool()], [()], span_weight=span_weight)
+        layers.fit_selector([example_pool()], span_weight=span_weight)
 
 
 def test_fitted_layer_predicts_all_options_and_can_change_earlier_choices() -> None:
     pool = example_pool()
     prior = np.asarray([0.9, 0.1, 0.8, 0.6])
     with threadpool_limits(limits=1):
-        model = layers.fit_layer([pool], [(prior,)], TreeFitConfig(max_iter=15, min_child_weight=0), span_weight=1.5)
-        scores = layers.predict_layer(model, pool, (prior,))
+        model = layers.fit_selector([pool], TreeFitConfig(max_iter=15, min_child_weight=0), span_weight=1.5)
+        scores = layers.predict_selector(model, pool)
     assert scores.shape == (4,)
     assert np.isfinite(scores).all()
     assert layers.choose_rows(pool, prior)[0] == 0

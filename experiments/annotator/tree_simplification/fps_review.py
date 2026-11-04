@@ -19,9 +19,9 @@ from annotator.hybrid import predict_contact_features
 from annotator.models import AnnotatorModels, SideGeometry, fitted_trees
 from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import (
-    RallyLayerModels,
-    RallyLayerPrediction,
-    score_rally_review,
+    RallyPrediction,
+    RallySelector,
+    score_selector_review,
 )
 from annotator.training.sequences import whole_rally_correctness
 from experiments.annotator import development as experiment
@@ -54,13 +54,11 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
     if receipt_path.exists() and experiment.read_json(receipt_path) != receipt:
         raise ValueError('Review inputs changed; use a fresh output directory')
     experiment.write_json(receipt_path, receipt)
-    review = integrate.fit_review(run, 1, targets, output, settings)
-    layers = joblib.load(run / 'layers-1' / 'rally-models.joblib')
-    if len(layers) != 1:
-        raise ValueError('Expected exactly one rally selector')
+    review = integrate.fit_review(run, targets, output, settings)
+    selector = joblib.load(run / 'layers-1' / 'rally-model.joblib')
     models = AnnotatorModels(
         joblib.load(contact_run_root / 'contacts' / 'v_32.joblib'),
-        RallyLayerModels(layers, pool_settings['max_edits'], pool_settings['deletion_candidates']),
+        RallySelector(selector, pool_settings['max_edits'], pool_settings['deletion_candidates']),
         review, ContactModelConfig(**pool_settings['settings']['contact_prediction']),
         BaseAnnotatorConfig(), SideGeometry.VIDEO,
     )
@@ -76,7 +74,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
             raise ValueError('Replay video is not validation')
         prediction = predict_contact_features(prepared.evidence, prepared.features, models)
         layer_prediction = prediction.refined
-        if not isinstance(layer_prediction, RallyLayerPrediction):
+        if not isinstance(layer_prediction, RallyPrediction):
             raise TypeError('Expected a rally-layer prediction')
         saved = joblib.load(Path(settings['pools']) / 'videos' / f'{identity}.joblib')
         integrate.verify_pool(layer_prediction.pool, saved)
@@ -85,7 +83,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
             raise ValueError(f'{identity}: replay stream differs')
         experiment.write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(prepared.video, stream)
-        selector = score_rally_review(layer_prediction, None)
+        selector = score_selector_review(layer_prediction)
         rankings[identity] = {}
         by_span = {sequence.span_id: sequence for sequence in layer_prediction.sequences}
         for tolerance in (5, 10):

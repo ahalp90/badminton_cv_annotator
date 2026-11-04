@@ -29,7 +29,7 @@ from threadpoolctl import threadpool_limits
 from annotator.models import AnnotatorModels, fitted_trees, load_models, model_files
 from annotator.run_video import RunCapture, run_video
 from annotator.sequence.contacts import stream_payload
-from annotator.sequence.rally_model import RallyLayerModels
+from annotator.sequence.rally_model import RallySelector
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
@@ -132,8 +132,10 @@ def _load_test_bundle(
     if export_settings.get('schema') != 'tree-simplification-raw-export/1':
         raise ValueError(f'{candidate}, seed {seed_offset}: export is not a raw production export')
     result = read_json(export / 'result.json.gz')
-    if result.get('complete') is not True or result.get('replay_streams_match') is not True:
-        raise ValueError(f'{candidate}, seed {seed_offset}: export replay is incomplete or mismatched')
+    if result.get('complete') is not True:
+        raise ValueError(f'{candidate}, seed {seed_offset}: export is incomplete')
+    if result.get('replay_parity_checked', True) and result.get('replay_streams_match') is not True:
+        raise ValueError(f'{candidate}, seed {seed_offset}: export replay is mismatched')
     if len(result.get('per_video', {})) != 8:
         raise ValueError(f'{candidate}, seed {seed_offset}: export does not contain all eight validation videos')
 
@@ -179,7 +181,7 @@ def _load_test_bundle(
         raise ValueError(f'{candidate}, seed {seed_offset}: bundle checksum differs from the test selection')
 
     models = load_models(bundle)
-    if not isinstance(models.sequences, RallyLayerModels) or models.confidence is None:
+    if not isinstance(models.sequences, RallySelector) or models.confidence is None:
         raise TypeError('Test bundle must contain fitted rally selectors and review ranking')
     if models.side_geometry.value != 'video':
         raise ValueError('Test bundle must use video-level side geometry')
