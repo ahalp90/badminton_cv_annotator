@@ -57,8 +57,11 @@ class Settings:
     continuation_validation_interval: int | None = None
     # Records predating stride selection used dense validation; new configs use 3.
     validation_stride: int = 1
+    max_total_steps: int | None = None
 
     def __post_init__(self) -> None:
+        if self.max_total_steps is not None and self.max_total_steps < self.max_steps:
+            raise ValueError("max_total_steps must include the initial max_steps budget")
         if self.validation_stride < 1:
             raise ValueError("validation_stride must be positive")
         if self.model_name not in ("x3d", "videomae"):
@@ -88,7 +91,7 @@ def settings_record(settings: Settings) -> dict:
     if settings.model_name == "x3d":
         for name in ("model_name", "microbatch_size", "checkpoint_revision", "layer_decay", "stochastic_depth"):
             del record[name]
-    for name in ("continuation_half_cycle_steps", "continuation_validation_interval"):
+    for name in ("continuation_half_cycle_steps", "continuation_validation_interval", "max_total_steps"):
         if record[name] is None:
             del record[name]
     return record
@@ -291,6 +294,8 @@ def fit(
         peak = learning_rate_at_step(settings, settings.max_steps - half_cycle)
         protocol = {"start_step": settings.max_steps, "peak_lr": peak, "half_cycle_steps": half_cycle,
                     "validation_interval": interval, "patience": PATIENCE}
+        if settings.max_total_steps is not None:
+            protocol["max_total_steps"] = settings.max_total_steps
         protocol_path = output / "continuation.json.gz"
         if protocol_path.exists() and read_json(protocol_path) != protocol:
             raise ValueError("Continuation protocol differs from the saved run")
@@ -312,12 +317,17 @@ def fit(
     for target_step in targets:
         if extend and unsuccessful >= PATIENCE:
             break
+        if settings.max_total_steps is not None:
+            if step >= settings.max_total_steps:
+                break
+            target_step = min(target_step, settings.max_total_steps)
         if target_step <= step:
             continue
         started, first_step = time.perf_counter(), step
         model.train()
         training_loss = torch.zeros((), device=device)
-        progress.write("training", step=step, max_steps=None if extend else settings.max_steps, completed=0,
+        progress.write("training", step=step, max_steps=settings.max_total_steps if extend else settings.max_steps,
+                       completed=0,
                        total=target_step - step, phase_started=time.time(), lr=rate_at_step(step))
         for batch in islice(iterator, target_step - step):
             set_learning_rate(optimiser, rate_at_step(step))
@@ -367,7 +377,7 @@ def fit(
             progress.write("paused", total=0)
             return
     model.load_state_dict(torch.load(output / "best.pt", map_location=device, weights_only=True)["model"])
-    progress.write("complete", step=step, max_steps=None if extend else settings.max_steps, total=0,
+    progress.write("complete", step=step, max_steps=settings.max_total_steps if extend else settings.max_steps, total=0,
                    best_loss=best_loss, bad_checks=unsuccessful)
 
 

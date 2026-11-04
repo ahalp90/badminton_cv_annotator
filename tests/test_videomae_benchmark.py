@@ -290,11 +290,21 @@ def test_larger_batch_can_keep_the_same_clip_exposure_and_continuation_rates() -
     assert rates[0] == pytest.approx(rates[1], rel=2e-4)
 
 
-def test_continuation_uses_saved_interval_and_half_cycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(('budget', 'interval', 'validation_losses', 'expected_steps', 'bad_checks'), [
+    (None, 1, [2., 1., .8, .8, .8, .8], [2, 4, 6, 7, 8, 9], 3),
+    (8, 1, [2., 1., .8, .7, .6], [2, 4, 6, 7, 8], 0),
+    (12, 1, [2., 1., .8, .8, .8, .8], [2, 4, 6, 7, 8, 9], 3),
+    (9, 2, [2., 1., .8, .7, .6], [2, 4, 6, 8, 9], 0),
+])
+def test_continuation_uses_saved_interval_and_half_cycle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, budget: int | None, interval: int,
+    validation_losses: list[float], expected_steps: list[int], bad_checks: int,
+) -> None:
     settings = train.Settings(model_name="videomae", batch_size=4, max_steps=6, warmup_steps=2,
                               validation_steps=[2, 4, 6], continuation_half_cycle_steps=2,
-                              continuation_validation_interval=1, workers=0, precision="float32")
-    losses = iter([2.0, 1.0, 0.8, 0.8, 0.8, 0.8])
+                              continuation_validation_interval=interval, workers=0, precision="float32",
+                              max_total_steps=budget)
+    losses = iter(validation_losses)
     monkeypatch.setattr(train, "validate", lambda *_args, **_kwargs: {
         "loss": next(losses), "probabilities": np.ones((4, 3)) / 3,
     })
@@ -316,14 +326,21 @@ def test_continuation_uses_saved_interval_and_half_cycle(tmp_path: Path, monkeyp
     recorded.clear()
     train.fit(small_model(), loader, validation, settings, torch.device("cpu"), tmp_path, "A", resume=True, extend=True)
     history = train.read_json(tmp_path / "history.json.gz")
-    assert [row["steps"] for row in history] == [2, 4, 6, 7, 8, 9]
+    assert [row["steps"] for row in history] == expected_steps
+    assert len(recorded) == expected_steps[-1] - settings.max_steps
     peak = train.learning_rate_at_step(settings, 4)
     for offset, groups in enumerate(recorded):
         rate = continuation_rate(6 + offset, 6, peak, half_cycle_steps=2)
         for actual, scale in groups:
             assert actual == pytest.approx(rate * scale)
-    assert train.read_json(tmp_path / "status.json.gz")["bad_checks"] == 3
+    state = train.read_json(tmp_path / "status.json.gz")
+    assert state["bad_checks"] == bad_checks
+    assert state["phase"] == "complete"
+    assert state["max_steps"] == budget
     assert train.read_json(tmp_path / "continuation.json.gz")["half_cycle_steps"] == 2
+    recorded.clear()
+    train.fit(small_model(), loader, validation, settings, torch.device("cpu"), tmp_path, "A", resume=True, extend=True)
+    assert not recorded
 
 
 def test_new_head_uses_the_author_initial_scale(monkeypatch: pytest.MonkeyPatch) -> None:
