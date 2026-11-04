@@ -139,6 +139,9 @@ with offset 0 for both checkpoint selection and validation event scores. Trainin
 clip sampling is unchanged. Resuming or extending an existing run preserves its
 saved validation stride, with missing settings interpreted as dense validation.
 Set `validation_stride = 1` to start a new run with dense validation.
+For a bounded continuation, set `max_total_steps` in the run configuration.
+The initial schedule is unchanged; continuation stops at that total update count
+or after three non-improving validation checks, whichever comes first.
 
 The queue passes `--stride 3 --offset 0`; these are also the standalone inference
 defaults for both VideoMAE and X3D, for validation and test. Explicit `--stride`
