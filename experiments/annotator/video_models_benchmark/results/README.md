@@ -102,5 +102,8 @@ has one row per run, sampling, hitter rule and tolerance. Columns:
 | `contact_recall`, `contact_precision`, `contact_f1`, `correct_player_f1`, `fully_correct_percent` | Scores in percent |
 
 `test_scores.csv.gz` will use the same columns for the two test seeds.
+VideoMAE test inference uses stride 3, offset 0, so only that condition is available
+for test rescoring. Test event and frame-metric records include `sampling` metadata;
+frame metrics cover sampled centres, while event scores retain all contacts and rallies.
 [`videomae_timing/`](videomae_timing/) holds the batch-size throughput measurements.
 Checkpoints and per-frame probabilities are not included.

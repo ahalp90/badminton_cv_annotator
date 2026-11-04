@@ -16,6 +16,10 @@ whose original video frame number satisfies ``frame % 3 == offset``, so the
 sampling grid continues across rally boundaries. Raw hitters keep each retained
 peak's own most likely class; alternating hitters come from the benchmark's decoder
 unchanged. Duplicate suppression, matching and timing tolerances are the shared ones.
+
+For tests already evaluated sparsely, the event record's ``sampling`` metadata
+restricts rescoring to that measured stride and offset. Background-filled skipped
+rows are not dense model predictions and cannot supply other offsets.
 """
 from __future__ import annotations
 
@@ -165,13 +169,13 @@ def add_rates(counts: dict) -> dict:
     }
 
 
-def check_dense_counts(totals: dict, saved_metrics: dict, name: str) -> None:
-    """Dense alternating rescoring must reproduce the scores saved with the probabilities."""
+def check_saved_counts(totals: dict, saved_metrics: dict, name: str) -> None:
+    """Rescoring at the evaluated sampling must reproduce its saved event counts."""
     for tolerance in TOLERANCES:
         for count in COUNT_NAMES:
             rescored, saved = totals["alternating", tolerance][count], saved_metrics[str(tolerance)][count]
             if rescored != saved:
-                raise ValueError(f"{name}: dense {count} at ±{tolerance} is {rescored}, saved {saved}")
+                raise ValueError(f"{name}: evaluated-sampling {count} at ±{tolerance} is {rescored}, saved {saved}")
 
 
 def rescore(job: dict) -> list[dict]:
@@ -185,7 +189,10 @@ def rescore(job: dict) -> list[dict]:
     probabilities = read_probabilities(job["probabilities"], videos)
     lengths = [sum(span["end_frame"] - span["start_frame"] for span in video["spans"]) for video in videos]
     rows = []
-    for stride, offset in SAMPLINGS:
+    sampling = job.get("sampling", {"stride": 1, "offset": 0})
+    evaluated = (sampling["stride"], sampling["offset"])
+    conditions = SAMPLINGS if evaluated == (1, 0) else (evaluated,)
+    for stride, offset in conditions:
         totals = {(rule, tolerance): dict.fromkeys(COUNT_NAMES, 0) for rule in HITTER_RULES for tolerance in TOLERANCES}
         streams: dict[str, dict] = {rule: {} for rule in HITTER_RULES}
         start = 0
@@ -199,8 +206,8 @@ def rescore(job: dict) -> list[dict]:
                     for count in COUNT_NAMES:
                         totals[rule, tolerance][count] += counts[count]
             start += length
-        if stride == 1:
-            check_dense_counts(totals, job["saved_metrics"], job["label"]["run"])
+        if (stride, offset) == evaluated:
+            check_saved_counts(totals, job["saved_metrics"], job["label"]["run"])
         for (rule, tolerance), counts in totals.items():
             rows.append({**job["label"], "stride": stride, "offset": offset, "hitter_rule": rule,
                          "tolerance": tolerance, **add_rates(counts)})
@@ -211,7 +218,7 @@ def rescore(job: dict) -> list[dict]:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 write_json(path, {**job["label"], "stride": stride, "offset": offset, "hitter_rule": rule,
                                   "metrics": metrics, "streams": rule_streams})
-    print(f"{job['label']['split']} {job['label']['run']}: dense counts reproduced; stride three scored", flush=True)
+    print(f"{job['label']['split']} {job['label']['run']}: saved counts reproduced; {conditions} scored", flush=True)
     return rows
 
 
@@ -246,8 +253,9 @@ def test_jobs(runs: Path, videos: list[dict], streams: Path | None) -> list[dict
             raise ValueError(f"{directory}: test inference has not completed")
         label = {"split": "test", "run": run["name"], "learning_rate": run["learning_rate"],
                  "seed": run["seed"], "best_step": best["steps"]}
+        events = read_json(directory / "events.json.gz")
         jobs.append({"label": label, "videos": videos, "probabilities": directory / "probabilities.npy.xz",
-                     "saved_metrics": read_json(directory / "events.json.gz")["metrics"],
+                     "saved_metrics": events["metrics"], "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
                      "streams": None if streams is None else streams / "test" / f"seed{run['seed']}"})
     return jobs
 

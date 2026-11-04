@@ -18,6 +18,9 @@ checks to go. The learning-rate ranking below is therefore provisional.
 
 After the last run finishes, the queue picks the learning rate from validation
 and tests both of its seeds once on the held-out set. **Test results are pending.**
+Test inference will use stride 3, offset 0, chosen from the validation comparison
+below. This reduces the number of model evaluations to about one third while
+retaining all labelled contacts and rallies for event scoring.
 [Regenerating the results](#regenerating-the-results) explains how to add them.
 
 ## Outcome so far
@@ -39,8 +42,9 @@ Before alternation, VideoMAE named the right hitter for 98.8–98.9% of matched
 contacts. Alternation fits one TOP/BOT pattern per rally, so a single extra or
 missed contact shifts the pattern for the hits after it.
 
-Stride three and raw hitters are diagnostics on saved predictions. They do not
-change checkpoint selection, learning-rate selection or the test protocol.
+The validation stride comparison uses saved dense predictions. Stride 3, offset 0
+was then selected for test inference; raw hitters remain a diagnostic alongside
+the reported alternating hitters. Checkpoint and learning-rate selection are unchanged.
 
 ## Validation selection
 

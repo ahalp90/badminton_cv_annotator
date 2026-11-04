@@ -266,5 +266,7 @@ def test_automatic_test_uses_validation_winner_and_skips_completed_seeds(
     for command, run in zip(commands, (runs[1], runs[3]), strict=True):
         assert command[command.index("--checkpoint") + 1] == str(output / run["name"] / "best.pt")
         assert command[command.index("--role") + 1] == "test"
+        assert command[command.index("--stride") + 1] == "3"
+        assert command[command.index("--offset") + 1] == "0"
         assert command[command.index("--cache") + 1] == str(tmp_path / "test-cache")
     assert read_record(output / "selection.json.gz")["ranking"][0]["learning_rate"] == 1e-4
