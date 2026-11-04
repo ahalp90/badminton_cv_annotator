@@ -5,11 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.selection import (
-    ContactData,
-    OutcomeRally,
-    select_heuristic_contacts,
-)
+from annotator.contacts.selection import select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
@@ -19,6 +15,7 @@ from annotator.outcomes.point_winner import (
     LandingKinematics,
     VerdictRow,
 )
+from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
 
 
@@ -49,10 +46,11 @@ def test_contact_attribution_uses_net_band_at_contact_scene(monkeypatch):
         heuristic_spans=[(0, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
         track=np.zeros((10, 3)), sticky=None, bboxes=np.zeros((10, 1, 4)), scene_courts=scenes,
     )
-    result = select_heuristic_contacts(evidence)
+    rallies, filtered_contacts = select_heuristic_contacts(evidence)
 
+    assert filtered_contacts == contacts
     assert received_bands == [scenes[1].net_band]
-    assert result.rallies[0].final_half is Half.TOP
+    assert rallies[0].final_half is Half.TOP
 
 
 def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
@@ -70,7 +68,7 @@ def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
         video_outcomes.point_winner, 'build_hit_height_rows', fake_hit_height_rows,
     )
     evidence = SimpleNamespace(track=np.zeros((10, 3)), resolution=(1280.0, 720.0), scene_courts=scenes)
-    contacts = ContactData([OutcomeRally((0, 10), [7], [7], Half.TOP)], [])
+    contacts = (FinishedRally(ContactSequence(0, 0, 10, (ContactEvent(7, np.nan, Half.TOP),)), Half.TOP),)
     hit_heights, failures = video_outcomes.build_hit_heights(evidence, contacts)
 
     assert received_bands == [scenes[1].net_band]
@@ -112,7 +110,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
     monkeypatch.setattr(video_outcomes.point_winner, 'pick_landing_to_end', fake_pick)
     monkeypatch.setattr(video_outcomes.point_winner, 'rally_verdict', fake_verdict)
 
-    contact_data = ContactData([OutcomeRally((0, 12), [7], [7], Half.TOP)], [])
+    contact_data = (FinishedRally(ContactSequence(0, 0, 12, (ContactEvent(7, np.nan, Half.TOP),)), Half.TOP),)
     evidence = SimpleNamespace(
         track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), sticky=None,
         resolved=resolve(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),

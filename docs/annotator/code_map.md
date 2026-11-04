@@ -18,7 +18,7 @@ intermediate results are unfamiliar.
 | Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Gather earlier/later contacts and their physical evidence |
 | Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Combine contact additions/deletions, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
-| Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and fit alternating player sides, or carry model-selected sides forward |
+| Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and use the same final player-alternation step as model inference |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
 
 In `hybrid.py`, `build_rally_context()` prepares the initial rallies and
@@ -39,7 +39,7 @@ player or court evidence.
 ## Know which representation you are reading
 
 - `AnnotationEvidence` contains original arrays, resolved settings, masks and initial rally/contact evidence.
-- `ContactData` contains final spans, selected contacts and fitted hitting order.
+- `FinishedRally` pairs a selected contact sequence with its fitted final striker. Both inference routes pass it directly to outcomes.
 - `ContactFeatures` contains candidate rows ready for scoring and their search intervals.
 - `ScoredContacts` adds candidate probabilities and selected row indices.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.

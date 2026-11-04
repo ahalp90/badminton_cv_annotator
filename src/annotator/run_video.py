@@ -11,10 +11,7 @@ import numpy as np
 import pandas as pd
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.selection import (
-    contacts_from_sequences,
-    select_heuristic_contacts,
-)
+from annotator.contacts.selection import select_heuristic_contacts
 from annotator.hybrid import HybridPrediction, predict_contacts
 from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_models
 from annotator.outcomes import point_winner
@@ -85,7 +82,8 @@ def run_video(
 
     ``capture`` is reset at entry and receives owned mask copies after preparation
     succeeds. It also receives model predictions and requested landing horizons.
-    ``rejection_diagnostics`` receives outcome rejection rows when supplied.
+    ``rejection_diagnostics`` receives rejection rows when supplied, grouped by
+    filtering and outcome stages rather than rally order.
     Landing horizons require capture; their seconds must be finite, positive
     and strictly increasing.
     """
@@ -121,35 +119,39 @@ def run_video(
     contact_events = ()
     rally_confidence = ()
     if models is None:
-        contact_data = select_heuristic_contacts(evidence)
+        rallies, filtered_contacts = select_heuristic_contacts(evidence, rejection_diagnostics)
         final_contacts = evidence.heuristic_contacts
     else:
         prediction = predict_contacts(evidence, models)
         if capture is not None:
             capture.hybrid = prediction
-        contact_data = contacts_from_sequences(prediction.refined.rallies)
-        final_contacts = contact_data.filtered_contacts
+        rallies = prediction.refined.rallies
+        filtered_contacts = [
+            ContactCandidate(rally.sequence.span_id, event.frame, None, None, None)
+            for rally in rallies for event in rally.sequence.events
+        ]
+        final_contacts = filtered_contacts
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
     report("resolving outcomes")
     verdict_data = build_verdict_data(
-        evidence, contact_data, landing_options=landing_options,
+        evidence, rallies, landing_options=landing_options,
         rejection_diagnostics=rejection_diagnostics, landing_horizons_s=landing_horizons_s,
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
     )
     report("calculating hit heights")
-    hit_height_by_frame, hit_height_failures = build_hit_heights(evidence, contact_data)
+    hit_height_by_frame, hit_height_failures = build_hit_heights(evidence, rallies)
     filtered_by_rally: dict[int, list[int]] = {}
-    for contact in contact_data.filtered_contacts:
+    for contact in filtered_contacts:
         filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
-    first_halves = [rally.first_half for rally in contact_data.rallies]
+    first_halves = [rally.first_half for rally in rallies]
     return AnnotatorResult(
-        spans=[rally.span for rally in contact_data.rallies],
+        spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in rallies],
         contacts=final_contacts,
-        filtered_contacts=contact_data.filtered_contacts,
+        filtered_contacts=filtered_contacts,
         filtered_by_rally=filtered_by_rally,
-        striker_halves=[rally.final_half for rally in contact_data.rallies],
-        n_strokes_list=[len(rally.frames) for rally in contact_data.rallies],
+        striker_halves=[rally.final_half for rally in rallies],
+        n_strokes_list=[len(rally.sequence.events) for rally in rallies],
         next_servers=[*first_halves[1:], None] if first_halves else [],
         fitted_first_all=first_halves,
         verdict_rows=verdict_data.verdict_rows,

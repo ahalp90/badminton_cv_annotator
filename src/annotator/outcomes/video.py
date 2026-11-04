@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 import numpy as np
 
 from annotator.config import ResolvedAnnotatorConfig
-from annotator.contacts.selection import ContactData
 from annotator.courts.scenes import SceneCourt, court_at_frame
 from annotator.outcomes import point_winner
 from annotator.preparation import AnnotationEvidence
+from annotator.sequence.contacts import FinishedRally
 from shared.progress import progress_iter
 
 OTHER_HALF = point_winner.OTHER_HALF
@@ -116,25 +117,6 @@ def record_rejection(
         'end_frame': end_frame,
         'trigger_frame': trigger_frame,
         'trigger_code': int(codes[trigger_frame]) if codes is not None else '',
-    })
-
-
-def record_trusted_mask_contact_rejection(
-    rows: list[dict[str, object]] | None,
-    rally_id: int,
-    span: tuple[int, int],
-    contact_frames: list[int],
-) -> None:
-    """Record a rally whose scoring contacts all fell on trusted-dead frames."""
-    if rows is None:
-        return
-    rows.append({
-        'rule': 'all_contacts_on_believed_mask',
-        'rally_id': rally_id,
-        'start_frame': span[0],
-        'end_frame': span[1],
-        'trigger_frame': contact_frames[0],
-        'trigger_code': '',
     })
 
 
@@ -387,7 +369,7 @@ def build_rally_outcome(
 
 def build_verdict_data(
     evidence: AnnotationEvidence,
-    contact_data: ContactData,
+    rallies: Sequence[FinishedRally],
     *,
     landing_options: point_winner.LandingFilterOptions,
     rejection_diagnostics: list[dict[str, object]] | None,
@@ -416,24 +398,21 @@ def build_verdict_data(
     verdict_rows: dict[int, point_winner.VerdictRow] = {}
     landings: dict[int, point_winner.Landing | None] = {}
     geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow] = {}
-    for rally_id, rally in enumerate(progress_iter(contact_data.rallies, "resolving outcomes", unit="rallies")):
+    for rally_id, rally in enumerate(progress_iter(rallies, "resolving outcomes", unit="rallies")):
+        sequence = rally.sequence
         striker = rally.final_half
         if striker is None:
-            if rally.frames_before_mask and not rally.frames:
-                record_trusted_mask_contact_rejection(
-                    rejection_diagnostics, rally_id, rally.span, rally.frames_before_mask,
-                )
             continue
-        next_rally = contact_data.rallies[rally_id + 1] if rally_id + 1 < len(contact_data.rallies) else None
-        next_start = next_rally.span[0] if next_rally is not None else len(evidence.track)
+        next_rally = rallies[rally_id + 1] if rally_id + 1 < len(rallies) else None
+        next_start = next_rally.sequence.start_frame if next_rally is not None else len(evidence.track)
         outcome = build_rally_outcome(
             rally_id,
             striker,
             next_rally.first_half if next_rally is not None else None,
             next_start,
-            rally.frames,
+            [event.frame for event in sequence.events],
             context,
-            rally_end=rally.span[1],
+            rally_end=sequence.end_frame,
         )
         verdict_rows[rally_id] = outcome.verdict
         landings[rally_id] = outcome.landing
@@ -442,13 +421,14 @@ def build_verdict_data(
 
 
 def build_hit_heights(
-    evidence: AnnotationEvidence, contact_data: ContactData,
+    evidence: AnnotationEvidence, rallies: Sequence[FinishedRally],
 ) -> tuple[dict[int, int], list[tuple[int, int, int, str]]]:
     """Build hit-height outputs without coupling them to landing verdicts."""
     hit_height_by_frame: dict[int, int] = {}
     hit_height_failures: list[tuple[int, int, int, str]] = []
-    for rally_id, rally in enumerate(contact_data.rallies):
-        for stroke_idx, contact_frame in enumerate(rally.frames):
+    for rally_id, rally in enumerate(rallies):
+        for stroke_idx, event in enumerate(rally.sequence.events):
+            contact_frame = event.frame
             try:
                 frame_net_band = court_at_frame(evidence.scene_courts, contact_frame).net_band
                 rows = point_winner.build_hit_height_rows(

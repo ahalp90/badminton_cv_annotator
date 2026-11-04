@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from annotator.config import ScalingKind
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import OTHER_HALF, Half
 
 
 @dataclass(frozen=True)
 class ContactEvent:
-    """One predicted contact and the court half of its raw striker guess."""
+    """A contact frame, model probability (NaN for heuristics) and player side."""
 
     frame: int
     probability: float
@@ -35,6 +35,13 @@ class FinishedRally:
 
     sequence: ContactSequence
     final_half: Half | None
+
+    @property
+    def first_half(self) -> Half | None:
+        """Derive the first striker from the fitted final striker."""
+        if self.final_half is None:
+            return None
+        return self.final_half if len(self.sequence.events) % 2 else OTHER_HALF[self.final_half]
 
 
 def scale_frames(frames_at_30_fps: int, fps: float) -> int:
