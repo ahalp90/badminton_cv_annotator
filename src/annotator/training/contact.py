@@ -173,14 +173,7 @@ def fit_contact_model(
                 {identity: selection.video_counts[identity] for identity in fit_video_order},
             )
     model = fit_binary_tree(
-        contact_feature_matrix(selection.rows), selection.labels,
-        learning_rate=config.learning_rate,
-        max_iter=config.max_iter,
-        max_leaf_nodes=config.max_leaf_nodes,
-        l2_regularization=config.l2_regularization,
-        balanced=True,
-        random_seed=config.random_seed,
-        early_stopping=config.early_stopping,
-        device=config.device, min_child_weight=config.min_child_weight,
+        contact_feature_matrix(selection.rows), selection.labels, config,
+        balanced=True, early_stopping=config.early_stopping,
     )
     return ContactModelFit(model, selection)

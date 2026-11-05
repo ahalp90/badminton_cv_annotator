@@ -78,8 +78,8 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     np.testing.assert_array_equal(rally_training.judged_weights(unjudged.runtime, unjudged.targets), np.zeros(4))
     captured = {}
 
-    def fit(matrix: np.ndarray, labels: np.ndarray, **kwargs: Any) -> object:
-        captured.update(matrix=matrix, labels=labels, **kwargs)
+    def fit(matrix: np.ndarray, labels: np.ndarray, config: TreeFitConfig, **kwargs: Any) -> object:
+        captured.update(matrix=matrix, labels=labels, config=config, **kwargs)
         return captured
 
     monkeypatch.setattr(rally_training, 'fit_binary_tree', fit)
@@ -96,7 +96,7 @@ def test_fit_filters_unknown_targets_and_weights_spans_equally(monkeypatch: pyte
     assert fitted_weights[2] == pytest.approx(fitted_weights[3])
     np.testing.assert_array_equal(captured['matrix'], pool.matrix[[0, 1, 3, 0]])
     assert captured['balanced'] is False
-    assert captured['max_iter'] == 3
+    assert captured['config'].max_iter == 3
 
 
 def test_fixed_span_weight_is_identical_across_pool_sizes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +110,7 @@ def test_fixed_span_weight_is_identical_across_pool_sizes(monkeypatch: pytest.Mo
     )
     span_weight = 2.5
 
-    def fit(_matrix: np.ndarray, _labels: np.ndarray, **kwargs: Any) -> np.ndarray:
+    def fit(_matrix: np.ndarray, _labels: np.ndarray, _config: TreeFitConfig, **kwargs: Any) -> np.ndarray:
         return kwargs['sample_weight']
 
     monkeypatch.setattr(rally_training, 'fit_binary_tree', fit)

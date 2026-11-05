@@ -9,12 +9,9 @@ from typing import Any
 
 import numpy as np
 
-from annotator.contacts.model import CONTACT_FEATURE_NAMES
+from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactSequence
-
-PHYSICAL_FEATURE_NAMES = CONTACT_FEATURE_NAMES
-
 
 SUMMARY_FEATURE_NAMES = (
     "predicted_event_count",
@@ -56,14 +53,14 @@ def physical_rows(contact_features: np.ndarray, frames: Iterable[int]) -> dict[i
 
     :param contact_features: Structured feature rows for the video's candidate frames.
     :param frames: Frames whose physical evidence the rally model uses.
-    :return: One float64 row per frame, in PHYSICAL_FEATURE_NAMES order, NaNs kept.
+    :return: One float64 row per frame, in CONTACT_FEATURE_NAMES order, NaNs kept.
     """
     requested = sorted(set(frames))
     feature_frames = contact_features["frame"]
     if len(np.unique(feature_frames)) != len(feature_frames):
         raise ValueError("contact feature frames repeat")
     selected = contact_features[np.isin(feature_frames, requested)]
-    values = np.column_stack([selected[name].astype(np.float64) for name in PHYSICAL_FEATURE_NAMES])
+    values = np.column_stack([selected[name].astype(np.float64) for name in CONTACT_FEATURE_NAMES])
     if np.isinf(values).any():
         raise ValueError("physical contact features contain infinity")
     rows = {int(frame): values[index] for index, frame in enumerate(selected["frame"])}
@@ -75,7 +72,7 @@ def physical_rows(contact_features: np.ndarray, frames: Iterable[int]) -> dict[i
 
 def physical_or_nan(physical: Mapping[int, np.ndarray], frame: int | None) -> np.ndarray:
     if frame is None:
-        return np.full(len(PHYSICAL_FEATURE_NAMES), np.nan)
+        return np.full(len(CONTACT_FEATURE_NAMES), np.nan)
     return physical[frame]
 
 

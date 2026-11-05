@@ -6,11 +6,11 @@ from itertools import combinations
 
 import numpy as np
 
+from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
 from annotator.sequence.features import (
-    PHYSICAL_FEATURE_NAMES,
     SIDE_FEATURE_NAMES,
     SUMMARY_FEATURE_NAMES,
     physical_or_nan,
@@ -26,14 +26,14 @@ FEATURE_NAMES = (
     'added_count', 'deleted_count',
     *(f'{kind}_probability_{stat}' for kind in ('added', 'deleted') for stat in ('min', 'max', 'mean')),
     *(f'{kind}__{name}' for kind in ('original_first', 'new_first', 'strongest_addition', 'weakest_deletion')
-      for name in PHYSICAL_FEATURE_NAMES),
+      for name in CONTACT_FEATURE_NAMES),
     'unused_candidate_count', 'unused_probability_min', 'unused_probability_max', 'unused_probability_mean',
     'usable_candidate_count', 'excluded_candidate_count',
     'gaps_with_candidates', 'positive_gap_count', 'gaps_without_candidates', 'longest_gap_seconds',
     'last_gap_has_candidate',
     'gap_probability_max', 'gap_probability_second', 'gap_probability_mean', 'gap_probability_sum',
     'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
-    *(f'strongest_unused__{name}' for name in PHYSICAL_FEATURE_NAMES),
+    *(f'strongest_unused__{name}' for name in CONTACT_FEATURE_NAMES),
 )
 
 
@@ -82,10 +82,11 @@ def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float,
 
 def toggle_proposals(
     before: ContactSequence, candidates: tuple[ContactEvent, ...], stream: tuple[ContactEvent, ...],
-    previous_end: int, distance: int, max_edits: int, deletion_candidates: int,
+    earliest_start: int, distance: int, max_edits: int, deletion_candidates: int,
 ) -> list[ContactSequence]:
     original_frames = {event.frame for event in before.events}
-    additions = tuple(event for event in candidates if event.frame not in original_frames)
+    additions = tuple(event for event in candidates
+                      if event.frame not in original_frames and event.frame < before.end_frame)
     deletions = []
     if before.events and deletion_candidates:
         deletions = [before.events[0]]
@@ -95,7 +96,7 @@ def toggle_proposals(
     for added_count in range(min(max_edits, len(additions)) + 1):
         for added in combinations(additions, added_count):
             start = min((before.start_frame, *(event.frame for event in added)))
-            if start < previous_end:
+            if start < earliest_start:
                 continue
             # An earlier serve absorbs the full stream before removing explicit deletions.
             base = {event.frame: event for event in stream if start <= event.frame < before.end_frame}
@@ -104,8 +105,6 @@ def toggle_proposals(
                 for deleted in combinations(deletions, deleted_count):
                     deleted_frames = {event.frame for event in deleted}
                     events = tuple(base[frame] for frame in sorted(base) if frame not in deleted_frames)
-                    if any(not start <= event.frame < before.end_frame for event in added):
-                        continue
                     if any(abs(candidate.frame - event.frame) <= distance
                            for candidate in added for event in events if event.frame != candidate.frame):
                         continue
@@ -206,15 +205,12 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
         candidates = context.candidates.by_span.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in candidates)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
+        earliest_start = before.start_frame if context.bounds_supplied else previous_end
         proposals = toggle_proposals(
-            before, candidates, context.events[first:last], previous_end, distance, max_edits, deletion_candidates,
+            before, candidates, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
         )
         unique = {sequence_key(before): before}
         for sequence in proposals:
-            if context.bounds_supplied:
-                if any(not before.start_frame <= event.frame < before.end_frame for event in sequence.events):
-                    continue
-                sequence = replace(sequence, start_frame=before.start_frame, end_frame=before.end_frame)
             unique.setdefault(sequence_key(sequence), sequence)
         original_frames = {event.frame for event in before.events}
         # Score ties prefer the unchanged rally, then fewer contact edits.

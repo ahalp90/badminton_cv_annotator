@@ -13,7 +13,9 @@ from typing import NamedTuple
 
 import numpy as np
 
-from annotator.types import SmoothingMode, StickyResult
+from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
+from annotator.rally.contacts import rolling_floor, span_impulses
+from annotator.types import WRIST_L, WRIST_R, SmoothingMode, StickyResult
 from shared.progress import progress_iter
 
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
@@ -52,10 +54,15 @@ BASE_MISSINGNESS_SIGNALS = (
     "wrist_valid_bot",
 )
 
+_FEATURE_COLUMNS = tuple(
+    (signal, offset, f"{signal}_t{offset:+d}")
+    for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS
+    for offset in WINDOW_OFFSETS_BASE30
+)
+CONTACT_FEATURE_NAMES = tuple(name for _signal, _offset, name in _FEATURE_COLUMNS)
+
 
 def _scaled_frames(base30: int, fps: float) -> int:
-    from annotator.config import ScalingKind
-
     return int(ScalingKind.FRAME_COUNT.scale(base30, fps))
 
 
@@ -79,8 +86,6 @@ def build_player_signals(
     resolution: tuple[float, float],
 ) -> dict[str, np.ndarray]:
     """Build frame-aligned player–shuttle geometry from sticky-picked players."""
-    from annotator.types import WRIST_L, WRIST_R
-
     n_frames = len(track)
     width, height = resolution
     scale = np.asarray([width, height], dtype=np.float64)
@@ -136,9 +141,6 @@ def build_shuttle_signals(
     fps: float,
 ) -> dict[str, np.ndarray]:
     """Build frame-aligned shuttle kinematics with the production impulse convention."""
-    from annotator.config import BaseAnnotatorConfig, resolve
-    from annotator.rally.contacts import rolling_floor, span_impulses
-
     n_frames = len(track)
     visible = track[:, 2] == 1
     x = np.where(visible, track[:, 0], np.nan)
@@ -296,11 +298,7 @@ def shift_within_interval(
 
 def contact_feature_dtype() -> np.dtype:
     fields = [("interval_id", "<i4"), ("frame", "<i4")]
-    fields.extend(
-        (f"{signal}_t{offset:+d}", "<f4")
-        for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS
-        for offset in WINDOW_OFFSETS_BASE30
-    )
+    fields.extend((name, "<f4") for name in CONTACT_FEATURE_NAMES)
     return np.dtype(fields)
 
 
@@ -353,6 +351,10 @@ def build_contact_features(
         fps,
     )
     dtype = contact_feature_dtype()
+    scaled_offsets = {0: 0}
+    for offset in WINDOW_OFFSETS_BASE30:
+        if offset:
+            scaled_offsets[offset] = int(math.copysign(_scaled_frames(abs(offset), fps), offset))
     chunks: list[np.ndarray] = []
     for interval_id, (start, end) in enumerate(progress_iter(search_intervals, "building contact features", unit="intervals")):
         frames = np.arange(start, end, dtype=np.int32)
@@ -361,14 +363,8 @@ def build_contact_features(
         rows["interval_id"] = interval_id
         rows["frame"] = frames
         # Offsets refer to video frames, including frames we did not nominate.
-        for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS:
-            for offset_base30 in WINDOW_OFFSETS_BASE30:
-                offset = 0
-                if offset_base30:
-                    offset = int(math.copysign(_scaled_frames(abs(offset_base30), fps), offset_base30))
-                rows[f"{signal}_t{offset_base30:+d}"] = shift_within_interval(
-                    signals[signal], frames, offset, start, end
-                )
+        for signal, offset_base30, name in _FEATURE_COLUMNS:
+            rows[name] = shift_within_interval(signals[signal], frames, scaled_offsets[offset_base30], start, end)
 
         chunks.append(rows)
 

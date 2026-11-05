@@ -4,12 +4,12 @@ from dataclasses import replace
 
 import numpy as np
 
+from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.candidates import (
     RallyCandidates,
 )
 from annotator.sequence.contacts import ContactEvent, initial_sequences
-from annotator.sequence.features import PHYSICAL_FEATURE_NAMES
 from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from experiments.annotator.tree_simplification.options import (
@@ -26,7 +26,7 @@ def example_video() -> SequenceTrainingVideo:
     serve = tuple(ContactEvent(frame, 0.8, Half.TOP) for frame in (52, 75))
     # The close and out-of-bound later rows exercise rejection in new combinations.
     later = tuple(ContactEvent(frame, 0.7, Half.BOT) for frame in (40, 105, 135, 149, 165, 195))
-    physical = {event.frame: np.full(len(PHYSICAL_FEATURE_NAMES), event.frame, dtype=float)
+    physical = {event.frame: np.full(len(CONTACT_FEATURE_NAMES), event.frame, dtype=float)
                 for event in (*events, *serve, *later)}
     candidates = {1: tuple(sorted((*serve, *later), key=lambda event: event.frame))}
     pool = RallyCandidates(candidates, physical)
@@ -102,7 +102,7 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
                         if tuple(event.frame for event in sequence.events) == (52, 60, 150, 180))
     assert first.matrix[repaired_row, FEATURE_NAMES.index('added_count')] == 2
     assert first.matrix[repaired_row, FEATURE_NAMES.index('deleted_count')] == 2
-    assert first.matrix[repaired_row, FEATURE_NAMES.index(f'new_first__{PHYSICAL_FEATURE_NAMES[0]}')] == 52
+    assert first.matrix[repaired_row, FEATURE_NAMES.index(f'new_first__{CONTACT_FEATURE_NAMES[0]}')] == 52
 
 
 def test_proposal_targets_keep_merged_and_partial_rallies_wrong() -> None:

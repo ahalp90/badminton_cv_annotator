@@ -7,18 +7,7 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from annotator.config import ScalingKind
-from annotator.contacts.features import (
-    BASE_MISSINGNESS_SIGNALS,
-    BASE_PHYSICS_SIGNALS,
-    WINDOW_OFFSETS_BASE30,
-)
-
-CONTACT_FEATURE_NAMES = tuple(
-    f"{signal}_t{offset:+d}"
-    for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS
-    for offset in WINDOW_OFFSETS_BASE30
-)
-
+from annotator.contacts.features import CONTACT_FEATURE_NAMES
 
 NEARBY_CONTACT_DISTANCE_AT_30_FPS = 6
 
@@ -71,13 +60,26 @@ def remove_nearby_contacts(
     kept: list[int] = []
     for interval_id in np.unique(interval_ids):
         possible = np.flatnonzero((interval_ids == interval_id) & (scores >= cutoff))
-        strongest_first = sorted(possible, key=lambda index: (-scores[index], frames[index]))
-        interval_kept: list[int] = []
-        for index in strongest_first:
-            if all(abs(int(frames[index]) - int(frames[other])) > distance for other in interval_kept):
-                interval_kept.append(int(index))
-        kept.extend(interval_kept)
+        kept.extend(strongest_spaced_rows(possible, frames, scores, distance))
     return np.asarray(sorted(kept, key=lambda index: frames[index]), dtype=np.int32)
+
+
+def strongest_spaced_rows(
+    rows: Sequence[int] | np.ndarray, frames: np.ndarray, scores: np.ndarray, distance: int,
+    *, limit: int | None = None, taken_frames: Sequence[int] = (),
+) -> list[int]:
+    """Keep strongest rows clear of earlier picks; earlier frames win score ties."""
+    strongest_first = sorted(rows, key=lambda row: (-float(scores[row]), int(frames[row])))
+    occupied = list(taken_frames)
+    selected = []
+    for row in strongest_first:
+        frame = int(frames[row])
+        if all(abs(frame - taken) > distance for taken in occupied):
+            selected.append(int(row))
+            occupied.append(frame)
+            if limit is not None and len(selected) == limit:
+                break
+    return selected
 
 
 def score_contact_features(

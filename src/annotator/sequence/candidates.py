@@ -5,7 +5,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS, ScoredContacts
+from annotator.contacts.model import (
+    NEARBY_CONTACT_DISTANCE_AT_30_FPS,
+    ScoredContacts,
+    strongest_spaced_rows,
+)
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import (
     ContactEvent,
@@ -67,18 +71,10 @@ def shortlist_serve_rows(
                 prefix_start = max(prefix_start, previous_end)
             in_prefix = (frames >= prefix_start) & (frames < first_frame)
             possible = np.flatnonzero((interval_ids == interval_id) & in_prefix)
-            strongest_first = sorted(
-                possible, key=lambda row: (-float(scores.probabilities[row]), int(frames[row])),
+            shortlists[sequence.span_id] = strongest_spaced_rows(
+                possible, frames, scores.probabilities, distance,
+                limit=EARLIER_SERVE_CANDIDATES, taken_frames=(first_frame,),
             )
-            chosen_rows: list[int] = []
-            for row in strongest_first:
-                frame = int(frames[row])
-                chosen_frames = [first_frame, *(int(frames[chosen]) for chosen in chosen_rows)]
-                if all(abs(frame - chosen_frame) > distance for chosen_frame in chosen_frames):
-                    chosen_rows.append(int(row))
-                if len(chosen_rows) == EARLIER_SERVE_CANDIDATES:
-                    break
-            shortlists[sequence.span_id] = chosen_rows
         previous_end = sequence.end_frame
     return shortlists
 
@@ -94,20 +90,12 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
         return []
     distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     frames = scores.candidates["frame"].astype(np.int64)
-    eligible = (frames > sequence.events[0].frame + distance) & (frames < sequence.end_frame)
-    for event in sequence.events:
-        clear_of_contact = np.abs(frames - event.frame) > distance
-        eligible = eligible & clear_of_contact
+    eligible = (frames > sequence.events[0].frame) & (frames < sequence.end_frame)
     rows = np.flatnonzero(eligible & np.isfinite(scores.probabilities))
-    strongest_first = sorted(rows, key=lambda row: (-float(scores.probabilities[row]), int(frames[row])))
-    selected: list[int] = []
-    for row in strongest_first:
-        frame = int(frames[row])
-        if all(abs(frame - int(frames[other])) > distance for other in selected):
-            selected.append(int(row))
-            if len(selected) == LATER_CONTACT_CANDIDATES:
-                break
-    return selected
+    return strongest_spaced_rows(
+        rows, frames, scores.probabilities, distance,
+        limit=LATER_CONTACT_CANDIDATES, taken_frames=[event.frame for event in sequence.events],
+    )
 
 
 def build_rally_candidates(

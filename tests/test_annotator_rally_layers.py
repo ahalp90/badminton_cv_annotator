@@ -8,13 +8,11 @@ import pytest
 from sklearn.dummy import DummyClassifier
 from threadpoolctl import threadpool_limits
 
+from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.features import (
-    PHYSICAL_FEATURE_NAMES,
-)
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
     RallySelector,
@@ -44,7 +42,7 @@ def training_video(identity: str, group: str, correct: bool) -> SequenceTraining
     sequence = ContactSequence(7, 10, 80, (event,))
     pool = RallyCandidates(
         {},
-        {40: np.zeros(len(PHYSICAL_FEATURE_NAMES))},
+        {40: np.zeros(len(CONTACT_FEATURE_NAMES))},
     )
     label = LabelledRally('rally', (40 if correct else 60,), (Half.TOP,))
     return SequenceTrainingVideo(identity, group, RallyContext(30.0, (sequence,), (event,), pool, 100), (label,))
@@ -137,7 +135,7 @@ def test_review_tolerance_changes_correctness_labels(fps, shift, monkeypatch):
     video = replace(video, context=replace(video.context, fps=fps), rallies=(LabelledRally('rally', (40 + shift,), (Half.TOP,)),))
     options = build_rally_options(video.context)
     prediction = predict_rally_options(dummy_layers(), options)
-    monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _features, labels, _config: labels)
+    monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _matrix, labels, _config: labels)
     strict = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=3)
     relaxed = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=6)
     np.testing.assert_array_equal(strict, [0])

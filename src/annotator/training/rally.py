@@ -12,7 +12,6 @@ import numpy as np
 
 from annotator.sequence.rally_model import (
     RallyPrediction,
-    RallyReviewFeatures,
     RallySelector,
     build_review_features,
     predict_rally_options,
@@ -92,11 +91,8 @@ def fit_selector(
     if set(labelled.tolist()) != {0, 1}:
         raise ValueError('selector training needs both correct and incorrect judged options')
     return fit_binary_tree(
-        np.concatenate(matrices), labelled, sample_weight=np.concatenate(weights) * span_weight, balanced=False,
-        max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
-        l2_regularization=config.l2_regularization,
-        random_seed=config.random_seed, device=config.device,
-        min_child_weight=config.min_child_weight,
+        np.concatenate(matrices), labelled, config,
+        sample_weight=np.concatenate(weights) * span_weight, balanced=False,
     )
 
 
@@ -143,19 +139,13 @@ def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitCo
     return RallyModelFit(selector, held_group_predictions)
 
 
-def fit_review_model(features: RallyReviewFeatures, correctness: np.ndarray, config: TreeFitConfig) -> Any:
+def fit_review_model(matrix: np.ndarray, correctness: np.ndarray, config: TreeFitConfig) -> Any:
     labels = np.asarray(correctness)
-    if labels.shape != (len(features.span_ids),) or not np.isin(labels, (-1, 0, 1)).all():
-        raise ValueError('review labels must be -1, 0 or 1 and align with feature rows')
     judged = labels >= 0
     if set(labels[judged].tolist()) != {0, 1}:
         raise ValueError('review training needs both correct and wrong judged sections')
     return fit_binary_tree(
-        features.matrix[judged], labels[judged], balanced=False,
-        max_iter=config.max_iter, max_leaf_nodes=config.max_leaf_nodes, learning_rate=config.learning_rate,
-        l2_regularization=config.l2_regularization,
-        random_seed=config.random_seed, device=config.device,
-        min_child_weight=config.min_child_weight,
+        matrix[judged], labels[judged], config, balanced=False,
     )
 
 
@@ -173,5 +163,4 @@ def fit_rally_review_model(
             sequences[span_id], video.rallies, video.context.fps, tolerance_at_30_fps=tolerance_at_30_fps,
         ) for span_id in features.span_ids)
     matrix = np.concatenate(matrices)
-    features = RallyReviewFeatures(tuple(range(len(matrix))), matrix)
-    return fit_review_model(features, np.asarray(correctness, dtype=np.int8), config)
+    return fit_review_model(matrix, np.asarray(correctness, dtype=np.int8), config)

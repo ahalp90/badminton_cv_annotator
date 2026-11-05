@@ -260,43 +260,36 @@ def fit_from_manifest(
     groups = tuple(dict.fromkeys(entry.group for entry in entries))
     if len(groups) < 3:
         raise ValueError('sequence training needs at least three distinct training groups')
-    evidence_by_video = {}
-    features_by_video = {}
-    labels_by_video = {}
-    contact_inputs = []
+    loaded = []
     for entry in entries:
         evidence = load_contact_evidence(manifest.run_dir, entry.identity, settings.preprocessing)
         features = features_from_evidence(evidence)
         rallies = load_labels(entry.labels, len(evidence.track))
-        evidence_by_video[entry.identity] = evidence
-        features_by_video[entry.identity] = features
-        labels_by_video[entry.identity] = rallies
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
-        contact_inputs.append(ContactTrainingVideo(entry.identity, features.rows, frames, evidence.fps))
+        contact_input = ContactTrainingVideo(entry.identity, features.rows, frames, evidence.fps)
+        loaded.append((entry, evidence, features, rallies, contact_input))
     try:
-        contact_model = fit_contact_model(contact_inputs, settings.contact).model
+        contact_model = fit_contact_model(
+            [contact_input for _, _, _, _, contact_input in loaded], settings.contact,
+        ).model
     except ValueError as error:
         raise ValueError(f'contact-model fitting failed: {error}') from error
     contact_models_by_held_group = {}
     for group in groups:
-        other_group_inputs = [
-            video for entry, video in zip(entries, contact_inputs, strict=True) if entry.group != group
-        ]
         try:
-            contact_models_by_held_group[group] = fit_contact_model(other_group_inputs, settings.contact).model
+            contact_models_by_held_group[group] = fit_contact_model(
+                [contact_input for entry, _, _, _, contact_input in loaded if entry.group != group], settings.contact,
+            ).model
         except ValueError as error:
             raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
-    del contact_inputs
-    del other_group_inputs
     training_videos = []
-    for entry in entries:
-        evidence = evidence_by_video.pop(entry.identity)
-        features = features_by_video.pop(entry.identity)
+    for entry, evidence, features, rallies, _contact_input in loaded:
         training_videos.append(sequence_training_video(
-            entry.identity, entry.group, evidence, features, labels_by_video[entry.identity],
+            entry.identity, entry.group, evidence, features, rallies,
             contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
         ))
-    del evidence, features
+    # Release the large contact-feature arrays before building rally-training pools.
+    del loaded, evidence, features, contact_input, _contact_input
     rally_fit = fit_rally_models(training_videos, settings.rally)
     review_model = fit_rally_review_model(
         training_videos, rally_fit.held_group_predictions, settings.confidence,
