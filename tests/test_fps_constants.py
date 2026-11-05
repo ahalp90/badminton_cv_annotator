@@ -16,7 +16,7 @@ from annotator.config import (
     resolve,
     speed_at_fps,
 )
-from annotator.contacts.attribution import attribute_half
+from annotator.contacts.attribution import contact_player_evidence
 from annotator.courts.scenes import SceneCourt
 from annotator.masks.replay import combine_mask, court_absence_signal
 from annotator.outcomes.point_winner import (
@@ -344,7 +344,8 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     ][-1]
     sticky = full_sticky
     attribution_scenes = (SceneCourt(0, len(track), {}, (520.0, 560.0), 0.1),)
-    assert attribute_half(final_contact, track, sticky, bboxes, attribution_scenes) is CourtHalf.TOP
+    side, _ = contact_player_evidence(final_contact, track, sticky, bboxes, attribution_scenes)
+    assert side is CourtHalf.TOP
     # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the resolved 20.
     # It exposes two post-contact descents: five samples (base 3 accepts; resolved 6 rejects),
     # then eight samples (resolved 6 accepts; double-scaled 12 rejects).

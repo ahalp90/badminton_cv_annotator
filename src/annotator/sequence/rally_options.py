@@ -7,7 +7,7 @@ from itertools import combinations
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
+from annotator.contacts.attribution import contact_player_evidence
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS, ScoredContacts
 from annotator.preparation import AnnotationEvidence
@@ -73,8 +73,7 @@ def build_rally_context(
     """Prepare initial rallies and shortlisted contacts for fitting and inference."""
     def event_for_row(row: int) -> ContactEvent:
         frame = int(contacts.candidates['frame'][row])
-        side = attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
-        distances = wrist_distances_by_half(
+        side, distances = contact_player_evidence(
             frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
         )
         return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)

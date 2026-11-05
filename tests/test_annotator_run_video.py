@@ -206,8 +206,8 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     inputs = _synthetic_inputs()
     del inputs['raw_exclusion_mask']
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
-        lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence',
+        lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
 
     result = run_video(
@@ -227,7 +227,7 @@ def test_run_video_does_not_use_earlier_contact_when_final_is_rejected(monkeypat
     )
     called_frames = []
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -250,7 +250,7 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         base=BaseAnnotatorConfig(rejected_grades=frozenset({1})), inpaint_codes=codes,
     )
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -273,7 +273,7 @@ def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeyp
     inputs['raw_exclusion_mask'] = raw_exclusion_mask
     rows = []
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
+        heuristic_inference, 'contact_player_evidence',
         lambda *args, **kwargs: pytest.fail('trusted-dead contacts must not be attributed'),
     )
 
@@ -301,7 +301,7 @@ def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
 
     run_video(
@@ -324,7 +324,7 @@ def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
@@ -350,9 +350,10 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
     )
 
     def attribute(_frame, *_args, **_kwargs):
-        return CourtHalf.TOP if _frame in {12, 14, 16, 30, 34} else CourtHalf.BOT
+        side = CourtHalf.TOP if _frame in {12, 14, 16, 30, 34} else CourtHalf.BOT
+        return side, None
 
-    monkeypatch.setattr(heuristic_inference, 'attribute_half', attribute)
+    monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', attribute)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
     result = run_video(
@@ -376,7 +377,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
 
     def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
@@ -405,8 +406,8 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
 def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
-        lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence',
+        lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -426,8 +427,8 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
 def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
-        lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence',
+        lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -451,8 +452,8 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
     inputs['raw_exclusion_mask'] = raw_exclusion_mask
     inputs['track'][14:, 2] = 1.0
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
-        lambda *args, **kwargs: CourtHalf.TOP,
+        heuristic_inference, 'contact_player_evidence',
+        lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
@@ -470,7 +471,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
     inputs['raw_exclusion_mask'][15:28] = True  # 13-frame run survives filtering at 25 fps
     inputs['track'][14, 1] = 0.5
     inputs['track'][14, 2] = 1.0
-    monkeypatch.setattr(heuristic_inference, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP)
+    monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None))
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
     result = run_video(
@@ -484,8 +485,8 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        heuristic_inference, 'attribute_half',
-        lambda *args, **kwargs: None,
+        heuristic_inference, 'contact_player_evidence',
+        lambda *args, **kwargs: (None, None),
     )
 
     result = run_video(
@@ -546,7 +547,7 @@ def test_landing_search_rejects_invalid_time_limits(limits):
 def test_run_video_scales_landing_options_before_search(monkeypatch):
     inputs = _synthetic_inputs()
     seen_options = []
-    monkeypatch.setattr(heuristic_inference, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
 
     def record_options(_start, _end, _track, _kinematics, options, *_args, **_kwargs):
         seen_options.append(options)
@@ -564,7 +565,7 @@ def test_run_video_scales_landing_options_before_search(monkeypatch):
 def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
     capture = RunCapture()
-    monkeypatch.setattr(heuristic_inference, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
     result = run_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
@@ -582,7 +583,7 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
     capture = RunCapture()
-    monkeypatch.setattr(heuristic_inference, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
         position = (0.5, 0.25) if end_frame < len(inputs['track']) else (0.5, 0.75)

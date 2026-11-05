@@ -11,7 +11,7 @@ from typing import Any
 import joblib
 import numpy as np
 
-from annotator.contacts.attribution import attribute_half
+from annotator.contacts.attribution import contact_player_evidence
 from annotator.courts.scenes import build_scene_courts
 from dataset_builder.vision import load_npy_xz, save_json_gz, save_npy_xz
 from experiments.annotator.court_geometry_repair.scripts.prepare_court_comparison import (
@@ -150,7 +150,7 @@ def _replay_sides(
         if not present[frame]:
             output[frame] = None
             continue
-        value = attribute_half(frame, track, sticky, pose.bboxes, scenes)
+        value, _ = contact_player_evidence(frame, track, sticky, pose.bboxes, scenes)
         side = None if value is None else getattr(value, "value", value)
         if side not in {None, "Top", "Bot", "Bottom"}:
             raise ValueError(f"frame {frame}: unexpected player side {side!r}")

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
+from annotator.contacts.attribution import contact_player_evidence
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes.point_winner import (
     CourtHalf,
@@ -111,15 +111,20 @@ def test_wrist_distance_breaks_only_known_vote_ties(guesses, distances, final):
 
 
 @pytest.mark.parametrize(('feet', 'distances', 'visible', 'expected'), [
-    ([300.0, 600.0], [0.2, 0.7], 1, (0.2, 0.7)),
-    ([600.0, 300.0], [0.2, 0.7], 1, (0.7, 0.2)),
-    ([300.0, 350.0], [0.2, 0.7], 1, None),
-    ([450.0, 600.0], [0.2, 0.7], 1, None),
-    ([300.0, 600.0], [np.nan, 0.7], 1, None),
-    ([300.0, 600.0], [np.inf, 0.7], 1, None),
-    ([300.0, 600.0], [0.2, 0.7], 0, None),
+    ([300.0, 600.0], [0.2, 0.7], 1, (CourtHalf.TOP, (0.2, 0.7))),
+    ([600.0, 300.0], [0.2, 0.7], 1, (CourtHalf.BOT, (0.7, 0.2))),
+    ([300.0, 600.0], [0.7, 0.2], 1, (CourtHalf.BOT, (0.7, 0.2))),
+    ([600.0, 300.0], [0.2, 0.2], 1, (CourtHalf.BOT, (0.2, 0.2))),
+    ([300.0, 350.0], [0.2, 0.7], 1, (CourtHalf.TOP, None)),
+    ([450.0, 600.0], [0.2, 0.7], 1, (None, None)),
+    ([400.0, 600.0], [0.2, 0.7], 1, (None, None)),
+    ([300.0, 500.0], [0.7, 0.2], 1, (None, None)),
+    ([300.0, 600.0], [np.nan, 0.7], 1, (CourtHalf.BOT, None)),
+    ([300.0, 600.0], [np.inf, 0.7], 1, (CourtHalf.BOT, None)),
+    ([300.0, 600.0], [np.inf, np.inf], 1, (None, None)),
+    ([300.0, 600.0], [0.2, 0.7], 0, (None, None)),
 ])
-def test_wrist_costs_follow_court_halves_and_require_both_players(feet, distances, visible, expected):
+def test_contact_player_evidence_uses_scene_halves_for_hitter_and_wrist_costs(feet, distances, visible, expected):
     track = np.array([[0.5, 0.5, visible]])
     bboxes = np.zeros((1, 2, 4))
     bboxes[0, :, 3] = feet
@@ -127,7 +132,7 @@ def test_wrist_costs_follow_court_halves_and_require_both_players(feet, distance
         1, picks=np.array([[0, 1]]), heights=np.ones((1, 2)), distances=np.array([distances]),
     )
     scenes = (SceneCourt(0, 1, {}, (400.0, 500.0), 0.1),)
-    assert wrist_distances_by_half(0, track, sticky, bboxes, scenes) == expected
+    assert contact_player_evidence(0, track, sticky, bboxes, scenes) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -284,9 +289,9 @@ def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
 
 
 # ---------------------------------------------------------------------------
-# attribute_half (the wrist_boxh arm, end to end)
+# contact_player_evidence (the wrist_boxh arm, end to end)
 # ---------------------------------------------------------------------------
-def test_attribute_half_reads_the_sticky_nearest_pick_half():
+def test_contact_player_evidence_reads_the_sticky_nearest_pick_half():
     # The bottom sticky pick owns the nearest cached wrist distance and its foot is below the band.
     resolution = (1920.0, 1080.0)
     n_frames = 30
@@ -304,24 +309,26 @@ def test_attribute_half_reads_the_sticky_nearest_pick_half():
     distances[contact, 1] = 0.0
     sticky = _sticky(n_frames, picks=picks, heights=heights, distances=distances)
 
-    half = attribute_half(contact, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),))
+    scenes = (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)
+    half, wrist_costs = contact_player_evidence(contact, track, sticky, bboxes, scenes)
     assert half == CourtHalf.BOT
+    assert wrist_costs is None
     no_contact_scene = (SceneCourt(contact + 1, len(track), {}, (400.0, 500.0), 0.1),)
     with pytest.raises(ValueError, match='no accepted court geometry'):
-        attribute_half(contact, track, sticky, bboxes, no_contact_scene)
+        contact_player_evidence(contact, track, sticky, bboxes, no_contact_scene)
 
 
-def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
+def test_contact_player_evidence_none_when_shuttle_invisible_or_no_detection():
     track = np.zeros((5, 3))
     bboxes = np.full((5, 16, 4), np.nan)
     sticky = _sticky(
         5, picks=np.full((5, 2), -1), heights=np.full((5, 2), np.nan), distances=np.full((5, 2), np.nan),
     )
 
-    assert attribute_half(2, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
+    assert contact_player_evidence(2, track, sticky, bboxes, ()) == (None, None)
 
     track[2, 2] = 1
-    assert attribute_half(2, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
+    assert contact_player_evidence(2, track, sticky, bboxes, ()) == (None, None)
 
 
 # ---------------------------------------------------------------------------
@@ -662,7 +669,8 @@ def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
         1, picks=np.array([[-1, -1]]), heights=np.full((1, 2), np.nan), distances=np.full((1, 2), np.nan),
     )
 
-    assert attribute_half(0, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
+    scenes = (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)
+    assert contact_player_evidence(0, track, sticky, bboxes, scenes) == (None, None)
     kin = build_landing_kinematics(track, sticky, kps, resolution)
     assert np.isnan(kin.carry_ratio[0])
     assert np.isnan(kin.ankle_ratio[0])

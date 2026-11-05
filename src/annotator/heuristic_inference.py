@@ -2,7 +2,7 @@
 
 import math
 
-from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
+from annotator.contacts.attribution import contact_player_evidence
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.sequence.rally_model import fit_rally_sides
@@ -27,8 +27,7 @@ def select_heuristic_contacts(
         for frame in frames:
             if evidence.exclusion_mask[frame]:
                 continue
-            side = attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
-            distances = wrist_distances_by_half(
+            side, distances = contact_player_evidence(
                 frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
             )
             # Heuristic contacts have no fitted probability; learned inference reads it.
