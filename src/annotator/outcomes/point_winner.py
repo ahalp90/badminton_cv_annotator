@@ -10,6 +10,7 @@ be a lob that returns to view. Each landing search stays within one camera view.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import NamedTuple
@@ -104,11 +105,14 @@ def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[Cour
             for i in range(n_strokes)]
 
 
-def fit_alternation(guesses: list[CourtHalf | None]) -> CourtHalf | None:
+def fit_alternation(
+    guesses: list[CourtHalf | None], wrist_distances: Sequence[tuple[float, float] | None] = (),
+) -> CourtHalf | None:
     """Choose the alternating order that agrees with the most player guesses.
 
     Each known guess votes for the final striker implied by its position.
-    Break equal votes with the first known guess. Return None if none is known.
+    Break equal votes with the lower summed wrist distance when available, then
+    the first known guess. Return None if no player guess is known.
     """
     final_guesses = []
     for index, guess in enumerate(guesses):
@@ -120,6 +124,18 @@ def fit_alternation(guesses: list[CourtHalf | None]) -> CourtHalf | None:
     top_votes = final_guesses.count(CourtHalf.TOP)
     bot_votes = final_guesses.count(CourtHalf.BOT)
     if top_votes == bot_votes:
+        top_final_cost = bot_final_cost = 0.0
+        for index, distances in enumerate(wrist_distances):
+            if distances is None:
+                continue
+            top_final_distance, bot_final_distance = distances
+            # An odd number of strokes before a TOP finish, BOT is hitting.
+            if (len(guesses) - index - 1) % 2:
+                top_final_distance, bot_final_distance = bot_final_distance, top_final_distance
+            top_final_cost += top_final_distance
+            bot_final_cost += bot_final_distance
+        if top_final_cost != bot_final_cost:
+            return CourtHalf.TOP if top_final_cost < bot_final_cost else CourtHalf.BOT
         return final_guesses[0]
     return CourtHalf.TOP if top_votes > bot_votes else CourtHalf.BOT
 

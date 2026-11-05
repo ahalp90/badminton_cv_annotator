@@ -310,6 +310,16 @@ def test_unknown_side_abstains_only_after_known_contradictions() -> None:
     assert workflow.whole_rally_correctness(missing, (rally,), 30) == 0
 
 
+def test_rally_target_judges_wrist_fitted_order_without_changing_raw_guesses() -> None:
+    rally = LabelledRally('first', (100, 130), (CourtHalf.BOT, CourtHalf.TOP))
+    sequence = ContactSequence(0, 80, 150, (
+        ContactEvent(100, .9, CourtHalf.TOP, (0.1, 0.2)),
+        ContactEvent(130, .8, CourtHalf.TOP, (0.1, 2.0)),
+    ))
+    assert workflow.whole_rally_correctness(sequence, (rally,), 30) == 1
+    assert [event.side for event in sequence.events] == [CourtHalf.TOP, CourtHalf.TOP]
+
+
 def test_short_inward_errors_and_neighbouring_rallies_use_shared_rule() -> None:
     rally = LabelledRally('rally', (300, 400), (CourtHalf.TOP, CourtHalf.BOT))
     sequence = ContactSequence(0, 305, 397, (

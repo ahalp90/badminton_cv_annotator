@@ -241,9 +241,9 @@ these objects.
 
 Use `result.rallies[rally_id].sequence.events` for the contacts assigned to a rally.
 Each event contains its frame, model probability and court-half assignment. When
-the alternating-side fit is tied, it follows the first known guess. When no guess
-is known, all players stay unknown. Unknown
-probabilities are NaN in memory and JSON null when saved. `contact_events` also
+the alternating-side fit is tied, it uses summed wrist distance, then the first
+known guess if the distances cannot separate the orders. When no guess is known,
+all players stay unknown. Unknown probabilities are NaN in memory and JSON null when saved. `contact_events` also
 includes model contacts outside all rallies, so filtering that stream by the final
 rally bounds can give different membership.
 

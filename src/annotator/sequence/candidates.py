@@ -11,7 +11,6 @@ from annotator.contacts.model import (
     ScoredContacts,
     strongest_spaced_rows,
 )
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import physical_rows
 
@@ -98,12 +97,12 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
 def build_rally_candidates(
     initial: Sequence[ContactSequence], events: Sequence[ContactEvent], scores: ScoredContacts,
     search_intervals: Sequence[tuple[int, int]], *, fps: float,
-    side_for_frame: Callable[[int], CourtHalf | None],
+    event_for_frame: Callable[[int, float], ContactEvent],
 ) -> RallyCandidates:
     """Shortlist earlier and missed contacts, retaining their physical evidence.
 
     Events come from the selected rows of these same scored candidates. Reuse
-    their side guesses; only shortlisted additions need a new guess.
+    their player evidence; only shortlisted additions need new attribution.
     """
     contacts_by_frame = {event.frame: event for event in events}
     serve_rows = shortlist_serve_rows(initial, scores, search_intervals, fps)
@@ -115,7 +114,7 @@ def build_rally_candidates(
             frame = int(scores.candidates['frame'][row])
             frames.add(frame)
             if frame not in contacts_by_frame:
-                contacts_by_frame[frame] = ContactEvent(frame, float(scores.probabilities[row]), side_for_frame(frame))
+                contacts_by_frame[frame] = event_for_frame(frame, float(scores.probabilities[row]))
         candidates_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
     physical = physical_rows(scores.candidates, contacts_by_frame)
     return RallyCandidates(candidates_by_span, physical)

@@ -34,3 +34,24 @@ def attribute_half(
     if foot_y > band_hi:
         return CourtHalf.BOT
     return None
+
+
+def wrist_distances_by_half(
+    frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, scene_courts: Sequence[SceneCourt],
+) -> tuple[float, float] | None:
+    """Return TOP/BOT wrist gaps in body heights when both players are visible.
+
+    Compare both alternating orders on the same evidence. A missing player or
+    two picks on the same court half cannot supply a pair of competing costs.
+    """
+    distances = sticky.distances_per_slot[frame]
+    if track[frame, 2] != 1 or not np.isfinite(distances).all():
+        return None
+    band_lo, band_hi = court_at_frame(scene_courts, frame).net_band
+    first_foot, second_foot = bboxes[frame, sticky.picks[frame], 3]
+    first_distance, second_distance = map(float, distances)
+    if first_foot < band_lo and second_foot > band_hi:
+        return first_distance, second_distance
+    if second_foot < band_lo and first_foot > band_hi:
+        return second_distance, first_distance
+    return None

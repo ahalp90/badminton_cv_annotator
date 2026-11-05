@@ -84,7 +84,11 @@ contacts, contradicts known player sides, or cuts into a labelled rally beyond
 the contact-timing allowance. Outward context is unlimited. Training judges the
 proposal's window; benchmark discovery assessment uses its first and last
 accepted contacts.
-Missing labels can make a proposal unjudgeable; these rows are excluded from fitting.
+Player correctness is judged after fitting the alternating order, including the
+wrist-distance tie-break. The selector still receives the original player guesses.
+Thus a target describes whether the eventual output would be correct, rather than
+whether every raw guess already matches ground truth. Missing labels can make a
+proposal unjudgeable; these rows are excluded from fitting.
 
 By default, the selector prefers labels matched within five frames at 30 FPS
 when a rally has a positive option at that tolerance. Otherwise it uses the ten-frame labels.

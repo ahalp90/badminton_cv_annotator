@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.attribution import attribute_half
+from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes.point_winner import (
     CourtHalf,
@@ -95,6 +95,39 @@ def test_fit_alternation_ignores_none_guesses_when_scoring():
     # One ambiguous stroke in the middle; the other two both fit phase(final=Bot).
     guesses = [CourtHalf.TOP, None, CourtHalf.TOP, CourtHalf.BOT]
     assert fit_alternation(guesses) == CourtHalf.BOT
+
+
+@pytest.mark.parametrize(('guesses', 'distances', 'final'), [
+    ([CourtHalf.TOP, CourtHalf.TOP], [(0.1, 0.2), (0.1, 2.0)], CourtHalf.TOP),
+    ([None, CourtHalf.TOP, CourtHalf.TOP], [None, (0.1, 0.2), (0.1, 2.0)], CourtHalf.TOP),
+    ([CourtHalf.TOP, CourtHalf.TOP], [None, (0.1, 2.0)], CourtHalf.TOP),
+    ([CourtHalf.TOP, CourtHalf.TOP], [(0.1, 0.2), (0.1, 0.2)], CourtHalf.BOT),
+    ([CourtHalf.TOP, CourtHalf.TOP], [None, None], CourtHalf.BOT),
+    ([None, None], [(0.1, 0.2), (0.1, 2.0)], None),
+    ([CourtHalf.TOP, CourtHalf.BOT], [(2.0, 0.1), (0.1, 2.0)], CourtHalf.BOT),
+])
+def test_wrist_distance_breaks_only_known_vote_ties(guesses, distances, final):
+    assert fit_alternation(guesses, distances) == final
+
+
+@pytest.mark.parametrize(('feet', 'distances', 'visible', 'expected'), [
+    ([300.0, 600.0], [0.2, 0.7], 1, (0.2, 0.7)),
+    ([600.0, 300.0], [0.2, 0.7], 1, (0.7, 0.2)),
+    ([300.0, 350.0], [0.2, 0.7], 1, None),
+    ([450.0, 600.0], [0.2, 0.7], 1, None),
+    ([300.0, 600.0], [np.nan, 0.7], 1, None),
+    ([300.0, 600.0], [np.inf, 0.7], 1, None),
+    ([300.0, 600.0], [0.2, 0.7], 0, None),
+])
+def test_wrist_costs_follow_court_halves_and_require_both_players(feet, distances, visible, expected):
+    track = np.array([[0.5, 0.5, visible]])
+    bboxes = np.zeros((1, 2, 4))
+    bboxes[0, :, 3] = feet
+    sticky = _sticky(
+        1, picks=np.array([[0, 1]]), heights=np.ones((1, 2)), distances=np.array([distances]),
+    )
+    scenes = (SceneCourt(0, 1, {}, (400.0, 500.0), 0.1),)
+    assert wrist_distances_by_half(0, track, sticky, bboxes, scenes) == expected
 
 
 # ---------------------------------------------------------------------------

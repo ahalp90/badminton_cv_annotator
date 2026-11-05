@@ -17,6 +17,7 @@ class ContactEvent:
     frame: int
     probability: float
     side: CourtHalf | None
+    wrist_distances: tuple[float, float] | None = None  # TOP/BOT gaps in body heights.
 
 
 @dataclass(frozen=True)

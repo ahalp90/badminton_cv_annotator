@@ -14,8 +14,10 @@ from annotator.contacts.model import (
     ContactModelConfig,
     ScoredContacts,
 )
+from annotator.contacts.selection import select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
 from annotator.hybrid import build_rally_context
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -41,6 +43,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     # The sticky tracker leaves +inf distances outside tracker segments (scene rows).
     distances_per_slot = np.where(in_scene[:, None], 0.5, np.inf) * np.ones((frame_count, 2))
     distances_per_slot[in_scene, 1] = 0.8
+    distances_per_slot[260] = (0.1, 2.0)
     picks = np.where(in_scene[:, None], [[0, 1]], -1)
     sticky = StickyResult(
         np.where(in_scene, 0.5, np.inf), picks, np.zeros(frame_count, dtype=int),
@@ -57,9 +60,9 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         rows['frame'][position:position + end - start] = np.arange(start, end)
         rows['interval_id'][position:position + end - start] = interval_id
         position += end - start
-    candidate_frames = np.array([160, 170, 220, 260])
+    candidate_frames = np.array([160, 170, 220, 240, 260])
     candidates = rows[np.isin(rows['frame'], candidate_frames)]
-    contacts = ScoredContacts(candidates, np.array([0.5, 0.4, 0.95, 0.93]), np.array([2, 3]))
+    contacts = ScoredContacts(candidates, np.array([0.5, 0.4, 0.95, 0.6, 0.93]), np.array([2, 4]))
 
     evidence = AnnotationEvidence(
         identity='scene-gap', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
@@ -73,9 +76,16 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     context = build_rally_context(evidence, contacts, search_intervals)
     selected = {event.frame: event for event in context.events}
     assert selected[220].side is not None
+    assert selected[220].wrist_distances == (0.5, 0.8)
     earlier = {event.frame: event for event in context.candidates.by_span[0]}
     assert earlier[160].side is None
     assert earlier[170].side is None
+    assert earlier[160].wrist_distances is None
+    assert earlier[240].wrist_distances == (0.5, 0.8)
+
+    heuristic = select_heuristic_contacts(evidence)[0]
+    assert [event.wrist_distances for event in heuristic.sequence.events] == [(0.5, 0.8), (0.1, 2.0)]
+    assert [event.side for event in heuristic.sequence.events] == [CourtHalf.BOT, CourtHalf.TOP]
 
 
 def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlists(monkeypatch, annotator_models):

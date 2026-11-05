@@ -190,7 +190,9 @@ def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally
     """Fit each rally once and keep its resolved final side with its sequence."""
     rallies = []
     for sequence in sequences:
-        final_half = fit_alternation([event.side for event in sequence.events])
+        final_half = fit_alternation(
+            [event.side for event in sequence.events], [event.wrist_distances for event in sequence.events],
+        )
         if final_half is not None:
             fitted = alternating_player_sides(final_half, len(sequence.events))
             events = tuple(replace(event, side=side) for event, side in zip(sequence.events, fitted, strict=True))

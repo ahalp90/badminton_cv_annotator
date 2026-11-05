@@ -1,13 +1,11 @@
 """Apply the contact tree and sequence refinements to one video's evidence."""
 
 from dataclasses import dataclass
-from functools import cache
 
-from annotator.contacts.attribution import attribute_half
+from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
 from annotator.contacts.features import ContactFeatures, build_contact_features
 from annotator.contacts.model import ScoredContacts, score_contact_features
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.candidates import build_rally_candidates
 from annotator.sequence.contacts import ContactEvent, initial_sequences
@@ -51,17 +49,20 @@ def build_rally_context(
     evidence: AnnotationEvidence, contacts: ScoredContacts, search_intervals: list[tuple[int, int]],
 ) -> RallyContext:
     """Prepare the same initial rallies and candidate contacts for fitting and inference."""
-    @cache
-    def side_for_frame(frame: int) -> CourtHalf | None:
-        return attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
+    def event_for_frame(frame: int, probability: float) -> ContactEvent:
+        side = attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
+        distances = wrist_distances_by_half(
+            frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
+        )
+        return ContactEvent(frame, probability, side, distances)
 
     events = tuple(
-        ContactEvent(int(frame), float(contacts.probabilities[row]), side_for_frame(int(frame)))
+        event_for_frame(int(frame), float(contacts.probabilities[row]))
         for row, frame in zip(contacts.kept_indices, contacts.frames, strict=True)
     )
     initial = initial_sequences(evidence.heuristic_spans, events)
     candidates = build_rally_candidates(
-        initial, events, contacts, search_intervals, fps=evidence.fps, side_for_frame=side_for_frame,
+        initial, events, contacts, search_intervals, fps=evidence.fps, event_for_frame=event_for_frame,
     )
     return RallyContext(evidence.fps, initial, events, candidates, len(evidence.track), evidence.bounds_supplied)
 

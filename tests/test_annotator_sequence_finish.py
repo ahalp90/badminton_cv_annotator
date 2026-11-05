@@ -26,6 +26,15 @@ TOP = CourtHalf.TOP
 BOT = CourtHalf.BOT
 
 
+def test_rally_finishing_uses_wrist_costs_and_preserves_raw_guesses():
+    events = (ContactEvent(10, 0.9, TOP, (0.1, 0.2)), ContactEvent(20, 0.8, TOP, (0.1, 2.0)))
+    sequence = ContactSequence(0, 0, 30, events)
+    finished = fit_rally_sides([sequence])[0]
+    assert [event.side for event in finished.sequence.events] == [BOT, TOP]
+    assert [event.side for event in sequence.events] == [TOP, TOP]
+    assert finished.final_half == TOP
+
+
 def _sequence(span_id: int, start_frame: int, end_frame: int, frames: list[int]) -> ContactSequence:
     return ContactSequence(span_id, start_frame, end_frame, tuple(ContactEvent(frame, .8, None) for frame in frames))
 
