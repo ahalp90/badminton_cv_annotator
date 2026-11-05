@@ -113,7 +113,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
         run_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                   base=models.preprocessing, heuristic_only=False, models=models,
                   capture=capture, **data.run_video_kwargs(inputs))
-    prediction = capture.hybrid
+    prediction = capture.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video_id}: the annotator returned no contact stream')
     sequences = prediction.refined.sequences

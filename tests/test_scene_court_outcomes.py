@@ -8,9 +8,8 @@ import pytest
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import contact_feature_dtype
 from annotator.contacts.model import ScoredContacts
-from annotator.contacts.selection import select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
-from annotator.hybrid import build_rally_context
+from annotator.heuristic_inference import select_heuristic_contacts
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
     CourtHalf,
@@ -19,6 +18,7 @@ from annotator.outcomes.point_winner import (
     RallyOutcome,
 )
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
+from annotator.sequence.rally_options import build_rally_context
 from annotator.types import ContactCandidate, StickyResult
 
 
@@ -60,7 +60,7 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
     rows = np.zeros(2, dtype=contact_feature_dtype())
     rows['frame'] = (2, 7)
     scores = ScoredContacts(rows, np.ones(2), np.arange(2))
-    context = build_rally_context(evidence, scores, [(0, 10)])
+    context = build_rally_context(evidence, scores)
     assert tuple(event.side for event in context.events) == expected
 
 

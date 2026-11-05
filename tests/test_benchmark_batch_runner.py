@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.hybrid import HybridPrediction
+from annotator.learned_model_inference import LearnedModelPrediction
 from annotator.models import AnnotatorModels
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
@@ -43,7 +43,7 @@ def prediction(probability=0.8, pool=None):
     sequence = ContactSequence(0, 90, 110, (event,))
     refined = SimpleNamespace(sequences=(sequence,), events=(event,), pool=pool)
     review = RallyReview(RallyReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))
-    return HybridPrediction(None, None, refined, review)
+    return LearnedModelPrediction(None, None, refined, review)
 
 
 def paths(tmp_path):

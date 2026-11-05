@@ -15,7 +15,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.model import ContactModelConfig
-from annotator.hybrid import predict_contact_features
+from annotator.learned_model_inference import predict_contact_features
 from annotator.models import AnnotatorModels, fitted_trees
 from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import (

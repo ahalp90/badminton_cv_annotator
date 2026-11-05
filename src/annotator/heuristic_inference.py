@@ -37,7 +37,7 @@ def select_heuristic_contacts(
         distances = wrist_distances_by_half(
             frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
         )
-        # Heuristic contacts have no model probability; only model inference reads it.
+        # Heuristic contacts have no fitted probability; learned inference reads it.
         event = ContactEvent(frame, math.nan, side, distances)
         events_by_rally.setdefault(contact.rally_id, []).append(event)
 

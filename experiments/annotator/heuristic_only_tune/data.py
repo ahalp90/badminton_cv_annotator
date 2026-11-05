@@ -186,7 +186,7 @@ def run_configuration(
     )
     if models is None:
         return heuristic_stream(result)
-    prediction = capture.hybrid
+    prediction = capture.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{inputs.identity}: fitted annotation did not return its contact stream')
     return stream_payload(prediction.refined.sequences, prediction.refined.events)

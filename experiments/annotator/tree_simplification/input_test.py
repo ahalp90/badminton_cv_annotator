@@ -50,7 +50,7 @@ def evaluate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         base=models.preprocessing, models=models, capture=capture, **run_video_kwargs(inputs),
     )
-    prediction = capture.hybrid
+    prediction = capture.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video.identity}: fitted annotation did not return its contact stream')
     stream = stream_payload(prediction.refined.sequences, prediction.refined.events)

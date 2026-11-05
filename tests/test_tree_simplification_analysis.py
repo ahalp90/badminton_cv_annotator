@@ -175,8 +175,8 @@ def test_pool_coverage_marks_every_labelled_rally_reachable() -> None:
 
 
 def test_profile_paths_hide_the_checkout() -> None:
-    inside = f'{common.REPOSITORY}/src/annotator/hybrid.py'
-    assert profile_selected.placeholder_path(inside) == 'CHECKOUT/src/annotator/hybrid.py'
+    inside = f'{common.REPOSITORY}/src/annotator/learned_model_inference.py'
+    assert profile_selected.placeholder_path(inside) == 'CHECKOUT/src/annotator/learned_model_inference.py'
     assert profile_selected.placeholder_path('<string>') == '<string>'
 
 

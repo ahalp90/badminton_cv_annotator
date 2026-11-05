@@ -21,8 +21,7 @@ from threadpoolctl import threadpool_limits
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.contacts.features import ContactFeatures
 from annotator.contacts.model import ContactModelConfig, score_contact_features
-from annotator.hybrid import (
-    build_rally_context,
+from annotator.learned_model_inference import (
     features_from_evidence,
     predict_contacts,
 )
@@ -30,6 +29,7 @@ from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.sequence.rally_options import build_rally_context
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.contact import (
     ContactFitConfig,
@@ -252,7 +252,7 @@ def sequence_training_video(
     scored = score_contact_features(
         features.rows, contact_model, evidence.fps, settings,
     )
-    context = build_rally_context(evidence, scored, features.search_intervals)
+    context = build_rally_context(evidence, scored)
     return SequenceTrainingVideo(identity, group, context, rallies)
 
 

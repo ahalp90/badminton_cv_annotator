@@ -7,14 +7,21 @@ from itertools import combinations
 import numpy as np
 
 from annotator.config import frames_at_fps
+from annotator.contacts.attribution import attribute_half, wrist_distances_by_half
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
-from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
-from annotator.sequence.candidates import RallyCandidates
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS, ScoredContacts
+from annotator.preparation import AnnotationEvidence
+from annotator.sequence.candidates import (
+    RallyCandidates,
+    shortlist_later_rows,
+    shortlist_serve_rows,
+)
+from annotator.sequence.contacts import ContactEvent, ContactSequence, initial_sequences
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
     SUMMARY_FEATURE_NAMES,
     physical_or_nan,
+    physical_rows,
     sequence_summary,
     side_agreement,
 )
@@ -60,40 +67,87 @@ class RallyOptions:
     context: RallyContext
 
 
-def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]:
-    """Summarise the strongest candidate in each gap with available evidence."""
-    if not values:
-        return (np.nan, np.nan, np.nan, np.nan)
-    maxima = np.asarray([max(group) for group in values], dtype=np.float64)
-    ordered = np.sort(maxima)[::-1]
-    return (float(ordered[0]), float(ordered[1]) if len(ordered) > 1 else np.nan,
-            float(np.mean(maxima)), float(np.sum(maxima)))
+def build_rally_context(
+    evidence: AnnotationEvidence, contacts: ScoredContacts,
+) -> RallyContext:
+    """Prepare initial rallies and shortlisted contacts for fitting and inference."""
+    def event_for_row(row: int) -> ContactEvent:
+        frame = int(contacts.candidates['frame'][row])
+        side = attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
+        distances = wrist_distances_by_half(
+            frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
+        )
+        return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)
+
+    events = tuple(event_for_row(int(row)) for row in contacts.kept_indices)
+    initial = initial_sequences(evidence.heuristic_spans, events)
+    contacts_by_frame = {event.frame: event for event in events}
+    candidates_by_span = {}
+    previous_end = -1
+    for before in initial:
+        serve_rows = shortlist_serve_rows(before, contacts, evidence.fps, previous_end=previous_end)
+        rows = [*serve_rows, *shortlist_later_rows(before, contacts, evidence.fps)]
+        frames = set()
+        for row in rows:
+            frame = int(contacts.candidates['frame'][row])
+            frames.add(frame)
+            # Retained contacts already have player evidence; attribute only additions.
+            if frame not in contacts_by_frame:
+                contacts_by_frame[frame] = event_for_row(row)
+        candidates_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
+        previous_end = before.end_frame
+    physical = physical_rows(contacts.candidates, contacts_by_frame)
+    candidates = RallyCandidates(candidates_by_span, physical)
+    return RallyContext(evidence.fps, initial, events, candidates, len(evidence.track), evidence.bounds_supplied)
 
 
-def sequence_key(sequence: ContactSequence) -> tuple[int, int, tuple[int, ...]]:
-    return sequence.start_frame, sequence.end_frame, tuple(event.frame for event in sequence.events)
-
-
-def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float, float]:
-    if not events:
-        return np.nan, np.nan, np.nan
-    values = [event.probability for event in events]
-    return min(values), max(values), float(np.mean(values))
+def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
+    """Build ordered contact-toggle proposals from detector evidence alone."""
+    if max_edits < 0 or deletion_candidates < 0:
+        raise ValueError('edit and deletion budgets must be non-negative')
+    sequences = []
+    matrices = []
+    span_rows = {}
+    stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
+    previous_end = -1
+    for before in context.initial:
+        candidates = context.candidates.by_span.get(before.span_id, ())
+        earliest = min((before.start_frame, *(event.frame for event in candidates)))
+        first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
+        earliest_start = before.start_frame if context.bounds_supplied else previous_end
+        proposals = toggle_proposals(
+            before, candidates, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
+        )
+        evidence = {event.frame: event for sequence in proposals for event in sequence.events}
+        evidence.update((event.frame, event) for event in candidates)
+        evidence_candidates = tuple(evidence[frame] for frame in sorted(evidence))
+        before_summary, before_sides = sequence_summary(before, context.fps), side_agreement(before)
+        start_row = len(sequences)
+        for after in proposals:
+            sequences.append(after)
+            matrices.append(option_features(before, after, evidence_candidates, context, before_summary, before_sides))
+        span_rows[before.span_id] = np.arange(start_row, len(sequences), dtype=np.int64)
+        previous_end = before.end_frame
+    matrix = np.asarray(matrices, dtype=np.float32).reshape(len(sequences), len(FEATURE_NAMES))
+    return RallyOptions(tuple(sequences), matrix, span_rows, context)
 
 
 def toggle_proposals(
     before: ContactSequence, candidates: tuple[ContactEvent, ...], stream: tuple[ContactEvent, ...],
     earliest_start: int, distance: int, max_edits: int, deletion_candidates: int,
 ) -> list[ContactSequence]:
-    original_frames = {event.frame for event in before.events}
+    """Return unique alternatives, unchanged first and then fewest contact edits."""
+    original_frames = tuple(event.frame for event in before.events)
+    original_set = set(original_frames)
     additions = tuple(event for event in candidates
-                      if event.frame not in original_frames and event.frame < before.end_frame)
+                      if event.frame not in original_set and event.frame < before.end_frame)
     deletions = []
     if before.events and deletion_candidates:
         deletions = [before.events[0]]
         weakest = sorted(before.events[1:], key=lambda event: (event.probability, event.frame))
         deletions.extend(weakest[:deletion_candidates - 1])
-    proposals = []
+    proposals = {original_frames: before}
     for added_count in range(min(max_edits, len(additions)) + 1):
         for added in combinations(additions, added_count):
             start = min((before.start_frame, *(event.frame for event in added)))
@@ -109,8 +163,43 @@ def toggle_proposals(
                     if any(abs(candidate.frame - event.frame) <= distance
                            for candidate in added for event in events if event.frame != candidate.frame):
                         continue
-                    proposals.append(replace(before, start_frame=start, events=events))
-    return proposals
+                    sequence = replace(before, start_frame=start, events=events)
+                    proposals.setdefault(tuple(event.frame for event in events), sequence)
+    # Only additions move the start earlier, and they cannot be deleted, so
+    # contact frames identify each proposal. Zero edits puts the original first.
+    ordered_frames = sorted(proposals, key=lambda frames: (len(original_set ^ set(frames)), frames))
+    return [proposals[frames] for frames in ordered_frames]
+
+
+def option_features(
+    before: ContactSequence, after: ContactSequence, candidates: tuple[ContactEvent, ...],
+    context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
+) -> np.ndarray:
+    """Measure a proposed contact sequence against the initial rally evidence."""
+    before_frames = {event.frame for event in before.events}
+    after_frames = {event.frame for event in after.events}
+    added = tuple(event for event in after.events if event.frame not in before_frames)
+    deleted = tuple(event for event in before.events if event.frame not in after_frames)
+    strongest = min(added, key=lambda event: (-event.probability, event.frame)) if added else None
+    weakest = min(deleted, key=lambda event: (event.probability, event.frame)) if deleted else None
+    physical_frames = (
+        before.events[0].frame if before.events else None,
+        after.events[0].frame if after.events else None,
+        None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
+    )
+    unused_features, unused_frame = unused_evidence(after, candidates, context.fps)
+    return np.concatenate((
+        before_summary,
+        sequence_summary(after, context.fps),
+        before_sides,
+        side_agreement(after),
+        (len(added), len(deleted)),
+        probability_summary(added),
+        probability_summary(deleted),
+        *(physical_or_nan(context.candidates.physical, frame) for frame in physical_frames),
+        unused_features,
+        physical_or_nan(context.candidates.physical, unused_frame),
+    ))
 
 
 def unused_evidence(
@@ -161,74 +250,18 @@ def unused_evidence(
     return values, None if strongest is None else strongest.frame
 
 
-def option_features(
-    before: ContactSequence, after: ContactSequence, candidates: tuple[ContactEvent, ...],
-    context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
-) -> np.ndarray:
-    """Measure a proposed contact sequence against the initial rally evidence."""
-    before_frames = {event.frame for event in before.events}
-    after_frames = {event.frame for event in after.events}
-    added = tuple(event for event in after.events if event.frame not in before_frames)
-    deleted = tuple(event for event in before.events if event.frame not in after_frames)
-    strongest = min(added, key=lambda event: (-event.probability, event.frame)) if added else None
-    weakest = min(deleted, key=lambda event: (event.probability, event.frame)) if deleted else None
-    physical_frames = (
-        before.events[0].frame if before.events else None,
-        after.events[0].frame if after.events else None,
-        None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
-    )
-    unused_features, unused_frame = unused_evidence(after, candidates, context.fps)
-    return np.concatenate((
-        before_summary,
-        sequence_summary(after, context.fps),
-        before_sides,
-        side_agreement(after),
-        (len(added), len(deleted)),
-        probability_summary(added),
-        probability_summary(deleted),
-        *(physical_or_nan(context.candidates.physical, frame) for frame in physical_frames),
-        unused_features,
-        physical_or_nan(context.candidates.physical, unused_frame),
-    ))
+def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]:
+    """Summarise the strongest candidate in each gap with available evidence."""
+    if not values:
+        return (np.nan, np.nan, np.nan, np.nan)
+    maxima = np.asarray([max(group) for group in values], dtype=np.float64)
+    ordered = np.sort(maxima)[::-1]
+    return (float(ordered[0]), float(ordered[1]) if len(ordered) > 1 else np.nan,
+            float(np.mean(maxima)), float(np.sum(maxima)))
 
 
-def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
-    """Build ordered contact-toggle proposals from detector evidence alone."""
-    if max_edits < 0 or deletion_candidates < 0:
-        raise ValueError('edit and deletion budgets must be non-negative')
-    sequences = []
-    matrices = []
-    span_rows = {}
-    stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
-    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
-    previous_end = -1
-    for before in context.initial:
-        candidates = context.candidates.by_span.get(before.span_id, ())
-        earliest = min((before.start_frame, *(event.frame for event in candidates)))
-        first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
-        earliest_start = before.start_frame if context.bounds_supplied else previous_end
-        proposals = toggle_proposals(
-            before, candidates, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
-        )
-        unique = {sequence_key(before): before}
-        for sequence in proposals:
-            unique.setdefault(sequence_key(sequence), sequence)
-        original_frames = {event.frame for event in before.events}
-        # Score ties prefer the unchanged rally, then fewer contact edits.
-        ordered = sorted(unique.values(), key=lambda sequence: (
-            sequence_key(sequence) != sequence_key(before),
-            len(original_frames ^ {event.frame for event in sequence.events}),
-            tuple(event.frame for event in sequence.events), sequence.start_frame, sequence.end_frame,
-        ))
-        evidence = {event.frame: event for sequence in ordered for event in sequence.events}
-        evidence.update((event.frame, event) for event in candidates)
-        evidence_candidates = tuple(evidence[frame] for frame in sorted(evidence))
-        before_summary, before_sides = sequence_summary(before, context.fps), side_agreement(before)
-        start_row = len(sequences)
-        for after in ordered:
-            sequences.append(after)
-            matrices.append(option_features(before, after, evidence_candidates, context, before_summary, before_sides))
-        span_rows[before.span_id] = np.arange(start_row, len(sequences), dtype=np.int64)
-        previous_end = before.end_frame
-    matrix = np.asarray(matrices, dtype=np.float32).reshape(len(sequences), len(FEATURE_NAMES))
-    return RallyOptions(tuple(sequences), matrix, span_rows, context)
+def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float, float]:
+    if not events:
+        return np.nan, np.nan, np.nan
+    values = [event.probability for event in events]
+    return min(values), max(values), float(np.mean(values))

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 from sklearn.dummy import DummyClassifier
 
-from annotator import hybrid
+from annotator import learned_model_inference
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.features import ContactFeatures, contact_feature_dtype
 from annotator.contacts.model import (
@@ -14,9 +14,8 @@ from annotator.contacts.model import (
     ContactModelConfig,
     ScoredContacts,
 )
-from annotator.contacts.selection import select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
-from annotator.hybrid import build_rally_context
+from annotator.heuristic_inference import select_heuristic_contacts
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.rally_model import (
@@ -24,7 +23,7 @@ from annotator.sequence.rally_model import (
     RallyPrediction,
     RallySelector,
 )
-from annotator.sequence.rally_options import FEATURE_NAMES
+from annotator.sequence.rally_options import FEATURE_NAMES, build_rally_context
 from annotator.training.workflow import sequence_training_video
 from annotator.types import ContactCandidate, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
@@ -73,7 +72,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         scene_courts=scenes,
     )
 
-    context = build_rally_context(evidence, contacts, search_intervals)
+    context = build_rally_context(evidence, contacts)
     selected = {event.frame: event for event in context.events}
     assert selected[220].side is not None
     assert selected[220].wrist_distances == (0.5, 0.8)
@@ -126,8 +125,8 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         models.contact, config,
     )
 
-    monkeypatch.setattr(hybrid, 'features_from_evidence', lambda _evidence: features)
-    inference = hybrid.predict_contacts(evidence, models)
+    monkeypatch.setattr(learned_model_inference, 'features_from_evidence', lambda _evidence: features)
+    inference = learned_model_inference.predict_contacts(evidence, models)
     expected_candidates = [1, 10, 16, 40, 60, 80]
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
@@ -140,7 +139,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     selector = DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES))), [0, 1])
     review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])
     fitted_layers = replace(models, sequences=RallySelector(selector), confidence=review)
-    layer_prediction = hybrid.predict_contact_features(evidence, features, fitted_layers)
+    layer_prediction = learned_model_inference.predict_contact_features(evidence, features, fitted_layers)
     assert isinstance(layer_prediction.refined, RallyPrediction)
     expected_pool = expand_pool(training)
     assert layer_prediction.refined.pool.sequences == expected_pool.sequences

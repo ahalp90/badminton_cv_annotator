@@ -116,7 +116,7 @@ def test_video_scoring_and_review_use_the_same_excluded_window_judgements(tmp_pa
 
     def run_video(*args, **kwargs):
         assert kwargs['models'] is models and kwargs['base'] is models.preprocessing
-        kwargs['capture'].hybrid = prediction
+        kwargs['capture'].learned_model_prediction = prediction
 
     def score(item, actual, tolerance, excluded, *, supplied):
         assert actual is stream and excluded is windows and not supplied

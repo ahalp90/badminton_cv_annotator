@@ -87,7 +87,7 @@ def run_item(
             spans=spans, capture=capture,
         )
         if heuristic_spec is None:
-            prediction = capture.hybrid
+            prediction = capture.learned_model_prediction
             if prediction is None:
                 raise ValueError('Annotator did not return its final contact stream')
             record['stream'] = stream_payload(prediction.refined.sequences, prediction.refined.events)

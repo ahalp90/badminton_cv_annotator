@@ -14,12 +14,11 @@ from annotator.sequence.rally_options import (
     FEATURE_NAMES,
     RallyOptions,
     build_rally_options,
-    sequence_key,
 )
 from annotator.training.rally_targets import option_targets
 from annotator.training.sequences import SequenceTrainingVideo
 
-__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool']
 
 
 @dataclass(frozen=True)

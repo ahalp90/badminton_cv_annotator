@@ -12,19 +12,23 @@ intermediate results are unfamiliar.
 | Step | Read next | What it decides |
 | --- | --- | --- |
 | Prepare rough rallies | `prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py) | Build player evidence, exclude unusable footage, find spans and heuristic contacts |
-| Score and select contacts | [hybrid.py](../../src/annotator/hybrid.py) | Run the contact model, rally selector and review ranking |
+| Score and select contacts | [learned_model_inference.py](../../src/annotator/learned_model_inference.py) | Run the contact model, rally selector and review ranking |
 | Build contact evidence | [contacts/features.py](../../src/annotator/contacts/features.py) | Choose search regions and measure shuttle/player signals |
 | Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
-| Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Gather earlier/later contacts and their physical evidence |
-| Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Combine contact additions/deletions, order alternatives and build their features |
+| Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Choose possible earlier serves and missed contacts |
+| Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Prepare contact evidence, combine additions/deletions, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
-| Fit heuristic contact order | [contacts/selection.py](../../src/annotator/contacts/selection.py) | Filter heuristic contacts and use the same final player-alternation step as model inference |
+| Fit heuristic contact order | [heuristic_inference.py](../../src/annotator/heuristic_inference.py) | Filter heuristic contacts and use the same final player-alternation step as model inference |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
 
-In `hybrid.py`, `build_rally_context()` prepares the initial rallies and
-shortlisted contacts for both inference and training. In `rally_model.py`,
-`predict_rally_options()` chooses and finishes the rallies. The scoring and
-finalisation helpers follow in the same file.
+Read `rally_options.py` from `build_rally_context()` to `build_rally_options()`:
+prepare the initial rallies and shortlisted contacts, then build the alternatives
+and their model rows. Both inference and training use these two steps.
+`toggle_proposals()` follows with the contact-edit rules, duplicate removal and
+ordering. The detailed feature calculations come afterwards.
+
+In `rally_model.py`, `predict_rally_options()` chooses and finishes the rallies.
+The scoring and finalisation helpers follow in the same file.
 
 `heuristic_only=True` uses the same preparation, then selects rule-based contacts
 and fits their player order before outcome estimation. Supplying `spans` lets

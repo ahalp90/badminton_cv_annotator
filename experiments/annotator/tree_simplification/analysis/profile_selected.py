@@ -22,7 +22,7 @@ from pathlib import Path
 
 from threadpoolctl import threadpool_limits
 
-from annotator.hybrid import predict_contact_features
+from annotator.learned_model_inference import predict_contact_features
 from annotator.models import load_models
 from annotator.sequence.contacts import stream_payload
 from experiments.annotator.development import load_prepared

@@ -163,7 +163,7 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
         assert kwargs['base'] is inputs.models.preprocessing
         assert kwargs['heuristic_only'] is False
         assert kwargs['spans'] == (None if condition == 'ours_discovery' else [(0, 45)])
-        kwargs['capture'].hybrid = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
+        kwargs['capture'].learned_model_prediction = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
         return empty_annotation([], [])
 
     monkeypatch.setattr(video_module, 'run_video', infer)

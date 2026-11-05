@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.selection import select_heuristic_contacts
-from annotator.hybrid import HybridPrediction, predict_contacts
+from annotator.heuristic_inference import select_heuristic_contacts
+from annotator.learned_model_inference import LearnedModelPrediction, predict_contacts
 from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_models
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import RallyOutcome, convert_landing_options
@@ -76,7 +76,7 @@ def run_video(
     """
     if capture is not None:
         capture.evidence = None
-        capture.hybrid = None
+        capture.learned_model_prediction = None
     if heuristic_only and models is not None:
         raise ValueError('heuristic_only cannot be combined with fitted models')
     if not heuristic_only:
@@ -105,7 +105,7 @@ def run_video(
     else:
         prediction = predict_contacts(evidence, models)
         if capture is not None:
-            capture.hybrid = prediction
+            capture.learned_model_prediction = prediction
         rallies = prediction.refined.rallies
         heuristic_candidates = []
         contact_events = prediction.refined.events
@@ -146,7 +146,7 @@ class AnnotatorResult(NamedTuple):
 
 @dataclass
 class RunCapture:
-    """Prepared evidence and model predictions retained for an optional caller."""
+    """Prepared evidence and learned-model predictions retained for an optional caller."""
 
     evidence: AnnotationEvidence | None = None
-    hybrid: HybridPrediction | None = None
+    learned_model_prediction: LearnedModelPrediction | None = None

@@ -58,9 +58,14 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
     ])
     events = [ContactEvent(40, .9, None), ContactEvent(180, .8, None)]
     sequences = initial_sequences([(20, 120), (150, 250), (260, 290)], events)
-    shortlists = shortlist_serve_rows(sequences, scores, [(0, 100), (100, 300)], fps=30.0)
-    frames_by_span = {span_id: scores.candidates['frame'][rows].tolist() for span_id, rows in shortlists.items()}
-    assert frames_by_span == {0: [30, 5], 1: [130, 170]}
+    first = shortlist_serve_rows(sequences[0], scores, fps=30.0, previous_end=-1)
+    second = shortlist_serve_rows(sequences[1], scores, fps=30.0, previous_end=120)
+    assert scores.candidates['frame'][first].tolist() == [30, 5]
+    assert scores.candidates['frame'][second].tolist() == [130, 170]
+    assert shortlist_serve_rows(sequences[2], scores, fps=30.0, previous_end=250) == []
+    # Without a preceding rally, the search interval still excludes the early clip.
+    unclipped = shortlist_serve_rows(sequences[1], scores, fps=30.0, previous_end=0)
+    assert scores.candidates['frame'][unclipped].tolist() == [110, 130]
 
 
 @pytest.mark.parametrize(("rows", "expected"), [
@@ -70,7 +75,7 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
 def test_serve_shortlist_uses_available_candidates(rows, expected):
     scores = _scores(rows)
     sequences = initial_sequences([(0, 100)], [ContactEvent(40, .9, None)])
-    assert shortlist_serve_rows(sequences, scores, [(0, 100)], fps=30.0) == {0: expected}
+    assert shortlist_serve_rows(sequences[0], scores, fps=30.0, previous_end=-1) == expected
 
 
 def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
@@ -114,3 +119,15 @@ def test_toggle_earlier_start_absorbs_stream_and_respects_previous_rally() -> No
     assert not any(80 in _frames(sequence) for sequence in options)
     expanded = next(sequence for sequence in options if _frames(sequence) == [90, 100, 120, 160])
     assert expanded.start_frame == 90 and expanded.events[1] is gap
+
+
+def test_toggle_proposals_deduplicate_absorbed_contacts_and_prefer_fewer_edits() -> None:
+    before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    earlier = ContactEvent(80, .6, None)
+    gap = ContactEvent(90, .7, None)
+    # Adding 80 absorbs 90, so explicitly adding both gives the same sequence.
+    options = toggle_proposals(before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0)
+    assert options[0] is before
+    assert [_frames(sequence) for sequence in options] == [
+        [120, 160], [90, 120, 160], [80, 90, 120, 160],
+    ]

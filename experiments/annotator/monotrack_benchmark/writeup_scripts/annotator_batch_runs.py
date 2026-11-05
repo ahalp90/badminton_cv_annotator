@@ -32,8 +32,8 @@ from threadpoolctl import threadpool_limits
 
 from annotator.config import resolve
 from annotator.contacts.features import ContactFeatures
-from annotator.hybrid import (
-    HybridPrediction,
+from annotator.learned_model_inference import (
+    LearnedModelPrediction,
     features_from_evidence,
     predict_contact_features,
 )
@@ -115,7 +115,7 @@ def policy_models(bundle_paths: tuple[Path, ...]) -> tuple[AnnotatorModels, ...]
 
 def predict_shared_pool(
     evidence: AnnotationEvidence, features: ContactFeatures, models: tuple[AnnotatorModels, ...],
-) -> tuple[HybridPrediction, ...]:
+) -> tuple[LearnedModelPrediction, ...]:
     """Run each policy's own selector and review against one contact-derived pool."""
     first = predict_contact_features(evidence, features, models[0])
     predictions = [first]
@@ -125,7 +125,7 @@ def predict_shared_pool(
     return tuple(predictions)
 
 
-def prediction_record(run: Run, video: str, prediction: HybridPrediction) -> dict[str, Any]:
+def prediction_record(run: Run, video: str, prediction: LearnedModelPrediction) -> dict[str, Any]:
     stream = stream_payload(prediction.refined.sequences, prediction.refined.events)
     if run.condition != 'discovery':
         return {'item_id': video, 'condition': SUPPLIED_CONDITIONS[run.condition], 'status': 'completed',
