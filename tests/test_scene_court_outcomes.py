@@ -12,7 +12,7 @@ from annotator.outcomes.point_winner import (
     Half,
     Landing,
     LandingKinematics,
-    VerdictRow,
+    RallyOutcome,
 )
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
@@ -92,7 +92,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
 
     def fake_pick(
         final_contact, end_frame, track_arg, kinematics, options, striker, net_band,
-        resolution, court_info, constants, fps, **kwargs,
+        resolution, court_info, constants, **kwargs,
     ):
         landing_call.update(
             final_contact=final_contact, end_frame=end_frame, net_band=net_band,
@@ -100,13 +100,13 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         )
         return landing
 
-    def fake_verdict(rally_id, striker, next_server, landing_arg, band_m):
+    def fake_verdict(striker, next_server, landing_arg, band_m, **kwargs):
         error_bands.append(band_m)
-        return VerdictRow(rally_id, striker, None, None, None, False, False)
+        return RallyOutcome(None, None, landing_arg, None, False, False, None, False)
 
     monkeypatch.setattr(video_outcomes.point_winner, 'build_landing_kinematics', fake_kinematics)
     monkeypatch.setattr(video_outcomes.point_winner, 'pick_landing_to_end', fake_pick)
-    monkeypatch.setattr(video_outcomes.point_winner, 'rally_verdict', fake_verdict)
+    monkeypatch.setattr(video_outcomes.point_winner, 'resolve_rally_outcome', fake_verdict)
 
     contact_data = (FinishedRally(ContactSequence(0, 0, 12, (ContactEvent(7, np.nan, Half.TOP),)), Half.TOP),)
     evidence = SimpleNamespace(
@@ -115,9 +115,9 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
         source_codes=None, scene_courts=scenes,
     )
-    result = video_outcomes.build_verdict_data(
+    result = video_outcomes.build_outcomes(
         evidence, contact_data, landing_options=None,
-        rejection_diagnostics=None, landing_horizons_s=(), horizon_rows=None,
+        rejection_diagnostics=None,
     )
 
     assert landing_call == {

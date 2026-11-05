@@ -53,8 +53,8 @@ player or court evidence.
 
 The full contact stream includes contacts outside every rally. A sequence's
 membership is explicit; final bounds alone do not define that membership.
-`RunCapture` holds optional mask copies, model predictions and landing diagnostics
-beside the public result. It receives masks after preparation succeeds.
+Use `RunCapture` to retain prepared evidence and model predictions
+beside the public result. Prepared evidence includes both exclusion masks.
 
 ## Find a particular rule
 

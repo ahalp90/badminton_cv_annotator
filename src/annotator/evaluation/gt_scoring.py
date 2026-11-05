@@ -36,10 +36,8 @@ from annotator.evaluation.scoring import (
 from annotator.masks.inpaint import code_counts, grade_track
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
-    OTHER_HALF,
     SHIPPED_LANDING_FILTER_OPTIONS,
     Half,
-    Verdict,
 )
 from annotator.run_video import AnnotatorResult, run_video
 from shared.court import load_all_court_info
@@ -401,7 +399,7 @@ class VideoScoring(NamedTuple):
     hit_height_failures: list[tuple[int, int, int, str]]
     ball_round_diffs: list[int]
     timing_errs: list[int]
-    geometric_verdict_rows: dict[int, object]
+    geometric_verdict_rows: list[tuple[int, str, str, bool | None, bool]]
     reconciliation: Reconciliation
 
 
@@ -678,14 +676,8 @@ def score_video(
             server[2] += int(s_ok)
             server[3] += 1
         gt_winner = recon.winners[index].winner_half
-        pred_winner = None
         outcome = result.outcomes.get(span) if covered else None
-        if outcome is not None:
-            verdict = outcome.verdict
-            if verdict.verdict == Verdict.WON:
-                pred_winner = verdict.striker_half
-            elif verdict.verdict == Verdict.LOST:
-                pred_winner = OTHER_HALF[verdict.striker_half]
+        pred_winner = None if outcome is None else outcome.winner
         gp_ok = None
         if gt_winner is not None:
             gp_ok = covered and pred_winner is not None and pred_winner == gt_winner
@@ -728,6 +720,17 @@ def score_video(
     if (contact_gate["pass"], contact_gate["total"]) != (br[2], br[3]):
         raise ValueError(f"{fixture.name}: ball_round count-gate mismatch vs score_contacts")
     raw_contact_count = len(result.heuristic_candidates) if result.heuristic_candidates else len(contacts)
+    geometric_rows = []
+    for rally_id, outcome in result.outcomes.items():
+        landing_winner = outcome.landing_only_winner
+        relative_winner = ""
+        if landing_winner is not None:
+            relative_winner = "won" if landing_winner == result.rallies[rally_id].final_half else "lost"
+        agreement = None if outcome.winner is None or landing_winner is None else outcome.winner == landing_winner
+        geometric_rows.append((
+            rally_id, relative_winner, "" if landing_winner is None else landing_winner.value,
+            agreement, outcome.window_closed_by_mask,
+        ))
     return VideoScoring(fixture.name, rows, boundaries, ColumnAgg(*br),
         (timing[0], timing[1]), (timing[2], timing[3]),
         ColumnAgg(*player), ColumnAgg(*server), ColumnAgg(*height), ColumnAgg(*landing), ColumnAgg(*winner),
@@ -737,7 +740,7 @@ def score_video(
             for rally_id, rally in enumerate(result.rallies) for stroke_idx, event in enumerate(rally.sequence.events)
             if event.frame in result.hit_height_failures
         ], ball_round_diffs, timing_errs,
-        {rally_id: outcome.geometric for rally_id, outcome in result.outcomes.items()}, recon)
+        geometric_rows, recon)
 
 
 def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
@@ -803,7 +806,7 @@ def write_rallies_csv(rows: Iterable[RallyRow], path: Path) -> None:
         writer.writerows(rows)
 
 
-def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:
+def write_geometric_verdicts_csv(rows: Iterable[tuple[int, str, str, bool | None, bool]], path: Path) -> None:
     """Write the additive per-rally geometric winner diagnostics."""
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -811,14 +814,7 @@ def write_geometric_verdicts_csv(rows: Iterable[object], path: Path) -> None:
             "rally_id", "geometric_verdict", "geometric_winner", "agreement",
             "window_closed_by_mask",
         ))
-        for row in rows:
-            writer.writerow((
-                row.rally_id,
-                row.geometric_verdict.value if row.geometric_verdict is not None else "",
-                row.geometric_winner.value if row.geometric_winner is not None else "",
-                row.agreement if row.agreement is not None else "",
-                row.window_closed_by_mask,
-            ))
+        writer.writerows(rows)
 
 
 def write_guard_diagnostics(
@@ -877,7 +873,7 @@ def main() -> None:
         for fixture in FIXTURES:
             write_rallies_csv(scorings[fixture.name].rows, out / f"{fixture.name}.csv")
             write_geometric_verdicts_csv(
-                scorings[fixture.name].geometric_verdict_rows.values(),
+                scorings[fixture.name].geometric_verdict_rows,
                 out / f"{fixture.name}_geometric_verdicts.csv",
             )
 

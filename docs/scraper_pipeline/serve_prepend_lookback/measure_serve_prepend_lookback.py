@@ -299,10 +299,9 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     keyword["rejection_diagnostics"] = []
     result = run_video(*inputs.positional, **keyword)
 
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError(f"{fixture.name}/{mask_mode}: run did not capture replay masks")
-    raw_mask = capture.raw_exclusion_mask
-    believed_mask = capture.definitive_exclusion_mask
+    assert capture.evidence is not None
+    raw_mask = capture.evidence.raw_exclusion_mask
+    believed_mask = capture.evidence.exclusion_mask
     codes = np.asarray(inputs.keyword["inpaint_codes"])
     court_present = np.asarray(inputs.keyword["court_present"])
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
@@ -460,8 +459,7 @@ def measure_candidate_fixture(
     capture = RunCapture()
     keyword["capture"] = capture
     natural_result = run_video(*inputs.positional, **keyword)
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError(f"{fixture.name}: committed run did not capture replay masks")
+    assert capture.evidence is not None
 
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     tolerance = canonical_tolerance(fixture.fps)
@@ -490,8 +488,8 @@ def measure_candidate_fixture(
             truth=truth,
             inpaint_codes=inpaint_codes,
             court_present=court_present,
-            raw_mask=capture.raw_exclusion_mask,
-            definitive_mask=capture.definitive_exclusion_mask,
+            raw_mask=capture.evidence.raw_exclusion_mask,
+            definitive_mask=capture.evidence.exclusion_mask,
             spans=spans,
             raw_by_span=raw_by_span,
             accepted_by_span=accepted_by_span,

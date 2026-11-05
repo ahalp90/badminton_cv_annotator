@@ -1,10 +1,7 @@
 """Resolve rally landings and winners, then calculate contact heights."""
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import NamedTuple
 
 import numpy as np
 
@@ -15,24 +12,14 @@ from annotator.sequence.contacts import FinishedRally
 from shared.progress import progress_iter
 
 
-class RallyOutcome(NamedTuple):
-    """One rally's winner estimate, landing and geometric comparison."""
-
-    verdict: point_winner.VerdictRow
-    landing: point_winner.Landing | None
-    geometric: point_winner.GeometricVerdictRow
-
-
-def build_verdict_data(
+def build_outcomes(
     evidence: AnnotationEvidence,
     rallies: Sequence[FinishedRally],
     *,
     landing_options: point_winner.LandingFilterOptions,
     rejection_diagnostics: list[dict[str, object]] | None,
-    landing_horizons_s: tuple[float, ...],
-    horizon_rows: list[LandingHorizonRow] | None,
-) -> dict[int, RallyOutcome]:
-    """Find each final landing, then resolve the winner from the next serve or landing."""
+) -> dict[int, point_winner.RallyOutcome]:
+    """Resolve each final flight using landing options already scaled for this video."""
     video_kinematics = point_winner.build_landing_kinematics(
         evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
     )
@@ -72,7 +59,7 @@ def build_verdict_data(
             landing = point_winner.pick_landing_to_end(
                 search_start, window.end_frame, evidence.track, kinematics, landing_options,
                 striker, scene.net_band, evidence.resolution, scene.court_info,
-                evidence.resolved.thresholds, evidence.fps,
+                evidence.resolved.thresholds,
                 shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
                 rejected_intervals=rejected_intervals, infer_net_fault=search_start == final_contact,
             )
@@ -84,23 +71,9 @@ def build_verdict_data(
                     window.end_frame, rejected_intervals,
                 )
 
-        verdict = point_winner.rally_verdict(rally_id, striker, next_server, landing, error_band)
-        geometric, geometric_winner, _source = point_winner.geometric_verdict(striker, landing)
-        winner = winner_from_verdict(verdict, striker)
-        agreement = None
-        if winner is not None and geometric_winner is not None:
-            agreement = winner == geometric_winner
-        outcomes[rally_id] = RallyOutcome(verdict, landing, point_winner.GeometricVerdictRow(
-            rally_id, geometric, geometric_winner, agreement, closed_by_mask,
-        ))
-        if landing_horizons_s and flight is not None:
-            assert horizon_rows is not None
-            horizon_rows.extend(build_horizon_rows(
-                evidence, kinematics, landing_options, scene,
-                final_contact=final_contact, search_start=search_start, window=window,
-                strict_verdict=verdict, strict_landing=landing, strict_winner=winner,
-                horizons_s=landing_horizons_s, next_server=next_server,
-            ))
+        outcomes[rally_id] = point_winner.resolve_rally_outcome(
+            striker, next_server, landing, error_band, window_closed_by_mask=closed_by_mask,
+        )
     return outcomes
 
 
@@ -141,17 +114,6 @@ def build_hit_heights(
     return hit_height_by_frame, hit_height_failures
 
 
-def winner_from_verdict(
-    verdict: point_winner.VerdictRow, striker: point_winner.Half,
-) -> point_winner.Half | None:
-    """Return the winner half encoded by a verdict row."""
-    if verdict.verdict == point_winner.Verdict.WON:
-        return striker
-    if verdict.verdict == point_winner.Verdict.LOST:
-        return point_winner.OTHER_HALF[striker]
-    return None
-
-
 def record_rejected_final_contact(
     rows: list[dict[str, object]], rally_id: int,
     rally: FinishedRally, evidence: AnnotationEvidence,
@@ -175,10 +137,11 @@ def record_landing_rejections(
     rejected_intervals: list[tuple[int, int]],
 ) -> None:
     """Record how rejected shuttle observations changed this landing search."""
-    end_without_events = point_winner.window_end(
+    end_without_events = point_winner.landing_window(
         search_start, search_limit, evidence.track, evidence.exclusion_mask,
         evidence.resolved.thresholds.sustained_loss_frames,
-    )
+        np.zeros(len(evidence.track), dtype=bool),
+    ).end_frame
     if safe_end < end_without_events:
         record_rejection(
             rows, 'lost_shuttle_guard', rally_id, search_start + 1, end_without_events,
@@ -213,89 +176,3 @@ def record_rejection(
         'trigger_frame': trigger_frame,
         'trigger_code': int(codes[trigger_frame]) if codes is not None else '',
     })
-
-
-@dataclass(frozen=True)
-class LandingHorizonRow:
-    """One GT-free comparison between the safe and a shorter landing endpoint."""
-
-    rally_id: int
-    horizon_seconds: float
-    horizon_frames: int
-    final_contact_frame: int
-    requested_end_frame: int
-    safe_end_frame: int
-    effective_end_frame: int
-    closure_reasons: tuple[str, ...]
-    strict_landing: point_winner.Landing | None
-    capped_landing: point_winner.Landing | None
-    strict_verdict: point_winner.VerdictRow
-    capped_verdict: point_winner.VerdictRow
-    strict_winner: point_winner.Half | None
-    capped_winner: point_winner.Half | None
-    landing_changed: bool
-    winner_changed: bool
-
-
-def build_horizon_rows(
-    evidence: AnnotationEvidence,
-    kinematics: point_winner.LandingKinematics,
-    landing_options: point_winner.LandingFilterOptions,
-    scene: SceneCourt,
-    *,
-    final_contact: int,
-    search_start: int,
-    window: point_winner.LandingWindow,
-    strict_verdict: point_winner.VerdictRow,
-    strict_landing: point_winner.Landing | None,
-    strict_winner: point_winner.Half | None,
-    horizons_s: tuple[float, ...],
-    next_server: point_winner.Half | None,
-) -> list[LandingHorizonRow]:
-    """Compare shorter landing searches with the ordinary outcome, in horizon order."""
-    rally_id = strict_verdict.rally_id
-    striker = strict_verdict.striker_half
-    rows = []
-    for horizon_seconds in horizons_s:
-        horizon_frames = max(1, math.floor(horizon_seconds * evidence.fps + 0.5))
-        requested_end_frame = final_contact + horizon_frames
-        effective_end_frame = max(final_contact + 1, min(requested_end_frame, window.end_frame))
-        closure_reasons = []
-        if requested_end_frame == effective_end_frame:
-            closure_reasons.append('horizon_cap')
-        if effective_end_frame == window.end_frame:
-            closure_reasons.extend(window.closure_reasons)
-            capped_landing, capped_verdict, capped_winner = strict_landing, strict_verdict, strict_winner
-        else:
-            capped_landing = None
-            if effective_end_frame > search_start:
-                capped_landing = point_winner.pick_landing_to_end(
-                    search_start, effective_end_frame, evidence.track, kinematics, landing_options,
-                    striker, scene.net_band, evidence.resolution, scene.court_info,
-                    evidence.resolved.thresholds, evidence.fps,
-                    shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
-                    infer_net_fault=search_start == final_contact,
-                )
-            capped_verdict = point_winner.rally_verdict(
-                rally_id, striker, next_server, capped_landing, scene.landing_error_band_m,
-            )
-            capped_winner = winner_from_verdict(capped_verdict, striker)
-        rows.append(LandingHorizonRow(
-            rally_id=rally_id,
-            horizon_seconds=horizon_seconds,
-            horizon_frames=horizon_frames,
-            final_contact_frame=final_contact,
-            requested_end_frame=requested_end_frame,
-            safe_end_frame=window.end_frame,
-            effective_end_frame=effective_end_frame,
-            closure_reasons=tuple(closure_reasons),
-            strict_landing=strict_landing,
-            capped_landing=capped_landing,
-            strict_verdict=strict_verdict,
-            capped_verdict=capped_verdict,
-            strict_winner=strict_winner,
-            capped_winner=capped_winner,
-            landing_changed=strict_landing != capped_landing,
-            winner_changed=strict_winner != capped_winner,
-        ))
-    return rows

@@ -14,11 +14,10 @@ from annotator.contacts.selection import scoring_filter
 from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
     LandingFilterOptions,
-    Verdict,
+    convert_landing_options,
 )
 from annotator.rally import evidence as rally_evidence
 from annotator.run_video import (
@@ -29,6 +28,10 @@ from annotator.run_video import (
 from annotator.sequence import ContactEvent, ContactSequence
 from annotator.sequence.contacts import FinishedRally
 from annotator.types import ContactCandidate
+from experiments.annotator.landing_search import (
+    compare_landing_searches,
+    validate_search_limits,
+)
 
 
 def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
@@ -265,7 +268,7 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         contacts={0: [12, 14, 16]}, heuristic_only=True,
     )
 
-    assert result.outcomes[0].verdict.verdict is None
+    assert result.outcomes[0].winner is None
     assert result.outcomes[0].landing is None
 
 
@@ -363,8 +366,8 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
         contacts=contacts, heuristic_only=True,
     )
 
-    assert result.outcomes[0].verdict.verdict is Verdict.WON
-    assert result.outcomes[0].verdict.verdict_source.value == 'next_server'
+    assert result.outcomes[0].winner is Half.TOP
+    assert result.outcomes[0].winner_source.value == 'next_server'
     assert [event.frame for event in result.rallies[0].sequence.events] == contacts[0]
     assert set(result.hit_heights) == {frame for frames in contacts.values() for frame in frames}
     assert result.hit_height_failures == {}
@@ -383,7 +386,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     )
 
     def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
-                  _resolution, _court_info, _constants, _fps, *, shuttle_hallucination_mask,
+                  _resolution, _court_info, _constants, *, shuttle_hallucination_mask,
                   rejected_intervals, infer_net_fault):
         assert shuttle_hallucination_mask[40]
         rejected_intervals.append((39, 41))
@@ -420,10 +423,9 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    diagnostic = result.outcomes[0].geometric
-    assert diagnostic.geometric_verdict is None
-    assert diagnostic.geometric_winner is None
-    assert diagnostic.agreement is None
+    diagnostic = result.outcomes[0]
+    assert diagnostic.landing_only_winner is None
+    assert diagnostic.winner is None
     assert diagnostic.window_closed_by_mask is False
 
 
@@ -442,10 +444,9 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    diagnostic = result.outcomes[0].geometric
-    assert diagnostic.geometric_verdict.value == 'won'
-    assert diagnostic.geometric_winner is Half.TOP
-    assert diagnostic.agreement is True
+    diagnostic = result.outcomes[0]
+    assert diagnostic.landing_only_winner is Half.TOP
+    assert diagnostic.winner is Half.TOP
     assert diagnostic.window_closed_by_mask is False
 
 
@@ -467,7 +468,7 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.outcomes[0].geometric.window_closed_by_mask is True
+    assert result.outcomes[0].window_closed_by_mask is True
 
 
 def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
@@ -483,7 +484,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
         spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.outcomes[0].geometric.window_closed_by_mask is False
+    assert result.outcomes[0].window_closed_by_mask is False
 
 
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
@@ -529,101 +530,86 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
     assert build_calls == 1
 
 
-def test_run_video_capture_resets_and_copies_masks() -> None:
+def test_run_video_capture_exposes_prepared_evidence() -> None:
     inputs = _synthetic_inputs()
-    raw_mask = inputs['raw_exclusion_mask']
-    capture = RunCapture(
-        raw_exclusion_mask=np.ones(len(raw_mask), dtype=bool),
-        definitive_exclusion_mask=np.ones(len(raw_mask), dtype=bool),
-    )
-
+    capture = RunCapture()
     run_video(
-        **inputs,
-        **_default_scene_inputs(len(inputs['track'])),
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
         capture=capture, heuristic_only=True,
     )
-
-    np.testing.assert_array_equal(capture.raw_exclusion_mask, raw_mask)
-    np.testing.assert_array_equal(capture.definitive_exclusion_mask, raw_mask)
-    assert capture.raw_exclusion_mask is not raw_mask
-    assert capture.definitive_exclusion_mask is not raw_mask
-    capture.raw_exclusion_mask[0] = True
-    capture.definitive_exclusion_mask[1] = True
-    assert not raw_mask[0]
-    assert not raw_mask[1]
+    assert capture.evidence is not None
+    np.testing.assert_array_equal(capture.evidence.raw_exclusion_mask, inputs['raw_exclusion_mask'])
+    np.testing.assert_array_equal(capture.evidence.exclusion_mask, inputs['raw_exclusion_mask'])
 
 
-def test_run_video_rejects_invalid_horizon_configuration():
-    inputs = {**_synthetic_inputs(), **_default_scene_inputs(300)}
-    with pytest.raises(ValueError, match='requires capture'):
-        run_video(**inputs, landing_horizons_s=(1.0,), heuristic_only=True)
-
-    with pytest.raises(ValueError, match='strictly increasing'):
-        run_video(
-            **inputs, capture=RunCapture(),
-            landing_horizons_s=(1.0, 1.0), heuristic_only=True,
-        )
+@pytest.mark.parametrize('limits', [(0.0,), (float('nan'),), (1.0, 1.0)])
+def test_landing_search_rejects_invalid_time_limits(limits):
+    with pytest.raises(ValueError, match='landing search seconds'):
+        validate_search_limits(limits)
 
 
-def test_run_video_captures_three_horizons_without_extending_safe_end(monkeypatch):
+
+def test_run_video_scales_landing_options_before_search(monkeypatch):
+    inputs = _synthetic_inputs()
+    seen_options = []
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
+
+    def record_options(_start, _end, _track, _kinematics, options, *_args, **_kwargs):
+        seen_options.append(options)
+
+    monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', record_options)
+    run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
+        spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
+    )
+    assert inputs['fps'] == 25.0
+    assert seen_options == [convert_landing_options(inputs['landing_options'], 25.0)]
+    assert seen_options[0] != inputs['landing_options']
+
+
+def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
     capture = RunCapture()
     monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
-
-    run_video(
-        **inputs,
-        **_default_scene_inputs(len(inputs['track'])),
-        spans=[(10, 20)], contacts={0: [14]}, capture=capture,
-        landing_horizons_s=(1.0, 2.0, 3.0), heuristic_only=True,
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
+        spans=[(10, 20)], contacts={0: [14]}, capture=capture, heuristic_only=True,
     )
+    comparisons = compare_landing_searches(
+        capture.evidence, result.rallies, result.outcomes, (1.0, 2.0, 3.0), inputs["landing_options"],
+    )
+    assert [row.search_seconds for row in comparisons] == [1.0, 2.0, 3.0]
+    assert all(row.trial_end_frame <= row.normal_end_frame for row in comparisons)
+    assert all(row.normal_outcome.landing is None and row.trial_outcome.landing is None for row in comparisons)
 
-    assert [row.horizon_seconds for row in capture.landing_horizon_rows] == [1.0, 2.0, 3.0]
-    assert all(row.effective_end_frame <= row.safe_end_frame for row in capture.landing_horizon_rows)
-    assert all(row.strict_landing is None and row.capped_landing is None for row in capture.landing_horizon_rows)
 
-
-def test_run_video_captures_horizon_landing_and_winner_changes(monkeypatch):
+def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
     capture = RunCapture()
     monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
-        if end_frame < len(inputs['track']):
-            return Landing(end_frame - 1, (0.5, 0.25), Half.TOP, False, False)
-        return Landing(end_frame - 1, (0.5, 0.75), Half.BOT, False, False)
+        position = (0.5, 0.25) if end_frame < len(inputs['track']) else (0.5, 0.75)
+        half = Half.TOP if position[1] < 0.5 else Half.BOT
+        return Landing(end_frame - 1, position, half, False, False)
 
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', fake_pick)
-
-    run_video(
-        **inputs,
-        **_default_scene_inputs(len(inputs['track'])),
-        spans=[(10, 20)], contacts={0: [14]}, capture=capture,
-        landing_horizons_s=(1.0, 11.44), heuristic_only=True,
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
+        spans=[(10, 20)], contacts={0: [14]}, capture=capture, heuristic_only=True,
     )
-
-    short, tied = capture.landing_horizon_rows
-    assert short.landing_changed is True
-    assert short.winner_changed is True
-    assert short.strict_verdict.verdict is Verdict.WON
-    assert short.capped_verdict.verdict is Verdict.LOST
-    assert short.strict_verdict.verdict_source.value == 'landing_geometry'
-    assert short.capped_verdict.verdict_source.value == 'landing_geometry'
-    assert tied.effective_end_frame == tied.safe_end_frame == len(inputs['track'])
-    assert tied.closure_reasons == ('horizon_cap', 'video_end')
-
-
-def test_run_video_default_empty_horizon_capture_stays_empty():
-    capture = RunCapture(landing_horizon_rows=[object()])
-
-    run_video(
-        **_synthetic_inputs(),
-        **_default_scene_inputs(300),
-        capture=capture, heuristic_only=True,
+    short, tied = compare_landing_searches(
+        capture.evidence, result.rallies, result.outcomes, (1.0, 11.44), inputs["landing_options"],
     )
-
-    assert capture.landing_horizon_rows == []
+    assert short.normal_outcome.landing != short.trial_outcome.landing
+    assert short.normal_outcome.winner is Half.TOP
+    assert short.trial_outcome.winner is Half.BOT
+    assert short.normal_outcome.winner_source.value == 'landing_geometry'
+    assert short.trial_outcome.winner_source.value == 'landing_geometry'
+    assert tied.trial_end_frame == tied.normal_end_frame == len(inputs['track'])
+    assert tied.search_stop_reasons == ('time_limit', 'video_end')
 
 
 def test_run_video_can_exclude_frames_without_court_presence() -> None:
@@ -640,8 +626,8 @@ def test_run_video_can_exclude_frames_without_court_presence() -> None:
         capture=capture,
         court_invalid_is_excluded=True, heuristic_only=True,
     )
-    assert capture.definitive_exclusion_mask[10]
-    assert capture.definitive_exclusion_mask[~court_present].all()
+    assert capture.evidence.exclusion_mask[10]
+    assert capture.evidence.exclusion_mask[~court_present].all()
 
 
 @pytest.mark.parametrize('gap', [(0, 10), (150, 160), (290, 300)])
@@ -673,12 +659,12 @@ def test_run_video_excludes_scene_gaps(
         heuristic_only=True,
     )
 
-    assert not capture.raw_exclusion_mask.any()
+    assert not capture.evidence.raw_exclusion_mask.any()
     assert [contact.contact_frame for contact in result.heuristic_candidates] == contact_frames
     expected_mask = np.zeros(n_frames, dtype=bool)
     expected_mask[gap_start:gap_end] = True
     expected_mask[120] = exclude_invalid
-    np.testing.assert_array_equal(capture.definitive_exclusion_mask, expected_mask)
+    np.testing.assert_array_equal(capture.evidence.exclusion_mask, expected_mask)
     expected_contacts = [180] if exclude_invalid else [120, 180]
     assert [event.frame for rally in result.rallies for event in rally.sequence.events] == expected_contacts
 
@@ -734,8 +720,8 @@ def _default_scene_inputs(n_frames: int):
 
 def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
     rows = [
-        GeometricVerdictRow(0, Verdict.WON, Half.TOP, True, False),
-        GeometricVerdictRow(2, None, None, None, False),
+        (0, "won", "Top", True, False),
+        (2, "", "", None, False),
     ]
     path = tmp_path / 'pilot_geometric_verdicts.csv'
     write_geometric_verdicts_csv(rows, path)

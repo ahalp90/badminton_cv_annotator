@@ -182,7 +182,7 @@ using the enforced alternating sides would make that evidence misleading.
 
 ## Estimate outcomes and return the result
 
-Start with `build_verdict_data()` in
+Start with `build_outcomes()` in
 [`outcomes/video.py`](../../src/annotator/outcomes/video.py). For each rally,
 check the last contact, choose a camera view for the final flight, find its
 landing, then determine the winner. The next server takes precedence over the
@@ -192,8 +192,8 @@ retaining the contacts.
 Each landing search stays within one camera view. When the final contact falls
 outside the available court views, a returning view within that rally can still
 provide a landing. The unseen part of the flight prevents a net-fault call.
-Optional diagnostics record rejected shuttle observations and compare shorter
-search windows. Hit heights are calculated separately for each contact.
+Optional diagnostics record rejected shuttle observations. Experiments compare
+shorter search windows after ordinary inference. Hit heights are calculated separately for each contact.
 
 `AnnotatorResult` holds the public result. The dataset builder saves all of its
 fields. In particular:
@@ -203,9 +203,9 @@ fields. In particular:
 - `rally_confidence` holds review scores in rally order.
 - `outcomes` groups winner, landing and geometric estimates by rally; contact heights and unavailable-height reasons are keyed by frame.
 
-`RunCapture` optionally retains intermediate predictions, both exclusion masks
-and requested landing diagnostics. It supports debugging, preparation and
-experiments without changing the result contract.
+Use `RunCapture` to retain prepared evidence and intermediate predictions for
+debugging or experiments. Run landing-time comparisons separately with
+`experiments.annotator.landing_search.compare_landing_searches()`.
 
 The standalone command, dataset builder and MonoTrack adapter all call
 `run_video()`. Their loading and persistence differ; the annotation decisions

@@ -10,14 +10,11 @@ from fractions import Fraction
 from pathlib import Path
 
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
-    Verdict,
-    VerdictRow,
+    RallyOutcome,
     VerdictSource,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent
 from annotator.types import ContactCandidate
@@ -543,41 +540,17 @@ def _validate_outcome_maps(
         outcome = annotation.outcomes[rally_id]
         if not isinstance(outcome, RallyOutcome):
             raise TypeError("rally outcomes must be RallyOutcome values")
-        verdict, landing, geometric = outcome
-        if (
-            not isinstance(verdict, VerdictRow)
-            or isinstance(verdict.rally_id, bool)
-            or not isinstance(verdict.rally_id, int)
-            or verdict.rally_id != rally_id
-        ):
-            raise ValueError("verdict row key and rally_id must agree")
-        if not isinstance(verdict.striker_half, Half):
-            raise TypeError("verdict striker_half must be Half")
-        if verdict.striker_half != annotation.rallies[rally_id].final_half:
-            raise ValueError("verdict striker_half differs from the indexed striker half")
-        _validate_verdict(verdict)
-        _validate_landing(landing, frame_count)
-        if (
-            not isinstance(geometric, GeometricVerdictRow)
-            or isinstance(geometric.rally_id, bool)
-            or not isinstance(geometric.rally_id, int)
-            or geometric.rally_id != rally_id
-        ):
-            raise ValueError("geometric verdict row key and rally_id must agree")
-        _validate_geometric_verdict(geometric)
-
-
-def _validate_verdict(verdict: VerdictRow) -> None:
-    if verdict.verdict is not None and not isinstance(verdict.verdict, Verdict):
-        raise ValueError("verdict value must be Verdict or null")
-    if verdict.verdict_source is not None and not isinstance(verdict.verdict_source, VerdictSource):
-        raise ValueError("verdict source must be VerdictSource or null")
-    if verdict.margin_m is not None:
-        _finite_number(verdict.margin_m, "verdict landing margin")
-    if not isinstance(verdict.within_line_margin, bool):
-        raise TypeError("verdict within_line_margin must be boolean")
-    if not isinstance(verdict.within_net_margin, bool):
-        raise TypeError("verdict within_net_margin must be boolean")
+        for winner in (outcome.winner, outcome.landing_only_winner):
+            if winner is not None and not isinstance(winner, Half):
+                raise ValueError("outcome winner must be Half or null")
+        if outcome.winner_source is not None and not isinstance(outcome.winner_source, VerdictSource):
+            raise ValueError("outcome source must be VerdictSource or null")
+        if outcome.landing_margin_m is not None:
+            _finite_number(outcome.landing_margin_m, "outcome landing margin")
+        for flag in (outcome.within_line_margin, outcome.within_net_margin, outcome.window_closed_by_mask):
+            if not isinstance(flag, bool):
+                raise TypeError("outcome ambiguity and exclusion flags must be boolean")
+        _validate_landing(outcome.landing, frame_count)
 
 
 def _validate_landing(landing: object, frame_count: int) -> None:
@@ -601,37 +574,23 @@ def _validate_landing(landing: object, frame_count: int) -> None:
         raise TypeError("landing quality flags must be boolean")
 
 
-def _validate_geometric_verdict(geometric: GeometricVerdictRow) -> None:
-    if geometric.geometric_verdict is not None and not isinstance(
-        geometric.geometric_verdict,
-        Verdict,
-    ):
-        raise ValueError("geometric verdict value must be Verdict or null")
-    if geometric.geometric_winner is not None and not isinstance(geometric.geometric_winner, Half):
-        raise ValueError("geometric winner must be Half or null")
-    if geometric.agreement is not None and not isinstance(geometric.agreement, bool):
-        raise ValueError("geometric agreement must be boolean or null")
-    if not isinstance(geometric.window_closed_by_mask, bool):
-        raise TypeError("geometric window_closed_by_mask must be boolean")
-
-
 def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, object]:
     outcome = annotation.outcomes.get(rally_id)
-    verdict = None if outcome is None else outcome.verdict
     landing = None if outcome is None else outcome.landing
-    geometric = None if outcome is None else outcome.geometric
     rally = annotation.rallies[rally_id]
     next_server = annotation.rallies[rally_id + 1].first_half if rally_id + 1 < len(annotation.rallies) else None
+    winner = None if outcome is None else outcome.winner
+    landing_winner = None if outcome is None else outcome.landing_only_winner
     return {
         "striker_half": _enum_value(annotation.rallies[rally_id].final_half),
         "server_prediction": _enum_value(rally.first_half),
         "next_server": _enum_value(next_server),
         "verdict": {
-            "value": None if verdict is None else _enum_value(verdict.verdict),
-            "source": None if verdict is None else _enum_value(verdict.verdict_source),
-            "landing_margin_m": None if verdict is None else verdict.margin_m,
-            "within_line_margin": None if verdict is None else verdict.within_line_margin,
-            "within_net_margin": None if verdict is None else verdict.within_net_margin,
+            "value": None if winner is None else ("won" if winner == rally.final_half else "lost"),
+            "source": None if outcome is None else _enum_value(outcome.winner_source),
+            "landing_margin_m": None if outcome is None else outcome.landing_margin_m,
+            "within_line_margin": None if outcome is None else outcome.within_line_margin,
+            "within_net_margin": None if outcome is None else outcome.within_net_margin,
         },
         "landing": None if landing is None else {
             "frame": landing.frame,
@@ -641,11 +600,11 @@ def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, ob
             "net_ender": landing.net_ender,
         },
         "geometric_verdict": {
-            "value": None if geometric is None else _enum_value(geometric.geometric_verdict),
-            "winner": None if geometric is None else _enum_value(geometric.geometric_winner),
-            "agreement": None if geometric is None else geometric.agreement,
+            "value": None if landing_winner is None else ("won" if landing_winner == rally.final_half else "lost"),
+            "winner": _enum_value(landing_winner),
+            "agreement": None if winner is None or landing_winner is None else winner == landing_winner,
             "window_closed_by_mask": (
-                None if geometric is None else geometric.window_closed_by_mask
+                None if outcome is None else outcome.window_closed_by_mask
             ),
         },
     }

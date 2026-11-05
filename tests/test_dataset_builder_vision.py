@@ -8,6 +8,7 @@ import sys
 from dataclasses import fields, is_dataclass, replace
 from fractions import Fraction
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -29,14 +30,11 @@ from annotator.courts.evidence import (
 from annotator.masks.inpaint import grade_track
 from annotator.models import AnnotatorModels, save_models
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
-    Verdict,
-    VerdictRow,
+    RallyOutcome,
     VerdictSource,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence import ContactEvent
 from annotator.sequence.contacts import ContactSequence, FinishedRally
@@ -864,12 +862,11 @@ def test_full_annotation_matches_direct_run_video_and_captures_both_masks(
     )
 
     assert output.run.result == direct_result
-    assert direct_capture.raw_exclusion_mask is not None
-    assert direct_capture.definitive_exclusion_mask is not None
-    np.testing.assert_array_equal(output.run.raw_replay_mask, direct_capture.raw_exclusion_mask)
+    assert direct_capture.evidence is not None
+    np.testing.assert_array_equal(output.run.raw_replay_mask, direct_capture.evidence.raw_exclusion_mask)
     np.testing.assert_array_equal(
         output.run.definitive_exclusion_mask,
-        direct_capture.definitive_exclusion_mask,
+        direct_capture.evidence.exclusion_mask,
     )
     assert output.run.raw_replay_mask.dtype == np.bool_
     assert output.run.raw_replay_mask.shape == (metadata.frame_count,)
@@ -925,9 +922,11 @@ def test_annotation_cli_runs_saved_inputs_without_source_video_or_builder_manife
     assert vision.load_json_gz(output / vision.ANNOTATOR_RESULT_FILENAME) == vision.annotation_result_payload(
         "match-alpha", expected,
     )
-    np.testing.assert_array_equal(vision.load_npy_xz(output / vision.RAW_REPLAY_MASK_FILENAME), capture.raw_exclusion_mask)
     np.testing.assert_array_equal(
-        vision.load_npy_xz(output / vision.DEFINITIVE_EXCLUSION_MASK_FILENAME), capture.definitive_exclusion_mask,
+        vision.load_npy_xz(output / vision.RAW_REPLAY_MASK_FILENAME), capture.evidence.raw_exclusion_mask,
+    )
+    np.testing.assert_array_equal(
+        vision.load_npy_xz(output / vision.DEFINITIVE_EXCLUSION_MASK_FILENAME), capture.evidence.exclusion_mask,
     )
     quality = vision.load_json_gz(output / vision.SHUTTLE_QUALITY_FILENAME)
     assert quality["inpaint_filled_frames"] == 3
@@ -981,8 +980,10 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     ) -> AnnotatorResult:
         np.testing.assert_array_equal(inpaint_codes, guard_codes)
         assert 'shuttle_hallucination_mask' not in _kwargs
-        capture.raw_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
-        capture.definitive_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
+        capture.evidence = SimpleNamespace(
+            raw_exclusion_mask=np.zeros(metadata.frame_count, dtype=bool),
+            exclusion_mask=np.zeros(metadata.frame_count, dtype=bool),
+        )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
@@ -1011,8 +1012,8 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     [
         ("raw_exclusion_mask", np.zeros((10, 1), dtype=bool)),
         ("raw_exclusion_mask", np.zeros(10, dtype=np.uint8)),
-        ("definitive_exclusion_mask", np.zeros((10, 1), dtype=bool)),
-        ("definitive_exclusion_mask", np.zeros(10, dtype=np.uint8)),
+        ("exclusion_mask", np.zeros((10, 1), dtype=bool)),
+        ("exclusion_mask", np.zeros(10, dtype=np.uint8)),
     ],
 )
 def test_malformed_run_capture_masks_raise_original_error(
@@ -1028,9 +1029,11 @@ def test_malformed_run_capture_masks_raise_original_error(
         capture: RunCapture,
         **_kwargs: object,
     ) -> AnnotatorResult:
-        capture.raw_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
-        capture.definitive_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
-        setattr(capture, mask_name, bad_mask)
+        capture.evidence = SimpleNamespace(
+            raw_exclusion_mask=np.zeros(metadata.frame_count, dtype=bool),
+            exclusion_mask=np.zeros(metadata.frame_count, dtype=bool),
+        )
+        setattr(capture.evidence, mask_name, bad_mask)
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
@@ -1086,9 +1089,8 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
             ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP),
         )), Half.TOP),),
         outcomes={0: RallyOutcome(
-            VerdictRow(0, Half.TOP, Verdict.WON, VerdictSource.NEXT_SERVER, 0.2, False, True),
-            Landing(24, (0.4, 0.8), Half.BOT, False, False),
-            GeometricVerdictRow(0, Verdict.WON, Half.TOP, True, False),
+            Half.TOP, VerdictSource.NEXT_SERVER, Landing(24, (0.4, 0.8), Half.BOT, False, False),
+            0.2, False, True, Half.TOP, False,
         )}, hit_heights={12: 2}, hit_height_failures={14: "unmeasured"},
         contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP)),
         heuristic_candidates=[raw, accepted], rally_confidence=(.75,),
@@ -1128,7 +1130,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
             "suppressed": False,
         },
     ]
-    assert primitives["outcomes"]["0"]["verdict"]["verdict_source"] == "next_server"
+    assert primitives["outcomes"]["0"]["winner_source"] == "next_server"
     assert primitives["outcomes"]["0"]["landing"]["norm"] == [0.4, 0.8]
     assert primitives["hit_height_failures"] == {"14": "unmeasured"}
     from dataset_builder._runtime_support import _annotation_result

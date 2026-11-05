@@ -27,7 +27,6 @@ from annotator.outcomes.point_winner import (
     convert_landing_options,
     landing_window,
     pick_landing_to_end,
-    window_end,
 )
 from annotator.rally.evidence import build_sticky_result
 from annotator.rally_segmentation import segment_video
@@ -216,17 +215,7 @@ def test_landing_options_are_converted_once() -> None:
 
 @pytest.mark.parametrize('fps', (23.976, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0))
 def test_landing_options_use_shared_scaling_rules(fps: float) -> None:
-    options = LandingFilterOptions(
-        7,
-        0.004,
-        5,
-        7,
-        0.75,
-        use_settle=False,
-        use_carry=True,
-        null_if_all_carried=True,
-        use_ankle_rule=False,
-    )
+    options = LandingFilterOptions(7, 0.004, 10000, 7, 0.75)
     expected = options._replace(
         settle_win=frames_at_fps(options.settle_win, fps),
         settle_thr=speed_at_fps(options.settle_thr, fps),
@@ -373,20 +362,27 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     landing_track[143:158, 2] = 0
     landing_track[158:166, 1] = np.linspace(0.20, 0.27, 8)
     landing_track[166:, 1] = 0.20
-    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 20) > 158
-    assert window_end(final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 10) == 143
+    assert landing_window(
+        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 20,
+        np.zeros(len(landing_track), dtype=bool),
+    ).end_frame > 158
+    assert landing_window(
+        final_contact, n_frames, landing_track, np.zeros(n_frames, dtype=bool), 10,
+        np.zeros(len(landing_track), dtype=bool),
+    ).end_frame == 143
 
     kin = LandingKinematics(np.full(n_frames, np.nan), np.full(n_frames, np.nan), np.zeros(n_frames))
-    opts = LandingFilterOptions(1, 0.0, 1, 1, 0.0, use_settle=False, use_carry=False)
+    opts = LandingFilterOptions(1, 0.0, 10000, 1, 0.0)
     dead = np.zeros(n_frames, dtype=bool)
 
     def pick_with(constants):
         end_frame = landing_window(
             final_contact, n_frames, landing_track, dead, constants.sustained_loss_frames,
+            np.zeros(len(landing_track), dtype=bool),
         ).end_frame
         return pick_landing_to_end(
-            final_contact, end_frame, landing_track, kin, opts, Half.TOP,
-            (520.0, 560.0), (1920.0, 1080.0), court_info, constants, resolved.fps,
+            final_contact, end_frame, landing_track, kin, opts, Half.TOP, (520.0, 560.0), (1920.0, 1080.0),
+            court_info, constants, np.zeros(len(landing_track), dtype=bool),
         )
 
     unscaled_landing = pick_with(

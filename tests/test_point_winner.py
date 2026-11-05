@@ -15,22 +15,18 @@ from annotator.outcomes.point_winner import (
     LandingFilterOptions,
     LandingKinematics,
     LandingWindow,
-    Verdict,
     VerdictSource,
     attribute_half,
     build_landing_kinematics,
     carried_terminal,
     filtered_descending_landing,
     fit_alternation,
-    geometric_verdict,
     hit_height,
-    inout_verdict,
     is_net_ender,
     landing_margins,
     landing_window,
     pick_landing_to_end,
-    rally_verdict,
-    window_end,
+    resolve_rally_outcome,
 )
 from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
 
@@ -105,9 +101,10 @@ def test_window_end_waits_past_a_top_exit_gap():
     rows += [(0.5, 0.5, 1)] * 5     # frames 11-15: back in view
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
-    assert window_end(
-        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames
-    ) == len(track)
+    assert landing_window(
+        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+        np.zeros(len(track), dtype=bool),
+    ).end_frame == len(track)
 
 
 def test_window_end_closes_at_a_non_top_exit_gap():
@@ -119,7 +116,10 @@ def test_window_end_closes_at_a_non_top_exit_gap():
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
     assert (
-        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        landing_window(
+            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            np.zeros(len(track), dtype=bool),
+        ).end_frame
         == 1
     )
 
@@ -135,7 +135,10 @@ def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
     assert (
-        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        landing_window(
+            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            np.zeros(len(track), dtype=bool),
+        ).end_frame
         == 14
     )
 
@@ -146,7 +149,10 @@ def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
     dead = np.zeros(len(track), dtype=bool)
     dead[3] = True
     assert (
-        window_end(0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames)
+        landing_window(
+            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            np.zeros(len(track), dtype=bool),
+        ).end_frame
         == 3
     )
 
@@ -158,9 +164,10 @@ def test_window_end_event_mask_removes_top_exit_exemption() -> None:
     event_mask = np.zeros(len(track), dtype=bool)
     event_mask[0] = True
 
-    assert window_end(
-        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames, event_mask,
-    ) == 1
+    assert landing_window(
+        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+        event_mask,
+    ).end_frame == 1
 
 
 def test_window_end_masked_visible_frame_extends_sustained_loss_run() -> None:
@@ -172,8 +179,8 @@ def test_window_end_masked_visible_frame_extends_sustained_loss_run() -> None:
     event_mask[10] = True
     dead = np.zeros(len(track), dtype=bool)
 
-    assert window_end(0, len(track), track, dead, 10) == 11
-    assert window_end(0, len(track), track, dead, 10, event_mask) == 10
+    assert landing_window(0, len(track), track, dead, 10, np.zeros(len(track), dtype=bool)).end_frame == 11
+    assert landing_window(0, len(track), track, dead, 10, event_mask).end_frame == 10
 
 
 def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
@@ -181,7 +188,9 @@ def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
     dead = np.zeros(len(track), dtype=bool)
     dead[5] = True
 
-    window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
+    window = landing_window(
+        0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+    )
 
     assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
 
@@ -190,7 +199,9 @@ def test_landing_window_labels_final_rally_video_end():
     track = np.ones((12, 3), dtype=float)
     dead = np.zeros(len(track), dtype=bool)
 
-    assert landing_window(0, len(track), track, dead, 10).closure_reasons == ('video_end',)
+    assert landing_window(
+        0, len(track), track, dead, 10, np.zeros(len(track), dtype=bool),
+    ).search_stop_reasons == ('video_end',)
 
 
 def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
@@ -198,7 +209,9 @@ def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
     track[1:14, 2] = 0
     dead = np.zeros(len(track), dtype=bool)
 
-    window = landing_window(0, 5, track, dead, sustained_loss_frames=10)
+    window = landing_window(
+        0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+    )
 
     assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
 
@@ -209,7 +222,10 @@ def test_landing_window_reports_sustained_loss_and_exclusion_tie():
     dead = np.zeros(len(track), dtype=bool)
     dead[5] = True
 
-    window = landing_window(0, len(track), track, dead, sustained_loss_frames=3)
+    window = landing_window(
+        0, len(track), track, dead, sustained_loss_frames=3,
+        shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+    )
 
     assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'), window_closed_by_mask=False)
 
@@ -219,7 +235,10 @@ def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
     dead = np.zeros(len(track), dtype=bool)
     dead[5] = True
 
-    window = landing_window(4, len(track), track, dead, sustained_loss_frames=10)
+    window = landing_window(
+        4, len(track), track, dead, sustained_loss_frames=10,
+        shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+    )
 
     assert window == LandingWindow(5, ('definitive_exclusion',), window_closed_by_mask=True)
 
@@ -273,12 +292,8 @@ def test_ankle_rule_flips_a_carried_terminal_to_a_landing():
         ankle_ratio=np.array([0.1, 0.1, 0.1]),
         speed=np.zeros(3),
     )
-    no_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-                                    carry_thr=0.5, use_ankle_rule=False)
-    with_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-                                      carry_thr=0.5)  # use_ankle_rule=True is the shipped default
+    with_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3, carry_thr=0.5)
 
-    assert carried_terminal(0, 2, kin, no_ankle) is True
     assert carried_terminal(0, 2, kin, with_ankle) is False
 
 
@@ -306,12 +321,11 @@ def test_carried_terminal_does_not_read_before_final_contact():
 
 
 # ---------------------------------------------------------------------------
-# Keep-last-drop fallback (null_if_all_carried=False, the shipped default)
+# Keep the last descent when every run looks carried
 # ---------------------------------------------------------------------------
 def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
     # One clean 3-sample descending run (image-y strictly increasing); its terminal reads carried
-    # at every frame. null_if_all_carried defaults False: the filter keeps the run instead of
-    # nulling.
+    # at every frame. Keep that observed descent as the fallback.
     track = np.array([
         [0.5, 0.10, 1],
         [0.5, 0.20, 1],
@@ -322,16 +336,13 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
         ankle_ratio=np.full(3, np.nan),  # ankle rule stays neutral (NaN never overturns)
         speed=np.zeros(3),
     )
-    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-                                carry_thr=0.5, use_settle=False)
+    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
 
     min_samples = resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples
-    landing = filtered_descending_landing(0, 3, track, kin, opts, min_samples)
+    landing = filtered_descending_landing(0, 3, track, kin, opts, min_samples, np.zeros(len(track), dtype=bool))
     assert landing is not None
     assert landing[0] == 2  # the only run's terminal, kept despite being carried
 
-    strict_opts = opts._replace(null_if_all_carried=True)
-    assert filtered_descending_landing(0, 3, track, kin, strict_opts, min_samples) is None
 
 
 def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later_run():
@@ -342,18 +353,14 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     kin = LandingKinematics(
         carry_ratio=np.full(7, np.nan), ankle_ratio=np.full(7, np.nan), speed=np.zeros(7),
     )
-    opts = LandingFilterOptions(
-        settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-        carry_thr=0.5, use_settle=False, use_carry=False,
-    )
+    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     event_mask = np.zeros(7, dtype=bool)
     event_mask[2] = True
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
         0, 7, track, kin, opts, resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
-        shuttle_hallucination_mask=event_mask,
-        rejected_intervals=rejected_intervals,
+        shuttle_hallucination_mask=event_mask, rejected_intervals=rejected_intervals,
     )
 
     assert landing is not None
@@ -369,10 +376,7 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     kin = LandingKinematics(
         carry_ratio=np.full(6, np.nan), ankle_ratio=np.full(6, np.nan), speed=np.zeros(6),
     )
-    opts = LandingFilterOptions(
-        settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-        carry_thr=0.5, use_settle=False, use_carry=False,
-    )
+    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
@@ -410,12 +414,12 @@ def test_is_net_ender_false_when_flight_crosses_the_band():
 def test_inout_verdict_at_margin_zero_resolves_exactly_on_the_line():
     # Landing exactly on the receiver's (Bot) baseline: clearance to that line is exactly 0, so at
     # margin 0 it is neither strictly inside (won) nor strictly outside (lost) -> ambiguous.
-    assert inout_verdict(np.array([0.5, 1.0]), Half.BOT, 0.0) is None
+    assert landing_margins((0.5, 1.0), Half.BOT).margin_m == 0
 
 
 def test_inout_verdict_at_margin_zero_still_resolves_a_clear_landing():
-    assert inout_verdict(np.array([0.5, 0.9]), Half.BOT, 0.0) == Verdict.WON
-    assert inout_verdict(np.array([0.5, 0.01]), Half.BOT, 0.0) == Verdict.LOST
+    assert landing_margins((0.5, 0.9), Half.BOT).margin_m > 0
+    assert landing_margins((0.5, 0.01), Half.BOT).margin_m < 0
 
 
 # ---------------------------------------------------------------------------
@@ -468,57 +472,63 @@ def _landing(norm, net_ender=False, at_border=False, frame=5):
     return Landing(frame=frame, norm=norm, half=half, at_border=at_border, net_ender=net_ender)
 
 
-def test_geometric_verdict_net_rule_overrides_everything():
-    landing = _landing((0.5, 0.9), net_ender=True)
-    assert geometric_verdict(Half.TOP, landing, best_guess=False) == (
-        Verdict.LOST, Half.BOT, VerdictSource.NET_RULE)
+def test_net_fault_loses_for_both_landing_rules():
+    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 0.9), net_ender=True), 0.1)
+    assert outcome.winner is Half.BOT
+    assert outcome.landing_only_winner is Half.BOT
+    assert outcome.winner_source is VerdictSource.NET_RULE
 
 
-def test_geometric_verdict_best_guess_always_fills_while_a_landing_exists():
-    # Off-frame AND outside the receiver's singles half: best_guess still yields a definite call.
-    landing = _landing((0.5, 1.1), at_border=True)
-    assert geometric_verdict(Half.TOP, landing, best_guess=True) == (
-        Verdict.LOST, Half.BOT, VerdictSource.LANDING_GEOMETRY)
+def test_best_estimate_calls_an_out_landing_at_the_image_border():
+    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 1.1), at_border=True), 0.1)
+    assert outcome.winner is Half.BOT
+    assert outcome.landing_only_winner is None
 
 
-def test_geometric_verdict_confident_path_blanks_on_border():
-    landing = _landing((0.5, 0.9), at_border=True)
-    assert geometric_verdict(Half.TOP, landing, best_guess=False) == (
-        None, None, VerdictSource.LANDING_GEOMETRY)
+def test_conservative_estimate_withholds_an_exact_court_line():
+    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 1.0)), 0.1)
+    assert outcome.winner is Half.TOP
+    assert outcome.landing_only_winner is None
 
 
-def test_geometric_verdict_no_landing_is_always_blank():
-    assert geometric_verdict(Half.TOP, None, best_guess=True) == (
-        None, None, VerdictSource.LANDING_GEOMETRY)
-    assert geometric_verdict(Half.TOP, None, best_guess=False) == (
-        None, None, VerdictSource.LANDING_GEOMETRY)
+@pytest.mark.parametrize(('hitter', 'position'), [
+    (Half.TOP, (0.5, -0.1)), (Half.BOT, (0.5, 1.1)),
+    (Half.TOP, (-0.1, 0.25)), (Half.BOT, (1.1, 0.75)),
+])
+def test_out_landing_on_hitters_half_withholds_geometry_but_keeps_next_server(hitter, position):
+    landing = Landing(20, position, hitter, False, False)
+    outcome = resolve_rally_outcome(hitter, None, landing, 0.1)
+    assert outcome.winner is None
+    assert outcome.landing_only_winner is None
+    assert outcome.winner_source is None
+    next_serve = resolve_rally_outcome(hitter, hitter, landing, 0.1)
+    assert next_serve.winner is hitter
+    assert next_serve.winner_source is VerdictSource.NEXT_SERVER
 
 
-def test_rally_verdict_next_server_bypasses_landing_and_net_rule():
-    # A net-ending landing must not flip a next-server-sourced verdict: the winner call never
-    # touches landing.net_ender on this path.
-    landing = _landing((0.5, 0.9), net_ender=True)
-    row = rally_verdict(3, Half.TOP, next_server=Half.BOT, landing=landing, band_m=0.1)
-    assert row.verdict == Verdict.LOST
-    assert row.verdict_source == VerdictSource.NEXT_SERVER
+def test_next_server_takes_priority_over_a_net_fault():
+    outcome = resolve_rally_outcome(Half.TOP, Half.TOP, _landing((0.5, 0.9), net_ender=True), 0.1)
+    assert outcome.winner is Half.TOP
+    assert outcome.winner_source is VerdictSource.NEXT_SERVER
+    assert outcome.landing_only_winner is Half.BOT
 
 
-def test_rally_verdict_falls_back_to_best_guess_when_no_next_server():
-    landing = _landing((0.5, 0.9))
-    row = rally_verdict(3, Half.TOP, next_server=None, landing=landing, band_m=10.0)  # wide band
-    assert row.verdict == Verdict.WON  # (0.5, 0.9) sits inside the Bot receiver half
-    assert row.verdict_source == VerdictSource.LANDING_GEOMETRY
-    assert row.within_line_margin is True
-    assert row.within_net_margin is True
+def test_landing_winner_and_margin_flags_are_independent():
+    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 0.9)), 10.0)
+    assert outcome.winner is Half.TOP
+    assert outcome.winner_source is VerdictSource.LANDING_GEOMETRY
+    assert outcome.within_line_margin is True
+    assert outcome.within_net_margin is True
 
 
-def test_rally_verdict_blank_only_when_next_server_none_and_no_landing():
-    row = rally_verdict(3, Half.TOP, next_server=None, landing=None, band_m=0.1)
-    assert row.verdict is None
-    assert row.verdict_source is None
-    assert row.margin_m is None
-    assert row.within_line_margin is False
-    assert row.within_net_margin is False
+def test_missing_landing_leaves_the_winner_unresolved():
+    outcome = resolve_rally_outcome(Half.TOP, None, None, 0.1)
+    assert outcome.winner is None
+    assert outcome.landing_only_winner is None
+    assert outcome.winner_source is None
+    assert outcome.landing_margin_m is None
+    assert outcome.within_line_margin is False
+    assert outcome.within_net_margin is False
 
 
 # ---------------------------------------------------------------------------
@@ -536,8 +546,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
     dead = np.zeros(n_frames, dtype=bool)
     kin = LandingKinematics(carry_ratio=np.full(n_frames, np.nan), ankle_ratio=np.full(n_frames, np.nan),
                             speed=np.zeros(n_frames))
-    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3,
-                                carry_thr=0.5, use_settle=False, use_carry=False)
+    opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     resolution = (1280.0, 720.0)
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': resolution[0],
                   'border_U': 0.0, 'border_D': resolution[1]}
@@ -545,11 +554,11 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
 
     constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     end_frame = landing_window(
-        2, n_frames, track, dead, constants.sustained_loss_frames,
+        2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool),
     ).end_frame
     landing = pick_landing_to_end(
-        2, end_frame, track, kin, opts, Half.TOP, net_band, resolution,
-        court_info, constants, 25.0,
+        2, end_frame, track, kin, opts, Half.TOP, net_band, resolution, court_info, constants,
+        np.zeros(len(track), dtype=bool),
     )
 
     assert landing is not None
@@ -570,17 +579,17 @@ def test_landing_window_end_feeds_explicit_landing():
         carry_ratio=np.full(n_frames, np.nan), ankle_ratio=np.full(n_frames, np.nan),
         speed=np.zeros(n_frames),
     )
-    opts = LandingFilterOptions(7, 0.004, 5, 7, 0.75, use_settle=False, use_carry=False)
+    opts = LandingFilterOptions(7, 0.004, 10000, 7, 0.75)
     resolution = (1280.0, 720.0)
     court_info = {
         'H': np.eye(3), 'border_L': 0.0, 'border_R': resolution[0],
         'border_U': 0.0, 'border_D': resolution[1],
     }
     constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
-    window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames)
+    window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool))
     landing = pick_landing_to_end(
-        2, window.end_frame, track, kin, opts, Half.TOP, (100.0, 200.0), resolution,
-        court_info, constants, 25.0,
+        2, window.end_frame, track, kin, opts, Half.TOP, (100.0, 200.0), resolution, court_info, constants,
+        np.zeros(len(track), dtype=bool),
     )
     assert window.end_frame == n_frames
     assert landing is not None and landing.frame == 4

@@ -532,11 +532,13 @@ def _install_synthetic_runner(
         if inference_failure_video_id == video_id and not inference_fail_seen:
             inference_fail_seen = True
             raise ValueError("inference")
-        capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
-        capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
+        capture.evidence = SimpleNamespace(
+            raw_exclusion_mask=np.zeros(2, dtype=bool), exclusion_mask=np.zeros(2, dtype=bool),
+        )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(runner, "run_video", fake_run_video)
+    monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
     scoring_fail_seen = False
 
     def fake_score_video(fixture, *_args):
@@ -620,7 +622,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
                     "raw_replay_mask.npy.xz",
                     "definitive_exclusion_mask.npy.xz",
                     "annotations.json.gz",
-                    "landing_horizons.csv.gz",
+                    "landing_searches.csv.gz",
                 ):
                     assert (directory / name).read_bytes()
                 np.testing.assert_array_equal(
@@ -643,11 +645,13 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
         np.testing.assert_array_equal(inpaint_codes, np.array([0, 4], dtype=np.uint8))
         assert len(inpaint_codes) == len(_args[0])
         assert landing_options is runner.LANDING_OPTIONS
-        capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
-        capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
+        capture.evidence = SimpleNamespace(
+            raw_exclusion_mask=np.zeros(2, dtype=bool), exclusion_mask=np.zeros(2, dtype=bool),
+        )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(runner, "run_video", fake_run_video)
+    monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
     def fake_score_video(*_args):
         assert gt_verified
         return object()

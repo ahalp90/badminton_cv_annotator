@@ -11,14 +11,11 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
-    Verdict,
-    VerdictRow,
+    RallyOutcome,
     VerdictSource,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
@@ -160,9 +157,8 @@ def _annotation() -> AnnotatorResult:
             FinishedRally(ContactSequence(1, 60, 100, (ContactEvent(70, np.nan, None),)), None),
         ),
         outcomes={0: RallyOutcome(
-            VerdictRow(0, Half.TOP, Verdict.LOST, VerdictSource.NET_RULE, -0.2, False, True),
-            Landing(45, (0.4, 0.8), Half.BOT, False, True),
-            GeometricVerdictRow(0, Verdict.LOST, Half.BOT, True, True),
+            Half.BOT, VerdictSource.NET_RULE, Landing(45, (0.4, 0.8), Half.BOT, False, True),
+            -0.2, False, True, Half.BOT, True,
         )},
         hit_heights={20: 1, 70: 2}, hit_height_failures={30: "shuttle not visible"},
         contact_events=(), heuristic_candidates=[rejected, first, second, unresolved], rally_confidence=(),
@@ -564,9 +560,8 @@ def test_duplicate_pair_composite_key_stops_assembly(tmp_path: Path) -> None:
 
 def test_outcome_primitives_must_match_their_typed_producer_contracts(tmp_path: Path) -> None:
     annotation = _annotation()
-    verdict = annotation.outcomes[0].verdict
     invalid_verdict = annotation._replace(
-        outcomes={0: annotation.outcomes[0]._replace(verdict=verdict._replace(margin_m=float("nan")))},
+        outcomes={0: annotation.outcomes[0]._replace(landing_margin_m=float("nan"))},
     )
     with pytest.raises(ValueError, match="finite number"):
         _assemble(tmp_path, annotation=invalid_verdict)
@@ -578,11 +573,10 @@ def test_outcome_primitives_must_match_their_typed_producer_contracts(tmp_path: 
     with pytest.raises(ValueError, match="canonical frame bounds"):
         _assemble(tmp_path, annotation=invalid_landing)
 
-    geometric = annotation.outcomes[0].geometric
     invalid_geometric = annotation._replace(
-        outcomes={0: annotation.outcomes[0]._replace(geometric=geometric._replace(agreement=1))},
+        outcomes={0: annotation.outcomes[0]._replace(window_closed_by_mask=1)},
     )
-    with pytest.raises(ValueError, match="agreement must be boolean"):
+    with pytest.raises(TypeError, match="flags must be boolean"):
         _assemble(tmp_path, annotation=invalid_geometric)
 
 

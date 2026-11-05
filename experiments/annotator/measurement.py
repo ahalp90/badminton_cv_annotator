@@ -20,7 +20,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path, PurePosixPath
@@ -77,9 +77,12 @@ from annotator.models import AnnotatorModels, load_models, model_files
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Landing
 from annotator.run_video import (
     AnnotatorResult,
-    LandingHorizonRow,
     RunCapture,
     run_video,
+)
+from experiments.annotator.landing_search import (
+    LandingSearchComparison,
+    compare_landing_searches,
 )
 from experiments.annotator.records import (
     clean_run,
@@ -95,7 +98,7 @@ PARENTS = (
     "static_shuttleset_homography",
     DETECTED_PARENT,
 )
-LANDING_HORIZONS = (1.0, 2.0, 3.0)
+LANDING_SEARCH_SECONDS = (1.0, 2.0, 3.0)
 REF_ERR_PX = 3.5
 BASE_ANNOTATOR_CONFIG = BaseAnnotatorConfig()
 LANDING_OPTIONS = SHIPPED_LANDING_FILTER_OPTIONS
@@ -106,15 +109,14 @@ COURT_SCENES_COLUMNS = (
     "tl_x", "tl_y", "tr_x", "tr_y", "br_x", "br_y", "bl_x", "bl_y",
     "exactly_two_frame_count", "exactly_two_frame_fraction", "scene_valid",
 )
-LANDING_HORIZON_COLUMNS = (
-    "rally_id", "horizon_seconds", "horizon_frames", "final_contact_frame",
-    "requested_end_frame", "safe_end_frame", "effective_end_frame", "closure_reasons",
-    "strict_landing_frame", "strict_landing_x_norm", "strict_landing_y_norm",
-    "strict_landing_half", "strict_landing_at_border", "strict_landing_net_ender",
-    "capped_landing_frame", "capped_landing_x_norm", "capped_landing_y_norm",
-    "capped_landing_half", "capped_landing_at_border", "capped_landing_net_ender",
-    "strict_verdict", "strict_winner", "strict_verdict_source",
-    "capped_verdict", "capped_winner", "capped_verdict_source",
+LANDING_SEARCH_COLUMNS = (
+    "rally_id", "search_seconds", "search_frames", "final_contact_frame",
+    "time_limit_end_frame", "normal_end_frame", "trial_end_frame", "search_stop_reasons",
+    "normal_landing_frame", "normal_landing_x_norm", "normal_landing_y_norm",
+    "normal_landing_half", "normal_landing_at_border", "normal_landing_net_ender",
+    "trial_landing_frame", "trial_landing_x_norm", "trial_landing_y_norm",
+    "trial_landing_half", "trial_landing_at_border", "trial_landing_net_ender",
+    "normal_winner", "normal_winner_source", "trial_winner", "trial_winner_source",
     "landing_changed", "winner_changed",
 )
 STRICT_CONTACT_COLUMNS = (
@@ -219,7 +221,8 @@ class ConfigurationState:
     started_clock: float = 0.0
     result: AnnotatorResult | None = None
     court_result: CourtEvidenceResult | None = None
-    capture: RunCapture | None = None
+    landing_comparisons: list[LandingSearchComparison] = field(default_factory=list)
+    exclusion_fraction: float | None = None
     resolved_config: ResolvedAnnotatorConfig | None = None
     status: str = "not_run"
     failure_path: Path | None = None
@@ -587,23 +590,18 @@ def _landing_fields(landing: Landing | None) -> list[object]:
     ]
 
 
-def _horizon_row(row: LandingHorizonRow) -> dict[str, object]:
-    strict_winner = row.strict_winner
-    capped_winner = row.capped_winner
-    strict_verdict = row.strict_verdict
-    capped_verdict = row.capped_verdict
-    strict_landing = _landing_fields(row.strict_landing)
-    capped_landing = _landing_fields(row.capped_landing)
+def _landing_search_row(row: LandingSearchComparison) -> dict[str, object]:
+    normal = row.normal_outcome
+    trial = row.trial_outcome
     return dict(zip(
-        LANDING_HORIZON_COLUMNS,
+        LANDING_SEARCH_COLUMNS,
         [
-            row.rally_id, row.horizon_seconds, row.horizon_frames, row.final_contact_frame,
-            row.requested_end_frame, row.safe_end_frame, row.effective_end_frame,
-            "+".join(row.closure_reasons),
-            *strict_landing, *capped_landing,
-            getattr(strict_verdict, "verdict", None), strict_winner, getattr(strict_verdict, "verdict_source", None),
-            getattr(capped_verdict, "verdict", None), capped_winner, getattr(capped_verdict, "verdict_source", None),
-            row.landing_changed, row.winner_changed,
+            row.rally_id, row.search_seconds, row.search_frames, row.final_contact_frame,
+            row.time_limit_end_frame, row.normal_end_frame, row.trial_end_frame,
+            "+".join(row.search_stop_reasons),
+            *_landing_fields(normal.landing), *_landing_fields(trial.landing),
+            normal.winner, normal.winner_source, trial.winner, trial.winner_source,
+            normal.landing != trial.landing, normal.winner != trial.winner,
         ],
     ))
 
@@ -636,15 +634,15 @@ def _strict_metrics(rows: Sequence[Mapping[str, object]], tolerance_base30: int,
     }
 
 
-def _landing_metrics(rows: Sequence[LandingHorizonRow]) -> dict[str, dict[str, int]]:
+def _landing_metrics(rows: Sequence[LandingSearchComparison]) -> dict[str, dict[str, int]]:
     result: dict[str, dict[str, int]] = {}
-    for horizon in LANDING_HORIZONS:
-        selected = [row for row in rows if row.horizon_seconds == horizon]
-        result[f"seconds_{int(horizon)}"] = {
+    for seconds in LANDING_SEARCH_SECONDS:
+        selected = [row for row in rows if row.search_seconds == seconds]
+        result[f"seconds_{int(seconds)}"] = {
             "eligible_rally_count": len(selected),
-            "horizon_bound_count": sum("horizon_cap" in row.closure_reasons for row in selected),
-            "landing_changed_count": sum(row.landing_changed for row in selected),
-            "winner_changed_count": sum(row.winner_changed for row in selected),
+            "time_limit_bound_count": sum("time_limit" in row.search_stop_reasons for row in selected),
+            "landing_changed_count": sum(row.normal_outcome.landing != row.trial_outcome.landing for row in selected),
+            "winner_changed_count": sum(row.normal_outcome.winner != row.trial_outcome.winner for row in selected),
         }
     return result
 
@@ -667,7 +665,7 @@ def _configuration_values() -> dict[str, object]:
         "court_invalid_is_excluded": True,
         "person_margin": PERSON_COURT_MARGIN,
         "scene_threshold": SCENE_VALID_MIN_FRACTION,
-        "landing_horizons_s": list(LANDING_HORIZONS),
+        "landing_search_seconds": list(LANDING_SEARCH_SECONDS),
     }
 
 
@@ -839,12 +837,12 @@ def _write_annotations(directory: Path, result: AnnotatorResult) -> None:
     _write_json(directory / "annotations.json.gz", result)
 
 
-def _write_landing_horizons(directory: Path, rows: Sequence[LandingHorizonRow]) -> None:
-    ordered = sorted(rows, key=lambda row: (row.rally_id, row.horizon_seconds))
+def _write_landing_searches(directory: Path, rows: Sequence[LandingSearchComparison]) -> None:
+    ordered = sorted(rows, key=lambda row: (row.rally_id, row.search_seconds))
     _write_rows(
-        directory / "landing_horizons.csv.gz",
-        LANDING_HORIZON_COLUMNS,
-        (_horizon_row(row) for row in ordered),
+        directory / "landing_searches.csv.gz",
+        LANDING_SEARCH_COLUMNS,
+        (_landing_search_row(row) for row in ordered),
     )
 
 
@@ -853,7 +851,8 @@ def _write_scoring_outputs(
     fixture: Fixture,
     case: CaseData,
     result: AnnotatorResult,
-    capture: RunCapture,
+    exclusion_fraction: float,
+    landing_comparisons: Sequence[LandingSearchComparison],
     master: Any,
     court_info: dict[str, object],
     scene_courts: Sequence[SceneCourt] | None = None,
@@ -879,8 +878,8 @@ def _write_scoring_outputs(
             "base30_10": _strict_metrics(strict_rows, 10, case.fixed.fps),
         },
         "court_valid_fraction": None,
-        "definitive_exclusion_fraction": float(np.asarray(capture.definitive_exclusion_mask, dtype=bool).mean()),
-        "landing_horizons": _landing_metrics(capture.landing_horizon_rows),
+        "definitive_exclusion_fraction": exclusion_fraction,
+        "landing_searches": _landing_metrics(landing_comparisons),
     }
     # The court-valid value comes from the parent evidence, not from the exclusion mask.
     court_present = load_npy(directory / "court_present.npy.xz")
@@ -1012,7 +1011,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         if court_result.inputs is None:
             raise ValueError("court evidence has no operational inputs")
         capture = RunCapture()
-        state.capture = capture
         input_values = court_result.inputs
         result = run_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
@@ -1024,25 +1022,25 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             net_band=input_values.net_band,
             resolution=input_values.resolution,
             video_id=case.fixture.video_id,
-
             gate_resolution_table=input_values.gate_resolution_table,
             ref_err_px=REF_ERR_PX,
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
             homography_rows=input_values.homography_rows,
-
-
             court_invalid_is_excluded=True,
-            landing_horizons_s=LANDING_HORIZONS,
             capture=capture,
         )
         state.result = result
-        if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-            raise ValueError("run_video did not capture both exclusion masks")
-        _save_mask(state.directory / "raw_replay_mask.npy.xz", capture.raw_exclusion_mask)
-        _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", capture.definitive_exclusion_mask)
+        assert capture.evidence is not None
+        evidence = capture.evidence
+        state.exclusion_fraction = float(evidence.exclusion_mask.mean())
+        state.landing_comparisons = compare_landing_searches(
+            evidence, result.rallies, result.outcomes, LANDING_SEARCH_SECONDS, LANDING_OPTIONS,
+        )
+        _save_mask(state.directory / "raw_replay_mask.npy.xz", evidence.raw_exclusion_mask)
+        _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", evidence.exclusion_mask)
         _write_annotations(state.directory, result)
-        _write_landing_horizons(state.directory, capture.landing_horizon_rows)
+        _write_landing_searches(state.directory, state.landing_comparisons)
     except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "inference", error)
@@ -1315,7 +1313,7 @@ def _score_configurations(driver: RunDriver) -> None:
         if (
             state.status != "inference_only"
             or state.result is None
-            or state.capture is None
+            or state.exclusion_fraction is None
             or state.court_result is None
         ):
             continue
@@ -1328,7 +1326,8 @@ def _score_configurations(driver: RunDriver) -> None:
                 REF_ERR_PX,
             )
             _write_scoring_outputs(
-                state.directory, state.fixture, state.case, state.result, state.capture,
+                state.directory, state.fixture, state.case, state.result, state.exclusion_fraction,
+                state.landing_comparisons,
                 driver.master, state.court_result.inputs.court_info, scene_courts,
             )
             state.status = "succeeded"

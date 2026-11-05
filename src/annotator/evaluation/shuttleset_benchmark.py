@@ -39,14 +39,11 @@ from annotator.evaluation.shuttleset_features import (
 )
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
-    Verdict,
-    VerdictRow,
+    RallyOutcome,
     VerdictSource,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
@@ -141,21 +138,18 @@ def projection_to_annotator_result(
             continue
         verdict = _mapping(result["verdict"], "verdict")
         geometric = _mapping(result["geometric_verdict"], "geometric verdict")
+        relative_winner = verdict["value"]
+        winner = None
+        if relative_winner is not None:
+            winner = striker if relative_winner == "won" else point_winner.OTHER_HALF[striker]
         outcomes[rally_id] = RallyOutcome(
-            VerdictRow(
-                rally_id, striker, _optional_enum(verdict["value"], Verdict, "verdict value"),
-                _optional_enum(verdict["source"], VerdictSource, "verdict source"),
-                _optional_float(verdict["landing_margin_m"], "landing margin"),
-                _boolean(verdict["within_line_margin"], "within line margin"),
-                _boolean(verdict["within_net_margin"], "within net margin"),
-            ),
+            winner, _optional_enum(verdict["source"], VerdictSource, "verdict source"),
             None if result["landing"] is None else _landing(result["landing"]),
-            GeometricVerdictRow(
-                rally_id, _optional_enum(geometric["value"], Verdict, "geometric value"),
-                _optional_half(geometric["winner"], "geometric winner"),
-                _optional_boolean(geometric["agreement"], "geometric agreement"),
-                _boolean(geometric["window_closed_by_mask"], "window closed by mask"),
-            ),
+            _optional_float(verdict["landing_margin_m"], "landing margin"),
+            _boolean(verdict["within_line_margin"], "within line margin"),
+            _boolean(verdict["within_net_margin"], "within net margin"),
+            _optional_half(geometric["winner"], "geometric winner"),
+            _boolean(geometric["window_closed_by_mask"], "window closed by mask"),
         )
     return AnnotatorResult(
         tuple(rallies), outcomes, hit_heights, hit_height_failures, (), candidates,

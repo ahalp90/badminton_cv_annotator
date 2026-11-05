@@ -167,7 +167,7 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
         pytest.fail('feature preparation must not select contacts or calculate outcomes')
 
     monkeypatch.setattr(orchestration, 'select_heuristic_contacts', unexpected)
-    monkeypatch.setattr(orchestration, 'build_verdict_data', unexpected)
+    monkeypatch.setattr(orchestration, 'build_outcomes', unexpected)
     monkeypatch.setattr(orchestration, 'build_hit_heights', unexpected)
     inputs = preparation_inputs
     source = SimpleNamespace(

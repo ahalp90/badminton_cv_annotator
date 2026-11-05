@@ -1,9 +1,7 @@
 """Prepare video evidence, select contacts and calculate rally outcomes."""
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
-from itertools import pairwise
+from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
@@ -14,13 +12,12 @@ from annotator.contacts.selection import select_heuristic_contacts
 from annotator.hybrid import HybridPrediction, predict_contacts
 from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_models
 from annotator.outcomes import point_winner
+from annotator.outcomes.point_winner import RallyOutcome, convert_landing_options
 from annotator.outcomes.video import (
-    LandingHorizonRow,
-    RallyOutcome,
     build_hit_heights,
-    build_verdict_data,
+    build_outcomes,
 )
-from annotator.preparation import prepare_annotation
+from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import ContactEvent, FinishedRally
 from annotator.types import ContactCandidate
 from shared.progress import report
@@ -54,7 +51,6 @@ def run_video(
     rejection_diagnostics: list[dict[str, object]] | None = None,
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
-    landing_horizons_s: tuple[float, ...] = (),
 ) -> AnnotatorResult:
     """Find rallies and contacts, assign player halves, then estimate outcomes.
 
@@ -76,17 +72,12 @@ def run_video(
     Frames outside accepted scene geometry are excluded;
     ``court_invalid_is_excluded`` also excludes frames without court presence.
 
-    ``capture`` is reset at entry and receives owned mask copies after preparation
-    succeeds. It also receives model predictions and requested landing horizons.
-    ``rejection_diagnostics`` receives rejection rows when supplied, grouped by
-    filtering and outcome stages rather than rally order.
-    Landing horizons require capture; their seconds must be finite, positive
-    and strictly increasing.
+    ``capture`` is reset at entry and retains prepared evidence and model
+    predictions after their stages succeed. ``rejection_diagnostics`` receives
+    rejection rows grouped by filtering and outcome stages rather than rally order.
     """
     if capture is not None:
-        capture.raw_exclusion_mask = None
-        capture.definitive_exclusion_mask = None
-        capture.landing_horizon_rows.clear()
+        capture.evidence = None
         capture.hybrid = None
     if heuristic_only and models is not None:
         raise ValueError('heuristic_only cannot be combined with fitted models')
@@ -97,7 +88,6 @@ def run_video(
         base = models.preprocessing
     if base is None:
         base = DEFAULT_PREPROCESSING
-    validate_landing_horizons(capture, landing_horizons_s)
     report("finding rallies")
     evidence = prepare_annotation(
         track, bboxes, scores, kps, ndet,
@@ -109,8 +99,7 @@ def run_video(
         court_invalid_is_excluded=court_invalid_is_excluded,
     )
     if capture is not None:
-        capture.raw_exclusion_mask = evidence.raw_exclusion_mask.copy()
-        capture.definitive_exclusion_mask = evidence.exclusion_mask.copy()
+        capture.evidence = evidence
     contact_events = ()
     rally_confidence = ()
     if models is None:
@@ -125,10 +114,9 @@ def run_video(
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
     report("resolving outcomes")
-    outcomes = build_verdict_data(
-        evidence, rallies, landing_options=landing_options,
-        rejection_diagnostics=rejection_diagnostics, landing_horizons_s=landing_horizons_s,
-        horizon_rows=capture.landing_horizon_rows if capture is not None else None,
+    outcomes = build_outcomes(
+        evidence, rallies, landing_options=convert_landing_options(landing_options, evidence.fps),
+        rejection_diagnostics=rejection_diagnostics,
     )
     report("calculating hit heights")
     hit_heights, hit_height_failures = build_hit_heights(evidence, rallies)
@@ -160,25 +148,7 @@ class AnnotatorResult(NamedTuple):
 
 @dataclass
 class RunCapture:
-    """Caller-owned copies of the masks and landing diagnostics from one run."""
+    """Prepared evidence and model predictions retained for an optional caller."""
 
-    raw_exclusion_mask: np.ndarray | None = None
-    definitive_exclusion_mask: np.ndarray | None = None
-    landing_horizon_rows: list[LandingHorizonRow] = field(default_factory=list)
+    evidence: AnnotationEvidence | None = None
     hybrid: HybridPrediction | None = None
-
-
-def validate_landing_horizons(
-    capture: RunCapture | None, landing_horizons_s: tuple[float, ...],
-) -> None:
-    """Validate optional horizon capture without changing its rounding policy."""
-    if not landing_horizons_s:
-        return
-    if capture is None:
-        raise ValueError('landing_horizons_s requires capture')
-    for horizon in landing_horizons_s:
-        if not math.isfinite(horizon) or horizon <= 0:
-            raise ValueError('landing_horizons_s must contain finite positive values')
-    for earlier, later in pairwise(landing_horizons_s):
-        if later <= earlier:
-            raise ValueError('landing_horizons_s must be strictly increasing')

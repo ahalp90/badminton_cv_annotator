@@ -24,13 +24,11 @@ from annotator.evaluation.scoring import (
 )
 from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
-    GeometricVerdictRow,
     Half,
     Landing,
     LandingFilterOptions,
-    VerdictRow,
+    RallyOutcome,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
@@ -67,9 +65,8 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
             ContactEvent(5, .8, Half.BOT), ContactEvent(15, .8, Half.TOP),
         )), Half.TOP),),
         {0: RallyOutcome(
-            VerdictRow(0, Half.TOP, None, None, None, False, False),
-            Landing(18, (0.5, 0.75), Half.BOT, False, False),
-            GeometricVerdictRow(0, None, None, None, False),
+            None, None, Landing(18, (0.5, 0.75), Half.BOT, False, False),
+            None, False, False, None, False,
         )}, {}, {}, (), [], (),
     )
     early = {"name": "early"}

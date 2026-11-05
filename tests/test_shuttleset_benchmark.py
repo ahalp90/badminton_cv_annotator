@@ -20,7 +20,7 @@ from annotator.evaluation.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.outcomes.point_winner import Half, Verdict, VerdictSource
+from annotator.outcomes.point_winner import Half, VerdictSource
 from dataset_builder.vision import save_json_gz
 
 
@@ -88,10 +88,10 @@ def test_projection_to_annotator_result_restores_scored_fields() -> None:
     assert result.hit_heights == {15: 1}
     assert rally.final_half is Half.TOP
     assert rally.first_half is Half.TOP
-    assert result.outcomes[0].verdict.verdict is Verdict.WON
-    assert result.outcomes[0].verdict.verdict_source is VerdictSource.NEXT_SERVER
+    assert result.outcomes[0].winner is Half.TOP
+    assert result.outcomes[0].winner_source is VerdictSource.NEXT_SERVER
     assert result.outcomes[0].landing.norm == (0.4, 0.8)
-    assert result.outcomes[0].geometric.geometric_winner is Half.TOP
+    assert result.outcomes[0].landing_only_winner is Half.TOP
 
 
 def test_projection_requires_contiguous_rally_ids() -> None:

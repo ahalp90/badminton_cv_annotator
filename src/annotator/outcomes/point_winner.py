@@ -46,13 +46,6 @@ class Half(StrEnum):
 OTHER_HALF = {Half.TOP: Half.BOT, Half.BOT: Half.TOP}
 
 
-class Verdict(StrEnum):
-    """A rally's outcome relative to the player who hit last."""
-
-    WON = 'won'
-    LOST = 'lost'
-
-
 class VerdictSource(StrEnum):
     """The observation or rule used to determine the winner."""
 
@@ -166,13 +159,13 @@ class LandingWindow:
     """The safe half-open landing endpoint and the guards that closed it."""
 
     end_frame: int
-    closure_reasons: tuple[str, ...]
+    search_stop_reasons: tuple[str, ...]
     window_closed_by_mask: bool
 
 
 def gap_after_top_exit(
     final_contact: int, run_start: int, track: np.ndarray,
-    shuttle_hallucination_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray,
 ) -> bool:
     """Did the last visible sample before an invisible run sit at the frame's TOP edge?
 
@@ -183,14 +176,13 @@ def gap_after_top_exit(
     """
     last_vis = final_contact + run_start
     visible = track[last_vis, 2] == 1
-    if shuttle_hallucination_mask is not None:
-        visible = visible and not shuttle_hallucination_mask[last_vis]
+    visible = visible and not shuttle_hallucination_mask[last_vis]
     return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
 def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
+    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray,
 ) -> LandingWindow:
     """Find the safe landing endpoint and all guards tied at that endpoint.
 
@@ -201,8 +193,6 @@ def landing_window(
     view, so the search waits for the re-entry, still bounded by the next serve and the replay
     mask and by any later sustained-loss gap that did not follow a top exit.
     """
-    if shuttle_hallucination_mask is not None and len(shuttle_hallucination_mask) != len(track):
-        raise ValueError('shuttle_hallucination_mask length must match track length')
     video_end = len(track)
     boundaries: dict[str, int] = {'video_end': video_end}
     if next_start < video_end:
@@ -213,9 +203,7 @@ def landing_window(
     seg_dead = dead[scan_start:scan_end]  # first masked frame after contact
     if seg_dead.any():
         boundaries['definitive_exclusion'] = scan_start + int(np.argmax(seg_dead))
-    effective_visibility = track[:, 2] == 1
-    if shuttle_hallucination_mask is not None:
-        effective_visibility &= ~shuttle_hallucination_mask
+    effective_visibility = (track[:, 2] == 1) & ~shuttle_hallucination_mask
     invisible = ~effective_visibility[scan_start:scan_end]  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
         if run_end - run_start >= sustained_loss_frames:
@@ -235,20 +223,9 @@ def landing_window(
         end for reason, end in boundaries.items() if reason != 'definitive_exclusion'
     ))
     return LandingWindow(
-        end_frame=safe_end, closure_reasons=reasons,
+        end_frame=safe_end, search_stop_reasons=reasons,
         window_closed_by_mask=safe_end < end_without_mask,
     )
-
-
-def window_end(
-    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray | None = None,
-) -> int:
-    """Return the existing safe landing endpoint."""
-    return landing_window(
-        final_contact, next_start, track, dead, sustained_loss_frames,
-        shuttle_hallucination_mask,
-    ).end_frame
 
 
 def at_frame_border(xy: np.ndarray) -> bool:
@@ -297,12 +274,6 @@ class LandingFilterOptions(NamedTuple):
     :param carry_win: trailing window for median wrist distance, in frames.
     :param carry_thr: maximum median wrist distance considered carried, in body heights.
         Also used per frame to distinguish a held shuttle from a ground settle.
-    :param use_settle: end the search when the shuttle settles on the ground.
-    :param use_carry: remove descending runs classified as carried.
-    :param null_if_all_carried: return no landing if every run is carried. False
-        retains the last run to avoid losing a landing misclassified as carried.
-    :param use_ankle_rule: treat a shuttle nearer an ankle than a wrist as grounded.
-        This can preserve a descending run or allow the settle check to end the search.
     """
 
     settle_win: int
@@ -310,10 +281,6 @@ class LandingFilterOptions(NamedTuple):
     settle_min: int
     carry_win: int
     carry_thr: float
-    use_settle: bool = True
-    use_carry: bool = True
-    null_if_all_carried: bool = False
-    use_ankle_rule: bool = True
 
 
 SHIPPED_LANDING_FILTER_OPTIONS = LandingFilterOptions(
@@ -392,15 +359,10 @@ def landing_settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
     # neighbours' verdict; an all-unseen window reads not-static (NaN <= thr is False).
     static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
     held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
-    if opts.use_ankle_rule:
-        # Ankle refinement: a static frame whose shuttle is nearer an ankle than a wrist is resting
-        # on the ground by the feet, not paused in a hand, so the held carve-out must not veto it. A
-        # standing player sits ~0.5 box-heights from a grounded shuttle's nearest wrist (reads as
-        # held) but nearer its ankle; without this the settle cap never fires on such a rest. NaN in
-        # either ratio -> the comparison is False -> held unchanged.
-        seg_carry = kin.carry_ratio[final_contact:win_end]
-        seg_ankle = kin.ankle_ratio[final_contact:win_end]
-        held = held & ~(seg_ankle < seg_carry)
+    # A shuttle nearer an ankle than a wrist is grounded, even beside a player.
+    seg_carry = kin.carry_ratio[final_contact:win_end]
+    seg_ankle = kin.ankle_ratio[final_contact:win_end]
+    held = held & ~(seg_ankle < seg_carry)
     ground_static = static & ~held
     run = 0
     for offset, is_static in enumerate(ground_static):
@@ -415,7 +377,7 @@ def carried_terminal(
 ) -> bool:
     """Did the shuttle sit sustained-close to a wrist over the carry_win frames ending at terminal?
 
-    With use_ankle_rule set, a carried verdict is overturned when the terminal sample itself sits
+    A carried classification is overturned when the terminal sample itself sits
     nearer a player's ANKLE than any player's wrist: that is the shuttle grounded by the feet, a
     landing rather than a lowering-by-hand. Association mirrors carry_ratio (nearest ankle vs nearest
     wrist over the sticky-selected players, body-height units); see build_landing_kinematics.
@@ -424,7 +386,7 @@ def carried_terminal(
     window = kin.carry_ratio[lo:terminal + 1]
     finite = window[np.isfinite(window)]
     carried = len(finite) > 0 and bool(np.median(finite) <= opts.carry_thr)
-    if carried and opts.use_ankle_rule:
+    if carried:
         ankle_r = kin.ankle_ratio[terminal]
         wrist_r = kin.carry_ratio[terminal]
         if np.isfinite(ankle_r) and np.isfinite(wrist_r) and ankle_r < wrist_r:
@@ -435,7 +397,7 @@ def carried_terminal(
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
-    shuttle_hallucination_mask: np.ndarray | None = None,
+    shuttle_hallucination_mask: np.ndarray,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
     """The landing: the last descending run surviving the settle cap and carry filter.
@@ -446,52 +408,34 @@ def filtered_descending_landing(
     then carried runs are dropped. Returns (landing_frame, [x, y]) (frame,
     normalised xy) or None when nothing survives.
     """
-    cap = landing_settle_cap(final_contact, win_end, kin, opts) if opts.use_settle else win_end
+    cap = landing_settle_cap(final_contact, win_end, kin, opts)
     search_end = max(cap, final_contact + 1)
     frames = np.arange(final_contact, search_end)
     visible = frames[track[frames, 2] == 1]
     if len(visible) < min_descend_samples:
         return None
-    ys = track[visible, 1]  # normalised image-y, ascending frame order
-    candidates: list[tuple[int, int, int]] = []
+    ys = track[visible, 1]
     run_start = 0
-    for idx in range(1, len(visible) + 1):
-        # a run breaks when the next step is not strictly increasing (falling), or at the end
-        if idx == len(visible) or ys[idx] <= ys[idx - 1]:
-            if idx - run_start >= min_descend_samples:
-                start_frame = int(visible[run_start])
-                terminal_frame = int(visible[idx - 1])
-                candidates.append((start_frame, terminal_frame, terminal_frame + 1))
-            run_start = idx
-    if not candidates:
-        return None
-
-    if shuttle_hallucination_mask is not None:
-        if len(shuttle_hallucination_mask) != len(track):
-            raise ValueError('shuttle_hallucination_mask length must match track length')
-        surviving_candidates: list[tuple[int, int, int]] = []
-        for candidate in candidates:
-            start_frame, _terminal_frame, end_frame = candidate
-            if shuttle_hallucination_mask[start_frame:end_frame].any():
+    last_terminal = None
+    last_uncarried_terminal = None
+    for index in range(1, len(visible) + 1):
+        if index < len(visible) and ys[index] > ys[index - 1]:
+            continue
+        if index - run_start >= min_descend_samples:
+            start_frame = int(visible[run_start])
+            terminal = int(visible[index - 1])
+            if shuttle_hallucination_mask[start_frame:terminal + 1].any():
                 if rejected_intervals is not None:
-                    rejected_intervals.append((start_frame, end_frame))
+                    rejected_intervals.append((start_frame, terminal + 1))
             else:
-                surviving_candidates.append(candidate)
-        candidates = surviving_candidates
-    if not candidates:
+                last_terminal = terminal
+                if not carried_terminal(final_contact, terminal, kin, opts):
+                    last_uncarried_terminal = terminal
+        run_start = index
+    # Keep the last observed descent if every accepted run looks carried.
+    landing_frame = last_uncarried_terminal if last_uncarried_terminal is not None else last_terminal
+    if landing_frame is None:
         return None
-
-    terminals = [terminal_frame for _start_frame, terminal_frame, _end_frame in candidates]
-    if opts.use_carry:
-        survivors = [
-            t for t in terminals if not carried_terminal(final_contact, t, kin, opts)
-        ]
-        if not survivors:
-            if opts.null_if_all_carried:
-                return None
-            survivors = terminals
-        terminals = survivors
-    landing_frame = terminals[-1]  # FINAL surviving run wins
     return landing_frame, track[landing_frame, :2].copy()
 
 
@@ -525,24 +469,6 @@ def is_net_ender(
         never_crossed = bool(np.all(ys >= band_lo))
     dies_at_net = band_lo <= terminal_y <= band_hi
     return never_crossed and dies_at_net
-
-
-def inout_verdict(landing_norm: np.ndarray, receiver_half: Half, margin_m: float) -> Verdict | None:
-    """WON / LOST / None (ambiguous margin) for a landing vs the receiver's singles half.
-
-    Receiver singles half-court rectangle in normalised court coords: x in the singles inset,
-    y in the receiver's half ([0.5, 1] when receiver is Bot, [0, 0.5] when Top). Clearances to
-    the four boundary lines are converted to metres (x*6.10, y*13.40). Inside with every
-    clearance > M => won; outside (point-to-rectangle distance) by > M => lost; else null.
-    """
-    signed_margin = landing_margins(
-        (float(landing_norm[0]), float(landing_norm[1])), receiver_half,
-    ).margin_m
-    if signed_margin > margin_m:
-        return Verdict.WON
-    if signed_margin < -margin_m:
-        return Verdict.LOST
-    return None  # within +/-M of a boundary line
 
 
 class LandingMargins(NamedTuple):
@@ -609,9 +535,6 @@ def corner_error_band_from_corners(
     return float(np.median(displacements))
 
 
-# ---------------------------------------------------------------------------
-# Landing pick + verdict assembly
-# ---------------------------------------------------------------------------
 class Landing(NamedTuple):
     """One rally's picked shuttle landing: frame, projected court position, and quality flags.
 
@@ -636,18 +559,19 @@ def pick_landing_to_end(
     final_contact: int, end_frame: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
-    constants: Thresholds, fps: float,
-    shuttle_hallucination_mask: np.ndarray | None = None,
+    constants: Thresholds,
+    shuttle_hallucination_mask: np.ndarray,
     rejected_intervals: list[tuple[int, int]] | None = None,
     *, infer_net_fault: bool = True,
 ) -> Landing | None:
     """Pick a landing within one camera view.
 
-    Disable net-fault inference when the start is a returning view rather than
-    the contact: the unseen flight may already have crossed the net.
+    ``opts`` must already be scaled to the video frame rate. Disable net-fault
+    inference when the start is a returning view rather than the contact: the
+    unseen flight may already have crossed the net.
     """
     landing = filtered_descending_landing(
-        final_contact, end_frame, track, kin, convert_landing_options(opts, fps),
+        final_contact, end_frame, track, kin, opts,
         constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
     )
     if landing is None:
@@ -664,102 +588,58 @@ def pick_landing_to_end(
     )
 
 
-def geometric_verdict(
-    striker_half: Half, landing: Landing | None, best_guess: bool = False,
-) -> tuple[Verdict | None, Half | None, VerdictSource]:
-    """Return the verdict, winner half and source using the zero-margin landing rule.
+class RallyOutcome(NamedTuple):
+    """Absolute point winner, landing evidence and a conservative landing-only estimate."""
 
-    A net fault loses the rally. Otherwise, use whether the landing is inside the
-    receiver's singles court. With ``best_guess=False``, withhold calls at image borders
-    or exactly on a court line. ``best_guess=True`` permits those calls. Both modes
-    withhold a call for an out landing on the hitter's own half.
-    """
-    receiver = OTHER_HALF[striker_half]
-    if landing is not None and landing.net_ender:
-        return Verdict.LOST, receiver, VerdictSource.NET_RULE
-    if landing is None:
-        return None, None, VerdictSource.LANDING_GEOMETRY
-    # An out landing behind or wide of the attributed hitter contradicts the
-    # assumed receiving half. Keep the contact assignment; withhold this winner.
-    if landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0:
-        return None, None, VerdictSource.LANDING_GEOMETRY
-    if best_guess:
-        # Which side of the receiver singles half does the raw terminal fall on? Never None.
-        x, y = landing.norm
-        y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver == Half.BOT else (0.0, NET_COURT_Y)
-        inside = (SINGLES_X_LO <= x <= SINGLES_X_HI) and (y_lo <= y <= y_hi)
-        winner = striker_half if inside else receiver
-        return (Verdict.WON if inside else Verdict.LOST), winner, VerdictSource.LANDING_GEOMETRY
-    # Confident path: off-frame or on-line => no call.
-    if landing.at_border:
-        return None, None, VerdictSource.LANDING_GEOMETRY
-    verdict = inout_verdict(np.array(landing.norm), receiver, 0.0)
-    if verdict is None:
-        return None, None, VerdictSource.LANDING_GEOMETRY
-    winner = striker_half if verdict == Verdict.WON else receiver
-    return verdict, winner, VerdictSource.LANDING_GEOMETRY
-
-
-class VerdictRow(NamedTuple):
-    """One rally's verdict, in the production schema. No GT columns: a caller scoring against
-    ground truth (the pin driver, or a future eval script) joins those on separately.
-
-    The predicted winner half is not stored directly: with only two halves, it is exactly
-    `striker_half` when `verdict is Verdict.WON` and `OTHER_HALF[striker_half]` when it is
-    `Verdict.LOST`. A `None` verdict has no winner to derive; check for it first.
-    """
-
-    rally_id: int
-    striker_half: Half
-    verdict: Verdict | None
-    verdict_source: VerdictSource | None
-    margin_m: float | None
+    winner: Half | None
+    winner_source: VerdictSource | None
+    landing: Landing | None
+    landing_margin_m: float | None
     within_line_margin: bool
     within_net_margin: bool
-
-
-class GeometricVerdictRow(NamedTuple):
-    """Landing-based winner and its agreement with the main winner estimate."""
-
-    rally_id: int
-    geometric_verdict: Verdict | None
-    geometric_winner: Half | None
-    agreement: bool | None
+    landing_only_winner: Half | None
     window_closed_by_mask: bool
 
 
-def rally_verdict(
-    rally_id: int, striker_half: Half, next_server: Half | None, landing: Landing | None,
-    band_m: float | None,
-) -> VerdictRow:
-    """Use the next server to identify the winner, falling back to the landing.
+def resolve_rally_outcome(
+    striker_half: Half, next_server: Half | None, landing: Landing | None,
+    band_m: float | None, *, window_closed_by_mask: bool = False,
+) -> RallyOutcome:
+    """Use the next server when known, otherwise the best landing estimate.
 
-    The winner serves next, so an attributed next server determines this rally's
-    winner. Otherwise, use the best-guess landing verdict, which permits calls at
-    image borders and on court lines. An out landing on the hitter's own half
-    leaves that inference unresolved. Report landing margins in either case when
-    a landing is available.
+    The conservative landing-only estimate withholds image-border and exact-line
+    calls. Both landing estimates withhold an out landing on the striker's own
+    half. A net fault takes priority over geometry; a next server takes priority
+    over either landing estimate. Landing ambiguity flags are independent of winner.
     """
-    if next_server is not None:
-        winner = next_server
-        verdict = Verdict.WON if winner == striker_half else Verdict.LOST
-        source = VerdictSource.NEXT_SERVER
-    else:
-        verdict, _winner, source = geometric_verdict(striker_half, landing, best_guess=True)
-
+    receiver = OTHER_HALF[striker_half]
+    landing_winner = landing_only_winner = None
     margin_m = None
     within_line = within_net = False
     if landing is not None:
         assert band_m is not None
-        margins = landing_margins(landing.norm, OTHER_HALF[striker_half])
+        margins = landing_margins(landing.norm, receiver)
         margin_m = margins.margin_m
         within_line = margins.line_clear_m < band_m
         within_net = margins.net_clear_m < band_m
-
-    return VerdictRow(
-        rally_id=rally_id, striker_half=striker_half, verdict=verdict,
-        verdict_source=source if verdict is not None else None,
-        margin_m=margin_m, within_line_margin=within_line, within_net_margin=within_net,
+        out_on_own_half = (
+            landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0
+        )
+        if landing.net_ender:
+            landing_winner = landing_only_winner = receiver
+        elif not out_on_own_half:
+            landing_winner = striker_half if margin_m >= 0 else receiver
+            if not landing.at_border and margin_m != 0:
+                landing_only_winner = landing_winner
+    winner = next_server if next_server is not None else landing_winner
+    source = None
+    if next_server is not None:
+        source = VerdictSource.NEXT_SERVER
+    elif landing is not None and winner is not None:
+        source = VerdictSource.NET_RULE if landing.net_ender else VerdictSource.LANDING_GEOMETRY
+    return RallyOutcome(
+        winner, source, landing, margin_m, within_line, within_net,
+        landing_only_winner, window_closed_by_mask,
     )
 
 

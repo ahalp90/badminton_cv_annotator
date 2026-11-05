@@ -18,14 +18,11 @@ import numpy as np
 
 from annotator.models import AnnotatorModels, load_models
 from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
     Half,
     Landing,
-    Verdict,
-    VerdictRow,
+    RallyOutcome,
     VerdictSource,
 )
-from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
@@ -904,12 +901,7 @@ def _annotation_result(payload: object) -> AnnotatorResult:
         ), None if rally["final_half"] is None else Half(rally["final_half"])))
     outcomes = {}
     for key, value in _dict(payload["outcomes"]).items():
-        outcome = _dict(value)
-        outcomes[_integer_key(key)] = RallyOutcome(
-            _verdict_row(outcome["verdict"]),
-            None if outcome["landing"] is None else _landing(outcome["landing"]),
-            _geometric_row(outcome["geometric"]),
-        )
+        outcomes[_integer_key(key)] = _rally_outcome(value)
     return AnnotatorResult(
         rallies=tuple(rallies), outcomes=outcomes,
         hit_heights={_integer_key(key): _integer(value, "hit height")
@@ -948,18 +940,19 @@ def _contact(payload: object) -> ContactCandidate:
     )
 
 
-def _verdict_row(payload: object) -> VerdictRow:
+def _rally_outcome(payload: object) -> RallyOutcome:
     row = _dict(payload)
-    if set(row) != set(VerdictRow._fields):
-        raise ValueError("persisted verdict fields differ")
-    return VerdictRow(
-        _integer(row["rally_id"], "verdict rally_id"),
-        Half(_string(row["striker_half"], "verdict striker_half")),
-        None if row["verdict"] is None else Verdict(row["verdict"]),
-        None if row["verdict_source"] is None else VerdictSource(row["verdict_source"]),
-        _optional_float(row["margin_m"], "verdict margin_m"),
+    if set(row) != set(RallyOutcome._fields):
+        raise ValueError("persisted outcome fields differ")
+    return RallyOutcome(
+        None if row["winner"] is None else Half(row["winner"]),
+        None if row["winner_source"] is None else VerdictSource(row["winner_source"]),
+        None if row["landing"] is None else _landing(row["landing"]),
+        _optional_float(row["landing_margin_m"], "landing margin"),
         _boolean(row["within_line_margin"], "within_line_margin"),
         _boolean(row["within_net_margin"], "within_net_margin"),
+        None if row["landing_only_winner"] is None else Half(row["landing_only_winner"]),
+        _boolean(row["window_closed_by_mask"], "window_closed_by_mask"),
     )
 
 
@@ -978,18 +971,6 @@ def _landing(payload: object) -> Landing:
         _boolean(row["net_ender"], "landing net_ender"),
     )
 
-
-def _geometric_row(payload: object) -> GeometricVerdictRow:
-    row = _dict(payload)
-    if set(row) != set(GeometricVerdictRow._fields):
-        raise ValueError("persisted geometric verdict fields differ")
-    return GeometricVerdictRow(
-        _integer(row["rally_id"], "geometric rally_id"),
-        None if row["geometric_verdict"] is None else Verdict(row["geometric_verdict"]),
-        None if row["geometric_winner"] is None else Half(row["geometric_winner"]),
-        _optional_boolean(row["agreement"], "geometric agreement"),
-        _boolean(row["window_closed_by_mask"], "geometric mask flag"),
-    )
 
 
 def _boolean_mask(path: Path, frame_count: int) -> np.ndarray:

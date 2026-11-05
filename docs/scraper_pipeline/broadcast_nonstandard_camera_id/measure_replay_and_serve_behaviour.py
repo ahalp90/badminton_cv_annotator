@@ -768,11 +768,10 @@ def run_measurement(
     keyword["court_invalid_is_excluded"] = True
     keyword["capture"] = capture
     result = run_video(*inputs.positional, **keyword)
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError("run_video did not capture both replay masks")
-    if not np.array_equal(capture.raw_exclusion_mask, raw_union):
+    assert capture.evidence is not None
+    if not np.array_equal(capture.evidence.raw_exclusion_mask, raw_union):
         raise RuntimeError("run_video raw mask differs from the fresh replay union")
-    if not np.array_equal(capture.definitive_exclusion_mask, e2e_definitive):
+    if not np.array_equal(capture.evidence.exclusion_mask, e2e_definitive):
         raise RuntimeError("run_video definitive mask differs from the e2e court-invalid union")
 
     details = slow_motion_details(

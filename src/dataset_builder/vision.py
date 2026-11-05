@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
 
 
-ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.3"
+ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.4"
 COURT_EVIDENCE_SCHEMA = "court-evidence/0.3"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
@@ -822,13 +822,14 @@ def run_full_annotation_stage(
         court_invalid_is_excluded=True,
         capture=capture,
     )
+    assert capture.evidence is not None
     raw_mask = _validated_mask(
-        capture.raw_exclusion_mask,
+        capture.evidence.raw_exclusion_mask,
         metadata.frame_count,
         "captured raw replay mask",
     )
     definitive_mask = _validated_mask(
-        capture.definitive_exclusion_mask,
+        capture.evidence.exclusion_mask,
         metadata.frame_count,
         "captured definitive exclusion mask",
     )
@@ -920,9 +921,7 @@ def _validate_court_vision(
         )
 
 
-def _validated_mask(values: np.ndarray | None, frame_count: int, name: str) -> np.ndarray:
-    if values is None:
-        raise ValueError(f"{name} was not captured")
+def _validated_mask(values: np.ndarray, frame_count: int, name: str) -> np.ndarray:
     array = np.asarray(values)
     if array.shape != (frame_count,) or array.dtype != np.dtype(bool):
         raise ValueError(

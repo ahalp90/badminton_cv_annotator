@@ -181,14 +181,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.3
+annotator-result/0.4
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.3",
+  "schema": "annotator-result/0.4",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -197,6 +197,10 @@ Top-level shape:
 ```
 
 The serialiser writes every field from `AnnotatorResult`, so the saved JSON and the Python result type stay in step when fields are added.
+
+Each rally outcome stores its winning court half directly, its source, landing,
+landing-margin flags and a conservative landing-only winner. Rally-record exports
+still derive the relative `won`/`lost` columns for the final striker.
 
 ### `raw_replay_mask.npy.xz`
 
