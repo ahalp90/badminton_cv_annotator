@@ -84,11 +84,6 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
         gt_scoring, "classify_all", lambda _spans, _gt: [(gt_scoring.RallyBoundary.COVERED, 0)],
     )
     monkeypatch.setattr(gt_scoring, "score_boundaries", lambda _spans, _gt: {})
-    monkeypatch.setattr(
-        gt_scoring,
-        "score_contacts",
-        lambda *_args, **_kwargs: {"count_gate": {"covered": {"pass": 1, "total": 1}}},
-    )
 
     def project(_pixels, _resolution, court):
         projected_courts.append(court["name"])

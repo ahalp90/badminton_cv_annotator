@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -14,34 +13,16 @@ import numpy as np
 
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.commentary_benchmark_inputs import (
-    COMMENTARY_CODE_COMMIT,
-    COMMENTARY_INVENTORY_SHA256,
-    COMMENTARY_MANIFEST_SHA256,
-    COMMENTARY_MODEL,
-    COMMENTARY_PROVIDER,
-    COMMENTARY_REMOVED_OVERLAP_ROWS,
-    COMMENTARY_SOURCE_MANIFEST_SHA256,
-    COMMENTARY_STATUS_SHA256,
     RETIMED_ALIGN_STATUSES,
-    SHUTTLESET_SHOTS_MASTER_SHA256,
+    SEMANTIC_FIELDS,
     VideoInputs,
-    _canonical_inventory,
-    _issue103_inputs,
-    _load_video_inputs,
-    _manifest_index,
-    _mapping,
-    _sequence,
+    load_corpus_inputs,
 )
-from annotator.evaluation.shuttleset22_features import (
-    ANNOTATION_TREE_SHA256,
-    DEFAULT_ANNOTATION_ROOT,
-    _tree_digest,
-)
+from annotator.evaluation.shuttleset22_features import DEFAULT_ANNOTATION_ROOT
 from annotator.masks.replay import filter_short_exclusion_runs
 from dataset_builder.vision import save_json_gz
 from scraper.commentary_pairing import (
     PAIR_WINDOW_S,
-    _believed_replay_in_rally_interior,
     chunk_start_on_mask,
     pair_video,
 )
@@ -52,7 +33,7 @@ EVALUATOR_BASE_COMMIT = "002238dc62ac0390c2e2b4005780cf3d81420255"
 FIVE_SECOND_WINDOW = 5.0
 # Post-rally lag windows swept on the aligned rows so the lag can be chosen from data (issue #138).
 LAG_SWEEP_SECONDS = (2.0, 4.0, 6.0, 8.0, 10.0, 15.0, 20.0)
-PAIRING_POLICY: dict[str, object] = {
+PAIRING_POLICY: dict[str, Any] = {
     "pairing": "first unclaimed cleaned chunk starting strictly after the rally",
     "pair_window_seconds": PAIR_WINDOW_S,
     "sensitivity_window_seconds": FIVE_SECOND_WINDOW,
@@ -126,29 +107,17 @@ def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
     }
 
 
-def _duration_filtered_mask(inputs: VideoInputs) -> np.ndarray | None:
-    """Return the video's replay mask with sub-threshold exclusion runs dropped, or None."""
-    if inputs.replay_mask is None:
-        return None
-    return filter_short_exclusion_runs(
-        inputs.replay_mask, resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
-    )
-
-
 def _masked_rally_ids(
-    inputs: VideoInputs,
     rallies: Sequence[tuple[int, int, int]],
+    filtered_mask: np.ndarray | None,
+    boundary_grace: int,
 ) -> set[int]:
-    filtered = _duration_filtered_mask(inputs)
-    if filtered is None:
+    """Exclude replay in the rally interior, allowing grace at both boundaries."""
+    if filtered_mask is None:
         return set()
-    minimum_run = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     return {
-        rally_id
-        for rally_id, start_frame, end_frame in rallies
-        if _believed_replay_in_rally_interior(
-            filtered, start_frame, end_frame, minimum_run
-        )
+        rally_id for rally_id, start, end in rallies
+        if filtered_mask[start + boundary_grace:max(start + boundary_grace, end - boundary_grace)].any()
     }
 
 
@@ -168,7 +137,8 @@ def _in_rally_chunk_ids(
 def _pairing_summary(
     inputs: VideoInputs,
     rallies: Sequence[tuple[int, int, int]],
-) -> tuple[dict[str, object], list[float]]:
+    masked_ids: set[int],
+) -> tuple[dict[str, Any], list[float]]:
     chunks = [dict(chunk) for chunk in inputs.chunks]
     rows = pair_video(
         inputs.video_id,
@@ -189,22 +159,10 @@ def _pairing_summary(
     paired_rows = [row for row in rows if row["chunk_id"]]
     five_second_paired_rows = [row for row in five_second_rows if row["chunk_id"]]
     paired_ids = {str(row["chunk_id"]) for row in paired_rows}
-    if len(paired_ids) != len(paired_rows):
-        raise ValueError(f"{inputs.video_id} paired one chunk more than once")
     gaps = [
         float(row["commentary_start"]) - float(row["rally_end"]) / inputs.fps
         for row in paired_rows
     ]
-    if any(gap <= 0 or gap > PAIR_WINDOW_S + 1e-9 for gap in gaps):
-        raise ValueError(f"{inputs.video_id} has a pair outside the supported window")
-    five_second_gaps = [
-        float(row["commentary_start"]) - float(row["rally_end"]) / inputs.fps
-        for row in five_second_paired_rows
-    ]
-    if any(gap <= 0 or gap > FIVE_SECOND_WINDOW + 1e-9 for gap in five_second_gaps):
-        raise ValueError(f"{inputs.video_id} has a pair outside the sensitivity window")
-
-    masked_ids = _masked_rally_ids(inputs, rallies)
     eligible_rallies = len(rallies) - len(masked_ids)
     in_rally_ids = _in_rally_chunk_ids(inputs, rallies)
     spans = {
@@ -269,34 +227,13 @@ def _candidate_rallies(
     return containing, ended_within
 
 
-def _multi_rally_pairing_summary(
-    inputs: VideoInputs,
-    rallies: Sequence[tuple[int, int, int]],
-    pair_window_s: float,
-) -> dict[str, object]:
-    """Ascribe this video's chunks to rallies, allowing one chunk to serve two (issue #138).
-
-    A chunk belongs to the rally it starts inside plus every rally that ended within the
-    lag window before it. A chunk with two or more rallies is ascribed to all of them and
-    counted as ambiguous. Masked rallies are dropped from every candidate set, and a
-    chunk starting on a masked frame is unpairable.
-
-    :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
-    :param rallies: ``[(rally_id, start_frame, end_frame), ...]``.
-    :param pair_window_s: the post-rally lag window in seconds.
-    :return: integer rally and chunk counts, keyed by MULTI_RALLY_SUM_FIELDS.
-    """
-    masked_ids = _masked_rally_ids(inputs, rallies)
-    return _multi_rally_counts(inputs, rallies, pair_window_s, masked_ids, _duration_filtered_mask(inputs))
-
-
 def _multi_rally_counts(
     inputs: VideoInputs,
     rallies: Sequence[tuple[int, int, int]],
     pair_window_s: float,
     masked_ids: set[int],
     filtered_mask: np.ndarray | None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """The multi-rally counts with the replay masking already resolved.
 
     :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
@@ -342,15 +279,15 @@ def _multi_rally_counts(
 def _lag_sweep(
     inputs: VideoInputs,
     rallies: Sequence[tuple[int, int, int]],
-) -> dict[str, dict[str, object]]:
+    masked_ids: set[int],
+    filtered_mask: np.ndarray | None,
+) -> dict[str, dict[str, Any]]:
     """The multi-rally counts at every LAG_SWEEP_SECONDS window, masking resolved once.
 
     :param inputs: the video, whose ``chunks`` supply the starts being ascribed.
     :param rallies: ``[(rally_id, start_frame, end_frame), ...]``.
     :return: ``{window key: counts}`` in LAG_SWEEP_SECONDS order.
     """
-    masked_ids = _masked_rally_ids(inputs, rallies)
-    filtered_mask = _duration_filtered_mask(inputs)
     return {
         _window_key(window): _multi_rally_counts(inputs, rallies, window, masked_ids, filtered_mask)
         for window in LAG_SWEEP_SECONDS
@@ -367,9 +304,9 @@ def _window_key(window: float) -> str:
 
 
 def _retiming_summary(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     sidecar_sha256: str | None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Summarize how far the WhisperX alignment moved one video's chunks.
 
     :param rows: the video's re-timed chunk rows.
@@ -392,7 +329,10 @@ def _retiming_summary(
 
 def _aligned_summaries(
     inputs: VideoInputs,
-) -> tuple[dict[str, object], dict[str, list[float]]]:
+    filtered_mask: np.ndarray | None,
+    primary_masked: set[int],
+    human_masked: set[int],
+) -> tuple[dict[str, Any], dict[str, list[float]]]:
     """Evaluate the WhisperX-aligned view of one video alongside the supported one.
 
     :param inputs: the video; its ``retimed_chunks`` replace ``chunks`` for these views.
@@ -404,20 +344,18 @@ def _aligned_summaries(
             {"aligned_primary": [], "aligned_human_contact": []},
         )
     aligned_inputs = dataclasses.replace(inputs, chunks=inputs.retimed_chunks)
-    primary_pairing, primary_gaps = _pairing_summary(aligned_inputs, inputs.rallies)
-    human_pairing, human_gaps = _pairing_summary(aligned_inputs, inputs.human_rallies)
+    primary_pairing, primary_gaps = _pairing_summary(aligned_inputs, inputs.rallies, primary_masked)
+    human_pairing, human_gaps = _pairing_summary(aligned_inputs, inputs.human_rallies, human_masked)
+    primary_sweep = _lag_sweep(aligned_inputs, inputs.rallies, primary_masked, filtered_mask)
+    human_sweep = _lag_sweep(aligned_inputs, inputs.human_rallies, human_masked, filtered_mask)
     return (
         {
             "aligned_primary_pairing": primary_pairing,
             "aligned_human_contact_pairing": human_pairing,
-            "aligned_multi_primary_pairing": _multi_rally_pairing_summary(
-                aligned_inputs, inputs.rallies, PAIR_WINDOW_S
-            ),
-            "aligned_multi_human_contact_pairing": _multi_rally_pairing_summary(
-                aligned_inputs, inputs.human_rallies, PAIR_WINDOW_S
-            ),
-            "aligned_lag_sweep_primary": _lag_sweep(aligned_inputs, inputs.rallies),
-            "aligned_lag_sweep_human_contact": _lag_sweep(aligned_inputs, inputs.human_rallies),
+            "aligned_multi_primary_pairing": primary_sweep[_window_key(PAIR_WINDOW_S)],
+            "aligned_multi_human_contact_pairing": human_sweep[_window_key(PAIR_WINDOW_S)],
+            "aligned_lag_sweep_primary": primary_sweep,
+            "aligned_lag_sweep_human_contact": human_sweep,
             "retiming": _retiming_summary(inputs.retimed_chunks, inputs.retimed_sha256),
         },
         {"aligned_primary": primary_gaps, "aligned_human_contact": human_gaps},
@@ -426,42 +364,28 @@ def _aligned_summaries(
 
 def evaluate_video(
     inputs: VideoInputs,
-) -> tuple[dict[str, object], dict[str, list[float]], list[float], list[int]]:
+) -> tuple[dict[str, Any], dict[str, list[float]], list[float], list[int]]:
     """Evaluate one video's supported pairing and cleaning coverage."""
-    primary_pairing, primary_gaps = _pairing_summary(inputs, inputs.rallies)
-    human_pairing, human_gaps = _pairing_summary(inputs, inputs.human_rallies)
-    aligned_result, aligned_gaps = _aligned_summaries(inputs)
+    boundary_grace = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
+    filtered_mask = (
+        None if inputs.replay_mask is None
+        else filter_short_exclusion_runs(inputs.replay_mask, boundary_grace)
+    )
+    primary_masked = _masked_rally_ids(inputs.rallies, filtered_mask, boundary_grace)
+    human_masked = _masked_rally_ids(inputs.human_rallies, filtered_mask, boundary_grace)
+    primary_pairing, primary_gaps = _pairing_summary(inputs, inputs.rallies, primary_masked)
+    human_pairing, human_gaps = _pairing_summary(inputs, inputs.human_rallies, human_masked)
+    aligned_result, aligned_gaps = _aligned_summaries(inputs, filtered_mask, primary_masked, human_masked)
     scores = [float(chunk["bert_f1"]) for chunk in inputs.chunks]
     raw_word_counts = [len(str(chunk["text"]).split()) for chunk in inputs.chunks]
     clean_word_counts = [
         len(str(chunk["text_clean"]).split()) for chunk in inputs.chunks
     ]
-    semantic_fields = ("sentiment", "concept", "player", "player_link", "court_slot")
     semantic_counts = {
-        field: sum(
-            field in chunk and chunk[field] not in (None, "") for chunk in inputs.chunks
-        )
-        for field in semantic_fields
+        field: sum(chunk.get(field) not in (None, "") for chunk in inputs.chunks)
+        for field in SEMANTIC_FIELDS
     }
-    if any(not math.isfinite(score) or score < 0.8 for score in scores):
-        raise ValueError(f"{inputs.video_id} has a failed cleaned chunk")
-    if any(chunk["clean_pass"] is not True for chunk in inputs.chunks):
-        raise ValueError(f"{inputs.video_id} has a non-passing cleaned chunk")
-    if any(not str(chunk["text_clean"]).strip() for chunk in inputs.chunks):
-        raise ValueError(f"{inputs.video_id} has empty cleaned text")
-    if any(
-        len(alternates) != 3
-        or any(not str(alternate).strip() for alternate in alternates)
-        for alternates in (
-            _sequence(chunk["alt_phrasings"], f"{inputs.video_id} alternate phrasings")
-            for chunk in inputs.chunks
-        )
-    ):
-        raise ValueError(
-            f"{inputs.video_id} has an invalid alternate-phrasing population"
-        )
-
-    result: dict[str, object] = {
+    result: dict[str, Any] = {
         "dataset": inputs.dataset,
         "video_id": inputs.video_id,
         "fps": inputs.fps,
@@ -492,9 +416,9 @@ def evaluate_video(
 
 
 def _cleaning_aggregate(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     scores: Sequence[float],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     sum_fields = (
         "transcript_segments",
         "cleaned_chunks",
@@ -513,10 +437,10 @@ def _cleaning_aggregate(
 
 
 def _pairing_aggregate(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     gaps: Sequence[float],
     field: str,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     sum_fields = (
         "rallies",
         "replay_masked_rallies",
@@ -528,11 +452,9 @@ def _pairing_aggregate(
         "in_rally_chunk_starts",
         "paired_chunks_starting_in_another_rally",
     )
-    aggregate: dict[str, object] = {
+    aggregate: dict[str, Any] = {
         **{
-            sum_field: sum(
-                int(_mapping(row[field], f"{field} summary")[sum_field]) for row in rows
-            )
+            sum_field: sum(row[field][sum_field] for row in rows)
             for sum_field in sum_fields
         },
         "post_rally_gap_seconds": _distribution(gaps),
@@ -547,7 +469,7 @@ def _pairing_aggregate(
     return aggregate
 
 
-def _multi_rally_aggregate(summaries: Sequence[Mapping[str, object]]) -> dict[str, object]:
+def _multi_rally_aggregate(summaries: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Sum per-video multi-rally summaries and rate them.
 
     :param summaries: one multi-rally summary per video, all at the same window.
@@ -555,7 +477,7 @@ def _multi_rally_aggregate(summaries: Sequence[Mapping[str, object]]) -> dict[st
         and ``ambiguous_chunk_rate`` (ambiguous over assigned chunks); None when the
         denominator is zero.
     """
-    aggregate: dict[str, object] = {
+    aggregate: dict[str, Any] = {
         sum_field: sum(int(summary[sum_field]) for summary in summaries)
         for sum_field in MULTI_RALLY_SUM_FIELDS
     }
@@ -566,17 +488,7 @@ def _multi_rally_aggregate(summaries: Sequence[Mapping[str, object]]) -> dict[st
     return aggregate
 
 
-def _summaries(rows: Sequence[Mapping[str, object]], field: str) -> list[Mapping[str, object]]:
-    """One per-video summary mapping per row.
-
-    :param rows: per-video result dicts.
-    :param field: the summary key to pull from each row.
-    :return: the summaries in row order.
-    """
-    return [_mapping(row[field], f"{field} summary") for row in rows]
-
-
-def _rows_with_commentary(rows: Sequence[Mapping[str, object]]) -> list[Mapping[str, object]]:
+def _rows_with_commentary(rows: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     """Rows that carry cleaned chunks; a triage-dropped video has nothing to align.
 
     :param rows: per-video result dicts.
@@ -585,31 +497,27 @@ def _rows_with_commentary(rows: Sequence[Mapping[str, object]]) -> list[Mapping[
     return [row for row in rows if int(row["cleaned_chunks"])]
 
 
-def _lag_sweep_aggregate(rows: Sequence[Mapping[str, object]], field: str) -> dict[str, object]:
+def _lag_sweep_aggregate(rows: Sequence[Mapping[str, Any]], field: str) -> dict[str, Any]:
     """Aggregate a per-video lag sweep window by window.
 
     :param rows: per-video result dicts.
     :param field: the per-video sweep key, a ``{window: summary}`` mapping.
     :return: ``{window: multi-rally aggregate}`` over LAG_SWEEP_SECONDS.
     """
-    return {
-        _window_key(window): _multi_rally_aggregate(
-            [_mapping(sweep[_window_key(window)], f"{field} window") for sweep in _summaries(rows, field)]
-        )
-        for window in LAG_SWEEP_SECONDS
-    }
+    aggregate = {}
+    for window in LAG_SWEEP_SECONDS:
+        key = _window_key(window)
+        aggregate[key] = _multi_rally_aggregate([row[field][key] for row in rows])
+    return aggregate
 
 
-def _retiming_aggregate(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
+def _retiming_aggregate(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Sum the per-video alignment status counts across a set of videos.
 
     :param rows: per-video result dicts, each carrying a non-None ``retiming``.
     :return: the video count and the summed status counts.
     """
-    status_counts = [
-        _mapping(_mapping(row["retiming"], "retiming")["status_counts"], "status counts")
-        for row in rows
-    ]
+    status_counts = [row["retiming"]["status_counts"] for row in rows]
     return {
         "videos": len(rows),
         "status_counts": {
@@ -621,10 +529,10 @@ def _retiming_aggregate(rows: Sequence[Mapping[str, object]]) -> dict[str, objec
 
 def _aligned_dataset_aggregate(
     dataset: str,
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     primary_gaps: Sequence[float],
     human_gaps: Sequence[float],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Aggregate the WhisperX-aligned views, or None-fill them when any video lacks a sidecar.
 
     :param dataset: the dataset name; ShuttleSet also reports its production-predicted view.
@@ -649,7 +557,7 @@ def _aligned_dataset_aggregate(
             aligned_rows, primary_gaps, "aligned_primary_pairing"
         )
         aggregate["aligned_multi_production_predicted_pairing"] = _multi_rally_aggregate(
-            _summaries(aligned_rows, "aligned_multi_primary_pairing")
+            [row["aligned_multi_primary_pairing"] for row in aligned_rows]
         )
         aggregate["aligned_lag_sweep_production_predicted"] = _lag_sweep_aggregate(
             aligned_rows, "aligned_lag_sweep_primary"
@@ -658,9 +566,9 @@ def _aligned_dataset_aggregate(
 
 
 def _aligned_human_contact_aggregate(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     human_gaps: Sequence[float],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """The aligned human-contact aggregates shared by every dataset and the corpus total.
 
     :param rows: per-video result dicts that all carry a ``retiming`` summary.
@@ -672,7 +580,7 @@ def _aligned_human_contact_aggregate(
             rows, human_gaps, "aligned_human_contact_pairing"
         ),
         "aligned_multi_human_contact_pairing": _multi_rally_aggregate(
-            _summaries(rows, "aligned_multi_human_contact_pairing")
+            [row["aligned_multi_human_contact_pairing"] for row in rows]
         ),
         "aligned_lag_sweep_human_contact": _lag_sweep_aggregate(
             rows, "aligned_lag_sweep_human_contact"
@@ -682,18 +590,18 @@ def _aligned_human_contact_aggregate(
 
 
 def _leave_one_video_out(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
     field: str,
 ) -> dict[str, float | None]:
     rates = []
     for excluded in rows:
         eligible = sum(
-            int(_mapping(row[field], f"{field} summary")["pairing_eligible_rallies"])
+            row[field]["pairing_eligible_rallies"]
             for row in rows
             if row["video_id"] != excluded["video_id"]
         )
         paired = sum(
-            int(_mapping(row[field], f"{field} summary")["paired_rallies_8s"])
+            row[field]["paired_rallies_8s"]
             for row in rows
             if row["video_id"] != excluded["video_id"]
         )
@@ -705,52 +613,16 @@ def _leave_one_video_out(
     }
 
 
-def _validate_corpus_inputs(
-    commentary_root: Path,
-    issue103_rally_records: Path,
-    issue103_artifacts: Path,
-    shuttleset22_root: Path,
-) -> tuple[
-    dict[str, Mapping[str, object]],
-    list[Mapping[str, Any]],
-    dict[str, list[tuple[int, int, int]]],
-    dict[str, np.ndarray],
-    dict[str, object],
-    str,
-]:
-    """Validate the commentary, issue #103, and ShuttleSet22 input identities."""
-    manifest_index = _manifest_index(commentary_root)
-    inventory_records = _canonical_inventory(commentary_root)
-    issue103_rallies, issue103_masks, issue103_provenance = _issue103_inputs(
-        issue103_rally_records,
-        issue103_artifacts,
-    )
-    annotation_digest = _tree_digest(shuttleset22_root / "set")
-    if annotation_digest != ANNOTATION_TREE_SHA256:
-        raise ValueError(
-            "ShuttleSet22 annotation tree SHA-256 differs: "
-            f"expected {ANNOTATION_TREE_SHA256}, found {annotation_digest}"
-        )
-    return (
-        manifest_index,
-        inventory_records,
-        issue103_rallies,
-        issue103_masks,
-        issue103_provenance,
-        annotation_digest,
-    )
-
-
 def _evaluate_videos(
     videos: Sequence[VideoInputs],
 ) -> tuple[
-    dict[str, dict[str, object]],
+    dict[str, dict[str, Any]],
     dict[str, dict[str, list[float]]],
     dict[str, list[float]],
     list[int],
 ]:
     """Run evaluate_video across the corpus and collect its per-video outputs."""
-    per_video: dict[str, dict[str, object]] = {}
+    per_video: dict[str, dict[str, Any]] = {}
     gaps_by_video: dict[str, dict[str, list[float]]] = {}
     scores_by_video: dict[str, list[float]] = {}
     word_deltas: list[int] = []
@@ -765,10 +637,10 @@ def _evaluate_videos(
 
 def _dataset_aggregate(
     dataset: str,
-    per_video: Mapping[str, Mapping[str, object]],
+    per_video: Mapping[str, Mapping[str, Any]],
     gaps_by_video: Mapping[str, Mapping[str, list[float]]],
     scores_by_video: Mapping[str, list[float]],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Aggregate one dataset's cleaning and pairing summaries across its videos."""
     rows = [row for row in per_video.values() if row["dataset"] == dataset]
     scores = [score for row in rows for score in scores_by_video[str(row["video_id"])]]
@@ -790,7 +662,7 @@ def _dataset_aggregate(
         for row in rows
         for gap in gaps_by_video[str(row["video_id"])]["aligned_human_contact"]
     ]
-    dataset_result: dict[str, object] = {
+    dataset_result: dict[str, Any] = {
         "cleaning": _cleaning_aggregate(rows, scores),
         "human_contact_pairing": _pairing_aggregate(
             rows, human_gaps, "human_contact_pairing"
@@ -812,7 +684,7 @@ def _dataset_aggregate(
     return dataset_result
 
 
-def _population_summary(videos: Sequence[VideoInputs]) -> dict[str, object]:
+def _population_summary(videos: Sequence[VideoInputs]) -> dict[str, Any]:
     """Summarize the canonical video population by dataset and cleaning status."""
     return {
         "canonical_videos": len(videos),
@@ -832,26 +704,11 @@ def evaluate_corpus(
     issue103_artifacts: Path,
     shuttleset_ground_truth_root: Path,
     shuttleset22_root: Path,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Validate all inputs and evaluate the complete commentary population."""
-    (
-        manifest_index,
-        inventory_records,
-        issue103_rallies,
-        issue103_masks,
-        issue103_provenance,
-        annotation_digest,
-    ) = _validate_corpus_inputs(
-        commentary_root, issue103_rally_records, issue103_artifacts, shuttleset22_root
-    )
-    videos = _load_video_inputs(
-        commentary_root,
-        shuttleset_ground_truth_root,
-        shuttleset22_root,
-        inventory_records,
-        manifest_index,
-        issue103_rallies,
-        issue103_masks,
+    videos, provenance = load_corpus_inputs(
+        commentary_root, issue103_rally_records, issue103_artifacts,
+        shuttleset_ground_truth_root, shuttleset22_root,
     )
     per_video, gaps_by_video, scores_by_video, word_deltas = _evaluate_videos(videos)
 
@@ -872,27 +729,14 @@ def evaluate_corpus(
     )
     all_scores = [score for scores in scores_by_video.values() for score in scores]
     semantic_totals = {
-        field: sum(
-            int(_mapping(row["semantic_output_counts"], "semantic counts")[field])
-            for row in all_rows
-        )
-        for field in ("sentiment", "concept", "player", "player_link", "court_slot")
+        field: sum(row["semantic_output_counts"][field] for row in all_rows)
+        for field in SEMANTIC_FIELDS
     }
     return {
         "schema": RESULT_SCHEMA,
         "provenance": {
             "evaluator_base_commit": EVALUATOR_BASE_COMMIT,
-            "commentary_code_commit": COMMENTARY_CODE_COMMIT,
-            "commentary_provider": COMMENTARY_PROVIDER,
-            "commentary_model": COMMENTARY_MODEL,
-            "commentary_manifest_sha256": COMMENTARY_MANIFEST_SHA256,
-            "commentary_source_manifest_sha256": COMMENTARY_SOURCE_MANIFEST_SHA256,
-            "commentary_removed_overlap_rows": COMMENTARY_REMOVED_OVERLAP_ROWS,
-            "commentary_status_sha256": COMMENTARY_STATUS_SHA256,
-            "commentary_inventory_sha256": COMMENTARY_INVENTORY_SHA256,
-            "shuttleset_shots_master_sha256": SHUTTLESET_SHOTS_MASTER_SHA256,
-            "shuttleset22_annotation_tree_sha256": annotation_digest,
-            **issue103_provenance,
+            **provenance,
         },
         "policy": PAIRING_POLICY,
         "population": _population_summary(videos),

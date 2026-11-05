@@ -18,6 +18,7 @@ import pandas as pd
 from annotator.config import BaseAnnotatorConfig, frames_at_fps
 from annotator.evaluation.gt_scoring import (
     VideoScoring,
+    aggregate_rally_scores,
     canonical_tolerance,
     flatten_metrics,
     load_set_tables,
@@ -30,8 +31,8 @@ from annotator.evaluation.scoring import (
     score_contacts,
 )
 from annotator.evaluation.shuttleset_features import (
+    coordinate_error_statistics,
     court_corner_error_rows,
-    derive_player_feature_inputs,
     derive_shuttle_feature_inputs,
     evaluate_rally_features,
     feature_population,
@@ -48,6 +49,9 @@ from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
+from dataset_builder.features import (
+    derive_player_feature_inputs,
+)
 from dataset_builder.records import load_rally_records
 from dataset_builder.vision import load_json_gz, save_json_gz
 from shared.court import load_all_court_info
@@ -95,7 +99,7 @@ class BenchmarkVideo:
 
 
 def projection_to_annotator_result(
-    records: Sequence[Mapping[str, object]],
+    records: Sequence[Mapping[str, Any]],
 ) -> AnnotatorResult:
     """Rebuild the scored annotator fields from validated rally records."""
     rallies = []
@@ -104,52 +108,43 @@ def projection_to_annotator_result(
     hit_heights = {}
     hit_height_failures = {}
     review_scores = []
-    for rally_id, record in enumerate(records):
-        if _integer(_mapping(record["key"], "rally key")["rally_id"], "rally_id") != rally_id:
-            raise ValueError("rally records must be contiguous and ordered from zero")
-        bounds = _mapping(record["rally"], "rally fields")
-        contacts = _mapping(record["contacts"], "contact fields")
-        for raw in _sequence(contacts["raw_candidates"], "raw candidates"):
-            candidate = _mapping(raw, "raw candidate")
+    for record in records:
+        rally_id = record["key"]["rally_id"]
+        bounds = record["rally"]
+        contacts = record["contacts"]
+        for candidate in contacts["raw_candidates"]:
             candidates.append(ContactCandidate(
-                rally_id, _integer(candidate["contact_frame"], "raw contact frame"),
-                _optional_boolean(candidate["proximity_ok"], "proximity_ok"),
-                _optional_boolean(candidate["wrist_near"], "wrist_near"),
-                _optional_boolean(candidate["suppressed"], "suppressed"),
+                rally_id, candidate["contact_frame"], candidate["proximity_ok"],
+                candidate["wrist_near"], candidate["suppressed"],
             ))
         events = []
-        for raw in _sequence(contacts["accepted"], "accepted contacts"):
-            contact = _mapping(raw, "accepted contact")
-            frame = _integer(contact["contact_frame"], "contact frame")
-            events.append(ContactEvent(frame, np.nan, _optional_half(contact["player_half"], "player half")))
+        for contact in contacts["accepted"]:
+            frame = contact["contact_frame"]
+            events.append(ContactEvent(frame, np.nan, _optional_half(contact["player_half"])))
             if contact["hit_height_code"] is not None:
-                hit_heights[frame] = _integer(contact["hit_height_code"], "hit height")
-        for raw in _sequence(contacts["hit_height_failures"], "hit-height failures"):
-            failure = _mapping(raw, "hit-height failure")
-            hit_height_failures[_integer(failure["contact_frame"], "failure frame")] = str(failure["reason"])
+                hit_heights[frame] = contact["hit_height_code"]
+        for failure in contacts["hit_height_failures"]:
+            hit_height_failures[failure["contact_frame"]] = failure["reason"]
         review_scores.append(contacts.get("review_score"))
-        result = _mapping(record["outcomes"], "outcome fields")
-        striker = _optional_half(result["striker_half"], "striker half")
+        result = record["outcomes"]
+        striker = _optional_half(result["striker_half"])
         rallies.append(FinishedRally(ContactSequence(
-            rally_id, _integer(bounds["start_frame"], "rally start"), _integer(bounds["end_frame"], "rally end"),
-            tuple(events),
+            rally_id, bounds["start_frame"], bounds["end_frame"], tuple(events),
         ), striker))
         if striker is None:
             continue
-        verdict = _mapping(result["verdict"], "verdict")
-        geometric = _mapping(result["geometric_verdict"], "geometric verdict")
+        verdict = result["verdict"]
+        geometric = result["geometric_verdict"]
         relative_winner = verdict["value"]
         winner = None
         if relative_winner is not None:
             winner = striker if relative_winner == "won" else point_winner.OTHER_HALF[striker]
+        source = verdict["source"]
         outcomes[rally_id] = RallyOutcome(
-            winner, _optional_enum(verdict["source"], VerdictSource, "verdict source"),
+            winner, None if source is None else VerdictSource(source),
             None if result["landing"] is None else _landing(result["landing"]),
-            _optional_float(verdict["landing_margin_m"], "landing margin"),
-            _boolean(verdict["within_line_margin"], "within line margin"),
-            _boolean(verdict["within_net_margin"], "within net margin"),
-            _optional_half(geometric["winner"], "geometric winner"),
-            _boolean(geometric["window_closed_by_mask"], "window closed by mask"),
+            verdict["landing_margin_m"], verdict["within_line_margin"], verdict["within_net_margin"],
+            _optional_half(geometric["winner"]), geometric["window_closed_by_mask"],
         )
     return AnnotatorResult(
         tuple(rallies), outcomes, hit_heights, hit_height_failures, (), candidates,
@@ -162,7 +157,7 @@ def benchmark_records(
     records_path: Path,
     configuration_path: Path,
     ground_truth_root: Path,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Validate and score one exact issue #103 record collection."""
     _validate_pinned_file(
         records_path, EXPECTED_RALLY_RECORDS_SHA256, "rally records"
@@ -194,10 +189,10 @@ def benchmark_records(
     homography_path = ground_truth_root / "set" / "homography.csv"
     master = pd.read_csv(master_path)
     court_info = load_all_court_info(homography_path)
-    per_video: dict[str, dict[str, object]] = {}
+    per_video: dict[str, dict[str, Any]] = {}
     all_scoring: dict[str, VideoScoring] = {}
-    contact_curves: dict[str, dict[str, object]] = {}
-    landing_coordinate_rows: dict[str, list[dict[str, object]]] = {}
+    contact_curves: dict[str, dict[str, Any]] = {}
+    landing_coordinate_rows: dict[str, list[dict[str, Any]]] = {}
     for source in source_rows:
         video = _benchmark_video(source, ground_truth_root)
         video_records = grouped[video.name]
@@ -277,7 +272,7 @@ def benchmark_features(
     run_dir: Path,
     pinned_repo_dir: Path,
     source_root: Path,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Evaluate issue #22 features from replay-validated issue #103 primitives."""
     destination = Path(run_dir).resolve(strict=True)
     pinned_repo = Path(pinned_repo_dir).resolve(strict=True)
@@ -330,7 +325,7 @@ def benchmark_features(
     homography = pd.read_csv(ground_truth_root / "set" / "homography.csv").set_index("id")
     static_courts = load_all_court_info(ground_truth_root / "set" / "homography.csv")
     base = BaseAnnotatorConfig()
-    per_video: dict[str, dict[str, object]] = {}
+    per_video: dict[str, dict[str, Any]] = {}
     for video_id in selected_ids:
         video = _benchmark_video(sources[video_id], ground_truth_root)
         metadata = runtime.state.metadata[video_id]
@@ -352,17 +347,16 @@ def benchmark_features(
             court_inputs.homography_rows,
             court_inputs.resolution,
         )
-        feature_rows = [
-            evaluate_rally_features(
+        feature_rows = []
+        for record in grouped[video_id]:
+            feature_rows.append(evaluate_rally_features(
                 record,
                 player_inputs.posture,
                 player_inputs.court_positions,
                 player_inputs.posture_interpolation,
                 player_inputs.position_interpolation,
                 video.fps,
-            )
-            for record in grouped[video_id]
-        ]
+            ))
         gt_rallies = load_gt_rallies(master, video.video_id)
         tables = load_set_tables(video, gt_rallies)
         contacts, annotation_population = _contact_ground_truth(
@@ -431,7 +425,7 @@ def benchmark_features(
 
 
 def _benchmark_video(
-    source: Mapping[str, object], ground_truth_root: Path
+    source: Mapping[str, Any], ground_truth_root: Path
 ) -> BenchmarkVideo:
     video_id = _string(source["video_id"], "source video_id")
     match = VIDEO_ID_PATTERN.fullmatch(video_id)
@@ -460,7 +454,7 @@ def _contact_curve(
     result: AnnotatorResult,
     gt_rallies: Sequence[GtRally],
     fps: float,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     tolerances = tuple(
         frames_at_fps(base_frames, fps)
         for base_frames in CONTACT_TOLERANCES_BASE30
@@ -472,26 +466,28 @@ def _contact_curve(
         gt_rallies,
         tolerances=tolerances,
     )
-    return {
-        str(base): {
+    curve = {}
+    for base, frames in zip(CONTACT_TOLERANCES_BASE30, tolerances, strict=True):
+        counts = scored["tolerances"][str(frames)]
+        raw = scored["precision_raw"][str(frames)]
+        curve[str(base)] = {
             "frames": frames,
-            "matched": scored["tolerances"][str(frames)]["matched"],
-            "gt": scored["tolerances"][str(frames)]["gt"],
-            "candidates": scored["tolerances"][str(frames)]["candidates"],
-            "raw_matched": scored["precision_raw"][str(frames)]["matched"],
-            "raw_candidates": scored["precision_raw"][str(frames)]["candidates"],
+            "matched": counts["matched"],
+            "gt": counts["gt"],
+            "candidates": counts["candidates"],
+            "raw_matched": raw["matched"],
+            "raw_candidates": raw["candidates"],
         }
-        for base, frames in zip(CONTACT_TOLERANCES_BASE30, tolerances, strict=True)
-    }
+    return curve
 
 
 def _aggregate(
     scorings: Mapping[str, VideoScoring],
-    contact_curves: Mapping[str, Mapping[str, object]],
-    landing_coordinate_rows: Mapping[str, Sequence[Mapping[str, object]]],
-) -> dict[str, object]:
+    contact_curves: Mapping[str, Mapping[str, Any]],
+    landing_coordinate_rows: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> dict[str, Any]:
     metrics = {name: _benchmark_metrics(scoring) for name, scoring in scorings.items()}
-    result: dict[str, object] = {
+    result: dict[str, Any] = {
         key: sum(int(row[key]) for row in metrics.values()) for key in _BOUNDARY_COUNTS
     }
     gt_rallies = int(result["n_gt_rallies"])
@@ -572,29 +568,14 @@ def _benchmark_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
     """Return benchmark metrics without reusing one merged-span outcome."""
     metrics = flatten_metrics(scoring)
     excluded = _merged_outcome_rows(scoring)
-    fields = {
-        "ball_round": ("ball_round_correct", None),
-        "player": ("player_correct", None),
-        "server": ("server_correct", None),
-        "landing": ("landing_correct", "landing_eligible"),
-        "getpoint": ("getpoint_correct", "getpoint_eligible"),
-    }
-    for name, (correct_field, eligibility_field) in fields.items():
-        eligible_rows = [
-            row
-            for row in scoring.rows
-            if row.gt_index not in excluded
-            and (
-                eligibility_field is None
-                or bool(getattr(row, eligibility_field))
-            )
-        ]
-        covered_rows = [
-            row for row in eligible_rows if row.classification == "covered"
-        ]
-        for view, rows in (("primary", eligible_rows), ("covered", covered_rows)):
-            correct = sum(bool(getattr(row, correct_field)) for row in rows)
-            total = len(rows)
+    rows = [row for row in scoring.rows if row.gt_index not in excluded]
+    counts = aggregate_rally_scores(rows)
+    for name in ("ball_round", "player", "server", "landing", "getpoint"):
+        column = counts[name]
+        for view, correct, total in (
+            ("primary", column.primary_correct, column.primary_total),
+            ("covered", column.secondary_correct, column.secondary_total),
+        ):
             metrics[f"{name}_{view}_correct"] = correct
             metrics[f"{name}_{view}_total"] = total
             metrics[f"{name}_{view}"] = _ratio(correct, total)
@@ -602,7 +583,7 @@ def _benchmark_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
     return metrics
 
 
-def _rally_output_rows(scoring: VideoScoring) -> list[dict[str, object]]:
+def _rally_output_rows(scoring: VideoScoring) -> list[dict[str, Any]]:
     """Serialise rallies while marking merged-span outcomes unusable."""
     excluded = _merged_outcome_rows(scoring)
     rows = []
@@ -631,8 +612,8 @@ def _rally_output_rows(scoring: VideoScoring) -> list[dict[str, object]]:
 def _landing_coordinate_rows(
     scoring: VideoScoring,
     result: AnnotatorResult,
-    court_info: dict[str, object],
-) -> list[dict[str, object]]:
+    court_info: dict[str, Any],
+) -> list[dict[str, Any]]:
     rows = []
     merged_outcomes = _merged_outcome_rows(scoring)
     for scored, winner in zip(
@@ -677,7 +658,7 @@ def _landing_coordinate_rows(
 
 
 def _coordinate_rows_summary(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, int | float | None]:
     mapping_eligible = [bool(row.get("mapping_eligible", True)) for row in rows]
     errors = [
@@ -703,19 +684,16 @@ def _coordinate_rows_summary(
         "excluded_merged_mapping": excluded_mapping,
         "ground_truth_available": gt_available,
         "prediction_available": pred_available,
-        "eligible": len(errors),
         "excluded_ground_truth": eligible_population - gt_available,
         "excluded_prediction": gt_available - pred_available,
-        "mean_error": None if not errors else float(np.mean(errors)),
-        "median_error": None if not errors else float(np.median(errors)),
-        "p90_error": None if not errors else float(np.percentile(errors, 90)),
+        **coordinate_error_statistics(errors),
     }
 
 
 def _landing_coordinate_output(
-    rows: Sequence[Mapping[str, object]], *, include_rows: bool
-) -> dict[str, object]:
-    output: dict[str, object] = {
+    rows: Sequence[Mapping[str, Any]], *, include_rows: bool
+) -> dict[str, Any]:
+    output: dict[str, Any] = {
         "units": LANDING_COORDINATE_UNITS,
         "matching": LANDING_COORDINATE_MATCHING,
         "summary": _coordinate_rows_summary(rows),
@@ -781,69 +759,53 @@ def _contact_ground_truth(
 
 
 def _court_corner_summary(
-    rows: Sequence[Mapping[str, object]],
+    rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, int | float | None]:
     errors = [
         float(error)
         for row in rows
-        for error in _sequence(row["corner_errors_px"], "corner errors")
+        for error in row["corner_errors_px"]
     ]
     return {
         "scenes": len(rows),
         "corners": len(errors),
-        **_error_statistics(errors),
+        **coordinate_error_statistics(errors),
     }
 
 
 def _aggregate_feature_outputs(
-    per_video: Mapping[str, Mapping[str, object]],
-) -> dict[str, object]:
-    contact: dict[str, object] = {}
+    per_video: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    contact: dict[str, Any] = {}
     for name in ("shuttle", "striker", "opponent"):
-        population = eligible = excluded_prediction = excluded_ground_truth = 0
+        population = excluded_prediction = excluded_ground_truth = 0
         errors: list[float] = []
         for video in per_video.values():
-            output = _mapping(video["contact_coordinates"], "contact coordinates")
-            summary = _mapping(output["summary"], "contact summary")
-            row = _mapping(summary[name], f"{name} summary")
-            population += _integer(row["population"], "coordinate population")
-            eligible += _integer(row["eligible"], "coordinate eligible")
-            excluded_prediction += _integer(
-                row["excluded_prediction"], "coordinate prediction exclusions"
-            )
-            excluded_ground_truth += _integer(
-                row["excluded_ground_truth"], "coordinate ground-truth exclusions"
-            )
-            for detail in _sequence(output["rows"], "coordinate rows"):
-                error = _mapping(detail, "coordinate row")[f"{name}_error"]
+            output = video["contact_coordinates"]
+            summary = output["summary"]
+            row = summary[name]
+            population += row["population"]
+            excluded_prediction += row["excluded_prediction"]
+            excluded_ground_truth += row["excluded_ground_truth"]
+            for detail in output["rows"]:
+                error = detail[f"{name}_error"]
                 if error is not None:
-                    errors.append(_float(error, "coordinate error"))
+                    errors.append(error)
         contact[name] = {
             "population": population,
-            "eligible": eligible,
             "excluded_prediction": excluded_prediction,
             "excluded_ground_truth": excluded_ground_truth,
-            **_error_statistics(errors),
+            **coordinate_error_statistics(errors),
         }
 
-    corner_rows = [
-        _mapping(row, "court corner row")
-        for video in per_video.values()
-        for row in _sequence(
-            _mapping(video["court_corners"], "court corners")["rows"],
-            "court corner rows",
-        )
-    ]
+    corner_rows = [row for video in per_video.values() for row in video["court_corners"]["rows"]]
     fps_groups: dict[str, dict[str, int]] = {}
     for video in per_video.values():
-        fps = _float(video["fps"], "video fps")
+        fps = video["fps"]
         key = f"{fps:g}"
         group = fps_groups.setdefault(key, {"videos": 0, "rallies": 0})
         group["videos"] += 1
-        group["rallies"] += _integer(
-            _mapping(video["population"], "feature population")["rallies"],
-            "feature rallies",
-        )
+        group["rallies"] += video["population"]["rallies"]
     return {
         "fps_groups": fps_groups,
         "contact_coordinates": {
@@ -859,17 +821,6 @@ def _aggregate_feature_outputs(
     }
 
 
-def _error_statistics(
-    errors: Sequence[float],
-) -> dict[str, int | float | None]:
-    return {
-        "eligible": len(errors),
-        "mean_error": None if not errors else float(np.mean(errors)),
-        "median_error": None if not errors else float(np.median(errors)),
-        "p90_error": None if not errors else float(np.percentile(errors, 90)),
-    }
-
-
 def _reconciliation_counts(scoring: VideoScoring) -> dict[str, int]:
     reconciliation = scoring.reconciliation
     return {
@@ -881,20 +832,18 @@ def _reconciliation_counts(scoring: VideoScoring) -> dict[str, int]:
 
 
 def _aggregate_contact_curves(
-    curves: Mapping[str, Mapping[str, object]],
+    curves: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, int | float | None]]:
     aggregate: dict[str, dict[str, int | float | None]] = {}
     for base in CONTACT_TOLERANCES_BASE30:
         key = str(base)
-        rows = [
-            _mapping(curve[key], f"contact curve {key}") for curve in curves.values()
-        ]
-        matched = sum(_integer(row["matched"], "matched") for row in rows)
-        gt = sum(_integer(row["gt"], "gt") for row in rows)
-        candidates = sum(_integer(row["candidates"], "candidates") for row in rows)
-        raw_matched = sum(_integer(row["raw_matched"], "raw matched") for row in rows)
+        rows = [curve[key] for curve in curves.values()]
+        matched = sum(row["matched"] for row in rows)
+        gt = sum(row["gt"] for row in rows)
+        candidates = sum(row["candidates"] for row in rows)
+        raw_matched = sum(row["raw_matched"] for row in rows)
         raw_candidates = sum(
-            _integer(row["raw_candidates"], "raw candidates") for row in rows
+            row["raw_candidates"] for row in rows
         )
         precision = _ratio(matched, candidates)
         raw_precision = _ratio(raw_matched, raw_candidates)
@@ -915,26 +864,20 @@ def _aggregate_contact_curves(
 
 
 def _group_records(
-    records: Sequence[Mapping[str, object]],
-) -> dict[str, list[Mapping[str, object]]]:
-    grouped: dict[str, list[Mapping[str, object]]] = defaultdict(list)
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, list[Mapping[str, Any]]]:
+    grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for record in records:
         key = _mapping(record["key"], "record key")
         grouped[_string(key["video_id"], "record video_id")].append(record)
     return dict(grouped)
 
 
-def _landing(payload: object) -> Landing:
-    row = _mapping(payload, "landing")
-    position = _sequence(row["normalized_court_position"], "landing position")
-    if len(position) != 2:
-        raise ValueError("landing position must contain two coordinates")
+def _landing(row: Mapping[str, Any]) -> Landing:
+    position = row["normalized_court_position"]
     return Landing(
-        _integer(row["frame"], "landing frame"),
-        (_float(position[0], "landing x"), _float(position[1], "landing y")),
-        Half(_string(row["court_half"], "landing half")),
-        _boolean(row["at_image_border"], "landing border flag"),
-        _boolean(row["net_ender"], "landing net flag"),
+        row["frame"], (float(position[0]), float(position[1])), Half(row["court_half"]),
+        row["at_image_border"], row["net_ender"],
     )
 
 
@@ -993,38 +936,8 @@ def _string(value: object, name: str) -> str:
     return value
 
 
-def _integer(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{name} must be an integer")
-    return value
-
-
-def _float(value: object, name: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"{name} must be numeric")
-    return float(value)
-
-
-def _boolean(value: object, name: str) -> bool:
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be boolean")
-    return value
-
-
-def _optional_boolean(value: object, name: str) -> bool | None:
-    return None if value is None else _boolean(value, name)
-
-
-def _optional_float(value: object, name: str) -> float | None:
-    return None if value is None else _float(value, name)
-
-
-def _optional_half(value: object, name: str) -> Half | None:
-    return None if value is None else Half(_string(value, name))
-
-
-def _optional_enum(value: object, enum_type: type[Any], name: str) -> Any:
-    return None if value is None else enum_type(_string(value, name))
+def _optional_half(value: str | None) -> Half | None:
+    return None if value is None else Half(value)
 
 
 def build_parser() -> argparse.ArgumentParser:

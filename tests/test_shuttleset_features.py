@@ -9,26 +9,28 @@ import pytest
 
 from annotator.courts.evidence import detected_court_info
 from annotator.evaluation.shuttleset_features import (
-    InterpolationType,
     ShuttleFeatureInputs,
     coordinate_error_summary,
     court_corner_error_rows,
     derive_shuttle_feature_inputs,
     evaluate_rally_features,
     feature_population,
-    interpolate_internal_gaps,
     least_squares_trend,
+    rally_duration_base30,
+    score_contact_coordinates,
+    serve_speed_proxy,
+    tanh_degradation,
+)
+from dataset_builder.features import (
+    InterpolationType,
+    interpolate_internal_gaps,
     median_absolute_deviation,
     movement_inefficiency,
     posture_signal,
     project_positions_by_scene,
-    rally_duration_base30,
     rally_timestamps,
     recovery_at_opponent_contacts,
-    score_contact_coordinates,
     select_sticky_keypoints,
-    serve_speed_proxy,
-    tanh_degradation,
 )
 
 

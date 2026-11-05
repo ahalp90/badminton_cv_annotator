@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.evaluation.commentary_benchmark import (
     LAG_SWEEP_SECONDS,
     _cleaning_aggregate,
     _dataset_aggregate,
     _leave_one_video_out,
+    _masked_rally_ids,
     _multi_rally_aggregate,
-    _multi_rally_pairing_summary,
+    _multi_rally_counts,
     _pairing_aggregate,
     evaluate_video,
 )
@@ -23,12 +26,14 @@ from annotator.evaluation.commentary_benchmark_inputs import (
     EXPECTED_SHUTTLESET_IDS,
     RETIMED_RELATIVE_DIR,
     VideoInputs,
+    _load_cleaned_chunks_for_video,
     _validate_rallies,
     _validate_repair_metadata,
     _validate_timed_rows,
     _validate_unique_chunk_starts,
     load_retimed_chunks_for_video,
 )
+from annotator.masks.replay import filter_short_exclusion_runs
 
 
 def _chunk(
@@ -270,25 +275,21 @@ def test_triage_dropped_video_remains_an_explicit_zero_commentary_case() -> None
     assert word_deltas == []
 
 
-def test_evaluate_video_rejects_empty_cleaned_text() -> None:
+def test_loader_rejects_empty_cleaned_text(tmp_path: Path) -> None:
     chunk = _chunk("video_c0", 1.1, 1.2)
     chunk["text_clean"] = " "
-    inputs = VideoInputs(
-        dataset="ShuttleSet22",
-        video_id="video",
-        fps=10.0,
-        frame_count=100,
-        transcript_source="youtube_asr",
-        transcript_segments=1,
-        chunks=(chunk,),
-        rallies=((0, 0, 10),),
-        human_rallies=((0, 0, 10),),
-        replay_mask=None,
-        annotation_population=None,
-    )
-
+    relative = "commentary/cleaned_chunks/video.json"
+    cleaned_path = tmp_path / relative
+    cleaned_path.parent.mkdir(parents=True)
+    cleaned_path.write_text(json.dumps([chunk]), encoding="utf-8")
+    status = {
+        "clean_status": "valid",
+        "clean_chunk_count": 1,
+        "clean_chunk_sha256": hashlib.sha256(cleaned_path.read_bytes()).hexdigest(),
+        "local_duration_s": 10,
+    }
     with pytest.raises(ValueError, match="empty cleaned text"):
-        evaluate_video(inputs)
+        _load_cleaned_chunks_for_video(tmp_path, {relative: {}}, "video", status)
 
 
 def test_aggregate_and_leave_one_video_out_use_eligible_rally_denominator() -> None:
@@ -375,6 +376,13 @@ def _inputs(
 RALLIES = ((0, 0, 50), (1, 60, 100), (2, 200, 250))  # seconds: 0-5, 6-10, 20-25
 
 
+def _multi_rally_summary(inputs: VideoInputs, rallies: tuple, seconds: float) -> dict:
+    grace = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
+    mask = None if inputs.replay_mask is None else filter_short_exclusion_runs(inputs.replay_mask, grace)
+    masked = _masked_rally_ids(rallies, mask, grace)
+    return _multi_rally_counts(inputs, rallies, seconds, masked, mask)
+
+
 def test_multi_rally_summary_ascribes_ambiguous_chunks_to_both_rallies() -> None:
     chunks = (
         _chunk("video_c0", 5.5, 5.8),  # 0.5 s after rally 0, before rally 1: one rally
@@ -382,7 +390,7 @@ def test_multi_rally_summary_ascribes_ambiguous_chunks_to_both_rallies() -> None
         _chunk("video_c2", 26.0, 26.2),  # 1 s after rally 2, 16 s after rally 1: one rally
         _chunk("video_c3", 45.0, 45.2),  # 20 s after the last rally: nobody
     )
-    summary = _multi_rally_pairing_summary(_inputs(chunks, RALLIES), RALLIES, 8.0)
+    summary = _multi_rally_summary(_inputs(chunks, RALLIES), RALLIES, 8.0)
     assert summary == {
         "rallies": 3,
         "replay_masked_rallies": 0,
@@ -403,8 +411,8 @@ def test_multi_rally_summary_ascribes_ambiguous_chunks_to_both_rallies() -> None
 def test_multi_rally_summary_window_decides_post_rally_reach() -> None:
     chunks = (_chunk("video_c0", 28.0, 28.2),)  # 3 s after rally 2
     inputs = _inputs(chunks, RALLIES)
-    assert _multi_rally_pairing_summary(inputs, RALLIES, 8.0)["post_rally_chunks"] == 1
-    narrow = _multi_rally_pairing_summary(inputs, RALLIES, 2.0)
+    assert _multi_rally_summary(inputs, RALLIES, 8.0)["post_rally_chunks"] == 1
+    narrow = _multi_rally_summary(inputs, RALLIES, 2.0)
     assert narrow["post_rally_chunks"] == 0
     assert narrow["unassigned_chunks"] == 1
     assert narrow["paired_rallies"] == 0
@@ -417,7 +425,7 @@ def test_multi_rally_summary_drops_masked_rallies_and_masked_chunk_starts() -> N
         _chunk("video_c0", 6.2, 6.4),  # inside masked rally 1, off the mask, 1.2 s after rally 0
         _chunk("video_c1", 7.0, 7.2),  # starts on a masked frame: unpairable
     )
-    summary = _multi_rally_pairing_summary(_inputs(chunks, RALLIES, replay_mask), RALLIES, 8.0)
+    summary = _multi_rally_summary(_inputs(chunks, RALLIES, replay_mask), RALLIES, 8.0)
     assert summary["replay_masked_rallies"] == 1
     assert summary["pairing_eligible_rallies"] == 2
     assert summary["unpairable_masked_start_chunks"] == 1

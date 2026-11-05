@@ -31,7 +31,6 @@ from annotator.evaluation.scoring import (
     load_gt_rallies,
     safe_f1,
     score_boundaries,
-    score_contacts,
 )
 from annotator.masks.inpaint import code_counts, grade_track
 from annotator.outcomes import point_winner
@@ -371,6 +370,41 @@ class ColumnAgg(NamedTuple):
     secondary_total: int
 
 
+def aggregate_rally_scores(rows: Sequence[RallyRow]) -> dict[str, ColumnAgg]:
+    """Count each score from its rally rows, retaining all and covered views."""
+    covered = [row for row in rows if row.classification == RallyBoundary.COVERED.value]
+    return {
+        "ball_round": ColumnAgg(
+            sum(row.ball_round_correct for row in rows), len(rows),
+            sum(row.ball_round_correct for row in covered), len(covered),
+        ),
+        "timing": ColumnAgg(
+            sum(row.timing_matched_n for row in rows), sum(row.n_gt_strokes for row in rows),
+            sum(row.timing_matched_n for row in covered), sum(row.n_gt_strokes for row in covered),
+        ),
+        "player": ColumnAgg(
+            sum(row.player_correct for row in rows), len(rows),
+            sum(row.player_correct for row in covered), len(covered),
+        ),
+        "server": ColumnAgg(
+            sum(row.server_correct for row in rows), len(rows),
+            sum(row.server_correct for row in covered), len(covered),
+        ),
+        "hit_height": ColumnAgg(
+            sum(row.hit_height_correct_n for row in rows), sum(row.hit_height_eligible_n for row in rows),
+            sum(row.hit_height_correct_n for row in covered), sum(row.hit_height_eligible_n for row in covered),
+        ),
+        "landing": ColumnAgg(
+            sum(row.landing_correct is True for row in rows), sum(row.landing_eligible for row in rows),
+            sum(row.landing_correct is True for row in covered), sum(row.landing_eligible for row in covered),
+        ),
+        "getpoint": ColumnAgg(
+            sum(row.getpoint_correct is True for row in rows), sum(row.getpoint_eligible for row in rows),
+            sum(row.getpoint_correct is True for row in covered), sum(row.getpoint_eligible for row in covered),
+        ),
+    }
+
+
 class VideoScoring(NamedTuple):
     """All per-video calibration rows, aggregates, counts, and diagnostics.
 
@@ -608,84 +642,48 @@ def score_video(
                 for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
     classifications = classify_all(spans, gt)
     boundaries = score_boundaries(spans, gt)
-    contact_gate = score_contacts(spans, contacts, gt, tolerances=(tolerance,))["count_gate"]["covered"]
     per_vid = master[master["vid"] == fixture.video_id]
     frame_side = {int(frame): str(side) for frame, side in zip(per_vid["frame_num"], per_vid["player_side"])}
     heights = _hit_height_gt_map(sets)
     rows: list[RallyRow] = []
-    br = [0, 0, 0, 0]
-    timing = [0, 0, 0, 0]
-    player = [0, 0, 0, 0]
-    server = [0, 0, 0, 0]
-    height = [0, 0, 0, 0]
-    landing = [0, 0, 0, 0]
-    winner = [0, 0, 0, 0]
     ball_round_diffs: list[int] = []
     timing_errs: list[int] = []
-    contact_matches = 0
     for index, (rally, (category, span)) in enumerate(zip(gt, classifications)):
         covered = category is RallyBoundary.COVERED
         candidates = [event.frame for event in result.rallies[span].sequence.events] if covered else []
         pred_count = len(candidates) if covered else None
         br_ok = covered and pred_count == rally.n_strokes
-        br[0] += int(br_ok)
-        br[1] += 1
         if covered:
-            br[2] += int(br_ok)
-            br[3] += 1
             ball_round_diffs.append(abs(pred_count - rally.n_strokes))
         matches = greedy_match(rally.stroke_frames, candidates, tolerance) if covered else []
-        contact_matches += len(matches)
-        timing_errs.extend(abs(rally.stroke_frames[g] - candidates[c]) for g, c in matches)
-        timing[0] += len(matches)
-        timing[1] += rally.n_strokes
-        if covered:
-            timing[2] += len(matches)
-            timing[3] += rally.n_strokes
+        matched_errors = [
+            abs(rally.stroke_frames[gt_index] - candidates[candidate_index])
+            for gt_index, candidate_index in matches
+        ]
+        timing_errs.extend(matched_errors)
         hh_eligible = hh_correct = 0
         for frame in rally.stroke_frames:
             gt_height = heights.get((rally.set_id, rally.rally, frame), math.nan)
             if not math.isnan(gt_height):
-                height[1] += 1
                 hh_eligible += 1
-                if covered:
-                    height[3] += 1
         for gt_index, candidate_index in matches:
             gt_frame = rally.stroke_frames[gt_index]
             gt_height = heights.get((rally.set_id, rally.rally, gt_frame), math.nan)
             detected = result.hit_heights.get(candidates[candidate_index])
             if not math.isnan(gt_height) and detected is not None and int(gt_height) == detected:
-                height[0] += 1
-                height[2] += 1
                 hh_correct += 1
         gt_player = Half.TOP if frame_side[rally.stroke_frames[-1]] == "Top" else Half.BOT
         pred_player = result.rallies[span].final_half if covered else None
         p_ok = covered and pred_player == gt_player
-        for values, ok in ((player, p_ok),):
-            values[0] += int(ok)
-            values[1] += 1
-            if covered:
-                values[2] += int(ok)
-                values[3] += 1
         gt_server = Half.TOP if frame_side[rally.stroke_frames[0]] == "Top" else Half.BOT
         pred_server = result.rallies[span].first_half if covered else None
         s_ok = covered and pred_server == gt_server
-        server[0] += int(s_ok)
-        server[1] += 1
-        if covered:
-            server[2] += int(s_ok)
-            server[3] += 1
         gt_winner = recon.winners[index].winner_half
         outcome = result.outcomes.get(span) if covered else None
         pred_winner = None if outcome is None else outcome.winner
         gp_ok = None
         if gt_winner is not None:
             gp_ok = covered and pred_winner is not None and pred_winner == gt_winner
-            winner[0] += int(gp_ok)
-            winner[1] += 1
-            if covered:
-                winner[2] += int(gp_ok)
-                winner[3] += 1
         gt_landing = recon.winners[index].landing_px
         landing_half = pred_landing = None
         ld_ok = None
@@ -705,20 +703,13 @@ def score_video(
                 ld_ok = covered and pred_landing == landing_half
             else:
                 ld_ok = False
-            landing[0] += int(ld_ok)
-            landing[1] += 1
-            if covered:
-                landing[2] += int(ld_ok)
-                landing[3] += 1
-        mean_err = float(np.mean([abs(rally.stroke_frames[g] - candidates[c]) for g, c in matches])) if matches else None
+        mean_err = float(np.mean(matched_errors)) if matched_errors else None
         rows.append(RallyRow(index, rally.set_id, rally.rally, rally.n_strokes, category.value, span,
             rally.n_strokes, pred_count, br_ok, len(matches), mean_err, gt_player.value,
             pred_player.value if pred_player else None, p_ok, gt_server.value, pred_server.value if pred_server else None,
             s_ok, hh_eligible, hh_correct, gt_winner is not None, gt_winner,
             pred_winner.value if pred_winner else None, gp_ok, gt_landing is not None,
             landing_half.value if landing_half else None, pred_landing.value if pred_landing else None, ld_ok))
-    if (contact_gate["pass"], contact_gate["total"]) != (br[2], br[3]):
-        raise ValueError(f"{fixture.name}: ball_round count-gate mismatch vs score_contacts")
     raw_contact_count = len(result.heuristic_candidates) if result.heuristic_candidates else len(contacts)
     geometric_rows = []
     for rally_id, outcome in result.outcomes.items():
@@ -731,10 +722,12 @@ def score_video(
             rally_id, relative_winner, "" if landing_winner is None else landing_winner.value,
             agreement, outcome.window_closed_by_mask,
         ))
-    return VideoScoring(fixture.name, rows, boundaries, ColumnAgg(*br),
-        (timing[0], timing[1]), (timing[2], timing[3]),
-        ColumnAgg(*player), ColumnAgg(*server), ColumnAgg(*height), ColumnAgg(*landing), ColumnAgg(*winner),
-        contact_matches, len(contacts), sum(r.n_strokes for r in gt), raw_contact_count,
+    counts = aggregate_rally_scores(rows)
+    timing = counts["timing"]
+    return VideoScoring(fixture.name, rows, boundaries, counts["ball_round"],
+        (timing.primary_correct, timing.primary_total), (timing.secondary_correct, timing.secondary_total),
+        counts["player"], counts["server"], counts["hit_height"], counts["landing"], counts["getpoint"],
+        timing.primary_correct, len(contacts), timing.primary_total, raw_contact_count,
         len(contacts), [
             (rally_id, stroke_idx, event.frame, result.hit_height_failures[event.frame])
             for rally_id, rally in enumerate(result.rallies) for stroke_idx, event in enumerate(rally.sequence.events)

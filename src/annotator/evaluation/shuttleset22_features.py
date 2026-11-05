@@ -20,11 +20,13 @@ import numpy as np
 import pandas as pd
 
 from annotator.evaluation.shuttleset_features import (
-    derive_player_feature_inputs,
     evaluate_rally_features,
     feature_population,
 )
 from annotator.shuttle_track import validate_shuttle_track
+from dataset_builder.features import (
+    derive_player_feature_inputs,
+)
 from dataset_builder.source_annotations import logical_set_id
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
@@ -98,7 +100,7 @@ def _require_digest(name: str, actual: str, expected: str) -> None:
         raise ValueError(f"{name} SHA-256 differs: expected {expected}, found {actual}")
 
 
-def _validate_identity(path: Path, identity: Mapping[str, object]) -> None:
+def _validate_identity(path: Path, identity: Mapping[str, Any]) -> None:
     """Validate one receipt identity without trusting its size or MD5."""
     expected = {"name", "path", "size_bytes", "md5"}
     if set(identity) != expected:
@@ -184,7 +186,7 @@ def validate_artifact_directory(output: Path, source: Source) -> ArtifactMetadat
 
 def load_annotation_rallies(
     set_dir: Path, frame_count: int
-) -> tuple[list[dict[str, object]], dict[str, int]]:
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Build feature records from usable ShuttleSet22 human contact rows."""
     tables = []
     for path in sorted(Path(set_dir).glob("set*.csv*")):
@@ -197,7 +199,7 @@ def load_annotation_rallies(
     frames = pd.to_numeric(contacts["frame_num"], errors="coerce")
     invalid_frame = frames.isna() | (frames < 0) | (frames >= frame_count)
     flaw_marked = contacts["flaw"].notna()
-    rows: list[dict[str, object]] = []
+    rows: list[dict[str, Any]] = []
     incomplete = 0
     incomplete_rows = 0
     non_monotonic = 0
@@ -249,7 +251,7 @@ def load_annotation_rallies(
     population = {
         "source_contact_rows": len(contacts),
         "usable_contact_rows": sum(
-            int(_mapping(row["contacts"], "contacts")["stroke_count"])
+            row["contacts"]["stroke_count"]
             for row in rows
         ),
         "excluded_flaw_rows": int(flaw_marked.sum()),
@@ -275,7 +277,7 @@ def evaluate_source(
     data_root: Path,
     source: Source,
     annotation_root: Path = DEFAULT_ANNOTATION_ROOT,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Validate and evaluate one non-overlap ShuttleSet22 source."""
     output = data_root / "extracted-simple" / f"{source.match_id:02d} {source.video}"
     metadata = validate_artifact_directory(output, source)
@@ -334,7 +336,7 @@ def evaluate_source(
     }
 
 
-def feature_summary(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
+def feature_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Return concise distributions for defined numeric feature outputs."""
     values: dict[str, list[float]] = {
         "shots_per_rally": [],
@@ -344,17 +346,17 @@ def feature_summary(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
     }
     for row in rows:
         values["shots_per_rally"].append(float(row["shots_per_rally"]))
-        for posture in _sequence(row["posture"], "posture rows"):
-            value = _mapping(posture, "posture row")["mad"]
+        for posture in row["posture"]:
+            value = posture["mad"]
             if value is not None:
                 values["posture_mad"].append(float(value))
-        recovery = _mapping(row["recovery"], "recovery")
-        for observation in _sequence(recovery["observations"], "recovery observations"):
-            value = _mapping(observation, "recovery observation")["mean_distance"]
+        recovery = row["recovery"]
+        for observation in recovery["observations"]:
+            value = observation["mean_distance"]
             if value is not None:
                 values["recovery_distance"].append(float(value))
-        for interval in _sequence(row["movement_inefficiency"], "movement rows"):
-            movement = _mapping(interval, "movement row")
+        for interval in row["movement_inefficiency"]:
+            movement = interval
             for slot in ("top", "bottom"):
                 value = movement[slot]
                 if value is not None:
@@ -363,7 +365,7 @@ def feature_summary(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
 
 
 def leave_one_video_out(
-    per_video: Mapping[str, Mapping[str, object]],
+    per_video: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, int | float | None]]:
     """Report the median range after excluding each source once."""
     medians: dict[str, list[float]] = {
@@ -376,20 +378,20 @@ def leave_one_video_out(
         retained = []
         for video_id, video in per_video.items():
             if video_id != excluded:
-                retained.extend(_sequence(video["rallies"], "rallies"))
+                retained.extend(video["rallies"])
         summary = feature_summary(retained)
         for name, values in summary.items():
-            median = _mapping(values, f"{name} summary")["median"]
+            median = values["median"]
             if median is not None:
                 medians[name].append(float(median))
-    return {
-        name: {
+    result = {}
+    for name, values in medians.items():
+        result[name] = {
             "runs": len(values),
             "min_median": None if not values else min(values),
             "max_median": None if not values else max(values),
         }
-        for name, values in medians.items()
-    }
+    return result
 
 
 def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
@@ -408,7 +410,7 @@ def evaluate_corpus(
     data_root: Path,
     source_manifest: Path,
     annotation_root: Path = DEFAULT_ANNOTATION_ROOT,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Evaluate every available non-overlap ShuttleSet22 source once."""
     source_manifest_digest = _sha256(source_manifest)
     annotation_tree_digest = _tree_digest(annotation_root / "set")
@@ -419,14 +421,14 @@ def evaluate_corpus(
     )
     if len(sources) != 47:
         raise ValueError(f"expected 47 non-overlap ShuttleSet22 sources, found {len(sources)}")
-    per_video: dict[str, dict[str, object]] = {}
+    per_video: dict[str, dict[str, Any]] = {}
     for source in sources:
         print(f"{source.match_id:02d}: validating and extracting features", flush=True)
         per_video[f"{source.match_id:02d}"] = evaluate_source(data_root, source, annotation_root)
     all_rallies = [
         rally
         for video in per_video.values()
-        for rally in _sequence(video["rallies"], "rallies")
+        for rally in video["rallies"]
     ]
     identity_payload = {
         video_id: video["artifact_identity"] for video_id, video in per_video.items()
@@ -479,12 +481,10 @@ def evaluate_corpus(
 
 
 def _sum_population(
-    per_video: Mapping[str, Mapping[str, object]], name: str
+    per_video: Mapping[str, Mapping[str, Any]], name: str
 ) -> dict[str, int]:
-    rows = [_mapping(video[name], name) for video in per_video.values()]
+    rows = [video[name] for video in per_video.values()]
     keys = set(rows[0]) if rows else set()
-    if any(set(row) != keys for row in rows):
-        raise ValueError(f"{name} fields differ across videos")
     return {key: sum(int(row[key]) for row in rows) for key in sorted(keys)}
 
 

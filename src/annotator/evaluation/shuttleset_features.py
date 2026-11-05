@@ -3,15 +3,14 @@
 Issue #18 moved the formulas issue #104 kept into ``dataset_builder.features``;
 issue #138 moved ``recovery_at_opponent_contacts`` and ``movement_inefficiency``
 there too, once human ShuttleSet contacts made them reliable enough to export.
-This module re-exports all of them and keeps the prototypes that never shipped
-to production.
+This module keeps the prototypes that never shipped to production.
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -20,47 +19,17 @@ from annotator.config import BASE_FPS, frames_at_fps
 from annotator.outcomes.point_winner import project_pixels_to_court
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (
-    ANKLE_INDICES,
-    EYE_INDICES,
-    HALF_CENTRES,
-    HIP_INDICES,
-    RECOVERY_HALF_WINDOW_BASE30,
     InterpolationType,
-    PlayerFeatureInputs,
-    derive_player_feature_inputs,
-    interpolate_internal_gaps,
     median_absolute_deviation,
     movement_inefficiency,
-    posture_signal,
     project_positions_by_scene,
     rally_timestamps,
     recovery_at_opponent_contacts,
     scene_ref_corners,
-    select_sticky_keypoints,
     validate_fps,
     validate_frame_range,
 )
 from shared.court import HOMOGRAPHY_RESOLUTION
-
-# Re-exported for annotator.evaluation.shuttleset22_features,
-# annotator.evaluation.shuttleset_benchmark, and tests/test_shuttleset_features.py.
-# recovery_at_opponent_contacts and movement_inefficiency are also used directly
-# below, by evaluate_rally_features; the rest are unused by this module's own
-# prototypes.
-__all__ = (
-    "ANKLE_INDICES",
-    "EYE_INDICES",
-    "HALF_CENTRES",
-    "HIP_INDICES",
-    "RECOVERY_HALF_WINDOW_BASE30",
-    "PlayerFeatureInputs",
-    "derive_player_feature_inputs",
-    "interpolate_internal_gaps",
-    "movement_inefficiency",
-    "posture_signal",
-    "recovery_at_opponent_contacts",
-    "select_sticky_keypoints",
-)
 
 
 class ShuttleFeatureInputs(NamedTuple):
@@ -112,9 +81,16 @@ def coordinate_error_summary(
     errors = np.linalg.norm(prediction[eligible] - truth[eligible], axis=1)
     return {
         "population": len(prediction),
-        "eligible": int(eligible.sum()),
         "excluded_prediction": int((~prediction_valid & truth_valid).sum()),
         "excluded_ground_truth": int((~truth_valid).sum()),
+        **coordinate_error_statistics(errors),
+    }
+
+
+def coordinate_error_statistics(errors: Sequence[float] | np.ndarray) -> dict[str, int | float | None]:
+    """Summarise already paired Euclidean errors in their original coordinate units."""
+    return {
+        "eligible": len(errors),
         "mean_error": None if not len(errors) else float(np.mean(errors)),
         "median_error": None if not len(errors) else float(np.median(errors)),
         "p90_error": None if not len(errors) else float(np.percentile(errors, 90)),
@@ -301,7 +277,7 @@ def tanh_degradation(slope: float, *, temperature: float) -> float:
 
 
 def evaluate_rally_features(
-    record: Mapping[str, object],
+    record: Mapping[str, Any],
     posture: np.ndarray,
     court_positions: np.ndarray,
     posture_interpolation: np.ndarray,
@@ -309,13 +285,12 @@ def evaluate_rally_features(
     fps: float,
     *,
     end_offset_base30: int | None = None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Evaluate the defined feature parts for one validated rally record."""
-    rally = _object(record.get("rally"), "rally")
-    contacts = _object(record.get("contacts"), "contacts")
-    outcomes = _object(record.get("outcomes"), "outcomes")
-    start = _integer(rally.get("start_frame"), "start_frame")
-    end = _integer(rally.get("end_frame"), "end_frame")
+    rally = record["rally"]
+    contacts = record["contacts"]
+    outcomes = record["outcomes"]
+    start, end = rally["start_frame"], rally["end_frame"]
     validate_frame_range(start, end)
     if end > len(posture) or end > len(court_positions):
         raise ValueError("rally range exceeds feature arrays")
@@ -324,18 +299,8 @@ def evaluate_rally_features(
     if position_interpolation.shape != court_positions.shape[:2]:
         raise ValueError("position_interpolation must have shape (frames, 2)")
 
-    accepted = _list(contacts.get("accepted"), "accepted contacts")
-    contact_frames = [
-        _integer(_object(row, "accepted contact").get("contact_frame"), "contact_frame")
-        for row in accepted
-    ]
-    if contact_frames != sorted(set(contact_frames)):
-        raise ValueError("accepted contacts must be unique and ordered")
-    if any(not start <= frame < end for frame in contact_frames):
-        raise ValueError("accepted contact lies outside its rally")
-    stroke_count = _integer(contacts.get("stroke_count"), "stroke_count")
-    if stroke_count != len(contact_frames):
-        raise ValueError("stroke_count differs from accepted contacts")
+    contact_frames = [contact["contact_frame"] for contact in contacts["accepted"]]
+    stroke_count = contacts["stroke_count"]
 
     server = outcomes.get("server_prediction")
     server_slot = {"Top": 0, "Bot": 1}.get(server) if isinstance(server, str) else None
@@ -356,15 +321,14 @@ def evaluate_rally_features(
         )
     )
     movement = movement_inefficiency(court_positions, contact_frames)
-    movement_rows = [
-        {
+    movement_rows = []
+    for index, values in enumerate(movement):
+        movement_rows.append({
             "start_contact_frame": contact_frames[index],
             "end_contact_frame": contact_frames[index + 1],
             "top": _finite_or_none(values[0]),
             "bottom": _finite_or_none(values[1]),
-        }
-        for index, values in enumerate(movement)
-    ]
+        })
     posture_rows = []
     for slot, name in enumerate(("top", "bottom")):
         values = posture[start:end, slot]
@@ -386,7 +350,7 @@ def evaluate_rally_features(
         )
     )
     return {
-        "rally_id": _integer(rally.get("rally_id"), "rally_id"),
+        "rally_id": rally["rally_id"],
         "timestamps": rally_timestamps(start, end, fps),
         "shots_per_rally": stroke_count,
         "rally_duration_base30": duration,
@@ -425,28 +389,25 @@ def evaluate_rally_features(
     }
 
 
-def feature_population(rows: Sequence[Mapping[str, object]]) -> dict[str, int]:
-    """Count exact eligible feature observations in saved per-rally rows."""
+def feature_population(rows: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    """Count eligible observations in the per-rally feature outputs."""
     posture_total = posture_eligible = 0
     recovery_total = recovery_eligible = 0
     movement_total = movement_eligible = 0
     duration_eligible = 0
     for row in rows:
         duration_eligible += int(row.get("rally_duration_base30") is not None)
-        for posture in _list(row.get("posture"), "posture rows"):
+        for posture in row["posture"]:
             posture_total += 1
-            posture_eligible += int(_object(posture, "posture row").get("mad") is not None)
-        recovery = _object(row.get("recovery"), "recovery")
-        recovery_total += _integer(
-            recovery.get("population"), "recovery population"
-        )
-        for observation in _list(recovery.get("observations"), "recovery observations"):
+            posture_eligible += int(posture["mad"] is not None)
+        recovery = row["recovery"]
+        recovery_total += recovery["population"]
+        for observation in recovery["observations"]:
             recovery_eligible += int(
-                _object(observation, "recovery observation").get("mean_distance")
-                is not None
+                observation["mean_distance"] is not None
             )
-        for interval in _list(row.get("movement_inefficiency"), "movement rows"):
-            movement = _object(interval, "movement row")
+        for interval in row["movement_inefficiency"]:
+            movement = interval
             for name in ("top", "bottom"):
                 movement_total += 1
                 movement_eligible += int(movement.get(name) is not None)
@@ -510,21 +471,3 @@ def _paired_error(predicted: np.ndarray, ground_truth: np.ndarray) -> float | No
     if not np.isfinite(predicted).all() or not np.isfinite(ground_truth).all():
         return None
     return float(np.linalg.norm(predicted - ground_truth))
-
-
-def _object(value: object, name: str) -> Mapping[str, object]:
-    if not isinstance(value, Mapping) or any(not isinstance(key, str) for key in value):
-        raise TypeError(f"{name} must be an object")
-    return value
-
-
-def _list(value: object, name: str) -> Sequence[object]:
-    if not isinstance(value, (list, tuple)):
-        raise TypeError(f"{name} must be a list")
-    return value
-
-
-def _integer(value: object, name: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{name} must be an integer")
-    return value

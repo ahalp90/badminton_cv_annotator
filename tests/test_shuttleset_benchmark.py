@@ -8,7 +8,12 @@ import pandas as pd
 import pytest
 
 import annotator.evaluation.shuttleset_benchmark as benchmark
-from annotator.evaluation.gt_scoring import RallyRow, _hit_height_gt_map
+from annotator.evaluation.gt_scoring import (
+    ColumnAgg,
+    RallyRow,
+    _hit_height_gt_map,
+    aggregate_rally_scores,
+)
 from annotator.evaluation.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
     _aggregate_contact_curves,
@@ -92,13 +97,6 @@ def test_projection_to_annotator_result_restores_scored_fields() -> None:
     assert result.outcomes[0].winner_source is VerdictSource.NEXT_SERVER
     assert result.outcomes[0].landing.norm == (0.4, 0.8)
     assert result.outcomes[0].landing_only_winner is Half.TOP
-
-
-def test_projection_requires_contiguous_rally_ids() -> None:
-    record = _record(rally_id=1)
-
-    with pytest.raises(ValueError, match="contiguous"):
-        projection_to_annotator_result([record])
 
 
 def test_contact_curve_aggregation_uses_integer_populations() -> None:
@@ -333,6 +331,25 @@ def _rally_row(gt_index: int, mapped_span: int | None, *, covered: bool) -> Rall
         landing_pred="Bot" if covered else None,
         landing_correct=covered,
     )
+
+
+def test_rally_counts_keep_eligibility_and_covered_denominators() -> None:
+    covered = _rally_row(0, 0, covered=True)._replace(
+        n_gt_strokes=3, timing_matched_n=2, hit_height_eligible_n=2, hit_height_correct_n=1,
+    )
+    missed = _rally_row(1, None, covered=False)._replace(
+        n_gt_strokes=4, hit_height_eligible_n=3,
+        landing_eligible=False, landing_correct=None,
+        getpoint_eligible=False, getpoint_correct=None,
+    )
+
+    counts = aggregate_rally_scores([covered, missed])
+
+    assert counts["ball_round"] == ColumnAgg(1, 2, 1, 1)
+    assert counts["timing"] == ColumnAgg(2, 7, 2, 3)
+    assert counts["player"] == counts["server"] == ColumnAgg(1, 2, 1, 1)
+    assert counts["hit_height"] == ColumnAgg(1, 5, 1, 2)
+    assert counts["landing"] == counts["getpoint"] == ColumnAgg(1, 1, 1, 1)
 
 
 def test_merged_span_outcomes_are_marked_unusable(

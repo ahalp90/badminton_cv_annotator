@@ -1,10 +1,7 @@
 """Load and validate the pinned issue #104 commentary and rally inputs.
 
-This module owns the input side of the commentary benchmark: hash-checking
-the pinned commentary, issue #103, and ShuttleSet/ShuttleSet22 artifacts, then
-assembling one validated :class:`VideoInputs` per canonical video.
-``commentary_benchmark`` consumes :func:`_load_video_inputs` and evaluates the
-result; it does not read these artifacts itself.
+Validate the commentary, issue #103 and ShuttleSet/ShuttleSet22 artefacts,
+then assemble one :class:`VideoInputs` per canonical video.
 """
 
 from __future__ import annotations
@@ -21,9 +18,15 @@ import numpy as np
 import pandas as pd
 
 from annotator.evaluation.scoring import load_gt_rallies
-from annotator.evaluation.shuttleset22_features import load_annotation_rallies
+from annotator.evaluation.shuttleset22_features import (
+    ANNOTATION_TREE_SHA256,
+    _tree_digest,
+    load_annotation_rallies,
+)
 from dataset_builder.vision import load_json_gz, load_npy_xz
 from scraper.commentary_retiming import MIN_MATCH_RATIO, SEARCH_PAD_S, AlignStatus
+
+SEMANTIC_FIELDS = ("sentiment", "concept", "player", "player_link", "court_slot")
 
 RETIMED_RELATIVE_DIR = "commentary/retimed_chunks"
 RETIMED_ALIGN_STATUSES = tuple(status.value for status in AlignStatus)
@@ -170,13 +173,13 @@ class VideoInputs:
     frame_count: int
     transcript_source: str
     transcript_segments: int
-    chunks: tuple[Mapping[str, object], ...]
+    chunks: tuple[Mapping[str, Any], ...]
     rallies: tuple[tuple[int, int, int], ...]
     human_rallies: tuple[tuple[int, int, int], ...]
     replay_mask: np.ndarray | None
     annotation_population: Mapping[str, int] | None
     # WhisperX-aligned re-timing (issue #136); None when no sidecar exists for the video.
-    retimed_chunks: tuple[Mapping[str, object], ...] | None = None
+    retimed_chunks: tuple[Mapping[str, Any], ...] | None = None
     retimed_sha256: str | None = None
 
 
@@ -547,6 +550,17 @@ def _load_cleaned_chunks_for_video(
             not chunk_id.startswith(f"{video_id}_c") for chunk_id in chunk_ids
         ):
             raise ValueError(f"{video_id} cleaned chunk association differs")
+        for chunk in chunks:
+            score = float(chunk["bert_f1"])
+            if not math.isfinite(score) or score < 0.8:
+                raise ValueError(f"{video_id} has a failed cleaned chunk")
+            if chunk["clean_pass"] is not True:
+                raise ValueError(f"{video_id} has a non-passing cleaned chunk")
+            if not str(chunk["text_clean"]).strip():
+                raise ValueError(f"{video_id} has empty cleaned text")
+            alternates = _sequence(chunk["alt_phrasings"], f"{video_id} alternate phrasings")
+            if len(alternates) != 3 or any(not str(alternate).strip() for alternate in alternates):
+                raise ValueError(f"{video_id} has an invalid alternate-phrasing population")
         return chunks
     if video_id == "ss22_17" and status["clean_status"] == "dropped_by_relevance_triage":
         if status["clean_chunk_count"] != 0 or status["clean_chunk_sha256"] is not None:
@@ -687,14 +701,10 @@ def _video_rally_views(
 
     annotation_dir = shuttleset22_root / "set" / str(row["title"])
     records, annotation_population = load_annotation_rallies(annotation_dir, frame_count)
-    rallies = [
-        (
-            int(_mapping(record["rally"], "ShuttleSet22 rally")["rally_id"]),
-            int(_mapping(record["rally"], "ShuttleSet22 rally")["start_frame"]),
-            int(_mapping(record["rally"], "ShuttleSet22 rally")["end_frame"]),
-        )
-        for record in records
-    ]
+    rallies = []
+    for record in records:
+        rally = record["rally"]
+        rallies.append((rally["rally_id"], rally["start_frame"], rally["end_frame"]))
     return rallies, rallies, None, annotation_population
 
 
@@ -752,7 +762,7 @@ def _load_video_inputs(
                 frame_count=frame_count,
                 transcript_source=transcript_source,
                 transcript_segments=len(segments),
-                chunks=tuple(_mapping(chunk, f"{video_id} chunk") for chunk in chunks),
+                chunks=tuple(chunks),
                 rallies=tuple(rallies),
                 human_rallies=tuple(human_rallies),
                 replay_mask=replay_mask,
@@ -762,3 +772,41 @@ def _load_video_inputs(
             )
         )
     return inputs
+
+
+def load_corpus_inputs(
+    commentary_root: Path,
+    issue103_rally_records: Path,
+    issue103_artifacts: Path,
+    shuttleset_ground_truth_root: Path,
+    shuttleset22_root: Path,
+) -> tuple[list[VideoInputs], dict[str, object]]:
+    """Load the validated corpus and the input identities recorded with its scores."""
+    manifest_index = _manifest_index(commentary_root)
+    inventory_records = _canonical_inventory(commentary_root)
+    issue103_rallies, issue103_masks, issue103_provenance = _issue103_inputs(
+        issue103_rally_records, issue103_artifacts,
+    )
+    annotation_digest = _tree_digest(shuttleset22_root / "set")
+    if annotation_digest != ANNOTATION_TREE_SHA256:
+        raise ValueError(
+            "ShuttleSet22 annotation tree SHA-256 differs: "
+            f"expected {ANNOTATION_TREE_SHA256}, found {annotation_digest}"
+        )
+    videos = _load_video_inputs(
+        commentary_root, shuttleset_ground_truth_root, shuttleset22_root,
+        inventory_records, manifest_index, issue103_rallies, issue103_masks,
+    )
+    return videos, {
+        "commentary_code_commit": COMMENTARY_CODE_COMMIT,
+        "commentary_provider": COMMENTARY_PROVIDER,
+        "commentary_model": COMMENTARY_MODEL,
+        "commentary_manifest_sha256": COMMENTARY_MANIFEST_SHA256,
+        "commentary_source_manifest_sha256": COMMENTARY_SOURCE_MANIFEST_SHA256,
+        "commentary_removed_overlap_rows": COMMENTARY_REMOVED_OVERLAP_ROWS,
+        "commentary_status_sha256": COMMENTARY_STATUS_SHA256,
+        "commentary_inventory_sha256": COMMENTARY_INVENTORY_SHA256,
+        "shuttleset_shots_master_sha256": SHUTTLESET_SHOTS_MASTER_SHA256,
+        "shuttleset22_annotation_tree_sha256": annotation_digest,
+        **issue103_provenance,
+    }
