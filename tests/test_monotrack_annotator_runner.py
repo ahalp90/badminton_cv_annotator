@@ -14,7 +14,6 @@ import pytest
 import annotator.models as model_module
 import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, CourtHalf
 from annotator.sequence.contacts import (
     ContactEvent,
@@ -67,7 +66,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     court_paths = []
     model_paths = []
     models = SimpleNamespace(
-        preprocessing=BaseAnnotatorConfig(), side_geometry=SideGeometry.VIDEO,
+        preprocessing=BaseAnnotatorConfig(),
         contact_settings=SimpleNamespace(score_cutoff=0.9),
     )
 

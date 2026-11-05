@@ -118,7 +118,7 @@ def prepare_video(
             evidence = prepare_annotation(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                 resolved=resolve(base, inputs.fps), video_id=inputs.identity,
-                resolution=inputs.court.resolution, net_band=inputs.court.net_band,
+                resolution=inputs.court.resolution,
 
                 gate_resolution_table=inputs.court.gate_resolution_table,
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,

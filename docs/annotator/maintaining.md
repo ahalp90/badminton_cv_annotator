@@ -66,10 +66,11 @@ presence and shuttle speed; court composition remains a separate preparation too
 Frame counts use `frames_at_fps()` with half-up rounding, and per-frame speeds use
 `speed_at_fps()` with inverse FPS scaling.
 
-Newly fitted model bundles use `annotator-three-models/1`. Saved preprocessing has
+Newly fitted model bundles use `annotator-three-models/2`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`
 converts it into one `Thresholds` value for the video's frame rate.
-The loader checks feature order, proposal settings and side geometry. Runtime
+The loader checks feature order and proposal settings. Player attribution uses
+the current scene's geometry. Runtime
 versions are recorded for reproduction, without requiring an exact version match.
 Joblib records Python class paths, so moving saved classes can require rebuilding
 their artefacts. Use the corresponding historical checkout for older bundles and

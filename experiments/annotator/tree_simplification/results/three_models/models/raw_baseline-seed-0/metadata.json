@@ -1,5 +1,5 @@
 {
-  "schema": "annotator-three-models/1",
+  "schema": "annotator-three-models/2",
   "scikit_learn": "1.9.1",
   "contact_features": [
     "shuttle_vx_t-10",
@@ -88,7 +88,6 @@
     "wrist_valid_bot_t+5",
     "wrist_valid_bot_t+10"
   ],
-  "side_geometry": "video",
   "rally_selector": {
     "max_edits": 3,
     "deletion_candidates": 6,

@@ -117,12 +117,12 @@ only; it retains the development-fitted selector and review model.
 ## Saved contract
 
 [`models.py`](../../src/annotator/models.py) saves the fitted classifiers with
-preprocessing, contact-selection settings and side geometry. The metadata records
+preprocessing and contact-selection settings. The metadata records
 the runtime versions, ordered feature names and proposal budgets. The fitted
 review model is stored in `models.joblib`.
 Changing feature order or proposal semantics requires a new fit and evaluation.
 
-The schema for newly fitted bundles is `annotator-three-models/1`. Earlier
+The schema for newly fitted bundles is `annotator-three-models/2`. Earlier
 bundles use the source and environment they were fitted with.
 
 See the [refit guide](retuning.md) for commands, configuration and saved results.

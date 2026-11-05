@@ -76,17 +76,15 @@ The default is one rally selector with the selected XGBoost settings:
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
   --manifest retune/manifest.json \
-  --output models/experiment-a \
-  --side-geometry video
+  --output models/experiment-a
 ```
 
 To fit on a CUDA GPU, add `--device cuda`. Saved models use CPU inference so they
 can be loaded on machines without a GPU. `--threads` controls fitting thread
 limits.
 
-`--side-geometry video` uses one net band per video for player-half guesses.
-`--side-geometry scene` uses each scene's geometry. This setting is saved in the
-bundle because it changes model evidence.
+Player-half guesses always use each contact's scene geometry. To use one
+homography for an entire video, supply it for every scene.
 
 The command reads only training videos and their labels. It fits the final
 contact model, held-group contact models, the rally selectors and the review
@@ -141,7 +139,7 @@ not five-fold cross-validation.
 ## Configuration and saved results
 
 `models.joblib` and `metadata.json` form one bundle. They retain preprocessing,
-contact selection, side geometry, proposal settings and fitted estimators.
+contact selection, proposal settings and fitted estimators.
 The metadata records runtime versions and feature order. Keep both files
 when moving a model. Training also saves the fit settings in
 `fit-settings.json.gz` beside the bundle.

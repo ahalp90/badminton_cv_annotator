@@ -153,11 +153,10 @@ experiments/annotator/tree_simplification/results/three_models/models/raw_baseli
 
 Loading checks:
 
-- schema `annotator-three-models/1`;
+- schema `annotator-three-models/2`;
 - exact contact, rally and review feature order;
 - rally proposal budgets and the fitted review model;
-- that `models.joblib` contains an `AnnotatorModels` object;
-- that the side-geometry mode in the object and metadata agree.
+- that `models.joblib` contains an `AnnotatorModels` object.
 
 `models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact probability cutoff used with the fitted trees.
 

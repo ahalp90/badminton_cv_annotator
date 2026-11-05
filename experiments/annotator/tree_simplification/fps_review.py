@@ -16,7 +16,7 @@ from threadpoolctl import threadpool_limits
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.model import ContactModelConfig
 from annotator.hybrid import predict_contact_features
-from annotator.models import AnnotatorModels, SideGeometry, fitted_trees
+from annotator.models import AnnotatorModels, fitted_trees
 from annotator.sequence.contacts import stream_payload
 from annotator.sequence.rally_model import (
     RallySelector,
@@ -59,7 +59,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         joblib.load(contact_run_root / 'contacts' / 'v_32.joblib'),
         RallySelector(selector, pool_settings['max_edits'], pool_settings['deletion_candidates']),
         review, ContactModelConfig(**pool_settings['settings']['contact_prediction']),
-        BaseAnnotatorConfig(), SideGeometry.VIDEO,
+        BaseAnnotatorConfig(),
     )
     for tree in fitted_trees(models):
         tree.set_params(device='cpu')

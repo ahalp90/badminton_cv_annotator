@@ -201,7 +201,6 @@ def _direct_annotation(
         fps=float(metadata.fps),
         models=models,
         landing_options=run_video_module.point_winner.SHIPPED_LANDING_FILTER_OPTIONS,
-        net_band=inputs.net_band,
         resolution=inputs.resolution,
         video_id=video_id,
 

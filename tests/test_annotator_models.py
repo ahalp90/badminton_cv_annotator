@@ -10,7 +10,6 @@ from sklearn.dummy import DummyClassifier
 from annotator.models import (
     DEFAULT_MODEL_DIRECTORY,
     AnnotatorModels,
-    SideGeometry,
     fitted_trees,
     load_models,
     save_models,
@@ -35,14 +34,13 @@ def test_previous_schema_requires_matching_historical_checkout():
         load_models(historical)
 
 
-def test_bundle_roundtrip_keeps_predictions_and_geometry(tmp_path):
+def test_bundle_roundtrip_keeps_predictions_and_preprocessing(tmp_path):
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 1, 1])
     models = AnnotatorModels(
-        tree, RallySelector(tree), tree, side_geometry=SideGeometry.SCENE,
+        tree, RallySelector(tree), tree,
     )
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
-    assert restored.side_geometry is SideGeometry.SCENE
     assert restored.preprocessing == models.preprocessing
     np.testing.assert_array_equal(restored.contact.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
 
@@ -62,7 +60,7 @@ def test_library_version_metadata_does_not_block_loading(tmp_path, annotator_mod
     assert load_models(tmp_path).preprocessing == annotator_models.preprocessing
 
 
-@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1'])
+@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1', 'annotator-three-models/1'])
 def test_retired_schema_is_rejected_before_unpickling(tmp_path, schema):
     (tmp_path / 'models.joblib').write_bytes(b'not loaded')
     (tmp_path / 'metadata.json').write_text(json.dumps({'schema': schema}))

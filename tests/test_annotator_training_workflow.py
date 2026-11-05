@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from annotator.contacts.features import ContactFeatures
-from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.training import workflow
@@ -123,10 +122,10 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         return SimpleNamespace(model=model)
 
     def sequence_input(identity: str, group: str, captured: Any, _features: Any, rallies: Any,
-                       model: Any, _settings: Any, geometry: Any) -> Any:
+                       model: Any, _settings: Any) -> Any:
         expected = [identity for identity in training_order if group_by_video[identity] != group]
         assert contact_training_identities[model] == expected
-        assert model is not contact_model and geometry is SideGeometry.SCENE
+        assert model is not contact_model
         pool_models[identity] = model
         return SimpleNamespace(identity=identity, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
 
@@ -157,7 +156,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         workflow.DEFAULT_TRAINING_SETTINGS,
         rally=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally, review_tolerance_at_30_fps=6),
     )
-    result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', SideGeometry.SCENE, settings)
+    result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', settings)
     assert seen == training_order
     assert list(pool_models) == training_order
     assert pool_models['one'] is pool_models['four']
@@ -165,7 +164,6 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         training_order, ['two', 'three'], ['one', 'four', 'three'], ['one', 'two', 'four'],
     ]
     assert result.contact is contact_model and result.sequences is sequence_models
-    assert result.side_geometry is SideGeometry.SCENE
     assert saved == [(result, tmp_path / 'bundle')]
     fit_settings = load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')
     assert fit_settings['contact']['positive_radius_at_30_fps'] == 1
@@ -217,7 +215,7 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
         workflow.evaluate_manifest(manifest, models, workflow.Split.TRAIN, output)
 
 
-def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_dispatches_settings_and_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     path = manifest_file(tmp_path)
     fitted = []
     evaluated = []
@@ -225,8 +223,8 @@ def test_cli_dispatches_geometry_and_paths(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(workflow, 'fit_from_manifest', lambda *args: fitted.append(args))
     monkeypatch.setattr(workflow, 'load_models', lambda _path: model)
     monkeypatch.setattr(workflow, 'evaluate_manifest', lambda *args: evaluated.append(args))
-    assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle', '--side-geometry', 'scene']) == 0
-    assert fitted[0][1:] == (Path('bundle'), SideGeometry.SCENE, workflow.DEFAULT_TRAINING_SETTINGS)
+    assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle']) == 0
+    assert fitted[0][1:] == (Path('bundle'), workflow.DEFAULT_TRAINING_SETTINGS)
     assert workflow.main([
         'fit', '--manifest', str(path), '--output', 'layer-bundle', '--device', 'cuda',
     ]) == 0

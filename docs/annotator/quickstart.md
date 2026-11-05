@@ -169,9 +169,11 @@ explains which changes require refitting.
 | Setting | Current default | Where it lives | What it changes |
 | --- | ---: | --- | --- |
 | Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/model.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
-| Side geometry | `video` | model directory / `--side-geometry` during fitting | Whether player halves use one net band per video or per-scene geometry |
 | Rally/contact rules | `BaseAnnotatorConfig` | saved in the model directory | Rough rallies, masks and contact search regions seen by the fitted stages |
 | Shuttle/pose/court extraction | dataset-builder config | `configs/dataset_builder/*.toml` | Upstream evidence supplied to annotation |
+
+Player attribution always uses the current scene's court geometry. Reusing one
+homography for every scene gives video-wide geometry through the same path.
 
 The [refit guide](retuning.md#python-fit-settings) lists tree-training parameters and defaults.
 

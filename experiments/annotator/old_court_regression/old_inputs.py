@@ -145,7 +145,7 @@ def run_old_video(
         base=DEFAULT_TRAINING_SETTINGS.preprocessing if models is None else models.preprocessing,
         models=models, heuristic_only=models is None,
         landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
-        net_band=court.net_band, resolution=court.resolution, video_id=inputs.identity,
+        resolution=court.resolution, video_id=inputs.identity,
          gate_resolution_table=court.gate_resolution_table,
         court_present=inputs.court_present, homography_rows=court.homography_rows,
 

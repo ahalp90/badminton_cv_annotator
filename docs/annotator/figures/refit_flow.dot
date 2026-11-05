@@ -11,7 +11,7 @@ digraph refit {
   seq [label="Deployment rally selector\nfit contact-toggle options from all training groups"];
   crossseq [label="Held-group selector predictions\none selector fit per held-out group"];
   conf [label="Rally review tree\nfit from out-of-group finished rallies"];
-  bundle [label="Model directory\ncontact + rally selector + review trees\nsettings + side geometry"];
+  bundle [label="Model directory\ncontact + rally selector + review trees\nsettings"];
   val [label="Validation\ncompare model variants"];
   test [label="Test\nfinal held-out measurement"];
 

@@ -28,7 +28,6 @@ from annotator.contacts.model import ContactModelConfig
 from annotator.hybrid import predict_contact_features
 from annotator.models import (
     AnnotatorModels,
-    SideGeometry,
     fitted_trees,
     load_models,
     save_models,
@@ -293,7 +292,6 @@ def export_run(
         review,
         ContactModelConfig(**pool_settings['settings']['contact_prediction']),
         preprocessing,
-        SideGeometry.VIDEO,
     )
     for tree in fitted_trees(models):
         if type(tree).__module__.startswith('xgboost'):

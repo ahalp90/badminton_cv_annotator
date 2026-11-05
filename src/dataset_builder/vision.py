@@ -807,7 +807,6 @@ def run_full_annotation_stage(
         base=effective_base,
         models=models,
         landing_options=effective_landing,
-        net_band=court_inputs.net_band,
         resolution=court_inputs.resolution,
         video_id=video_id,
 

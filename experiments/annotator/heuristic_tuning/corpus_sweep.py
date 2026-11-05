@@ -219,7 +219,6 @@ def load_pinned_replay_fixtures(
         keyword: dict[str, object] = {
             "fps": float(metadata.fps),
             "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
-            "net_band": court_inputs.net_band,
             "resolution": court_inputs.resolution,
             "video_id": video_id,
 

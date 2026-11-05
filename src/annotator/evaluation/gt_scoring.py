@@ -520,7 +520,6 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     keyword: dict[str, object] = {
         "fps": fixture.fps,
         "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
-        "net_band": fixture.net_band,
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,
 

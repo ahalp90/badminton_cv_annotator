@@ -3,10 +3,14 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.contacts.features import contact_feature_dtype
+from annotator.contacts.model import ScoredContacts
 from annotator.contacts.selection import select_heuristic_contacts
 from annotator.courts.scenes import SceneCourt
+from annotator.hybrid import build_rally_context
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
     CourtHalf,
@@ -15,7 +19,7 @@ from annotator.outcomes.point_winner import (
     RallyOutcome,
 )
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, StickyResult
 
 
 def _scene(
@@ -28,27 +32,36 @@ def _scene(
     return SceneCourt(start_frame, end_frame, {'scene': name}, net_band, error_band)
 
 
-def test_contact_attribution_uses_net_band_at_contact_scene(monkeypatch):
+@pytest.mark.parametrize('second_band, expected', [
+    ((30.0, 31.0), (CourtHalf.BOT, CourtHalf.TOP)),
+    ((10.0, 11.0), (CourtHalf.BOT, CourtHalf.BOT)),
+])
+def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
     scenes = (
         _scene(0, 5, 'first', (10.0, 11.0), 0.1),
-        _scene(5, 10, 'second', (30.0, 31.0), 0.2),
+        _scene(5, 10, 'second', second_band, 0.2),
     )
-    received_bands = []
-
-    def fake_attribute_half(frame, track, sticky, bboxes, net_band):
-        received_bands.append(net_band)
-        return CourtHalf.TOP
-
-    monkeypatch.setattr(video_outcomes.point_winner, 'attribute_half', fake_attribute_half)
-    contacts = [ContactCandidate(0, 7, None, None, None)]
+    contacts = [ContactCandidate(0, frame, None, None, None) for frame in (2, 7)]
+    track = np.zeros((10, 3))
+    track[:, 2] = 1
+    bboxes = np.zeros((10, 1, 4))
+    bboxes[:, 0, 3] = 20
+    sticky = StickyResult(
+        np.ones(10), np.zeros((10, 2), dtype=int), np.zeros(10, dtype=int),
+        np.zeros((10, 2, 2)), np.zeros((10, 2)), np.ones((10, 2)),
+        np.ones((10, 2)), np.ones(10, dtype=bool),
+    )
     evidence = SimpleNamespace(
         heuristic_spans=[(0, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
-        track=np.zeros((10, 3)), sticky=None, bboxes=np.zeros((10, 1, 4)), scene_courts=scenes,
+        track=track, sticky=sticky, bboxes=bboxes, scene_courts=scenes, fps=30.0, bounds_supplied=True,
     )
     rallies = select_heuristic_contacts(evidence)
-
-    assert received_bands == [scenes[1].net_band]
-    assert rallies[0].final_half is CourtHalf.TOP
+    assert tuple(event.side for event in rallies[0].sequence.events) == expected
+    rows = np.zeros(2, dtype=contact_feature_dtype())
+    rows['frame'] = (2, 7)
+    scores = ScoredContacts(rows, np.ones(2), np.arange(2))
+    context = build_rally_context(evidence, scores, [(0, 10)])
+    assert tuple(event.side for event in context.events) == expected
 
 
 def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):

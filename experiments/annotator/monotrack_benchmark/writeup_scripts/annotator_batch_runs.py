@@ -99,7 +99,6 @@ def require_shared_pool(models: tuple[AnnotatorModels, ...]) -> None:
     contact = first.contact.get_booster().save_raw()
     for other in models[1:]:
         if (other.preprocessing != first.preprocessing or other.contact_settings != first.contact_settings
-                or other.side_geometry != first.side_geometry
                 or other.sequences.max_edits != first.sequences.max_edits
                 or other.sequences.deletion_candidates != first.sequences.deletion_candidates):
             raise ValueError('Shared rally pools require identical preparation, contact settings and proposal budgets')
@@ -210,7 +209,7 @@ def prepare_inputs(
     return prepare_annotation(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
-        video_id=inputs.identity, net_band=court.net_band,
+        video_id=inputs.identity,
         gate_resolution_table=court.gate_resolution_table, court_present=inputs.court_present,
         homography_rows=court.homography_rows,
          inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,

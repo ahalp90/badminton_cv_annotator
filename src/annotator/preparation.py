@@ -27,7 +27,6 @@ class AnnotationEvidence:
     sticky: StickyResult
     tracker_intervals: Sequence[tuple[int, int]]
     scene_courts: tuple[SceneCourt, ...]
-    net_band: tuple[float, float]
     resolved: ResolvedAnnotatorConfig
     raw_exclusion_mask: np.ndarray
     exclusion_mask: np.ndarray
@@ -58,7 +57,6 @@ def prepare_annotation(
     resolved: ResolvedAnnotatorConfig,
     resolution: tuple[float, float],
     video_id: int | str,
-    net_band: tuple[float, float],
     gate_resolution_table: pd.DataFrame,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
@@ -119,7 +117,7 @@ def prepare_annotation(
         )
     return AnnotationEvidence(
         identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
-        sticky=sticky, tracker_intervals=segments, scene_courts=scene_courts, net_band=net_band,
+        sticky=sticky, tracker_intervals=segments, scene_courts=scene_courts,
         resolved=resolved, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=final_spans, heuristic_contacts=raw_contacts,
         shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,

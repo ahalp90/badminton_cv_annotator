@@ -26,7 +26,7 @@ from annotator.hybrid import (
     features_from_evidence,
     predict_contacts,
 )
-from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
+from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import ContactEvent, ContactSequence
@@ -238,28 +238,27 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
     return prepare_annotation(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(preprocessing, float(metadata.fps)),
-        net_band=inputs.net_band, resolution=inputs.resolution, video_id=identity,
-         gate_resolution_table=inputs.gate_resolution_table,
+        resolution=inputs.resolution, video_id=identity,
+        gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
-
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
     )
 
 
 def sequence_training_video(
     identity: str, group: str, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
-    contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
+    contact_model: Any, settings: ContactModelConfig,
 ) -> SequenceTrainingVideo:
     """Score contacts and prepare candidate sequences for rally fitting."""
     scored = score_contact_features(
         features.rows, contact_model, evidence.fps, settings,
     )
-    context = build_rally_context(evidence, scored, features.search_intervals, side_geometry)
+    context = build_rally_context(evidence, scored, features.search_intervals)
     return SequenceTrainingVideo(identity, group, context, rallies)
 
 
 def fit_from_manifest(
-    manifest: TrainingManifest, output: Path, side_geometry: SideGeometry = SideGeometry.VIDEO,
+    manifest: TrainingManifest, output: Path,
     settings: TrainingSettings = DEFAULT_TRAINING_SETTINGS,
 ) -> AnnotatorModels:
     """Fit and save all stages from train inputs only; held-out labels are never read."""
@@ -293,7 +292,7 @@ def fit_from_manifest(
     for video in loaded:
         training_videos.append(sequence_training_video(
             video.entry.identity, video.entry.group, video.evidence, video.features, video.rallies,
-            contact_models_by_held_group[video.entry.group], settings.contact_prediction, side_geometry,
+            contact_models_by_held_group[video.entry.group], settings.contact_prediction,
         ))
     # Release the large contact-feature arrays before building rally-training pools.
     del loaded, video, evidence, features, contact_input
@@ -302,8 +301,10 @@ def fit_from_manifest(
         training_videos, rally_fit.held_group_predictions, settings.confidence,
         tolerance_at_30_fps=settings.rally.review_tolerance_at_30_fps,
     )
-    models = AnnotatorModels(contact_model, rally_fit.selector, review_model, settings.contact_prediction,
-                             settings.preprocessing, side_geometry)
+    models = AnnotatorModels(
+        contact=contact_model, sequences=rally_fit.selector, confidence=review_model,
+        contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
+    )
     save_models(models, output)
     save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
     return models
@@ -366,7 +367,6 @@ def argument_parser() -> argparse.ArgumentParser:
     fit = commands.add_parser('fit', help='Fit a fresh complete bundle from the train split')
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
-    fit.add_argument('--side-geometry', choices=list(SideGeometry), default=SideGeometry.VIDEO, type=SideGeometry)
     fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
     fit.add_argument('--threads', type=int, default=2)
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
@@ -397,7 +397,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             )
             with threadpool_limits(limits=arguments.threads):
-                fit_from_manifest(manifest, arguments.output, arguments.side_geometry, settings)
+                fit_from_manifest(manifest, arguments.output, settings)
             print(f'Saved annotator models to {arguments.output}')
         else:
             models = load_models(arguments.models)

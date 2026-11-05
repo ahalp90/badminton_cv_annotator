@@ -91,36 +91,6 @@ def project_pixels_to_court(
 
 
 # ---------------------------------------------------------------------------
-# Contact-side attribution from tracked wrist proximity
-# ---------------------------------------------------------------------------
-def attribute_half(
-    frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, net_band: tuple[float, float],
-) -> CourtHalf | None:
-    """Court half of the sticky pick nearest to the shuttle at `frame`, or None.
-
-    The pick and its cached nearest-wrist body-unit distance come from the sticky tracker. The
-    wrist measurement point is unchanged. The picked bbox's bottom y (pixels) is tested against
-    the net band.
-    """
-    if track[frame, 2] != 1:
-        return None
-    distances = sticky.distances_per_slot[frame]
-    if not np.isfinite(distances).any():
-        return None
-    # A finite value beats +inf/NaN sentinels; an exact two-half tie resolves to Top
-    # (nanargmin takes the first index).
-    half = int(np.nanargmin(distances))
-    slot = sticky.picks[frame, half]
-    foot_y = float(bboxes[frame, slot][3])
-    band_lo, band_hi = net_band
-    if foot_y < band_lo:
-        return CourtHalf.TOP
-    if foot_y > band_hi:
-        return CourtHalf.BOT
-    return None  # inside the net band
-
-
-# ---------------------------------------------------------------------------
 # Alternation-rhythm fit
 # ---------------------------------------------------------------------------
 def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[CourtHalf]:

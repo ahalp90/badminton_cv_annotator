@@ -16,7 +16,6 @@ from annotator.contacts.model import (
 )
 from annotator.courts.scenes import SceneCourt
 from annotator.hybrid import build_rally_context
-from annotator.models import SideGeometry
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -68,23 +67,15 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
         heuristic_contacts=[ContactCandidate(0, frame, None, None, None) for frame in [220, 260]],
         raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool), source_codes=None,
-        scene_courts=scenes, net_band=(500.0, 520.0),
+        scene_courts=scenes,
     )
 
-    pools = []
-    for geometry in (SideGeometry.VIDEO, SideGeometry.SCENE):
-        context = build_rally_context(evidence, contacts, search_intervals, geometry)
-        selected = {event.frame: event for event in context.events}
-        assert selected[220].side is not None
-        earlier = {event.frame: event for event in context.candidates.by_span[0]}
-        assert earlier[160].side is None
-        assert earlier[170].side is None
-        pools.append(context.candidates)
-    video_pool, scene_pool = pools
-    assert scene_pool.by_span[0]
-    assert scene_pool.by_span == video_pool.by_span
-    for frame, physical in scene_pool.physical.items():
-        np.testing.assert_array_equal(physical, video_pool.physical[frame])
+    context = build_rally_context(evidence, contacts, search_intervals)
+    selected = {event.frame: event for event in context.events}
+    assert selected[220].side is not None
+    earlier = {event.frame: event for event in context.candidates.by_span[0]}
+    assert earlier[160].side is None
+    assert earlier[170].side is None
 
 
 def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlists(monkeypatch, annotator_models):
@@ -110,7 +101,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         sticky=sticky, tracker_intervals=[(0, frame_count)],
         exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),
         heuristic_spans=[(0, 90)], heuristic_contacts=[ContactCandidate(0, frame, None, None, None) for frame in [16, 80]],
-        scene_courts=(), net_band=(500.0, 520.0), shuttle_hallucination_mask=mask, source_codes=None,
+        scene_courts=(), shuttle_hallucination_mask=mask, source_codes=None,
     )
     probability_column = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
 
@@ -122,7 +113,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     models = replace(annotator_models, contact=SimpleNamespace(predict_proba=predict), contact_settings=config)
     training = sequence_training_video(
         'masked', 'group', evidence, features, (),
-        models.contact, config, models.side_geometry,
+        models.contact, config,
     )
 
     monkeypatch.setattr(hybrid, 'features_from_evidence', lambda _evidence: features)

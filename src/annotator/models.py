@@ -2,7 +2,6 @@
 
 import json
 from dataclasses import dataclass, field
-from enum import StrEnum
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -18,7 +17,7 @@ from annotator.sequence.rally_model import (
 )
 from annotator.sequence.rally_options import FEATURE_NAMES
 
-MODEL_SCHEMA = 'annotator-three-models/1'
+MODEL_SCHEMA = 'annotator-three-models/2'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (
@@ -27,27 +26,15 @@ DEFAULT_MODEL_DIRECTORY = (
 )
 
 
-class SideGeometry(StrEnum):
-    """Which net position separates the far and near player's feet.
-
-    VIDEO uses one net position for the whole video; SCENE uses the position
-    measured in each scene. The fitted bundle preserves the selected mode.
-    """
-
-    VIDEO = 'video'
-    SCENE = 'scene'
-
-
 @dataclass(frozen=True)
 class AnnotatorModels:
-    """The complete fitted annotator, including the rules it was trained with."""
+    """The three fitted stages with their contact and preprocessing settings."""
 
     contact: Any
     sequences: RallySelector
     confidence: Any
     contact_settings: ContactModelConfig = field(default_factory=ContactModelConfig)
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
-    side_geometry: SideGeometry = SideGeometry.VIDEO
 
 
 def model_files(directory: Path) -> dict[str, Path]:
@@ -79,7 +66,6 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
         'schema': MODEL_SCHEMA,
         'scikit_learn': sklearn.__version__,
         'contact_features': list(CONTACT_FEATURE_NAMES),
-        'side_geometry': models.side_geometry.value,
     }
     metadata['rally_selector'] = selector_contract(models.sequences)
     if any(type(tree).__module__.startswith('xgboost') for tree in fitted_trees(models)):
@@ -103,8 +89,6 @@ def load_models(directory: Path) -> AnnotatorModels:
     models = joblib.load(directory / MODEL_FILENAME)
     if not isinstance(models, AnnotatorModels):
         raise TypeError('Model bundle does not contain a complete AnnotatorModels value')
-    if models.side_geometry.value != metadata['side_geometry']:
-        raise ValueError('Model bundle and metadata disagree about the net position used for player sides')
     if not isinstance(models.sequences, RallySelector):
         raise TypeError('Rally metadata requires a fitted rally selector')
     if metadata['rally_selector'] != selector_contract(models.sequences):

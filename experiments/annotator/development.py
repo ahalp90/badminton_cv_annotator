@@ -16,7 +16,6 @@ from typing import Any
 import joblib
 
 from annotator.contacts.features import contact_feature_dtype
-from annotator.models import SideGeometry
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.training.sequences import (
     LabelledRally,
@@ -183,7 +182,7 @@ def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSetti
     video = prepared.video
     return sequence_training_video(
         video.identity, prepared.group,
-        prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction, SideGeometry.VIDEO,
+        prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction,
     )
 
 

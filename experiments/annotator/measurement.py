@@ -1019,7 +1019,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             base=driver.models.preprocessing,
             inpaint_codes=case.inpaint_codes,
             landing_options=LANDING_OPTIONS,
-            net_band=input_values.net_band,
             resolution=input_values.resolution,
             video_id=case.fixture.video_id,
             gate_resolution_table=input_values.gate_resolution_table,

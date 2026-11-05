@@ -2,8 +2,7 @@
 
 import math
 
-from annotator.courts.scenes import court_at_frame
-from annotator.outcomes import point_winner
+from annotator.contacts.attribution import attribute_half
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.sequence.rally_model import fit_rally_sides
@@ -34,8 +33,7 @@ def select_heuristic_contacts(
         scored_by_rally.setdefault(contact.rally_id, []).append(frame)
         if evidence.exclusion_mask[frame]:
             continue
-        frame_net_band = court_at_frame(evidence.scene_courts, frame).net_band
-        side = point_winner.attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, frame_net_band)
+        side = attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts)
         # Heuristic contacts have no model probability; only model inference reads it.
         event = ContactEvent(frame, math.nan, side)
         events_by_rally.setdefault(contact.rally_id, []).append(event)

@@ -9,6 +9,8 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.contacts.attribution import attribute_half
+from annotator.courts.scenes import SceneCourt
 from annotator.outcomes.point_winner import (
     CourtHalf,
     Landing,
@@ -16,7 +18,6 @@ from annotator.outcomes.point_winner import (
     LandingKinematics,
     LandingWindow,
     WinnerSource,
-    attribute_half,
     build_landing_kinematics,
     carried_terminal,
     filtered_descending_landing,
@@ -264,8 +265,10 @@ def test_attribute_half_reads_the_sticky_nearest_pick_half():
     distances[contact, 1] = 0.0
     sticky = _sticky(n_frames, picks=picks, heights=heights, distances=distances)
 
-    half = attribute_half(contact, track, sticky, bboxes, (400.0, 500.0))
+    half = attribute_half(contact, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),))
     assert half == CourtHalf.BOT
+    no_contact_scene = (SceneCourt(contact + 1, len(track), {}, (400.0, 500.0), 0.1),)
+    assert attribute_half(contact, track, sticky, bboxes, no_contact_scene) is None
 
 
 def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
@@ -275,10 +278,10 @@ def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
         5, picks=np.full((5, 2), -1), heights=np.full((5, 2), np.nan), distances=np.full((5, 2), np.nan),
     )
 
-    assert attribute_half(2, track, sticky, bboxes, (400.0, 500.0)) is None
+    assert attribute_half(2, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
 
     track[2, 2] = 1
-    assert attribute_half(2, track, sticky, bboxes, (400.0, 500.0)) is None
+    assert attribute_half(2, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +622,7 @@ def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
         1, picks=np.array([[-1, -1]]), heights=np.full((1, 2), np.nan), distances=np.full((1, 2), np.nan),
     )
 
-    assert attribute_half(0, track, sticky, bboxes, (400.0, 500.0)) is None
+    assert attribute_half(0, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)) is None
     kin = build_landing_kinematics(track, sticky, kps, resolution)
     assert np.isnan(kin.carry_ratio[0])
     assert np.isnan(kin.ankle_ratio[0])

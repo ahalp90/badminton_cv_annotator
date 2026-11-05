@@ -67,6 +67,7 @@ beside the public result. Prepared evidence includes both exclusion masks.
 | Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
 | Which earlier or missed contacts can be proposed? | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) |
 | Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
+| Which player hit in this camera scene? | [contacts/attribution.py](../../src/annotator/contacts/attribution.py) |
 | Why did the striker half change? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
 | How is a winner or landing judged? | [outcomes/point_winner.py](../../src/annotator/outcomes/point_winner.py) |
 | How does a setting scale with frame rate? | [config.py](../../src/annotator/config.py) |

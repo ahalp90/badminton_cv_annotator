@@ -10,6 +10,7 @@ import pytest
 import annotator.run_video as run_video_module
 from annotator import preparation
 from annotator.config import BaseAnnotatorConfig
+from annotator.contacts import selection as contact_selection
 from annotator.contacts.selection import scoring_filter
 from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
@@ -86,7 +87,6 @@ def test_run_video_no_play_returns_empty_result():
         track, bboxes, scores, kps, ndet,
         fps=25.0,
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75),
-        net_band=(664.6, 703.7),
         resolution=resolution,
         video_id=video_id,
 
@@ -123,7 +123,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
 
 
 @pytest.mark.parametrize('field', [
-    'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options', 'net_band',
+    'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options',
     'gate_resolution_table', 'court_present', 'homography_rows',
 ])
 def test_run_video_requires_player_and_scene_inputs(field):
@@ -212,7 +212,7 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     inputs = _synthetic_inputs()
     del inputs['raw_exclusion_mask']
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: CourtHalf.TOP,
     )
 
@@ -233,7 +233,7 @@ def test_run_video_does_not_use_earlier_contact_when_final_is_rejected(monkeypat
     )
     called_frames = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -256,7 +256,7 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         base=BaseAnnotatorConfig(rejected_grades=frozenset({1})), inpaint_codes=codes,
     )
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -279,7 +279,7 @@ def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeyp
     inputs['raw_exclusion_mask'] = raw_exclusion_mask
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: pytest.fail('trusted-dead contacts must not be attributed'),
     )
 
@@ -307,7 +307,7 @@ def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
 
     run_video(
@@ -330,7 +330,7 @@ def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
@@ -358,7 +358,7 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
     def attribute(_frame, *_args, **_kwargs):
         return CourtHalf.TOP if _frame in {12, 14, 16, 30, 34} else CourtHalf.BOT
 
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', attribute)
+    monkeypatch.setattr(contact_selection, 'attribute_half', attribute)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
     result = run_video(
@@ -382,7 +382,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
+        contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
 
     def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
@@ -411,7 +411,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
 def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
@@ -432,7 +432,7 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
 def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
@@ -457,7 +457,7 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
     inputs['raw_exclusion_mask'] = raw_exclusion_mask
     inputs['track'][14:, 2] = 1.0
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
@@ -476,7 +476,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
     inputs['raw_exclusion_mask'][15:28] = True  # 13-frame run survives filtering at 25 fps
     inputs['track'][14, 1] = 0.5
     inputs['track'][14, 2] = 1.0
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP)
+    monkeypatch.setattr(contact_selection, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
     result = run_video(
@@ -490,7 +490,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half',
+        contact_selection, 'attribute_half',
         lambda *args, **kwargs: None,
     )
 
@@ -552,7 +552,7 @@ def test_landing_search_rejects_invalid_time_limits(limits):
 def test_run_video_scales_landing_options_before_search(monkeypatch):
     inputs = _synthetic_inputs()
     seen_options = []
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(contact_selection, 'attribute_half', lambda *args: CourtHalf.TOP)
 
     def record_options(_start, _end, _track, _kinematics, options, *_args, **_kwargs):
         seen_options.append(options)
@@ -570,7 +570,7 @@ def test_run_video_scales_landing_options_before_search(monkeypatch):
 def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
     capture = RunCapture()
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(contact_selection, 'attribute_half', lambda *args: CourtHalf.TOP)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
     result = run_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
@@ -588,7 +588,7 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
     capture = RunCapture()
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
+    monkeypatch.setattr(contact_selection, 'attribute_half', lambda *args: CourtHalf.TOP)
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
         position = (0.5, 0.25) if end_frame < len(inputs['track']) else (0.5, 0.75)
@@ -695,7 +695,7 @@ def _synthetic_inputs():
         'ndet': np.zeros(n_frames, dtype=np.int64),
         'fps': 25.0,
         'landing_options': LandingFilterOptions(7, 0.004, 5, 7, 0.75),
-        'net_band': (664.6, 703.7), 'resolution': resolution,
+        'resolution': resolution,
         'video_id': video_id,
 
         'gate_resolution_table': pd.DataFrame(

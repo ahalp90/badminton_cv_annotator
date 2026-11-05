@@ -46,7 +46,7 @@ def run_item(
         base = models.preprocessing
         if (base.rejected_grades != frozenset({1, 2, 3})
                 or models.contact_settings.score_cutoff != 0.9
-                or models.side_geometry.value != 'video'):
+):
             raise ValueError('Model bundle settings differ from the selected annotator')
     else:
         from experiments.annotator.heuristic_tuning.sweep import base_config
@@ -81,7 +81,7 @@ def run_item(
         result = run_video(
             track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
-            landing_options=SHIPPED_LANDING_FILTER_OPTIONS, net_band=court.net_band,
+            landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
             resolution=court.resolution, video_id=item['item_id'],
              gate_resolution_table=court.gate_resolution_table,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,

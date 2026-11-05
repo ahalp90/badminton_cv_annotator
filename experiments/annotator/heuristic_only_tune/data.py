@@ -155,7 +155,6 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
     return {
         'fps': inputs.fps,
         'landing_options': SHIPPED_LANDING_FILTER_OPTIONS,
-        'net_band': court.net_band,
         'resolution': court.resolution,
         'video_id': inputs.identity,
 
