@@ -2,7 +2,6 @@ import gzip
 import json
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pytest
 
 from experiments.annotator.video_models_benchmark.writeup_scripts import (
@@ -29,25 +28,29 @@ def sparse_scores(members: list[figures.PilotRun]) -> dict:
     return scores
 
 
-def test_sparse_stride_figure_shows_only_stride_three_offset_zero(monkeypatch: pytest.MonkeyPatch,
-                                                                   tmp_path: Path) -> None:
+def test_validation_figure_uses_stride_three_offset_zero(monkeypatch: pytest.MonkeyPatch,
+                                                         tmp_path: Path) -> None:
     members = runs()
+    for run in members:
+        run.history.append({'steps': 10, 'validation': {'loss': 0.1},
+                            'events': {figures.TOLERANCE: {'rallies': 668, 'labelled': 5696}}})
     scores = sparse_scores(members)
+    for run in members:
+        scores[run.name, 1, 0, 'alternating', figures.TOLERANCE] = {
+            metric: 99.0 for metric, _title in figures.METRICS
+        }
     captured = []
-    monkeypatch.setattr(figures, 'save', lambda figure, _out, _stem: captured.append(figure))
+    monkeypatch.setattr(figures, 'dot_plot', lambda *args: captured.append(args))
 
-    figures.stride_figure(scores, members, {0.0001: figures.VIDEOMAE_COLOUR}, ['Seed 0', 'Seed 1'],
-                          'VideoMAE-B held-out test: stride 3, offset 0', (), tmp_path, 'sparse-test')
+    figures.validation_figure(members, scores, 0.0001, tmp_path)
 
-    figure = captured[0]
-    legend_labels = [text.get_text() for text in figure.legends[0].get_texts()]
-    assert 'Stride 3, offset 0' in legend_labels
-    assert not any('Dense' in label or 'offset 1' in label or 'offset 2' in label for label in legend_labels)
-    for axes in figure.axes:
-        assert len(axes.lines) == 0
-        assert [collection.get_offsets()[0, 0] for collection in axes.collections] == [0, 1]
-    assert figure._suptitle.get_text() == 'VideoMAE-B held-out test: stride 3, offset 0'
-    plt.close(figure)
+    rows, title, notes, output = captured[0]
+    assert len(rows) == 1
+    assert rows[0].scores['fully_correct_percent'] == [21.0, 22.0]
+    assert rows[0].scores['correct_player_f1'] == [71.0, 72.0]
+    assert 'Stride 3, offset 0' in notes[0]
+    assert title.startswith('VideoMAE (base) validation:')
+    assert output == tmp_path / 'videomae_validation.png'
 
 
 def test_sparse_stride_table_lists_only_available_conditions(capsys: pytest.CaptureFixture[str]) -> None:
@@ -82,10 +85,3 @@ def test_test_sampling_supports_historical_dense_and_rejects_seed_mismatch(tmp_p
                                    'unsampled_probabilities': 'background'})
     with pytest.raises(ValueError, match='inconsistent sampling metadata'):
         figures.test_sampling(sparse_paths)
-
-
-def test_video_system_label_names_sparse_test_sampling() -> None:
-    label = figures.video_system_label(0.0001, 2, (3, 0))
-
-    assert label == 'VideoMAE-B test, stride 3, offset 0\nLR 1e-4 (2 seeds)'
-    assert figures.sampling_label((1, 0)) == 'dense (every frame)'
