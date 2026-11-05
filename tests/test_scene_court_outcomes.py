@@ -10,7 +10,6 @@ from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import video as video_outcomes
 from annotator.outcomes.point_winner import (
     Half,
-    HitHeightRow,
     Landing,
     LandingKinematics,
     VerdictRow,
@@ -60,12 +59,12 @@ def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
     )
     received_bands = []
 
-    def fake_hit_height_rows(contacts, track, net_band, resolution):
+    def fake_hit_height(track, contact_frame, net_band, resolution):
         received_bands.append(net_band)
-        return [HitHeightRow(0, 0, 7, 1)]
+        return 1
 
     monkeypatch.setattr(
-        video_outcomes.point_winner, 'build_hit_height_rows', fake_hit_height_rows,
+        video_outcomes.point_winner, 'hit_height', fake_hit_height,
     )
     evidence = SimpleNamespace(track=np.zeros((10, 3)), resolution=(1280.0, 720.0), scene_courts=scenes)
     contacts = (FinishedRally(ContactSequence(0, 0, 10, (ContactEvent(7, np.nan, Half.TOP),)), Half.TOP),)

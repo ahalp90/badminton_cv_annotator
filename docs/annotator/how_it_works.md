@@ -182,9 +182,18 @@ using the enforced alternating sides would make that evidence misleading.
 
 ## Estimate outcomes and return the result
 
-[`outcomes/video.py`](../../src/annotator/outcomes/video.py) derives server,
-winner, landing and hit-height fields from the final contacts and geometry.
-Insufficient evidence can leave an outcome unresolved while retaining the contacts.
+Start with `build_verdict_data()` in
+[`outcomes/video.py`](../../src/annotator/outcomes/video.py). For each rally,
+check the last contact, choose a camera view for the final flight, find its
+landing, then determine the winner. The next server takes precedence over the
+landing estimate. Insufficient evidence can leave an outcome unresolved while
+retaining the contacts.
+
+Each landing search stays within one camera view. When the final contact falls
+outside the available court views, a returning view within that rally can still
+provide a landing. The unseen part of the flight prevents a net-fault call.
+Optional diagnostics record rejected shuttle observations and compare shorter
+search windows. Hit heights are calculated separately for each contact.
 
 `AnnotatorResult` holds the public result. The dataset builder saves all of its
 fields. In particular:
