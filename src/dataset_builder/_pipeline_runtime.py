@@ -1037,7 +1037,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 StageOutcome.PROCESSED,
                 annotation.artifacts.as_mapping(),
                 {
-                    "rallies": len(annotation.run.result.spans),
+                    "rallies": len(annotation.run.result.rallies),
                     "guard_rejected_frames": (
                         annotation.run.shuttle_quality.guard_rejected_frames
                     ),
@@ -1082,8 +1082,8 @@ class DefaultPipelineRuntime(RuntimeSupport):
         def execute() -> StageExecution:
             self._reset_stage_dir("commentary_pairing", video_id)
             spans = [
-                (rally_id, start, end)
-                for rally_id, (start, end) in enumerate(annotation.run.result.spans)
+                (rally_id, rally.sequence.start_frame, rally.sequence.end_frame)
+                for rally_id, rally in enumerate(annotation.run.result.rallies)
             ]
             pairing = pair_video_with_metadata(
                 video_id,

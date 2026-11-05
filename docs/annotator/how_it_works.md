@@ -198,10 +198,10 @@ search windows. Hit heights are calculated separately for each contact.
 `AnnotatorResult` holds the public result. The dataset builder saves all of its
 fields. In particular:
 
-- `filtered_by_rally` is the contact membership of each rally.
+- `rallies` retains each finished sequence and its final striker; contact membership comes from its events.
 - `contact_events` is the full learned contact stream, including contacts outside rallies.
 - `rally_confidence` holds review scores in rally order.
-- Winner, landing and hit-height fields carry outcomes and explicit failures.
+- `outcomes` groups winner, landing and geometric estimates by rally; contact heights and unavailable-height reasons are keyed by frame.
 
 `RunCapture` optionally retains intermediate predictions, both exclusion masks
 and requested landing diagnostics. It supports debugging, preparation and

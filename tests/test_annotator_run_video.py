@@ -57,12 +57,12 @@ def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, an
         **inputs, **_default_scene_inputs(len(inputs['track'])),
         spans=[(10, 20)], contacts={0: [14]}, models=annotator_models, capture=capture,
     )
-    assert result.spans == [(8, 23)]
-    assert result.filtered_by_rally == {0: [9, 17]}
     assert result.contact_events == final_events
-    assert result.striker_halves == [None]
+    assert result.rallies[0].final_half is None
     assert result.rally_confidence == (.73,)
     assert capture.hybrid is prediction
+    assert result.rallies is prediction.refined.rallies
+    assert result.heuristic_candidates == []
 
 
 def test_run_video_no_play_returns_empty_result():
@@ -98,7 +98,7 @@ def test_run_video_no_play_returns_empty_result():
         **_default_scene_inputs(len(track)), heuristic_only=True,
     )
 
-    assert result == AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+    assert result == AnnotatorResult((), {}, {}, {}, (), [], ())
 
 
 def test_scoring_filter_keeps_only_unfailed_unsuppressed_rows():
@@ -122,7 +122,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
 
     result = run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=injected, heuristic_only=True)
 
-    assert result.spans == injected
+    assert [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies] == injected
 
 
 @pytest.mark.parametrize('field', [
@@ -178,9 +178,36 @@ def test_run_video_injected_contacts_are_unmeasured_and_scored():
 
     result = run_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=spans, contacts={0: frames}, heuristic_only=True)
 
-    assert result.contacts == expected
-    assert result.filtered_contacts == expected
-    assert result.filtered_by_rally == {0: frames}
+    assert result.heuristic_candidates == expected
+    assert [event.frame for rally in result.rallies for event in rally.sequence.events] == frames
+    assert [event.frame for event in result.rallies[0].sequence.events] == frames
+
+
+def test_heuristic_only_keeps_unknown_probabilities_without_using_models(monkeypatch):
+    from dataset_builder._runtime_support import _annotation_result
+    from dataset_builder.vision import annotation_result_payload
+
+    def unexpected(*args, **kwargs):
+        pytest.fail('heuristic-only annotation must not load or use fitted models')
+
+    monkeypatch.setattr(run_video_module, 'load_models', unexpected)
+    monkeypatch.setattr(run_video_module, 'predict_contacts', unexpected)
+    inputs = _synthetic_inputs()
+    result = run_video(
+        **inputs, **_default_scene_inputs(len(inputs['track'])),
+        spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
+    )
+    assert result.heuristic_candidates == [ContactCandidate(0, 14, None, None, None)]
+    assert np.isnan(result.rallies[0].sequence.events[0].probability)
+    payload = annotation_result_payload('heuristic', result)['result']
+    assert payload['rallies'][0]['sequence']['events'][0]['probability'] is None
+    restored = _annotation_result(payload)
+    assert np.isnan(restored.rallies[0].sequence.events[0].probability)
+    assert restored.heuristic_candidates == result.heuristic_candidates
+
+    invalid = result._replace(contact_events=(ContactEvent(2, np.inf, None),))
+    with pytest.raises(ValueError, match='must be finite'):
+        annotation_result_payload('heuristic', invalid)
 
 
 def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
@@ -195,9 +222,8 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.striker_halves == [Half.TOP]
-    assert 0 in result.verdict_rows
-    assert 0 in result.geometric_verdict_rows
+    assert [rally.final_half for rally in result.rallies] == [Half.TOP]
+    assert 0 in result.outcomes
 
 
 def test_run_video_does_not_use_earlier_contact_when_final_is_rejected(monkeypatch):
@@ -244,8 +270,8 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         contacts={0: [12, 14, 16]}, heuristic_only=True,
     )
 
-    assert result.verdict_rows[0].verdict is None
-    assert result.landings[0] is None
+    assert result.outcomes[0].verdict.verdict is None
+    assert result.outcomes[0].landing is None
 
 
 def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeypatch):
@@ -264,9 +290,9 @@ def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeyp
         contacts={0: [12, 14, 16]}, rejection_diagnostics=rows, heuristic_only=True,
     )
 
-    assert result.filtered_contacts == []
-    assert result.striker_halves == [None]
-    assert result.geometric_verdict_rows == {}
+    assert all(not rally.sequence.events for rally in result.rallies)
+    assert result.rallies[0].final_half is None
+    assert result.outcomes == {}
     assert rows == [{
         'rule': 'all_contacts_on_believed_mask', 'rally_id': 0,
         'start_frame': 10, 'end_frame': 20, 'trigger_frame': 12, 'trigger_code': '',
@@ -342,11 +368,11 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
         contacts=contacts, heuristic_only=True,
     )
 
-    assert result.verdict_rows[0].verdict is Verdict.WON
-    assert result.verdict_rows[0].verdict_source.value == 'next_server'
-    assert result.filtered_by_rally[0] == contacts[0]
-    assert set(result.hit_height_by_frame) == {frame for frames in contacts.values() for frame in frames}
-    assert result.hit_height_failures == []
+    assert result.outcomes[0].verdict.verdict is Verdict.WON
+    assert result.outcomes[0].verdict.verdict_source.value == 'next_server'
+    assert [event.frame for event in result.rallies[0].sequence.events] == contacts[0]
+    assert set(result.hit_heights) == {frame for frames in contacts.values() for frame in frames}
+    assert result.hit_height_failures == {}
 
 
 def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
@@ -399,7 +425,7 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    diagnostic = result.geometric_verdict_rows[0]
+    diagnostic = result.outcomes[0].geometric
     assert diagnostic.geometric_verdict is None
     assert diagnostic.geometric_winner is None
     assert diagnostic.agreement is None
@@ -421,7 +447,7 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    diagnostic = result.geometric_verdict_rows[0]
+    diagnostic = result.outcomes[0].geometric
     assert diagnostic.geometric_verdict.value == 'won'
     assert diagnostic.geometric_winner is Half.TOP
     assert diagnostic.agreement is True
@@ -446,7 +472,7 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.geometric_verdict_rows[0].window_closed_by_mask is True
+    assert result.outcomes[0].geometric.window_closed_by_mask is True
 
 
 def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
@@ -462,7 +488,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
         spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.geometric_verdict_rows[0].window_closed_by_mask is False
+    assert result.outcomes[0].geometric.window_closed_by_mask is False
 
 
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
@@ -476,8 +502,7 @@ def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypa
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.verdict_rows == {}
-    assert result.geometric_verdict_rows == {}
+    assert result.outcomes == {}
 
 
 def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
@@ -504,8 +529,8 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.spans == [(10, 20)]
-    assert result.contacts == [ContactCandidate(0, 14, None, None, None)]
+    assert [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies] == [(10, 20)]
+    assert result.heuristic_candidates == [ContactCandidate(0, 14, None, None, None)]
     assert build_calls == 1
 
 
@@ -654,13 +679,13 @@ def test_run_video_excludes_scene_gaps(
     )
 
     assert not capture.raw_exclusion_mask.any()
-    assert [contact.contact_frame for contact in result.contacts] == contact_frames
+    assert [contact.contact_frame for contact in result.heuristic_candidates] == contact_frames
     expected_mask = np.zeros(n_frames, dtype=bool)
     expected_mask[gap_start:gap_end] = True
     expected_mask[120] = exclude_invalid
     np.testing.assert_array_equal(capture.definitive_exclusion_mask, expected_mask)
     expected_contacts = [180] if exclude_invalid else [120, 180]
-    assert [contact.contact_frame for contact in result.filtered_contacts] == expected_contacts
+    assert [event.frame for rally in result.rallies for event in rally.sequence.events] == expected_contacts
 
 
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -103,7 +104,10 @@ def apply_choices(
 def stream_payload(sequences: Sequence[ContactSequence], events: Sequence[ContactEvent]) -> dict[str, Any]:
     """Store final sections and the full stream with each contact's side."""
     def event_row(event: ContactEvent) -> list:
-        return [event.frame, event.probability, None if event.side is None else event.side.value]
+        probability = None if math.isnan(event.probability) else event.probability
+        if probability is not None and not math.isfinite(probability):
+            raise ValueError("contact probability must be finite or unknown")
+        return [event.frame, probability, None if event.side is None else event.side.value]
 
     return {
         'sequences': [
@@ -118,7 +122,11 @@ def stream_payload(sequences: Sequence[ContactSequence], events: Sequence[Contac
 def stream_from_payload(payload: dict[str, Any]) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
     def event_from_row(row: list) -> ContactEvent:
         frame, probability, side = row
-        return ContactEvent(frame, probability, None if side is None else Half(side))
+        if probability is not None and not math.isfinite(probability):
+            raise ValueError("contact probability must be finite or unknown")
+        return ContactEvent(
+            frame, math.nan if probability is None else probability, None if side is None else Half(side),
+        )
 
     sequences = tuple(
         ContactSequence(sequence['span_id'], sequence['start_frame'], sequence['end_frame'],

@@ -46,7 +46,9 @@ from annotator.outcomes.point_winner import (
     VerdictRow,
     VerdictSource,
 )
+from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
+from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.records import load_rally_records
@@ -99,134 +101,65 @@ def projection_to_annotator_result(
     records: Sequence[Mapping[str, object]],
 ) -> AnnotatorResult:
     """Rebuild the scored annotator fields from validated rally records."""
-    spans: list[tuple[int, int]] = []
-    contacts: list[ContactCandidate] = []
-    filtered_contacts: list[ContactCandidate] = []
-    filtered_by_rally: dict[int, list[int]] = {}
-    striker_halves: list[Half | None] = []
-    stroke_counts: list[int] = []
-    next_servers: list[Half | None] = []
-    servers: list[Half | None] = []
-    verdict_rows: dict[int, VerdictRow] = {}
-    landings: dict[int, Landing | None] = {}
-    geometric_rows: dict[int, GeometricVerdictRow] = {}
-    hit_heights: dict[int, int] = {}
-    hit_height_failures: list[tuple[int, int, int, str]] = []
-
-    for expected_rally_id, raw_record in enumerate(records):
-        record = _mapping(raw_record, "rally record")
-        key = _mapping(record["key"], "rally key")
-        rally_id = _integer(key["rally_id"], "rally_id")
-        if rally_id != expected_rally_id:
+    rallies = []
+    candidates = []
+    outcomes = {}
+    hit_heights = {}
+    hit_height_failures = {}
+    review_scores = []
+    for rally_id, record in enumerate(records):
+        if _integer(_mapping(record["key"], "rally key")["rally_id"], "rally_id") != rally_id:
             raise ValueError("rally records must be contiguous and ordered from zero")
-        rally = _mapping(record["rally"], "rally fields")
-        spans.append(
-            (
-                _integer(rally["start_frame"], "start_frame"),
-                _integer(rally["end_frame"], "end_frame"),
-            )
-        )
-
-        contact_payload = _mapping(record["contacts"], "contact fields")
-        by_frame: dict[int, ContactCandidate] = {}
-        for raw_candidate in _sequence(
-            contact_payload["raw_candidates"], "raw candidates"
-        ):
-            candidate = _mapping(raw_candidate, "raw candidate")
-            frame = _integer(candidate["contact_frame"], "raw contact frame")
-            row = ContactCandidate(
-                rally_id,
-                frame,
+        bounds = _mapping(record["rally"], "rally fields")
+        contacts = _mapping(record["contacts"], "contact fields")
+        for raw in _sequence(contacts["raw_candidates"], "raw candidates"):
+            candidate = _mapping(raw, "raw candidate")
+            candidates.append(ContactCandidate(
+                rally_id, _integer(candidate["contact_frame"], "raw contact frame"),
                 _optional_boolean(candidate["proximity_ok"], "proximity_ok"),
                 _optional_boolean(candidate["wrist_near"], "wrist_near"),
                 _optional_boolean(candidate["suppressed"], "suppressed"),
-            )
-            contacts.append(row)
-            by_frame[frame] = row
-
-        accepted_frames: list[int] = []
-        for stroke_idx, raw_accepted in enumerate(
-            _sequence(contact_payload["accepted"], "accepted contacts")
-        ):
-            accepted = _mapping(raw_accepted, "accepted contact")
-            if _integer(accepted["stroke_idx"], "stroke_idx") != stroke_idx:
-                raise ValueError("accepted stroke indexes must be contiguous")
-            frame = _integer(accepted["contact_frame"], "accepted contact frame")
-            try:
-                filtered_contacts.append(by_frame[frame])
-            except KeyError as error:
-                raise ValueError("accepted contact has no raw candidate") from error
-            accepted_frames.append(frame)
-            hit_height = accepted["hit_height_code"]
-            if hit_height is not None:
-                hit_heights[frame] = _integer(hit_height, "hit_height_code")
-        filtered_by_rally[rally_id] = accepted_frames
-        stroke_count = _integer(contact_payload["stroke_count"], "stroke_count")
-        if stroke_count != len(accepted_frames):
-            raise ValueError("stroke_count differs from accepted contacts")
-        stroke_counts.append(stroke_count)
-        for raw_failure in _sequence(
-            contact_payload["hit_height_failures"], "hit-height failures"
-        ):
-            failure = _mapping(raw_failure, "hit-height failure")
-            reason = failure["reason"]
-            if not isinstance(reason, str) or not reason:
-                raise ValueError("hit-height failure reason must be non-empty")
-            hit_height_failures.append(
-                (
-                    rally_id,
-                    _integer(failure["stroke_idx"], "failure stroke_idx"),
-                    _integer(failure["contact_frame"], "failure contact_frame"),
-                    reason,
-                )
-            )
-
-        outcomes = _mapping(record["outcomes"], "outcome fields")
-        striker = _optional_half(outcomes["striker_half"], "striker_half")
-        striker_halves.append(striker)
-        servers.append(
-            _optional_half(outcomes["server_prediction"], "server_prediction")
-        )
-        next_servers.append(_optional_half(outcomes["next_server"], "next_server"))
+            ))
+        events = []
+        for raw in _sequence(contacts["accepted"], "accepted contacts"):
+            contact = _mapping(raw, "accepted contact")
+            frame = _integer(contact["contact_frame"], "contact frame")
+            events.append(ContactEvent(frame, np.nan, _optional_half(contact["player_half"], "player half")))
+            if contact["hit_height_code"] is not None:
+                hit_heights[frame] = _integer(contact["hit_height_code"], "hit height")
+        for raw in _sequence(contacts["hit_height_failures"], "hit-height failures"):
+            failure = _mapping(raw, "hit-height failure")
+            hit_height_failures[_integer(failure["contact_frame"], "failure frame")] = str(failure["reason"])
+        review_scores.append(contacts.get("review_score"))
+        result = _mapping(record["outcomes"], "outcome fields")
+        striker = _optional_half(result["striker_half"], "striker half")
+        rallies.append(FinishedRally(ContactSequence(
+            rally_id, _integer(bounds["start_frame"], "rally start"), _integer(bounds["end_frame"], "rally end"),
+            tuple(events),
+        ), striker))
         if striker is None:
             continue
-        verdict = _mapping(outcomes["verdict"], "verdict")
-        verdict_rows[rally_id] = VerdictRow(
-            rally_id,
-            striker,
-            _optional_enum(verdict["value"], Verdict, "verdict value"),
-            _optional_enum(verdict["source"], VerdictSource, "verdict source"),
-            _optional_float(verdict["landing_margin_m"], "landing margin"),
-            _boolean(verdict["within_line_margin"], "within_line_margin"),
-            _boolean(verdict["within_net_margin"], "within_net_margin"),
+        verdict = _mapping(result["verdict"], "verdict")
+        geometric = _mapping(result["geometric_verdict"], "geometric verdict")
+        outcomes[rally_id] = RallyOutcome(
+            VerdictRow(
+                rally_id, striker, _optional_enum(verdict["value"], Verdict, "verdict value"),
+                _optional_enum(verdict["source"], VerdictSource, "verdict source"),
+                _optional_float(verdict["landing_margin_m"], "landing margin"),
+                _boolean(verdict["within_line_margin"], "within line margin"),
+                _boolean(verdict["within_net_margin"], "within net margin"),
+            ),
+            None if result["landing"] is None else _landing(result["landing"]),
+            GeometricVerdictRow(
+                rally_id, _optional_enum(geometric["value"], Verdict, "geometric value"),
+                _optional_half(geometric["winner"], "geometric winner"),
+                _optional_boolean(geometric["agreement"], "geometric agreement"),
+                _boolean(geometric["window_closed_by_mask"], "window closed by mask"),
+            ),
         )
-        landing_payload = outcomes["landing"]
-        landings[rally_id] = (
-            None if landing_payload is None else _landing(landing_payload)
-        )
-        geometric = _mapping(outcomes["geometric_verdict"], "geometric verdict")
-        geometric_rows[rally_id] = GeometricVerdictRow(
-            rally_id,
-            _optional_enum(geometric["value"], Verdict, "geometric value"),
-            _optional_half(geometric["winner"], "geometric winner"),
-            _optional_boolean(geometric["agreement"], "geometric agreement"),
-            _boolean(geometric["window_closed_by_mask"], "window_closed_by_mask"),
-        )
-
     return AnnotatorResult(
-        spans,
-        contacts,
-        filtered_contacts,
-        filtered_by_rally,
-        striker_halves,
-        stroke_counts,
-        next_servers,
-        servers,
-        verdict_rows,
-        landings,
-        geometric_rows,
-        hit_heights,
-        hit_height_failures,
+        tuple(rallies), outcomes, hit_heights, hit_height_failures, (), candidates,
+        tuple(float(score) for score in review_scores) if all(score is not None for score in review_scores) else (),
     )
 
 
@@ -302,7 +235,7 @@ def benchmark_records(
             "fps": video.fps,
             "frame_count": video.frame_count,
             "last_gt_frame": last_gt_frame,
-            "detected_rallies": len(result.spans),
+            "detected_rallies": len(result.rallies),
             "metrics": _benchmark_metrics(scoring),
             "contact_curve": curve,
             "landing_coordinates": _landing_coordinate_output(
@@ -539,8 +472,9 @@ def _contact_curve(
         for base_frames in CONTACT_TOLERANCES_BASE30
     )
     scored = score_contacts(
-        result.spans,
-        result.filtered_contacts,
+        [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies],
+        [(rally_id, event.frame, None, None)
+         for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events],
         gt_rallies,
         tolerances=tolerances,
     )
@@ -720,7 +654,7 @@ def _landing_coordinate_rows(
             gt_position = (float(projected[0, 0]), float(projected[1, 0]))
         mapping_eligible = scored.gt_index not in merged_outcomes
         prediction = (
-            result.landings.get(scored.mapped_span)
+            (result.outcomes[scored.mapped_span].landing if scored.mapped_span in result.outcomes else None)
             if mapping_eligible and scored.mapped_span is not None
             else None
         )

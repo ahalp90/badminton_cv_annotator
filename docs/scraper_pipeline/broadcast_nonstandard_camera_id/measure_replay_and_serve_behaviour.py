@@ -810,15 +810,16 @@ def run_measurement(
         fixture.resolution,
         resolved.thresholds.body_unit_half_window,
     )
-    accepted_by_span = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in result.filtered_by_rally.items()
-    }
-    raw_frames = {int(contact.contact_frame) for contact in result.contacts}
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]
+                        for rally_id, rally in enumerate(result.rallies)}
+    accepted_frames = {event.frame for rally in result.rallies for event in rally.sequence.events}
+    raw_frames = ({contact.contact_frame for contact in result.heuristic_candidates}
+                  if result.heuristic_candidates else accepted_frames)
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     statuses = gt_statuses(
         gt_rallies,
-        result.spans,
+        spans,
         accepted_by_span,
         canonical_tolerance(fixture.fps),
     )
@@ -829,7 +830,7 @@ def run_measurement(
         raw_mask=raw_union,
         definitive_mask=e2e_definitive,
         sticky=sticky,
-        spans=result.spans,
+        spans=spans,
         natural_raw_frames=raw_frames,
         accepted_by_span=accepted_by_span,
         gt_rallies=gt_rallies,
@@ -882,9 +883,9 @@ def run_measurement(
         "replay_duplicate_margin": replay_duplicate_feasibility(intervals, len(gt_rallies)),
         "serve_lookback": serve_summary,
         "natural_run": {
-            "spans": len(result.spans),
-            "raw_contacts": len(result.contacts),
-            "accepted_contacts": len(result.filtered_contacts),
+            "spans": len(spans),
+            "raw_contacts": len(raw_frames),
+            "accepted_contacts": len(accepted_frames),
             "gt_rallies": len(gt_rallies),
         },
         "limits": [

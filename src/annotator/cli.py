@@ -97,6 +97,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         from dataset_builder.models import StageOutcome
 
         display.finish(name, SimpleNamespace(outcome=StageOutcome.PROCESSED, reused=False, reason=None),
-                       SimpleNamespace(counts=(('rallies', len(output.run.result.spans)),)), stage)
-    print(f'Saved {len(output.run.result.spans)} rallies to {output.artifacts.result}')
+                       SimpleNamespace(counts=(('rallies', len(output.run.result.rallies)),)), stage)
+    print(f'Saved {len(output.run.result.rallies)} rallies to {output.artifacts.result}')
     return 0

@@ -25,8 +25,9 @@ from annotator.outcomes.point_winner import (
     VerdictRow,
     VerdictSource,
 )
+from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
-from annotator.sequence import ContactEvent
+from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._commentary_status import (
@@ -627,7 +628,7 @@ class RuntimeSupport:
     ) -> dict[int, str]:
         if pairing is None:
             reason = self.state.commentary_reasons.get(video_id) or "commentary unavailable"
-            return {rally_id: reason for rally_id in range(len(annotation.run.result.spans))}
+            return {rally_id: reason for rally_id in range(len(annotation.run.result.rallies))}
         base_status = self._commentary_status(video_id)
         return {
             rally_id: (
@@ -891,37 +892,35 @@ def _load_annotation(
 def _annotation_result(payload: object) -> AnnotatorResult:
     if not isinstance(payload, dict) or set(payload) != set(AnnotatorResult._fields):
         raise ValueError("persisted AnnotatorResult fields differ")
+    rallies = []
+    for value in _list(payload["rallies"]):
+        rally = _dict(value)
+        sequence = _dict(rally["sequence"])
+        rallies.append(FinishedRally(ContactSequence(
+            _integer(sequence["span_id"], "rally id"),
+            _integer(sequence["start_frame"], "rally start"),
+            _integer(sequence["end_frame"], "rally end"),
+            tuple(restore_contact_event(event) for event in _list(sequence["events"])),
+        ), None if rally["final_half"] is None else Half(rally["final_half"])))
+    outcomes = {}
+    for key, value in _dict(payload["outcomes"]).items():
+        outcome = _dict(value)
+        outcomes[_integer_key(key)] = RallyOutcome(
+            _verdict_row(outcome["verdict"]),
+            None if outcome["landing"] is None else _landing(outcome["landing"]),
+            _geometric_row(outcome["geometric"]),
+        )
     return AnnotatorResult(
-        spans=[tuple(_integer_list(row, 2, "rally span")) for row in _list(payload["spans"])],
-        contacts=[_contact(row) for row in _list(payload["contacts"])],
-        filtered_contacts=[_contact(row) for row in _list(payload["filtered_contacts"])],
-        filtered_by_rally={
-            _integer_key(key): _integer_list(value, None, "filtered contacts")
-            for key, value in _dict(payload["filtered_by_rally"]).items()
-        },
-        striker_halves=_half_list(payload["striker_halves"]),
-        n_strokes_list=_integer_list(payload["n_strokes_list"], None, "stroke counts"),
-        next_servers=_half_list(payload["next_servers"]),
-        fitted_first_all=_half_list(payload["fitted_first_all"]),
-        verdict_rows={
-            _integer_key(key): _verdict_row(value)
-            for key, value in _dict(payload["verdict_rows"]).items()
-        },
-        landings={
-            _integer_key(key): None if value is None else _landing(value)
-            for key, value in _dict(payload["landings"]).items()
-        },
-        geometric_verdict_rows={
-            _integer_key(key): _geometric_row(value)
-            for key, value in _dict(payload["geometric_verdict_rows"]).items()
-        },
-        hit_height_by_frame={
-            _integer_key(key): _integer(value, "hit height")
-            for key, value in _dict(payload["hit_height_by_frame"]).items()
-        },
-        hit_height_failures=_hit_height_failures(payload["hit_height_failures"]),
+        rallies=tuple(rallies), outcomes=outcomes,
+        hit_heights={_integer_key(key): _integer(value, "hit height")
+                     for key, value in _dict(payload["hit_heights"]).items()},
+        hit_height_failures={_integer_key(key): _string(value, "hit-height failure reason")
+                             for key, value in _dict(payload["hit_height_failures"]).items()},
         contact_events=tuple(restore_contact_event(event) for event in _list(payload["contact_events"])),
-        rally_confidence=tuple(_finite_float(score, 'rally confidence') for score in _list(payload['rally_confidence'])),
+        heuristic_candidates=[_contact(row) for row in _list(payload["heuristic_candidates"])],
+        rally_confidence=tuple(
+            _finite_float(score, "rally confidence") for score in _list(payload["rally_confidence"])
+        ),
     )
 
 
@@ -931,7 +930,7 @@ def restore_contact_event(payload: object) -> ContactEvent:
         raise ValueError('persisted final contact fields differ')
     return ContactEvent(
         _integer(row['frame'], 'contact frame'),
-        _finite_float(row['probability'], 'contact probability'),
+        math.nan if row['probability'] is None else _finite_float(row['probability'], 'contact probability'),
         None if row['side'] is None else Half(row['side']),
     )
 
@@ -998,25 +997,6 @@ def _boolean_mask(path: Path, frame_count: int) -> np.ndarray:
     if values.shape != (frame_count,) or values.dtype != np.bool_:
         raise ValueError(f"persisted annotation mask is invalid: {path}")
     return values
-
-
-def _half_list(payload: object) -> list[Half | None]:
-    return [None if value is None else Half(value) for value in _list(payload)]
-
-
-def _hit_height_failures(payload: object) -> list[tuple[int, int, int, str]]:
-    failures: list[tuple[int, int, int, str]] = []
-    for value in _list(payload):
-        row = _list(value)
-        if len(row) != 4:
-            raise ValueError("hit-height failure must contain four values")
-        failures.append((
-            _integer(row[0], "failure rally_id"),
-            _integer(row[1], "failure stroke_idx"),
-            _integer(row[2], "failure frame"),
-            _string(row[3], "failure reason"),
-        ))
-    return failures
 
 
 def _integer_list(payload: object, length: int | None, name: str) -> list[int]:

@@ -303,7 +303,7 @@ def _display_config(spec: CandidateSpec) -> dict[str, object]:
 
 def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: Any) -> dict[str, Any]:
     gt = load_gt_rallies(master, fixture.video_id)
-    spans = result.spans
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
     boundary = score_boundaries(spans, gt)
     classifications = classify_all(spans, gt)
     merged = merged_span_indices(spans, gt)
@@ -314,7 +314,8 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
         band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps)
         for band in CONTACT_TOLERANCES_BASE30
     }
-    contacts = [(contact.rally_id, contact.contact_frame, contact.proximity_ok, contact.wrist_near) for contact in result.filtered_contacts]
+    contacts = [(rally_id, event.frame, None, None)
+                for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
     contact = score_contacts(spans, contacts, gt, tuple(tolerances.values()))
     row: dict[str, Any] = {
         "label": spec.label,
@@ -322,7 +323,9 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
         "min_contact_speed": LEGACY_MIN_CONTACT_SPEED,
         "n_spans": len(spans), **boundary, "clean_covered": len(clean), "swallowed_rallies": sum(max(0, count - 1) for count in contained), "max_rallies_in_one_span": max(contained, default=0),
         "strict_align_median": float(np.median(offsets)) if offsets else None, "strict_align_p90": float(np.percentile(offsets, 90)) if offsets else None,
-        "total_candidates": len(result.filtered_contacts), "changed_from_defaults": _changed_from_defaults(spec), "settings": _settings(spec)}
+        "total_candidates": len(contacts), "changed_from_defaults": _changed_from_defaults(spec),
+        "settings": _settings(spec),
+    }
     denominator = len(gt) + row["clean_covered"] + row["spurious_spans"]
     row["strict_f1"] = 0.0 if denominator == 0 else 2 * row["clean_covered"] / denominator
     start = boundary["start_alignment"]

@@ -181,14 +181,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.2
+annotator-result/0.3
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.2",
+  "schema": "annotator-result/0.3",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -212,42 +212,34 @@ Counts and summary information for shuttle visibility, inpainting and guard code
 
 ## `AnnotatorResult` fields
 
-Both modes use the same contact-row format. Heuristic contacts retain wrist and
-suppression verdicts. Learned contacts set those verdicts to `None`, because the
-fitted models selected them; the common output format preserves existing readers.
+The result keeps the finished rally objects produced by contact selection. Rally IDs
+are their positions in `rallies`; each object contains its bounds, selected contact
+events and fitted final striker. The dataset builder derives export columns from
+these objects.
 
 | Field | Meaning | Common use |
 | --- | --- | --- |
-| `spans` | Final rally intervals as `(start, end)` | Rally timing |
-| `contacts` | Final contact rows | Compatibility with existing callers |
-| `filtered_contacts` | Final accepted contact rows | Contact-level processing |
-| `filtered_by_rally` | `rally_id -> [contact_frame, ...]` | Final contact membership for each rally |
-| `striker_halves` | Court half of the final contact in each rally | Side/outcome logic |
-| `n_strokes_list` | Number of final contacts in each rally | Downstream features |
-| `next_servers` | Predicted next-server court half for each rally | Winner logic |
-| `fitted_first_all` | Predicted first-contact/server half for each rally | Serve information |
-| `verdict_rows` | Combined point-outcome records for rallies with a resolved striker | Outcome export/inspection |
-| `landings` | Landing estimate or `None` for each eligible rally | Outcome analysis |
-| `geometric_verdict_rows` | Geometry-only point-outcome diagnostics | Debugging winner logic |
-| `hit_height_by_frame` | Contact frame -> hit-height code | Downstream export/features |
-| `hit_height_failures` | Explicit hit-height failures with rally/stroke/frame/error | Diagnostics |
-| `contact_events` | Full final contact stream, including events outside rally spans | Model diagnostics |
-| `rally_confidence` | One review-ordering score per rally | Review prioritisation |
+| `rallies` | Finished rallies, with bounds, contact events and fitted final striker | Rally timing, contact membership and server estimates |
+| `outcomes` | Rally ID -> winner estimate, landing and geometric comparison | Outcome export and inspection |
+| `hit_heights` | Contact frame -> ShuttleSet hit-height code | Contact export and features |
+| `hit_height_failures` | Contact frame -> reason its height could not be measured | Missing-evidence diagnostics |
+| `contact_events` | Full learned contact stream, including events outside rallies | Model diagnostics |
+| `heuristic_candidates` | Raw heuristic candidates and their gate flags; empty in learned mode | Heuristic rejection analysis |
+| `rally_confidence` | One review-ordering score per rally; empty in heuristic mode | Review prioritisation |
 
 ### Contact membership
 
-`filtered_by_rally` contains the final contacts assigned to each rally.
-`contact_events` contains the complete final stream, including hits outside
-all rally spans. Filtering that stream by the clip boundaries can therefore
-give a different result from the saved membership.
+Use `result.rallies[rally_id].sequence.events` for the contacts assigned to a rally.
+Each event contains its frame, model probability and court-half assignment. Unknown
+probabilities are NaN in memory and JSON null when saved. `contact_events` also
+includes model contacts outside all rallies, so filtering that stream by the final
+rally bounds can give different membership.
 
-### Historical contact field names
-
-In the fitted-model path, `contacts` and `filtered_contacts` contain the same
-chosen rows. The dataset builder also saves those final contacts under the
-older name `raw_candidates`. Despite the name, that field contains the selected
-hits. This explains why older benchmark reports show identical raw and final
-contact metrics for these runs. The final metrics describe the selected hits.
+The dataset builder derives stroke counts, fitted servers and next servers from
+these rallies. It writes the existing rally-record columns, including accepted
+contact sides. In learned mode the `raw_candidates` record field contains the
+selected contact frames with empty heuristic gate flags. In heuristic mode it
+retains all raw candidates, including those rejected by gates or masks.
 
 ### `Top` and `Bot`
 
@@ -260,7 +252,7 @@ They are not permanent player identities. When players change ends, the labels r
 
 ### Missing outcome values
 
-Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds a row to `hit_height_failures`.
+Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds its frame and reason to `hit_height_failures`.
 
 ## Direct Python call
 

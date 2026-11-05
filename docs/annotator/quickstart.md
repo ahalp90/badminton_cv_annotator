@@ -125,13 +125,13 @@ shuttle_quality.json.gz
 ### Main result fields
 
 - Rally spans use half-open bounds: `[start, end)` includes the start frame and excludes the end frame.
-- `filtered_by_rally` lists the final contact frames belonging to each rally.
+- `rallies[rally_id].sequence.events` contains the final contacts belonging to a rally.
 - `contact_events` contains the full final contact stream, including contacts that fall outside all rally spans.
 - `Top` and `Bot` refer to physical halves of the visible court: `Top` is the far half and `Bot` is the near half. They are not player names; the labels stay with the court halves when players change ends.
 - `rally_confidence` is a score for ordering rallies during review. It does not change the annotation or approve a rally automatically.
 - Server, winner, landing and hit-height fields are estimates made after the final contacts are known. They can be empty when the evidence is not good enough.
 
-`filtered_by_rally` is the field to use for contact membership. Filtering `contact_events` against the rally spans is not a substitute.
+Use the events in each finished rally for contact membership. Filtering `contact_events` against the rally spans is not a substitute.
 
 ## 5. Dataset-builder run
 

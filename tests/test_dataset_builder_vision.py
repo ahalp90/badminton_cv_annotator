@@ -37,8 +37,10 @@ from annotator.outcomes.point_winner import (
     VerdictRow,
     VerdictSource,
 )
+from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence import ContactEvent
+from annotator.sequence.contacts import ContactSequence, FinishedRally
 from annotator.types import ContactCandidate, DeadMaskMode
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
@@ -1001,7 +1003,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         assert shuttle_hallucination_mask is None
         capture.raw_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
     output = vision.run_full_annotation_stage(
@@ -1049,7 +1051,7 @@ def test_malformed_run_capture_masks_raise_original_error(
         capture.raw_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
         setattr(capture, mask_name, bad_mask)
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
     output_dir = tmp_path / "annotation"
@@ -1084,7 +1086,7 @@ def test_annotation_persistence_rejects_malformed_captured_masks(
 ) -> None:
     run = vision.AnnotationRun(
         video_id="video",
-        result=AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, []),
+        result=AnnotatorResult((), {}, {}, {}, (), [], ()),
         raw_replay_mask=raw_mask,
         definitive_exclusion_mask=definitive_mask,
         shuttle_quality=_quality(np.zeros((5, 3), dtype=float)),
@@ -1100,25 +1102,16 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     accepted = ContactCandidate(0, 12, True, True, False)
     raw = ContactCandidate(0, 11, False, False, None)
     result = AnnotatorResult(
-        spans=[(5, 30)],
-        contacts=[raw, accepted],
-        filtered_contacts=[accepted],
-        filtered_by_rally={0: [12]},
-        striker_halves=[Half.TOP],
-        n_strokes_list=[1],
-        next_servers=[Half.BOT],
-        fitted_first_all=[Half.TOP],
-        verdict_rows={
-            0: VerdictRow(0, Half.TOP, Verdict.WON, VerdictSource.NEXT_SERVER, 0.2, False, True),
-        },
-        landings={0: Landing(24, (0.4, 0.8), Half.BOT, False, False)},
-        geometric_verdict_rows={
-            0: GeometricVerdictRow(0, Verdict.WON, Half.TOP, True, False),
-        },
-        hit_height_by_frame={12: 2},
-        hit_height_failures=[(0, 0, 12, "unmeasured")],
-        contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.TOP)),
-        rally_confidence=(.75,),
+        rallies=(FinishedRally(ContactSequence(0, 5, 30, (
+            ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP),
+        )), Half.TOP),),
+        outcomes={0: RallyOutcome(
+            VerdictRow(0, Half.TOP, Verdict.WON, VerdictSource.NEXT_SERVER, 0.2, False, True),
+            Landing(24, (0.4, 0.8), Half.BOT, False, False),
+            GeometricVerdictRow(0, Verdict.WON, Half.TOP, True, False),
+        )}, hit_heights={12: 2}, hit_height_failures={14: "unmeasured"},
+        contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP)),
+        heuristic_candidates=[raw, accepted], rally_confidence=(.75,),
     )
     raw_mask = np.zeros(50, dtype=bool)
     raw_mask[10:15] = True
@@ -1139,7 +1132,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     primitives = payload["result"]
     assert isinstance(primitives, dict)
     assert set(primitives) == set(AnnotatorResult._fields)
-    assert primitives["contacts"] == [
+    assert primitives["heuristic_candidates"] == [
         {
             "rally_id": 0,
             "contact_frame": 11,
@@ -1155,9 +1148,9 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
             "suppressed": False,
         },
     ]
-    assert primitives["verdict_rows"]["0"]["verdict_source"] == "next_server"
-    assert primitives["landings"]["0"]["norm"] == [0.4, 0.8]
-    assert primitives["hit_height_failures"] == [[0, 0, 12, "unmeasured"]]
+    assert primitives["outcomes"]["0"]["verdict"]["verdict_source"] == "next_server"
+    assert primitives["outcomes"]["0"]["landing"]["norm"] == [0.4, 0.8]
+    assert primitives["hit_height_failures"] == {"14": "unmeasured"}
     from dataset_builder._runtime_support import _annotation_result
 
     assert _annotation_result(primitives) == result

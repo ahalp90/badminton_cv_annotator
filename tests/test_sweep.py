@@ -14,7 +14,8 @@ from annotator.config import resolve
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.gt_scoring import RunVideoInputs
 from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
-from annotator.types import ContactCandidate, SpanOpen
+from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
+from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import sweep
 from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
 
@@ -46,13 +47,9 @@ def test_sweep_row_preserves_the_legacy_speed_schema_value() -> None:
             "frame_num": [10, 20, 30],
         }
     )
-    result = SimpleNamespace(
-        spans=[(5, 35)],
-        filtered_contacts=[
-            ContactCandidate(0, frame, True, True, False)
-            for frame in (10, 20, 30)
-        ],
-    )
+    result = SimpleNamespace(rallies=(FinishedRally(
+        ContactSequence(0, 5, 35, tuple(ContactEvent(frame, np.nan, None) for frame in (10, 20, 30))), None,
+    ),))
     row = sweep._row_for_result(SSET_01, sweep.shipped_spec(), result, master)
     assert row["min_contact_speed"] == sweep.LEGACY_MIN_CONTACT_SPEED == 0.005
     assert row["rest_speed"] == 0.002

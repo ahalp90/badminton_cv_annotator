@@ -58,7 +58,9 @@ heuristic agreement.
 
 `AnnotatorResult` fields are serialised by the dataset builder. Changing a field
 name or meaning affects stored results, resume checks and downstream assembly.
-Both exclusion masks are persisted beside the result.
+The result retains finished rallies and grouped outcomes; derive counts and server
+views from the rallies at export. Unknown contact probabilities are saved as null,
+while infinities remain invalid. Both exclusion masks are persisted beside the result.
 
 Newly fitted model bundles use `annotator-three-models/1`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`

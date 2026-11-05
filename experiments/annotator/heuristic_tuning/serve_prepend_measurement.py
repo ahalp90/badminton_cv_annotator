@@ -579,8 +579,8 @@ def run_contact_injection_counterfactual(
     """Inject all selected candidates into a copied accepted-contact map."""
     selected = [row for row in candidate_rows if row[selection_field]]
     contacts = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in natural_result.filtered_by_rally.items()
+        rally_id: [event.frame for event in rally.sequence.events]
+        for rally_id, rally in enumerate(natural_result.rallies)
     }
     natural_pairs = {
         (span_id, frame) for span_id, frames in contacts.items() for frame in frames
@@ -597,22 +597,22 @@ def run_contact_injection_counterfactual(
     injected_result = run_video(
         *inputs.positional,
         **keyword,
-        spans=list(natural_result.spans),
+        spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies],
         contacts=contacts, heuristic_only=True,
     )
     injected_accepted = {
-        (int(contact.rally_id), int(contact.contact_frame))
-        for contact in injected_result.filtered_contacts
+        (rally_id, event.frame)
+        for rally_id, rally in enumerate(injected_result.rallies) for event in rally.sequence.events
     }
     selected_pairs = {
         (int(row["span_id"]), int(row["candidate_frame"])) for row in selected
     }
     injected_statuses = gt_statuses(
         gt_rallies,
-        injected_result.spans,
+        [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in injected_result.rallies],
         {
-            int(span_id): sorted(map(int, frames))
-            for span_id, frames in injected_result.filtered_by_rally.items()
+            rally_id: [event.frame for event in rally.sequence.events]
+            for rally_id, rally in enumerate(injected_result.rallies)
         },
         tolerance,
     )
@@ -642,15 +642,16 @@ def run_contact_injection_counterfactual(
         "all_unmatched_serves_recovered": all_recovered,
         "all_unmatched_serves_still_missed": len(unmatched_indexes) - all_recovered,
         "accepted_contact_delta": (
-            len(injected_result.filtered_contacts) - len(natural_result.filtered_contacts)
+            sum(len(rally.sequence.events) for rally in injected_result.rallies)
+            - sum(len(rally.sequence.events) for rally in natural_result.rallies)
         ),
-        "span_delta": len(injected_result.spans) - len(natural_result.spans),
+        "span_delta": len(injected_result.rallies) - len(natural_result.rallies),
         "stroke_count_rows_changed": _changed_positions(
-            natural_result.n_strokes_list,
-            injected_result.n_strokes_list,
+            [len(rally.sequence.events) for rally in natural_result.rallies],
+            [len(rally.sequence.events) for rally in injected_result.rallies],
         ),
         "next_server_rows_changed": _changed_positions(
-            natural_result.next_servers,
-            injected_result.next_servers,
+            ([rally.first_half for rally in natural_result.rallies[1:]] + [None]) if natural_result.rallies else [],
+            ([rally.first_half for rally in injected_result.rallies[1:]] + [None]) if injected_result.rallies else [],
         ),
     }

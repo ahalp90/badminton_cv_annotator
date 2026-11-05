@@ -17,11 +17,12 @@ from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_mode
 from annotator.outcomes import point_winner
 from annotator.outcomes.video import (
     LandingHorizonRow,
+    RallyOutcome,
     build_hit_heights,
     build_verdict_data,
 )
 from annotator.preparation import prepare_annotation
-from annotator.sequence import ContactEvent
+from annotator.sequence.contacts import ContactEvent, FinishedRally
 from annotator.types import ContactCandidate
 from shared.progress import report
 
@@ -119,97 +120,48 @@ def run_video(
     contact_events = ()
     rally_confidence = ()
     if models is None:
-        rallies, filtered_contacts = select_heuristic_contacts(evidence, rejection_diagnostics)
-        final_contacts = evidence.heuristic_contacts
+        rallies = select_heuristic_contacts(evidence, rejection_diagnostics)
+        heuristic_candidates = evidence.heuristic_contacts
     else:
         prediction = predict_contacts(evidence, models)
         if capture is not None:
             capture.hybrid = prediction
         rallies = prediction.refined.rallies
-        filtered_contacts = [
-            ContactCandidate(rally.sequence.span_id, event.frame, None, None, None)
-            for rally in rallies for event in rally.sequence.events
-        ]
-        final_contacts = filtered_contacts
+        heuristic_candidates = []
         contact_events = prediction.refined.events
         rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
     report("resolving outcomes")
-    verdict_data = build_verdict_data(
+    outcomes = build_verdict_data(
         evidence, rallies, landing_options=landing_options,
         rejection_diagnostics=rejection_diagnostics, landing_horizons_s=landing_horizons_s,
         horizon_rows=capture.landing_horizon_rows if capture is not None else None,
     )
     report("calculating hit heights")
-    hit_height_by_frame, hit_height_failures = build_hit_heights(evidence, rallies)
-    filtered_by_rally: dict[int, list[int]] = {}
-    for contact in filtered_contacts:
-        filtered_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
-    first_halves = [rally.first_half for rally in rallies]
+    hit_heights, hit_height_failures = build_hit_heights(evidence, rallies)
     return AnnotatorResult(
-        spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in rallies],
-        contacts=final_contacts,
-        filtered_contacts=filtered_contacts,
-        filtered_by_rally=filtered_by_rally,
-        striker_halves=[rally.final_half for rally in rallies],
-        n_strokes_list=[len(rally.sequence.events) for rally in rallies],
-        next_servers=[*first_halves[1:], None] if first_halves else [],
-        fitted_first_all=first_halves,
-        verdict_rows=verdict_data.verdict_rows,
-        landings=verdict_data.landings,
-        geometric_verdict_rows=verdict_data.geometric_verdict_rows,
-        hit_height_by_frame=hit_height_by_frame,
-        hit_height_failures=hit_height_failures,
-        contact_events=contact_events,
-        rally_confidence=rally_confidence,
+        rallies=rallies, outcomes=outcomes, hit_heights=hit_heights, hit_height_failures=hit_height_failures,
+        contact_events=contact_events, heuristic_candidates=heuristic_candidates, rally_confidence=rally_confidence,
     )
 
 
 class AnnotatorResult(NamedTuple):
-    """Final rallies, contacts, player sides and outcomes for one video.
+    """Finished rallies and their outcomes for one source video.
 
-    :param spans: detected rally spans, `[(start, end), ...]`; rally_id is the list index.
-    :param contacts: Contact rows owned by rallies. Tree-selected rows have no
-        heuristic wrist or suppression verdict. In heuristic-only comparisons,
-        these fields retain the original candidate gate results.
-    :param filtered_contacts: rows where `wrist_near is not False and suppressed is not True`.
-        This keeps suppression winners and the unmeasured no-gate path — the set
-        `annotator.evaluation.scoring.score_contacts` scores the ball_round column against.
-    :param filtered_by_rally: rally_id -> ascending contact frames from `filtered_contacts`.
-    :param striker_halves: fitted final-contact half per rally_id (None: no contacts, or a tied
-        fit); index-aligned to `spans`.
-    :param n_strokes_list: `len(filtered_by_rally[rally_id])` per rally_id (0 when contact-less).
-    :param next_servers: winner-serves-next half per rally_id (point_winner.next_server_half).
-    :param fitted_first_all: each rally's OWN fitted first-stroke half (the server prediction),
-        index-aligned to `spans`; None where `striker_halves[rally_id]` is None.
-    :param verdict_rows: rally_id -> VerdictRow, only for rallies with a resolved striker.
-    :param landings: rally_id -> Landing or None, same keys as `verdict_rows`.
-    :param geometric_verdict_rows: rally_id -> geometric diagnostic, only for rallies with a
-        resolved striker.
-    :param hit_height_by_frame: contact_frame -> ShuttleSet-coded hit_height (1/2), one entry per
-        filtered contact that scored successfully.
-    :param hit_height_failures: `(rally_id, stroke_idx, contact_frame, error)` for filtered
-        contacts where hit-height evidence is unavailable, including missing scene geometry
-        or an invisible shuttle at that frame.
-    :param contact_events: Full final tree-model stream, including contacts outside
-        every rally. Each event retains its score and final court-half assignment.
-    :param rally_confidence: Review-ranking score per rally, in span order.
+    Rally IDs are positions in ``rallies``. Each rally retains its selected contacts,
+    fitted final striker and bounds. ``outcomes`` contains the rallies with a resolved
+    final striker. Hit heights and unavailable-height reasons are keyed by contact frame.
+    ``contact_events`` retains the learned model's full stream, including contacts
+    outside rallies. ``heuristic_candidates`` retains raw gate flags in heuristic mode.
+    Review scores follow rally order and are empty in heuristic mode.
     """
 
-    spans: list[tuple[int, int]]
-    contacts: list[ContactCandidate]
-    filtered_contacts: list[ContactCandidate]
-    filtered_by_rally: dict[int, list[int]]
-    striker_halves: list
-    n_strokes_list: list[int]
-    next_servers: list
-    fitted_first_all: list
-    verdict_rows: dict[int, object]
-    landings: dict[int, object | None]
-    geometric_verdict_rows: dict[int, object]
-    hit_height_by_frame: dict[int, int]
-    hit_height_failures: list[tuple[int, int, int, str]]
-    contact_events: tuple[ContactEvent, ...] = ()
-    rally_confidence: tuple[float, ...] = ()
+    rallies: tuple[FinishedRally, ...]
+    outcomes: dict[int, RallyOutcome]
+    hit_heights: dict[int, int]
+    hit_height_failures: dict[int, str]
+    contact_events: tuple[ContactEvent, ...]
+    heuristic_candidates: list[ContactCandidate]
+    rally_confidence: tuple[float, ...]
 
 
 @dataclass

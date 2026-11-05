@@ -12,10 +12,9 @@ from annotator.config import BaseAnnotatorConfig
 from annotator.models import AnnotatorModels
 from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
-    alternating_player_sides,
 )
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
+from annotator.sequence.contacts import stream_payload
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.sequences import (
     LabelledRally,
@@ -171,16 +170,9 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
 
 
 def heuristic_stream(result: AnnotatorResult) -> dict[str, Any]:
-    """Keep discovered spans and expand each rally's fitted final striker phase."""
-    sequences = []
-    events = []
-    for rally_id, (start, end) in enumerate(result.spans):
-        frames = result.filtered_by_rally.get(rally_id, [])
-        final_half = result.striker_halves[rally_id]
-        sides = [None] * len(frames) if final_half is None else alternating_player_sides(final_half, len(frames))
-        own_events = tuple(ContactEvent(frame, 1.0, side) for frame, side in zip(frames, sides, strict=True))
-        sequences.append(ContactSequence(rally_id, start, end, own_events))
-        events.extend(own_events)
+    """Serialise the finished heuristic rallies with their available side evidence."""
+    sequences = [rally.sequence for rally in result.rallies]
+    events = tuple(event for rally in result.rallies for event in rally.sequence.events)
     return stream_payload(sequences, events)
 
 

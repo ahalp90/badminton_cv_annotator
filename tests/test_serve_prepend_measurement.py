@@ -11,12 +11,14 @@ import numpy as np
 
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.scoring import GtRally
+from annotator.outcomes.point_winner import Half
 from annotator.review.broadcast_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,
     write_label_csv,
 )
+from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
@@ -179,25 +181,16 @@ def test_contact_injection_copies_accepted_contacts_and_keeps_spans(monkeypatch)
 
     def fake_run_video(*_args, **kwargs):
         seen.update(kwargs)
-        return SimpleNamespace(
-            spans=[(10, 25)],
-            filtered_contacts=[
-                SimpleNamespace(rally_id=0, contact_frame=8),
-                SimpleNamespace(rally_id=0, contact_frame=20),
-            ],
-            filtered_by_rally={0: [8, 20]},
-            n_strokes_list=[2],
-            next_servers=["top"],
-        )
+        return SimpleNamespace(rallies=(FinishedRally(
+            ContactSequence(0, 10, 25, (
+                ContactEvent(8, np.nan, Half.TOP), ContactEvent(20, np.nan, Half.BOT),
+            )), Half.BOT,
+        ),))
 
     monkeypatch.setattr(measurement.candidate_measurement, "run_video", fake_run_video)
-    natural = SimpleNamespace(
-        spans=[(10, 25)],
-        filtered_contacts=[SimpleNamespace(rally_id=0, contact_frame=20)],
-        filtered_by_rally={0: [20]},
-        n_strokes_list=[1],
-        next_servers=["bottom"],
-    )
+    natural = SimpleNamespace(rallies=(FinishedRally(
+        ContactSequence(0, 10, 25, (ContactEvent(20, np.nan, Half.BOT),)), Half.BOT,
+    ),))
     statuses = [{
         "rally_index": 0,
         "serve_frame": 8,

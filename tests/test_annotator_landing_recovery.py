@@ -63,27 +63,27 @@ def test_returning_view_keeps_contact_time_and_bounds_the_landing_search():
     evidence = returning_view_evidence()
     horizons = []
     outcome = resolve_outcome(evidence, [3], horizons=horizons)
-    assert outcome.landings[0] is not None
-    assert outcome.landings[0].frame == 13
-    assert outcome.landings[0].norm == pytest.approx((0.5, 0.5))
+    assert outcome[0].landing is not None
+    assert outcome[0].landing.frame == 13
+    assert outcome[0].landing.norm == pytest.approx((0.5, 0.5))
     # The observed tail ends at the net, but the unseen flight may have crossed it.
-    assert outcome.landings[0].net_ender is False
-    assert outcome.verdict_rows[0].striker_half is Half.TOP
+    assert outcome[0].landing.net_ender is False
+    assert outcome[0].verdict.striker_half is Half.TOP
     short, long = horizons
     assert short.final_contact_frame == long.final_contact_frame == 3
     assert short.requested_end_frame == 6
     assert short.capped_landing is None
     assert long.safe_end_frame == 16
-    assert long.capped_landing == outcome.landings[0]
+    assert long.capped_landing == outcome[0].landing
 
 
 @pytest.mark.parametrize('rally_end', [10, 12])
 def test_recovery_does_not_borrow_observations_beyond_this_rally(rally_end):
     evidence = returning_view_evidence()
     outcome = resolve_outcome(evidence, [3], next_server=Half.BOT, rally_end=rally_end)
-    assert outcome.landings[0] is None
-    assert outcome.verdict_rows[0].verdict is Verdict.LOST
-    assert outcome.verdict_rows[0].verdict_source is VerdictSource.NEXT_SERVER
+    assert outcome[0].landing is None
+    assert outcome[0].verdict.verdict is Verdict.LOST
+    assert outcome[0].verdict.verdict_source is VerdictSource.NEXT_SERVER
 
 
 def test_rejected_final_contact_does_not_borrow_an_earlier_players_flight():
@@ -91,9 +91,9 @@ def test_rejected_final_contact_does_not_borrow_an_earlier_players_flight():
     evidence.shuttle_hallucination_mask[12] = True
     rejections = []
     outcome = resolve_outcome(evidence, [3, 12], next_server=Half.TOP, rejections=rejections)
-    assert outcome.landings[0] is None
-    assert outcome.verdict_rows[0].striker_half is Half.TOP
-    assert outcome.verdict_rows[0].verdict is Verdict.WON
+    assert outcome[0].landing is None
+    assert outcome[0].verdict.striker_half is Half.TOP
+    assert outcome[0].verdict.verdict is Verdict.WON
     assert rejections[0]['rule'] == 'final_contact'
 
 
@@ -105,8 +105,8 @@ def test_recovery_respects_masked_views_and_missing_scenes():
         else:
             evidence.scene_courts = ()
         outcome = resolve_outcome(evidence, [3])
-        assert outcome.landings[0] is None
-        assert outcome.verdict_rows[0].verdict is None
+        assert outcome[0].landing is None
+        assert outcome[0].verdict.verdict is None
 
 
 def test_returning_view_suppresses_cut_speed_without_changing_shared_kinematics(monkeypatch):

@@ -10,7 +10,6 @@ from fractions import Fraction
 from pathlib import Path
 
 from annotator.outcomes.point_winner import (
-    OTHER_HALF,
     GeometricVerdictRow,
     Half,
     Landing,
@@ -18,7 +17,9 @@ from annotator.outcomes.point_winner import (
     VerdictRow,
     VerdictSource,
 )
+from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult
+from annotator.sequence.contacts import ContactEvent
 from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._record_validation import (
@@ -165,7 +166,8 @@ def assemble_rally_records(
         raise TypeError("annotation must be AnnotatorResult")
     _validate_source_metadata(source_reference, metadata)
     _validate_timing(metadata, annotation_fps, annotation_frame_count, pairing, video_id)
-    spans = _validate_spans(annotation.spans, metadata.frame_count)
+    spans = _validate_spans([(rally.sequence.start_frame, rally.sequence.end_frame)
+                             for rally in annotation.rallies], metadata.frame_count)
     raw_contacts, accepted_contacts, failures = _contact_payloads(annotation, spans)
     outcome_payloads = _outcome_payloads(annotation, len(spans), metadata.frame_count)
     commentary_payloads = _commentary_payloads(
@@ -208,7 +210,7 @@ def assemble_rally_records(
             "contacts": {
                 "raw_candidates": raw_contacts[rally_id],
                 "accepted": accepted_contacts[rally_id],
-                "stroke_count": annotation.n_strokes_list[rally_id],
+                "stroke_count": len(annotation.rallies[rally_id].sequence.events),
                 "hit_height_failures": failures[rally_id],
                 "review_score": annotation.rally_confidence[rally_id] if annotation.rally_confidence else None,
             },
@@ -425,37 +427,29 @@ def _contact_payloads(
     annotation: AnnotatorResult,
     spans: Sequence[tuple[int, int]],
 ) -> tuple[list[list[dict[str, object]]], list[list[dict[str, object]]], list[list[dict[str, object]]]]:
-    rally_count = len(spans)
     raw_by_rally: list[list[dict[str, object]]] = [[] for _ in spans]
-    raw_by_key: dict[tuple[int, int], ContactCandidate] = {}
-    for contact in annotation.contacts:
+    for contact in annotation.heuristic_candidates:
         _validate_contact(contact, spans, "raw contact")
-        key = (contact.rally_id, contact.contact_frame)
-        if key in raw_by_key:
-            raise ValueError(f"raw contact composite key is duplicated: {key}")
-        raw_by_key[key] = contact
         raw_by_rally[contact.rally_id].append(_raw_contact_payload(contact))
     _require_ascending_contact_frames(raw_by_rally, "raw contacts")
 
     accepted_by_rally: list[list[dict[str, object]]] = [[] for _ in spans]
-    sides_by_frame = {event.frame: event.side for event in annotation.contact_events}
-    accepted_keys: set[tuple[int, int]] = set()
-    for contact in annotation.filtered_contacts:
-        _validate_contact(contact, spans, "accepted contact")
-        key = (contact.rally_id, contact.contact_frame)
-        if key in accepted_keys:
-            raise ValueError(f"accepted contact composite key is duplicated: {key}")
-        if raw_by_key.get(key) != contact:
-            raise ValueError(f"accepted contact {key} does not exactly match one raw candidate")
-        accepted_keys.add(key)
-        accepted_by_rally[contact.rally_id].append({
-            "stroke_idx": len(accepted_by_rally[contact.rally_id]),
-            "contact_frame": contact.contact_frame,
-            "player_half": _enum_value(sides_by_frame[contact.contact_frame]) if sides_by_frame else None,
-        })
-    _require_ascending_contact_frames(accepted_by_rally, "accepted contacts")
-    _validate_filtered_by_rally(annotation.filtered_by_rally, accepted_by_rally, rally_count)
-    _validate_stroke_counts(annotation.n_strokes_list, accepted_by_rally, rally_count)
+    for rally_id, rally in enumerate(annotation.rallies):
+        start, end = spans[rally_id]
+        for stroke_idx, event in enumerate(rally.sequence.events):
+            if not isinstance(event, ContactEvent) or isinstance(event.frame, bool) or not isinstance(event.frame, int):
+                raise TypeError("accepted contacts must be ContactEvent values with integer frames")
+            if not start <= event.frame < end:
+                raise ValueError(f"accepted contact frame {event.frame} is outside rally {rally_id}")
+            if event.side is not None and not isinstance(event.side, Half):
+                raise ValueError("accepted contact side must be Half or null")
+            if not annotation.heuristic_candidates:
+                raw_by_rally[rally_id].append({
+                    "contact_frame": event.frame, "proximity_ok": None, "wrist_near": None, "suppressed": None,
+                })
+            accepted_by_rally[rally_id].append({
+                "stroke_idx": stroke_idx, "contact_frame": event.frame, "player_half": _enum_value(event.side),
+            })
     failures = _attach_hit_heights(annotation, accepted_by_rally)
     return raw_by_rally, accepted_by_rally, failures
 
@@ -498,97 +492,33 @@ def _require_ascending_contact_frames(rows: Sequence[Sequence[Mapping[str, objec
             raise ValueError(f"{name} must be in ascending frame order for rally {rally_id}")
 
 
-def _validate_filtered_by_rally(
-    actual: object,
-    accepted: Sequence[Sequence[Mapping[str, object]]],
-    rally_count: int,
-) -> None:
-    if not isinstance(actual, dict):
-        raise TypeError("filtered_by_rally must be a dictionary")
-    normalized: dict[int, list[int]] = {}
-    for rally_id, frames in actual.items():
-        if isinstance(rally_id, bool) or not isinstance(rally_id, int) or not 0 <= rally_id < rally_count:
-            raise ValueError(f"filtered_by_rally key is outside detected rallies: {rally_id!r}")
-        if not isinstance(frames, list) or any(
-            isinstance(frame, bool) or not isinstance(frame, int) for frame in frames
-        ):
-            raise ValueError(f"filtered_by_rally[{rally_id}] must be a list of integers")
-        normalized[rally_id] = list(frames)
-    expected = {
-        rally_id: [int(row["contact_frame"]) for row in rows]
-        for rally_id, rows in enumerate(accepted)
-        if rows
-    }
-    if normalized != expected:
-        raise ValueError("filtered_contacts and filtered_by_rally do not agree exactly")
-
-
-def _validate_stroke_counts(
-    counts: object,
-    accepted: Sequence[Sequence[Mapping[str, object]]],
-    rally_count: int,
-) -> None:
-    if not isinstance(counts, list) or len(counts) != rally_count:
-        raise ValueError("n_strokes_list must be index-aligned to spans")
-    expected = [len(rows) for rows in accepted]
-    if any(isinstance(value, bool) or not isinstance(value, int) for value in counts):
-        raise ValueError("n_strokes_list must contain integers")
-    if counts != expected:
-        raise ValueError("stroke_count must equal the accepted-contact count")
-
-
 def _attach_hit_heights(
     annotation: AnnotatorResult,
     accepted: list[list[dict[str, object]]],
 ) -> list[list[dict[str, object]]]:
-    accepted_frames = {
-        int(row["contact_frame"])
-        for rally_rows in accepted
-        for row in rally_rows
-    }
-    heights: dict[int, int] = {}
-    for frame, code in annotation.hit_height_by_frame.items():
+    accepted_frames = {int(row["contact_frame"]) for rows in accepted for row in rows}
+    for frame, code in annotation.hit_heights.items():
         if isinstance(frame, bool) or not isinstance(frame, int) or frame not in accepted_frames:
-            raise ValueError(f"hit_height_by_frame has no accepted contact at frame {frame!r}")
+            raise ValueError(f"hit height has no accepted contact at frame {frame!r}")
         if isinstance(code, bool) or not isinstance(code, int) or code not in (1, 2):
             raise ValueError(f"hit height at frame {frame} must use code 1 or 2")
-        heights[frame] = code
-    failures: list[list[dict[str, object]]] = [[] for _ in accepted]
-    failed_keys: set[tuple[int, int]] = set()
-    for failure in annotation.hit_height_failures:
-        if not isinstance(failure, tuple) or len(failure) != 4:
-            raise ValueError("hit_height_failures rows must contain four values")
-        rally_id, stroke_idx, contact_frame, reason = failure
-        if any(isinstance(value, bool) or not isinstance(value, int) for value in failure[:3]):
-            raise ValueError("hit-height failure keys must be integers")
-        if not 0 <= rally_id < len(accepted) or not 0 <= stroke_idx < len(accepted[rally_id]):
-            raise ValueError("hit-height failure key is outside accepted contacts")
-        expected_frame = accepted[rally_id][stroke_idx]["contact_frame"]
-        if contact_frame != expected_frame:
-            raise ValueError("hit-height failure frame differs from its accepted contact")
+    for frame, reason in annotation.hit_height_failures.items():
+        if isinstance(frame, bool) or not isinstance(frame, int) or frame not in accepted_frames:
+            raise ValueError(f"hit-height failure has no accepted contact at frame {frame!r}")
         if not isinstance(reason, str) or not reason:
             raise ValueError("hit-height failure reason must be non-empty")
-        key = (rally_id, stroke_idx)
-        if key in failed_keys:
-            raise ValueError(f"hit-height failure composite key is duplicated: {key}")
-        failed_keys.add(key)
-        failures[rally_id].append({
-            "stroke_idx": stroke_idx,
-            "contact_frame": contact_frame,
-            "reason": reason,
-        })
+    failures: list[list[dict[str, object]]] = [[] for _ in accepted]
     for rally_id, rows in enumerate(accepted):
         for row in rows:
-            stroke_idx = int(row["stroke_idx"])
             frame = int(row["contact_frame"])
-            has_height = frame in heights
-            has_failure = (rally_id, stroke_idx) in failed_keys
-            if has_height == has_failure:
-                raise ValueError(
-                    f"accepted contact {(rally_id, stroke_idx)} must have exactly one "
-                    "hit height or failure"
-                )
-            row["hit_height_code"] = heights.get(frame)
+            if (frame in annotation.hit_heights) == (frame in annotation.hit_height_failures):
+                raise ValueError(f"accepted contact {frame} must have exactly one hit height or failure")
+            row["hit_height_code"] = annotation.hit_heights.get(frame)
+            if frame in annotation.hit_height_failures:
+                failures[rally_id].append({
+                    "stroke_idx": row["stroke_idx"], "contact_frame": frame,
+                    "reason": annotation.hit_height_failures[frame],
+                })
     return failures
 
 
@@ -597,58 +527,9 @@ def _outcome_payloads(
     rally_count: int,
     frame_count: int,
 ) -> list[dict[str, object]]:
-    aligned = {
-        "striker_halves": annotation.striker_halves,
-        "next_servers": annotation.next_servers,
-        "fitted_first_all": annotation.fitted_first_all,
-    }
-    for name, values in aligned.items():
-        if not isinstance(values, list) or len(values) != rally_count:
-            raise ValueError(f"{name} must be index-aligned to spans")
-        for value in values:
-            if value is not None and not isinstance(value, Half):
-                raise ValueError(f"{name} must contain Half values or null")
-    _validate_server_predictions(annotation)
-    resolved = {
-        rally_id
-        for rally_id, half in enumerate(annotation.striker_halves)
-        if half is not None
-    }
+    resolved = {rally_id for rally_id, rally in enumerate(annotation.rallies) if rally.final_half is not None}
     _validate_outcome_maps(annotation, resolved, frame_count)
-    return [
-        _outcome_payload(annotation, rally_id)
-        for rally_id in range(rally_count)
-    ]
-
-
-def _validate_server_predictions(annotation: AnnotatorResult) -> None:
-    predictions = zip(
-        annotation.striker_halves,
-        annotation.fitted_first_all,
-        annotation.n_strokes_list,
-        strict=True,
-    )
-    for rally_id, (striker, server, stroke_count) in enumerate(predictions):
-        if striker is None:
-            if server is not None:
-                raise ValueError(
-                    f"server prediction for unresolved rally {rally_id} must be null"
-                )
-            continue
-        if stroke_count <= 0:
-            raise ValueError(f"resolved rally {rally_id} must contain an accepted contact")
-        expected = striker if (stroke_count - 1) % 2 == 0 else OTHER_HALF[striker]
-        if server != expected:
-            raise ValueError(
-                f"server prediction for rally {rally_id} conflicts with striker parity"
-            )
-    expected_next_servers = (
-        [*annotation.fitted_first_all[1:], None]
-        if annotation.fitted_first_all
-        else []
-    )
-    if annotation.next_servers != expected_next_servers:
-        raise ValueError("next_servers conflict with the following rallies' server predictions")
+    return [_outcome_payload(annotation, rally_id) for rally_id in range(rally_count)]
 
 
 def _validate_outcome_maps(
@@ -656,21 +537,13 @@ def _validate_outcome_maps(
     resolved: set[int],
     frame_count: int,
 ) -> None:
-    for name, mapping in (
-        ("verdict_rows", annotation.verdict_rows),
-        ("landings", annotation.landings),
-        ("geometric_verdict_rows", annotation.geometric_verdict_rows),
-    ):
-        if (
-            not isinstance(mapping, dict)
-            or any(isinstance(key, bool) or not isinstance(key, int) for key in mapping)
-            or set(mapping) != resolved
-        ):
-            raise ValueError(f"{name} keys must exactly match rallies with resolved strikers")
+    if set(annotation.outcomes) != resolved:
+        raise ValueError("outcome keys must exactly match rallies with resolved strikers")
     for rally_id in resolved:
-        verdict = annotation.verdict_rows[rally_id]
-        landing = annotation.landings[rally_id]
-        geometric = annotation.geometric_verdict_rows[rally_id]
+        outcome = annotation.outcomes[rally_id]
+        if not isinstance(outcome, RallyOutcome):
+            raise TypeError("rally outcomes must be RallyOutcome values")
+        verdict, landing, geometric = outcome
         if (
             not isinstance(verdict, VerdictRow)
             or isinstance(verdict.rally_id, bool)
@@ -680,7 +553,7 @@ def _validate_outcome_maps(
             raise ValueError("verdict row key and rally_id must agree")
         if not isinstance(verdict.striker_half, Half):
             raise TypeError("verdict striker_half must be Half")
-        if verdict.striker_half != annotation.striker_halves[rally_id]:
+        if verdict.striker_half != annotation.rallies[rally_id].final_half:
             raise ValueError("verdict striker_half differs from the indexed striker half")
         _validate_verdict(verdict)
         _validate_landing(landing, frame_count)
@@ -743,13 +616,16 @@ def _validate_geometric_verdict(geometric: GeometricVerdictRow) -> None:
 
 
 def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, object]:
-    verdict = annotation.verdict_rows.get(rally_id)
-    landing = annotation.landings.get(rally_id)
-    geometric = annotation.geometric_verdict_rows.get(rally_id)
+    outcome = annotation.outcomes.get(rally_id)
+    verdict = None if outcome is None else outcome.verdict
+    landing = None if outcome is None else outcome.landing
+    geometric = None if outcome is None else outcome.geometric
+    rally = annotation.rallies[rally_id]
+    next_server = annotation.rallies[rally_id + 1].first_half if rally_id + 1 < len(annotation.rallies) else None
     return {
-        "striker_half": _enum_value(annotation.striker_halves[rally_id]),
-        "server_prediction": _enum_value(annotation.fitted_first_all[rally_id]),
-        "next_server": _enum_value(annotation.next_servers[rally_id]),
+        "striker_half": _enum_value(annotation.rallies[rally_id].final_half),
+        "server_prediction": _enum_value(rally.first_half),
+        "next_server": _enum_value(next_server),
         "verdict": {
             "value": None if verdict is None else _enum_value(verdict.verdict),
             "source": None if verdict is None else _enum_value(verdict.verdict_source),

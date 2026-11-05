@@ -13,7 +13,12 @@ import pytest
 from annotator.config import BaseAnnotatorConfig
 from annotator.outcomes.point_winner import Half
 from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
+from annotator.sequence.contacts import (
+    ContactEvent,
+    ContactSequence,
+    FinishedRally,
+    stream_payload,
+)
 from annotator.training.sequences import LabelledRally
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.heuristic_only_tune import data as search_data
@@ -37,8 +42,10 @@ def test_heuristic_stream_uses_fitted_final_striker(
     final_half: Half | None, count: int, expected: list[str | None],
 ) -> None:
     frames = [10, 20, 30][:count]
+    events = tuple(ContactEvent(frame, np.nan, None if side is None else Half(side))
+                   for frame, side in zip(frames, expected, strict=True))
     result = empty_annotation([(0, 40)], [])._replace(
-        filtered_by_rally={0: frames}, striker_halves=[final_half],
+        rallies=(FinishedRally(ContactSequence(0, 0, 40, events), final_half),),
     )
     stream = search_data.heuristic_stream(result)
     assert [event[2] for event in stream['events']] == expected

@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
 
 
-ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.2"
+ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.3"
 COURT_EVIDENCE_SCHEMA = "court-evidence/0.2"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
@@ -897,8 +897,6 @@ def annotation_result_payload(video_id: str, result: AnnotatorResult) -> dict[st
     if not isinstance(result, AnnotatorResult):
         raise TypeError(f"annotation result must be AnnotatorResult, got {type(result).__name__}")
     primitives = {name: _json_ready(getattr(result, name)) for name in AnnotatorResult._fields}
-    if tuple(primitives) != AnnotatorResult._fields:
-        raise AssertionError("annotation payload omitted an AnnotatorResult field")
     return {
         "schema": ANNOTATOR_RESULT_SCHEMA,
         "video_id": video_id,
@@ -956,6 +954,13 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def _json_ready(value: object) -> object:
+    from annotator.sequence.contacts import ContactEvent
+
+    if isinstance(value, ContactEvent):
+        probability = None if math.isnan(value.probability) else value.probability
+        return {
+            "frame": _json_ready(value.frame), "probability": _json_ready(probability), "side": _json_ready(value.side),
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, np.generic):

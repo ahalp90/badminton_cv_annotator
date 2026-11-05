@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -43,7 +44,7 @@ def _record(rally_id: int = 0) -> dict[str, object]:
                 },
             ],
             "accepted": [
-                {"stroke_idx": 0, "contact_frame": 15, "hit_height_code": 1},
+                {"stroke_idx": 0, "contact_frame": 15, "hit_height_code": 1, "player_half": "Top"},
             ],
             "stroke_count": 1,
             "hit_height_failures": [],
@@ -79,17 +80,18 @@ def _record(rally_id: int = 0) -> dict[str, object]:
 def test_projection_to_annotator_result_restores_scored_fields() -> None:
     result = projection_to_annotator_result([_record()])
 
-    assert result.spans == [(10, 30)]
-    assert [row.contact_frame for row in result.contacts] == [15, 24]
-    assert [row.contact_frame for row in result.filtered_contacts] == [15]
-    assert result.filtered_by_rally == {0: [15]}
-    assert result.hit_height_by_frame == {15: 1}
-    assert result.striker_halves == [Half.TOP]
-    assert result.fitted_first_all == [Half.TOP]
-    assert result.verdict_rows[0].verdict is Verdict.WON
-    assert result.verdict_rows[0].verdict_source is VerdictSource.NEXT_SERVER
-    assert result.landings[0].norm == (0.4, 0.8)
-    assert result.geometric_verdict_rows[0].geometric_winner is Half.TOP
+    rally, = result.rallies
+    assert (rally.sequence.start_frame, rally.sequence.end_frame) == (10, 30)
+    assert [row.contact_frame for row in result.heuristic_candidates] == [15, 24]
+    assert [event.frame for event in rally.sequence.events] == [15]
+    assert np.isnan(rally.sequence.events[0].probability)
+    assert result.hit_heights == {15: 1}
+    assert rally.final_half is Half.TOP
+    assert rally.first_half is Half.TOP
+    assert result.outcomes[0].verdict.verdict is Verdict.WON
+    assert result.outcomes[0].verdict.verdict_source is VerdictSource.NEXT_SERVER
+    assert result.outcomes[0].landing.norm == (0.4, 0.8)
+    assert result.outcomes[0].geometric.geometric_winner is Half.TOP
 
 
 def test_projection_requires_contiguous_rally_ids() -> None:

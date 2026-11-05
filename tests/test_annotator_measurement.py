@@ -307,11 +307,11 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
             "upright_x", "upright_y", "downleft_x", "downleft_y", "downright_x", "downright_y",
         ]
 
-    result = AnnotatorResult([], [], [], {10: [1], 2: [0]}, [], [], [], [], {}, {}, {}, {}, [])
+    result = AnnotatorResult((), {}, {10: 1, 2: 2}, {}, (), [], ())
     runner._write_annotations(directory, result)
     annotation = read_json_object(directory / "annotations.json.gz")
     assert list(annotation) == list(AnnotatorResult._fields)
-    assert list(annotation["filtered_by_rally"]) == ["2", "10"]
+    assert list(annotation["hit_heights"]) == ["2", "10"]
     bool_path = directory / "bool.csv.gz"
     runner._write_rows(bool_path, ("value",), [{"value": np.bool_(True)}])
     with open_text_artifact(bool_path) as handle:
@@ -418,7 +418,7 @@ def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
     )
     state = runner.ConfigurationState(
         fixed, runner.PARENTS[0], fixture, case, output_root / runner.PARENTS[0] / fixed.case_id,
-        [], "now", 0.0, result=AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, []),
+        [], "now", 0.0, result=AnnotatorResult((), {}, {}, {}, (), [], ()),
         resolved_config=runner.resolve(runner.BASE_ANNOTATOR_CONFIG, fixed.fps),
         status="inference_only",
     )
@@ -536,7 +536,7 @@ def _install_synthetic_runner(
             raise ValueError("inference")
         capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(runner, "run_video", fake_run_video)
     scoring_fail_seen = False
@@ -647,7 +647,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
         assert landing_options is runner.LANDING_OPTIONS
         capture.raw_exclusion_mask = np.zeros(2, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(2, dtype=bool)
-        return AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+        return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(runner, "run_video", fake_run_video)
     def fake_score_video(*_args):

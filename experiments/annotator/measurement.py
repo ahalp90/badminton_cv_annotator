@@ -286,6 +286,13 @@ def _artifact_record(run_root: Path, path: Path) -> dict[str, Any]:
 
 def _json_ready(value: object, *, top_level: bool = False) -> object:
     """Convert the annotator's tuples, dataclasses and NumPy values to JSON values."""
+    from annotator.sequence.contacts import ContactEvent
+
+    if isinstance(value, ContactEvent):
+        probability = None if math.isnan(value.probability) else value.probability
+        return {
+            "frame": _json_ready(value.frame), "probability": _json_ready(probability), "side": _json_ready(value.side),
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, np.generic):
@@ -853,8 +860,11 @@ def _write_scoring_outputs(
     scene_courts: Sequence[SceneCourt] | None = None,
 ) -> dict[str, object]:
     rallies = _gt_rallies_for_fixture(master, fixture)
-    strict_rows = strict_contact_rows(result.spans, result.filtered_contacts, rallies, case.fixed.fps)
-    wide_rows = wide_edge_contact_rows(rallies, result.filtered_contacts, case.fixed.fps, case.fixed.n_frames)
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    contacts = [(rally_id, event.frame, None, None)
+                for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
+    strict_rows = strict_contact_rows(spans, contacts, rallies, case.fixed.fps)
+    wide_rows = wide_edge_contact_rows(rallies, contacts, case.fixed.fps, case.fixed.n_frames)
     _write_rows(directory / "strict_contacts.csv.gz", STRICT_CONTACT_COLUMNS, strict_rows)
     _write_rows(directory / "wide_edge_contacts.csv.gz", WIDE_CONTACT_COLUMNS, wide_rows)
     scoring = score_video(

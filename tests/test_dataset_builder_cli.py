@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from annotator.run_video import AnnotatorResult
+from annotator.sequence.contacts import ContactSequence, FinishedRally
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.artifact_index import (
@@ -975,11 +976,9 @@ annotation_directory = "set/match-one"
     ) -> vision.AnnotationOutput:
         self.boundary_calls.append("annotation")
         result = (
-            AnnotatorResult(
-                [(0, 3)], [], [], {}, [None], [0], [None], [None], {}, {}, {}, {}, [],
-            )
+            AnnotatorResult((FinishedRally(ContactSequence(0, 0, 3, ()), None),), {}, {}, {}, (), [], ())
             if self.with_rally
-            else AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+            else AnnotatorResult((), {}, {}, {}, (), [], ())
         )
         run = vision.AnnotationRun(
             self.video_id,

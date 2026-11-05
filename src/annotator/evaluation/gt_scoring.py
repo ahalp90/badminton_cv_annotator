@@ -605,9 +605,12 @@ def score_video(
     gt = load_gt_rallies(master, fixture.video_id)
     sets = load_set_tables(fixture, gt)
     recon = reconcile_sets(fixture, master, gt, sets)
-    classifications = classify_all(result.spans, gt)
-    boundaries = score_boundaries(result.spans, gt)
-    contact_gate = score_contacts(result.spans, result.filtered_contacts, gt, tolerances=(tolerance,))["count_gate"]["covered"]
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    contacts = [(rally_id, event.frame, None, None)
+                for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
+    classifications = classify_all(spans, gt)
+    boundaries = score_boundaries(spans, gt)
+    contact_gate = score_contacts(spans, contacts, gt, tolerances=(tolerance,))["count_gate"]["covered"]
     per_vid = master[master["vid"] == fixture.video_id]
     frame_side = {int(frame): str(side) for frame, side in zip(per_vid["frame_num"], per_vid["player_side"])}
     heights = _hit_height_gt_map(sets)
@@ -624,7 +627,7 @@ def score_video(
     contact_matches = 0
     for index, (rally, (category, span)) in enumerate(zip(gt, classifications)):
         covered = category is RallyBoundary.COVERED
-        candidates = result.filtered_by_rally.get(span, []) if covered else []
+        candidates = [event.frame for event in result.rallies[span].sequence.events] if covered else []
         pred_count = len(candidates) if covered else None
         br_ok = covered and pred_count == rally.n_strokes
         br[0] += int(br_ok)
@@ -652,13 +655,13 @@ def score_video(
         for gt_index, candidate_index in matches:
             gt_frame = rally.stroke_frames[gt_index]
             gt_height = heights.get((rally.set_id, rally.rally, gt_frame), math.nan)
-            detected = result.hit_height_by_frame.get(candidates[candidate_index])
+            detected = result.hit_heights.get(candidates[candidate_index])
             if not math.isnan(gt_height) and detected is not None and int(gt_height) == detected:
                 height[0] += 1
                 height[2] += 1
                 hh_correct += 1
         gt_player = Half.TOP if frame_side[rally.stroke_frames[-1]] == "Top" else Half.BOT
-        pred_player = result.striker_halves[span] if covered else None
+        pred_player = result.rallies[span].final_half if covered else None
         p_ok = covered and pred_player == gt_player
         for values, ok in ((player, p_ok),):
             values[0] += int(ok)
@@ -667,7 +670,7 @@ def score_video(
                 values[2] += int(ok)
                 values[3] += 1
         gt_server = Half.TOP if frame_side[rally.stroke_frames[0]] == "Top" else Half.BOT
-        pred_server = result.fitted_first_all[span] if covered else None
+        pred_server = result.rallies[span].first_half if covered else None
         s_ok = covered and pred_server == gt_server
         server[0] += int(s_ok)
         server[1] += 1
@@ -676,8 +679,9 @@ def score_video(
             server[3] += 1
         gt_winner = recon.winners[index].winner_half
         pred_winner = None
-        if covered and span in result.verdict_rows:
-            verdict = result.verdict_rows[span]
+        outcome = result.outcomes.get(span) if covered else None
+        if outcome is not None:
+            verdict = outcome.verdict
             if verdict.verdict == Verdict.WON:
                 pred_winner = verdict.striker_half
             elif verdict.verdict == Verdict.LOST:
@@ -697,7 +701,7 @@ def score_video(
             landing_court = _landing_court_info(
                 fixture.video_id, rally.stroke_frames[-1], court_info, scene_courts
             )
-            detected_landing = result.landings.get(span) if covered else None
+            detected_landing = (None if outcome is None else outcome.landing) if covered else None
             pred_landing = detected_landing.half if detected_landing is not None else None
             if landing_court is not None:
                 projected = point_winner.project_pixels_to_court(
@@ -723,12 +727,17 @@ def score_video(
             landing_half.value if landing_half else None, pred_landing.value if pred_landing else None, ld_ok))
     if (contact_gate["pass"], contact_gate["total"]) != (br[2], br[3]):
         raise ValueError(f"{fixture.name}: ball_round count-gate mismatch vs score_contacts")
+    raw_contact_count = len(result.heuristic_candidates) if result.heuristic_candidates else len(contacts)
     return VideoScoring(fixture.name, rows, boundaries, ColumnAgg(*br),
         (timing[0], timing[1]), (timing[2], timing[3]),
         ColumnAgg(*player), ColumnAgg(*server), ColumnAgg(*height), ColumnAgg(*landing), ColumnAgg(*winner),
-        contact_matches, len(result.filtered_contacts), sum(r.n_strokes for r in gt), len(result.contacts),
-        len(result.filtered_contacts), result.hit_height_failures, ball_round_diffs, timing_errs,
-        result.geometric_verdict_rows, recon)
+        contact_matches, len(contacts), sum(r.n_strokes for r in gt), raw_contact_count,
+        len(contacts), [
+            (rally_id, stroke_idx, event.frame, result.hit_height_failures[event.frame])
+            for rally_id, rally in enumerate(result.rallies) for stroke_idx, event in enumerate(rally.sequence.events)
+            if event.frame in result.hit_height_failures
+        ], ball_round_diffs, timing_errs,
+        {rally_id: outcome.geometric for rally_id, outcome in result.outcomes.items()}, recon)
 
 
 def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:

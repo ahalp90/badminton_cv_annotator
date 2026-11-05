@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import NamedTuple
 
 import numpy as np
 
@@ -14,13 +15,12 @@ from annotator.sequence.contacts import FinishedRally
 from shared.progress import progress_iter
 
 
-@dataclass(frozen=True)
-class VerdictData:
-    """Rally-indexed landing and winner outputs."""
+class RallyOutcome(NamedTuple):
+    """One rally's winner estimate, landing and geometric comparison."""
 
-    verdict_rows: dict[int, point_winner.VerdictRow]
-    landings: dict[int, point_winner.Landing | None]
-    geometric_verdict_rows: dict[int, point_winner.GeometricVerdictRow]
+    verdict: point_winner.VerdictRow
+    landing: point_winner.Landing | None
+    geometric: point_winner.GeometricVerdictRow
 
 
 def build_verdict_data(
@@ -31,14 +31,12 @@ def build_verdict_data(
     rejection_diagnostics: list[dict[str, object]] | None,
     landing_horizons_s: tuple[float, ...],
     horizon_rows: list[LandingHorizonRow] | None,
-) -> VerdictData:
+) -> dict[int, RallyOutcome]:
     """Find each final landing, then resolve the winner from the next serve or landing."""
     video_kinematics = point_winner.build_landing_kinematics(
         evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
     )
-    verdict_rows = {}
-    landings = {}
-    geometric_verdict_rows = {}
+    outcomes = {}
     for rally_id, rally in enumerate(progress_iter(rallies, "resolving outcomes", unit="rallies")):
         striker = rally.final_half
         if striker is None:
@@ -92,11 +90,9 @@ def build_verdict_data(
         agreement = None
         if winner is not None and geometric_winner is not None:
             agreement = winner == geometric_winner
-        verdict_rows[rally_id] = verdict
-        landings[rally_id] = landing
-        geometric_verdict_rows[rally_id] = point_winner.GeometricVerdictRow(
+        outcomes[rally_id] = RallyOutcome(verdict, landing, point_winner.GeometricVerdictRow(
             rally_id, geometric, geometric_winner, agreement, closed_by_mask,
-        )
+        ))
         if landing_horizons_s and flight is not None:
             assert horizon_rows is not None
             horizon_rows.extend(build_horizon_rows(
@@ -105,7 +101,7 @@ def build_verdict_data(
                 strict_verdict=verdict, strict_landing=landing, strict_winner=winner,
                 horizons_s=landing_horizons_s, next_server=next_server,
             ))
-    return VerdictData(verdict_rows, landings, geometric_verdict_rows)
+    return outcomes
 
 
 def final_flight_range(
@@ -126,12 +122,12 @@ def final_flight_range(
 
 def build_hit_heights(
     evidence: AnnotationEvidence, rallies: Sequence[FinishedRally],
-) -> tuple[dict[int, int], list[tuple[int, int, int, str]]]:
+) -> tuple[dict[int, int], dict[int, str]]:
     """Build hit-height outputs without coupling them to landing verdicts."""
     hit_height_by_frame: dict[int, int] = {}
-    hit_height_failures: list[tuple[int, int, int, str]] = []
-    for rally_id, rally in enumerate(rallies):
-        for stroke_idx, event in enumerate(rally.sequence.events):
+    hit_height_failures: dict[int, str] = {}
+    for rally in rallies:
+        for event in rally.sequence.events:
             contact_frame = event.frame
             try:
                 frame_net_band = court_at_frame(evidence.scene_courts, contact_frame).net_band
@@ -139,7 +135,7 @@ def build_hit_heights(
                     evidence.track, contact_frame, frame_net_band, evidence.resolution,
                 )
             except ValueError as exc:
-                hit_height_failures.append((rally_id, stroke_idx, contact_frame, str(exc)))
+                hit_height_failures[contact_frame] = str(exc)
                 continue
             hit_height_by_frame[contact_frame] = hit_height
     return hit_height_by_frame, hit_height_failures

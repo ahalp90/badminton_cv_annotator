@@ -45,9 +45,8 @@ def test_contact_attribution_uses_net_band_at_contact_scene(monkeypatch):
         heuristic_spans=[(0, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
         track=np.zeros((10, 3)), sticky=None, bboxes=np.zeros((10, 1, 4)), scene_courts=scenes,
     )
-    rallies, filtered_contacts = select_heuristic_contacts(evidence)
+    rallies = select_heuristic_contacts(evidence)
 
-    assert filtered_contacts == contacts
     assert received_bands == [scenes[1].net_band]
     assert rallies[0].final_half is Half.TOP
 
@@ -72,7 +71,7 @@ def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
 
     assert received_bands == [scenes[1].net_band]
     assert hit_heights == {7: 1}
-    assert failures == []
+    assert failures == {}
 
 
 def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monkeypatch):
@@ -128,4 +127,4 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         'court_info': scenes[1].court_info,
     }
     assert error_bands == [scenes[1].landing_error_band_m]
-    assert result.landings == {0: landing}
+    assert result[0].landing == landing

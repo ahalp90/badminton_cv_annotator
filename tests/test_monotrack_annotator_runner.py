@@ -16,7 +16,12 @@ import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.models import SideGeometry
 from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
+from annotator.sequence.contacts import (
+    ContactEvent,
+    ContactSequence,
+    FinishedRally,
+    stream_payload,
+)
 from annotator.types import DeadMaskMode
 from dataset_builder import vision
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
@@ -127,7 +132,12 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
         assert kwargs['gate_court_info'] is inputs.court.gate_court_info
         assert kwargs['cut_frames'] == [30]
-        return empty_annotation(kwargs['spans'], [])._replace(filtered_by_rally={0: [10, 20]}, striker_halves=[Half.BOT])
+        return empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
+            ContactSequence(0, *kwargs['spans'][0], (
+                ContactEvent(10, np.nan, Half.TOP), ContactEvent(20, np.nan, Half.BOT),
+            )),
+            Half.BOT,
+        ),))
 
     monkeypatch.setattr(video_module, 'run_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path), heuristic_spec=spec)
@@ -137,7 +147,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
     assert result['boundaries'] == 'provided'
     assert result['candidate_id'] == candidate_id(spec)
     assert result['heuristic_settings'] == serialise_spec(spec)
-    assert result['stream']['events'] == [[10, 1.0, 'Top'], [20, 1.0, 'Bot']]
+    assert result['stream']['events'] == [[10, None, 'Top'], [20, None, 'Bot']]
     assert not inputs.model_paths
     assert inputs.pose_paths == [inputs.config['paths']['pose_root'] / inputs.item['directory']]
     assert inputs.array_paths == [

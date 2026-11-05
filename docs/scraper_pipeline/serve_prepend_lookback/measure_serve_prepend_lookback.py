@@ -306,23 +306,24 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     codes = np.asarray(inputs.keyword["inpaint_codes"])
     court_present = np.asarray(inputs.keyword["court_present"])
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
-    classifications = classify_all(result.spans, gt_rallies)
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    classifications = classify_all(spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
     lookback_frames = int(ScalingKind.FRAME_COUNT.scale(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps))
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
     )
-    raw_frames = sorted(int(contact.contact_frame) for contact in result.contacts)
-    accepted_frames = sorted(int(contact.contact_frame) for contact in result.filtered_contacts)
+    accepted_frames = sorted(event.frame for rally in result.rallies for event in rally.sequence.events)
+    raw_frames = (sorted(contact.contact_frame for contact in result.heuristic_candidates)
+                  if result.heuristic_candidates else accepted_frames)
     rows: list[dict[str, Any]] = []
 
     for rally_index, (rally, (category, span_id)) in enumerate(zip(gt_rallies, classifications)):
-        overlapping = _overlapping_span_ids(rally.extent, result.spans)
+        overlapping = _overlapping_span_ids(rally.extent, spans)
         accepted_for_rally = [
-            int(contact.contact_frame)
-            for contact in result.filtered_contacts
-            if contact.rally_id in overlapping
+            event.frame for rally_id, found in enumerate(result.rallies) for event in found.sequence.events
+            if rally_id in overlapping
         ]
         matched = greedy_match(rally.stroke_frames, accepted_for_rally, tolerance)
         matched_gt = {gt_index for gt_index, _ in matched}
@@ -350,8 +351,8 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
         raw_in_window = [frame for frame in raw_frames if window_start <= frame < window_end]
         accepted_in_window = [frame for frame in accepted_frames if window_start <= frame < window_end]
         pose = _pose_stats(bboxes, kps, ndet, serve_frame)
-        span_start = result.spans[span_id][0] if span_id is not None else None
-        span_end = result.spans[span_id][1] if span_id is not None else None
+        span_start = spans[span_id][0] if span_id is not None else None
+        span_end = spans[span_id][1] if span_id is not None else None
         row = {
             "mask_mode": mask_mode,
             "rally_index": rally_index,
@@ -418,9 +419,9 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
         "mask_mode": mask_mode,
         "raw_mask_true_frames": int(raw_mask.sum()),
         "believed_mask_true_frames": int(believed_mask.sum()),
-        "n_spans": len(result.spans),
-        "n_raw_contacts": len(result.contacts),
-        "n_accepted_contacts": len(result.filtered_contacts),
+        "n_spans": len(spans),
+        "n_raw_contacts": len(raw_frames),
+        "n_accepted_contacts": len(accepted_frames),
         "replay_mask_min_frames": constants.replay_mask_min_frames,
         "serve_start_lookback_frames": lookback_frames,
         "clean_run_min_frames": clean_run_min_frames,
@@ -464,14 +465,14 @@ def measure_candidate_fixture(
 
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     tolerance = canonical_tolerance(fixture.fps)
-    raw_by_span = candidate_measurement.contacts_by_span(natural_result.contacts)
-    accepted_by_span = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in natural_result.filtered_by_rally.items()
-    }
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies]
+    accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]
+                        for rally_id, rally in enumerate(natural_result.rallies)}
+    raw_by_span = (candidate_measurement.contacts_by_span(natural_result.heuristic_candidates)
+                   if natural_result.heuristic_candidates else accepted_by_span)
     statuses = candidate_measurement.gt_statuses(
         gt_rallies,
-        natural_result.spans,
+        spans,
         accepted_by_span,
         tolerance,
     )
@@ -491,7 +492,7 @@ def measure_candidate_fixture(
             court_present=court_present,
             raw_mask=capture.raw_exclusion_mask,
             definitive_mask=capture.definitive_exclusion_mask,
-            spans=natural_result.spans,
+            spans=spans,
             raw_by_span=raw_by_span,
             accepted_by_span=accepted_by_span,
             gt_rallies=gt_rallies,
@@ -538,9 +539,9 @@ def measure_candidate_fixture(
             for pin in fixture.run_video_files
         ],
         "natural_run": {
-            "spans": len(natural_result.spans),
-            "raw_contacts": len(natural_result.contacts),
-            "accepted_contacts": len(natural_result.filtered_contacts),
+            "spans": len(spans),
+            "raw_contacts": sum(len(frames) for frames in raw_by_span.values()),
+            "accepted_contacts": sum(len(frames) for frames in accepted_by_span.values()),
             "gt_rallies": len(gt_rallies),
             "target_serve_misses": sum(row["target_miss"] for row in statuses),
             "serve_matched": sum(row["serve_matched"] for row in statuses),

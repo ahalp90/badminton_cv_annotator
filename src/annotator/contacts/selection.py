@@ -21,13 +21,12 @@ def scoring_filter(contacts: list[ContactCandidate]) -> list[ContactCandidate]:
 
 def select_heuristic_contacts(
     evidence: AnnotationEvidence, rejection_diagnostics: list[dict[str, object]] | None = None,
-) -> tuple[tuple[FinishedRally, ...], list[ContactCandidate]]:
-    """Finish heuristic rallies and return their gate-passing, unmasked contacts.
+) -> tuple[FinishedRally, ...]:
+    """Finish heuristic rallies from their gate-passing, unmasked contacts.
 
     Append a diagnostic when every gate-passing contact in a rally is masked.
     """
     scored_contacts = scoring_filter(evidence.heuristic_contacts)
-    filtered_contacts = []
     scored_by_rally: dict[int, list[int]] = {}
     events_by_rally: dict[int, list[ContactEvent]] = {}
     for contact in scored_contacts:
@@ -35,7 +34,6 @@ def select_heuristic_contacts(
         scored_by_rally.setdefault(contact.rally_id, []).append(frame)
         if evidence.exclusion_mask[frame]:
             continue
-        filtered_contacts.append(contact)
         frame_net_band = court_at_frame(evidence.scene_courts, frame).net_band
         side = point_winner.attribute_half(frame, evidence.track, evidence.sticky, evidence.bboxes, frame_net_band)
         # Heuristic contacts have no model probability; only model inference reads it.
@@ -59,4 +57,4 @@ def select_heuristic_contacts(
                 'trigger_code': '',
             })
     rallies, _stream = fit_rally_sides(sequences, events)
-    return rallies, filtered_contacts
+    return rallies
