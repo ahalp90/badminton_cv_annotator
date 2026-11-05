@@ -11,6 +11,7 @@ from annotator.contacts.features import (
     build_candidate_mask,
     build_contact_features,
     build_eligible_intervals,
+    build_player_signals,
 )
 from annotator.contacts.model import CONTACT_FEATURE_NAMES
 from annotator.types import StickyResult
@@ -70,8 +71,25 @@ def test_empty_domain() -> None:
 def test_exclusion_splits_half_open_intervals() -> None:
     mask = np.array([True, False, False, True, False, True])
     assert build_eligible_intervals([(0, 6)], mask) == [(1, 3), (4, 5)]
+    assert build_eligible_intervals([(2, 5)], mask) == [(2, 3), (4, 5)]
+    assert build_eligible_intervals([(0, 1), (3, 3)], mask) == []
     with pytest.raises(ValueError, match='outside'):
         build_eligible_intervals([(0, 7)], mask)
+
+
+def test_player_motion_keeps_players_separate_and_stops_at_missing_coordinates() -> None:
+    inputs = feature_inputs()
+    ankle = inputs['sticky'].ankle_pos.copy()
+    ankle[:4] = [
+        [[0, 0], [10, 20]],
+        [[3, 4], [10, 22]],
+        [[np.nan, 8], [13, 26]],
+        [[9, 12], [13, 26]],
+    ]
+    sticky = inputs['sticky']._replace(ankle_pos=ankle)
+    signals = build_player_signals(inputs['track'], inputs['pose_kps'], sticky, inputs['resolution'])
+    np.testing.assert_allclose(signals['ankle_speed_top'][:4], [np.nan, 5, np.nan, np.nan])
+    np.testing.assert_allclose(signals['ankle_speed_bot'][:4], [np.nan, 2, 5, 0])
 
 
 def test_invisible_motion_and_window_edges() -> None:
@@ -127,4 +145,17 @@ def test_each_prior_nominates_its_contact_window(prior: str, expected_start: int
         scenes = [(150, 200)]
     candidates = build_candidate_mask(signals, [(100, 200)], rallies, raw_contacts, scenes, 30.0)
     expected = np.concatenate((np.arange(55, 100), np.arange(expected_start, expected_end)))
+    np.testing.assert_array_equal(np.flatnonzero(candidates), expected)
+
+
+def test_seed_regions_stop_at_eligible_interval_ends() -> None:
+    signals = {
+        'shuttle_visible': np.ones(250),
+        'shuttle_impulse_ratio': np.full(250, np.nan),
+        'wrist_gap_min': np.full(250, np.nan),
+    }
+    # Frame 148's seed region would reach 163, beyond the next interval's start.
+    candidates = build_candidate_mask(signals, [(100, 150), (155, 250)], [], [148], [], 30.0)
+    # Serve lookback covers 55:100 and 110:155; the seed stays inside 100:150.
+    expected = np.concatenate((np.arange(55, 100), np.arange(110, 155)))
     np.testing.assert_array_equal(np.flatnonzero(candidates), expected)
