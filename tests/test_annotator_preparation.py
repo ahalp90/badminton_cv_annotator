@@ -75,11 +75,16 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
     np.testing.assert_array_equal(evidence.track, original)
 
 
-@pytest.mark.parametrize('supplied_contacts', [False, True])
-def test_unmasked_span_estimate_is_reused_for_replay_but_discovery_uses_masked_track(
-    preparation_inputs, monkeypatch, supplied_contacts,
+@pytest.mark.parametrize(('supplied_mask', 'supplied_contacts', 'unmasked_count', 'masked_count'), [
+    (False, False, 1, 1),
+    (True, False, 0, 1),
+    (False, True, 1, 0),
+    (True, True, 1, 0),
+])
+def test_preparation_uses_original_or_masked_spans_for_each_input_path(
+    preparation_inputs, monkeypatch, supplied_contacts, supplied_mask, unmasked_count, masked_count,
 ):
-    from annotator import preparation, rally_segmentation
+    from annotator import preparation
 
     preparation_inputs.pop('raw_exclusion_mask')
     track = preparation_inputs['track']
@@ -93,31 +98,30 @@ def test_unmasked_span_estimate_is_reused_for_replay_but_discovery_uses_masked_t
     unmasked_calls = []
     masked_calls = []
 
-    def find_unmasked(track_arg, resolved):
-        assert track_arg is track
-        np.testing.assert_array_equal(track_arg, original)
-        unmasked_calls.append(track_arg)
-        return unmasked_spans
-
-    def replay_mask(court_present, track_arg, spans, n_frames, fps, *, non_evidence):
-        assert track_arg is track
-        assert spans is unmasked_spans
-        return raw_mask
-
-    def find_masked(track_arg, resolved):
-        assert track_arg is not track
+    def find(track_arg, resolved):
+        if track_arg is track:
+            np.testing.assert_array_equal(track_arg, original)
+            unmasked_calls.append(track_arg)
+            return unmasked_spans
         np.testing.assert_array_equal(track_arg[10:100, :2], np.tile(track[9, :2], (90, 1)))
         masked_calls.append(track_arg)
         return masked_spans
 
-    monkeypatch.setattr(preparation, 'find_rally_spans', find_unmasked)
+    def replay_mask(court_present, track_arg, spans, n_frames, fps, *, non_evidence):
+        assert not supplied_mask
+        assert track_arg is track
+        assert spans is unmasked_spans
+        return raw_mask
+
+    if supplied_mask:
+        preparation_inputs['raw_exclusion_mask'] = raw_mask
+    monkeypatch.setattr(preparation, 'find_rally_spans', find)
     monkeypatch.setattr(preparation, 'combine_mask', replay_mask)
-    monkeypatch.setattr(rally_segmentation, 'find_rally_spans', find_masked)
     contacts = {0: [20, 150]} if supplied_contacts else None
     evidence = prepare_annotation(**preparation_inputs, contacts=contacts)
 
-    assert len(unmasked_calls) == 1
-    assert len(masked_calls) == (0 if supplied_contacts else 1)
+    assert len(unmasked_calls) == unmasked_count
+    assert len(masked_calls) == masked_count
     assert evidence.heuristic_spans is (unmasked_spans if supplied_contacts else masked_spans)
     if supplied_contacts:
         assert evidence.raw_contact_frames == [20, 150]

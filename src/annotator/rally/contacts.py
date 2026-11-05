@@ -72,7 +72,7 @@ def span_impulses(
 ) -> np.ndarray | None:
     """Return ``|v_out - v_in|`` for each junction in one rally span.
 
-    The track is already replay-masked when this is called from ``segment_video``.
+    Annotation prepares a replay-masked track before detecting contacts.
     Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.
     Track xy inputs are finite. IGNORE_INVISIBLE makes a float copy whose invisible
     xy values are NaN. A NaN output means its smoothing window was unmeasurable;

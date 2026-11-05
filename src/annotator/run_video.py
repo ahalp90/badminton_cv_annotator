@@ -54,6 +54,8 @@ def run_video(
 
     Uses the supplied fitted models or the selected bundle. ``base`` must match
     its fitted preprocessing. ``heuristic_only=True`` selects rule-based contacts.
+    Heuristic spans and contacts also seed the learned route's rally options and
+    contact candidates.
 
     Core arrays are normalised shuttle ``track`` (frames, 3), pose ``bboxes``
     (frames, detections, 4), ``scores`` (frames, detections), ``kps`` (frames,
