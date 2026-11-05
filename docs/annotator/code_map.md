@@ -69,6 +69,8 @@ beside the public result. Prepared evidence includes both exclusion masks.
 | How are players followed across frames? | [rally/evidence.py](../../src/annotator/rally/evidence.py) |
 | Which court geometry applies to this frame? | [courts/scenes.py](../../src/annotator/courts/scenes.py) |
 | Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
+| How does excluded footage read as rest? | `apply_replay_mask()` in [rally_segmentation.py](../../src/annotator/rally_segmentation.py) |
+| Where are the shared array calculations? | [calc_helpers.py](../../src/annotator/calc_helpers.py) |
 | Which earlier or missed contacts can be proposed? | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) |
 | Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
 | Which player hit in this camera scene? | [contacts/attribution.py](../../src/annotator/contacts/attribution.py) |

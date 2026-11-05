@@ -2,15 +2,14 @@
 
 import numpy as np
 
-from ..config import ResolvedAnnotatorConfig, Thresholds
-from ..types import (
-    ReentryGuardVariant,
-    SpanOpen,
+from ..calc_helpers import (
+    _rolling_mean,
     compute_speed,
     rolling_nanmedian,
     true_runs,
 )
-from .trajectory import _rolling_mean
+from ..config import ResolvedAnnotatorConfig, Thresholds
+from ..types import ReentryGuardVariant, SpanOpen
 
 # Minimum tracked fraction of a window before shuttle speed can rule out rest.
 VISIBILITY_REST_FRAC = 0.5

@@ -33,6 +33,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
+from annotator.calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
@@ -71,7 +72,6 @@ from annotator.review.broadcast_labels import (
     validate_partition,
 )
 from annotator.run_video import RunCapture, run_video
-from annotator.types import compute_speed, rolling_nanmedian
 
 SERVE_LOOKBACK_AT_30_FPS = 25
 

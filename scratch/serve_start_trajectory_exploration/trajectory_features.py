@@ -9,9 +9,9 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 
+from annotator.calc_helpers import true_runs
 from annotator.config import ScalingKind
 from annotator.outcomes.point_winner import Half, alternating_player_sides
-from annotator.types import true_runs
 
 MIN_PATH_FRAMES = 5
 MIN_TOTAL_MOVEMENT_BH = 0.25

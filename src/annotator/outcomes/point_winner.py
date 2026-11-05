@@ -17,17 +17,9 @@ from typing import NamedTuple
 
 import numpy as np
 
+from annotator.calc_helpers import compute_speed, rolling_nanmedian, true_runs
 from annotator.config import Thresholds, frames_at_fps, speed_at_fps
-from annotator.types import (
-    ANKLE_L,
-    ANKLE_R,
-    WRIST_L,
-    WRIST_R,
-    StickyResult,
-    compute_speed,
-    rolling_nanmedian,
-    true_runs,
-)
+from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
 from shared.court import (
     HOMOGRAPHY_RESOLUTION,
     convert_homogeneous,

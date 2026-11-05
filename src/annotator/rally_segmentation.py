@@ -2,11 +2,11 @@
 
 import numpy as np
 
+from .calc_helpers import true_runs
 from .config import ResolvedAnnotatorConfig
 from .masks.replay import filter_exclusion_mask
 from .rally.contacts import assemble_contacts
 from .rally.spans import find_rally_spans
-from .rally.trajectory import apply_replay_mask
 from .types import ContactCandidate
 
 
@@ -36,6 +36,27 @@ def segment_video(
         track, positions, spans, resolved.thresholds, sticky_distances,
         smoothing_mode=resolved.smoothing_mode,
     )
+
+
+def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Freeze excluded footage so segmentation reads it as rest.
+
+    Return a copy with masked positions fixed to the preceding live frame and
+    visibility set to one so NaN speed cannot reopen a rally. A mask starting at
+    frame zero uses the first live frame after it. An entirely masked track has
+    no anchor and is rejected.
+    """
+    if len(mask) != len(track):
+        raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
+    if mask.all():
+        raise ValueError('mask is all True: no live frame to anchor a frozen position to')
+
+    frozen = track.copy()
+    for start, end in true_runs(mask):
+        anchor = start - 1 if start > 0 else end
+        frozen[start:end, :2] = track[anchor, :2]
+        frozen[start:end, 2] = 1
+    return frozen
 
 
 def segment_shuttle_track(

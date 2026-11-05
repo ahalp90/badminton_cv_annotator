@@ -7,7 +7,8 @@ import numpy as np
 
 from annotator.courts.scenes import SceneCourt, court_at_frame
 
-from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult, true_runs
+from ..calc_helpers import true_runs
+from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.

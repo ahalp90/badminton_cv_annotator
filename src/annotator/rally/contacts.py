@@ -2,11 +2,68 @@
 
 import numpy as np
 
+from ..calc_helpers import _nan_rolling_mean, _rolling_mean
 from ..config import PROXIMITY_MAX, Thresholds
 from ..types import ContactCandidate, SmoothingMode
-from .trajectory import _nan_rolling_mean, _rolling_mean
 
 FLOOR_EPS = 1e-4
+
+
+def assemble_contacts(
+    track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
+    thresholds: Thresholds, sticky_distances: np.ndarray | None,
+    *, smoothing_mode: SmoothingMode,
+) -> list[ContactCandidate]:
+    """Detect, gate, and suppress contacts for already-selected spans."""
+    contacts = []
+    gated = []
+    for rally_id, (start, end) in enumerate(spans):
+        candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+        for frame, impulse in candidates:
+            near_player = contact_proximity_ok(track, positions, frame)
+            near_wrist = wrist_contact_near(sticky_distances, frame, thresholds.wrist_distance_body_heights)
+            contacts.append(ContactCandidate(rally_id, frame, near_player, near_wrist, None))
+            if near_wrist:
+                gated.append((frame, impulse))
+    if sticky_distances is None:
+        return contacts
+
+    # The second suppression stage compares gated contacts across rally boundaries.
+    radius = thresholds.contact_suppression_radius_frames
+    accepted = {frame for frame, _ in suppress_contact_flags(gated, radius=radius)}
+    return [
+        contact._replace(suppressed=contact.wrist_near and contact.contact_frame not in accepted)
+        for contact in contacts
+    ]
+
+
+def impulse_cell_candidates(
+    track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
+    smoothing_mode: SmoothingMode,
+) -> list[tuple[int, float]]:
+    """Find raw impulse candidates and retain their impulse for suppression.
+
+    The measured rule is pure impulse. It uses the three-frame visibility mask,
+    a rolling impulse floor, and largest-impulse-first de-duplication at the
+    three-frame boundary used at 25 fps.
+    """
+    span = track[start:end]
+    impulses = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+    if impulses is None:
+        return []
+
+    around_visible = (
+        (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
+    )
+    half_window = thresholds.impulse_floor_half_window_frames
+    dedup_radius = thresholds.contact_dedup_radius_frames
+    floors = rolling_floor(impulses, around_visible, half_window)
+    impulse_multiple = thresholds.contact_impulse_multiple
+    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > impulse_multiple
+    is_contact = impulse_pass & around_visible
+
+    candidates = [(start + int(junction) + 1, float(impulses[junction])) for junction in np.flatnonzero(is_contact)]
+    return suppress_contact_flags(candidates, radius=dedup_radius)
 
 
 def span_impulses(
@@ -58,46 +115,21 @@ def rolling_floor(
     return floor
 
 
-def impulse_cell_candidates(
-    track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
-    smoothing_mode: SmoothingMode,
+def suppress_contact_flags(
+    flags: list[tuple[int, float]],
+    radius: int,
 ) -> list[tuple[int, float]]:
-    """Find raw impulse candidates and retain their impulse for suppression.
+    """Greedy argmax suppression over ``(frame, impulse)`` flags.
 
-    The measured rule is pure impulse. It uses the three-frame visibility mask,
-    a rolling impulse floor, and largest-impulse-first de-duplication at the
-    three-frame boundary used at 25 fps.
+    Flags are ranked by descending impulse and then ascending frame. A flag is
+    accepted only when it is at least ``radius`` frames from every accepted flag.
     """
-    span = track[start:end]
-    impulses = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
-    if impulses is None:
-        return []
-
-    around_visible = (
-        (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
-    )
-    half_window = thresholds.impulse_floor_half_window_frames
-    dedup_radius = thresholds.contact_dedup_radius_frames
-    floors = rolling_floor(impulses, around_visible, half_window)
-    impulse_multiple = thresholds.contact_impulse_multiple
-    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > impulse_multiple
-    is_contact = impulse_pass & around_visible
-
-    candidate_local = np.flatnonzero(is_contact) + 1
-    candidate_impulses = impulses[is_contact]
-    kept: list[tuple[int, float]] = []
-    # Stable sort: equal impulses keep the earlier frame, matching suppression's
-    # (-impulse, frame) ordering. Exact ties occur in real data (sset_01 has one),
-    # so an unstable sort here is a platform-dependent output.
-    for candidate_index in np.argsort(-candidate_impulses, kind='stable'):
-        local_frame = int(candidate_local[candidate_index])
-        if all(
-            abs(local_frame - other_frame) >= dedup_radius
-            for other_frame, _other_impulse in kept
-        ):
-            kept.append((local_frame, float(candidate_impulses[candidate_index])))
-    kept.sort()
-    return [(start + local_frame, impulse) for local_frame, impulse in kept]
+    ordered = sorted(flags, key=lambda flag: (-flag[1], flag[0]))
+    accepted: list[tuple[int, float]] = []
+    for frame, impulse in ordered:
+        if all(abs(frame - other_frame) >= radius for other_frame, _ in accepted):
+            accepted.append((frame, impulse))
+    return sorted(accepted)
 
 
 def contact_proximity_ok(
@@ -137,56 +169,3 @@ def wrist_contact_near(
         return None
     distance = sticky_distances[contact_frame]
     return bool(np.isfinite(distance) and distance <= threshold)
-
-
-def suppress_contact_flags(
-    flags: list[tuple[int, float]],
-    radius: int,
-) -> list[int]:
-    """Greedy argmax suppression over ``(frame, impulse)`` flags.
-
-    Flags are ranked by descending impulse and then ascending frame. A flag is
-    accepted only when it is at least ``radius`` frames from every accepted flag.
-    """
-    ordered = sorted(flags, key=lambda flag: (-flag[1], flag[0]))
-    accepted: list[int] = []
-    for frame, _impulse in ordered:
-        if all(abs(frame - other) >= radius for other in accepted):
-            accepted.append(frame)
-    return sorted(accepted)
-
-
-def assemble_contacts(
-    track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
-    thresholds: Thresholds, sticky_distances: np.ndarray | None,
-    *, smoothing_mode: SmoothingMode,
-) -> list[ContactCandidate]:
-    """Detect, gate, and suppress contacts for already-selected spans."""
-    raw_flags = []
-    for rally_id, (start, end) in enumerate(spans):
-        candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
-        for frame, impulse in candidates:
-            raw_flags.append((rally_id, frame, impulse))
-
-    if sticky_distances is None:
-        contacts = []
-        for rally_id, frame, _impulse in raw_flags:
-            near_player = contact_proximity_ok(track, positions, frame)
-            contacts.append(ContactCandidate(rally_id, frame, near_player, None, None))
-        return contacts
-
-    wrist_distance = thresholds.wrist_distance_body_heights
-    gated = []
-    for _rally_id, frame, impulse in raw_flags:
-        if wrist_contact_near(sticky_distances, frame, wrist_distance):
-            gated.append((frame, impulse))
-    radius = thresholds.contact_suppression_radius_frames
-    accepted = set(suppress_contact_flags(gated, radius=radius))
-    gate_frames = {frame for frame, _ in gated}
-    contacts = []
-    for rally_id, frame, _impulse in raw_flags:
-        near_player = contact_proximity_ok(track, positions, frame)
-        near_wrist = frame in gate_frames
-        suppressed = near_wrist and frame not in accepted
-        contacts.append(ContactCandidate(rally_id, frame, near_player, near_wrist, suppressed))
-    return contacts

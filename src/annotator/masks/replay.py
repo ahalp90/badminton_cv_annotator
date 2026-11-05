@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
+from annotator.calc_helpers import compute_speed, rolling_nanmedian, true_runs
 from annotator.config import (
     MASKS_DIR,
     PERSPECTIVE_SHIFT_THRESHOLD,
@@ -32,7 +33,6 @@ from annotator.config import (
     resolve,
 )
 from annotator.masks.inpaint import code_counts, grade_track
-from annotator.types import compute_speed, rolling_nanmedian, true_runs
 
 log = logging.getLogger(__name__)
 

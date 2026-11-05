@@ -10,7 +10,9 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from annotator.calc_helpers import _nan_rolling_mean, _rolling_mean, compute_speed
 from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.rally import contacts as contact_detection
 from annotator.rally.contacts import (
     contact_proximity_ok,
     impulse_cell_candidates,
@@ -21,13 +23,8 @@ from annotator.rally.contacts import (
 from annotator.rally.spans import (
     active_region_rally_spans,
 )
-from annotator.rally.trajectory import (
-    _nan_rolling_mean,
-    _rolling_mean,
-    apply_replay_mask,
-)
-from annotator.rally_segmentation import segment_video
-from annotator.types import SmoothingMode, SpanOpen, compute_speed
+from annotator.rally_segmentation import apply_replay_mask, segment_video
+from annotator.types import SmoothingMode, SpanOpen
 from tests.annotator_config import burst_config
 
 # A per-frame step that keeps raw speed above START_SPEED.
@@ -172,11 +169,35 @@ def test_contact_suppression_ranks_impulse_then_frame():
     # Radius pinned explicitly: this test is about the ranking rule, and the module default
     # scales with the fps table (8 at the 25 fps surface under base-30, where this fixture
     # would suppress nothing).
-    flags = [(10, 1.0), (18, 2.0), (27, 2.0)]
-    assert suppress_contact_flags(flags, radius=9) == [18, 27]
+    flags = [(27, 2.0), (19, 2.0), (10, 1.0), (18, 2.0)]
+    assert suppress_contact_flags(flags, radius=9) == [(18, 2.0), (27, 2.0)]
     assert impulse_cell_candidates(
         _triangle_track(RALLY_STEP), 0, 15, thresholds=burst_config().thresholds, smoothing_mode=SmoothingMode.ZERO_FILL
     )
+
+
+@pytest.mark.parametrize('with_wrist_distances', [False, True])
+def test_contact_assembly_keeps_gate_verdicts_and_suppresses_across_rallies(monkeypatch, with_wrist_distances):
+    track = np.zeros((40, 3))
+    thresholds = replace(burst_config().thresholds, contact_suppression_radius_frames=9)
+    candidates = {0: [(18, 2.0)], 20: [(22, 1.0), (26, 10.0)]}
+    monkeypatch.setattr(
+        contact_detection, 'impulse_cell_candidates',
+        lambda _track, start, *_args, **_kwargs: candidates[start],
+    )
+    distances = None
+    if with_wrist_distances:
+        distances = np.zeros(len(track))
+        distances[26] = np.inf
+    contacts = contact_detection.assemble_contacts(
+        track, None, [(0, 20), (20, 40)], thresholds, distances, smoothing_mode=SmoothingMode.ZERO_FILL,
+    )
+    assert [(contact.rally_id, contact.contact_frame) for contact in contacts] == [(0, 18), (1, 22), (1, 26)]
+    if with_wrist_distances:
+        assert [contact.wrist_near for contact in contacts] == [True, True, False]
+        assert [contact.suppressed for contact in contacts] == [False, True, False]
+    else:
+        assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts)
 
 
 def test_proximity_ok_true_false_blank():
