@@ -295,7 +295,7 @@ def evaluate_source(
     ):
         raise ValueError(f"{source.match_id:02d}: court scene count differs")
     player_inputs = derive_player_feature_inputs(
-        track, pose, court, str(source.match_id)
+        track, pose, court
     )
     records, annotation_population = load_annotation_rallies(
         annotation_root / "set" / source.video,

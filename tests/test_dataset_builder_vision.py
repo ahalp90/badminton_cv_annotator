@@ -125,10 +125,6 @@ def _court_vision(video_id: str, frame_count: int) -> vision.CourtVision:
 
         net_band=(24.0, 26.0),
         resolution=(width, height),
-        gate_resolution_table=pd.DataFrame(
-            {"width": [width], "height": [height]},
-            index=pd.Index([video_id], dtype=object),
-        ),
         homography_rows=homography_rows,
         landing_error_band_m=0.1,
         active_corners_refpx=np.array(
@@ -204,7 +200,6 @@ def _direct_annotation(
         resolution=inputs.resolution,
         video_id=video_id,
 
-        gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present,
         homography_rows=inputs.homography_rows,
 
@@ -771,7 +766,7 @@ def test_court_loader_names_a_stale_schema_before_its_fields(tmp_path: Path) -> 
         vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
     vision.save_json_gz(artifacts.evidence, {**payload, "consensus": None})
-    with pytest.raises(ValueError, match="payload fields differ from court-evidence/0.3"):
+    with pytest.raises(ValueError, match="payload fields differ from court-evidence/0.4"):
         vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
 

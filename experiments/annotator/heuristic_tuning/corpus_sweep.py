@@ -222,7 +222,6 @@ def load_pinned_replay_fixtures(
             "resolution": court_inputs.resolution,
             "video_id": video_id,
 
-            "gate_resolution_table": court_inputs.gate_resolution_table,
             "ref_err_px": 3.5,
             "raw_exclusion_mask": None,
             "court_present": court.evidence.court_present,

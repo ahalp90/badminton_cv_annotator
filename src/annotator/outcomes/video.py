@@ -40,39 +40,38 @@ def build_outcomes(
         else:
             flight = final_flight_range(final_contact, next_start, rally.sequence.end_frame, evidence)
 
-        landing = None
-        error_band = None
-        shortened_by_exclusion = False
-        kinematics = video_kinematics
-        if flight is not None:
-            scene, search_start, search_limit = flight
-            if search_start > final_contact:
-                # A camera cut is not shuttle motion in the returning view.
-                speed = video_kinematics.speed.copy()
-                speed[search_start] = np.nan
-                kinematics = video_kinematics._replace(speed=speed)
-            window = point_winner.landing_window(
-                search_start, search_limit, evidence.track, evidence.exclusion_mask,
-                evidence.resolved.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
-            )
-            rejected_intervals = []
-            landing = point_winner.pick_landing_to_end(
-                search_start, window.end_frame, evidence.track, kinematics, landing_options,
-                striker, scene.net_band, evidence.resolution, scene.court_info,
-                evidence.resolved.thresholds,
-                shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
-                rejected_intervals=rejected_intervals, infer_net_fault=search_start == final_contact,
-            )
-            error_band = scene.landing_error_band_m
-            shortened_by_exclusion = window.search_shortened_by_exclusion
-            if rejection_diagnostics is not None:
-                record_landing_rejections(
-                    rejection_diagnostics, rally_id, evidence, search_start, search_limit,
-                    window.end_frame, rejected_intervals,
-                )
+        if flight is None:
+            outcomes[rally_id] = point_winner.resolve_rally_outcome(striker, next_server, None, None)
+            continue
 
+        scene, search_start, search_limit = flight
+        starts_in_returning_view = search_start > final_contact
+        kinematics = video_kinematics
+        if starts_in_returning_view:
+            # A camera cut is not shuttle motion in the returning view.
+            speed = video_kinematics.speed.copy()
+            speed[search_start] = np.nan
+            kinematics = video_kinematics._replace(speed=speed)
+        window = point_winner.landing_window(
+            search_start, search_limit, evidence.track, evidence.exclusion_mask,
+            evidence.resolved.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
+        )
+        rejected_intervals = []
+        landing = point_winner.pick_landing_to_end(
+            search_start, window.end_frame, evidence.track, kinematics, landing_options,
+            striker, scene.net_band, evidence.resolution, scene.court_info,
+            evidence.resolved.thresholds,
+            shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
+            rejected_intervals=rejected_intervals, infer_net_fault=not starts_in_returning_view,
+        )
+        if rejection_diagnostics is not None:
+            record_landing_rejections(
+                rejection_diagnostics, rally_id, evidence, search_start, search_limit,
+                window.end_frame, rejected_intervals,
+            )
         outcomes[rally_id] = point_winner.resolve_rally_outcome(
-            striker, next_server, landing, error_band, search_shortened_by_exclusion=shortened_by_exclusion,
+            striker, next_server, landing, scene.landing_error_band_m,
+            search_shortened_by_exclusion=window.search_shortened_by_exclusion,
         )
     return outcomes
 

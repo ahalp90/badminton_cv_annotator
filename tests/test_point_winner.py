@@ -79,10 +79,16 @@ def test_fit_alternation_picks_the_higher_scoring_phase():
     assert fit_alternation(guesses) == CourtHalf.BOT
 
 
-def test_fit_alternation_a_tie_returns_none():
-    # Two strokes, both guessed Top: phase(Top,2) matches stroke 1 only, phase(Bot,2) matches
-    # stroke 0 only -> both score 1, a genuine tie.
-    assert fit_alternation([CourtHalf.TOP, CourtHalf.TOP]) is None
+@pytest.mark.parametrize(('guesses', 'final'), [
+    ([CourtHalf.TOP, CourtHalf.TOP], CourtHalf.BOT),
+    ([CourtHalf.BOT, CourtHalf.BOT], CourtHalf.TOP),
+    ([None, CourtHalf.TOP, CourtHalf.TOP], CourtHalf.BOT),
+    ([CourtHalf.TOP, CourtHalf.TOP, None], CourtHalf.TOP),
+    ([None, None], None),
+    ([], None),
+])
+def test_fit_alternation_breaks_ties_with_the_first_known_guess(guesses, final):
+    assert fit_alternation(guesses) == final
 
 
 def test_fit_alternation_ignores_none_guesses_when_scoring():

@@ -23,7 +23,6 @@ def image_order(corners: Any) -> Any:
 def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
     """Accept every successful MonoTrack fit without applying our detector's person vote."""
     import numpy as np
-    import pandas as pd
 
     from annotator.courts.evidence import (
         CourtEvidenceResult,
@@ -65,8 +64,6 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
     inputs = CourtInputs(
         court_info=info, net_band=build_net_band(info, resolution),
         resolution=resolution,
-        gate_resolution_table=pd.DataFrame({'width': [resolution[0]], 'height': [resolution[1]]},
-                                           index=[item['item_id']]),
         homography_rows=build_scene_rows(item['item_id'], accepted_intervals, accepted_corners, resolution),
         landing_error_band_m=corner_error_band_from_corners(corners, info, 3.5), active_corners_refpx=corners,
     )

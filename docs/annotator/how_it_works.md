@@ -173,8 +173,8 @@ does not change the discovery predictions used for evaluation.
 
 Each contact initially has an individual court-half guess: `Top` for the far
 half, `Bot` for the near half, or unknown. The finishing rule chooses the
-alternating pattern that best matches those guesses. A tied vote keeps the
-individual guesses. These are court halves, not player identities.
+alternating pattern that best matches those guesses. A tied vote follows the
+first known guess. When no guess is known, all players stay unknown. These are court halves, not player identities.
 
 The review model uses evidence from the chosen proposal, selector scores and
 final boundaries. It retains the original side guesses when measuring agreement;

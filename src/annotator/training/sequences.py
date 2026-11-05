@@ -185,7 +185,7 @@ def whole_rally_correctness(
     for labelled_frame, event in zip(rally.frames, sequence.events, strict=True):
         if abs(event.frame - labelled_frame) > tolerance:
             return 0
-    revised, _events = fit_rally_sides((sequence,), sequence.events)
+    revised = fit_rally_sides((sequence,))
     for labelled_side, event in zip(rally.sides, revised[0].sequence.events, strict=True):
         if labelled_side is not None and event.side != labelled_side:
             return 0

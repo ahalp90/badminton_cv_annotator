@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.bst_x.preparing_data.heuristics import sticky_anchor
 from src.bst_x.preparing_data.heuristics.base import (
@@ -144,7 +145,7 @@ def test_voronoi_partition_picks_correct_side():
     bot_kps = _standing_kps_for_bbox(bot_bbox)
 
     raw = _build_raw_clip([[(top_bbox, top_kps, 0.9), (bot_bbox, bot_kps, 0.9)]])
-    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
     assert res is not None
     picks, _court_base_pos, _, _, _ = res  # 5th element: in-court candidate count
     assert picks[SLOT_TOP] == 0  # candidate 0 is the upper one
@@ -152,7 +153,7 @@ def test_voronoi_partition_picks_correct_side():
 
     # Swap input order: the assignment must not depend on candidate order.
     raw_swapped = _build_raw_clip([[(bot_bbox, bot_kps, 0.9), (top_bbox, top_kps, 0.9)]])
-    res = pick_one_frame(raw_swapped, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw_swapped, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 1
@@ -175,7 +176,7 @@ def test_bottom_first_with_cross_slot_exclusion():
         (bbox_a, _standing_kps_for_bbox(bbox_a), 0.9),
         (bbox_b, _standing_kps_for_bbox(bbox_b), 0.9),
     ]])
-    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, _params())
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
     assert res is not None
     picks, *_ = res
 
@@ -216,7 +217,7 @@ def test_sitting_tiebreaker_prefers_standing_then_falls_back():
     ]])
     # sanity_ceiling generous so the standing cand at norm y=0.255 stays eligible.
     kw = _params(tiebreaker_tol=0.05)
-    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, kw)
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), kw)
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 1, "non-sitting candidate should win the tiebreaker"
@@ -230,7 +231,7 @@ def test_sitting_tiebreaker_prefers_standing_then_falls_back():
         (bbox_standing, _sitting_kps_for_bbox(bbox_standing), 0.9),
         (bot_bbox, bot_kps, 0.9),
     ]])
-    res = pick_one_frame(raw_both_sit, 0, ema, halfcourt_centre, ctx, kw)
+    res = pick_one_frame(raw_both_sit, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), kw)
     assert res is not None
     picks, *_ = res
     assert picks[SLOT_TOP] == 0, "fallback should revert to argmin when all candidates sit"
@@ -255,7 +256,7 @@ def test_rally_presence_rejects_when_both_picks_far_off_court():
         (far_bot_bbox, _standing_kps_for_bbox(far_bot_bbox), 0.9),
     ]])
     res = pick_one_frame(
-        raw, 0, ema, halfcourt_centre, ctx,
+        raw, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0),
         _params(sanity_ceiling=5.0, generous_margin=0.15),
     )
     assert res is None, "both picks far outside court must trigger rally-presence rejection"
@@ -375,13 +376,15 @@ def test_analyse_frame_agrees_with_picker_on_success_and_maps_raw_slots():
         (bottom_bbox, _standing_kps_for_bbox(bottom_bbox), 0.9),
     ]])
 
-    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
-    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
+    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
 
     assert picked is not None
     assert analysis.picks == picked[0]
     public_picked = pick_one_frame(
-        raw, 0, halfcourt.copy(), halfcourt, ctx, _params(),
+        raw, 0, halfcourt.copy(), halfcourt, ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params(),
     )
     assert public_picked is not None
     assert public_picked[0] == picked[0]
@@ -401,7 +404,7 @@ def test_analyse_frame_keeps_partial_pick_and_count_on_picker_failure():
         (bottom_bbox, _standing_kps_for_bbox(bottom_bbox), 0.9),
     ]])
     partial = analyse_frame(
-        partial_raw, 0, halfcourt.copy(), halfcourt, ctx, _params(),
+        partial_raw, 0, halfcourt.copy(), halfcourt, ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params(),
     )
     assert partial.picks == [-1, 0]
 
@@ -410,7 +413,7 @@ def test_analyse_frame_keeps_partial_pick_and_count_on_picker_failure():
         (in_court_bbox, _standing_kps_for_bbox(in_court_bbox), 0.9),
     ]])
     failed = analyse_frame(
-        failed_raw, 0, halfcourt.copy(), halfcourt, ctx,
+        failed_raw, 0, halfcourt.copy(), halfcourt, ctx.all_court_info[ctx.vid], (1280.0, 720.0),
         _params(sanity_ceiling=-1.0),
     )
     assert failed.picks is None
@@ -425,7 +428,8 @@ def test_analyse_frame_empty_and_infinite_projection_cases():
     ctx = _identity_court_ctx()
     halfcourt = compute_halfcourt_centres(ctx.all_court_info[ctx.vid])
     empty_raw = _build_raw_clip([[]])
-    empty = analyse_frame(empty_raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    empty = analyse_frame(empty_raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
     assert empty.standing_in_court_count == 0
     assert empty.picks is None
     assert empty.court_base_pos is None
@@ -442,8 +446,8 @@ def test_analyse_frame_empty_and_infinite_projection_cases():
     inf_raw = _build_raw_clip([[
         (inf_bbox, _standing_kps_for_bbox(inf_bbox), 0.9),
     ]])
-    analysis = analyse_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
-    picked = pick_one_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx, _params())
+    analysis = analyse_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx.all_court_info[inf_ctx.vid], (1280.0, 720.0), _params())
+    picked = pick_one_frame(inf_raw, 0, halfcourt.copy(), halfcourt, inf_ctx.all_court_info[inf_ctx.vid], (1280.0, 720.0), _params())
     assert analysis.picks is None
     assert picked is None
     assert analysis.standing_in_court_count == 0
@@ -460,7 +464,8 @@ def test_analyse_frame_score_filter_empty_returns_no_evidence():
         (weak_bbox, _standing_kps_for_bbox(weak_bbox), 0.1),
     ]])
 
-    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
 
     assert analysis == sticky_anchor.FrameAnalysis(0, None, None, None, None, None)
 
@@ -474,7 +479,8 @@ def test_analyse_frame_all_nan_projection_returns_no_evidence():
         (nan_bbox, _standing_kps_for_bbox(_bbox_for(0.5, 0.75)), 0.9),
     ]])
 
-    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
 
     assert analysis == sticky_anchor.FrameAnalysis(0, None, None, None, None, None)
 
@@ -495,8 +501,10 @@ def test_analyse_frame_generous_court_rejection_keeps_candidate_arrays():
         (above_bbox, _standing_kps_for_bbox(above_bbox), 0.9),
     ]])
 
-    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
-    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt, ctx, _params())
+    analysis = analyse_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
+    picked = pick_one_frame(raw, 0, halfcourt.copy(), halfcourt,
+        ctx.all_court_info[ctx.vid], (1280.0, 720.0), _params())
 
     assert picked is None
     assert analysis.picks is None
@@ -506,3 +514,21 @@ def test_analyse_frame_generous_court_rejection_keeps_candidate_arrays():
     assert analysis.kps is not None
     assert analysis.bboxes is not None
     assert analysis.filtered_to_raw is not None
+
+
+@pytest.mark.parametrize('resolution', [(640.0, 360.0), (1280.0, 720.0), (1920.0, 1080.0)])
+def test_clip_and_frame_analysis_use_the_pose_resolution(resolution):
+    ctx = _identity_court_ctx()
+    ctx.res_df.loc[ctx.vid, ['width', 'height']] = resolution
+    scale = np.asarray(resolution) / (1280.0, 720.0)
+    boxes = [_bbox_for(0.5, side) * np.tile(scale, 2) for side in (0.25, 0.75)]
+    raw = _build_raw_clip([[(box, _standing_kps_for_bbox(box), 0.9) for box in boxes]])
+    court = ctx.all_court_info[ctx.vid]
+    centres = compute_halfcourt_centres(court)
+
+    frame = analyse_frame(raw, 0, centres.copy(), centres, court, resolution, _params())
+    assert frame.picks == [0, 1]
+    np.testing.assert_allclose(frame.court_base_pos, [[0.5, 0.25], [0.5, 0.75]])
+    output, _history = _run_clip(raw, ctx, _identity_normalize_joints, _params())
+    np.testing.assert_allclose(output.pos[0], [[0.5, 0.25], [0.5, 0.75]])
+    assert not output.failed[0]

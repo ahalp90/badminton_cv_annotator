@@ -86,7 +86,7 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
     is built from the original track, so they do not belong in this cache key.
 
     :param cache_dir: Cache directory beneath the validated, immutable run output.
-    :param video_id: The fixed video's identity, as passed to the sticky helper.
+    :param video_id: The fixed video being evaluated in this context.
     """
     original = rally_evidence.build_sticky_result
     signature = inspect.signature(original)
@@ -95,8 +95,6 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
     def cached(*args: Any, **kwargs: Any) -> StickyResult:
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
-        if bound.arguments['gate_video_id'] != video_id:
-            raise StickyCacheError('sticky cache video differs from the helper input')
         half_window = bound.arguments['half_window']
         path = Path(cache_dir) / video_id / f'window-{half_window}.pkl.gz'
         with _cache_lock(path):

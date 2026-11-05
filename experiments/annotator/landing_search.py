@@ -54,8 +54,10 @@ def compare_landing_searches(
     rows = []
     for rally_id, rally in enumerate(rallies):
         striker = rally.final_half
+        if striker is None:
+            continue
         final_contact = rally.sequence.events[-1].frame
-        if striker is None or evidence.shuttle_hallucination_mask[final_contact]:
+        if evidence.shuttle_hallucination_mask[final_contact]:
             continue
         next_rally = rallies[rally_id + 1] if rally_id + 1 < len(rallies) else None
         next_server = next_rally.first_half if next_rally is not None else None

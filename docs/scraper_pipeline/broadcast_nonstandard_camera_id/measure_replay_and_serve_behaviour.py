@@ -804,8 +804,6 @@ def run_measurement(
         scores,
         kps,
         ndet,
-        str(fixture.video_id),
-        keyword["gate_resolution_table"],
         fixture.resolution,
         resolved.thresholds.body_unit_half_window, scene_courts=scene_courts,
     )

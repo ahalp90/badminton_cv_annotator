@@ -118,7 +118,7 @@ Contact and side assignment mainly use boxes, keypoint coordinates, detection sc
 Current schema:
 
 ```text
-court-evidence/0.2
+court-evidence/0.4
 ```
 
 It contains:
@@ -241,8 +241,8 @@ these objects.
 
 Use `result.rallies[rally_id].sequence.events` for the contacts assigned to a rally.
 Each event contains its frame, model probability and court-half assignment. When
-the alternating-side fit is tied, events retain their individual side guesses and
-the fitted first/final striker remains unresolved. Unknown
+the alternating-side fit is tied, it follows the first known guess. When no guess
+is known, all players stay unknown. Unknown
 probabilities are NaN in memory and JSON null when saved. `contact_events` also
 includes model contacts outside all rallies, so filtering that stream by the final
 rally bounds can give different membership.

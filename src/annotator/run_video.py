@@ -36,7 +36,6 @@ def run_video(
     landing_options: point_winner.LandingFilterOptions,
     resolution: tuple[float, float],
     video_id: int | str,
-    gate_resolution_table: pd.DataFrame,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
     base: BaseAnnotatorConfig | None = None,
@@ -62,7 +61,7 @@ def run_video(
     arrays and scene geometry. ``spans`` and ``contacts`` can supply prior research results.
 
     Preparation requires all five arrays, ``resolution``, ``video_id``,
-    ``gate_resolution_table``, ``court_present`` booleans (frames,) and scene
+    ``court_present`` booleans (frames,) and scene
     ``homography_rows`` as a DataFrame or a list of row dictionaries. Outcomes
     use ``landing_options`` and the selected scene's court geometry.
 
@@ -91,7 +90,6 @@ def run_video(
     evidence = prepare_annotation(
         track, bboxes, scores, kps, ndet,
         resolved=resolve(base, fps), resolution=resolution, video_id=video_id,
-        gate_resolution_table=gate_resolution_table,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask,
         spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,

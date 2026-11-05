@@ -158,7 +158,6 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
         'resolution': court.resolution,
         'video_id': inputs.identity,
 
-        'gate_resolution_table': court.gate_resolution_table,
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
         'inpaint_codes': inputs.guard_codes,

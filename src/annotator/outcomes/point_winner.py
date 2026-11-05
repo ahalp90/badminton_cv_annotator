@@ -105,20 +105,23 @@ def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[Cour
 
 
 def fit_alternation(guesses: list[CourtHalf | None]) -> CourtHalf | None:
-    """Fitted final-stroke half from the two alternating phases, or None on a tie.
+    """Choose the alternating order that agrees with the most player guesses.
 
-    Score each phase (final stroke Top, or final stroke Bot) by the count of non-None per-stroke
-    guesses it matches; the higher-scoring phase names the final-contact striker. An equal score
-    is a genuine tie (no phase resolved) -> None.
+    Each known guess votes for the final striker implied by its position.
+    Break equal votes with the first known guess. Return None if none is known.
     """
-    phase_score = {
-        final_half: sum(1 for guess, assigned in zip(guesses, alternating_player_sides(final_half, len(guesses)))
-                        if guess is not None and guess == assigned)
-        for final_half in (CourtHalf.TOP, CourtHalf.BOT)
-    }
-    if phase_score[CourtHalf.TOP] == phase_score[CourtHalf.BOT]:
+    final_guesses = []
+    for index, guess in enumerate(guesses):
+        if guess is not None:
+            remaining = len(guesses) - index - 1
+            final_guesses.append(guess if remaining % 2 == 0 else OTHER_HALF[guess])
+    if not final_guesses:
         return None
-    return CourtHalf.TOP if phase_score[CourtHalf.TOP] > phase_score[CourtHalf.BOT] else CourtHalf.BOT
+    top_votes = final_guesses.count(CourtHalf.TOP)
+    bot_votes = final_guesses.count(CourtHalf.BOT)
+    if top_votes == bot_votes:
+        return final_guesses[0]
+    return CourtHalf.TOP if top_votes > bot_votes else CourtHalf.BOT
 
 
 # ---------------------------------------------------------------------------

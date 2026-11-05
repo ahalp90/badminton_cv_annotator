@@ -217,8 +217,6 @@ def load_sticky(
         scores,
         kps,
         ndet,
-        str(fixture.video_id),
-        resolution_table,
         fixture.resolution,
         constants.body_unit_half_window, scene_courts=scene_courts,
     )

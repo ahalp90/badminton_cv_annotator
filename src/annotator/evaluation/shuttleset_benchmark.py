@@ -338,7 +338,7 @@ def benchmark_features(
         if court_inputs is None:
             raise ValueError(f"{video_id}: court evidence has no operational inputs")
         player_inputs = derive_player_feature_inputs(
-            shuttle.track, pose, court, video_id
+            shuttle.track, pose, court
         )
         shuttle_inputs = derive_shuttle_feature_inputs(
             shuttle.track,

@@ -210,9 +210,9 @@ def prepare_inputs(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
         video_id=inputs.identity,
-        gate_resolution_table=court.gate_resolution_table, court_present=inputs.court_present,
+        court_present=inputs.court_present,
         homography_rows=court.homography_rows,
-         inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,
+        inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,
     )
 
 

@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.5"
-COURT_EVIDENCE_SCHEMA = "court-evidence/0.3"
+COURT_EVIDENCE_SCHEMA = "court-evidence/0.4"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
@@ -622,7 +622,6 @@ def _court_inputs_payload(inputs: CourtInputs) -> dict[str, object]:
 
         "net_band": inputs.net_band,
         "resolution": inputs.resolution,
-        "gate_resolution_table": _dataframe_payload(inputs.gate_resolution_table),
         "homography_rows": _dataframe_payload(inputs.homography_rows),
         "landing_error_band_m": inputs.landing_error_band_m,
         "active_corners_refpx": inputs.active_corners_refpx,
@@ -637,7 +636,6 @@ def _court_inputs_from_payload(payload: object) -> CourtInputs:
         "court_info",
         "net_band",
         "resolution",
-        "gate_resolution_table",
         "homography_rows",
         "landing_error_band_m",
         "active_corners_refpx",
@@ -649,10 +647,6 @@ def _court_inputs_from_payload(payload: object) -> CourtInputs:
 
         net_band=_float_pair(record["net_band"], "net_band"),
         resolution=_float_pair(record["resolution"], "resolution"),
-        gate_resolution_table=_dataframe_from_payload(
-            record["gate_resolution_table"],
-            "gate_resolution_table",
-        ),
         homography_rows=_dataframe_from_payload(record["homography_rows"], "homography_rows"),
         landing_error_band_m=_finite_float(
             record["landing_error_band_m"],
@@ -810,7 +804,6 @@ def run_full_annotation_stage(
         resolution=court_inputs.resolution,
         video_id=video_id,
 
-        gate_resolution_table=court_inputs.gate_resolution_table,
         ref_err_px=ref_err_px,
         raw_exclusion_mask=None,
         court_present=court.evidence.court_present,

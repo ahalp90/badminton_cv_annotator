@@ -57,7 +57,7 @@ def judge_section(
     assert rally is not None
     contained = boundary.outcome == 'boundaries_right'
     matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
-    revised = fit_rally_sides((sequence,), sequence.events)[0][0].sequence
+    revised = fit_rally_sides((sequence,))[0].sequence
     wrong_player = sum(rally.sides[label] is not None and revised.events[prediction].side != rally.sides[label]
                        for label, prediction, _offset in matches)
     missing = len(rally.frames) - len(matches)

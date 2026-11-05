@@ -12,7 +12,6 @@ from annotator.sequence.candidates import (
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
-    apply_choices,
     initial_sequences,
 )
 from annotator.sequence.rally_options import toggle_proposals
@@ -95,25 +94,6 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
     rows = shortlist_later_rows(sequence, scores, fps=30.0)
     assert scores.candidates['frame'][rows].tolist() == [50, 170, 160, 140, 130, 120]
     assert shortlist_later_rows(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
-
-
-def test_applied_choices_keep_out_of_span_contacts():
-    events = [ContactEvent(frame, .8, None) for frame in (20, 60, 120, 170, 200, 300)]
-    initial = initial_sequences([(0, 100), (150, 250)], events)
-    delete_second = ContactSequence(0, 0, 100, (events[0],))
-    absorb_gap = ContactSequence(1, 120, 250, (events[2], events[3], events[4]))
-    sequences, stream = apply_choices(initial, events, {0: delete_second, 1: absorb_gap})
-    assert [_frames(sequence) for sequence in sequences] == [[20], [120, 170, 200]]
-    assert [event.frame for event in stream] == [20, 120, 170, 200, 300]
-
-
-def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
-    events = [ContactEvent(frame, .8, None) for frame in (20, 120, 170, 200)]
-    initial = initial_sequences([(0, 100), (150, 250)], events)
-    new_serve = ContactEvent(110, .6, None)
-    replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
-    _sequences, stream = apply_choices(initial, events, {0: initial[0], 1: replaced})
-    assert [event.frame for event in stream] == [20, 110, 170, 200]
 
 
 def test_toggle_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:

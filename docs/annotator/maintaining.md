@@ -30,7 +30,9 @@ A rally owns an explicit contact sequence. Full-stream contacts outside every
 initial rally survive selection. Boundary padding preserves contact membership;
 filtering the full stream by final bounds is not an equivalent reconstruction.
 
-Player-half alternation happens after selection. Review features use the raw
+Player-half alternation happens after selection. Choose the order matching the
+most individual player guesses; break a tie with the first known guess. Keep
+all players unknown when no guess is known. Review features use the raw
 individual side guesses to measure agreement. They use final boundaries only
 for the boundary summary.
 

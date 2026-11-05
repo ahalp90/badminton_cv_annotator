@@ -215,7 +215,7 @@ def judge_found_rallies(
                 judged.append(record | {'outcome': 'overlong_rally'})
                 continue
         matches = match_contacts(rally.frames, frames, tolerance)
-        revised = fit_rally_sides((sequence,), sequence.events)[0][0].sequence
+        revised = fit_rally_sides((sequence,))[0].sequence
         # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
         record |= {
             'missed': len(rally.frames) - len(matches),

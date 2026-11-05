@@ -982,12 +982,12 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             court_result = build_static_court_evidence(
                 case.fixed.case_id, parent, case.fixture.video_id, driver.homo_df, case.fixture.resolution,
                 case.raw_cuts, case.bboxes, case.scores, case.ndet,
-                gate_resolution_table=driver.resolution, ref_err_px=REF_ERR_PX,
+                ref_err_px=REF_ERR_PX,
             )
         else:
             if driver.court_settings is None:
                 raise ValueError("detected parent has no court detector settings")
-            court_result = detect_case_courts(case, driver.court_settings, state.directory, driver.resolution)
+            court_result = detect_case_courts(case, driver.court_settings, state.directory)
         state.court_result = court_result
         _write_scene_evidence(state.directory, court_result)
     except NoAcceptedCourtError as error:
@@ -1021,7 +1021,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             landing_options=LANDING_OPTIONS,
             resolution=input_values.resolution,
             video_id=case.fixture.video_id,
-            gate_resolution_table=input_values.gate_resolution_table,
             ref_err_px=REF_ERR_PX,
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
@@ -1192,7 +1191,6 @@ def detect_case_courts(
     case: CaseData,
     settings: CourtDetectorSettings,
     directory: Path,
-    gate_resolution_table: Any,
 ) -> CourtEvidenceResult:
     """Run the court detector over one case's shared scenes and vote on its courts.
 
@@ -1223,7 +1221,7 @@ def detect_case_courts(
     return build_court_detector_evidence(
         case.fixed.case_id, case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
         case.bboxes, case.scores, case.ndet,
-        gate_resolution_table=gate_resolution_table, ref_err_px=REF_ERR_PX,
+        ref_err_px=REF_ERR_PX,
     )
 
 

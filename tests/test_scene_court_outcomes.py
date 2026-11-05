@@ -41,7 +41,7 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
         _scene(0, 5, 'first', (10.0, 11.0), 0.1),
         _scene(5, 10, 'second', second_band, 0.2),
     )
-    contacts = [ContactCandidate(0, frame, None, None, None) for frame in (2, 7)]
+    contacts = [ContactCandidate(rally_id, frame, None, None, None) for rally_id, frame in enumerate((2, 7))]
     track = np.zeros((10, 3))
     track[:, 2] = 1
     bboxes = np.zeros((10, 1, 4))
@@ -52,11 +52,11 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
         np.ones((10, 2)), np.ones(10, dtype=bool),
     )
     evidence = SimpleNamespace(
-        heuristic_spans=[(0, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
+        heuristic_spans=[(0, 5), (5, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
         track=track, sticky=sticky, bboxes=bboxes, scene_courts=scenes, fps=30.0, bounds_supplied=True,
     )
     rallies = select_heuristic_contacts(evidence)
-    assert tuple(event.side for event in rallies[0].sequence.events) == expected
+    assert tuple(event.side for rally in rallies for event in rally.sequence.events) == expected
     rows = np.zeros(2, dtype=contact_feature_dtype())
     rows['frame'] = (2, 7)
     scores = ScoredContacts(rows, np.ones(2), np.arange(2))

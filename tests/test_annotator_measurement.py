@@ -464,7 +464,6 @@ def _fake_court_result(case: runner.CaseData, parent: str) -> CourtEvidenceResul
 
         net_band=(100.0, 110.0),
         resolution=(1280.0, 720.0),
-        gate_resolution_table=pd.DataFrame({"width": [1280.0], "height": [720.0]}, index=[str(case.fixture.video_id)]),
         homography_rows=pd.DataFrame([{
             "video_id": case.fixture.video_id, "start_frame": 0, "end_frame": 2,
             "upleft_x": 0.0, "upleft_y": 0.0, "upright_x": 1.0, "upright_y": 0.0,
@@ -799,7 +798,7 @@ def test_detected_parent_runs_the_detector_on_scaled_poses_and_shared_scenes(
         }
 
     monkeypatch.setattr(vision, "run_court_detector", fake_detector)
-    result = runner.detect_case_courts(case, COURT_SETTINGS, tmp_path / "configuration", None)
+    result = runner.detect_case_courts(case, COURT_SETTINGS, tmp_path / "configuration")
 
     assert seen["settings"] is COURT_SETTINGS
     assert seen["video_path"] == case.video_path

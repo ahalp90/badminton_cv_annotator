@@ -213,7 +213,7 @@ The saved shuttle track and guard codes disagree. The shuttle stage needs to
 be regenerated as a set.
 
 **Court evidence has no usable operational inputs**  
-The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.2` court inputs.
+The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.4` court inputs.
 
 **Output directory must be new or empty**  
 The standalone runner found existing files at the chosen output path.

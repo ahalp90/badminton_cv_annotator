@@ -11,7 +11,6 @@ import numpy as np
 
 from annotator.config import frames_at_fps
 from annotator.outcomes.point_winner import (
-    CourtHalf,
     alternating_player_sides,
     fit_alternation,
 )
@@ -19,7 +18,6 @@ from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     FinishedRally,
-    apply_choices,
     events_between,
 )
 from annotator.sequence.features import (
@@ -115,13 +113,24 @@ def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
 def finish_rallies(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
-    """Finish selected rallies and retain the result of fitting their sides."""
-    choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
+    """Finish selected rallies and rebuild their full contact stream.
+
+    Each chosen rally owns the contacts inside its bounds. Detector contacts
+    outside every chosen rally survive in the full stream.
+    """
     context = pool.context
-    sequences, events = apply_choices(context.initial, context.events, choices)
+    sequences = tuple(pool.sequences[rows[initial.span_id]] for initial in context.initial)
+    events = [
+        event for event in context.events
+        if not any(sequence.start_frame <= event.frame < sequence.end_frame for sequence in sequences)
+    ]
+    events.extend(event for sequence in sequences for event in sequence.events)
+    events.sort(key=lambda event: event.frame)
     if not context.bounds_supplied:
         sequences = extend_boundaries(sequences, events, context.fps, frame_count=context.frame_count)
-    return fit_rally_sides(sequences, events)
+    rallies = fit_rally_sides(sequences)
+    fitted = {event.frame: event for rally in rallies for event in rally.sequence.events}
+    return rallies, tuple(fitted.get(event.frame, event) for event in events)
 
 
 def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
@@ -177,30 +186,17 @@ def extend_boundaries(
     return tuple(extended)
 
 
-def fit_rally_sides(
-    sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
-) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
+def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally, ...]:
     """Fit each rally once and keep its resolved final side with its sequence."""
-    side_by_frame: dict[int, CourtHalf | None] = {}
-    final_halves = []
+    rallies = []
     for sequence in sequences:
         final_half = fit_alternation([event.side for event in sequence.events])
-        final_halves.append(final_half)
-        if final_half is None:
-            continue
-        fitted = alternating_player_sides(final_half, len(sequence.events))
-        for event, side in zip(sequence.events, fitted, strict=True):
-            side_by_frame[event.frame] = side
-    revised = tuple(replace(event, side=side_by_frame.get(event.frame, event.side)) for event in events)
-    by_frame = {event.frame: event for event in revised}
-    revised_sequences = tuple(
-        replace(sequence, events=tuple(by_frame[event.frame] for event in sequence.events)) for sequence in sequences
-    )
-    rallies = tuple(
-        FinishedRally(sequence, final_half)
-        for sequence, final_half in zip(revised_sequences, final_halves, strict=True)
-    )
-    return rallies, revised
+        if final_half is not None:
+            fitted = alternating_player_sides(final_half, len(sequence.events))
+            events = tuple(replace(event, side=side) for event, side in zip(sequence.events, fitted, strict=True))
+            sequence = replace(sequence, events=events)
+        rallies.append(FinishedRally(sequence, final_half))
+    return tuple(rallies)
 
 
 def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:

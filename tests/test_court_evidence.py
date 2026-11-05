@@ -407,18 +407,15 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
 
 def test_court_inputs_copy_mutable_values() -> None:
     court_info = _identity_info()
-    table = pd.DataFrame({'width': [10.0], 'height': [20.0]}, index=['1'])
     rows = pd.DataFrame([{'video_id': 1, 'start_frame': 0, 'end_frame': 1}])
     corners = np.zeros((4, 2), dtype=float)
     inputs = evidence.CourtInputs(
-        court_info, (1.0, 2.0), (10.0, 20.0), table, rows, 0.1, corners,
+        court_info, (1.0, 2.0), (10.0, 20.0), rows, 0.1, corners,
     )
     court_info['H'][0, 0] = 9.0
-    table.loc['1', 'width'] = 99.0
     rows.loc[0, 'start_frame'] = 99
     corners[0, 0] = 9.0
     assert inputs.court_info['H'][0, 0] == 1.0
-    assert inputs.gate_resolution_table.loc['1', 'width'] == 10.0
     assert inputs.homography_rows.loc[0, 'start_frame'] == 0
     assert inputs.active_corners_refpx[0, 0] == 0.0
 

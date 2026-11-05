@@ -81,7 +81,6 @@ def run_item(
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
             resolution=court.resolution, video_id=item['item_id'],
-             gate_resolution_table=court.gate_resolution_table,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
 
             inpaint_codes=guards, court_invalid_is_excluded=True,

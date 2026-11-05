@@ -487,9 +487,7 @@ def load_gt_tables() -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:
 def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     """Load one fixture and assemble its invariant ``run_video`` inputs."""
     arrays = load_fixture_arrays(fixture)
-    master, _homo, courts, resolution = load_gt_tables()
-    gate_resolution = resolution.copy()
-    gate_resolution.index = gate_resolution.index.astype(str)
+    master, _homo, courts, _resolution = load_gt_tables()
     track, bboxes, scores, kps, ndet, committed_mask = arrays
     inpaint_codes, guard_info = grade_track(track)
     counts = code_counts(inpaint_codes)
@@ -523,7 +521,6 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,
 
-        "gate_resolution_table": gate_resolution,
         "raw_exclusion_mask": committed_mask,
         "court_present": court_present,
         "homography_rows": homography_rows,

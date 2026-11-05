@@ -245,7 +245,7 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
     paths = []
     captured = object()
     inputs = SimpleNamespace(net_band=(.4, .5), resolution=(1920, 1080), court_info={},
-                             gate_resolution_table=None, homography_rows=[], landing_error_band_m=0.1)
+                              homography_rows=[], landing_error_band_m=0.1)
     court = SimpleNamespace(raw_cuts=((0, 2),), evidence=SimpleNamespace(inputs=inputs, court_present=np.ones(2, bool),
                                                                      keep_vote=np.ones(2, bool)))
     pose = SimpleNamespace(

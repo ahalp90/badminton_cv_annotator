@@ -16,7 +16,7 @@ if str(_BST_X_ROOT) not in sys.path:
     sys.path.insert(0, str(_BST_X_ROOT))
 
 from preparing_data.heuristics import sticky_anchor  # noqa: E402
-from preparing_data.heuristics.base import ClipContext, RawClip  # noqa: E402
+from preparing_data.heuristics.base import RawClip  # noqa: E402
 
 
 def tracker_segments(
@@ -46,8 +46,6 @@ def track_sticky_players(
     pose_scores: np.ndarray,
     pose_kps: np.ndarray,
     pose_ndet: np.ndarray,
-    gate_video_id: str,
-    gate_resolution_table: object,
     resolution: tuple[float, float],
     scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
@@ -80,14 +78,15 @@ def track_sticky_players(
 
     for start, end in segments:
         scene = court_at_frame(scene_courts, start)
-        ctx = ClipContext(gate_video_id, {gate_video_id: scene.court_info}, gate_resolution_table)
         halfcourt_centre = sticky_anchor.compute_halfcourt_centres(scene.court_info)
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
             evidence.analysed[frame] = True
             evidence.distances_per_slot[frame] = np.nan
             evidence.wrist_dist_px[frame] = np.nan
-            analysis = sticky_anchor.analyse_frame(raw, frame, ema, halfcourt_centre, ctx, params)
+            analysis = sticky_anchor.analyse_frame(
+                raw, frame, ema, halfcourt_centre, scene.court_info, resolution, params,
+            )
             evidence.standing_count[frame] = analysis.standing_in_court_count
             if analysis.picks is None:
                 ema[:] = halfcourt_centre
@@ -161,8 +160,7 @@ def measure_sticky_distances(
 def build_sticky_result(
     track: np.ndarray, segments: list[tuple[int, int]],
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
-    pose_ndet: np.ndarray, gate_video_id: str,
-    gate_resolution_table: object,
+    pose_ndet: np.ndarray,
     resolution: tuple[float, float], half_window: int,
     *, scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
@@ -174,8 +172,6 @@ def build_sticky_result(
         pose_scores,
         pose_kps,
         pose_ndet,
-        gate_video_id,
-        gate_resolution_table,
         resolution,
         scene_courts,
     )

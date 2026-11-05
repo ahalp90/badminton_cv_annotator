@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,7 +31,7 @@ class ContactSequence:
 
 @dataclass(frozen=True)
 class FinishedRally:
-    """A selected sequence and its fitted final striker, including ties."""
+    """A selected sequence and its final striker, unknown if no player was identified."""
 
     sequence: ContactSequence
     final_half: CourtHalf | None
@@ -70,29 +70,6 @@ def initial_sequences(
         sequences.append(ContactSequence(span_id, start_frame, end_frame, owned))
         previous_end = end_frame
     return tuple(sequences)
-
-
-def apply_choices(
-    initial: Sequence[ContactSequence],
-    events: Sequence[ContactEvent],
-    chosen: Mapping[int, ContactSequence],
-) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Swap in each chosen sequence and rebuild the full contact stream.
-
-    Each chosen rally owns the contacts inside its bounds. Detector contacts
-    outside every chosen rally survive in the full stream.
-    """
-    by_frame: dict[int, ContactEvent] = {}
-    sequences = []
-    for sequence in initial:
-        after = chosen[sequence.span_id]
-        sequences.append(after)
-        for event in after.events:
-            by_frame[event.frame] = event
-    for event in events:
-        if not any(sequence.start_frame <= event.frame < sequence.end_frame for sequence in sequences):
-            by_frame[event.frame] = event
-    return tuple(sequences), tuple(by_frame[frame] for frame in sorted(by_frame))
 
 
 def stream_payload(sequences: Sequence[ContactSequence], events: Sequence[ContactEvent]) -> dict[str, Any]:

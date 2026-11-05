@@ -39,11 +39,9 @@ def select_heuristic_contacts(
         events_by_rally.setdefault(contact.rally_id, []).append(event)
 
     sequences = []
-    events = []
     for rally_id, (start, end) in enumerate(evidence.heuristic_spans):
         selected = tuple(events_by_rally.get(rally_id, ()))
         sequences.append(ContactSequence(rally_id, start, end, selected))
-        events.extend(selected)
         before_mask = scored_by_rally.get(rally_id, [])
         if before_mask and not selected and rejection_diagnostics is not None:
             rejection_diagnostics.append({
@@ -54,5 +52,4 @@ def select_heuristic_contacts(
                 'first_rejected_frame': before_mask[0],
                 'rejection_grade': '',
             })
-    rallies, _stream = fit_rally_sides(sequences, events)
-    return rallies
+    return fit_rally_sides(sequences)

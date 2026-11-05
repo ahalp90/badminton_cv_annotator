@@ -54,7 +54,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     )
     court = SimpleNamespace(
         net_band=(0.4, 0.6), resolution=(1280.0, 720.0), court_info={},
-        gate_resolution_table=object(), homography_rows=object(), landing_error_band_m=0.05,
+        homography_rows=object(), landing_error_band_m=0.05,
     )
     court_vision = SimpleNamespace(
         evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool),
@@ -126,7 +126,6 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['inpaint_codes'] is inputs.guards
         assert kwargs['court_present'] is inputs.vision.evidence.court_present
         assert kwargs['homography_rows'] is inputs.court.homography_rows
-        assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
         return empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
             ContactSequence(0, *kwargs['spans'][0], (
                 ContactEvent(10, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),

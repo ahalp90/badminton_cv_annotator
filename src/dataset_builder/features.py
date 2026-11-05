@@ -84,7 +84,6 @@ def derive_player_feature_inputs(
     track: np.ndarray,
     pose: PoseArrays,
     court: CourtVision,
-    video_id: str,
 ) -> PlayerFeatureInputs:
     """Build issue #22 player signals through the production sticky-player path."""
     inputs = court.evidence.inputs
@@ -101,8 +100,6 @@ def derive_player_feature_inputs(
         pose.scores,
         pose.kps,
         pose.ndet,
-        video_id,
-        inputs.gate_resolution_table,
         inputs.resolution,
         DATASET_BODY_UNIT_HALF_WINDOW,
         scene_courts=scene_courts,

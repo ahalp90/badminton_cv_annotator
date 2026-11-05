@@ -83,16 +83,12 @@ class CourtInputs:
     court_info: dict[str, object]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
-    gate_resolution_table: pd.DataFrame
     homography_rows: pd.DataFrame
     landing_error_band_m: float
     active_corners_refpx: np.ndarray
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'court_info', _copy_court_info(self.court_info))
-        gate_resolution_table = self.gate_resolution_table.copy(deep=True)
-        gate_resolution_table.index = gate_resolution_table.index.astype(str)
-        object.__setattr__(self, 'gate_resolution_table', gate_resolution_table)
         object.__setattr__(self, 'homography_rows', self.homography_rows.copy(deep=True))
         object.__setattr__(self, 'active_corners_refpx', np.asarray(self.active_corners_refpx).copy())
 
@@ -335,21 +331,6 @@ def build_net_band(
     return round(float(ordered[0]), 1), round(float(ordered[1]), 1)
 
 
-def _gate_resolution_table(
-    video_id: int | str,
-    resolution: tuple[float, float],
-    table: pd.DataFrame | None,
-) -> pd.DataFrame:
-    if table is None:
-        return pd.DataFrame(
-            {'width': [float(resolution[0])], 'height': [float(resolution[1])]},
-            index=pd.Index([str(video_id)], dtype=object),
-        )
-    copied = table.copy(deep=True)
-    copied.index = copied.index.astype(str)
-    return copied
-
-
 def _scene_row(
     video_id: int | str,
     interval: tuple[int, int],
@@ -440,7 +421,6 @@ def build_static_court_inputs(
     resolution: tuple[float, float],
     raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
     *,
-    gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
 ) -> CourtInputs:
     """Build static inputs from the existing ShuttleSet homography row."""
@@ -453,7 +433,6 @@ def build_static_court_inputs(
 
         net_band=build_net_band(court_info, resolution),
         resolution=tuple(map(float, resolution)),
-        gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),
         homography_rows=homography_rows,
         landing_error_band_m=corner_error_band_from_corners(active_corners, court_info, ref_err_px),
         active_corners_refpx=active_corners,
@@ -476,14 +455,12 @@ def build_static_court_evidence(
     scores: np.ndarray,
     ndet: np.ndarray,
     *,
-    gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
     """Build static inputs, votes and writer records in one parent pass."""
     intervals = _normalise_intervals(raw_cuts)
     inputs = build_static_court_inputs(
         video_id, homo_df, resolution, intervals,
-        gate_resolution_table=gate_resolution_table,
         ref_err_px=ref_err_px,
     )
     provisional_infos = [inputs.court_info] * len(intervals)
@@ -528,7 +505,6 @@ def build_court_detector_evidence(
     scores: np.ndarray,
     ndet: np.ndarray,
     *,
-    gate_resolution_table: pd.DataFrame | None = None,
     ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
     """Vote on each scene's own detected court and assemble the detected parent.
@@ -589,7 +565,6 @@ def build_court_detector_evidence(
 
         net_band=build_net_band(active_info, resolution),
         resolution=tuple(map(float, resolution)),
-        gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),
         homography_rows=build_scene_rows(
             video_id, [intervals[index] for index in accepted_indices],
             [corners_refpx[index] for index in accepted_indices], resolution,

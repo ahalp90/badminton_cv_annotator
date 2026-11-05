@@ -30,22 +30,22 @@ def _video(rallies: tuple[LabelledRally, ...]) -> search_data.SearchVideo:
 
 
 @pytest.mark.parametrize(
-    ('final_half', 'count', 'expected'),
+    ('guesses', 'final_half', 'expected'),
     [
-        (CourtHalf.TOP, 3, ['Top', 'Bot', 'Top']),
-        (CourtHalf.TOP, 2, ['Bot', 'Top']),
-        (CourtHalf.BOT, 2, ['Top', 'Bot']),
-        (None, 2, [None, None]),
-        (None, 2, ['Top', 'Top']),
+        (['Top', 'Bot', 'Top'], CourtHalf.TOP, ['Top', 'Bot', 'Top']),
+        (['Bot', 'Top'], CourtHalf.TOP, ['Bot', 'Top']),
+        (['Top', 'Bot'], CourtHalf.BOT, ['Top', 'Bot']),
+        ([None, None], None, [None, None]),
+        (['Top', 'Top'], CourtHalf.BOT, ['Top', 'Bot']),
     ],
 )
-def test_heuristic_stream_preserves_fitted_or_observed_contact_sides(
-    final_half: CourtHalf | None, count: int, expected: list[str | None],
+def test_heuristic_stream_preserves_fitted_contact_sides(
+    guesses: list[str | None], final_half: CourtHalf | None, expected: list[str | None],
 ) -> None:
-    frames = [10, 20, 30][:count]
+    frames = [10, 20, 30][:len(guesses)]
     events = tuple(ContactEvent(frame, np.nan, None if side is None else CourtHalf(side))
-                   for frame, side in zip(frames, expected, strict=True))
-    rallies, _stream = fit_rally_sides((ContactSequence(0, 0, 40, events),), events)
+                   for frame, side in zip(frames, guesses, strict=True))
+    rallies = fit_rally_sides((ContactSequence(0, 0, 40, events),))
     assert rallies[0].final_half is final_half
     result = empty_annotation([(0, 40)], [])._replace(rallies=rallies)
     stream = search_data.heuristic_stream(result)

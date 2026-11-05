@@ -633,7 +633,7 @@ def derive_player_inputs(
         frame_count=metadata.frame_count,
         resolution=(float(metadata.width), float(metadata.height)),
     )
-    return derive_player_feature_inputs(track, pose, court, court_video_id)
+    return derive_player_feature_inputs(track, pose, court)
 
 
 def annotator_spans_by_video(

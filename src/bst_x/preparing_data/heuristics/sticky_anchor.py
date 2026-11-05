@@ -47,7 +47,12 @@ from typing import NamedTuple
 import numpy as np
 from pipeline.config import COCO_N_JOINTS
 
-from shared.court import normalize_position, to_court_coordinate
+from shared.court import (
+    convert_homogeneous,
+    normalize_position,
+    project,
+    scale_pos_by_resolution,
+)
 
 from .base import (
     DOUBLES_COUNT_MARGIN,
@@ -110,7 +115,7 @@ def compute_halfcourt_centres(court_info: dict) -> np.ndarray:
 
 
 def project_bbox_bottom_centre(
-    bboxes: np.ndarray, ctx: ClipContext,
+    bboxes: np.ndarray, court_info: dict, resolution: tuple[float, float],
 ) -> np.ndarray:
     """Project (n, 4) pixel-space bboxes to (n, 2) normalised court coords.
 
@@ -118,10 +123,9 @@ def project_bbox_bottom_centre(
     """
     x1, _, x2, y2 = bboxes.T
     bottom_centres = np.stack([(x1 + x2) / 2, y2], axis=0)  # (2, n)
-    court = to_court_coordinate(
-        bottom_centres, ctx.vid, ctx.all_court_info, ctx.res_df,
-    )  # (2, n)
-    normalised = normalize_position(court, ctx.all_court_info[ctx.vid])  # (2, n)
+    scaled = scale_pos_by_resolution(bottom_centres, width=resolution[0], height=resolution[1])
+    court = project(court_info['H'], convert_homogeneous(scaled))  # (2, n)
+    normalised = normalize_position(court, court_info)  # (2, n)
     return normalised.T  # (n, 2)
 
 
@@ -148,18 +152,13 @@ class FrameAnalysis(NamedTuple):
     filtered_to_raw: np.ndarray | None
 
 
-# Compatibility aliases for frozen callers; remove at Stage 7.
-_compute_halfcourt_centres = compute_halfcourt_centres
-_project_bbox_bottom_centre = project_bbox_bottom_centre
-_in_generous_court = in_generous_court
-
-
 def analyse_frame(
     raw: RawClip,
     f: int,
     ema: np.ndarray,
     halfcourt_centre: np.ndarray,
-    ctx: ClipContext,
+    court_info: dict,
+    resolution: tuple[float, float],
     params: StickyAnchorParams,
 ) -> FrameAnalysis:
     """Analyse and pick one frame without discarding observable evidence.
@@ -182,7 +181,7 @@ def analyse_frame(
     bboxes_f = raw.bboxes[f, keep_idx].astype(np.float64)  # (k, 4)
     kps_f = raw.kps[f, keep_idx].astype(np.float64)  # (k, J, 2)
 
-    court_base_pos = project_bbox_bottom_centre(bboxes_f, ctx)  # (k, 2)
+    court_base_pos = project_bbox_bottom_centre(bboxes_f, court_info, resolution)  # (k, 2)
     valid = ~np.isnan(court_base_pos).any(axis=1)
     if not valid.any():
         return FrameAnalysis(0, None, None, None, None, None)
@@ -284,7 +283,8 @@ def pick_one_frame(
     f: int,
     ema: np.ndarray,
     halfcourt_centre: np.ndarray,
-    ctx: ClipContext,
+    court_info: dict,
+    resolution: tuple[float, float],
     params: StickyAnchorParams,
 ) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, int] | None:
     """Pick (Bottom, Top) detections for a single frame.
@@ -302,7 +302,7 @@ def pick_one_frame(
     though only two are ever picked. The caller writes outputs and updates the
     per-slot EMA based on the picks.
     """
-    analysis = analyse_frame(raw, f, ema, halfcourt_centre, ctx, params)
+    analysis = analyse_frame(raw, f, ema, halfcourt_centre, court_info, resolution, params)
     if analysis.picks is None:
         return None
     assert analysis.court_base_pos is not None
@@ -328,6 +328,8 @@ def _run_clip(
     discards it, tests use it.
     """
     court_info = ctx.all_court_info[ctx.vid]
+    video_resolution = ctx.res_df.loc[ctx.vid]
+    resolution = (float(video_resolution['width']), float(video_resolution['height']))
     halfcourt_centre = compute_halfcourt_centres(court_info)  # (2, 2)
 
     num_frames = raw.kps.shape[0]
@@ -344,7 +346,7 @@ def _run_clip(
     ema = halfcourt_centre.copy()
 
     for f in range(num_frames):
-        result = pick_one_frame(raw, f, ema, halfcourt_centre, ctx, params)
+        result = pick_one_frame(raw, f, ema, halfcourt_centre, court_info, resolution, params)
         if not result:
             failed[f] = True
             ema[:] = halfcourt_centre

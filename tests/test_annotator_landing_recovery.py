@@ -129,3 +129,11 @@ def test_returning_view_suppresses_cut_speed_without_changing_shared_kinematics(
 
     assert search_speeds and all(np.isnan(speed) for speed in search_speeds)
     assert kinematics.speed[10] == cut_speed
+
+
+def test_landing_trials_skip_rallies_without_contacts():
+    evidence = returning_view_evidence()
+    empty = FinishedRally(ContactSequence(0, 0, 20, ()), None)
+    assert compare_landing_searches(
+        evidence, (empty,), {}, (1.0,), LandingFilterOptions(3, 0.01, 1000, 3, 0.5),
+    ) == []

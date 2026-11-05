@@ -239,7 +239,6 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(preprocessing, float(metadata.fps)),
         resolution=inputs.resolution, video_id=identity,
-        gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
     )

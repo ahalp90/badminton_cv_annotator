@@ -1,7 +1,6 @@
 """Direct contract tests for the cached StickyResult evidence arrays."""
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from annotator.courts.scenes import SceneCourt, build_scene_courts
@@ -76,8 +75,7 @@ def _sticky_inputs():
         'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0,
         'border_U': 0.0, 'border_D': 720.0,
     }
-    resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
-    return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info}, resolution_table)
+    return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info})
 
 
 def _scene_sticky_inputs():
@@ -113,14 +111,11 @@ def _scene_sticky_inputs():
         (1280.0, 720.0),
     )
     track = np.tile(np.array([0.5, 0.5, 1.0]), (n_frames, 1))
-    resolution_table = pd.DataFrame(
-        {'width': [1280.0], 'height': [720.0]}, index=['1']
-    )
-    return track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row
+    return track, bboxes, scores, kps, ndet, scene_courts, row
 
 
 def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
-    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row) = (
+    (track, bboxes, scores, kps, ndet, scene_courts, row) = (
         _scene_sticky_inputs()
     )
     assert not np.allclose(scene_courts[0].court_info['H'], scene_courts[1].court_info['H'])
@@ -132,8 +127,6 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         scores,
         kps,
         ndet,
-        '1',
-        resolution_table,
         (1280.0, 720.0),
         scene_courts=scene_courts,
         half_window=12,
@@ -149,8 +142,6 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         scores,
         kps,
         ndet,
-        '1',
-        resolution_table,
         (1280.0, 720.0),
         half_window=12,
         scene_courts=(global_scene,),
@@ -163,7 +154,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
 
 
 def test_build_sticky_result_pins_failure_defaults_and_success_contract():
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     result = build_sticky_result(
         track,
         segments,
@@ -171,8 +162,6 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
         scores,
         kps,
         ndet,
-        '1',
-        resolution_table,
         (1280.0, 720.0),
         half_window=1,
         scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
@@ -216,7 +205,7 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
 
 
 def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     track = track.copy()
     track[2, :2] = 0.0
     track[2, 2] = 0.0
@@ -230,8 +219,6 @@ def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
         scores,
         kps,
         ndet,
-        '1',
-        resolution_table,
         (1280.0, 720.0),
         half_window=1,
         scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
@@ -271,7 +258,6 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
         kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
     track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
-    resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
     result = build_sticky_result(
         track,
         [(0, 3), (3, 6)],
@@ -279,8 +265,6 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
         scores,
         kps,
         np.ones(n_frames, dtype=np.int64),
-        '1',
-        resolution_table,
         (1280.0, 720.0),
         half_window=1,
         scene_courts=(SceneCourt(0, len(track), court_info, (0.0, 0.0), 0.0),),
@@ -292,7 +276,7 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
 
 
 def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None:
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = np.nan
     bboxes[2, 1, 1] = np.nan
     bboxes[3, 0, 1] = np.nan
@@ -305,8 +289,6 @@ def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None
             scores,
             kps,
             ndet,
-            '1',
-            resolution_table,
             (1280.0, 720.0),
             half_window=1,
             scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
@@ -314,7 +296,7 @@ def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None
 
 
 def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = bboxes[1, 1, 3]
     bboxes[2, 1, 1] = bboxes[2, 1, 3]
     bboxes[3, 0, 1] = bboxes[3, 0, 3]
@@ -327,8 +309,6 @@ def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
             scores,
             kps,
             ndet,
-            '1',
-            resolution_table,
             (1280.0, 720.0),
             half_window=1,
             scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),

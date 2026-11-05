@@ -7,7 +7,6 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from annotator.config import (
@@ -283,9 +282,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     ndet = np.ones(n_frames, dtype=int)
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
                   'border_U': 0.0, 'border_D': 1080.0}
-    resolution_table = pd.DataFrame(
-        {'width': [1920.0], 'height': [1080.0]}, index=['v'],
-    )
     short_sticky = build_sticky_result(
         track.copy(),
         [(0, n_frames)],
@@ -293,8 +289,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         scores.copy(),
         kps.copy(),
         ndet.copy(),
-        'v',
-        resolution_table,
         (1920.0, 1080.0),
         12,
         scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),
@@ -306,8 +300,6 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         scores.copy(),
         kps.copy(),
         ndet.copy(),
-        'v',
-        resolution_table,
         (1920.0, 1080.0),
         resolved.thresholds.body_unit_half_window,
         scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),

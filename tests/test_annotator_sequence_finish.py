@@ -12,8 +12,8 @@ from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     FinishedRally,
-    apply_choices,
     events_between,
+    initial_sequences,
 )
 from annotator.sequence.rally_model import (
     extend_boundaries,
@@ -89,23 +89,24 @@ def _sided(span_id: int, frames: list[int], sides: list[CourtHalf | None]) -> Co
 
 def test_alternation_replaces_raw_sides_with_the_better_phase():
     sequence = _sided(0, [10, 20, 30], [TOP, TOP, BOT])
-    sequences, events = fit_rally_sides([sequence], sequence.events)
+    sequences = fit_rally_sides([sequence])
     assert [event.side for event in sequences[0].sequence.events] == [BOT, TOP, BOT]
-    assert [event.side for event in events] == [BOT, TOP, BOT]
 
 
-def test_tied_alternation_keeps_raw_sides_and_out_of_span_contacts_keep_theirs():
+def test_tied_alternation_uses_first_known_player_and_preserves_unknown_rallies():
     tied = _sided(0, [10, 20], [TOP, TOP])
     unknown = _sided(1, [100], [None])
     fitted = _sided(2, [200, 210, 220], [TOP, BOT, BOT])
     stray = ContactEvent(150, .7, TOP)
     stream = [*tied.events, *unknown.events, stray, *fitted.events]
-    sequences, events = fit_rally_sides([tied, unknown, fitted], stream)
+    sequences, events = _finish_selected(
+        [tied, unknown, fitted], stream, {0: tied, 1: unknown, 2: fitted}, 30, bounds_supplied=True,
+    )
     assert [[event.side for event in rally.sequence.events] for rally in sequences] == [
-        [TOP, TOP], [None], [TOP, BOT, TOP],
+        [TOP, BOT], [None], [TOP, BOT, TOP],
     ]
     assert [(event.frame, event.side) for event in events] == [
-        (10, TOP), (20, TOP), (100, None), (150, TOP), (200, TOP), (210, BOT), (220, TOP),
+        (10, TOP), (20, BOT), (100, None), (150, TOP), (200, TOP), (210, BOT), (220, TOP),
     ]
 
 
@@ -178,6 +179,29 @@ def test_chosen_rally_owns_internal_hits_even_when_initial_span_did_not():
     chosen = _sequence(0, 100, 200, [100, 120, 140])
     stream = [ContactEvent(80, .5, None), ContactEvent(105, .5, None), *original.events,
               ContactEvent(210, .5, None)]
-    sequences, rebuilt = apply_choices((original,), stream, {0: chosen})
+    rallies, rebuilt = _finish_selected((original,), stream, {0: chosen}, 30, bounds_supplied=True)
     assert [event.frame for event in rebuilt] == [80, 100, 120, 140, 210]
-    assert sequences == (chosen,)
+    assert tuple(rally.sequence for rally in rallies) == (chosen,)
+
+
+def test_applied_choices_keep_out_of_span_contacts():
+    events = [ContactEvent(frame, .8, None) for frame in (20, 60, 120, 170, 200, 300)]
+    initial = initial_sequences([(0, 100), (150, 250)], events)
+    delete_second = ContactSequence(0, 0, 100, (events[0],))
+    absorb_gap = ContactSequence(1, 120, 250, (events[2], events[3], events[4]))
+    rallies, stream = _finish_selected(
+        initial, events, {0: delete_second, 1: absorb_gap}, 30, bounds_supplied=True,
+    )
+    assert [[event.frame for event in rally.sequence.events] for rally in rallies] == [[20], [120, 170, 200]]
+    assert [event.frame for event in stream] == [20, 120, 170, 200, 300]
+
+
+def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
+    events = [ContactEvent(frame, .8, None) for frame in (20, 120, 170, 200)]
+    initial = initial_sequences([(0, 100), (150, 250)], events)
+    new_serve = ContactEvent(110, .6, None)
+    replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
+    _rallies, stream = _finish_selected(
+        initial, events, {0: initial[0], 1: replaced}, 30, bounds_supplied=True,
+    )
+    assert [event.frame for event in stream] == [20, 110, 170, 200]

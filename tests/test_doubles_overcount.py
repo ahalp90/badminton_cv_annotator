@@ -203,7 +203,7 @@ def test_sticky_anchor_overcount_flags_doubles_while_picking_two():
     ])
 
     # pick_one_frame reports the doubles head count as its 5th element.
-    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, params)
+    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx.all_court_info[ctx.vid], (1280.0, 720.0), params)
     assert res is not None
     picks, _court_base_pos, _kps_f, _bboxes_f, n_counted = res
     assert n_counted == 4           # all four standing, inside the count margin

@@ -57,7 +57,6 @@ def prepare_annotation(
     resolved: ResolvedAnnotatorConfig,
     resolution: tuple[float, float],
     video_id: int | str,
-    gate_resolution_table: pd.DataFrame,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
     ref_err_px: float = 3.5,
@@ -82,7 +81,6 @@ def prepare_annotation(
     segments = rally_evidence.tracker_segments(scene_courts, court_present, len(track))
     sticky = rally_evidence.build_sticky_result(
         track, segments, bboxes, scores, kps, ndet,
-        str(video_id), gate_resolution_table,
         resolution, resolved.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
     )

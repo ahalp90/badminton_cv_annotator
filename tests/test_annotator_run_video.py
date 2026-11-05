@@ -4,7 +4,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
-import pandas as pd
 import pytest
 
 import annotator.run_video as run_video_module
@@ -35,13 +34,13 @@ from experiments.annotator.landing_search import (
 )
 
 
-def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
+def test_model_contacts_and_fitted_sides_survive_the_full_chain(monkeypatch, annotator_models):
     inputs = _synthetic_inputs()
     inputs['raw_exclusion_mask'][1:30] = True
-    final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, CourtHalf.TOP), ContactEvent(17, .8, CourtHalf.TOP))
+    final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, CourtHalf.TOP), ContactEvent(17, .8, CourtHalf.BOT))
     sequence = ContactSequence(0, 8, 23, final_events[1:])
     prediction = SimpleNamespace(
-        refined=SimpleNamespace(rallies=(FinishedRally(sequence, None),), events=final_events),
+        refined=SimpleNamespace(rallies=(FinishedRally(sequence, CourtHalf.BOT),), events=final_events),
         confidence=SimpleNamespace(scores=np.array([.73])),
     )
 
@@ -63,7 +62,7 @@ def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, an
         spans=[(10, 20)], contacts={0: [14]}, models=annotator_models, capture=capture,
     )
     assert result.contact_events == final_events
-    assert result.rallies[0].final_half is None
+    assert result.rallies[0].final_half is CourtHalf.BOT
     assert result.rally_confidence == (.73,)
     assert capture.hybrid is prediction
     assert result.rallies is prediction.refined.rallies
@@ -79,9 +78,6 @@ def test_run_video_no_play_returns_empty_result():
     kps = np.zeros((300, 1, 17, 2), dtype=np.float32)
     ndet = np.zeros(300, dtype=np.int64)
     dead = np.zeros(300, dtype=bool)
-    gate_resolution_table = pd.DataFrame(
-        {"width": [1920.0], "height": [1080.0]}, index=[str(video_id)],
-    )
 
     result = run_video(
         track, bboxes, scores, kps, ndet,
@@ -90,7 +86,6 @@ def test_run_video_no_play_returns_empty_result():
         resolution=resolution,
         video_id=video_id,
 
-        gate_resolution_table=gate_resolution_table,
         raw_exclusion_mask=dead,
         **_default_scene_inputs(len(track)), heuristic_only=True,
     )
@@ -124,7 +119,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
 
 @pytest.mark.parametrize('field', [
     'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options',
-    'gate_resolution_table', 'court_present', 'homography_rows',
+    'court_present', 'homography_rows',
 ])
 def test_run_video_requires_player_and_scene_inputs(field):
     inputs = {**_synthetic_inputs(), **_default_scene_inputs(300)}
@@ -698,9 +693,6 @@ def _synthetic_inputs():
         'resolution': resolution,
         'video_id': video_id,
 
-        'gate_resolution_table': pd.DataFrame(
-            {'width': [1920.0], 'height': [1080.0]}, index=[str(video_id)],
-        ),
         'raw_exclusion_mask': np.zeros(n_frames, dtype=bool),
     }
 

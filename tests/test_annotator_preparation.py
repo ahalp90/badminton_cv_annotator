@@ -28,7 +28,6 @@ def preparation_inputs():
         'track': inputs['track'], 'bboxes': inputs['bboxes'], 'scores': inputs['scores'],
         'kps': inputs['kps'], 'ndet': inputs['ndet'], 'resolved': resolve(BaseAnnotatorConfig(), inputs['fps']),
         'resolution': inputs['resolution'], 'video_id': inputs['video_id'],
-        'gate_resolution_table': inputs['gate_resolution_table'],
         'raw_exclusion_mask': inputs['raw_exclusion_mask'], **_default_scene_inputs(len(inputs['track'])),
     }
 
@@ -174,7 +173,6 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
         identity=str(inputs['video_id']), fps=inputs['resolved'].fps, track=inputs['track'],
         pose=SimpleNamespace(bboxes=inputs['bboxes'], scores=inputs['scores'], kps=inputs['kps'], ndet=inputs['ndet']),
         court=SimpleNamespace(resolution=inputs['resolution'],
-                               gate_resolution_table=inputs['gate_resolution_table'],
                               homography_rows=inputs['homography_rows']),
         court_present=inputs['court_present'], raw_cuts=((0, len(inputs['track'])),),
         keep_vote=np.ones(len(inputs['track']), dtype=bool), guard_codes=np.zeros(len(inputs['track']), dtype=np.uint8),
