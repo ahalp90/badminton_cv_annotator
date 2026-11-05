@@ -31,7 +31,7 @@ from threadpoolctl import threadpool_limits
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.hybrid import features_from_evidence
 from annotator.preparation import prepare_annotation
-from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
@@ -59,7 +59,7 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     if not isinstance(rejected_grades, list):
         raise TypeError('Saved rejected grades must be a list')
     config = BaseAnnotatorConfig(
-        dead_mask_mode=DeadMaskMode(record['dead_mask_mode']),
+
         smoothing_mode=SmoothingMode(record['smoothing_mode']),
         overrides_base30=overrides,
         span_open=SpanOpen(record['span_open']) if record['span_open'] is not None else None,
@@ -119,10 +119,10 @@ def prepare_video(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                 resolved=resolve(base, inputs.fps), video_id=inputs.identity,
                 resolution=inputs.court.resolution, net_band=inputs.court.net_band,
-                gate_court_info=inputs.court.gate_court_info,
+
                 gate_resolution_table=inputs.court.gate_resolution_table,
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
-                cut_frames=[end for _start, end in inputs.raw_cuts[:-1]], keep_vote=inputs.keep_vote,
+
                 inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
             )
         features = features_from_evidence(evidence)

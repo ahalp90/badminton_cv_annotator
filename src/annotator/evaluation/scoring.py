@@ -10,7 +10,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.types import ContactCandidate
 
 CANONICAL_CONTACT_TOLERANCE_BASE30 = 5
@@ -267,7 +267,7 @@ def greedy_match(
 
 def _scale_base30_frames(base_frames: float, fps: float) -> int:
     """Scale a base-30 frame count with the annotator's half-up rule."""
-    return int(ScalingKind.FRAME_COUNT.scale(base_frames, fps))
+    return frames_at_fps(base_frames, fps)
 
 
 def strict_contact_rows(

@@ -17,7 +17,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import ScalingKind, Thresholds
+from annotator.config import Thresholds, frames_at_fps, speed_at_fps
 from annotator.types import (
     ANKLE_L,
     ANKLE_R,
@@ -349,11 +349,11 @@ SHIPPED_LANDING_FILTER_OPTIONS = LandingFilterOptions(
 def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
     """Convert base-30 landing options once; returned fields are final fps values."""
     def frame_count(value: int) -> int:
-        return int(ScalingKind.FRAME_COUNT.scale(value, fps))
+        return frames_at_fps(value, fps)
 
     return opts._replace(
         settle_win=frame_count(opts.settle_win),
-        settle_thr=float(ScalingKind.PER_FRAME_SPEED.scale(opts.settle_thr, fps)),
+        settle_thr=speed_at_fps(opts.settle_thr, fps),
         settle_min=frame_count(opts.settle_min),
         carry_win=frame_count(opts.carry_win),
     )

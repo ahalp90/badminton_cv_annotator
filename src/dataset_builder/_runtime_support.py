@@ -999,13 +999,6 @@ def _boolean_mask(path: Path, frame_count: int) -> np.ndarray:
     return values
 
 
-def _integer_list(payload: object, length: int | None, name: str) -> list[int]:
-    values = [_integer(value, name) for value in _list(payload)]
-    if length is not None and len(values) != length:
-        raise ValueError(f"{name} must contain {length} integers")
-    return values
-
-
 def _dict(value: object) -> dict[str, object]:
     if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
         raise ValueError("persisted value must be an object with string keys")

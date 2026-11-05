@@ -18,7 +18,7 @@ from annotator.sequence.rally_model import (
 )
 from annotator.training.contact import ContactTrainingVideo
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
-from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, prepare
 
@@ -42,7 +42,7 @@ def test_preprocessing_record_round_trips_default_and_nondefault_settings() -> N
     default = BaseAnnotatorConfig()
     custom = replace(
         default,
-        dead_mask_mode=DeadMaskMode.COMPOSITION,
+
         smoothing_mode=SmoothingMode.ZERO_FILL,
         overrides_base30={'smooth_window': 9},
         span_open=SpanOpen.REGION_START,

@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.contacts.model import contact_feature_matrix
 from annotator.training.trees import fit_binary_tree
 
@@ -113,11 +113,11 @@ def select_contact_training_rows(
             raise ValueError(f"{video.identity}: contact frames must be a sorted one-dimensional array")
         rows = video.features
         distances = nearest_contact_distances(rows['frame'], video.contact_frames)
-        positive = distances <= ScalingKind.FRAME_COUNT.scale(config.positive_radius_at_30_fps, video.fps)
-        ignored = (~positive) & (distances <= ScalingKind.FRAME_COUNT.scale(config.ignored_radius_at_30_fps, video.fps))
+        positive = distances <= frames_at_fps(config.positive_radius_at_30_fps, video.fps)
+        ignored = (~positive) & (distances <= frames_at_fps(config.ignored_radius_at_30_fps, video.fps))
         negative = ~positive & ~ignored
         nearby_negative = negative & (
-            distances <= ScalingKind.FRAME_COUNT.scale(NEARBY_NEGATIVE_RADIUS_AT_30_FPS, video.fps)
+            distances <= frames_at_fps(NEARBY_NEGATIVE_RADIUS_AT_30_FPS, video.fps)
         )
         positive_positions = np.flatnonzero(positive)
         nearby_positions = np.flatnonzero(nearby_negative)

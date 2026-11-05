@@ -149,40 +149,20 @@ def candidate_attractors(
     track: np.ndarray,
     window: int,
     halo_frames: int,
-) -> tuple[dict[bytes, list[int]], dict[bytes, int], dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:
+) -> tuple[dict[bytes, list[int]], dict[bytes, list[int]], dict[str, Any]]:
     starts_by_pattern, episodes = pattern_episodes(track, window)
     threshold, margin = adaptive_threshold(episodes)
     candidate_counts = {count for count in episodes.values() if count >= _MIN_CANDIDATE_EPISODES}
+    reason = None
     if len(candidate_counts) < 2:
         reason = f"fewer than 2 distinct candidate counts ({sorted(candidate_counts, reverse=True)})"
-        log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return (
-            starts_by_pattern,
-            episodes,
-            {},
-            {},
-            _empty_info(window, halo_frames, reason, threshold, margin),
-        )
-    if threshold < _MIN_ACCEPTED_EPISODES:
+    elif threshold < _MIN_ACCEPTED_EPISODES:
         reason = f"derived threshold {threshold} is below {_MIN_ACCEPTED_EPISODES} episodes"
-        log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return (
-            starts_by_pattern,
-            episodes,
-            {},
-            {},
-            _empty_info(window, halo_frames, reason, threshold, margin),
-        )
-    if margin < _MIN_ACCEPTED_MARGIN:
+    elif margin < _MIN_ACCEPTED_MARGIN:
         reason = f"derived margin {margin:.6g} is below {_MIN_ACCEPTED_MARGIN:g}"
+    if reason is not None:
         log.warning("inpaint fabrication guard unavailable: %s", reason)
-        return (
-            starts_by_pattern,
-            episodes,
-            {},
-            {},
-            _empty_info(window, halo_frames, reason, threshold, margin),
-        )
+        return {}, {}, _empty_info(window, halo_frames, reason, threshold, margin)
 
     varying: dict[bytes, list[int]] = {}
     flat: dict[bytes, list[int]] = {}
@@ -204,7 +184,7 @@ def candidate_attractors(
         "unavailable_reason": None,
         "counts_per_code": {code: 0 for code in range(4)},
     }
-    return starts_by_pattern, episodes, varying, flat, info
+    return varying, flat, info
 
 
 def _validate_presence(
@@ -278,16 +258,14 @@ def build_mask(
             _empty_info(window, halo_frames, reason),
         )
 
-    _starts_by_pattern, _episodes, varying, flat, info = candidate_attractors(
+    varying, flat, info = candidate_attractors(
         track,
         window,
         halo_frames,
     )
     codes = np.zeros(len(track), dtype=np.uint8)
     if not varying and not flat:
-        info["counts_per_code"] = {
-            code: int(np.count_nonzero(codes == code)) for code in range(4)
-        }
+        info["counts_per_code"] = code_counts(codes)
         return codes, info
 
     presence = _validate_presence(varying, flat, window, len(track))
@@ -316,9 +294,7 @@ def build_mask(
     codes[suspect] = SUSPECT_FLAT
     codes[proven] = FABRICATED
     codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = NO_FLAG
-    info["counts_per_code"] = {
-        code: int(np.count_nonzero(codes == code)) for code in range(4)
-    }
+    info["counts_per_code"] = code_counts(codes)
     return codes, info
 
 

@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from annotator.config import frames_at_fps
 from annotator.outcomes.point_winner import (
     Half,
     alternating_player_sides,
@@ -20,7 +21,6 @@ from annotator.sequence.contacts import (
     FinishedRally,
     apply_choices,
     events_between,
-    scale_frames,
 )
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
@@ -167,7 +167,7 @@ def extend_boundaries(
     :param frame_count: Video length; bound extensions stop at this exclusive end.
     :return: Sequences in the same order, with the same contacts.
     """
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, fps)
+    padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, fps)
     bounds = [proposed_bounds(sequence, padding) for sequence in sequences]
     for position in range(len(sequences)):
         if frame_count is not None:

@@ -6,10 +6,11 @@ from itertools import combinations
 
 import numpy as np
 
+from annotator.config import frames_at_fps
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS
 from annotator.sequence.candidates import RallyCandidates
-from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
+from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
     SUMMARY_FEATURE_NAMES,
@@ -125,7 +126,7 @@ def unused_evidence(
     unused = tuple(event for event in candidates if event.frame not in chosen)
     durations = np.diff([after.start_frame, *frames.tolist(), after.end_frame])
     positive_gaps = set(np.flatnonzero(durations > 0).tolist())
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     probabilities_by_gap: dict[int, list[float]] = {}
     usable_count = 0
     for event in unused:
@@ -199,7 +200,7 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     matrices = []
     span_rows = {}
     stream_frames = np.asarray([event.frame for event in context.events], dtype=np.int64)
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
     for before in context.initial:
         candidates = context.candidates.by_span.get(before.span_id, ())

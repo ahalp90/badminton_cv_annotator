@@ -87,12 +87,10 @@ def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
 
 
 def test_configuration_reports_the_executable_measurement_policy() -> None:
-    resolved = runner.resolve(runner.BASE_ANNOTATOR_CONFIG, runner.CASES[0].fps)
-    configuration = runner._configuration_values(resolved.dead_mask_mode)
+    configuration = runner._configuration_values()
     assert 'court_samples' not in configuration
     assert configuration['person_margin'] == PERSON_COURT_MARGIN
     assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
-    assert configuration['dead_mask_mode'] == resolved.dead_mask_mode.value
     assert configuration['landing_filter_options'] == {
         'settle_win': runner.LANDING_OPTIONS.settle_win,
         'settle_thr': runner.LANDING_OPTIONS.settle_thr,
@@ -463,7 +461,7 @@ def _fake_court_result(case: runner.CaseData, parent: str) -> CourtEvidenceResul
     info = {"H": np.eye(3), "border_L": 0.0, "border_R": 1.0, "border_U": 0.0, "border_D": 1.0}
     inputs = CourtInputs(
         court_info=info,
-        gate_court_info={str(case.fixture.video_id): info},
+
         net_band=(100.0, 110.0),
         resolution=(1280.0, 720.0),
         gate_resolution_table=pd.DataFrame({"width": [1280.0], "height": [720.0]}, index=[str(case.fixture.video_id)]),
@@ -686,9 +684,6 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     assert payload["environment"]["packages"]["opencv"] == runner.cv2.__version__
     for manifest_path in manifests:
         config_payload = read_json_object(manifest_path)
-        assert config_payload["configuration"]["dead_mask_mode"] == (
-            config_payload["resolved_annotator_config"]["dead_mask_mode"]
-        )
         for artifact in config_payload["artifacts"]:
             path = output_root / artifact["path"]
             assert path.read_bytes().__class__ is bytes

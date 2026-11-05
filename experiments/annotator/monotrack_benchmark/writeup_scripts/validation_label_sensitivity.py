@@ -10,10 +10,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from annotator.config import frames_at_fps
+
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
+from annotator.sequence.contacts import stream_from_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,
@@ -49,7 +51,7 @@ def flaw_labels(
         flagged_rallies[video.identity] = set()
         windows[video.identity] = []
         raw_identities = set()
-        before, after = scale_frames(WINDOW_BEFORE, video.fps), scale_frames(WINDOW_AFTER, video.fps)
+        before, after = frames_at_fps(WINDOW_BEFORE, video.fps), frames_at_fps(WINDOW_AFTER, video.fps)
         for path in sorted(folder.glob('set*.csv')):
             labels = pd.read_csv(path)
             for rally_number, rows in labels.groupby('rally'):
@@ -112,7 +114,7 @@ def main() -> None:
         for video in videos:
             stream = read_json(args.validation / f'seed-{seed}' / f'{video.identity}.json.gz')
             sequences, _events = stream_from_payload(stream)
-            tolerance = scale_frames(TOLERANCE, video.fps)
+            tolerance = frames_at_fps(TOLERANCE, video.fps)
             all_judged = judge_found_rallies(
                 sequences, video.rallies, tolerance, fps=video.fps,
             )
@@ -124,7 +126,7 @@ def main() -> None:
 
             masked, ignored = ignore_left_out(
                 stream, windows[video.identity], clean_frames[video.identity],
-                scale_frames(IGNORE_MARGIN, video.fps),
+                frames_at_fps(IGNORE_MARGIN, video.fps),
             )
             masked_sequences, _masked_events = stream_from_payload(masked)
             masked_judged = judge_found_rallies(

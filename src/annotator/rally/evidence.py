@@ -1,16 +1,13 @@
 """Sticky player evidence shared by serve and contact rules."""
 
-import itertools
 import sys
-from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import NamedTuple
 
 import numpy as np
 
 from annotator.courts.scenes import SceneCourt, court_at_frame
 
-from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult
+from ..types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, Slot, StickyResult, true_runs
 
 # sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
 # at the package boundary so the picker remains the single implementation.
@@ -22,92 +19,23 @@ from preparing_data.heuristics import sticky_anchor  # noqa: E402
 from preparing_data.heuristics.base import ClipContext, RawClip  # noqa: E402
 
 
-class CourtGeo(NamedTuple):
-    """A court geometry used to filter person detections.
-
-    The caller constructs it from tracked calibration geometry. Feet inside `net_band` claim
-    NEITHER court half because the net line carries 3D model error.
-
-    :param x_range: foot-point x bounds, pixels.
-    :param y_range: foot-point y bounds, pixels.
-    :param net_band: top/bottom half-split band (low, high), pixels.
-    """
-
-    x_range: tuple[float, float]
-    y_range: tuple[float, float]
-    net_band: tuple[float, float]
-
-
-def court_scale_slots(
-    frame_bboxes: np.ndarray, frame_scores: np.ndarray, court_geo: CourtGeo,
-) -> np.ndarray:
-    """Original pose-slot indices of the court-scale detections, ascending.
-
-    The filter returns original pose-slot identities rather than recovering
-    them through score equality, which can alias detections with tied scores.
-
-    :param frame_bboxes: (16, 4) xyxy person boxes in pixels, NaN-padded past the detections.
-    :param frame_scores: (16,) detection scores, NaN on padding slots.
-    :param court_geo: the court geometry to filter against.
-    :return: (k,) int slot indices into the frame's pose arrays.
-    """
-    valid = np.isfinite(frame_scores)
-    x1, _y1, x2, y2 = frame_bboxes[valid].T  # each (m,) pixels
-    foot_x = (x1 + x2) / 2.0  # bottom-centre; foot y is y2
-    x_lo, x_hi = court_geo.x_range
-    y_lo, y_hi = court_geo.y_range
-    in_court = (x_lo <= foot_x) & (foot_x <= x_hi) & (y_lo <= y2) & (y2 <= y_hi)
-    return np.flatnonzero(valid)[in_court]
-
-
 def tracker_segments(
-    homography_rows: Iterable[Mapping[str, object]], court_present: np.ndarray, n_frames: int,
+    scene_courts: tuple[SceneCourt, ...], court_present: np.ndarray, n_frames: int,
 ) -> list[tuple[int, int]]:
-    """Return scene-row intervals intersected with court-present runs.
-
-    :param homography_rows: Scene rows with named ``start_frame`` and ``end_frame`` bounds.
-    :param court_present: `(n_frames,)` boolean court-detection mask.
-    :param n_frames: Number of frames in the aligned video arrays.
-    :return: Maximal court-present half-open intervals within each scene row.
-    """
+    """Intersect validated court scenes with the aligned court-present runs."""
     if (
         not isinstance(court_present, np.ndarray)
         or court_present.shape != (n_frames,)
         or court_present.dtype != np.bool_
     ):
         raise ValueError('court_present must have shape (n_frames,) and bool dtype')
-
-    parsed_rows = []
-    for row in homography_rows:
-        try:
-            start = int(row['start_frame'])
-            end = int(row['end_frame'])
-        except (KeyError, TypeError, ValueError, OverflowError) as exc:
-            raise ValueError('homography row bounds must be integers') from exc
-        if end < start:
-            raise ValueError('homography rows must not be reversed')
-        parsed_rows.append((start, end))
-
-    parsed_rows.sort()
-    for previous, current in itertools.pairwise(parsed_rows):
-        if current[0] < previous[1]:
-            raise ValueError('homography rows must not overlap')
-
     segments = []
-    for row_start, row_end in parsed_rows:
-        start = max(0, row_start)
-        end = min(n_frames, row_end)
+    for scene in scene_courts:
+        start, end = max(0, scene.start_frame), min(n_frames, scene.end_frame)
         if start >= end:
             continue
-        run_start = None
-        for frame in range(start, end):
-            if court_present[frame] and run_start is None:
-                run_start = frame
-            elif not court_present[frame] and run_start is not None:
-                segments.append((run_start, frame))
-                run_start = None
-        if run_start is not None:
-            segments.append((run_start, end))
+        for run_start, run_end in true_runs(court_present[start:end]):
+            segments.append((start + run_start, start + run_end))
     return segments
 
 
@@ -119,13 +47,13 @@ def track_sticky_players(
     pose_kps: np.ndarray,
     pose_ndet: np.ndarray,
     gate_video_id: str,
-    gate_court_info: dict[str, dict],
     gate_resolution_table: object,
     resolution: tuple[float, float],
-    scene_courts: tuple[SceneCourt, ...] | None = None,
+    scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
     """Run the sequential sticky picker and retain its frame-aligned evidence.
 
+    Each segment must lie within one court scene, as produced by tracker_segments.
     ``measure_sticky_distances`` fills distances and wrist gaps afterwards.
     """
     params = sticky_anchor.StickyAnchorParams()
@@ -137,9 +65,6 @@ def track_sticky_players(
         kp_scores=np.zeros((*pose_scores.shape, 17), dtype=np.float32),
         ndet=pose_ndet,
     )
-    ctx = ClipContext(gate_video_id, gate_court_info, gate_resolution_table)
-    court_info = ctx.all_court_info[ctx.vid]
-    halfcourt_centre = sticky_anchor.compute_halfcourt_centres(court_info)
     evidence = StickyResult(
         distances=np.full(n_frames, np.inf),
         picks=np.full((n_frames, 2), -1, dtype=int),
@@ -154,12 +79,9 @@ def track_sticky_players(
     )
 
     for start, end in segments:
-        if scene_courts is not None:
-            scene = court_at_frame(scene_courts, start)
-            if end > scene.end_frame:
-                raise ValueError('tracker segment crosses a court scene boundary')
-            ctx = ClipContext(gate_video_id, {gate_video_id: scene.court_info}, gate_resolution_table)
-            halfcourt_centre = sticky_anchor.compute_halfcourt_centres(scene.court_info)
+        scene = court_at_frame(scene_courts, start)
+        ctx = ClipContext(gate_video_id, {gate_video_id: scene.court_info}, gate_resolution_table)
+        halfcourt_centre = sticky_anchor.compute_halfcourt_centres(scene.court_info)
         ema = halfcourt_centre.copy()
         for frame in range(start, end):
             evidence.analysed[frame] = True
@@ -240,9 +162,9 @@ def build_sticky_result(
     track: np.ndarray, segments: list[tuple[int, int]],
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray, gate_video_id: str,
-    gate_court_info: dict[str, dict], gate_resolution_table: object,
+    gate_resolution_table: object,
     resolution: tuple[float, float], half_window: int,
-    *, scene_courts: tuple[SceneCourt, ...] | None = None,
+    *, scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
     """Run sticky player tracking and measure its contact and serve evidence."""
     evidence = track_sticky_players(
@@ -253,7 +175,6 @@ def build_sticky_result(
         pose_kps,
         pose_ndet,
         gate_video_id,
-        gate_court_info,
         gate_resolution_table,
         resolution,
         scene_courts,

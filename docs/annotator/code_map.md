@@ -64,7 +64,7 @@ beside the public result. It receives masks after preparation succeeds.
 | Which motion peaks become heuristic contacts? | [rally/contacts.py](../../src/annotator/rally/contacts.py) |
 | How are players followed across frames? | [rally/evidence.py](../../src/annotator/rally/evidence.py) |
 | Which court geometry applies to this frame? | [courts/scenes.py](../../src/annotator/courts/scenes.py) |
-| Why is footage excluded? | [masks/dead.py](../../src/annotator/masks/dead.py) and [masks/replay.py](../../src/annotator/masks/replay.py) |
+| Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
 | Which earlier or missed contacts can be proposed? | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) |
 | Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
 | Why did the striker half change? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |

@@ -7,7 +7,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from annotator.config import ScalingKind
 from annotator.outcomes.point_winner import OTHER_HALF, Half
 
 
@@ -43,11 +42,6 @@ class FinishedRally:
         if self.final_half is None:
             return None
         return self.final_half if len(self.sequence.events) % 2 else OTHER_HALF[self.final_half]
-
-
-def scale_frames(frames_at_30_fps: int, fps: float) -> int:
-    """Scale a frame count defined at 30 fps with the repository's half-up rule."""
-    return int(ScalingKind.FRAME_COUNT.scale(float(frames_at_30_fps), float(fps)))
 
 
 def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: int) -> tuple[ContactEvent, ...]:

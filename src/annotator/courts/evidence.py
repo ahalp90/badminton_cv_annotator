@@ -79,7 +79,6 @@ class CourtInputs:
     """
 
     court_info: dict[str, object]
-    gate_court_info: dict[str, dict[str, object]]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
     gate_resolution_table: pd.DataFrame
@@ -89,11 +88,6 @@ class CourtInputs:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'court_info', _copy_court_info(self.court_info))
-        object.__setattr__(
-            self,
-            'gate_court_info',
-            {str(video_id): _copy_court_info(info) for video_id, info in self.gate_court_info.items()},
-        )
         gate_resolution_table = self.gate_resolution_table.copy(deep=True)
         gate_resolution_table.index = gate_resolution_table.index.astype(str)
         object.__setattr__(self, 'gate_resolution_table', gate_resolution_table)
@@ -454,7 +448,7 @@ def build_static_court_inputs(
     homography_rows = build_scene_rows(video_id, intervals, [active_corners] * len(intervals), resolution)
     return CourtInputs(
         court_info=court_info,
-        gate_court_info={str(video_id): court_info},
+
         net_band=build_net_band(court_info, resolution),
         resolution=tuple(map(float, resolution)),
         gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),
@@ -590,7 +584,7 @@ def build_court_detector_evidence(
     active_info = detected_court_info(representative_corners)
     inputs = CourtInputs(
         court_info=active_info,
-        gate_court_info={str(video_id): active_info},
+
         net_band=build_net_band(active_info, resolution),
         resolution=tuple(map(float, resolution)),
         gate_resolution_table=_gate_resolution_table(video_id, resolution, gate_resolution_table),

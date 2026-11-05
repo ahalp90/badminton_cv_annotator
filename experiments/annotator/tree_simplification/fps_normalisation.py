@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BASE_FPS, BaseAnnotatorConfig, ScalingKind, resolve
+from annotator.config import BASE_FPS, BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.contacts.features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
@@ -102,7 +102,7 @@ def normalise_contact_features(
         for base_offset in WINDOW_OFFSETS_BASE30:
             offset = 0
             if base_offset:
-                count = ScalingKind.FRAME_COUNT.scale(abs(base_offset), fps)
+                count = frames_at_fps(abs(base_offset), fps)
                 offset = int(math.copysign(count, base_offset))
             rows[f'shuttle_impulse_ratio_t{base_offset:+d}'][selected] = shift_within_interval(
                 ratio, frames, offset, start, end,

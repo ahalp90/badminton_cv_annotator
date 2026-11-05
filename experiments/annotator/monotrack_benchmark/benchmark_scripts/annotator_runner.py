@@ -37,7 +37,6 @@ def run_item(
     from annotator.run_video import RunCapture, run_video
     from annotator.sequence.contacts import stream_payload
     from annotator.shuttle_track import validate_shuttle_track
-    from annotator.types import DeadMaskMode
     from dataset_builder.vision import load_court_vision, load_pose_arrays
 
     config, item, condition, output = task
@@ -45,8 +44,6 @@ def run_item(
     if heuristic_spec is None:
         models = load_models(paths['bundle'])
         base = models.preprocessing
-        if base.dead_mask_mode is not DeadMaskMode.REPLAY:
-            raise ValueError('This comparison requires the selected REPLAY mask, without a person-vote mask')
         if (base.rejected_grades != frozenset({1, 2, 3})
                 or models.contact_settings.score_cutoff != 0.9
                 or models.side_geometry.value != 'video'):
@@ -86,9 +83,9 @@ def run_item(
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS, net_band=court.net_band,
             resolution=court.resolution, video_id=item['item_id'],
-            gate_court_info=court.gate_court_info, gate_resolution_table=court.gate_resolution_table,
+             gate_resolution_table=court.gate_resolution_table,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
-            cut_frames=[end for _, end in vision.raw_cuts[:-1]], keep_vote=vision.evidence.keep_vote,
+
             inpaint_codes=guards, court_invalid_is_excluded=True,
             spans=spans, capture=capture,
         )

@@ -35,7 +35,6 @@ class FilePin:
 class CalibrationGeometry:
     """Derived camera geometry and the tracked source resolution for one fixture."""
 
-    court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
 
@@ -71,7 +70,6 @@ class Fixture:
     video_id: int
     fps: float
     gt_set_dir: Path
-    court_geo: tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
     net_band: tuple[float, float]
     resolution: tuple[float, float]
     n_rallies: int
@@ -198,7 +196,7 @@ def _derive_calibration_geometry(
     resolution_row: pd.Series,
     video_id: int,
 ) -> CalibrationGeometry:
-    """Derive one fixture's camera bounds and net band from its tracked rows."""
+    """Derive one fixture's net band and source resolution from its tracked rows."""
     for column in _CORNER_COLUMNS:
         _finite_float(homography_row[column], column, video_id, "homography")
 
@@ -210,9 +208,6 @@ def _derive_calibration_geometry(
         raise ValueError(f"homography matrix is malformed for id {video_id}")
 
     corner_camera = get_corner_camera(homography_row)
-    corner_camera_fixture = corner_camera * _HOMOGRAPHY_TO_FIXTURE_MULTIPLIER
-    x_bounds = _rounded_bounds(corner_camera_fixture[0])
-    y_bounds = _rounded_bounds(corner_camera_fixture[1])
 
     try:
         corner_court = project(homography, convert_homogeneous(corner_camera))
@@ -243,8 +238,7 @@ def _derive_calibration_geometry(
         raise ValueError(f"resolution values must be positive for id {video_id}")
 
     resolution = (width, height)
-    court_geo = (x_bounds, y_bounds, net_band)
-    return CalibrationGeometry(court_geo=court_geo, net_band=net_band, resolution=resolution)
+    return CalibrationGeometry(net_band=net_band, resolution=resolution)
 
 
 def _rounded_bounds(values: np.ndarray) -> tuple[float, float]:
@@ -292,7 +286,6 @@ def _build_fixture(
         video_id=video_id,
         fps=fps,
         gt_set_dir=gt_set_dir,
-        court_geo=geometry.court_geo,
         net_band=geometry.net_band,
         resolution=geometry.resolution,
         n_rallies=n_rallies,

@@ -110,16 +110,10 @@ def test_union_combines_signals():
     n_frames = 220
     court_present = np.ones(n_frames, dtype=bool)
     court_present[10:30] = False                         # court-absence region
-    rows = [
-        _homography_row('v', 0, 200, REFERENCE_CORNERS),
-        _homography_row('v', 200, 220,
-                        [value + (200.0 if i % 2 == 0 else 0.0)
-                         for i, value in enumerate(REFERENCE_CORNERS)]),
-    ]
     track = _speed_track(0.1, n_frames)
     rally_spans = [(30, 200)]
 
-    mask = combine_mask(court_present, rows, track, rally_spans, n_frames, 25.0)
+    mask = combine_mask(court_present,  track, rally_spans, n_frames, 25.0)
     assert mask[15:25].all()                             # court absence
     assert not mask[205:215].any()                       # a different view can be live play
 
@@ -130,7 +124,7 @@ def test_missing_inputs_contribute_all_false():
     assert not perspective_shift_signal(None, n_frames).any()
     assert not velocity_drop_signal(None, [(0, 10)], n_frames, 25.0).any()
     assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames, 25.0).any()
-    assert not combine_mask(None, None, None, None, n_frames, 25.0).any()
+    assert not combine_mask(None,  None, None, n_frames, 25.0).any()
 
 
 def test_filter_short_exclusion_runs_preserves_whole_runs_and_is_idempotent():
@@ -368,7 +362,7 @@ def test_combine_mask_threads_non_evidence_to_velocity():
     non_evidence[45:60] = True
 
     combined = combine_mask(
-        None, None, track, [(0, 30)], n_frames, 25.0, non_evidence=non_evidence,
+        None,  track, [(0, 30)], n_frames, 25.0, non_evidence=non_evidence,
     )
     expected = velocity_drop_signal(
         track, [(0, 30)], n_frames, 25.0,
@@ -383,8 +377,8 @@ def test_combine_mask_excludes_court_producer_from_baseline():
     court_present = np.ones(n_frames, dtype=bool)
     court_present[5:35] = False
     court = court_absence_signal(court_present, n_frames, 25.0)
-    result = combine_mask(court_present, None, track, [(0, 40)], n_frames, 25.0)
-    without_court = combine_mask(np.ones(n_frames, dtype=bool), None, track, [(0, 40)], n_frames, 25.0)
+    result = combine_mask(court_present,  track, [(0, 40)], n_frames, 25.0)
+    without_court = combine_mask(np.ones(n_frames, dtype=bool),  track, [(0, 40)], n_frames, 25.0)
     expected = court | velocity_drop_signal(
         track, [(0, 40)], n_frames, 25.0, baseline_exclude=court,
     )
@@ -405,8 +399,8 @@ def test_combine_mask_keeps_alternate_views_in_the_velocity_baseline():
         _homography_row('v', 35, 80, REFERENCE_CORNERS),
     ]
     perspective = perspective_shift_signal(rows, n_frames)
-    result = combine_mask(None, rows, track, [(0, 40)], n_frames, 25.0)
-    without_perspective = combine_mask(None, None, track, [(0, 40)], n_frames, 25.0)
+    result = combine_mask(None,  track, [(0, 40)], n_frames, 25.0)
+    without_perspective = combine_mask(None,  track, [(0, 40)], n_frames, 25.0)
     expected = velocity_drop_signal(
         track, [(0, 40)], n_frames, 25.0, baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
@@ -428,7 +422,7 @@ def test_valid_camera_change_does_not_mask_the_rest_of_the_video():
     ]
     assert perspective_shift_signal(rows, n_frames)[200:].all()
     mask = combine_mask(
-        np.ones(n_frames, dtype=bool), rows, _speed_track(0.01, n_frames),
+        np.ones(n_frames, dtype=bool),  _speed_track(0.01, n_frames),
         [(0, n_frames)], n_frames, 25.0,
     )
     assert not mask.any()

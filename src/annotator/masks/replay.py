@@ -223,7 +223,6 @@ def velocity_drop_signal(
 # ---------------------------------------------------------------------------
 def combine_mask(
     court_present: np.ndarray | None,
-    homography_rows: list[dict] | None,
     track: np.ndarray | None,
     rally_spans: list[tuple[int, int]] | None,
     n_frames: int,
@@ -231,9 +230,6 @@ def combine_mask(
     *, non_evidence: np.ndarray | None = None,
 ) -> np.ndarray:
     """Combine court absence and shuttle-speed evidence for off-rally masking.
-
-    ``homography_rows`` remains accepted for existing callers. A different court
-    view cannot establish replay and must not bias the normal-speed baseline.
 
     :return: `(n_frames,)` bool mask, True where any signal fires.
     """
@@ -280,13 +276,6 @@ def filter_exclusion_mask(raw_mask: np.ndarray, n_frames: int, min_frames: int) 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-def _read_homography_rows(csv_path: Path | None, video_id: str) -> list[dict] | None:
-    """Read the per-segment homography rows for one video, or None if unavailable."""
-    if csv_path is None or not csv_path.exists():
-        return None
-    with csv_path.open(newline='', encoding='utf-8') as handle:
-        rows = [row for row in csv.DictReader(handle) if row.get('video_id') == video_id]
-    return rows or None
 
 
 def _read_rally_spans(csv_path: Path, video_id: str) -> list[tuple[int, int]]:
@@ -317,8 +306,6 @@ def main() -> None:
                         help='<video_id>.npy (t, 3) shuttle track')
     parser.add_argument('--court-mask', type=Path, default=None,
                         help='<video_id> court-present (frames,) bool npy')
-    parser.add_argument('--homography-csv', type=Path, default=None,
-                        help='Per-segment homography CSV (video_id, start_frame, end_frame, corners)')
     parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
     parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
     parser.add_argument('--fps', type=float, required=True)
@@ -331,7 +318,6 @@ def main() -> None:
 
     track = np.load(args.shuttle) if args.shuttle and args.shuttle.exists() else None
     court_present = np.load(args.court_mask) if args.court_mask and args.court_mask.exists() else None
-    homography_rows = _read_homography_rows(args.homography_csv, args.video_id)
     rally_spans = _read_rally_spans(args.rally_spans, args.video_id)
 
     # Frame count: court mask and shuttle track both span the whole video; use
@@ -347,7 +333,7 @@ def main() -> None:
         mask = np.zeros(n_frames, dtype=bool)
     else:
         mask = combine_mask(
-            court_present, homography_rows, track, rally_spans, n_frames, args.fps,
+            court_present,  track, rally_spans, n_frames, args.fps,
             non_evidence=_cli_non_evidence(track),
         )
 

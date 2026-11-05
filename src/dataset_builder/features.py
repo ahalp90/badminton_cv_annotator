@@ -20,7 +20,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.courts.evidence import detected_court_info
 from annotator.courts.scenes import build_scene_courts, scene_ref_corners
 from annotator.outcomes.point_winner import (
@@ -92,11 +92,8 @@ def derive_player_feature_inputs(
         raise ValueError("court evidence has no operational inputs")
     if len(track) != len(pose.kps) or len(track) != len(court.evidence.court_present):
         raise ValueError("shuttle, pose, and court frame populations differ")
-    segments = tracker_segments(
-        inputs.homography_rows.to_dict("records"),
-        court.evidence.court_present,
-        len(track),
-    )
+    scene_courts = build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution)
+    segments = tracker_segments(scene_courts, court.evidence.court_present, len(track))
     sticky = build_sticky_result(
         track,
         segments,
@@ -105,11 +102,10 @@ def derive_player_feature_inputs(
         pose.kps,
         pose.ndet,
         video_id,
-        inputs.gate_court_info,
         inputs.gate_resolution_table,
         inputs.resolution,
         DATASET_BODY_UNIT_HALF_WINDOW,
-        scene_courts=build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution),
+        scene_courts=scene_courts,
     )
     selected_keypoints = select_sticky_keypoints(pose.kps, sticky.picks)
     raw_posture = posture_signal(selected_keypoints)
@@ -198,9 +194,7 @@ def recovery_at_opponent_contacts(
         raise ValueError("court_positions must have shape (frames, 2, 2)")
     if len(contact_frames) != len(striker_slots):
         raise ValueError("contact_frames and striker_slots must have equal length")
-    half_window = int(
-        ScalingKind.FRAME_COUNT.scale(RECOVERY_HALF_WINDOW_BASE30, fps)
-    )
+    half_window = frames_at_fps(RECOVERY_HALF_WINDOW_BASE30, fps)
     range_start, range_end = (0, len(positions)) if frame_range is None else frame_range
     if not 0 <= range_start < range_end <= len(positions):
         raise ValueError("recovery frame range is invalid")

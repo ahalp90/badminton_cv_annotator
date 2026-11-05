@@ -28,7 +28,7 @@ def preparation_inputs():
         'track': inputs['track'], 'bboxes': inputs['bboxes'], 'scores': inputs['scores'],
         'kps': inputs['kps'], 'ndet': inputs['ndet'], 'resolved': resolve(BaseAnnotatorConfig(), inputs['fps']),
         'resolution': inputs['resolution'], 'video_id': inputs['video_id'], 'net_band': inputs['net_band'],
-        'gate_court_info': inputs['gate_court_info'], 'gate_resolution_table': inputs['gate_resolution_table'],
+        'gate_resolution_table': inputs['gate_resolution_table'],
         'raw_exclusion_mask': inputs['raw_exclusion_mask'], **_default_scene_inputs(len(inputs['track'])),
     }
 
@@ -74,6 +74,55 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
     assert evidence.heuristic_spans == [(0, 200)]
     assert evidence.raw_contact_frames == [20, 150]
     np.testing.assert_array_equal(evidence.track, original)
+
+
+@pytest.mark.parametrize('supplied_contacts', [False, True])
+def test_unmasked_span_estimate_is_reused_for_replay_but_discovery_uses_masked_track(
+    preparation_inputs, monkeypatch, supplied_contacts,
+):
+    from annotator import preparation, rally_segmentation
+
+    preparation_inputs.pop('raw_exclusion_mask')
+    track = preparation_inputs['track']
+    track[:, 0] = np.linspace(0.1, 0.9, len(track))
+    track[:, 1:] = 1.0
+    original = track.copy()
+    unmasked_spans = [(0, len(track))]
+    masked_spans = [(150, 250)]
+    raw_mask = np.zeros(len(track), dtype=bool)
+    raw_mask[10:100] = True
+    unmasked_calls = []
+    masked_calls = []
+
+    def find_unmasked(track_arg, resolved):
+        assert track_arg is track
+        np.testing.assert_array_equal(track_arg, original)
+        unmasked_calls.append(track_arg)
+        return unmasked_spans
+
+    def replay_mask(court_present, track_arg, spans, n_frames, fps, *, non_evidence):
+        assert track_arg is track
+        assert spans is unmasked_spans
+        return raw_mask
+
+    def find_masked(track_arg, resolved):
+        assert track_arg is not track
+        np.testing.assert_array_equal(track_arg[10:100, :2], np.tile(track[9, :2], (90, 1)))
+        masked_calls.append(track_arg)
+        return masked_spans
+
+    monkeypatch.setattr(preparation, 'find_rally_spans', find_unmasked)
+    monkeypatch.setattr(preparation, 'combine_mask', replay_mask)
+    monkeypatch.setattr(rally_segmentation, 'find_rally_spans', find_masked)
+    contacts = {0: [20, 150]} if supplied_contacts else None
+    evidence = prepare_annotation(**preparation_inputs, contacts=contacts)
+
+    assert len(unmasked_calls) == 1
+    assert len(masked_calls) == (0 if supplied_contacts else 1)
+    assert evidence.heuristic_spans is (unmasked_spans if supplied_contacts else masked_spans)
+    if supplied_contacts:
+        assert evidence.raw_contact_frames == [20, 150]
+    np.testing.assert_array_equal(track, original)
 
 
 def test_preparation_filters_short_runs_and_excludes_unusable_court_frames(preparation_inputs):
@@ -125,7 +174,7 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
         identity=str(inputs['video_id']), fps=inputs['resolved'].fps, track=inputs['track'],
         pose=SimpleNamespace(bboxes=inputs['bboxes'], scores=inputs['scores'], kps=inputs['kps'], ndet=inputs['ndet']),
         court=SimpleNamespace(resolution=inputs['resolution'], net_band=inputs['net_band'],
-                              gate_court_info=inputs['gate_court_info'], gate_resolution_table=inputs['gate_resolution_table'],
+                               gate_resolution_table=inputs['gate_resolution_table'],
                               homography_rows=inputs['homography_rows']),
         court_present=inputs['court_present'], raw_cuts=((0, len(inputs['track'])),),
         keep_vote=np.ones(len(inputs['track']), dtype=bool), guard_codes=np.zeros(len(inputs['track']), dtype=np.uint8),

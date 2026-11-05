@@ -13,11 +13,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from annotator.sequence.contacts import (
-    ContactSequence,
-    scale_frames,
-    stream_from_payload,
-)
+from annotator.config import frames_at_fps
+from annotator.sequence.contacts import ContactSequence, stream_from_payload
 from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import (
     LabelledRally,
@@ -81,7 +78,7 @@ def score_video(
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     sequences, events = stream_from_payload(stream)
     confidence = stream.get("confidence")
-    tolerance = scale_frames(tolerance_base30, fps)
+    tolerance = frames_at_fps(tolerance_base30, fps)
     common = {"split": split, "video": video, "fps": fps, "tolerance_base30": tolerance_base30}
 
     proposals = []

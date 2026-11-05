@@ -210,10 +210,10 @@ def prepare_inputs(
     return prepare_annotation(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
-        video_id=inputs.identity, net_band=court.net_band, gate_court_info=court.gate_court_info,
+        video_id=inputs.identity, net_band=court.net_band,
         gate_resolution_table=court.gate_resolution_table, court_present=inputs.court_present,
-        homography_rows=court.homography_rows, cut_frames=[end for _start, end in inputs.raw_cuts[:-1]],
-        keep_vote=inputs.keep_vote, inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,
+        homography_rows=court.homography_rows,
+         inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,
     )
 
 

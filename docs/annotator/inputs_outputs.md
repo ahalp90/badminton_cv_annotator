@@ -230,15 +230,19 @@ these objects.
 ### Contact membership
 
 Use `result.rallies[rally_id].sequence.events` for the contacts assigned to a rally.
-Each event contains its frame, model probability and court-half assignment. Unknown
+Each event contains its frame, model probability and court-half assignment. When
+the alternating-side fit is tied, events retain their individual side guesses and
+the fitted first/final striker remains unresolved. Unknown
 probabilities are NaN in memory and JSON null when saved. `contact_events` also
 includes model contacts outside all rallies, so filtering that stream by the final
 rally bounds can give different membership.
 
 The dataset builder derives stroke counts, fitted servers and next servers from
 these rallies. It writes the existing rally-record columns, including accepted
-contact sides. In learned mode the `raw_candidates` record field contains the
-selected contact frames with empty heuristic gate flags. In heuristic mode it
+contact sides. During learned inference the `raw_candidates` record field contains the
+selected contact frames with empty heuristic gate flags. Reconstructing a result
+from saved rally records retains their raw candidate rows for scoring; those
+records do not identify which inference mode produced them. In heuristic mode it
 retains all raw candidates, including those rejected by gates or masks.
 
 ### `Top` and `Bot`

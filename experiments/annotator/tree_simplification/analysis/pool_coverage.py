@@ -24,7 +24,7 @@ from typing import Any
 
 import joblib
 
-from annotator.sequence.contacts import scale_frames
+from annotator.config import frames_at_fps
 from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS
 from annotator.training.sequences import judge_rally_boundaries, match_contacts
 from experiments.annotator.tree_simplification.analysis.common import (
@@ -43,8 +43,8 @@ TOLERANCE_AT_30_FPS = 10
 def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
     """Count correct proposals and the two generous reachability checks for one video."""
     video = pool.video
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.context.fps)
-    tolerance = scale_frames(TOLERANCE_AT_30_FPS, video.context.fps)
+    padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, video.context.fps)
+    tolerance = frames_at_fps(TOLERANCE_AT_30_FPS, video.context.fps)
     covered: set[str] = set()
     sections_with_correct_option = 0
     # One (earliest start, latest end, all option frames) per initial rally section.

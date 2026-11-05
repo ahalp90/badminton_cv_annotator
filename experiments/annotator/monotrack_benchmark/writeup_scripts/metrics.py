@@ -23,11 +23,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from annotator.config import frames_at_fps
+
 # Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
+from annotator.sequence.contacts import stream_from_payload
 from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import (
     judge_rally_boundaries,
@@ -207,8 +209,8 @@ def judge_found_rallies(
             continue
         assert rally is not None
         if endpoint_limits is not None:
-            before = scale_frames(round(endpoint_limits.before_seconds * 30), fps)
-            after = scale_frames(round(endpoint_limits.after_seconds * 30), fps)
+            before = frames_at_fps(round(endpoint_limits.before_seconds * 30), fps)
+            after = frames_at_fps(round(endpoint_limits.after_seconds * 30), fps)
             if sequence.start_frame < rally.frames[0] - before or sequence.end_frame - 1 > rally.frames[-1] + after:
                 judged.append(record | {'outcome': 'overlong_rally'})
                 continue
@@ -258,7 +260,7 @@ def prepare_scoring_stream(item: dict, stream: dict, labels, windows: list[tuple
     else:
         unmasked = stream
     scored_frames = [frame for rally in labels for frame in rally.frames]
-    scored, ignored = ignore_left_out(unmasked, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
+    scored, ignored = ignore_left_out(unmasked, windows, scored_frames, frames_at_fps(IGNORE_MARGIN, item['fps']))
     if supplied:
         scored = fixed_stream(scored['events'], item['spans'])
     else:
@@ -276,7 +278,7 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     )
     strict = sum(bool(row['fully_correct']) for row in rally_rows)
     sequences, _ = stream_from_payload(scored)
-    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'],
+    judged = judge_found_rallies(sequences, labels, frames_at_fps(tolerance, item['fps']), fps=item['fps'],
                                 supplied=supplied)
     # Separate endpoint context from the contact-timing tolerance.
     no_allowance = rally_ladder(judge_found_rallies(

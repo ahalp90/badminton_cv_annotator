@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.3"
-COURT_EVIDENCE_SCHEMA = "court-evidence/0.2"
+COURT_EVIDENCE_SCHEMA = "court-evidence/0.3"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
@@ -619,7 +619,7 @@ def load_court_vision(
 def _court_inputs_payload(inputs: CourtInputs) -> dict[str, object]:
     return {
         "court_info": inputs.court_info,
-        "gate_court_info": inputs.gate_court_info,
+
         "net_band": inputs.net_band,
         "resolution": inputs.resolution,
         "gate_resolution_table": _dataframe_payload(inputs.gate_resolution_table),
@@ -635,7 +635,6 @@ def _court_inputs_from_payload(payload: object) -> CourtInputs:
     record = _object_payload(payload, "court inputs")
     expected = {
         "court_info",
-        "gate_court_info",
         "net_band",
         "resolution",
         "gate_resolution_table",
@@ -645,14 +644,9 @@ def _court_inputs_from_payload(payload: object) -> CourtInputs:
     }
     if set(record) != expected:
         raise ValueError("court inputs payload fields differ")
-    gate_payload = _object_payload(record["gate_court_info"], "gate_court_info")
-    gate_court_info = {
-        video_key: _court_info_from_payload(info, f"gate_court_info.{video_key}")
-        for video_key, info in gate_payload.items()
-    }
     return CourtInputs(
         court_info=_court_info_from_payload(record["court_info"], "court_info"),
-        gate_court_info=gate_court_info,
+
         net_band=_float_pair(record["net_band"], "net_band"),
         resolution=_float_pair(record["resolution"], "resolution"),
         gate_resolution_table=_dataframe_from_payload(
@@ -776,15 +770,11 @@ def run_full_annotation_stage(
     from annotator.config import BaseAnnotatorConfig
     from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
     from annotator.run_video import RunCapture, run_video
-    from annotator.types import DeadMaskMode
+
 
     effective_base = models.preprocessing if models is not None else BaseAnnotatorConfig()
     if base is not None:
         effective_base = base
-    if effective_base.dead_mask_mode is not DeadMaskMode.REPLAY:
-        raise ValueError(
-            "dataset-builder/0.1 requires BaseAnnotatorConfig.dead_mask_mode=DeadMaskMode.REPLAY"
-        )
     effective_landing = (
         SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
     )
@@ -807,7 +797,6 @@ def run_full_annotation_stage(
         raise ValueError("detected court evidence has no operational inputs")
 
     capture = RunCapture()
-    cut_frames = [end for _start, end in court.raw_cuts[:-1]]
     result = run_video(
         track,
         pose.bboxes,
@@ -821,14 +810,14 @@ def run_full_annotation_stage(
         net_band=court_inputs.net_band,
         resolution=court_inputs.resolution,
         video_id=video_id,
-        gate_court_info=court_inputs.gate_court_info,
+
         gate_resolution_table=court_inputs.gate_resolution_table,
         ref_err_px=ref_err_px,
         raw_exclusion_mask=None,
         court_present=court.evidence.court_present,
         homography_rows=court_inputs.homography_rows,
-        cut_frames=cut_frames,
-        keep_vote=court.evidence.keep_vote,
+
+
         inpaint_codes=guard_codes,
         court_invalid_is_excluded=True,
         capture=capture,

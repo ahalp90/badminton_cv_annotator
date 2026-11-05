@@ -5,17 +5,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from annotator.config import frames_at_fps
 from annotator.contacts.model import (
     NEARBY_CONTACT_DISTANCE_AT_30_FPS,
     ScoredContacts,
     strongest_spaced_rows,
 )
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    scale_frames,
-)
+from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import physical_rows
 
 
@@ -57,7 +54,7 @@ def shortlist_serve_rows(
     """
     frames = scores.candidates["frame"]
     interval_ids = scores.candidates["interval_id"]
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     shortlists: dict[int, list[int]] = {}
     previous_end = -1
     for sequence in sequences:
@@ -88,7 +85,7 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
     """
     if not sequence.events:
         return []
-    distance = scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     frames = scores.candidates["frame"].astype(np.int64)
     eligible = (frames > sequence.events[0].frame) & (frames < sequence.end_frame)
     rows = np.flatnonzero(eligible & np.isfinite(scores.probabilities))

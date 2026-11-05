@@ -8,10 +8,9 @@ import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
-from enum import StrEnum
 from pathlib import Path
 
-from .types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from .types import ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
 # Scrape-output paths
@@ -53,22 +52,18 @@ REST_SPEED_BASE30 = 0.002
 START_SPEED_BASE30 = 0.015
 
 
-class ScalingKind(StrEnum):
-    """Describe how a base-30 value scales with the video's frame rate."""
+def frames_at_fps(frames_at_30_fps: float, fps: float) -> int:
+    """Scale a base-30 frame count, rounding halves up and keeping at least one frame."""
+    if not math.isfinite(fps) or fps <= 0:
+        raise ValueError(f'fps must be positive and finite, got {fps!r}')
+    return max(1, math.floor(frames_at_30_fps * fps / BASE_FPS + 0.5))
 
-    PER_FRAME_SPEED = 'per_frame_speed'
-    FRAME_COUNT = 'frame_count'
-    DIMENSIONLESS = 'dimensionless'
 
-    def scale(self, value: float, fps: float) -> float | int:
-        """Scale one base-30 value, requiring a positive finite frame rate."""
-        if not math.isfinite(fps) or fps <= 0:
-            raise ValueError(f'fps must be positive and finite, got {fps!r}')
-        if self is ScalingKind.PER_FRAME_SPEED:
-            return value * BASE_FPS / fps
-        if self is ScalingKind.FRAME_COUNT:
-            return max(1, math.floor(value * fps / BASE_FPS + 0.5))
-        return value
+def speed_at_fps(speed_at_30_fps: float, fps: float) -> float:
+    """Scale a per-frame speed inversely with the video's positive finite frame rate."""
+    if not math.isfinite(fps) or fps <= 0:
+        raise ValueError(f'fps must be positive and finite, got {fps!r}')
+    return speed_at_30_fps * BASE_FPS / fps
 
 
 @dataclass(frozen=True)
@@ -119,7 +114,6 @@ class BaseAnnotatorConfig:
     each fitted bundle.
     """
 
-    dead_mask_mode: DeadMaskMode = DeadMaskMode.REPLAY
     # Invisible coordinates must not pull a smoothed trajectory towards zero.
     smoothing_mode: SmoothingMode = SmoothingMode.IGNORE_INVISIBLE
     overrides_base30: Mapping[str, float] | None = None
@@ -155,13 +149,12 @@ class ResolvedAnnotatorConfig:
 
     fps: float
     thresholds: Thresholds
-    dead_mask_mode: DeadMaskMode
     smoothing_mode: SmoothingMode
-    span_open: SpanOpen | None = SpanOpen.BACK_FILL
-    gap_state_demotion_bound: int | None = None
-    reentry_guard_variant: ReentryGuardVariant | None = None
-    reentry_guard_buffer: float | None = None
-    rejected_grades: frozenset[int] = frozenset({1, 2, 3})
+    span_open: SpanOpen | None
+    gap_state_demotion_bound: int | None
+    reentry_guard_variant: ReentryGuardVariant | None
+    reentry_guard_buffer: float | None
+    rejected_grades: frozenset[int]
 
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
@@ -174,11 +167,10 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
     thresholds = _resolve_thresholds(fps, overrides)
 
     def frame_count(value: float | None) -> int | None:
-        return None if value is None else int(ScalingKind.FRAME_COUNT.scale(value, fps))
+        return None if value is None else frames_at_fps(value, fps)
     return ResolvedAnnotatorConfig(
         fps=fps,
         thresholds=thresholds,
-        dead_mask_mode=base.dead_mask_mode,
         smoothing_mode=base.smoothing_mode,
         span_open=base.span_open,
         gap_state_demotion_bound=frame_count(base.gap_state_demotion_bound),
@@ -190,15 +182,13 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
 
 def _resolve_thresholds(fps: float, overrides_base30: Mapping[str, float] | None) -> Thresholds:
     """Scale the base-30 table for a positive finite CFR frame rate."""
-    if not math.isfinite(fps) or fps <= 0:
-        raise ValueError(f'fps must be positive and finite, got {fps!r}')
     base30 = {} if overrides_base30 is None else overrides_base30
 
     def frame_count(name: str, default: float) -> int:
-        return int(ScalingKind.FRAME_COUNT.scale(base30.get(name, default), fps))
+        return frames_at_fps(base30.get(name, default), fps)
 
     def speed(name: str, default: float) -> float:
-        return float(ScalingKind.PER_FRAME_SPEED.scale(base30.get(name, default), fps))
+        return speed_at_fps(base30.get(name, default), fps)
 
     return Thresholds(
         rest_speed=speed('rest_speed', REST_SPEED_BASE30),

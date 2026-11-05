@@ -138,7 +138,6 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
     )]
 
 
-
 def test_detector_schema_matches_the_runner() -> None:
     """court_evidence keeps its own copy so it need not import run_video's thread limits."""
     from court_detector.run_video import VIDEO_RESULT_SCHEMA
@@ -238,7 +237,6 @@ def test_keep_vote_ignores_outside_people_and_includes_margin_boundaries() -> No
         [evidence.detected_court_info(np.array([[0, 0], [1280, 0], [1280, 720], [0, 720]]))],
     )
     assert vote.tolist() == [True]
-
 
 
 def test_detected_parent_applies_inclusive_scene_majority() -> None:
@@ -372,7 +370,6 @@ def test_static_parent_net_band_matches_fixture(video_id: int) -> None:
     assert inputs.net_band == fixture.net_band
 
 
-
 def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     homography = pd.read_csv(
         'training/data/shuttleset/annotations/set/homography.csv',
@@ -429,7 +426,7 @@ def test_court_inputs_copy_mutable_values() -> None:
     rows = pd.DataFrame([{'video_id': 1, 'start_frame': 0, 'end_frame': 1}])
     corners = np.zeros((4, 2), dtype=float)
     inputs = evidence.CourtInputs(
-        court_info, {'1': court_info}, (1.0, 2.0), (10.0, 20.0), table, rows, 0.1, corners,
+        court_info, (1.0, 2.0), (10.0, 20.0), table, rows, 0.1, corners,
     )
     court_info['H'][0, 0] = 9.0
     table.loc['1', 'width'] = 99.0

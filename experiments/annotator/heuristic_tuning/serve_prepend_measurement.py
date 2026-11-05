@@ -8,7 +8,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.evaluation.fixtures import Fixture
 from annotator.evaluation.gt_scoring import canonical_tolerance
 from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
@@ -428,7 +428,7 @@ def evaluate_serve_candidates(
     """Score every bounded raw candidate before each claimed rally start."""
     resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
     tolerance = canonical_tolerance(fixture.fps)
-    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(SERVE_LOOKBACK_AT_30_FPS, fixture.fps))
+    lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     natural_raw = {
         (span_id, frame) for span_id, frames in raw_by_span.items() for frame in frames
     }

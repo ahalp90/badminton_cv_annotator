@@ -158,12 +158,10 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
         'net_band': court.net_band,
         'resolution': court.resolution,
         'video_id': inputs.identity,
-        'gate_court_info': court.gate_court_info,
+
         'gate_resolution_table': court.gate_resolution_table,
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
-        'cut_frames': [end for _start, end in inputs.raw_cuts[:-1]],
-        'keep_vote': inputs.keep_vote,
         'inpaint_codes': inputs.guard_codes,
         'court_invalid_is_excluded': True,
     }

@@ -31,7 +31,8 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
+from annotator.config import frames_at_fps
+from annotator.sequence.contacts import stream_from_payload
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -85,13 +86,13 @@ def score_one(task: tuple[str, dict[str, Any], Path, list[LabelledRally]]) -> di
     if treatment == 'ignore':
         windows = [(rally.frames[0] - WINDOW_BEFORE, rally.frames[-1] + WINDOW_AFTER) for rally in left_out]
         scored_frames = [frame for rally in scored for frame in rally.frames]
-        stream, dropped = ignore_left_out(stream, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
+        stream, dropped = ignore_left_out(stream, windows, scored_frames, frames_at_fps(IGNORE_MARGIN, item['fps']))
     elif treatment == 'count':
         labels = scored + tuple(left_out)
     _proposals, contacts, predictions, rally_rows = score_video(item['item_id'], 'test', stream, labels, item['fps'], TOLERANCE)
     sequences, _events = stream_from_payload(stream)
     ladder = rally_ladder(
-        judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps']), fps=item['fps']), labels,
+        judge_found_rallies(sequences, labels, frames_at_fps(TOLERANCE, item['fps']), fps=item['fps']), labels,
     )
     return {
         'labelled_rallies': len(labels),

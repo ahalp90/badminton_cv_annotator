@@ -216,21 +216,18 @@ def load_pinned_replay_fixtures(
             shuttle.guard_codes,
             base.rejected_grades,
         )
-        cut_frames = [end for _start, end in court.raw_cuts[:-1]]
         keyword: dict[str, object] = {
             "fps": float(metadata.fps),
             "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
             "net_band": court_inputs.net_band,
             "resolution": court_inputs.resolution,
             "video_id": video_id,
-            "gate_court_info": court_inputs.gate_court_info,
+
             "gate_resolution_table": court_inputs.gate_resolution_table,
             "ref_err_px": 3.5,
             "raw_exclusion_mask": None,
             "court_present": court.evidence.court_present,
             "homography_rows": court_inputs.homography_rows,
-            "cut_frames": cut_frames,
-            "keep_vote": court.evidence.keep_vote,
             "inpaint_codes": shuttle.guard_codes,
             "court_invalid_is_excluded": True,
         }

@@ -16,9 +16,9 @@ from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
-    FinishedRally,
     stream_payload,
 )
+from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import LabelledRally
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.heuristic_only_tune import data as search_data
@@ -36,17 +36,18 @@ def _video(rallies: tuple[LabelledRally, ...]) -> search_data.SearchVideo:
         (Half.TOP, 2, ['Bot', 'Top']),
         (Half.BOT, 2, ['Top', 'Bot']),
         (None, 2, [None, None]),
+        (None, 2, ['Top', 'Top']),
     ],
 )
-def test_heuristic_stream_uses_fitted_final_striker(
+def test_heuristic_stream_preserves_fitted_or_observed_contact_sides(
     final_half: Half | None, count: int, expected: list[str | None],
 ) -> None:
     frames = [10, 20, 30][:count]
     events = tuple(ContactEvent(frame, np.nan, None if side is None else Half(side))
                    for frame, side in zip(frames, expected, strict=True))
-    result = empty_annotation([(0, 40)], [])._replace(
-        rallies=(FinishedRally(ContactSequence(0, 0, 40, events), final_half),),
-    )
+    rallies, _stream = fit_rally_sides((ContactSequence(0, 0, 40, events),), events)
+    assert rallies[0].final_half is final_half
+    result = empty_annotation([(0, 40)], [])._replace(rallies=rallies)
     stream = search_data.heuristic_stream(result)
     assert [event[2] for event in stream['events']] == expected
     assert stream['sequences'] == [{

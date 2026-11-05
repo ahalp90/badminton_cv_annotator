@@ -22,7 +22,6 @@ from annotator.sequence.contacts import (
     FinishedRally,
     stream_payload,
 )
-from annotator.types import DeadMaskMode
 from dataset_builder import vision
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
@@ -55,7 +54,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         kps=np.zeros((frame_count, 1, 17, 2)), ndet=np.ones(frame_count, dtype=int),
     )
     court = SimpleNamespace(
-        net_band=(0.4, 0.6), resolution=(1280.0, 720.0), court_info={}, gate_court_info={},
+        net_band=(0.4, 0.6), resolution=(1280.0, 720.0), court_info={},
         gate_resolution_table=object(), homography_rows=object(), landing_error_band_m=0.05,
     )
     court_vision = SimpleNamespace(
@@ -127,11 +126,8 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['inpaint_codes'] is inputs.guards
         assert kwargs['court_present'] is inputs.vision.evidence.court_present
-        assert kwargs['keep_vote'] is inputs.vision.evidence.keep_vote
         assert kwargs['homography_rows'] is inputs.court.homography_rows
         assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
-        assert kwargs['gate_court_info'] is inputs.court.gate_court_info
-        assert kwargs['cut_frames'] == [30]
         return empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
             ContactSequence(0, *kwargs['spans'][0], (
                 ContactEvent(10, np.nan, Half.TOP), ContactEvent(20, np.nan, Half.BOT),
@@ -185,8 +181,8 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
 def test_full_mode_keeps_existing_model_checks(
     runner: ModuleType, inputs: SimpleNamespace, tmp_path: Path,
 ) -> None:
-    inputs.models.preprocessing = BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.COMPOSITION)
-    with pytest.raises(ValueError, match='selected REPLAY mask'):
+    inputs.models.preprocessing = BaseAnnotatorConfig(rejected_grades=frozenset())
+    with pytest.raises(ValueError, match='settings differ'):
         runner.run_item((inputs.config, inputs.item, 'ours_our_courts', tmp_path))
 
 

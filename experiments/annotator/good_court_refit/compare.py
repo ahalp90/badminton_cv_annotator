@@ -10,7 +10,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from annotator.sequence.contacts import ContactEvent, scale_frames, stream_from_payload
+from annotator.config import frames_at_fps
+from annotator.sequence.contacts import ContactEvent, stream_from_payload
 from annotator.training.sequences import LabelledRally, match_contacts
 from annotator.training.workflow import load_labels
 from dataset_builder.vision import load_json_gz, save_json_gz
@@ -31,7 +32,7 @@ def label_coverage(events: Sequence[ContactEvent], rallies: Sequence[LabelledRal
         for frame, side in zip(rally.frames, rally.sides, strict=True):
             labels.append((frame, rally.identity, side))
     labels.sort(key=lambda row: row[0])
-    matches = match_contacts([row[0] for row in labels], [event.frame for event in events], scale_frames(10, fps))
+    matches = match_contacts([row[0] for row in labels], [event.frame for event in events], frames_at_fps(10, fps))
     timing, sides = set(), set()
     for label, prediction, _offset in matches:
         frame, rally, side = labels[label]

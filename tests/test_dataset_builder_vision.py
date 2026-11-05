@@ -16,7 +16,6 @@ import pytest
 import annotator.courts.evidence as court_evidence_module
 import annotator.run_video as run_video_module
 from annotator.cli import main as annotation_main
-from annotator.config import BaseAnnotatorConfig
 from annotator.courts.evidence import (
     DETECTOR_RESULT_SCHEMA,
     CourtEvidenceResult,
@@ -41,7 +40,7 @@ from annotator.outcomes.video import RallyOutcome
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence import ContactEvent
 from annotator.sequence.contacts import ContactSequence, FinishedRally
-from annotator.types import ContactCandidate, DeadMaskMode
+from annotator.types import ContactCandidate
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
@@ -125,7 +124,7 @@ def _court_vision(video_id: str, frame_count: int) -> vision.CourtVision:
     }])
     inputs = CourtInputs(
         court_info=court_info,
-        gate_court_info={video_id: court_info},
+
         net_band=(24.0, 26.0),
         resolution=(width, height),
         gate_resolution_table=pd.DataFrame(
@@ -207,12 +206,12 @@ def _direct_annotation(
         net_band=inputs.net_band,
         resolution=inputs.resolution,
         video_id=video_id,
-        gate_court_info=inputs.gate_court_info,
+
         gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present,
         homography_rows=inputs.homography_rows,
-        cut_frames=[],
-        keep_vote=court.evidence.keep_vote,
+
+
         inpaint_codes=guard_codes,
         court_invalid_is_excluded=True,
         capture=capture,
@@ -775,7 +774,7 @@ def test_court_loader_names_a_stale_schema_before_its_fields(tmp_path: Path) -> 
         vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
     vision.save_json_gz(artifacts.evidence, {**payload, "consensus": None})
-    with pytest.raises(ValueError, match="payload fields differ from court-evidence/0.2"):
+    with pytest.raises(ValueError, match="payload fields differ from court-evidence/0.3"):
         vision.load_court_vision(tmp_path, video_id=video_id, frame_count=frame_count, resolution=(100.0, 50.0))
 
 
@@ -963,24 +962,6 @@ def test_annotation_cli_rejects_bad_inputs_without_replacing_outputs(
         assert not output.exists()
 
 
-def test_full_annotation_rejects_non_replay_dead_mask_mode(tmp_path: Path) -> None:
-    metadata = _metadata(tmp_path, frame_count=10)
-    with pytest.raises(ValueError, match="DeadMaskMode.REPLAY"):
-        vision.run_full_annotation_stage(
-            video_id="video",
-            metadata=metadata,
-            track=np.zeros((metadata.frame_count, 3), dtype=float),
-            inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
-            guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
-            pose=_pose_arrays(metadata.frame_count),
-            court=_court_vision("video", metadata.frame_count),
-            output_dir=tmp_path / "annotation",
-            base=BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.COMPOSITION),
-        )
-
-    assert not (tmp_path / "annotation" / vision.ANNOTATOR_RESULT_FILENAME).exists()
-
-
 def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_only(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -995,12 +976,11 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     def fake_run_video(
         *_args: object,
         inpaint_codes: np.ndarray,
-        shuttle_hallucination_mask: np.ndarray | None = None,
         capture: RunCapture,
         **_kwargs: object,
     ) -> AnnotatorResult:
         np.testing.assert_array_equal(inpaint_codes, guard_codes)
-        assert shuttle_hallucination_mask is None
+        assert 'shuttle_hallucination_mask' not in _kwargs
         capture.raw_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
         capture.definitive_exclusion_mask = np.zeros(metadata.frame_count, dtype=bool)
         return AnnotatorResult((), {}, {}, {}, (), [], ())

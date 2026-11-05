@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from annotator.sequence.contacts import scale_frames
+from annotator.config import frames_at_fps
 from annotator.sequence.rally_options import RallyOptions
 from annotator.training.sequences import (
     SequenceTrainingVideo,
@@ -16,7 +16,7 @@ def option_targets_at_tolerances(
     """Judge proposals at each tolerance; boundary padding belongs to inference."""
     fps = video.context.fps
     targets = tuple(np.empty(len(pool.sequences), dtype=np.int8) for _ in tolerances_at_30_fps)
-    tolerance_frames = [scale_frames(tolerance, fps) for tolerance in tolerances_at_30_fps]
+    tolerance_frames = [frames_at_fps(tolerance, fps) for tolerance in tolerances_at_30_fps]
     margin = max(tolerance_frames, default=0)
     for rows in pool.span_rows.values():
         options = tuple(pool.sequences[row] for row in rows)

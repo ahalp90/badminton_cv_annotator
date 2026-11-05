@@ -61,6 +61,10 @@ name or meaning affects stored results, resume checks and downstream assembly.
 The result retains finished rallies and grouped outcomes; derive counts and server
 views from the rallies at export. Unknown contact probabilities are saved as null,
 while infinities remain invalid. Both exclusion masks are persisted beside the result.
+Replay masking uses court
+presence and shuttle speed; court composition remains a separate preparation tool.
+Frame counts use `frames_at_fps()` with half-up rounding, and per-frame speeds use
+`speed_at_fps()` with inverse FPS scaling.
 
 Newly fitted model bundles use `annotator-three-models/1`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`

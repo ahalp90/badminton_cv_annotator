@@ -4,16 +4,14 @@ import numpy as np
 import pytest
 
 from annotator.contacts.selection import scoring_filter
+from annotator.courts.scenes import SceneCourt
 from annotator.rally.contacts import wrist_contact_near
 from annotator.rally.evidence import tracker_segments
 from annotator.types import ContactCandidate
 
 
 def _rows(*bounds):
-    return [
-        {'start_frame': str(start), 'end_frame': str(end)}
-        for start, end in bounds
-    ]
+    return tuple(SceneCourt(start, end, {}, (0.0, 0.0), 0.0) for start, end in bounds)
 
 
 def test_tracker_segments_reset_at_scene_row_boundary():
@@ -40,19 +38,6 @@ def test_tracker_segments_clip_rows_to_video():
 def test_tracker_segments_empty_inputs_and_all_false_mask():
     assert tracker_segments([], np.ones(5, dtype=bool), 5) == []
     assert tracker_segments(_rows((0, 5)), np.zeros(5, dtype=bool), 5) == []
-
-
-@pytest.mark.parametrize(
-    ('rows', 'message'),
-    [
-        (_rows((4, 2)), 'reversed'),
-        (_rows((0, 4), (3, 5)), 'overlap'),
-        ([{'start_frame': 'start', 'end_frame': '5'}], 'bounds'),
-    ],
-)
-def test_tracker_segments_reject_bad_rows(rows, message):
-    with pytest.raises(ValueError, match=message):
-        tracker_segments(rows, np.ones(6, dtype=bool), 6)
 
 
 @pytest.mark.parametrize(

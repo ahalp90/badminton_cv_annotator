@@ -103,7 +103,7 @@ def _manifest() -> RunManifest:
     )
     annotation = _stage(
         "annotation",
-        configuration={"dead_mask_mode": "replay"},
+        configuration={},
         outputs=(
             _artifact("annotator_result", "annotation/annotator_result.json.gz", "2"),
             _artifact("raw_replay_mask", "annotation/raw_replay_mask.npy.xz", "3"),

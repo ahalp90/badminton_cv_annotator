@@ -36,9 +36,10 @@ import numpy as np
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
-    ScalingKind,
+    frames_at_fps,
     resolve,
 )
+from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -395,7 +396,7 @@ def evaluate_serve_candidates(
     """Measure one fixed recording-only serve-lookback candidate rule."""
     resolved = resolve(BaseAnnotatorConfig(), fps)
     tolerance = canonical_tolerance(fps)
-    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(SERVE_LOOKBACK_AT_30_FPS, fps))
+    lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fps)
     distance = nearest_replay_or_cutaway_distance(truth)
     gt_serve_frames = [rally.stroke_frames[0] for rally in gt_rallies]
     target_indexes = [int(row["rally_index"]) for row in statuses if row["target_miss"]]
@@ -795,8 +796,8 @@ def run_measurement(
     mask_rows = mask_metric_rows(detectors, truth)
     slow_rows = slow_motion_rows(details, truth, inpaint_codes, track)
 
-    homography_for_sticky = row_records
-    segments = tracker_segments(homography_for_sticky, court_present, len(track))
+    scene_courts = build_scene_courts(row_records, fixture.resolution)
+    segments = tracker_segments(scene_courts, court_present, len(track))
     sticky = build_sticky_result(
         track,
         segments,
@@ -805,10 +806,9 @@ def run_measurement(
         kps,
         ndet,
         str(fixture.video_id),
-        keyword["gate_court_info"],
         keyword["gate_resolution_table"],
         fixture.resolution,
-        resolved.thresholds.body_unit_half_window,
+        resolved.thresholds.body_unit_half_window, scene_courts=scene_courts,
     )
     spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
     accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]

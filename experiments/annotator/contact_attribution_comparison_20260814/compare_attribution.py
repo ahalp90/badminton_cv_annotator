@@ -23,6 +23,7 @@ from annotator.courts.evidence import (
     build_net_band,
     detected_court_info,
 )
+from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
@@ -206,9 +207,8 @@ def load_sticky(
 
     court_info = load_active_court_info(paths.court_scenes)
     net_band = build_net_band(court_info, fixture.resolution)
-    segments = rally_evidence.tracker_segments(
-        scene_rows.to_dict("records"), court_present, expected_frames
-    )
+    scene_courts = build_scene_courts(scene_rows.to_dict("records"), fixture.resolution)
+    segments = rally_evidence.tracker_segments(scene_courts, court_present, expected_frames)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
     sticky = rally_evidence.build_sticky_result(
         track,
@@ -218,10 +218,9 @@ def load_sticky(
         kps,
         ndet,
         str(fixture.video_id),
-        {str(fixture.video_id): court_info},
         resolution_table,
         fixture.resolution,
-        constants.body_unit_half_window,
+        constants.body_unit_half_window, scene_courts=scene_courts,
     )
     return track, bboxes, kps, sticky, court_info, net_band
 

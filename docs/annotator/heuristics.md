@@ -41,7 +41,7 @@ The purpose is to keep replay, slow motion, prolonged non-court footage and unus
 
 A camera angle change alone does not establish replay. The code can measure perspective shift, but the current replay mask does not reject a frame only because the court is viewed from a different angle.
 
-Relevant code: `masks/replay.py`, `masks/dead.py`, `run_video.py`.
+Relevant code: `masks/replay.py`, `preparation.py`.
 
 ### Shuttle guard grades
 
@@ -75,7 +75,7 @@ A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark 
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 
-Relevant code: `masks/inpaint.py`, `run_video.py::build_shuttle_hallucination_mask()`, `outcomes/video.py`, `dataset_builder/shuttle_evidence.py`.
+Relevant code: `masks/inpaint.py`, `preparation.py::build_shuttle_hallucination_mask()`, `outcomes/video.py`, `dataset_builder/shuttle_evidence.py`.
 
 ## Frame-rate scaling
 
@@ -209,7 +209,7 @@ The next layer is described in [How the trees work together](tree_stack.md).
 | --- | --- |
 | Thresholds resolved for a video's frame rate | `config.py` |
 | assembled preprocessing settings | `config.py::resolve()` |
-| replay / off-rally exclusion | `masks/replay.py`, `masks/dead.py` |
+| replay / off-rally exclusion | `masks/replay.py` |
 | shuttle recurrence guard | `masks/inpaint.py` |
 | sticky player picks | `rally/evidence.py` |
 | rally boundaries | `rally/spans.py` |

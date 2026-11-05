@@ -10,7 +10,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, ScalingKind, Thresholds, resolve
+from annotator.config import (
+    BaseAnnotatorConfig,
+    Thresholds,
+    frames_at_fps,
+    resolve,
+    speed_at_fps,
+)
+from annotator.courts.scenes import SceneCourt
 from annotator.masks.replay import combine_mask, court_absence_signal
 from annotator.outcomes.point_winner import (
     Half,
@@ -122,16 +129,14 @@ def test_every_fps_field_override_uses_its_shared_scaling_rule(fps: float) -> No
             assert getattr(constants, field_name) == base30_value
             continue
         scaling = (
-            ScalingKind.PER_FRAME_SPEED
+            speed_at_fps
             if field_name in speed_fields
-            else ScalingKind.FRAME_COUNT
+            else frames_at_fps
         )
-        expected = scaling.scale(base30_value, fps)
+        expected = scaling(base30_value, fps)
         if field_name in minimum_two_fields:
             expected = max(2, expected)
         assert getattr(constants, field_name) == expected
-
-
 
 
 def test_probe_fps_rejects_vfr_and_invalid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,10 +228,10 @@ def test_landing_options_use_shared_scaling_rules(fps: float) -> None:
         use_ankle_rule=False,
     )
     expected = options._replace(
-        settle_win=int(ScalingKind.FRAME_COUNT.scale(options.settle_win, fps)),
-        settle_thr=float(ScalingKind.PER_FRAME_SPEED.scale(options.settle_thr, fps)),
-        settle_min=int(ScalingKind.FRAME_COUNT.scale(options.settle_min, fps)),
-        carry_win=int(ScalingKind.FRAME_COUNT.scale(options.carry_win, fps)),
+        settle_win=frames_at_fps(options.settle_win, fps),
+        settle_thr=speed_at_fps(options.settle_thr, fps),
+        settle_min=frames_at_fps(options.settle_min, fps),
+        carry_win=frames_at_fps(options.carry_win, fps),
     )
 
     assert convert_landing_options(options, fps) == expected
@@ -245,7 +250,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     present = np.ones(500, dtype=bool)
     present[10:39] = False
     present[60:100] = False
-    replay = combine_mask(present, None, None, None, len(present), resolved.fps)
+    replay = combine_mask(present,  None, None, len(present), resolved.fps)
     assert not replay[10:39].any()
     assert replay[60:100].all()
 
@@ -265,7 +270,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     track = np.column_stack([np.full(n_frames, 0.5), y, np.ones(n_frames)])
     present = np.ones(n_frames, dtype=bool)
     present[45:75] = False
-    replay = combine_mask(present, None, None, None, n_frames, resolved.fps)
+    replay = combine_mask(present,  None, None, n_frames, resolved.fps)
     plain_spans, _ = segment_video(track, resolved=replace(burst_config(), thresholds=resolved.thresholds))
     masked_spans, _ = segment_video(
         track, exclusion_mask=replay, resolved=replace(burst_config(), thresholds=resolved.thresholds)
@@ -293,14 +298,30 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         {'width': [1920.0], 'height': [1080.0]}, index=['v'],
     )
     short_sticky = build_sticky_result(
-        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
-        {'v': court_info.copy()},
-        resolution_table, (1920.0, 1080.0), 12,
+        track.copy(),
+        [(0, n_frames)],
+        bboxes.copy(),
+        scores.copy(),
+        kps.copy(),
+        ndet.copy(),
+        'v',
+        resolution_table,
+        (1920.0, 1080.0),
+        12,
+        scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),
     )
     full_sticky = build_sticky_result(
-        track.copy(), [(0, n_frames)], bboxes.copy(), scores.copy(), kps.copy(), ndet.copy(), 'v',
-        {'v': court_info.copy()}, resolution_table, (1920.0, 1080.0),
+        track.copy(),
+        [(0, n_frames)],
+        bboxes.copy(),
+        scores.copy(),
+        kps.copy(),
+        ndet.copy(),
+        'v',
+        resolution_table,
+        (1920.0, 1080.0),
         resolved.thresholds.body_unit_half_window,
+        scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),
     )
     base_radius_thresholds = replace(resolved.thresholds, contact_suppression_radius_frames=9)
     base_radius_contacts = segment_video(

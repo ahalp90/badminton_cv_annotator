@@ -6,7 +6,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 
 NEARBY_CONTACT_DISTANCE_AT_30_FPS = 6
@@ -109,7 +109,7 @@ def score_contact_features(
         raise ValueError("contact probabilities are incomplete or non-finite")
     if np.any((probabilities < 0.0) | (probabilities > 1.0)):
         raise ValueError("contact probabilities lie outside zero and one")
-    distance = int(ScalingKind.FRAME_COUNT.scale(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps))
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     kept = remove_nearby_contacts(
         rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
     )

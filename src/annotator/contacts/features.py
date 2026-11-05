@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.rally.contacts import rolling_floor, span_impulses
 from annotator.types import WRIST_L, WRIST_R, SmoothingMode, StickyResult
 from shared.progress import progress_iter
@@ -60,10 +60,6 @@ _FEATURE_COLUMNS = tuple(
     for offset in WINDOW_OFFSETS_BASE30
 )
 CONTACT_FEATURE_NAMES = tuple(name for _signal, _offset, name in _FEATURE_COLUMNS)
-
-
-def _scaled_frames(base30: int, fps: float) -> int:
-    return int(ScalingKind.FRAME_COUNT.scale(base30, fps))
 
 
 def _finite_or_nan(values: np.ndarray) -> np.ndarray:
@@ -216,7 +212,7 @@ def extend_intervals_with_lookback(
     fps: float,
 ) -> list[tuple[int, int]]:
     """Add a bounded pre-roll before each eligible court-view interval."""
-    lookback = _scaled_frames(SERVE_LOOKBACK_BASE30, fps)
+    lookback = frames_at_fps(SERVE_LOOKBACK_BASE30, fps)
     expanded = [(max(0, start - lookback), end) for start, end in eligible_intervals]
     merged: list[tuple[int, int]] = []
     for start, end in expanded:
@@ -257,7 +253,7 @@ def build_candidate_mask(
         np.isfinite(signals["shuttle_impulse_ratio"])
         & (signals["shuttle_impulse_ratio"] >= RELAXED_IMPULSE_MULTIPLE)
     )
-    wrist_radius = _scaled_frames(WRIST_MINIMUM_RADIUS_BASE30, fps)
+    wrist_radius = frames_at_fps(WRIST_MINIMUM_RADIUS_BASE30, fps)
     visible = signals["shuttle_visible"].astype(bool)
     for start, end in eligible_intervals:
         seeds["region_wrist"][start:end] = find_local_minima(
@@ -273,10 +269,10 @@ def build_candidate_mask(
         seeds["region_scene_start"][start] = True
 
     candidates = np.zeros(n_frames, dtype=bool)
-    serve_lookback = _scaled_frames(SERVE_LOOKBACK_BASE30, fps)
+    serve_lookback = frames_at_fps(SERVE_LOOKBACK_BASE30, fps)
     for start, end in eligible_intervals:
         for name, radius_at_30_fps in REGION_RADII_BASE30.items():
-            radius = _scaled_frames(radius_at_30_fps, fps)
+            radius = frames_at_fps(radius_at_30_fps, fps)
             candidates |= expand_seed_region(seeds[name], start, end, radius)
         candidates[max(0, start - serve_lookback) : start] = True
     return candidates
@@ -354,7 +350,7 @@ def build_contact_features(
     scaled_offsets = {0: 0}
     for offset in WINDOW_OFFSETS_BASE30:
         if offset:
-            scaled_offsets[offset] = int(math.copysign(_scaled_frames(abs(offset), fps), offset))
+            scaled_offsets[offset] = int(math.copysign(frames_at_fps(abs(offset), fps), offset))
     chunks: list[np.ndarray] = []
     for interval_id, (start, end) in enumerate(progress_iter(search_intervals, "building contact features", unit="intervals")):
         frames = np.arange(start, end, dtype=np.int32)

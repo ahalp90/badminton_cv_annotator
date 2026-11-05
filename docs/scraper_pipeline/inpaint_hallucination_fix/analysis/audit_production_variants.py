@@ -144,7 +144,7 @@ def split_recurrence_components(
     halo_frames = inpaint_guard.DEFAULT_HALO_FRAMES
     # Grade 3 does not expose its two components. This analysis-only
     # reconstruction follows the current internals and asserts exact agreement.
-    _, _, varying, flat, _ = inpaint_guard.candidate_attractors(
+    varying, flat, _ = inpaint_guard.candidate_attractors(
         track, window, halo_frames
     )
     proven = inpaint_guard._cover(len(track), varying, window)

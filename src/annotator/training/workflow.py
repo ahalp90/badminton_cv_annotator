@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.contacts.features import ContactFeatures
 from annotator.contacts.model import ContactModelConfig, score_contact_features
 from annotator.hybrid import (
@@ -29,11 +29,7 @@ from annotator.hybrid import (
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
 from annotator.outcomes.point_winner import Half
 from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    scale_frames,
-)
+from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.contact import (
     ContactFitConfig,
@@ -232,9 +228,9 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(preprocessing, float(metadata.fps)),
         net_band=inputs.net_band, resolution=inputs.resolution, video_id=identity,
-        gate_court_info=inputs.gate_court_info, gate_resolution_table=inputs.gate_resolution_table,
+         gate_resolution_table=inputs.gate_resolution_table,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
-        cut_frames=[end for _start, end in court.raw_cuts[:-1]], keep_vote=court.evidence.keep_vote,
+
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
     )
 
@@ -307,7 +303,7 @@ def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[Contac
     """Count whole-video contact matches and judged final rally sequences."""
     labels = sorted(frame for rally in rallies for frame in rally.frames)
     matches = match_contacts(
-        labels, [event.frame for event in events], scale_frames(EVALUATION_TOLERANCE_AT_30_FPS, fps),
+        labels, [event.frame for event in events], frames_at_fps(EVALUATION_TOLERANCE_AT_30_FPS, fps),
     )
     correctness = [whole_rally_correctness(
         sequence, rallies, fps, tolerance_at_30_fps=EVALUATION_TOLERANCE_AT_30_FPS,

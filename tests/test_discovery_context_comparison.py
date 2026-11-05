@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 
+from annotator.config import frames_at_fps
 from annotator.outcomes.point_winner import Half
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
@@ -94,10 +95,10 @@ def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path
 
 @pytest.mark.parametrize('fps', (25, 30, 60))
 def test_endpoint_tolerance_and_context_limits(fps: float) -> None:
-    from annotator.sequence.contacts import scale_frames
+
 
     first, last = int(10 * fps), int(20 * fps)
-    tolerance = scale_frames(10, fps)
+    tolerance = frames_at_fps(10, fps)
     labels = (LabelledRally('rally', (first, last), (Half.TOP, Half.BOT)),)
 
     def outcome(start: int, end: int, policy: metrics.ContactEndpointLimits | None) -> str:

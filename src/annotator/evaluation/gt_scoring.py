@@ -12,7 +12,7 @@ from typing import NamedTuple, Protocol
 import numpy as np
 import pandas as pd
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.courts.scenes import SceneCourt, court_at_frame
 from annotator.evaluation.fixtures import (
     FIXTURES,
@@ -34,7 +34,6 @@ from annotator.evaluation.scoring import (
     score_contacts,
 )
 from annotator.masks.inpaint import code_counts, grade_track
-from annotator.masks.replay import _read_homography_rows
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
     OTHER_HALF,
@@ -424,7 +423,7 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def canonical_tolerance(fps: float) -> int:
-    return int(ScalingKind.FRAME_COUNT.scale(CANONICAL_CONTACT_TOLERANCE_BASE30, fps))
+    return frames_at_fps(CANONICAL_CONTACT_TOLERANCE_BASE30, fps)
 
 
 def _norm_half(side: str) -> str:
@@ -456,7 +455,6 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     """Load one fixture and assemble its invariant ``run_video`` inputs."""
     arrays = load_fixture_arrays(fixture)
     master, _homo, courts, resolution = load_gt_tables()
-    gate_courts = {str(video_id): info for video_id, info in courts.items()}
     gate_resolution = resolution.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
     track, bboxes, scores, kps, ndet, committed_mask = arrays
@@ -479,9 +477,11 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         )
     if court_present.dtype != np.bool_:
         raise ValueError(f"{fixture.name}: court_present dtype {court_present.dtype} is not bool")
-    homography_rows = _read_homography_rows(
-        root / fixture.scene_rows_path, str(fixture.video_id)
-    )
+    scene_path = root / fixture.scene_rows_path
+    homography_rows = []
+    if scene_path.exists():
+        with scene_path.open(newline='', encoding='utf-8') as handle:
+            homography_rows = [row for row in csv.DictReader(handle) if row.get('video_id') == str(fixture.video_id)]
     if not homography_rows:
         raise ValueError(f"{fixture.name}: homography_rows are missing or empty")
     keyword: dict[str, object] = {
@@ -490,7 +490,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "net_band": fixture.net_band,
         "resolution": fixture.resolution,
         "video_id": fixture.video_id,
-        "gate_court_info": gate_courts,
+
         "gate_resolution_table": gate_resolution,
         "raw_exclusion_mask": committed_mask,
         "court_present": court_present,

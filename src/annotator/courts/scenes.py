@@ -59,7 +59,14 @@ def build_scene_courts(
             net_band=build_net_band(info, resolution),
             landing_error_band_m=corner_error_band_from_corners(corners, info, ref_err_px),
         ))
-    scenes.sort(key=lambda scene: scene.start_frame)
+    scenes.sort(key=lambda scene: (scene.start_frame, scene.end_frame))
+    previous_end = None
+    for scene in scenes:
+        if scene.end_frame < scene.start_frame:
+            raise ValueError('court scenes must not be reversed')
+        if previous_end is not None and scene.start_frame < previous_end:
+            raise ValueError('court scenes must not overlap')
+        previous_end = scene.end_frame
     return tuple(scenes)
 
 

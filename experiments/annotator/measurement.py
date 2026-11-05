@@ -81,7 +81,6 @@ from annotator.run_video import (
     RunCapture,
     run_video,
 )
-from annotator.types import DeadMaskMode
 from experiments.annotator.records import (
     clean_run,
     human_bytes,
@@ -650,10 +649,10 @@ def _landing_metrics(rows: Sequence[LandingHorizonRow]) -> dict[str, dict[str, i
     return result
 
 
-def _configuration_values(dead_mask_mode: DeadMaskMode) -> dict[str, object]:
+def _configuration_values() -> dict[str, object]:
     return {
         "base_annotator_config": "annotator model bundle preprocessing",
-        "dead_mask_mode": dead_mask_mode.value,
+
         "landing_filter_options": {
             "settle_win": LANDING_OPTIONS.settle_win,
             "settle_thr": LANDING_OPTIONS.settle_thr,
@@ -945,7 +944,7 @@ def _configuration_manifest(
         "started_at_utc": state.started_at_utc,
         "finished_at_utc": finished,
         "elapsed_seconds": max(0.0, time.monotonic() - state.started_clock),
-        "configuration": _configuration_values(state.resolved_config.dead_mask_mode),
+        "configuration": _configuration_values(),
         "resolved_annotator_config": state.resolved_config,
         "inputs": inputs,
         "shared_artifacts": [state.case.raw_cuts_artifact] if state.case.raw_cuts_artifact else [],
@@ -1015,8 +1014,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         capture = RunCapture()
         state.capture = capture
         input_values = court_result.inputs
-        gate_court_info = {str(case.fixture.video_id): input_values.court_info}
-        cut_frames = [end for _start, end in case.raw_cuts[:-1]]
         result = run_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
             fps=case.fixed.fps,
@@ -1027,14 +1024,14 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             net_band=input_values.net_band,
             resolution=input_values.resolution,
             video_id=case.fixture.video_id,
-            gate_court_info=gate_court_info,
+
             gate_resolution_table=input_values.gate_resolution_table,
             ref_err_px=REF_ERR_PX,
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
             homography_rows=input_values.homography_rows,
-            cut_frames=cut_frames,
-            keep_vote=court_result.keep_vote,
+
+
             court_invalid_is_excluded=True,
             landing_horizons_s=LANDING_HORIZONS,
             capture=capture,
@@ -1120,20 +1117,6 @@ def _run_manifest(
     setup_failure: dict[str, Any] | None,
 ) -> dict[str, object]:
     states = driver.configurations or []
-    resolved_dead_mask_modes: set[DeadMaskMode] = set()
-    for state in states:
-        if state.resolved_config is not None:
-            resolved_dead_mask_modes.add(state.resolved_config.dead_mask_mode)
-    if not resolved_dead_mask_modes:
-        for case in CASES:
-            resolved_dead_mask_modes.add(
-                resolve(driver.models.preprocessing if driver.models is not None else BASE_ANNOTATOR_CONFIG,
-                        case.fps).dead_mask_mode
-            )
-    if len(resolved_dead_mask_modes) != 1:
-        values = ", ".join(sorted(mode.value for mode in resolved_dead_mask_modes))
-        raise ValueError(f"fixed cases resolved to multiple dead-mask modes: {values}")
-    dead_mask_mode = next(iter(resolved_dead_mask_modes))
     successful_inference = sum(state.status in {"inference_only", "succeeded"} for state in states)
     succeeded = sum(state.status == "succeeded" for state in states)
     if setup_failure is not None or successful_inference == 0:
@@ -1173,7 +1156,7 @@ def _run_manifest(
         "input_manifest": _artifact_record(driver.output_root, driver.input_manifest_output_path)
         if driver.input_manifest_output_path else None,
         "run_log": _artifact_record(driver.output_root, driver.run_log_path) if driver.run_log_path else None,
-        "configuration": _configuration_values(dead_mask_mode),
+        "configuration": _configuration_values(),
         "environment": _environment(driver),
         "cases": cases,
         "configurations": configurations,

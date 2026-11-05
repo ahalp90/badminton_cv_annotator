@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import NamedTuple
@@ -41,7 +40,6 @@ def run_video(
     net_band: tuple[float, float],
     resolution: tuple[float, float],
     video_id: int | str,
-    gate_court_info: dict[str, dict[str, object]],
     gate_resolution_table: pd.DataFrame,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
@@ -50,12 +48,9 @@ def run_video(
     heuristic_only: bool = False,
     ref_err_px: float = 3.5,
     raw_exclusion_mask: np.ndarray | None = None,
-    cut_frames: Sequence[int] | np.ndarray | None = None,
-    keep_vote: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
-    shuttle_hallucination_mask: np.ndarray | None = None,
     rejection_diagnostics: list[dict[str, object]] | None = None,
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
@@ -72,13 +67,13 @@ def run_video(
     arrays and scene geometry. ``spans`` and ``contacts`` can supply prior research results.
 
     Preparation requires all five arrays, ``resolution``, ``video_id``,
-    ``net_band``, both ``gate_*`` inputs, ``court_present`` booleans (frames,) and scene
+    ``net_band``, ``gate_resolution_table``, ``court_present`` booleans (frames,) and scene
     ``homography_rows`` as a DataFrame or a list of row dictionaries. Outcomes
     use ``landing_options`` and the selected scene's court geometry.
 
     ``raw_exclusion_mask`` supplies the dead-time mask before short-run filtering.
-    ``inpaint_codes`` and ``shuttle_hallucination_mask`` are mutually exclusive
-    event-rejection inputs. Frames outside accepted scene geometry are excluded;
+    ``inpaint_codes`` supplies the frame-aligned shuttle grades used for event rejection.
+    Frames outside accepted scene geometry are excluded;
     ``court_invalid_is_excluded`` also excludes frames without court presence.
 
     ``capture`` is reset at entry and receives owned mask copies after preparation
@@ -107,11 +102,10 @@ def run_video(
     evidence = prepare_annotation(
         track, bboxes, scores, kps, ndet,
         resolved=resolve(base, fps), resolution=resolution, video_id=video_id, net_band=net_band,
-        gate_court_info=gate_court_info, gate_resolution_table=gate_resolution_table,
+        gate_resolution_table=gate_resolution_table,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
-        raw_exclusion_mask=raw_exclusion_mask, cut_frames=cut_frames, keep_vote=keep_vote,
+        raw_exclusion_mask=raw_exclusion_mask,
         spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
-        shuttle_hallucination_mask=shuttle_hallucination_mask,
         court_invalid_is_excluded=court_invalid_is_excluded,
     )
     if capture is not None:

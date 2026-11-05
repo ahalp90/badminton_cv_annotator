@@ -11,6 +11,7 @@ import annotator.run_video as run_video_module
 from annotator import preparation
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.selection import scoring_filter
+from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.outcomes.point_winner import (
     GeometricVerdictRow,
@@ -74,13 +75,6 @@ def test_run_video_no_play_returns_empty_result():
     kps = np.zeros((300, 1, 17, 2), dtype=np.float32)
     ndet = np.zeros(300, dtype=np.int64)
     dead = np.zeros(300, dtype=bool)
-    court_info = {
-        "H": np.eye(3),
-        "border_L": 0.0,
-        "border_R": 1280.0,
-        "border_U": 0.0,
-        "border_D": 720.0,
-    }
     gate_resolution_table = pd.DataFrame(
         {"width": [1920.0], "height": [1080.0]}, index=[str(video_id)],
     )
@@ -92,7 +86,7 @@ def test_run_video_no_play_returns_empty_result():
         net_band=(664.6, 703.7),
         resolution=resolution,
         video_id=video_id,
-        gate_court_info={str(video_id): court_info},
+
         gate_resolution_table=gate_resolution_table,
         raw_exclusion_mask=dead,
         **_default_scene_inputs(len(track)), heuristic_only=True,
@@ -127,7 +121,7 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
 
 @pytest.mark.parametrize('field', [
     'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options', 'net_band',
-    'gate_court_info', 'gate_resolution_table', 'court_present', 'homography_rows',
+    'gate_resolution_table', 'court_present', 'homography_rows',
 ])
 def test_run_video_requires_player_and_scene_inputs(field):
     inputs = {**_synthetic_inputs(), **_default_scene_inputs(300)}
@@ -152,7 +146,8 @@ def test_run_video_hands_tracker_segments_output_to_sticky_builder(monkeypatch):
         {**scene_row, 'start_frame': '0', 'end_frame': '150'},
         {**scene_row, 'start_frame': '150', 'end_frame': str(n_frames)},
     ]
-    expected = rally_evidence.tracker_segments(homography_rows, court_present, n_frames)
+    scene_courts = build_scene_courts(homography_rows, inputs["resolution"])
+    expected = rally_evidence.tracker_segments(scene_courts, court_present, n_frames)
     # Dropout splits the first scene row: the fixture must stay non-trivial.
     assert expected == [(0, 40), (60, 150), (150, 300)]
 
@@ -522,7 +517,7 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
         rally_evidence, 'build_sticky_result', count_builds,
     )
     monkeypatch.setattr(
-        preparation, 'build_dead_mask', fail_if_called,
+        preparation, 'combine_mask', fail_if_called,
     )
 
     result = run_video(
@@ -706,10 +701,6 @@ def _synthetic_inputs():
     video_id = 1
     n_frames = 300
     resolution = (1920.0, 1080.0)
-    court_info = {
-        'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0,
-        'border_U': 0.0, 'border_D': 720.0,
-    }
     return {
         'track': np.zeros((n_frames, 3), dtype=np.float64),
         'bboxes': np.zeros((n_frames, 1, 4), dtype=np.float32),
@@ -720,7 +711,7 @@ def _synthetic_inputs():
         'landing_options': LandingFilterOptions(7, 0.004, 5, 7, 0.75),
         'net_band': (664.6, 703.7), 'resolution': resolution,
         'video_id': video_id,
-        'gate_court_info': {str(video_id): court_info},
+
         'gate_resolution_table': pd.DataFrame(
             {'width': [1920.0], 'height': [1080.0]}, index=[str(video_id)],
         ),
@@ -756,30 +747,24 @@ def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
 
 
 @pytest.mark.parametrize('contacts_mode', ['injected', 'natural'])
-@pytest.mark.parametrize('mask_source', ['inpaint_codes', 'shuttle_hallucination_mask'])
 def test_run_video_threads_event_mask_to_dead_mask_builder(
-    monkeypatch, contacts_mode, mask_source,
+    monkeypatch, contacts_mode,
 ) -> None:
     inputs = _synthetic_inputs()
     del inputs['raw_exclusion_mask']
     n_frames = len(inputs['track'])
-    if mask_source == 'inpaint_codes':
-        codes = np.zeros(n_frames, dtype=np.uint8)
-        codes[[40, 80]] = 3
-        inputs['inpaint_codes'] = codes
-        expected_mask = codes == 3
-    else:
-        expected_mask = np.zeros(n_frames, dtype=bool)
-        expected_mask[[40, 80]] = True
-        inputs['shuttle_hallucination_mask'] = expected_mask
+    codes = np.zeros(n_frames, dtype=np.uint8)
+    codes[[40, 80]] = 3
+    inputs['inpaint_codes'] = codes
+    expected_mask = codes == 3
 
     received = []
 
     def fake_dead_mask(*_args, **kwargs):
-        received.append(kwargs['shuttle_hallucination_mask'].copy())
+        received.append(kwargs['non_evidence'].copy())
         return np.zeros(n_frames, dtype=bool)
 
-    monkeypatch.setattr(preparation, 'build_dead_mask', fake_dead_mask)
+    monkeypatch.setattr(preparation, 'combine_mask', fake_dead_mask)
     kwargs = {'spans': [(10, 20)], 'contacts': {0: [14]}} if contacts_mode == 'injected' else {}
 
     run_video(**inputs, **_default_scene_inputs(n_frames), **kwargs, heuristic_only=True)

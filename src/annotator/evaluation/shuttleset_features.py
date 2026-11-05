@@ -16,7 +16,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import BASE_FPS, ScalingKind
+from annotator.config import BASE_FPS, frames_at_fps
 from annotator.outcomes.point_winner import project_pixels_to_court
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (
@@ -253,7 +253,7 @@ def rally_duration_base30(
     offset = (
         0
         if end_offset_base30 == 0
-        else int(ScalingKind.FRAME_COUNT.scale(end_offset_base30, fps))
+        else frames_at_fps(end_offset_base30, fps)
     )
     return (final_contact_frame + offset - start_frame) * BASE_FPS / fps
 

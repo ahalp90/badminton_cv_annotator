@@ -13,14 +13,6 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 
-class DeadMaskMode(StrEnum):
-    """Choose replay detection, scene composition, or both to mask dead time."""
-
-    REPLAY = 'replay'
-    COMPOSITION = 'composition'
-    UNION = 'union'
-
-
 class SmoothingMode(StrEnum):
     """Select how invisible frames contribute to span smoothing."""
 

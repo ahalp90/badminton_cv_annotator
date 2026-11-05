@@ -36,7 +36,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, ScalingKind, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.evaluation.fixtures import (
     FIXTURES,
     SSET_01,
@@ -310,7 +310,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     classifications = classify_all(spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
-    lookback_frames = int(ScalingKind.FRAME_COUNT.scale(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps))
+    lookback_frames = frames_at_fps(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
     )

@@ -26,7 +26,7 @@ import numpy as np
 from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
-    ScalingKind,
+    frames_at_fps,
     resolve,
 )
 from annotator.evaluation.fixtures import (
@@ -311,7 +311,7 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     offsets = [abs(spans[span][0] - rally.extent[0]) for _index, rally, span in clean]
     contained = [sum(start <= first and last < end for first, last in (r.extent for r in gt)) for start, end in spans]
     tolerances = {
-        band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps)
+        band: frames_at_fps(band, fixture.fps)
         for band in CONTACT_TOLERANCES_BASE30
     }
     contacts = [(rally_id, event.frame, None, None)

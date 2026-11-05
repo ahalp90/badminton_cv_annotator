@@ -5,8 +5,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from annotator.config import frames_at_fps
 from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactSequence, scale_frames
+from annotator.sequence.contacts import ContactSequence
 from annotator.sequence.rally_model import fit_rally_sides
 from annotator.sequence.rally_options import RallyContext
 
@@ -170,7 +171,7 @@ def whole_rally_correctness(
     Missing contacts, merged/partial rallies, extra events and known side
     contradictions are wrong even when another human side label is unavailable.
     """
-    tolerance = scale_frames(tolerance_at_30_fps, fps)
+    tolerance = frames_at_fps(tolerance_at_30_fps, fps)
     boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
     if boundary.outcome == 'no_labelled_rally':
         return -1

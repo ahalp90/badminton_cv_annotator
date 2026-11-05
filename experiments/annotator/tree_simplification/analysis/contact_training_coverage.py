@@ -3,6 +3,7 @@
 Run from the checkout root with PYTHONPATH=src:. and --training RUN/training.
 Writes a small JSON summary to stdout; it does not refit or modify saved inputs.
 """
+
 import argparse
 import gzip
 import json
@@ -14,7 +15,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import ScalingKind
+from annotator.config import frames_at_fps
 from annotator.training.contact import (
     POSITIVE_RADIUS_AT_30_FPS,
     nearest_contact_distances,
@@ -30,7 +31,7 @@ def measure(arguments: tuple[Path, str, str]) -> dict[str, Any]:
         frames = prepared.features.rows['frame']
         assert np.all(np.diff(frames) >= 0)
         labels = np.array(sorted(frame for rally in prepared.video.rallies for frame in rally.frames))
-        radius = int(ScalingKind.FRAME_COUNT.scale(POSITIVE_RADIUS_AT_30_FPS, prepared.video.fps))
+        radius = frames_at_fps(POSITIVE_RADIUS_AT_30_FPS, prepared.video.fps)
         covered = nearest_contact_distances(labels, frames) <= radius
         available = np.zeros(len(labels), dtype=bool)
         for start, end in prepared.features.search_intervals:

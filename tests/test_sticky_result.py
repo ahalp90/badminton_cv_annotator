@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.courts.scenes import build_scene_courts
+from annotator.courts.scenes import SceneCourt, build_scene_courts
 from annotator.rally.evidence import build_sticky_result
 from annotator.rally_segmentation import segment_video
 from annotator.types import WRIST_L, WRIST_R
@@ -133,7 +133,6 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         kps,
         ndet,
         '1',
-        {'1': scene_courts[0].court_info},
         resolution_table,
         (1280.0, 720.0),
         scene_courts=scene_courts,
@@ -151,10 +150,10 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         kps,
         ndet,
         '1',
-        {'1': global_scene.court_info},
         resolution_table,
         (1280.0, 720.0),
         half_window=12,
+        scene_courts=(global_scene,),
     )
 
     np.testing.assert_array_equal(local_result.picks, np.tile([0, 1], (4, 1)))
@@ -163,33 +162,20 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     assert global_result.picks[0].tolist() == [-1, 1]
 
 
-def test_sticky_picker_rejects_tracker_segment_crossing_scene_boundary():
-    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, _row) = (
-        _scene_sticky_inputs()
-    )
-
-    with pytest.raises(ValueError, match='tracker segment crosses a court scene boundary'):
-        build_sticky_result(
-            track,
-            [(1, 3)],
-            bboxes,
-            scores,
-            kps,
-            ndet,
-            '1',
-            {'1': scene_courts[0].court_info},
-            resolution_table,
-            (1280.0, 720.0),
-            scene_courts=scene_courts,
-            half_window=12,
-        )
-
-
 def test_build_sticky_result_pins_failure_defaults_and_success_contract():
     (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
     result = build_sticky_result(
-        track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, (1280.0, 720.0), half_window=1,
+        track,
+        segments,
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        '1',
+        resolution_table,
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
     assert np.isposinf(result.distances[0])
@@ -238,8 +224,17 @@ def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
     kps[3, 0, WRIST_R] = (600.0, 180.0)
 
     result = build_sticky_result(
-        track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, (1280.0, 720.0), half_window=1,
+        track,
+        segments,
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        '1',
+        resolution_table,
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
     assert result.wrist_dist_px.shape == (len(track), 2)
@@ -278,8 +273,17 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
     resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
     result = build_sticky_result(
-        track, [(0, 3), (3, 6)], bboxes, scores, kps, np.ones(n_frames, dtype=np.int64), '1',
-        {'1': court_info}, resolution_table, (1280.0, 720.0), half_window=1,
+        track,
+        [(0, 3), (3, 6)],
+        bboxes,
+        scores,
+        kps,
+        np.ones(n_frames, dtype=np.int64),
+        '1',
+        resolution_table,
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info, (0.0, 0.0), 0.0),),
     )
 
     numerator = np.hypot(600.0 - 600.0, 360.0 - 170.0)
@@ -295,8 +299,17 @@ def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None
 
     with pytest.raises(ValueError, match='no accepted finite height'):
         build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, '1', court_info,
-            resolution_table, (1280.0, 720.0), half_window=1,
+            track,
+            segments,
+            bboxes,
+            scores,
+            kps,
+            ndet,
+            '1',
+            resolution_table,
+            (1280.0, 720.0),
+            half_window=1,
+            scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
         )
 
 
@@ -308,6 +321,15 @@ def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
 
     with pytest.raises(ValueError, match='non-finite or non-positive body-scale denominator'):
         build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, '1', court_info,
-            resolution_table, (1280.0, 720.0), half_window=1,
+            track,
+            segments,
+            bboxes,
+            scores,
+            kps,
+            ndet,
+            '1',
+            resolution_table,
+            (1280.0, 720.0),
+            half_window=1,
+            scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
         )

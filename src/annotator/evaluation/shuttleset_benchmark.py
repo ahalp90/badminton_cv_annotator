@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig, ScalingKind
+from annotator.config import BaseAnnotatorConfig, frames_at_fps
 from annotator.evaluation.gt_scoring import (
     VideoScoring,
     canonical_tolerance,
@@ -468,7 +468,7 @@ def _contact_curve(
     fps: float,
 ) -> dict[str, object]:
     tolerances = tuple(
-        int(ScalingKind.FRAME_COUNT.scale(base_frames, fps))
+        frames_at_fps(base_frames, fps)
         for base_frames in CONTACT_TOLERANCES_BASE30
     )
     scored = score_contacts(
