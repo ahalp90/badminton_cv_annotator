@@ -268,7 +268,8 @@ def test_attribute_half_reads_the_sticky_nearest_pick_half():
     half = attribute_half(contact, track, sticky, bboxes, (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),))
     assert half == CourtHalf.BOT
     no_contact_scene = (SceneCourt(contact + 1, len(track), {}, (400.0, 500.0), 0.1),)
-    assert attribute_half(contact, track, sticky, bboxes, no_contact_scene) is None
+    with pytest.raises(ValueError, match='no accepted court geometry'):
+        attribute_half(contact, track, sticky, bboxes, no_contact_scene)
 
 
 def test_attribute_half_none_when_shuttle_invisible_or_no_detection():

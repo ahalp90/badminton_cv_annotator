@@ -14,20 +14,17 @@ def attribute_half(
 ) -> CourtHalf | None:
     """Locate the nearest tracked player's feet relative to this scene's net band.
 
-    Invisible shuttles, missing wrist evidence and frames without accepted scene
-    geometry leave the player unknown. A video-wide homography can be reused in
-    every scene without changing this rule.
+    Invisible shuttles and missing wrist evidence leave the player unknown.
+    Tracking and court geometry share the same scene bounds. A video-wide
+    homography can be reused in every scene without changing this rule.
     """
     if track[frame, 2] != 1:
         return None
     distances = sticky.distances_per_slot[frame]
+    # Serve look-back frames before an accepted scene have no tracker distances.
     if not np.isfinite(distances).any():
         return None
-    try:
-        band_lo, band_hi = court_at_frame(scene_courts, frame).net_band
-    except ValueError:
-        # Serve look-back candidates can precede accepted camera geometry.
-        return None
+    band_lo, band_hi = court_at_frame(scene_courts, frame).net_band
     # A finite value beats sentinels; exact ties retain the far/top tracker pick.
     half = int(np.nanargmin(distances))
     slot = sticky.picks[frame, half]
