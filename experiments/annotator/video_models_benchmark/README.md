@@ -13,7 +13,49 @@ See [the VideoMAE run guide](VIDEOMAE.md) for the four-run Base pilot and batch-
 [Read the VideoMAE (base) results](videomae_results.md) for the test comparison, validation
 selection, training histories, the every-third-frame comparison and a higher learning-rate trial.
 
-## X3D-M experiment
+## X3D rerun with stride-three validation
+
+Train all combinations of positive centres ±1/±2 frames, contact shares 25/50%,
+and learning rates 0.005/0.02, each with seeds 0 and 1: 16 runs in total.
+Validation and test evaluate every third centre at absolute frame offset zero.
+Training clips still contain 16 consecutive frames.
+
+Each run completes the initial 30,000 updates, then continues in the same
+training process. Check validation every 5,000 further updates and stop after
+three consecutive checks without a lower validation loss. Carry the existing
+patience count across 30,000 updates. The continuation learning rate cycles
+from zero to the original 20,000-update rate and back over 20,000 updates.
+
+Retain the checkpoint with the lowest validation cross-entropy, taking the
+earlier checkpoint on a tie. Rank the eight configurations by mean fully
+correct validation rallies across their two seeds at the ±10-frame tolerance.
+Mean correct-player F1 breaks ties; an exact tie retains grid order. Save the
+ranking before evaluating both seeds of the winner on test. Report each seed
+and its mean; the two models are evaluated separately.
+
+For this rerun, player assignments always alternate. Choose the order agreeing
+with more predicted hitters. If the agreement counts tie, choose the order
+with the greater sum of assigned-player probabilities. On an exact probability
+tie, preserve the first predicted hitter. Contact times are unchanged. Earlier
+runs kept raw player predictions when agreement counts tied.
+
+```bash
+python -m experiments.annotator.video_models_benchmark.grid init \
+  --output "$RUNS" --cache "$TRAIN_VAL_CACHE" --full-grid --test-cache "$TEST_CACHE"
+python -m experiments.annotator.video_models_benchmark.grid run --output "$RUNS"
+```
+
+Use `run --resume` to recover an interrupted queue. The full-grid mode includes
+continuation and both positive windows; no separate `extend` or `scheme-b`
+command is needed. Those commands remain available for older queues.
+
+Keep every validation check under `validation_checks/stepNNNNNN/`: checkpoint
+weights, frame probabilities, frame metrics and event scores. Keep these large
+artefacts outside Git. `best.pt` and the top-level validation outputs refer to
+the lowest-loss check; `last.pt` retains the optimiser and random state for
+recovery.
+
+## Original X3D-M experiment
 
 The first experiment adapts Kinetics-400 X3D-M with a three-class classifier:
 

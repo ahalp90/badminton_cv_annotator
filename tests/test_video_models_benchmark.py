@@ -400,3 +400,23 @@ def test_launcher_termination_records_failure_and_stops_child(tmp_path: Path) ->
         if process.poll() is None:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
+
+
+@pytest.mark.parametrize("top_probabilities,expected", [
+    ([0.9, 0.6], [Half.TOP, Half.BOT]),
+    ([0.6, 0.9], [Half.BOT, Half.TOP]),
+    ([0.8, 0.8], [Half.TOP, Half.BOT]),
+])
+def test_forced_alternation_breaks_agreement_ties_using_probabilities(
+    top_probabilities: list[float], expected: list[Half],
+) -> None:
+    span = {"span_id": "test", "start_frame": 0, "end_frame": 30}
+    probabilities = np.tile([1.0, 0.0, 0.0], (30, 1))
+    for frame, top in zip((5, 20), top_probabilities, strict=True):
+        probabilities[frame] = [0.0, 1 - top, top]
+    old = decode_span(span, probabilities, 30).events
+    forced = decode_span(span, probabilities, 30, force_alternation=True).events
+    assert [event.side for event in old] == [Half.TOP, Half.TOP]
+    assert [event.side for event in forced] == expected
+    assert [event.frame for event in forced] == [event.frame for event in old]
+    assert decode_span(span, np.tile([1.0, 0.0, 0.0], (30, 1)), 30, force_alternation=True).events == ()

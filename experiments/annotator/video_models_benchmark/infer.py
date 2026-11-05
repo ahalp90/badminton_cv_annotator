@@ -46,7 +46,7 @@ def main() -> None:
     result, probabilities = evaluate(model, dataset, settings, device, args.stride, args.offset, progress)
     progress.write("scoring")
     write_json(args.output / "frame_metrics.json.gz", result)
-    events = score_probabilities(dataset, probabilities)
+    events = score_probabilities(dataset, probabilities, force_alternation=settings.force_alternation)
     events["sampling"] = result["sampling"]
     write_json(args.output / "events.json.gz", events)
     with lzma.open(args.output / "probabilities.npy.xz", "wb", preset=9) as stream:
