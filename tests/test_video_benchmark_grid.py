@@ -192,3 +192,55 @@ def test_status_reports_dead_continuation_waiter_while_original_runs(
     monkeypatch.setattr(grid.os, "kill", check_pid)
     assert not grid.display(tmp_path)
     assert "Continuation runner: stopped (queue process absent)" in capsys.readouterr().out
+
+
+def test_full_grid_selects_paired_validation_winner_before_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grid.initialise(tmp_path, tmp_path / "cache", full_grid=True, test_cache=tmp_path / "test-cache")
+    manifest = grid.read_record(tmp_path / "grid.json.gz")
+    runs = manifest["runs"]
+    assert {(run["scheme"], run["seed"], run["contact_fraction"], run["learning_rate"]) for run in runs} == {
+        (scheme, seed, fraction, rate) for scheme in ("A", "B") for seed in (0, 1)
+        for fraction in (0.25, 0.5) for rate in (0.005, 0.02)
+    }
+    for run in runs:
+        settings = tomllib.loads((tmp_path / f"{run['name']}.toml").read_text())
+        assert settings["continue_until_patience"] and settings["force_alternation"]
+        assert settings["validation_stride"] == 3
+        directory = tmp_path / run["name"]
+        directory.mkdir()
+        grid.write_record(directory / "status.json.gz", {"phase": "complete"})
+        (directory / "exit-code.txt").write_text("0\n")
+        winner = run["scheme"] == "B" and run["contact_fraction"] == 0.25 and run["learning_rate"] == 0.005
+        score = 60 if winner else (90 if run["seed"] == 0 else 10)
+        grid.write_record(directory / "history.json.gz", [
+            {"steps": 30000, "validation": {"loss": 0.2},
+             "events": {"10": {"fully_correct_percent": score, "correct_player_f1": 80}}},
+            {"steps": 35000, "validation": {"loss": 0.3},
+             "events": {"10": {"fully_correct_percent": 99, "correct_player_f1": 99}}},
+        ])
+    commands = []
+
+    def infer(command: list[str], *, check: bool) -> None:
+        assert check
+        selection = grid.read_record(tmp_path / "selection.json.gz")["ranking"]
+        assert len(selection) == 8
+        assert selection[0]["mean_fully_correct_percent"] == 60
+        assert all(run["best_step"] == 30000 for row in selection for run in row["runs"])
+        commands.append(command)
+        destination = Path(command[-1])
+        destination.mkdir(parents=True)
+        grid.write_record(destination / "status.json.gz", {"phase": "complete"})
+
+    monkeypatch.setattr(grid.subprocess, "run", infer)
+    grid.execute(tmp_path, resume=False)
+    assert len(commands) == 2
+    assert all("B-contact25-lr0.005" in command[command.index("--checkpoint") + 1] for command in commands)
+    assert all(command[command.index("--stride") + 1] == "3" for command in commands)
+    assert all(command[command.index("--offset") + 1] == "0" for command in commands)
+    grid.execute(tmp_path, resume=True)
+    assert len(commands) == 2
+    (tmp_path / runs[-1]["name"] / "exit-code.txt").unlink()
+    with pytest.raises(ValueError, match="every configured run"):
+        grid.rank_configurations(tmp_path)

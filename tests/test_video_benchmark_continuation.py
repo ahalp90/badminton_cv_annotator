@@ -153,3 +153,57 @@ def test_continuation_resume_preserves_weights_momentum_rng_and_stream(
     assert recovered["optimiser"]["param_groups"] == reference["optimiser"]["param_groups"]
     assert torch.equal(recovered["torch_rng"], reference["torch_rng"])
     assert torch.equal(recovered["loader_rng"], reference["loader_rng"])
+
+
+@pytest.mark.parametrize("pause_step", [None, 6, 8])
+def test_integrated_continuation_keeps_each_check_and_resumes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pause_step: int | None,
+) -> None:
+    settings = train.replace(short_schedule(monkeypatch), continue_until_patience=True)
+    model = torch.nn.Linear(2, 3)
+    loader = small_loader(settings, continuous=True)
+    losses = iter([3.0, 2.0, 1.0, 0.9, 1.1, 1.2, 1.3])
+    rates = []
+    checks = 0
+
+    def update(*args) -> torch.Tensor:
+        rates.append(args[2].param_groups[0]["lr"])
+        return torch.tensor(0.5)
+
+    def validation(*args) -> dict:
+        nonlocal checks
+        checks += 1
+        if checks * 2 == pause_step:
+            (tmp_path / "PAUSE").touch()
+        return {"loss": next(losses), "probabilities": np.full((8, 3), checks / 10)}
+
+    monkeypatch.setattr(train, "train_batch", update)
+    monkeypatch.setattr(train, "validate", validation)
+    train.fit(model, loader, small_loader(settings), settings, torch.device("cpu"), tmp_path, "A")
+    if pause_step is not None:
+        assert train.read_json(tmp_path / "status.json.gz")["phase"] == "paused"
+        assert torch.load(tmp_path / "last.pt", weights_only=True)["step"] == pause_step
+        (tmp_path / "PAUSE").unlink()
+        train.fit(model, loader, small_loader(settings), settings, torch.device("cpu"), tmp_path, "A", resume=True)
+    assert train.read_json(tmp_path / "status.json.gz")["step"] == 14
+    assert torch.load(tmp_path / "best.pt", weights_only=True)["step"] == 8
+    assert rates == pytest.approx([train.learning_rate_at_step(settings, step) for step in range(14)])
+    assert rates[5:7] == [0.0, 0.0]
+    for index, step in enumerate(range(2, 15, 2), start=1):
+        directory = tmp_path / "validation_checks" / f"step{step:06d}"
+        assert torch.load(directory / "checkpoint.pt", weights_only=True)["step"] == step
+        with train.lzma.open(directory / "probabilities.npy.xz", "rb") as stream:
+            assert np.load(stream).mean() == pytest.approx(index / 10)
+        assert train.read_json(directory / "frame_metrics.json.gz")["loss"] > 0
+
+
+def test_integrated_training_completes_initial_budget_even_if_patience_exhausted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = train.replace(short_schedule(monkeypatch), continue_until_patience=True,
+                             validation_steps=[1, 2, 4, 6])
+    monkeypatch.setattr(train, "train_batch", lambda *args: torch.tensor(0.5))
+    validation_losses(monkeypatch, [1.0, 2.0, 2.0, 2.0])
+    loader = small_loader(settings, continuous=True)
+    train.fit(torch.nn.Linear(2, 3), loader, small_loader(settings), settings, torch.device("cpu"), tmp_path, "A")
+    assert train.read_json(tmp_path / "status.json.gz")["step"] == 6

@@ -26,9 +26,12 @@ from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved 
 from .data import ClipDataset
 
 CLASS_SIDES = {1: Half.BOT, 2: Half.TOP}
+SIDE_CLASSES = {side: label for label, side in CLASS_SIDES.items()}
 
 
-def decode_span(span: dict, probabilities: np.ndarray, fps: float) -> ContactSequence:
+def decode_span(
+    span: dict, probabilities: np.ndarray, fps: float, *, force_alternation: bool = False,
+) -> ContactSequence:
     classes = probabilities.argmax(axis=1)
     candidates = np.flatnonzero(classes != 0)
     frames = candidates + span["start_frame"]
@@ -40,12 +43,21 @@ def decode_span(span: dict, probabilities: np.ndarray, fps: float) -> ContactSeq
     guesses = [CLASS_SIDES[int(classes[candidates[index]])] for index in kept]
     final_side = fit_alternation(guesses)
     sides = guesses if final_side is None else alternating_player_sides(final_side, len(guesses))
+    if force_alternation and final_side is None and guesses:
+        alternatives = [alternating_player_sides(half, len(guesses)) for half in (Half.TOP, Half.BOT)]
+        kept_probabilities = probabilities[candidates[kept]]
+        sides = max(alternatives, key=lambda order: (
+            sum(float(row[SIDE_CLASSES[side]]) for row, side in zip(kept_probabilities, order, strict=True)),
+            order[0] == guesses[0],
+        ))
     events = tuple(ContactEvent(int(frames[index]), float(scores[index]), side)
                    for index, side in zip(kept, sides, strict=True))
     return ContactSequence(span["span_id"], span["start_frame"], span["end_frame"], events)
 
 
-def score_probabilities(dataset: ClipDataset, probabilities: np.ndarray) -> dict:
+def score_probabilities(
+    dataset: ClipDataset, probabilities: np.ndarray, *, force_alternation: bool = False,
+) -> dict:
     """Score exhaustive, ordered inference once at both existing tolerances."""
     if len(probabilities) != len(dataset):
         raise ValueError("Predictions and exhaustive validation centres differ")
@@ -57,7 +69,8 @@ def score_probabilities(dataset: ClipDataset, probabilities: np.ndarray) -> dict
         sequences, rallies = [], []
         for span in video["spans"]:
             count = span["end_frame"] - span["start_frame"]
-            sequences.append(decode_span(span, probabilities[offset:offset + count], video["fps"]))
+            sequences.append(decode_span(span, probabilities[offset:offset + count], video["fps"],
+                                         force_alternation=force_alternation))
             rallies.append(LabelledRally(span["rally_id"], tuple(span["label_frames"]),
                                         tuple(None if side is None else Half(side) for side in span["label_sides"])))
             offset += count
@@ -79,4 +92,5 @@ def score_probabilities(dataset: ClipDataset, probabilities: np.ndarray) -> dict
         counts["contact_f1"] = 200 * counts["matched"] / denominator
         counts["correct_player_f1"] = 200 * counts["correct_player"] / denominator
         counts["fully_correct_percent"] = 100 * counts["fully_correct"] / counts["rallies"]
-    return {"metrics": totals, "streams": streams}
+    return {"metrics": totals, "streams": streams,
+            "hitter_rule": "forced_alternation_probability_ties" if force_alternation else "alternation_raw_ties"}

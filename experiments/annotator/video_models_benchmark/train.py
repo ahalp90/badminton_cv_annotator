@@ -5,12 +5,13 @@ import argparse
 import lzma
 import math
 import random
+import shutil
 import time
 import tomllib
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field, replace
 from functools import partial
-from itertools import count, islice
+from itertools import chain, count, islice
 from pathlib import Path
 
 import numpy as np
@@ -58,6 +59,8 @@ class Settings:
     # Records predating stride selection used dense validation; new configs use 3.
     validation_stride: int = 1
     max_total_steps: int | None = None
+    continue_until_patience: bool = False
+    force_alternation: bool = False
 
     def __post_init__(self) -> None:
         if self.max_total_steps is not None and self.max_total_steps < self.max_steps:
@@ -121,6 +124,10 @@ def set_learning_rate(optimiser: torch.optim.Optimizer, rate: float) -> None:
 
 def learning_rate_at_step(settings: Settings, step: int) -> float:
     """Return the LR for a zero-based optimiser update, including the final decay."""
+    if settings.continue_until_patience and step >= settings.max_steps:
+        half_cycle = settings.continuation_half_cycle_steps or HALF_CYCLE_STEPS
+        peak = learning_rate_at_step(settings, settings.max_steps - half_cycle)
+        return continuation_rate(step, settings.max_steps, peak, half_cycle_steps=half_cycle)
     if step < settings.warmup_steps:
         start = settings.warmup_start_lr
         if start is None:
@@ -143,7 +150,8 @@ def make_loader(
     stride: int | None = None, offset: int = 0,
 ) -> DataLoader:
     batching = ({"batch_sampler": ContactBatchSampler(dataset.labels, settings.batch_size, settings.contact_fraction,
-                                                     settings.max_steps, settings.seed, continuous=extend)}
+                                                     settings.max_steps, settings.seed,
+                                                     continuous=extend or settings.continue_until_patience)}
                 if training else {"batch_size": settings.microbatch_size or settings.batch_size,
                                   "sampler": EvaluationSampler(dataset.rows[:, 2],
                                                                settings.validation_stride if stride is None else stride,
@@ -254,13 +262,15 @@ def fit(
             raise ValueError("Resume settings differ from the saved run")
     if extend and not resume:
         raise ValueError("Continuation requires a saved 30k run and --resume")
-    if not extend and (output / "continuation.json.gz").exists():
+    continuing = extend or settings.continue_until_patience
+    if not continuing and (output / "continuation.json.gz").exists():
         raise ValueError("This run is a continuation; resume with --extend")
     write_json(output / "settings.json.gz", run_settings)
     progress = Progress(output)
     optimiser = make_optimiser(model, settings)
     update_batch = train_batch
     validate_model = validate
+    score_events = partial(score_probabilities, force_alternation=True) if settings.force_alternation else score_probabilities
     if settings.model_name == "videomae":
         update_batch = partial(train_batch, model_name=settings.model_name, microbatch_size=settings.microbatch_size)
         validate_model = partial(validate, model_name=settings.model_name)
@@ -286,8 +296,8 @@ def fit(
     rate_at_step = partial(learning_rate_at_step, settings)
     targets = iter(settings.validation_steps)
     unsuccessful = checks_without_improvement(history)
-    if extend:
-        if step < settings.max_steps:
+    if continuing:
+        if extend and step < settings.max_steps:
             raise ValueError("Complete the original training budget before continuing")
         half_cycle = settings.continuation_half_cycle_steps or HALF_CYCLE_STEPS
         interval = settings.continuation_validation_interval or VALIDATION_INTERVAL
@@ -300,13 +310,16 @@ def fit(
         if protocol_path.exists() and read_json(protocol_path) != protocol:
             raise ValueError("Continuation protocol differs from the saved run")
         write_json(protocol_path, protocol)
-        rate_at_step = partial(continuation_rate, start_step=settings.max_steps, peak=peak, half_cycle_steps=half_cycle)
-        targets = count(step + interval, interval)
-        progress.state.update(stage="continuation", patience=PATIENCE, bad_checks=unsuccessful)
+        if extend:
+            rate_at_step = partial(continuation_rate, start_step=settings.max_steps, peak=peak, half_cycle_steps=half_cycle)
+            targets = count(step + interval, interval)
+        else:
+            targets = chain(settings.validation_steps, count(settings.max_steps + interval, interval))
+        progress.state.update(patience=PATIENCE, bad_checks=unsuccessful)
     sampler = train_loader.batch_sampler
     if not isinstance(sampler, ContactBatchSampler):
         raise TypeError("Training requires ContactBatchSampler for update-boundary recovery")
-    if extend and sampler.batches is not None:
+    if continuing and sampler.batches is not None:
         raise ValueError("Continuation requires the continuous contact sampler")
     sampler.start_step = step
     loader_rng = train_loader.generator.get_state() if train_loader.generator is not None else None
@@ -315,7 +328,7 @@ def fit(
     if resume and step > 0 and train_loader.generator is not None:
         train_loader.generator.set_state(loader_rng)
     for target_step in targets:
-        if extend and unsuccessful >= PATIENCE:
+        if continuing and step >= settings.max_steps and unsuccessful >= PATIENCE:
             break
         if settings.max_total_steps is not None:
             if step >= settings.max_total_steps:
@@ -326,7 +339,8 @@ def fit(
         started, first_step = time.perf_counter(), step
         model.train()
         training_loss = torch.zeros((), device=device)
-        progress.write("training", step=step, max_steps=settings.max_total_steps if extend else settings.max_steps,
+        progress.write("training", step=step, max_steps=settings.max_total_steps if continuing else settings.max_steps,
+                       stage="continuation" if step >= settings.max_steps else "initial",
                        completed=0,
                        total=target_step - step, phase_started=time.time(), lr=rate_at_step(step))
         for batch in islice(iterator, target_step - step):
@@ -345,22 +359,30 @@ def fit(
         result = validate_model(model, val_loader, device, settings.precision, progress)
         probabilities = result.pop("probabilities")
         progress.write("event scoring", completed=0, total=0, val_loss=result["loss"])
-        event_scores = score_probabilities(val_loader.dataset, probabilities)
+        event_scores = score_events(val_loader.dataset, probabilities)
         if "sampling" in result:
             event_scores["sampling"] = result["sampling"]
         loss = result["loss"]
         if not np.isfinite(loss) or not torch.isfinite(training_loss):
             raise ValueError("Non-finite training or validation loss")
+        check_output = output / "validation_checks" / f"step{step:06d}"
+        check_output.mkdir(parents=True, exist_ok=True)
+        save_checkpoint(check_output / "checkpoint.pt", {
+            "model": model.state_dict(), "settings": model_settings,
+            "scheme": scheme, "step": step, "validation_loss": loss,
+        })
+        with lzma.open(check_output / "probabilities.npy.xz", "wb", preset=9) as stream:
+            np.save(stream, probabilities)
+        write_json(check_output / "events.json.gz", event_scores)
+        write_json(check_output / "frame_metrics.json.gz", result)
         if loss < best_loss:
             best_loss = loss
-            save_checkpoint(output / "best.pt", {"model": model.state_dict(), "settings": model_settings,
-                                                "scheme": scheme, "step": step, "validation_loss": loss})
-            predictions_path = output / "validation_probabilities.npy.xz"
-            temporary = predictions_path.with_name(predictions_path.name + ".partial")
-            with lzma.open(temporary, "wb", preset=9) as stream:
-                np.save(stream, probabilities)
-            temporary.replace(predictions_path)
-            write_json(output / "validation_events.json.gz", event_scores)
+            for source, destination in (("checkpoint.pt", "best.pt"),
+                                        ("probabilities.npy.xz", "validation_probabilities.npy.xz"),
+                                        ("events.json.gz", "validation_events.json.gz")):
+                temporary = output / (destination + ".partial")
+                shutil.copyfile(check_output / source, temporary)
+                temporary.replace(output / destination)
         row = {"steps": step, "train_loss": float(training_loss / (step - first_step)),
                "validation": result, "events": event_scores["metrics"],
                "next_lr": rate_at_step(step), "seconds": time.perf_counter() - started}
@@ -371,13 +393,14 @@ def fit(
         progress.write("validation complete", total=0, best_loss=best_loss, val_loss=loss,
                        bad_checks=unsuccessful)
         print(row, flush=True)
-        if extend and unsuccessful >= PATIENCE:
+        if continuing and step >= settings.max_steps and unsuccessful >= PATIENCE:
             break
-        if (output / "PAUSE").exists() and (extend or step < settings.max_steps):
+        if (output / "PAUSE").exists() and (continuing or step < settings.max_steps):
             progress.write("paused", total=0)
             return
     model.load_state_dict(torch.load(output / "best.pt", map_location=device, weights_only=True)["model"])
-    progress.write("complete", step=step, max_steps=settings.max_total_steps if extend else settings.max_steps, total=0,
+    progress.write("complete", step=step, max_steps=settings.max_total_steps if continuing else settings.max_steps, total=0,
+                   stage="continuation" if continuing else "initial",
                    best_loss=best_loss, bad_checks=unsuccessful)
 
 

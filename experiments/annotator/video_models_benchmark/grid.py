@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from functools import partial
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -32,16 +33,16 @@ def write_record(path: Path, value: dict) -> None:
     temporary.replace(path)
 
 
-def initialise(output: Path, cache: Path) -> None:
+def initialise(output: Path, cache: Path, *, full_grid: bool = False, test_cache: Path | None = None) -> None:
     """Freeze the queue before training; repeat seeds use identical settings."""
     output.mkdir(parents=True, exist_ok=True)
     manifest = output / "grid.json.gz"
     if manifest.exists():
         raise FileExistsError(f"Grid already exists: {manifest}")
     runs = []
-    for seed in (0, 1):
+    for seed, scheme in product((0, 1), ("A", "B") if full_grid else ("A",)):
         for contact_fraction, learning_rate in ((0.5, 0.02), (0.5, 0.005), (0.25, 0.02), (0.25, 0.005)):
-            name = f"A-contact{int(100 * contact_fraction)}-lr{learning_rate:g}-seed{seed}"
+            name = f"{scheme}-contact{int(100 * contact_fraction)}-lr{learning_rate:g}-seed{seed}"
             config = output / f"{name}.toml"
             config.write_text(
                 f"seed = {seed}\nbatch_size = 16\nworkers = 12\n"
@@ -49,12 +50,17 @@ def initialise(output: Path, cache: Path) -> None:
                 f"contact_fraction = {contact_fraction}\nmomentum = 0.9\nweight_decay = 0.00001\n"
                 f"max_steps = 30000\nwarmup_steps = 2000\nvalidation_steps = {VALIDATION_STEPS}\n"
                 'validation_stride = 3\nprecision = "bf16"\n'
+                f'continue_until_patience = {str(full_grid).lower()}\n'
+                f'force_alternation = {str(full_grid).lower()}\n'
             )
             runs.append({"name": name, "seed": seed, "contact_fraction": contact_fraction,
-                         "learning_rate": learning_rate, "scheme": "A"})
+                         "learning_rate": learning_rate, "scheme": scheme})
     write_record(manifest, {"cache": str(cache.resolve()), "created_at": time.time(), "runs": runs,
                             "max_steps": 30000, "validation_steps": VALIDATION_STEPS,
                             "validation_stride": 3,
+                            "full_grid": full_grid, "validation_offset": 0,
+                            "force_alternation": full_grid,
+                            "test_cache": str(test_cache.resolve()) if test_cache is not None else None,
                             "estimated_run_hours": (30000 * 0.209034 + 7 * 10.41 * 60 / 3) / 3600})
 
 
@@ -122,6 +128,13 @@ def execute(output: Path, *, resume: bool) -> None:
                     raise RuntimeError(f"{run['name']} exited without a completed run")
                 print(f"Finished {run['name']}", flush=True)
             else:
+                if manifest.get("full_grid"):
+                    ranking = rank_configurations(output)
+                    write_record(output / "selection.json.gz", {"ranking": ranking})
+                    if manifest.get("test_cache"):
+                        active.update(phase="testing", updated_at=time.time())
+                        write_record(output / "grid-status.json.gz", active)
+                        evaluate_selected(output, Path(manifest["test_cache"]), ranking[0])
                 active.update(phase="complete")
         except BaseException:
             active.update(phase="stopped")
@@ -180,32 +193,49 @@ def extend_grid(output: Path) -> None:
 
 def rank_configurations(output: Path) -> list[dict]:
     """Rank paired seeds using event scores at each run's lowest-CE checkpoint."""
-    groups: dict[tuple[float, float], list[dict]] = {}
-    for run in read_record(output / "grid.json.gz")["runs"]:
-        if run["scheme"] != "A" or not completed_run(output / run["name"]):
-            raise ValueError("Selection requires completed scheme-A runs")
+    manifest = read_record(output / "grid.json.gz")
+    schemes = ("A", "B") if manifest.get("full_grid") else ("A",)
+    groups: dict[tuple[str, float, float], list[dict]] = {}
+    for run in manifest["runs"]:
+        if run["scheme"] not in schemes or not completed_run(output / run["name"]):
+            raise ValueError("Selection requires every configured run to complete")
         history = read_record(output / run["name"] / "history.json.gz")
         best = min(history, key=lambda row: row["validation"]["loss"])
         events = best["events"]["10"]
-        key = run["contact_fraction"], run["learning_rate"]
+        key = run["scheme"], run["contact_fraction"], run["learning_rate"]
         groups.setdefault(key, []).append({
             **run, "best_step": best["steps"], "validation_loss": best["validation"]["loss"],
             "fully_correct_percent": events["fully_correct_percent"],
             "correct_player_f1": events["correct_player_f1"],
         })
     ranking = []
-    for (contact_fraction, learning_rate), runs in groups.items():
+    for (scheme, contact_fraction, learning_rate), runs in groups.items():
         if sorted(run["seed"] for run in runs) != [0, 1]:
             raise ValueError("Each configuration needs exactly seeds 0 and 1")
         ranking.append({
+            "scheme": scheme,
             "contact_fraction": contact_fraction, "learning_rate": learning_rate, "runs": runs,
             "mean_fully_correct_percent": sum(run["fully_correct_percent"] for run in runs) / 2,
             "mean_correct_player_f1": sum(run["correct_player_f1"] for run in runs) / 2,
         })
-    if len(ranking) != 4:
-        raise ValueError("Selection requires all four scheme-A configurations")
+    if set(groups) != set(product(schemes, (0.25, 0.5), (0.005, 0.02))):
+        raise ValueError("Selection requires every configuration in the grid")
     # Stable sorting preserves the original grid order for exact ties.
     return sorted(ranking, key=lambda row: (-row["mean_fully_correct_percent"], -row["mean_correct_player_f1"]))
+
+
+def evaluate_selected(output: Path, cache: Path, winner: dict) -> None:
+    """Test both seeds only after the validation ranking has been saved."""
+    for run in winner["runs"]:
+        destination = output / "test" / f"seed{run['seed']}"
+        if run_state(destination).get("phase") == "complete":
+            continue
+        if destination.exists():
+            shutil.rmtree(destination)
+        command = [sys.executable, "-u", "-m", "experiments.annotator.video_models_benchmark.infer",
+                   "--checkpoint", str(output / run["name"] / "best.pt"), "--cache", str(cache),
+                   "--role", "test", "--stride", "3", "--offset", "0", "--output", str(destination)]
+        subprocess.run(command, check=True)
 
 
 def initialise_scheme_b(source: Path, destination: Path) -> None:
@@ -350,7 +380,7 @@ def display(output: Path) -> bool:
                            f"{events['correct_player_f1']:9.2f} {ratio:8.2f}")
         run_phase = "complete" if done else status.get("phase", "queued")
         print(f"{run['name']:36} {run_phase:14} {step:7,d}    {metrics}")
-    if manifest.get("stage") == "continuation":
+    if manifest.get("stage") == "continuation" or manifest.get("full_grid"):
         print(f"\n{finished}/{len(manifest['runs'])} continuations complete | stop after 3 unsuccessful validation checks")
     else:
         total = len(manifest["runs"]) * manifest["max_steps"]
@@ -371,6 +401,8 @@ def main() -> None:
     parser.add_argument("command", choices=("init", "run", "extend", "scheme-b", "status", "pause", "continue"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path)
+    parser.add_argument("--full-grid", action="store_true", help="Train all eight configurations through patience")
+    parser.add_argument("--test-cache", type=Path, help="Test both seeds of the validation winner")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--watch", action="store_true")
     args = parser.parse_args()
@@ -378,7 +410,9 @@ def main() -> None:
     if args.command == "init":
         if args.cache is None:
             parser.error("init requires --cache")
-        initialise(output, args.cache)
+        if args.test_cache is not None and not args.full_grid:
+            parser.error("--test-cache requires --full-grid")
+        initialise(output, args.cache, full_grid=args.full_grid, test_cache=args.test_cache)
     elif args.command == "run":
         execute(output, resume=args.resume)
     elif args.command == "extend":
