@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from annotator.review.broadcast_labels import SceneTruth
-from annotator.vlm_scene_benchmark.contracts import (
+from experiments.annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
     CameraView,

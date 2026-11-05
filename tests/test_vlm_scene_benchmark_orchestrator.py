@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "scripts" / "vlm_scene_benchmark"
+SCRIPTS = ROOT / "experiments" / "annotator" / "vlm_scene_benchmark" / "scripts"
 ORCHESTRATOR = SCRIPTS / "run_carmack.sh"
 REMOTE_TASK = SCRIPTS / "remote_task.sh"
 SETUP_REMOTE = SCRIPTS / "setup_remote.sh"
@@ -379,7 +379,9 @@ setup_is_reusable 0
 def test_setup_ready_with_incomplete_qwen_runtime_is_not_reused(tmp_path: Path) -> None:
     remote_root = tmp_path / "remote"
     run_root = remote_root / "runs" / "test"
-    setup_script = run_root / "repo" / "scripts" / "vlm_scene_benchmark" / "setup_remote.sh"
+    setup_script = (
+        run_root / "repo" / "experiments" / "annotator" / "vlm_scene_benchmark" / "scripts" / "setup_remote.sh"
+    )
     marker = tmp_path / "setup-ran"
     setup_script.parent.mkdir(parents=True)
     _write_executable(setup_script, f"#!/bin/sh\n: > {marker}\n")
@@ -723,7 +725,9 @@ def test_benchmark_stops_before_apptainer_when_snapshot_check_fails(tmp_path: Pa
 def test_setup_ready_write_failure_cannot_publish_success(tmp_path: Path) -> None:
     remote_root = tmp_path / "remote"
     run_root = remote_root / "runs" / "test"
-    setup_script = run_root / "repo" / "scripts" / "vlm_scene_benchmark" / "setup_remote.sh"
+    setup_script = (
+        run_root / "repo" / "experiments" / "annotator" / "vlm_scene_benchmark" / "scripts" / "setup_remote.sh"
+    )
     setup_script.parent.mkdir(parents=True)
     _write_executable(setup_script, "#!/bin/sh\nexit 0\n")
     (run_root / "control").mkdir()
@@ -756,7 +760,9 @@ def test_setup_ready_write_failure_cannot_publish_success(tmp_path: Path) -> Non
 def test_nonzero_setup_ready_status_is_replaced_after_success(tmp_path: Path) -> None:
     remote_root = tmp_path / "remote"
     run_root = remote_root / "runs" / "test"
-    setup_script = run_root / "repo" / "scripts" / "vlm_scene_benchmark" / "setup_remote.sh"
+    setup_script = (
+        run_root / "repo" / "experiments" / "annotator" / "vlm_scene_benchmark" / "scripts" / "setup_remote.sh"
+    )
     setup_script.parent.mkdir(parents=True)
     _write_executable(setup_script, "#!/bin/sh\nexit 0\n")
     (run_root / "control").mkdir()

@@ -20,7 +20,6 @@ from annotator.validation_overlay.core.encode import encode_frames
 from annotator.validation_overlay.core.hud import HudStyle, draw_hud, make_hud_style
 from annotator.validation_overlay.core.timeline import (
     Segment,
-    SegmentPlan,
     SpacerPlan,
     SpanState,
     TimelinePlan,
@@ -159,8 +158,6 @@ def make_render_plan(
     """Build the operational plan after metadata and input validation."""
     if render_width <= 0:
         raise ValueError(f"render_width must be positive, got {render_width}")
-    if hud_height <= 0:
-        raise ValueError(f"hud_height must be positive, got {hud_height}")
     for name, duration in (("lead_in", lead_in), ("lead_out", lead_out), ("spacer", spacer)):
         if duration < 0 or not math.isfinite(float(duration)):
             raise ValueError(f"{name} must be finite and non-negative, got {duration}")
@@ -264,8 +261,6 @@ def compose_frames(plan: RenderPlan, draw_fn: DrawFn, identity_gate: _IdentityGa
                 yield np.zeros((plan.output_height, plan.output_width, 3), dtype=np.uint8)
             continue
 
-        if not isinstance(part, SegmentPlan):
-            raise TypeError(f"unknown timeline part: {type(part).__name__}")
         decoded_count = 0
         decoded_frames = iter_span_frames(
             plan.video,

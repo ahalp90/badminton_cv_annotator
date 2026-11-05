@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-readonly REPO=$(cd -- "$SCRIPT_DIR/../.." && pwd)
+readonly REPO=$(cd -- "$SCRIPT_DIR/../../../.." && pwd)
 readonly DEFAULT_SOURCE=/srv/mergerfs/main_pool/Scratch_Backup/Uni/cosc595/issue-31-shuttle-hallucination-audit-assets/downloads/yu9oyMXRGHY.mp4
 readonly DEFAULT_ARTIFACTS=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/issue-38-vlm-benchmark/artifacts
 readonly DEFAULT_LOCAL_RESULTS=/srv/mergerfs/scratch_pool/Scratch_Data/Uni/cosc595/issue-38-vlm-benchmark/runs
@@ -133,7 +133,7 @@ runtime images:
   vllm/vllm-openai:v0.11.0 sha256:$QWEN_IMAGE_SHA256
 sampling: Intern [18419, 48419) at 1 FPS; Qwen [20695, 20945) at 5 FPS; 512x288
 execution: $execution
-isolation: remote staging includes src/annotator, benchmark scripts, and prepared videos only
+isolation: remote staging includes src/annotator, the benchmark experiment, and prepared videos only
 truth: $TRUTH_REL stays local and is read only by score
 resume: completed records are immutable; active tmux sessions are rejoined; caches and verified images are reused
 EOF
@@ -218,23 +218,23 @@ prepare_stage() {
     die "incomplete $stage preparation exists at $output_dir; move it aside before retrying"
   fi
   mkdir -p "$output_dir"
-  PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src" \
+  PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src:$REPO" \
     uv run --no-project \
     --with-requirements "$SCRIPT_DIR/requirements-prepare.txt" \
-    python -m annotator.vlm_scene_benchmark.prepare \
+    python -m experiments.annotator.vlm_scene_benchmark.prepare \
     --source "$SOURCE" --output-dir "$output_dir" --video-id sset_15 \
     --start-frame "$start_frame" --end-frame "$end_frame" --sample-fps "$sample_fps"
 }
 
 validate_prepared_inputs() {
-  PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src" \
+  PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src:$REPO" \
     uv run --no-project \
     --with-requirements "$SCRIPT_DIR/requirements-prepare.txt" \
     python - "$SOURCE" "$ARTIFACTS" <<'PY'
 from pathlib import Path
 import sys
 
-from annotator.vlm_scene_benchmark.prepare import probe_video, read_manifest, resolve_model_video
+from experiments.annotator.vlm_scene_benchmark.prepare import probe_video, read_manifest, resolve_model_video
 
 source_path = Path(sys.argv[1]).resolve()
 artifacts = Path(sys.argv[2]).resolve()
@@ -295,7 +295,7 @@ prepare_inputs() {
 
 runtime_file_list() {
   git -C "$REPO" ls-files --cached --others --exclude-standard -- \
-    src/annotator scripts/vlm_scene_benchmark | LC_ALL=C sort
+    src/annotator experiments/annotator/vlm_scene_benchmark | LC_ALL=C sort
 }
 
 runtime_fingerprint() {
@@ -393,7 +393,7 @@ stage_runtime_snapshot() {
 set -euo pipefail
 run_root=$1
 cd "$run_root"
-find repo/src/annotator repo/scripts/vlm_scene_benchmark artifacts -type f -print0 \
+find repo/src/annotator repo/experiments/annotator/vlm_scene_benchmark artifacts -type f -print0 \
   | sort -z \
   | xargs -0 sha256sum >control/staged.sha256.tmp
 mv -- control/staged.sha256.tmp control/staged.sha256
@@ -414,7 +414,7 @@ remote_task_command() {
   local backend=${2:-_}
   local stage=${3:-_}
   printf '%q ' \
-    "$RUN_ROOT/repo/scripts/vlm_scene_benchmark/remote_task.sh" \
+    "$RUN_ROOT/repo/experiments/annotator/vlm_scene_benchmark/scripts/remote_task.sh" \
     "$task" "$REMOTE_ROOT" "$RUN_ROOT" "$backend" "$stage"
 }
 
@@ -803,9 +803,9 @@ score_candidate_records() {
     record="$LOCAL_RUN_ROOT/results/$backend-$stage.json"
     output="$LOCAL_RUN_ROOT/scores/$backend-$stage-score.json"
     [[ -f $record ]] || die "collected candidate record is missing: $record"
-    if PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src" \
+    if PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src:$REPO" \
       uv run --no-project --with numpy==2.4.4 \
-      python -m annotator.vlm_scene_benchmark.gate_cli \
+      python -m experiments.annotator.vlm_scene_benchmark.gate_cli \
       "$backend=$record"; then
       status=0
     else
@@ -823,9 +823,9 @@ score_candidate_records() {
       echo "Reusing score: $output"
       continue
     fi
-    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src" \
+    PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO/src:$REPO" \
       uv run --no-project --with numpy==2.4.4 \
-      python -m annotator.vlm_scene_benchmark.score_cli \
+      python -m experiments.annotator.vlm_scene_benchmark.score_cli \
       "$record" "$truth" --out "$output" || return
   done
   return "$outcome"

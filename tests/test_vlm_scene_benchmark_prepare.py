@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.vlm_scene_benchmark.contracts import ShardSpec
-from annotator.vlm_scene_benchmark.prepare import (
+from experiments.annotator.vlm_scene_benchmark.contracts import ShardSpec
+from experiments.annotator.vlm_scene_benchmark.prepare import (
     PreparedShardManifest,
     VideoFileSpec,
     prepare_shard,
@@ -67,7 +67,7 @@ def test_prepare_shard_preserves_frames_and_source_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.prepare.detect_cuts",
+        "experiments.annotator.vlm_scene_benchmark.prepare.detect_cuts",
         lambda _path, _frames, _threshold, _minimum: np.array([2, 5]),
     )
     output_dir = tmp_path / "prepared"
@@ -124,14 +124,14 @@ def test_prepare_shard_cleans_published_videos_if_manifest_write_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.prepare.detect_cuts",
+        "experiments.annotator.vlm_scene_benchmark.prepare.detect_cuts",
         lambda _path, _frames, _threshold, _minimum: np.array([], dtype=np.int64),
     )
     def fail_write(_path: Path, _manifest_value: PreparedShardManifest) -> None:
         raise OSError("injected failure")
 
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.prepare.write_manifest",
+        "experiments.annotator.vlm_scene_benchmark.prepare.write_manifest",
         fail_write,
     )
     output_dir = tmp_path / "failed"

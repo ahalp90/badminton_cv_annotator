@@ -39,7 +39,7 @@ script is also exported to `rsync`. Then run the read-only prerequisite check
 from the Issue 38 worktree:
 
 ```bash
-scripts/vlm_scene_benchmark/run_carmack.sh check \
+experiments/annotator/vlm_scene_benchmark/scripts/run_carmack.sh check \
   --remote-host sutherland \
   --remote-root /scratch/cmarti56/issue38-vlm \
   --ssh-command /absolute/path/to/nested-ssh

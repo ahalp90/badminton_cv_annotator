@@ -10,17 +10,18 @@ from pathlib import Path
 
 import numpy as np
 
+DECODE_GUARD_SECONDS = 2
+
 
 def _decode_command(
     video: Path,
     first: int,
     last: int,
     fps: Fraction,
-    guard_s: int,
 ) -> list[str]:
     n_frames = last - first + 1
-    seek = max(Fraction(0), Fraction(first) / fps - guard_s)
-    duration = Fraction(last - first) / fps + guard_s + 2
+    seek = max(Fraction(0), Fraction(first) / fps - DECODE_GUARD_SECONDS)
+    duration = Fraction(last - first) / fps + DECODE_GUARD_SECONDS + 2
     t_first = (Fraction(first) - Fraction(1, 2)) / fps
     t_last = (Fraction(last) + Fraction(1, 2)) / fps
     return [
@@ -99,7 +100,6 @@ def iter_span_frames(
     fps: Fraction,
     width: int,
     height: int,
-    guard_s: int = 2,
 ) -> Iterator[np.ndarray]:
     """Yield decoded BGR frames for an inclusive source span.
 
@@ -112,7 +112,5 @@ def iter_span_frames(
         raise ValueError(f"last frame must be at least first frame, got {first}, {last}")
     if fps <= 0:
         raise ValueError(f"fps must be positive, got {fps}")
-    if guard_s < 0:
-        raise ValueError(f"guard_s must be non-negative, got {guard_s}")
-    command = _decode_command(Path(video), first, last, fps, guard_s)
+    command = _decode_command(Path(video), first, last, fps)
     yield from _iter_decoded_frames(command, last - first + 1, width, height)

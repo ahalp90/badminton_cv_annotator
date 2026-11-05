@@ -43,11 +43,6 @@ def resolve_artifact_path(path: Path) -> Path:
     return counterpart if counterpart is not None and counterpart.exists() else source
 
 
-def artifacts_are_byte_equal(first: Path, second: Path) -> bool:
-    """Compare requested artifacts after compressed/plain fallback resolution."""
-    return resolve_artifact_path(first).read_bytes() == resolve_artifact_path(second).read_bytes()
-
-
 def _atomic_write_bytes(path: Path, payload: bytes) -> Path:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)

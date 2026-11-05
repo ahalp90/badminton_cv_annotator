@@ -52,7 +52,7 @@ chmod 700 "$SSH_WRAPPER"
 Inspect every resolved path and pin without changing local or remote state:
 
 ```bash
-scripts/vlm_scene_benchmark/run_carmack.sh all \
+experiments/annotator/vlm_scene_benchmark/scripts/run_carmack.sh all \
   --plan \
   --remote-host sutherland \
   --remote-root /scratch/cmarti56/issue38-vlm \
@@ -62,7 +62,7 @@ scripts/vlm_scene_benchmark/run_carmack.sh all \
 Run the full workflow only while the GPU is idle:
 
 ```bash
-scripts/vlm_scene_benchmark/run_carmack.sh all \
+experiments/annotator/vlm_scene_benchmark/scripts/run_carmack.sh all \
   --remote-host sutherland \
   --remote-root /scratch/cmarti56/issue38-vlm \
   --ssh-command /tmp/issue38-sutherland-rsh
@@ -100,7 +100,7 @@ The first positional argument selects a bounded stage:
 Keep the same path options and run tag when resuming. For example:
 
 ```bash
-scripts/vlm_scene_benchmark/run_carmack.sh status \
+experiments/annotator/vlm_scene_benchmark/scripts/run_carmack.sh status \
   --remote-host sutherland \
   --remote-root /scratch/cmarti56/issue38-vlm \
   --ssh-command /tmp/issue38-sutherland-rsh \

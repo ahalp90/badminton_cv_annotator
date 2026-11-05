@@ -11,25 +11,27 @@ from types import SimpleNamespace
 
 import pytest
 
-from annotator.vlm_scene_benchmark.backends import require_complete_frame_grid
-from annotator.vlm_scene_benchmark.backends.internvideo3 import (
+from experiments.annotator.vlm_scene_benchmark.backends import (
+    require_complete_frame_grid,
+)
+from experiments.annotator.vlm_scene_benchmark.backends.internvideo3 import (
     SPEC as INTERNVIDEO3_SPEC,
 )
-from annotator.vlm_scene_benchmark.backends.internvideo3 import (
+from experiments.annotator.vlm_scene_benchmark.backends.internvideo3 import (
     _prepare_chat_inputs,
 )
-from annotator.vlm_scene_benchmark.backends.qwen3_vl import (
+from experiments.annotator.vlm_scene_benchmark.backends.qwen3_vl import (
     SPEC as QWEN_SPEC,
 )
-from annotator.vlm_scene_benchmark.backends.qwen3_vl import (
+from experiments.annotator.vlm_scene_benchmark.backends.qwen3_vl import (
     _configure_vllm_environment,
     _engine_config,
     _metadata_frame_indices,
     _resolve_model_snapshot,
     _video_content,
 )
-from annotator.vlm_scene_benchmark.contracts import ShardSpec
-from annotator.vlm_scene_benchmark.runtime import (
+from experiments.annotator.vlm_scene_benchmark.contracts import ShardSpec
+from experiments.annotator.vlm_scene_benchmark.runtime import (
     GpuMemoryMonitor,
     GpuSnapshot,
     is_strict_json_response,
@@ -228,7 +230,7 @@ def test_raw_response_is_retained_byte_for_byte(tmp_path: Path) -> None:
 def test_nvidia_query_parses_name_with_spaces_and_memory(monkeypatch: pytest.MonkeyPatch) -> None:
     completed = SimpleNamespace(returncode=0, stdout="NVIDIA L40, 12345\n", stderr="")
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.runtime.subprocess.run",
+        "experiments.annotator.vlm_scene_benchmark.runtime.subprocess.run",
         lambda *args, **kwargs: completed,
     )
 
@@ -243,7 +245,7 @@ def test_nvidia_query_rejects_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
         raise subprocess.TimeoutExpired("nvidia-smi", 5.0)
 
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.runtime.subprocess.run",
+        "experiments.annotator.vlm_scene_benchmark.runtime.subprocess.run",
         time_out,
     )
 
@@ -263,11 +265,11 @@ def test_gpu_monitor_rejects_thread_that_does_not_stop(
         return GpuSnapshot("NVIDIA L40", 12345.0)
 
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.runtime.query_nvidia_gpu",
+        "experiments.annotator.vlm_scene_benchmark.runtime.query_nvidia_gpu",
         blocked_query,
     )
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.runtime.GPU_MONITOR_STOP_TIMEOUT_SECONDS",
+        "experiments.annotator.vlm_scene_benchmark.runtime.GPU_MONITOR_STOP_TIMEOUT_SECONDS",
         0.01,
     )
     monitor = GpuMemoryMonitor(interval_seconds=0.01)

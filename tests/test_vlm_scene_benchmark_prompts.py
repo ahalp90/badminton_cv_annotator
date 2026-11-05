@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from annotator.vlm_scene_benchmark.contracts import ShardSpec
-from annotator.vlm_scene_benchmark.prompts import (
+from experiments.annotator.vlm_scene_benchmark.contracts import ShardSpec
+from experiments.annotator.vlm_scene_benchmark.prompts import (
     PROMPT_VERSION,
     build_correction_prompt,
     build_scene_prompt,

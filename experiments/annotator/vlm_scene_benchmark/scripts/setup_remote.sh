@@ -3,7 +3,7 @@ set -euo pipefail
 
 readonly REMOTE_ROOT=${1:?usage: setup_remote.sh REMOTE_ROOT RUN_ROOT}
 readonly RUN_ROOT=${2:?usage: setup_remote.sh REMOTE_ROOT RUN_ROOT}
-readonly SCRIPT_ROOT="$RUN_ROOT/repo/scripts/vlm_scene_benchmark"
+readonly SCRIPT_ROOT="$RUN_ROOT/repo/experiments/annotator/vlm_scene_benchmark/scripts"
 readonly INTERN_IMAGE="$REMOTE_ROOT/images/internvideo3-pytorch-2.8.0-cu129.sif"
 readonly QWEN_IMAGE="$REMOTE_ROOT/images/qwen3-vl-vllm-v0.11.0.sif"
 readonly INTERN_IMAGE_SHA256=fd1c42ea24386dde021f12c0fe9458f0d4f5f43ea97af2ad19c2b3ea9925c76a

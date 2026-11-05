@@ -12,9 +12,9 @@ from annotator.review.broadcast_editor import (
     commit_label,
     read_guides,
     read_scene_partition,
-    video_metadata,
 )
 from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
+from annotator.review.gui import video_metadata
 
 METADATA = VideoMetadata("sset_01", 25.0, 10)
 

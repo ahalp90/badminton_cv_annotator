@@ -590,16 +590,14 @@ def _write_candidate(
             )
             writer.writeheader()
             writer.writerows(decision_to_row(decision) for decision in ordered)
-        reloaded = read_decision_csv(temporary, targets)
-        if reloaded != ordered:
-            raise RuntimeError(f"decision CSV round trip changed values: {destination}")
         return temporary
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
 
 
-def _validate_output_path(path: Path) -> Path:
+def validate_decision_output_path(path: Path) -> Path:
+    """Reject non-gzip and canonical-timeline decision destinations."""
     path = Path(path)
     if not path.name.endswith(".csv.gz"):
         raise ValueError(f"decision path must end in .csv.gz: {path}")
@@ -608,18 +606,13 @@ def _validate_output_path(path: Path) -> Path:
     return path
 
 
-def validate_decision_output_path(path: Path) -> Path:
-    """Reject non-gzip and canonical-timeline decision destinations."""
-    return _validate_output_path(path)
-
-
 def write_decision_csv(
     path: Path,
     decisions: Sequence[RallyStartDecision],
     targets: Sequence[RallyStartTarget],
 ) -> None:
-    """Atomically replace a compact decision table after a strict round trip."""
-    path = _validate_output_path(path)
+    """Validate rows, then atomically replace the compact decision table."""
+    path = validate_decision_output_path(path)
     temporary = _write_candidate(path, decisions, targets)
     try:
         os.replace(temporary, path)
@@ -633,7 +626,7 @@ def initialize_decision_csv(
     targets: Sequence[RallyStartTarget],
 ) -> None:
     """Atomically create a missing decision table without replacing human work."""
-    path = _validate_output_path(path)
+    path = validate_decision_output_path(path)
     temporary = _write_candidate(path, decisions, targets)
     try:
         os.link(temporary, path)
@@ -658,7 +651,7 @@ class RallyStartAuditSession:
         self._decision_path = (
             None
             if decision_path is None
-            else _validate_output_path(Path(decision_path)).resolve()
+            else validate_decision_output_path(Path(decision_path)).resolve()
         )
 
     @property
@@ -784,7 +777,7 @@ class RallyStartAuditSession:
         return self._index
 
     def _output_path_for(self, path: Path) -> Path:
-        resolved = _validate_output_path(Path(path)).resolve()
+        resolved = validate_decision_output_path(Path(path)).resolve()
         if self._decision_path is not None and resolved != self._decision_path:
             raise ValueError(
                 f"session decision path is {self._decision_path}, not {resolved}"
@@ -812,26 +805,11 @@ class RallyStartAuditSession:
         self._decisions = candidate
         self._decision_path = output_path
         self._undo_action = SavedDecisionAction(row_index, previous, saved)
-        pending_after = next(
-            (
-                index
-                for index in range(row_index + 1, len(candidate))
-                if candidate[index].review_status is ReviewStatus.PENDING
-            ),
-            None,
-        )
-        if pending_after is not None:
-            self._index = pending_after
-        else:
-            first_pending = next(
-                (
-                    index
-                    for index, decision in enumerate(candidate)
-                    if decision.review_status is ReviewStatus.PENDING
-                ),
-                None,
-            )
-            self._index = row_index if first_pending is None else first_pending
+        for offset in range(1, len(candidate) + 1):
+            index = (row_index + offset) % len(candidate)
+            if candidate[index].review_status is ReviewStatus.PENDING:
+                self._index = index
+                break
         self._draft = self.current_decision
         return saved
 

@@ -14,12 +14,12 @@ import numpy as np
 
 from annotator.review.broadcast_labels import (
     LabelInterval,
-    SceneTruth,
     VideoMetadata,
     interval_index_at,
     read_label_csv,
     validate_partition,
 )
+from annotator.review.gui import TRUTH_COLOURS, read_frame, timeline_x, video_metadata
 from annotator.review.rally_starts import (
     RallyStartAuditSession,
     RallyStartDecision,
@@ -30,20 +30,11 @@ from annotator.review.rally_starts import (
     initialize_decision_csv,
     read_decision_csv,
     read_target_csv,
-    validate_decision,
     validate_decision_output_path,
-    validate_targets,
 )
 
 WINDOW_NAME = "Rally-start event review"
 MAX_STATUS_CHARS = 58
-TRUTH_COLOURS = {
-    SceneTruth.LIVE: (30, 150, 30),
-    SceneTruth.LIVE_NON_STANDARD: (80, 180, 80),
-    SceneTruth.REPLAY: (180, 80, 180),
-    SceneTruth.CUTAWAY: (180, 120, 40),
-    SceneTruth.OTHER: (100, 100, 100),
-}
 
 
 class AuditAction(StrEnum):
@@ -170,20 +161,6 @@ def validate_input_output_paths(args: argparse.Namespace) -> None:
             raise ValueError(f"decision output aliases the {label} input: {path}")
 
 
-def video_metadata(capture: cv2.VideoCapture, video_id: str) -> VideoMetadata:
-    """Read validated metadata from one open review video."""
-    if not capture.isOpened():
-        raise ValueError("could not open source video")
-    fps = float(capture.get(cv2.CAP_PROP_FPS))
-    frame_count_raw = float(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    if not math.isfinite(frame_count_raw) or frame_count_raw <= 0:
-        raise ValueError(f"video frame count is invalid: {frame_count_raw!r}")
-    frame_count = round(frame_count_raw)
-    if not math.isclose(frame_count_raw, frame_count, abs_tol=1e-6):
-        raise ValueError(f"video frame count is not integral: {frame_count_raw!r}")
-    return VideoMetadata(video_id, fps, frame_count)
-
-
 def _require_matching_metadata(
     actual: VideoMetadata,
     expected: VideoMetadata,
@@ -208,7 +185,7 @@ def _load_inputs(args: argparse.Namespace) -> tuple[
     VideoMetadata,
 ]:
     targets = read_target_csv(Path(args.targets_csv))
-    target_metadata = validate_targets(targets, str(args.targets_csv))
+    target_metadata = targets[0].metadata
     if target_metadata.video_id != args.video_id:
         raise ValueError(
             f"--video-id {args.video_id!r} != target {target_metadata.video_id!r}"
@@ -233,7 +210,7 @@ def _load_or_initialize_decisions(
             f"validation-only requires an existing decision table: {decision_path}"
         )
     initialize_decision_csv(decision_path, seed, targets)
-    return read_decision_csv(decision_path, targets)
+    return list(seed)
 
 
 def prepare_audit(
@@ -259,19 +236,10 @@ def prepare_audit(
 def validate_complete_decisions(prepared: PreparedAudit) -> None:
     """Require every proposal to contain a valid reviewed decision."""
     pending = 0
-    for row_number, (decision, target) in enumerate(
-        zip(prepared.decisions, prepared.targets),
-        start=2,
-    ):
-        validate_decision(decision, target, source=f"decision row {row_number}")
+    for decision in prepared.decisions:
         pending += decision.review_status is ReviewStatus.PENDING
     if pending:
         raise ValueError(f"decision table is incomplete: {pending} pending rows")
-
-
-def _timeline_x(frame: int, width: int, start: int, end: int) -> int:
-    fraction = (frame - start) / (end - start)
-    return round(np.clip(fraction, 0.0, 1.0) * (width - 1))
 
 
 def _draw_marker(
@@ -283,7 +251,7 @@ def _draw_marker(
 ) -> None:
     if frame is None:
         return
-    x = _timeline_x(
+    x = timeline_x(
         frame,
         image.shape[1],
         target.review_start_frame,
@@ -308,13 +276,13 @@ def draw_event_timeline(
             continue
         if interval.start_frame >= target.review_end_frame:
             break
-        left = _timeline_x(
+        left = timeline_x(
             max(interval.start_frame, target.review_start_frame),
             width,
             target.review_start_frame,
             target.review_end_frame,
         )
-        right = _timeline_x(
+        right = timeline_x(
             min(interval.end_frame, target.review_end_frame),
             width,
             target.review_start_frame,
@@ -393,14 +361,6 @@ def draw_status(image: np.ndarray, lines: Sequence[str]) -> None:
         )
 
 
-def _read_frame(capture: cv2.VideoCapture, frame: int) -> np.ndarray:
-    capture.set(cv2.CAP_PROP_POS_FRAMES, frame)
-    ok, image = capture.read()
-    if not ok or image is None:
-        raise RuntimeError(f"could not decode frame {frame}")
-    return image
-
-
 def _print_help() -> None:
     print(
         "Controls:\n"
@@ -442,7 +402,7 @@ class _AuditGui:
         return "none" if index is None else self.timeline[index].truth.value
 
     def redraw(self) -> None:
-        image = _read_frame(self.capture, self.frame)
+        image = read_frame(self.capture, self.frame)
         draw_event_timeline(
             image,
             self.timeline,

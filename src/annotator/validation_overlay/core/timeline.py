@@ -39,7 +39,6 @@ class PlannedFrame:
 
     source_idx: int
     state: SpanState
-    segment_index: int
     segment_label: str | None
     show_segment_label: bool
 
@@ -48,9 +47,6 @@ class PlannedFrame:
 class SegmentPlan:
     """Expanded, clipped source frames for one segment."""
 
-    segment: Segment
-    requested_first: int
-    requested_last: int
     effective_first: int
     effective_last: int
     frames: tuple[PlannedFrame, ...]
@@ -75,7 +71,6 @@ PlanPart = SegmentPlan | SpacerPlan
 class TimelinePlan:
     """Pure ordered plan of segment frames and inter-segment spacers."""
 
-    nb_frames: int
     fps: Fraction
     parts: tuple[PlanPart, ...]
 
@@ -246,16 +241,12 @@ def build_timeline(
                 PlannedFrame(
                     source_idx,
                     state,
-                    segment_index,
                     segment.label,
                     show_segment_label,
                 )
             )
         parts.append(
             SegmentPlan(
-                segment,
-                requested_first,
-                requested_last,
                 effective_first,
                 effective_last,
                 tuple(segment_frames),
@@ -263,4 +254,4 @@ def build_timeline(
         )
         if segment_index < len(segment_entries) - 1:
             parts.append(SpacerPlan(spacer_frames))
-    return TimelinePlan(nb_frames, fps, tuple(parts))
+    return TimelinePlan(fps, tuple(parts))

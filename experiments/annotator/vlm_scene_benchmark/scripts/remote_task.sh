@@ -48,7 +48,7 @@ run_setup() {
   {
     printf '\n[%s] setup start\n' "$(date --iso-8601=seconds)"
     verify_snapshot && \
-      "$RUN_ROOT/repo/scripts/vlm_scene_benchmark/setup_remote.sh" "$REMOTE_ROOT" "$RUN_ROOT"
+      "$RUN_ROOT/repo/experiments/annotator/vlm_scene_benchmark/scripts/setup_remote.sh" "$REMOTE_ROOT" "$RUN_ROOT"
   } >>"$log" 2>&1
   local status=$?
   if ((status == 0)); then
@@ -103,7 +103,7 @@ common_apptainer_arguments() {
     --bind "$RUN_ROOT/tmp:$RUN_ROOT/tmp"
     --env PYTHONNOUSERSITE=1
     --env PYTHONDONTWRITEBYTECODE=1
-    --env PYTHONPATH="$RUN_ROOT/repo/src"
+    --env PYTHONPATH="$RUN_ROOT/repo/src:$RUN_ROOT/repo"
     --env HF_HOME="$REMOTE_ROOT/cache/huggingface"
     --env TORCH_HOME="$REMOTE_ROOT/cache/torch"
     --env TRITON_CACHE_DIR="$REMOTE_ROOT/cache/triton"
@@ -120,7 +120,7 @@ intern_command() {
   COMMAND=(
     apptainer "${APPTAINER_ARGUMENTS[@]}"
     "$INTERN_IMAGE" "$INTERN_ENVIRONMENT/bin/python" -u
-    -m annotator.vlm_scene_benchmark.run_cli
+    -m experiments.annotator.vlm_scene_benchmark.run_cli
     --backend internvideo3 --manifest "$MANIFEST"
     --run-id "internvideo3-sset15-$STAGE-$RUN_ID_SUFFIX" --max-new-tokens "$MAX_NEW_TOKENS" --out "$RESULT"
   )
@@ -136,7 +136,7 @@ qwen_command() {
   COMMAND=(
     apptainer "${APPTAINER_ARGUMENTS[@]}"
     "$QWEN_IMAGE" "$QWEN_ENVIRONMENT/bin/python" -u
-    -m annotator.vlm_scene_benchmark.run_cli
+    -m experiments.annotator.vlm_scene_benchmark.run_cli
     --backend qwen3-vl --manifest "$MANIFEST"
     --run-id "qwen3-vl-sset15-$STAGE-$RUN_ID_SUFFIX"
     --max-new-tokens "$MAX_NEW_TOKENS" --max-model-len "$QWEN_MAX_MODEL_LEN" --out "$RESULT"
@@ -206,10 +206,10 @@ run_gate() {
     --bind "$RUN_ROOT:$RUN_ROOT" \
     --bind "$REMOTE_ROOT/envs:$REMOTE_ROOT/envs" \
     --env PYTHONNOUSERSITE=1 \
-    --env PYTHONPATH="$RUN_ROOT/repo/src" \
+    --env PYTHONPATH="$RUN_ROOT/repo/src:$RUN_ROOT/repo" \
     "$INTERN_IMAGE" \
     "$INTERN_ENVIRONMENT/bin/python" \
-    -m annotator.vlm_scene_benchmark.gate_cli \
+    -m experiments.annotator.vlm_scene_benchmark.gate_cli \
     "$BACKEND=$RESULT"
 }
 

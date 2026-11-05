@@ -311,7 +311,6 @@ def test_frame_zero_lead_context_is_clipped_without_padding() -> None:
     assert plan.ordered_source_indices == (0, 1, 2, 3)
     assert plan.ordered_source_indices.count(0) == 1
     assert plan.parts[0].effective_first == 0
-    assert plan.parts[0].requested_first == -3
 
 
 def test_short_read_raises_and_exact_eof_span_succeeds(validation_video: Path) -> None:

@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +39,7 @@ from annotator.review.broadcast_labels import (
     validate_partition,
     write_label_csv,
 )
+from annotator.review.gui import TRUTH_COLOURS, read_frame, timeline_x, video_metadata
 
 WINDOW_NAME = "Manual broadcast timeline annotator"
 LABEL_KEYS = {
@@ -48,13 +48,6 @@ LABEL_KEYS = {
     ord("3"): SceneTruth.REPLAY,
     ord("4"): SceneTruth.CUTAWAY,
     ord("5"): SceneTruth.OTHER,
-}
-TRUTH_COLOURS = {
-    SceneTruth.LIVE: (75, 180, 60),
-    SceneTruth.LIVE_NON_STANDARD: (220, 180, 50),
-    SceneTruth.REPLAY: (70, 70, 230),
-    SceneTruth.CUTAWAY: (60, 150, 240),
-    SceneTruth.OTHER: (160, 160, 160),
 }
 
 
@@ -319,20 +312,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def video_metadata(capture: cv2.VideoCapture, video_id: str) -> VideoMetadata:
-    """Read and validate the metadata used by every output row."""
-    if not capture.isOpened():
-        raise ValueError("could not open source video")
-    fps = float(capture.get(cv2.CAP_PROP_FPS))
-    frame_count_raw = float(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    if not math.isfinite(frame_count_raw) or frame_count_raw <= 0:
-        raise ValueError(f"video frame count is invalid: {frame_count_raw!r}")
-    frame_count = round(frame_count_raw)
-    if not math.isclose(frame_count_raw, frame_count, abs_tol=1e-6):
-        raise ValueError(f"video frame count is not integral: {frame_count_raw!r}")
-    return VideoMetadata(video_id, fps, frame_count)
-
-
 def _guide_at(guides: Sequence[GuideInterval], frame: int) -> list[GuideInterval]:
     return [guide for guide in guides if guide.start_frame <= frame < guide.end_frame]
 
@@ -377,11 +356,6 @@ def commit_label(
     return interval, _next_unlabelled_scene_preview(session, scenes, interval.end_frame)
 
 
-def _timeline_x(frame: int, width: int, start: int, end: int) -> int:
-    fraction = (frame - start) / (end - start)
-    return round(np.clip(fraction, 0.0, 1.0) * (width - 1))
-
-
 def draw_timeline(
     image: np.ndarray,
     session: TimelineSession,
@@ -397,21 +371,21 @@ def draw_timeline(
     for interval in session.intervals:
         if interval.end_frame <= session.covered_start or interval.start_frame >= session.covered_end:
             continue
-        left = _timeline_x(interval.start_frame, width, session.covered_start, session.covered_end)
-        right = _timeline_x(interval.end_frame, width, session.covered_start, session.covered_end)
+        left = timeline_x(interval.start_frame, width, session.covered_start, session.covered_end)
+        right = timeline_x(interval.end_frame, width, session.covered_start, session.covered_end)
         cv2.rectangle(image, (left, top + 8), (max(left, right - 1), height - 1), TRUTH_COLOURS[interval.truth], -1)
     for scene in scenes[1:]:
-        boundary = _timeline_x(scene.start_frame, width, session.covered_start, session.covered_end)
+        boundary = timeline_x(scene.start_frame, width, session.covered_start, session.covered_end)
         cv2.line(image, (boundary, top + 5), (boundary, height - 1), (0, 200, 255), 1)
     for guide in proposals:
-        left = _timeline_x(guide.start_frame, width, session.covered_start, session.covered_end)
-        right = _timeline_x(guide.end_frame, width, session.covered_start, session.covered_end)
+        left = timeline_x(guide.start_frame, width, session.covered_start, session.covered_end)
+        right = timeline_x(guide.end_frame, width, session.covered_start, session.covered_end)
         cv2.line(image, (left, top + 4), (right, top + 4), (255, 0, 255), 2)
     for guide in gt_guides:
-        left = _timeline_x(guide.start_frame, width, session.covered_start, session.covered_end)
-        right = _timeline_x(guide.end_frame, width, session.covered_start, session.covered_end)
+        left = timeline_x(guide.start_frame, width, session.covered_start, session.covered_end)
+        right = timeline_x(guide.end_frame, width, session.covered_start, session.covered_end)
         cv2.line(image, (left, top + 1), (right, top + 1), (255, 255, 255), 1)
-    cursor = _timeline_x(frame, width, session.covered_start, session.covered_end)
+    cursor = timeline_x(frame, width, session.covered_start, session.covered_end)
     cv2.line(image, (cursor, top), (cursor, height - 1), (0, 255, 255), 1)
 
 
@@ -461,14 +435,6 @@ def _print_help(*, scene_mode: bool) -> None:
         "  q                     quit"
     )
     print(controls)
-
-
-def _read_frame(capture: cv2.VideoCapture, frame: int) -> np.ndarray:
-    capture.set(cv2.CAP_PROP_POS_FRAMES, frame)
-    ok, image = capture.read()
-    if not ok or image is None:
-        raise RuntimeError(f"could not decode frame {frame}")
-    return image
 
 
 def _load_intervals(path: Path, metadata: VideoMetadata) -> list[LabelInterval]:
@@ -565,7 +531,7 @@ def _run_gui(
     def redraw(frame: int) -> None:
         frame = min(max(frame, session.covered_start), session.covered_end - 1)
         frame_state["index"] = frame
-        image = _read_frame(capture, frame)
+        image = read_frame(capture, frame)
         draw_timeline(image, session, frame, scenes, proposals, gt_guides)
         _draw_status(image, session, frame, scenes, proposals, gt_guides, message_state["text"])
         cv2.imshow(WINDOW_NAME, image)

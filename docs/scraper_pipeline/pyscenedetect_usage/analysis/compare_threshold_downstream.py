@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from scenedetect import open_video
 
-from annotator.artifact_io import artifacts_are_byte_equal, load_npy
+from annotator.artifact_io import load_npy
 from annotator.config import COMPOSITION_KEEP_VOTE, BaseAnnotatorConfig, resolve
 from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
 from annotator.masks.composition import (
@@ -282,8 +282,8 @@ def main() -> None:
             print(f"  {homog}: keep_vote length={len(keep_vote)} true={int(keep_vote.sum())}")
             if video_id == 1:
                 stride_1_path = run_root / config_name / "sset_01" / STRIDE_1_VOTE_RELATIVE_PATH
-                stride_independent = artifacts_are_byte_equal(stride_1_path, vote_path)
-                print(f"    stride-1_vs_stride-8_byte_equal={stride_independent}")
+                stride_independent = np.array_equal(load_keep_vote(stride_1_path), keep_vote)
+                print(f"    stride-1_vs_stride-8_masks_equal={stride_independent}")
 
         baseline_path = analysis_dir / f"data/cuts_{video_id}_content27.csv.gz"
         baseline_cuts, baseline_n_frames = load_baseline(baseline_path)
