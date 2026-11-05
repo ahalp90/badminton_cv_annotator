@@ -8,7 +8,6 @@ import pytest
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.courts import evidence
 from annotator.evaluation.fixtures import FIXTURES
-from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
     corner_error_band_from_corners,
     project_pixels_to_court,
@@ -72,7 +71,7 @@ def _result(rows: list[dict[str, object]], frame_count: int = 10) -> dict[str, o
     }
 
 
-def test_static_corner_order_matches_pose_columns_and_landing_band(monkeypatch) -> None:
+def test_static_corner_order_matches_pose_columns(monkeypatch) -> None:
     camera_order = np.array([
         [11.0, 12.0],  # top-left
         [21.0, 22.0],  # top-right
@@ -100,20 +99,6 @@ def test_static_corner_order_matches_pose_columns_and_landing_band(monkeypatch) 
         pose_columns,
         clockwise_order[[0, 1, 3, 2]].reshape(-1),
     )
-
-    received = []
-
-    def fake_error_band(corners, _court_info, _err_px):
-        received.append(corners.copy())
-        return 1.25
-
-    monkeypatch.setattr(point_winner, 'get_corner_camera', lambda _row: camera_order.T)
-    monkeypatch.setattr(point_winner, 'corner_error_band_from_corners', fake_error_band)
-    result = point_winner.corner_error_band_m(
-        7, pd.DataFrame(index=[7]), _identity_info(), 3.5,
-    )
-    assert result == 1.25
-    np.testing.assert_array_equal(received[0], clockwise_order)
 
 
 @pytest.mark.parametrize(('fps', 'minimum'), [(25.0, 13), (30.0, 15)])

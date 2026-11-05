@@ -15,7 +15,6 @@ from enum import StrEnum
 from typing import NamedTuple
 
 import numpy as np
-import pandas as pd
 
 from annotator.config import Thresholds, frames_at_fps, speed_at_fps
 from annotator.types import (
@@ -31,7 +30,6 @@ from annotator.types import (
 from shared.court import (
     HOMOGRAPHY_RESOLUTION,
     convert_homogeneous,
-    get_corner_camera,
     normalize_position,
     project,
     scale_pos_by_resolution,
@@ -72,10 +70,6 @@ SINGLES_INSET_M = 0.46
 SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
 SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
 NET_COURT_Y = 0.5
-# ShuttleSet camera corners (TL, TR, BL, BR) reordered to TL, TR, BR, BL, the order
-# court_detector returns.
-SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
-
 # Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
 # (2% of any edge).
@@ -162,21 +156,6 @@ def fit_alternation(guesses: list[Half | None]) -> Half | None:
     if phase_score[Half.TOP] == phase_score[Half.BOT]:
         return None
     return Half.TOP if phase_score[Half.TOP] > phase_score[Half.BOT] else Half.BOT
-
-
-def next_server_half(striker_halves: list[Half | None], n_strokes: list[int]) -> list[Half | None]:
-    """Winner half per rally from winner-serves-next; None where no next serve is attributable.
-
-    Winner(n) = the attributed half of rally n+1's FIRST stroke, read off the fit already resolved
-    for rally n+1 (its final-stroke half back-propagated through the alternation to stroke 0). None
-    for the last rally (no next serve) or where rally n+1's fit tied. Game/set boundaries need no
-    special case: the game winner takes the last point AND serves first next game, so winner(n) ==
-    server(n+1) across a boundary too.
-    """
-    fitted_first = [alternating_player_sides(half, n)[0] if half is not None else None
-                    for half, n in zip(striker_halves, n_strokes)]
-    return [fitted_first[n + 1] if n + 1 < len(striker_halves) else None
-            for n in range(len(striker_halves))]
 
 
 # ---------------------------------------------------------------------------
@@ -630,30 +609,6 @@ def corner_error_band_from_corners(
     return float(np.median(displacements))
 
 
-def corner_error_band_m(
-    vid: int | str,
-    homo_df: pd.DataFrame,
-    court_info: dict,
-    err_px: float,
-) -> float:
-    """Corner error (refpx) propagated to court metres at the recorded-corner (line) locations.
-
-    Shifts each recorded corner by err_px along +/-x and +/-y, re-projects it through the SAME
-    homography, and measures how far the projected point moves in court metres. The median over the
-    four corners x four directions is the band: how many metres of landing uncertainty a corner
-    error of err_px buys at a court line. A forward-projection proxy for the homography's own corner
-    uncertainty; both scale as err_px x the local metres-per-refpx.
-
-    :param vid: the ShuttleSet video id, to key `homo_df`.
-    :param homo_df: the homography.csv frame, indexed by id.
-    :param court_info: this video's court info dict (carries `'H'`).
-    :param err_px: assumed corner-marking error, in the recorded homography's own pixel space.
-    """
-    source_order = get_corner_camera(homo_df.loc[vid]).T
-    corners = source_order[list(SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER)]
-    return corner_error_band_from_corners(corners, court_info, err_px)
-
-
 # ---------------------------------------------------------------------------
 # Landing pick + verdict assembly
 # ---------------------------------------------------------------------------
@@ -835,29 +790,3 @@ def hit_height(
     band_lo, band_hi = net_band
     centre = (band_lo + band_hi) / 2.0
     return 1 if shuttle_y_px < centre else 2
-
-
-class HitHeightRow(NamedTuple):
-    """One stroke's ShuttleSet-coded hit_height, keyed the same way the verdict rows are."""
-
-    rally_id: int
-    stroke_idx: int
-    contact_frame: int
-    hit_height: int
-
-
-def build_hit_height_rows(
-    contacts: list[tuple[int, int, int]], track: np.ndarray,
-    net_band: tuple[float, float], resolution: tuple[float, float],
-) -> list[HitHeightRow]:
-    """Per-stroke hit_height rows for a flat list of (rally_id, stroke_idx, contact_frame).
-
-    Decoupled from the verdict path: the contact frame is the only shuttle-track input this
-    reads (no attribution, no landing filter), so a caller can build these independently of
-    rally_verdict.
-    """
-    return [
-        HitHeightRow(rally_id, stroke_idx, contact_frame,
-                    hit_height(track, contact_frame, net_band, resolution))
-        for rally_id, stroke_idx, contact_frame in contacts
-    ]

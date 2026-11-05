@@ -23,11 +23,13 @@ from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig,
 from annotator.masks.composition import detect_cuts
 from annotator.outcomes.point_winner import (
     COURT_LENGTH_M,
-    SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER,
     corner_error_band_from_corners,
     project_pixels_to_court,
 )
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
+
+# ShuttleSet TL, TR, BL, BR corners become the detector's TL, TR, BR, BL order.
+SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
 
 DETECTED_PARENT = 'court_detector'
 # court_detector.run_video.VIDEO_RESULT_SCHEMA. Importing run_video would set

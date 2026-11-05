@@ -11,7 +11,6 @@ import pytest
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.outcomes.point_winner import (
     Half,
-    HitHeightRow,
     Landing,
     LandingFilterOptions,
     LandingKinematics,
@@ -19,7 +18,6 @@ from annotator.outcomes.point_winner import (
     Verdict,
     VerdictSource,
     attribute_half,
-    build_hit_height_rows,
     build_landing_kinematics,
     carried_terminal,
     filtered_descending_landing,
@@ -30,7 +28,6 @@ from annotator.outcomes.point_winner import (
     is_net_ender,
     landing_margins,
     landing_window,
-    next_server_half,
     pick_landing_to_end,
     rally_verdict,
     window_end,
@@ -95,23 +92,6 @@ def test_fit_alternation_ignores_none_guesses_when_scoring():
     # One ambiguous stroke in the middle; the other two both fit phase(final=Bot).
     guesses = [Half.TOP, None, Half.TOP, Half.BOT]
     assert fit_alternation(guesses) == Half.BOT
-
-
-# ---------------------------------------------------------------------------
-# next_server_half chaining
-# ---------------------------------------------------------------------------
-def test_next_server_half_reads_next_rallys_fitted_first_stroke():
-    # rally0 (3 strokes): winner = rally1's fitted first-stroke half. rally1 (4 strokes, final Bot)
-    # fits phase [Top,Bot,Top,Bot], so its first stroke is Top -> rally0's winner is Top.
-    # rally1's own winner reads rally2's fit, which tied (None) -> None. rally2 is last: no next
-    # serve at all -> None.
-    striker_halves = [Half.TOP, Half.BOT, None]
-    n_strokes = [3, 4, 2]
-    assert next_server_half(striker_halves, n_strokes) == [Half.TOP, None, None]
-
-
-def test_next_server_half_single_rally_has_no_next_serve():
-    assert next_server_half([Half.TOP], [3]) == [None]
 
 
 # ---------------------------------------------------------------------------
@@ -478,24 +458,6 @@ def test_hit_height_raises_when_shuttle_not_visible():
     track = np.zeros((3, 3))  # visibility column stays 0
     with pytest.raises(ValueError, match='not visible'):
         hit_height(track, 1, (664.6, 703.7), (1920.0, 1080.0))
-
-
-def test_build_hit_height_rows_maps_a_flat_contact_list():
-    net_band = (664.6, 703.7)
-    resolution = (1920.0, 1080.0)
-    track = np.zeros((3, 3))
-    track[:, 2] = 1
-    track[0, 1] = 600.0 / resolution[1]  # above
-    track[1, 1] = 750.0 / resolution[1]  # below
-    track[2, 1] = 600.0 / resolution[1]  # above
-
-    rows = build_hit_height_rows([(0, 0, 0), (0, 1, 1), (1, 0, 2)], track, net_band, resolution)
-
-    assert rows == [
-        HitHeightRow(rally_id=0, stroke_idx=0, contact_frame=0, hit_height=1),
-        HitHeightRow(rally_id=0, stroke_idx=1, contact_frame=1, hit_height=2),
-        HitHeightRow(rally_id=1, stroke_idx=0, contact_frame=2, hit_height=1),
-    ]
 
 
 # ---------------------------------------------------------------------------
