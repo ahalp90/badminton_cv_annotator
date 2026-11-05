@@ -4,6 +4,39 @@ Fine-tune VideoMAE V1 Base from supervised Kinetics-400 weights using the shared
 RGB cache, contact sampler and event scorer. The pilot compares peak learning
 rates `3.125e-5` and `1e-4`, each at seeds 0 and 1. Each run starts afresh.
 
+## Follow the X3D validation winner
+
+Run four fresh models: learning rates `3.125e-5` and `1e-4`, each at seeds 0 and 1.
+Inherit both the contact/background sampling ratio and the positive-centre
+window from the X3D validation winner. A 25% contact share means 75% background;
+a 50% contact share means 50% background. The positive window is ±1 or ±2 frames.
+
+```bash
+python -u -m experiments.annotator.video_models_benchmark.videomae_queue follow-x3d \
+  --x3d-output "$X3D_RUNS" --output "$VIDEOMAE_RUNS"
+```
+
+The follow-up waits for X3D training and its selected test runs to finish.
+It reads the saved validation ranking, copies the winning sampling and label
+settings into all four VideoMAE configurations, and uses the same caches.
+An interrupted or failed X3D queue prevents VideoMAE from starting. Repeating
+`follow-x3d` resumes the VideoMAE queue with its original inherited settings.
+
+Each run includes the initial 30,000 updates and continuation to three
+consecutive validation checks without a lower loss. There is no new training
+cap. Validation and test use native stride 3, offset 0, with forced alternation:
+choose the order matching more predicted hitters, then break count ties by
+summed player probability and exact probability ties by the first predicted
+hitter. Keep every validation check's weights, probabilities and metrics.
+
+Select each checkpoint by minimum validation cross-entropy, taking the earlier
+check on a tie. Rank learning rates by mean fully correct validation rallies
+across both seeds at the ±10-frame tolerance, then mean correct-player F1;
+an exact tie chooses the lower learning rate. Save this ranking before testing
+both seeds of the winner. Test scores do not affect either selection.
+
+## Original pilot settings
+
 Training labels are positive within **±1 frame of contact**. Centres two frames
 from contact are ignored unless another contact makes them positive. Half of
 sampled clips come from positive centres. The existing CLI calls these labels

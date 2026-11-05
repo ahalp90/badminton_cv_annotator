@@ -270,3 +270,152 @@ def test_automatic_test_uses_validation_winner_and_skips_completed_seeds(
         assert command[command.index("--offset") + 1] == "0"
         assert command[command.index("--cache") + 1] == str(tmp_path / "test-cache")
     assert read_record(output / "selection.json.gz")["ranking"][0]["learning_rate"] == 1e-4
+
+
+@pytest.mark.parametrize("scheme", ["A", "B"])
+@pytest.mark.parametrize("fraction", [0.25, 0.5])
+def test_x3d_winner_sets_both_labels_and_sampling(tmp_path: Path, scheme: str, fraction: float) -> None:
+    import tomllib
+
+    winner = {"scheme": scheme, "contact_fraction": fraction, "learning_rate": 0.02}
+    queue.initialise(tmp_path, tmp_path / "cache", Path(queue.__file__).with_name("videomae.toml"),
+                     test_cache=tmp_path / "test-cache", x3d_winner=winner)
+    manifest = read_record(tmp_path / "grid.json.gz")
+    assert manifest["scheme"] == scheme
+    assert manifest["x3d_winner"] == winner
+    assert len(manifest["runs"]) == 4
+    for run in manifest["runs"]:
+        config = tomllib.loads((tmp_path / f"{run['name']}.toml").read_text())
+        assert config["contact_fraction"] == fraction
+        assert config["validation_stride"] == 3
+        assert config["force_alternation"] and config["continue_until_patience"]
+        assert config["learning_rate"] in queue.LEARNING_RATES
+        assert config["max_steps"] == 30000
+        assert "max_total_steps" not in config
+
+
+def test_integrated_queue_resumes_without_skipping_or_reextending_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue.initialise(tmp_path, tmp_path / "cache", Path(queue.__file__).with_name("videomae.toml"),
+                     x3d_winner={"scheme": "B", "contact_fraction": 0.25})
+    manifest = read_record(tmp_path / "grid.json.gz")
+    runs = manifest["runs"]
+    finish_run(tmp_path, runs[0], phase="paused", continuation=True)
+    calls = []
+
+    def finish(output: Path, manifest: dict, run: dict, *, extend: bool, resume: bool) -> None:
+        assert manifest["scheme"] == "B"
+        assert resume and not extend
+        calls.append(run["name"])
+        finish_run(output, run, continuation=True)
+
+    monkeypatch.setattr(queue, "launch_run", finish)
+    queue.execute(tmp_path, resume=True)
+    assert calls == [run["name"] for run in runs]
+    queue.execute(tmp_path, resume=True)
+    assert len(calls) == 4
+
+
+def x3d_source(tmp_path: Path, phase: str = "complete") -> Path:
+    source = tmp_path / "x3d"
+    source.mkdir()
+    (source / "grid.lock").touch()
+    write_record(source / "grid-status.json.gz", {"phase": phase})
+    write_record(source / "grid.json.gz", {"full_grid": True, "cache": str(tmp_path / "cache"),
+                                           "test_cache": str(tmp_path / "test-cache")})
+    write_record(source / "selection.json.gz", {"ranking": [
+        {"scheme": "B", "contact_fraction": 0.25, "learning_rate": 0.005},
+    ]})
+    return source
+
+
+def test_followup_waits_for_source_lock_and_freezes_its_winner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    source = x3d_source(tmp_path)
+    output = tmp_path / "videomae"
+    waiting, executed = threading.Event(), threading.Event()
+
+    def write(path: Path, value: dict) -> None:
+        write_record(path, value)
+        if value.get("phase") == "waiting":
+            waiting.set()
+
+    def execute(directory: Path, *, resume: bool) -> None:
+        assert directory == output and resume
+        manifest = read_record(directory / "grid.json.gz")
+        assert manifest["scheme"] == "B"
+        assert manifest["settings"]["contact_fraction"] == 0.25
+        assert manifest["test_cache"] == str(tmp_path / "test-cache")
+        executed.set()
+
+    monkeypatch.setattr(queue, "write_record", write)
+    monkeypatch.setattr(queue, "execute", execute)
+    with (source / "grid.lock").open("r") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(queue.follow_x3d, output, source,
+                                     Path(queue.__file__).with_name("videomae.toml"))
+            try:
+                assert waiting.wait(5)
+                assert not executed.wait(0.05)
+                assert not (output / "grid.json.gz").exists()
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            future.result(timeout=5)
+    assert executed.is_set()
+    write_record(source / "selection.json.gz", {"ranking": [{"scheme": "A", "contact_fraction": 0.5}]})
+    queue.follow_x3d(output, source, Path(queue.__file__).with_name("videomae.toml"))
+
+
+@pytest.mark.parametrize("phase", ["paused", "stopped", "running"])
+def test_followup_refuses_an_unsuccessful_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str,
+) -> None:
+    source = x3d_source(tmp_path, phase)
+    output = tmp_path / "videomae"
+    monkeypatch.setattr(queue, "execute", lambda *args, **kwargs: pytest.fail("Must not start"))
+    with pytest.raises(RuntimeError, match="X3D did not complete successfully"):
+        queue.follow_x3d(output, source, Path(queue.__file__).with_name("videomae.toml"))
+    assert not (output / "grid.json.gz").exists()
+    assert read_record(output / "grid-status.json.gz")["phase"] == "stopped"
+
+
+def test_test_dispatch_uses_both_seeds_of_the_mean_validation_winner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output, runs = initialise(tmp_path)
+    for run in runs:
+        finish_run(output, run, continuation=True)
+        score = 60 if run["learning_rate"] == 1e-4 else (90 if run["seed"] == 0 else 0)
+        write_record(output / run["name"] / "history.json.gz", [
+            {"steps": 40000, "validation": {"loss": 0.1},
+             "events": {"10": {"fully_correct_percent": score, "correct_player_f1": 80}}},
+            {"steps": 45000, "validation": {"loss": 0.2},
+             "events": {"10": {"fully_correct_percent": 99, "correct_player_f1": 99}}},
+        ])
+    commands = []
+
+    class Inference:
+        def __init__(self, command: list[str], **kwargs: object) -> None:
+            ranking = read_record(output / "selection.json.gz")["ranking"]
+            assert ranking[0]["learning_rate"] == 1e-4
+            commands.append(command)
+            destination = Path(command[-1])
+            destination.mkdir()
+            write_record(destination / "status.json.gz", {"phase": "complete"})
+
+    monkeypatch.setattr(queue.subprocess, "Popen", Inference)
+    monkeypatch.setattr(queue, "wait_for_child", lambda *_args: 0)
+    queue.evaluate_selected(output, tmp_path / "test-cache")
+    assert len(commands) == 2
+    for seed, command in enumerate(commands):
+        assert str(output / f"videomae-lr0.0001-seed{seed}" / "best.pt") in command
+        assert command[command.index("--stride") + 1] == "3"
+        assert command[command.index("--offset") + 1] == "0"
+    queue.evaluate_selected(output, tmp_path / "test-cache")
+    assert len(commands) == 2
