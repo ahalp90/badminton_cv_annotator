@@ -759,8 +759,8 @@ def _add_full_metric_aggregates(
             "n_filtered_contacts": sum(
                 int(values["n_filtered_contacts"]) for values in metrics.values()
             ),
-            "hit_height_failures": sum(
-                int(values["hit_height_failures"]) for values in metrics.values()
+            "unavailable_hit_height_reasons": sum(
+                int(values["unavailable_hit_height_reasons"]) for values in metrics.values()
             ),
         }
     )

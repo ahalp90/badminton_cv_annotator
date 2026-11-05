@@ -40,10 +40,10 @@ from annotator.evaluation.shuttleset_features import (
 )
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     RallyOutcome,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
@@ -106,7 +106,7 @@ def projection_to_annotator_result(
     candidates = []
     outcomes = {}
     hit_heights = {}
-    hit_height_failures = {}
+    unavailable_hit_height_reasons = {}
     review_scores = []
     for record in records:
         rally_id = record["key"]["rally_id"]
@@ -124,7 +124,7 @@ def projection_to_annotator_result(
             if contact["hit_height_code"] is not None:
                 hit_heights[frame] = contact["hit_height_code"]
         for failure in contacts["hit_height_failures"]:
-            hit_height_failures[failure["contact_frame"]] = failure["reason"]
+            unavailable_hit_height_reasons[failure["contact_frame"]] = failure["reason"]
         review_scores.append(contacts.get("review_score"))
         result = record["outcomes"]
         striker = _optional_half(result["striker_half"])
@@ -141,13 +141,13 @@ def projection_to_annotator_result(
             winner = striker if relative_winner == "won" else point_winner.OTHER_HALF[striker]
         source = verdict["source"]
         outcomes[rally_id] = RallyOutcome(
-            winner, None if source is None else VerdictSource(source),
+            winner, None if source is None else WinnerSource(source),
             None if result["landing"] is None else _landing(result["landing"]),
             verdict["landing_margin_m"], verdict["within_line_margin"], verdict["within_net_margin"],
             _optional_half(geometric["winner"]), geometric["window_closed_by_mask"],
         )
     return AnnotatorResult(
-        tuple(rallies), outcomes, hit_heights, hit_height_failures, (), candidates,
+        tuple(rallies), outcomes, hit_heights, unavailable_hit_height_reasons, (), candidates,
         tuple(float(score) for score in review_scores) if all(score is not None for score in review_scores) else (),
     )
 
@@ -530,8 +530,8 @@ def _aggregate(
             "n_filtered_contacts": sum(
                 int(row["n_filtered_contacts"]) for row in metrics.values()
             ),
-            "hit_height_failures": sum(
-                int(row["hit_height_failures"]) for row in metrics.values()
+            "n_unavailable_hit_heights": sum(
+                int(row["n_unavailable_hit_heights"]) for row in metrics.values()
             ),
         }
     )
@@ -876,7 +876,7 @@ def _group_records(
 def _landing(row: Mapping[str, Any]) -> Landing:
     position = row["normalized_court_position"]
     return Landing(
-        row["frame"], (float(position[0]), float(position[1])), Half(row["court_half"]),
+        row["frame"], (float(position[0]), float(position[1])), CourtHalf(row["court_half"]),
         row["at_image_border"], row["net_ender"],
     )
 
@@ -936,8 +936,8 @@ def _string(value: object, name: str) -> str:
     return value
 
 
-def _optional_half(value: str | None) -> Half | None:
-    return None if value is None else Half(value)
+def _optional_half(value: str | None) -> CourtHalf | None:
+    return None if value is None else CourtHalf(value)
 
 
 def build_parser() -> argparse.ArgumentParser:

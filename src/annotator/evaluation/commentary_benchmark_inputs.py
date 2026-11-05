@@ -175,7 +175,7 @@ class VideoInputs:
     transcript_segments: int
     chunks: tuple[Mapping[str, Any], ...]
     rallies: tuple[tuple[int, int, int], ...]
-    human_rallies: tuple[tuple[int, int, int], ...]
+    gt_rallies: tuple[tuple[int, int, int], ...]
     replay_mask: np.ndarray | None
     annotation_population: Mapping[str, int] | None
     # WhisperX-aligned re-timing (issue #136); None when no sidecar exists for the video.
@@ -448,7 +448,7 @@ def _load_status_index(commentary_root: Path) -> dict[str, Mapping[str, object]]
 
 
 def _load_shots_master(shuttleset_ground_truth_root: Path) -> pd.DataFrame:
-    """Load the pinned ShuttleSet shots table used for human-contact rallies."""
+    """Load the pinned ShuttleSet shots table used for GT contact rallies."""
     shots_master_path = shuttleset_ground_truth_root / "shots_master.csv"
     _require_sha256(
         "ShuttleSet shots_master.csv", shots_master_path, SHUTTLESET_SHOTS_MASTER_SHA256
@@ -686,18 +686,18 @@ def _video_rally_views(
     np.ndarray | None,
     Mapping[str, int] | None,
 ]:
-    """Return one video's primary rallies, human-contact rallies, mask, and population."""
+    """Return one video's primary rallies, GT contact rallies, mask, and population."""
     if dataset == "ShuttleSet":
         rallies = issue103_rallies[video_id]
         replay_mask = issue103_masks[video_id]
         if len(replay_mask) != frame_count:
             raise ValueError(f"{video_id} replay mask length differs from inventory")
-        human_rows = load_gt_rallies(shots_master, int(video_id.removeprefix("sset_")))
-        human_rallies = [
+        gt_rows = load_gt_rallies(shots_master, int(video_id.removeprefix("sset_")))
+        gt_rallies = [
             (rally_id, rally.stroke_frames[0], rally.stroke_frames[-1] + 1)
-            for rally_id, rally in enumerate(human_rows)
+            for rally_id, rally in enumerate(gt_rows)
         ]
-        return rallies, human_rallies, replay_mask, None
+        return rallies, gt_rallies, replay_mask, None
 
     annotation_dir = shuttleset22_root / "set" / str(row["title"])
     records, annotation_population = load_annotation_rallies(annotation_dir, frame_count)
@@ -742,7 +742,7 @@ def _load_video_inputs(
             row["local_fps"].split("/", maxsplit=1)[1]
         )
         frame_count = int(row["local_frame_count"])
-        rallies, human_rallies, replay_mask, annotation_population = _video_rally_views(
+        rallies, gt_rallies, replay_mask, annotation_population = _video_rally_views(
             dataset,
             video_id,
             row,
@@ -753,7 +753,7 @@ def _load_video_inputs(
             shuttleset22_root,
         )
         _validate_rallies(video_id, rallies, frame_count, "primary")
-        _validate_rallies(video_id, human_rallies, frame_count, "human-contact")
+        _validate_rallies(video_id, gt_rallies, frame_count, "GT contact")
         inputs.append(
             VideoInputs(
                 dataset=dataset,
@@ -764,7 +764,7 @@ def _load_video_inputs(
                 transcript_segments=len(segments),
                 chunks=tuple(chunks),
                 rallies=tuple(rallies),
-                human_rallies=tuple(human_rallies),
+                gt_rallies=tuple(gt_rallies),
                 replay_mask=replay_mask,
                 annotation_population=annotation_population,
                 retimed_chunks=retimed_chunks,

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.evaluation import commentary_benchmark
 from annotator.evaluation.commentary_benchmark import (
     LAG_SWEEP_SECONDS,
     _cleaning_aggregate,
@@ -126,7 +128,7 @@ def test_direct_timeline_and_rally_validation_rejects_bad_associations() -> None
         1.0,
         "transcript",
     )
-    _validate_rallies("video", [(0, 0, 10)], 10, "human")
+    _validate_rallies("video", [(0, 0, 10)], 10, "GT")
 
     with pytest.raises(ValueError, match="not timestamp-ordered"):
         _validate_timed_rows(
@@ -138,7 +140,7 @@ def test_direct_timeline_and_rally_validation_rejects_bad_associations() -> None
             "transcript",
         )
     with pytest.raises(ValueError, match="outside the local source"):
-        _validate_rallies("video", [(0, 0, 11)], 10, "human")
+        _validate_rallies("video", [(0, 0, 11)], 10, "GT")
 
     with pytest.raises(ValueError, match="duplicate start time"):
         _validate_unique_chunk_starts(
@@ -167,7 +169,7 @@ def test_evaluate_video_reuses_post_rally_pairing_and_reports_five_second_sensit
             _chunk("video_c3", 16.0, 16.2),
         ),
         rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
-        human_rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
+        gt_rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
         replay_mask=None,
         annotation_population=None,
     )
@@ -184,12 +186,39 @@ def test_evaluate_video_reuses_post_rally_pairing_and_reports_five_second_sensit
     assert pairing["paired_chunks_starting_in_another_rally"] == 0
     assert gaps == {
         "primary": [0.5, 5.5, 1.0],
-        "human_contact": [0.5, 5.5, 1.0],
+        "gt_contact": [0.5, 5.5, 1.0],
         "aligned_primary": [],
-        "aligned_human_contact": [],
+        "aligned_gt_contact": [],
     }
     assert scores == [0.9] * 4
     assert word_deltas == [0] * 4
+
+
+def test_corpus_output_uses_gt_fields_and_current_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    video = VideoInputs(
+        dataset="ShuttleSet",
+        video_id="sset_01",
+        fps=10.0,
+        frame_count=100,
+        transcript_source="youtube_asr",
+        transcript_segments=1,
+        chunks=(_chunk("c0", 5.5, 5.8),),
+        rallies=((0, 0, 50),),
+        gt_rallies=((0, 0, 50),),
+        replay_mask=None,
+        annotation_population=None,
+    )
+    videos = [video, replace(video, dataset="ShuttleSet22", video_id="00001")]
+    monkeypatch.setattr(commentary_benchmark, "load_corpus_inputs", lambda *_args: (videos, {}))
+
+    result = commentary_benchmark.evaluate_corpus(*(Path("unused") for _index in range(5)))
+
+    assert result["schema"] == "issue104-commentary-benchmark/5"
+    assert result["aggregate"]["gt_contact_pairing"]["paired_rallies_8s"] == 2
+    for row in result["by_dataset"].values():
+        assert row["gt_contact_pairing"]["paired_rallies_8s"] == 1
+    for row in result["per_video"].values():
+        assert row["gt_contact_pairing"]["paired_rallies_8s"] == 1
 
 
 def test_five_second_sensitivity_runs_an_independent_greedy_join() -> None:
@@ -202,7 +231,7 @@ def test_five_second_sensitivity_runs_an_independent_greedy_join() -> None:
         transcript_segments=1,
         chunks=(_chunk("video_c0", 6.0, 6.5),),
         rallies=((0, 0, 1), (1, 10, 50)),
-        human_rallies=((0, 0, 1), (1, 10, 50)),
+        gt_rallies=((0, 0, 1), (1, 10, 50)),
         replay_mask=None,
         annotation_population=None,
     )
@@ -229,7 +258,7 @@ def test_replay_mask_holds_rally_out_and_leaves_chunk_for_later_rally() -> None:
             _chunk("video_c1", 15.5, 15.8),
         ),
         rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
-        human_rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
+        gt_rallies=((0, 0, 50), (1, 60, 100), (2, 110, 150)),
         replay_mask=replay_mask,
         annotation_population=None,
     )
@@ -253,7 +282,7 @@ def test_triage_dropped_video_remains_an_explicit_zero_commentary_case() -> None
         transcript_segments=4,
         chunks=(),
         rallies=((0, 0, 30),),
-        human_rallies=((0, 0, 30),),
+        gt_rallies=((0, 0, 30),),
         replay_mask=None,
         annotation_population={"usable_rallies": 1},
     )
@@ -267,9 +296,9 @@ def test_triage_dropped_video_remains_an_explicit_zero_commentary_case() -> None
     assert result["bert_f1"]["count"] == 0
     assert gaps == {
         "primary": [],
-        "human_contact": [],
+        "gt_contact": [],
         "aligned_primary": [],
-        "aligned_human_contact": [],
+        "aligned_gt_contact": [],
     }
     assert scores == []
     assert word_deltas == []
@@ -365,7 +394,7 @@ def _inputs(
         transcript_segments=4,
         chunks=chunks,
         rallies=rallies,
-        human_rallies=rallies,
+        gt_rallies=rallies,
         replay_mask=replay_mask,
         annotation_population=None,
         retimed_chunks=retimed_chunks,
@@ -446,7 +475,7 @@ def test_evaluate_video_reports_aligned_views_only_with_retimed_chunks() -> None
     result, gaps, _scores, _deltas = evaluate_video(_inputs(chunks, RALLIES, retimed_chunks=retimed))
     assert result["primary_pairing"]["paired_rallies_8s"] == 0  # coarse times pair nothing
     assert result["aligned_primary_pairing"]["paired_rallies_8s"] == 1
-    assert result["aligned_multi_human_contact_pairing"]["paired_rallies"] == 1
+    assert result["aligned_multi_gt_contact_pairing"]["paired_rallies"] == 1
     assert list(result["aligned_lag_sweep_primary"]) == [f"{window:04.1f}" for window in LAG_SWEEP_SECONDS]
     assert result["retiming"]["status_counts"] == {"aligned": 1, "unmatched": 1, "collision": 0}
     assert result["retiming"]["abs_shift_seconds"]["max"] == pytest.approx(44.5)
@@ -454,7 +483,7 @@ def test_evaluate_video_reports_aligned_views_only_with_retimed_chunks() -> None
 
     bare, bare_gaps, _scores, _deltas = evaluate_video(_inputs(chunks, RALLIES))
     assert bare["aligned_primary_pairing"] is None
-    assert bare["aligned_lag_sweep_human_contact"] is None
+    assert bare["aligned_lag_sweep_gt_contact"] is None
     assert bare["retiming"] is None
     assert bare_gaps["aligned_primary"] == []
 
@@ -509,7 +538,7 @@ def test_dataset_aggregate_ignores_the_chunkless_video_when_gating_aligned_resul
         transcript_segments=4,
         chunks=(),
         rallies=((0, 0, 30),),
-        human_rallies=((0, 0, 30),),
+        gt_rallies=((0, 0, 30),),
         replay_mask=None,
         annotation_population={"usable_rallies": 1},
     )
@@ -523,9 +552,9 @@ def test_dataset_aggregate_ignores_the_chunkless_video_when_gating_aligned_resul
     aggregate = _dataset_aggregate("ShuttleSet22", per_video, gaps_by_video, scores_by_video)
 
     assert aggregate["retiming"] == {"videos": 1, "status_counts": {"aligned": 1, "unmatched": 0, "collision": 0}}
-    assert aggregate["aligned_human_contact_pairing"]["paired_rallies_8s"] == 1
-    assert aggregate["aligned_multi_human_contact_pairing"]["paired_rally_rate"] == pytest.approx(1 / 3)
-    sweep = aggregate["aligned_lag_sweep_human_contact"]
+    assert aggregate["aligned_gt_contact_pairing"]["paired_rallies_8s"] == 1
+    assert aggregate["aligned_multi_gt_contact_pairing"]["paired_rally_rate"] == pytest.approx(1 / 3)
+    sweep = aggregate["aligned_lag_sweep_gt_contact"]
     assert list(sweep) == sorted(sweep)  # zero-padded keys survive sorted JSON output
     assert "production_predicted_pairing" not in aggregate
 

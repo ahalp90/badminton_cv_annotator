@@ -4,7 +4,7 @@ Issue #22 defines the formulas. Issue #104 kept posture variability, rally
 timestamps, and linear-interpolation provenance. Issue #18 moved those parts
 here from the benchmark-only prototype so the dataset export and the ShuttleSet
 benchmark share one implementation. Issue #138 moved recovery_at_opponent_contacts
-and movement_inefficiency here too, once human ShuttleSet contacts made them
+and movement_inefficiency here too, once manually labelled ShuttleSet contacts made them
 reliable enough to export.
 """
 

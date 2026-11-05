@@ -9,9 +9,9 @@ from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     LandingFilterOptions,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.outcomes.video import build_outcomes
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
@@ -41,9 +41,9 @@ def returning_view_evidence() -> SimpleNamespace:
     )
 
 
-def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, horizons=None, rejections=None):
-    events = tuple(ContactEvent(frame, np.nan, Half.TOP) for frame in frames)
-    rallies = [FinishedRally(ContactSequence(0, 0, rally_end, events), Half.TOP)]
+def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, search_trials=None, rejections=None):
+    events = tuple(ContactEvent(frame, np.nan, CourtHalf.TOP) for frame in frames)
+    rallies = [FinishedRally(ContactSequence(0, 0, rally_end, events), CourtHalf.TOP)]
     if next_server is not None:
         rallies.append(FinishedRally(
             ContactSequence(1, 24, 25, (ContactEvent(24, np.nan, next_server),)), next_server,
@@ -53,8 +53,8 @@ def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, horizon
         landing_options=LandingFilterOptions(3, 0.01, 1000, 3, 0.5),
         rejection_diagnostics=rejections,
     )
-    if horizons is not None:
-        horizons.extend(compare_landing_searches(
+    if search_trials is not None:
+        search_trials.extend(compare_landing_searches(
             evidence, rallies, outcomes, (0.1, 0.5), LandingFilterOptions(3, 0.01, 1000, 3, 0.5),
         ))
     return outcomes
@@ -62,14 +62,14 @@ def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, horizon
 
 def test_returning_view_keeps_contact_time_and_bounds_the_landing_search():
     evidence = returning_view_evidence()
-    horizons = []
-    outcome = resolve_outcome(evidence, [3], horizons=horizons)
+    search_trials = []
+    outcome = resolve_outcome(evidence, [3], search_trials=search_trials)
     assert outcome[0].landing is not None
     assert outcome[0].landing.frame == 13
     assert outcome[0].landing.norm == pytest.approx((0.5, 0.5))
     # The observed tail ends at the net, but the unseen flight may have crossed it.
     assert outcome[0].landing.net_ender is False
-    short, long = horizons
+    short, long = search_trials
     assert short.final_contact_frame == long.final_contact_frame == 3
     assert short.time_limit_end_frame == 6
     assert short.trial_outcome.landing is None
@@ -80,19 +80,19 @@ def test_returning_view_keeps_contact_time_and_bounds_the_landing_search():
 @pytest.mark.parametrize('rally_end', [10, 12])
 def test_recovery_does_not_borrow_observations_beyond_this_rally(rally_end):
     evidence = returning_view_evidence()
-    outcome = resolve_outcome(evidence, [3], next_server=Half.BOT, rally_end=rally_end)
+    outcome = resolve_outcome(evidence, [3], next_server=CourtHalf.BOT, rally_end=rally_end)
     assert outcome[0].landing is None
-    assert outcome[0].winner is Half.BOT
-    assert outcome[0].winner_source is VerdictSource.NEXT_SERVER
+    assert outcome[0].winner is CourtHalf.BOT
+    assert outcome[0].winner_source is WinnerSource.NEXT_SERVER
 
 
 def test_rejected_final_contact_does_not_borrow_an_earlier_players_flight():
     evidence = returning_view_evidence()
     evidence.shuttle_hallucination_mask[12] = True
     rejections = []
-    outcome = resolve_outcome(evidence, [3, 12], next_server=Half.TOP, rejections=rejections)
+    outcome = resolve_outcome(evidence, [3, 12], next_server=CourtHalf.TOP, rejections=rejections)
     assert outcome[0].landing is None
-    assert outcome[0].winner is Half.TOP
+    assert outcome[0].winner is CourtHalf.TOP
     assert rejections[0]['rule'] == 'final_contact'
 
 
@@ -125,7 +125,7 @@ def test_returning_view_suppresses_cut_speed_without_changing_shared_kinematics(
         return pick_landing(start, end, track, search_kinematics, *args, **kwargs)
 
     monkeypatch.setattr(point_winner, 'pick_landing_to_end', observe_search)
-    resolve_outcome(evidence, [3], horizons=[])
+    resolve_outcome(evidence, [3], search_trials=[])
 
     assert search_speeds and all(np.isnan(speed) for speed in search_speeds)
     assert kinematics.speed[10] == cut_speed

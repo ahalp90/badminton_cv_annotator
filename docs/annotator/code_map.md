@@ -47,7 +47,7 @@ player or court evidence.
 - `RallyCandidates`: shortlisted contacts by rally and their physical evidence.
 - `RallyContext` groups the initial rallies, full contact stream and shortlisted evidence.
 - `RallyOptions` groups the ordered alternatives and model-feature rows.
-- `SequenceTrainingVideo` adds a video identity, training group and human labels to that same context.
+- `SequenceTrainingVideo` adds a video identity, training group and GT labels to that same context.
 - `RallyPrediction` retains the selected sequences, full contact stream and scores.
 - `AnnotatorResult` is the public result saved by the dataset builder.
 
@@ -105,3 +105,9 @@ lives in `writeup_scripts/annotator_runs.py`.
 [`models.py`](../../src/annotator/models.py) is the single place for the selected
 bundle location and model persistence checks. See [Inputs and outputs](inputs_outputs.md)
 for saved schemas and [Maintenance](maintaining.md) for change-sensitive invariants.
+
+Commentary evaluation writes `issue104-commentary-benchmark/5`. GT rally-view
+fields use `gt_contact` in their names, including `gt_contact_pairing`,
+`aligned_gt_contact_pairing` and `aligned_multi_gt_contact_pairing`. The input
+corpus and rally-record schemas are unchanged. Earlier benchmark reports retain
+the field names and schema versions used for those runs.

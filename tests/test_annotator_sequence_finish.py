@@ -1,24 +1,29 @@
 """Boundary finishing preserves chosen contacts and appropriate video context."""
 
+from collections.abc import Sequence
 from dataclasses import replace
 
+import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
+from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
+    FinishedRally,
     apply_choices,
     events_between,
 )
 from annotator.sequence.rally_model import (
     extend_boundaries,
-    finish_choices,
+    finish_rallies,
     fit_rally_sides,
 )
+from annotator.sequence.rally_options import RallyContext, RallyOptions
 
-TOP = Half.TOP
-BOT = Half.BOT
+TOP = CourtHalf.TOP
+BOT = CourtHalf.BOT
 
 
 def _sequence(span_id: int, start_frame: int, end_frame: int, frames: list[int]) -> ContactSequence:
@@ -31,6 +36,21 @@ def _bounds(sequences) -> list[tuple[int, int]]:
 
 def _all_events(*sequences: ContactSequence) -> list[ContactEvent]:
     return [event for sequence in sequences for event in sequence.events]
+
+
+def _finish_selected(
+    initial: Sequence[ContactSequence], events: Sequence[ContactEvent],
+    choices: dict[int, ContactSequence], fps: float, *, bounds_supplied: bool = False,
+) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
+    context = RallyContext(
+        fps, tuple(initial), tuple(events), RallyCandidates({}, {}), bounds_supplied=bounds_supplied,
+    )
+    rows = {span_id: index for index, span_id in enumerate(choices)}
+    pool = RallyOptions(
+        tuple(choices.values()), np.empty((len(choices), 0)),
+        {span_id: np.array([index]) for span_id, index in rows.items()}, context,
+    )
+    return finish_rallies(pool, rows)
 
 
 def test_boundaries_pad_around_first_and_last_contact_without_moving_inward():
@@ -62,7 +82,7 @@ def test_boundaries_leave_a_contact_less_sequence_unchanged():
     assert _bounds(extend_boundaries([left, right], _all_events(left, right), fps=30.0)) == [(0, 50), (50, 100)]
 
 
-def _sided(span_id: int, frames: list[int], sides: list[Half | None]) -> ContactSequence:
+def _sided(span_id: int, frames: list[int], sides: list[CourtHalf | None]) -> ContactSequence:
     events = tuple(ContactEvent(frame, .8, side) for frame, side in zip(frames, sides, strict=True))
     return ContactSequence(span_id, frames[0] - 5, frames[-1] + 5, events)
 
@@ -93,8 +113,7 @@ def test_selected_contacts_carry_final_fit_and_preserve_outside_events():
     original = _sided(0, [10, 20, 30], [TOP, TOP, BOT])
     chosen = replace(original, events=original.events[1:])
     outside = ContactEvent(50, .7, TOP)
-    selected, stream = finish_choices((original,), (*original.events, outside), {0: chosen}, 30, bounds_supplied=True)
-    rallies, events = fit_rally_sides(selected, stream)
+    rallies, events = _finish_selected((original,), (*original.events, outside), {0: chosen}, 30, bounds_supplied=True)
     assert rallies[0].final_half is BOT
     assert [(event.frame, event.side) for event in rallies[0].sequence.events] == [(20, TOP), (30, BOT)]
     assert [(event.frame, event.side) for event in events] == [(20, TOP), (30, BOT), (50, TOP)]
@@ -112,7 +131,8 @@ def test_absorbed_rejected_contact_is_removed_before_padding():
     candidate = ContactEvent(100, .9, None)
     rejected = ContactEvent(105, .6, None)
     chosen = replace(original, start_frame=100, events=(candidate, *original.events))
-    sequences, stream = finish_choices((original,), (rejected, *original.events), {0: chosen}, 30)
+    rallies, stream = _finish_selected((original,), (rejected, *original.events), {0: chosen}, 30)
+    sequences = tuple(rally.sequence for rally in rallies)
     assert [event.frame for event in stream] == [100, 120, 140]
     assert sequences[0].start_frame == 90
     assert events_between(stream, sequences[0].start_frame, sequences[0].end_frame) == sequences[0].events
@@ -122,7 +142,8 @@ def test_absorbed_rejected_contact_is_removed_before_padding():
 def test_discovery_keeps_context_and_removes_rejected_hits_owned_by_chosen_span(fps):
     original = _sequence(0, 0, 30 * fps, [fps, 10 * fps, 12 * fps])
     chosen = replace(original, events=original.events[1:])
-    sequences, stream = finish_choices((original,), original.events, {0: chosen}, fps)
+    rallies, stream = _finish_selected((original,), original.events, {0: chosen}, fps)
+    sequences = tuple(rally.sequence for rally in rallies)
     assert _bounds(sequences) == [(0, 30 * fps)]
     assert stream == chosen.events
     assert events_between(stream, *(_bounds(sequences)[0])) == chosen.events
@@ -132,7 +153,8 @@ def test_padding_collision_preserves_chosen_bounds():
     original = _sequence(0, 0, 600, [20, 300, 400])
     chosen = replace(original, start_frame=300, events=original.events[1:])
     outside = ContactEvent(295, .8, None)
-    sequences, stream = finish_choices((original,), (*original.events[:1], outside, *chosen.events), {0: chosen}, 30)
+    rallies, stream = _finish_selected((original,), (*original.events[:1], outside, *chosen.events), {0: chosen}, 30)
+    sequences = tuple(rally.sequence for rally in rallies)
     assert _bounds(sequences) == [(300, 600)]
     assert outside in stream
     assert events_between(stream, 300, 600) == chosen.events
@@ -142,9 +164,10 @@ def test_supplied_bounds_stay_exact_and_close_rallies_remain_disjoint():
     left = _sequence(0, 0, 500, [200, 450])
     right = _sequence(1, 505, 700, [510, 650])
     events = _all_events(left, right)
-    supplied, _ = finish_choices((left, right), events, {0: left, 1: right}, 30, bounds_supplied=True)
-    assert supplied == (left, right)
-    discovered, stream = finish_choices((left, right), events, {0: left, 1: right}, 30)
+    supplied, _ = _finish_selected((left, right), events, {0: left, 1: right}, 30, bounds_supplied=True)
+    assert tuple(rally.sequence for rally in supplied) == (left, right)
+    rallies, stream = _finish_selected((left, right), events, {0: left, 1: right}, 30)
+    discovered = tuple(rally.sequence for rally in rallies)
     assert discovered[0].end_frame <= discovered[1].start_frame
     for sequence in discovered:
         assert events_between(stream, sequence.start_frame, sequence.end_frame) == sequence.events

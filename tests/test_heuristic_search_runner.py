@@ -12,14 +12,14 @@ from typing import Any, cast
 
 import pytest
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.heuristic_only_tune import run as search
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec
 
 
 def _video(identity: str = 'example') -> search.SearchVideo:
-    rally = LabelledRally('set_1/rally_1', (10, 20), (Half.TOP, Half.BOT))
+    rally = LabelledRally('set_1/rally_1', (10, 20), (CourtHalf.TOP, CourtHalf.BOT))
     return search.SearchVideo(identity, 'ShuttleSet', 'train', 30.0, (1280.0, 720.0), (rally,))
 
 

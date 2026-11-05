@@ -10,10 +10,10 @@ from fractions import Fraction
 from pathlib import Path
 
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     RallyOutcome,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent
@@ -438,8 +438,8 @@ def _contact_payloads(
                 raise TypeError("accepted contacts must be ContactEvent values with integer frames")
             if not start <= event.frame < end:
                 raise ValueError(f"accepted contact frame {event.frame} is outside rally {rally_id}")
-            if event.side is not None and not isinstance(event.side, Half):
-                raise ValueError("accepted contact side must be Half or null")
+            if event.side is not None and not isinstance(event.side, CourtHalf):
+                raise ValueError("accepted contact side must be CourtHalf or null")
             if not annotation.heuristic_candidates:
                 raw_by_rally[rally_id].append({
                     "contact_frame": event.frame, "proximity_ok": None, "wrist_near": None, "suppressed": None,
@@ -499,7 +499,7 @@ def _attach_hit_heights(
             raise ValueError(f"hit height has no accepted contact at frame {frame!r}")
         if isinstance(code, bool) or not isinstance(code, int) or code not in (1, 2):
             raise ValueError(f"hit height at frame {frame} must use code 1 or 2")
-    for frame, reason in annotation.hit_height_failures.items():
+    for frame, reason in annotation.unavailable_hit_height_reasons.items():
         if isinstance(frame, bool) or not isinstance(frame, int) or frame not in accepted_frames:
             raise ValueError(f"hit-height failure has no accepted contact at frame {frame!r}")
         if not isinstance(reason, str) or not reason:
@@ -508,13 +508,13 @@ def _attach_hit_heights(
     for rally_id, rows in enumerate(accepted):
         for row in rows:
             frame = int(row["contact_frame"])
-            if (frame in annotation.hit_heights) == (frame in annotation.hit_height_failures):
+            if (frame in annotation.hit_heights) == (frame in annotation.unavailable_hit_height_reasons):
                 raise ValueError(f"accepted contact {frame} must have exactly one hit height or failure")
             row["hit_height_code"] = annotation.hit_heights.get(frame)
-            if frame in annotation.hit_height_failures:
+            if frame in annotation.unavailable_hit_height_reasons:
                 failures[rally_id].append({
                     "stroke_idx": row["stroke_idx"], "contact_frame": frame,
-                    "reason": annotation.hit_height_failures[frame],
+                    "reason": annotation.unavailable_hit_height_reasons[frame],
                 })
     return failures
 
@@ -540,14 +540,14 @@ def _validate_outcome_maps(
         outcome = annotation.outcomes[rally_id]
         if not isinstance(outcome, RallyOutcome):
             raise TypeError("rally outcomes must be RallyOutcome values")
-        for winner in (outcome.winner, outcome.landing_only_winner):
-            if winner is not None and not isinstance(winner, Half):
-                raise ValueError("outcome winner must be Half or null")
-        if outcome.winner_source is not None and not isinstance(outcome.winner_source, VerdictSource):
-            raise ValueError("outcome source must be VerdictSource or null")
+        for winner in (outcome.winner, outcome.conservative_landing_winner):
+            if winner is not None and not isinstance(winner, CourtHalf):
+                raise ValueError("outcome winner must be CourtHalf or null")
+        if outcome.winner_source is not None and not isinstance(outcome.winner_source, WinnerSource):
+            raise ValueError("outcome source must be WinnerSource or null")
         if outcome.landing_margin_m is not None:
             _finite_number(outcome.landing_margin_m, "outcome landing margin")
-        for flag in (outcome.within_line_margin, outcome.within_net_margin, outcome.window_closed_by_mask):
+        for flag in (outcome.within_line_margin, outcome.within_net_margin, outcome.search_shortened_by_exclusion):
             if not isinstance(flag, bool):
                 raise TypeError("outcome ambiguity and exclusion flags must be boolean")
         _validate_landing(outcome.landing, frame_count)
@@ -568,8 +568,8 @@ def _validate_landing(landing: object, frame_count: int) -> None:
         raise ValueError("landing normalized court position must contain two coordinates")
     for coordinate in landing.norm:
         _finite_number(coordinate, "landing normalized court coordinate")
-    if not isinstance(landing.half, Half):
-        raise TypeError("landing half must be Half")
+    if not isinstance(landing.half, CourtHalf):
+        raise TypeError("landing half must be CourtHalf")
     if not isinstance(landing.at_border, bool) or not isinstance(landing.net_ender, bool):
         raise TypeError("landing quality flags must be boolean")
 
@@ -580,7 +580,7 @@ def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, ob
     rally = annotation.rallies[rally_id]
     next_server = annotation.rallies[rally_id + 1].first_half if rally_id + 1 < len(annotation.rallies) else None
     winner = None if outcome is None else outcome.winner
-    landing_winner = None if outcome is None else outcome.landing_only_winner
+    conservative_winner = None if outcome is None else outcome.conservative_landing_winner
     return {
         "striker_half": _enum_value(annotation.rallies[rally_id].final_half),
         "server_prediction": _enum_value(rally.first_half),
@@ -600,11 +600,11 @@ def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, ob
             "net_ender": landing.net_ender,
         },
         "geometric_verdict": {
-            "value": None if landing_winner is None else ("won" if landing_winner == rally.final_half else "lost"),
-            "winner": _enum_value(landing_winner),
-            "agreement": None if winner is None or landing_winner is None else winner == landing_winner,
+            "value": None if conservative_winner is None else ("won" if conservative_winner == rally.final_half else "lost"),
+            "winner": _enum_value(conservative_winner),
+            "agreement": None if winner is None or conservative_winner is None else winner == conservative_winner,
             "window_closed_by_mask": (
-                None if outcome is None else outcome.window_closed_by_mask
+                None if outcome is None else outcome.search_shortened_by_exclusion
             ),
         },
     }

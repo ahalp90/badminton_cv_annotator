@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from threadpoolctl import threadpool_limits
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import positive_probabilities
@@ -22,7 +22,7 @@ from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
 def make_pool(identity: str, group: str) -> LabelledOptions:
-    event = ContactEvent(10, 0.8, Half.TOP)
+    event = ContactEvent(10, 0.8, CourtHalf.TOP)
     initial = ContactSequence(0, 0, 20, (event,))
     deleted = ContactSequence(0, 0, 20, ())
     original_pool = RallyCandidates({}, {})

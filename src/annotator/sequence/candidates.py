@@ -11,7 +11,7 @@ from annotator.contacts.model import (
     ScoredContacts,
     strongest_spaced_rows,
 )
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import physical_rows
 
@@ -98,7 +98,7 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
 def build_rally_candidates(
     initial: Sequence[ContactSequence], events: Sequence[ContactEvent], scores: ScoredContacts,
     search_intervals: Sequence[tuple[int, int]], *, fps: float,
-    side_for_frame: Callable[[int], Half | None],
+    side_for_frame: Callable[[int], CourtHalf | None],
 ) -> RallyCandidates:
     """Shortlist earlier and missed contacts, retaining their physical evidence.
 

@@ -24,7 +24,7 @@ from annotator.evaluation.scoring import (
 )
 from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
-    Half,
+    CourtHalf,
     Landing,
     LandingFilterOptions,
     RallyOutcome,
@@ -62,10 +62,10 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
     })
     result = AnnotatorResult(
         (FinishedRally(ContactSequence(0, 0, 20, (
-            ContactEvent(5, .8, Half.BOT), ContactEvent(15, .8, Half.TOP),
-        )), Half.TOP),),
+            ContactEvent(5, .8, CourtHalf.BOT), ContactEvent(15, .8, CourtHalf.TOP),
+        )), CourtHalf.TOP),),
         {0: RallyOutcome(
-            None, None, Landing(18, (0.5, 0.75), Half.BOT, False, False),
+            None, None, Landing(18, (0.5, 0.75), CourtHalf.BOT, False, False),
             None, False, False, None, False,
         )}, {}, {}, (), [], (),
     )
@@ -93,7 +93,7 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
     scored = gt_scoring.score_video(fixture, result, master, {1: {"name": "global"}}, 5, scenes)
 
     assert projected_courts == ["late"]
-    assert scored.rows[0].landing_gt == Half.BOT.value
+    assert scored.rows[0].landing_gt == CourtHalf.BOT.value
     assert scored.rows[0].landing_correct is True
 
     gap = gt_scoring.score_video(
@@ -101,7 +101,7 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
         (SceneCourt(0, 10, early, (0.1, 0.2), 0.1),),
     )
     assert gap.rows[0].landing_gt is None
-    assert gap.rows[0].landing_pred == Half.BOT.value
+    assert gap.rows[0].landing_pred == CourtHalf.BOT.value
     assert gap.rows[0].landing_correct is False
     assert gap.landing == gt_scoring.ColumnAgg(0, 1, 0, 1)
 

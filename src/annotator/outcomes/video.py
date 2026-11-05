@@ -42,7 +42,7 @@ def build_outcomes(
 
         landing = None
         error_band = None
-        closed_by_mask = False
+        shortened_by_exclusion = False
         kinematics = video_kinematics
         if flight is not None:
             scene, search_start, search_limit = flight
@@ -64,7 +64,7 @@ def build_outcomes(
                 rejected_intervals=rejected_intervals, infer_net_fault=search_start == final_contact,
             )
             error_band = scene.landing_error_band_m
-            closed_by_mask = window.window_closed_by_mask
+            shortened_by_exclusion = window.search_shortened_by_exclusion
             if rejection_diagnostics is not None:
                 record_landing_rejections(
                     rejection_diagnostics, rally_id, evidence, search_start, search_limit,
@@ -72,7 +72,7 @@ def build_outcomes(
                 )
 
         outcomes[rally_id] = point_winner.resolve_rally_outcome(
-            striker, next_server, landing, error_band, window_closed_by_mask=closed_by_mask,
+            striker, next_server, landing, error_band, search_shortened_by_exclusion=shortened_by_exclusion,
         )
     return outcomes
 
@@ -96,9 +96,9 @@ def final_flight_range(
 def build_hit_heights(
     evidence: AnnotationEvidence, rallies: Sequence[FinishedRally],
 ) -> tuple[dict[int, int], dict[int, str]]:
-    """Build hit-height outputs without coupling them to landing verdicts."""
+    """Measure hit heights and record why unavailable heights could not be measured."""
     hit_height_by_frame: dict[int, int] = {}
-    hit_height_failures: dict[int, str] = {}
+    unavailable_hit_height_reasons: dict[int, str] = {}
     for rally in rallies:
         for event in rally.sequence.events:
             contact_frame = event.frame
@@ -108,10 +108,10 @@ def build_hit_heights(
                     evidence.track, contact_frame, frame_net_band, evidence.resolution,
                 )
             except ValueError as exc:
-                hit_height_failures[contact_frame] = str(exc)
+                unavailable_hit_height_reasons[contact_frame] = str(exc)
                 continue
             hit_height_by_frame[contact_frame] = hit_height
-    return hit_height_by_frame, hit_height_failures
+    return hit_height_by_frame, unavailable_hit_height_reasons
 
 
 def record_rejected_final_contact(
@@ -133,7 +133,7 @@ def record_rejected_final_contact(
 
 def record_landing_rejections(
     rows: list[dict[str, object]], rally_id: int, evidence: AnnotationEvidence,
-    search_start: int, search_limit: int, safe_end: int,
+    search_start: int, search_limit: int, search_end: int,
     rejected_intervals: list[tuple[int, int]],
 ) -> None:
     """Record how rejected shuttle observations changed this landing search."""
@@ -142,7 +142,7 @@ def record_landing_rejections(
         evidence.resolved.thresholds.sustained_loss_frames,
         np.zeros(len(evidence.track), dtype=bool),
     ).end_frame
-    if safe_end < end_without_events:
+    if search_end < end_without_events:
         record_rejection(
             rows, 'lost_shuttle_guard', rally_id, search_start + 1, end_without_events,
             evidence.shuttle_hallucination_mask, evidence.source_codes,
@@ -167,12 +167,12 @@ def record_rejection(
     masked_frames = np.flatnonzero(shuttle_hallucination_mask[start_frame:end_frame]) + start_frame
     if len(masked_frames) == 0:
         return
-    trigger_frame = int(masked_frames[0])
+    first_rejected_frame = int(masked_frames[0])
     rows.append({
         'rule': rule,
         'rally_id': rally_id,
         'start_frame': start_frame,
         'end_frame': end_frame,
-        'trigger_frame': trigger_frame,
-        'trigger_code': int(codes[trigger_frame]) if codes is not None else '',
+        'first_rejected_frame': first_rejected_frame,
+        'rejection_grade': int(codes[first_rejected_frame]) if codes is not None else '',
     })

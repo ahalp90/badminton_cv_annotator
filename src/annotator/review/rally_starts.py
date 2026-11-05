@@ -75,7 +75,7 @@ class ReviewStatus(StrEnum):
 
 
 class ServeVisibility(StrEnum):
-    """Human result for the physical service action."""
+    """Manual annotation for the physical service action."""
 
     VISIBLE = "visible"
     BROADCAST_OMITTED = "broadcast-omitted"
@@ -168,7 +168,7 @@ class RallyStartTarget:
 
 @dataclass(frozen=True)
 class RallyStartDecision:
-    """Compact human decision stored separately from source-derived context."""
+    """Compact manual decision stored separately from source-derived context."""
 
     key: RallyStartKey
     review_status: ReviewStatus

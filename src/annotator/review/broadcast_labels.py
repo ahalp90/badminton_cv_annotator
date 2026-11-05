@@ -26,7 +26,7 @@ LABEL_CSV_HEADER = (
 
 
 class SceneTruth(StrEnum):
-    """Allowed human scene classes."""
+    """Allowed manually labelled scene classes."""
 
     LIVE = "live"
     LIVE_NON_STANDARD = "live-non-standard"
@@ -54,7 +54,7 @@ class VideoMetadata:
 
 @dataclass(frozen=True)
 class LabelInterval:
-    """One zero-based, half-open human scene interval."""
+    """One zero-based, half-open manually labelled scene interval."""
 
     video_id: str
     fps: float

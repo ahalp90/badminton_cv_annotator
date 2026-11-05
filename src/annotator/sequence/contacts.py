@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from annotator.outcomes.point_winner import OTHER_HALF, Half
+from annotator.outcomes.point_winner import OTHER_HALF, CourtHalf
 
 
 @dataclass(frozen=True)
@@ -16,7 +16,7 @@ class ContactEvent:
 
     frame: int
     probability: float
-    side: Half | None
+    side: CourtHalf | None
 
 
 @dataclass(frozen=True)
@@ -34,10 +34,10 @@ class FinishedRally:
     """A selected sequence and its fitted final striker, including ties."""
 
     sequence: ContactSequence
-    final_half: Half | None
+    final_half: CourtHalf | None
 
     @property
-    def first_half(self) -> Half | None:
+    def first_half(self) -> CourtHalf | None:
         """Derive the first striker from the fitted final striker."""
         if self.final_half is None:
             return None
@@ -119,7 +119,7 @@ def stream_from_payload(payload: dict[str, Any]) -> tuple[tuple[ContactSequence,
         if probability is not None and not math.isfinite(probability):
             raise ValueError("contact probability must be finite or unknown")
         return ContactEvent(
-            frame, math.nan if probability is None else probability, None if side is None else Half(side),
+            frame, math.nan if probability is None else probability, None if side is None else CourtHalf(side),
         )
 
     sequences = tuple(

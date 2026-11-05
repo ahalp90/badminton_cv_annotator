@@ -8,7 +8,7 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_options import RallyContext
@@ -33,11 +33,11 @@ def make_pool(
     sequences: tuple[ContactSequence, ...], targets: tuple[int, ...], *, fps: float = 30.0,
 ) -> LabelledOptions:
     initial = ContactSequence(
-        0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
+        0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)),
     )
     events = initial.events
     option_pool = RallyCandidates({}, {})
-    rally = LabelledRally('rally', (20, 60), (Half.TOP, Half.BOT))
+    rally = LabelledRally('rally', (20, 60), (CourtHalf.TOP, CourtHalf.BOT))
     video = SequenceTrainingVideo('video', 'group', RallyContext(fps, (initial,), events, option_pool, 210), (rally,))
     return LabelledOptions(
         sequences,
@@ -50,9 +50,9 @@ def make_pool(
 
 @pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
 def test_two_tolerances_scale_labels(fps, shift):
-    exact = ContactSequence(0, 0, 120, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
-    shifted = replace(exact, events=(ContactEvent(20 + shift, 0.9, Half.TOP),
-                                     ContactEvent(60 + shift, 0.9, Half.BOT)))
+    exact = ContactSequence(0, 0, 120, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)))
+    shifted = replace(exact, events=(ContactEvent(20 + shift, 0.9, CourtHalf.TOP),
+                                     ContactEvent(60 + shift, 0.9, CourtHalf.BOT)))
     pool = make_pool((exact, shifted), (0, 0), fps=fps)
     wide, tight = option_targets_at_tolerances(pool.video, pool.runtime, (6, 3))
     np.testing.assert_array_equal(wide, [1, 1])
@@ -60,8 +60,8 @@ def test_two_tolerances_scale_labels(fps, shift):
 
 
 def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
-    exact = ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)))
-    shifted = replace(exact, events=(ContactEvent(25, 0.9, Half.TOP), ContactEvent(65, 0.9, Half.BOT)))
+    exact = ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)))
+    shifted = replace(exact, events=(ContactEvent(25, 0.9, CourtHalf.TOP), ContactEvent(65, 0.9, CourtHalf.BOT)))
     pool = make_pool((exact, shifted), (0, 0))
     monkeypatch.setattr('annotator.training.rally.build_rally_options', lambda *_args: pool.runtime)
     strict = RallyFitConfig(preferred_tolerance_at_30_fps=3, fallback_tolerance_at_30_fps=6)
@@ -74,7 +74,7 @@ def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
 
 def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> None:
     sequences = tuple(
-        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, Half.TOP),))
+        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, CourtHalf.TOP),))
         for row in range(3)
     )
     pool = make_pool(sequences, (1, 0, -1))
@@ -86,7 +86,7 @@ def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> Non
 
 def test_without_known_five_frame_positive_span_keeps_ten_frame_targets() -> None:
     sequences = tuple(
-        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, Half.TOP),))
+        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, CourtHalf.TOP),))
         for row in range(2)
     )
     pool = make_pool(sequences, (1, 0))
@@ -98,7 +98,7 @@ def test_without_known_five_frame_positive_span_keeps_ten_frame_targets() -> Non
 
 def test_unknown_ten_frame_row_cannot_supply_five_frame_positive() -> None:
     sequences = tuple(
-        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, Half.TOP),))
+        ContactSequence(0, 0, 200, (ContactEvent(20 + row, 0.8, CourtHalf.TOP),))
         for row in range(3)
     )
     pool = make_pool(sequences, (0, 0, -1))
@@ -113,11 +113,11 @@ def test_unknown_ten_frame_row_cannot_supply_five_frame_positive() -> None:
 @pytest.mark.parametrize(('fps', 'shift', 'expected'), [(30.0, 6, 0), (60.0, 10, 1)])
 def test_raw_targets_use_scaled_five_frame_canonical_matching(fps: float, shift: int, expected: int) -> None:
     exact = ContactSequence(
-        0, 0, 120, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT)),
+        0, 0, 120, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)),
     )
     shifted = ContactSequence(
         0, 0, 120,
-        (ContactEvent(20 + shift, 0.9, Half.TOP), ContactEvent(60 + shift, 0.9, Half.BOT)),
+        (ContactEvent(20 + shift, 0.9, CourtHalf.TOP), ContactEvent(60 + shift, 0.9, CourtHalf.BOT)),
     )
     pool = make_pool((exact, shifted), (0, 0), fps=fps)
 
@@ -131,23 +131,23 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     first = ContactSequence(
-        0, 0, 80, (ContactEvent(10, 0.9, Half.TOP), ContactEvent(30, 0.9, Half.BOT)),
+        0, 0, 80, (ContactEvent(10, 0.9, CourtHalf.TOP), ContactEvent(30, 0.9, CourtHalf.BOT)),
     )
     second = ContactSequence(
-        1, 100, 180, (ContactEvent(110, 0.9, Half.TOP), ContactEvent(130, 0.9, Half.BOT)),
+        1, 100, 180, (ContactEvent(110, 0.9, CourtHalf.TOP), ContactEvent(130, 0.9, CourtHalf.BOT)),
     )
     sequences = (
         first,
-        ContactSequence(0, 0, 80, (ContactEvent(16, 0.9, Half.TOP), ContactEvent(36, 0.9, Half.BOT))),
+        ContactSequence(0, 0, 80, (ContactEvent(16, 0.9, CourtHalf.TOP), ContactEvent(36, 0.9, CourtHalf.BOT))),
         second,
-        ContactSequence(1, 100, 180, (ContactEvent(116, 0.9, Half.TOP), ContactEvent(136, 0.9, Half.BOT))),
+        ContactSequence(1, 100, 180, (ContactEvent(116, 0.9, CourtHalf.TOP), ContactEvent(136, 0.9, CourtHalf.BOT))),
     )
     events = (*first.events, *second.events)
     option_pool = RallyCandidates({}, {})
     rallies = (
-        LabelledRally('first', (10, 30), (Half.TOP, Half.BOT)),
+        LabelledRally('first', (10, 30), (CourtHalf.TOP, CourtHalf.BOT)),
         LabelledRally('boundary', (97,), (None,)),
-        LabelledRally('second', (110, 130), (Half.TOP, Half.BOT)),
+        LabelledRally('second', (110, 130), (CourtHalf.TOP, CourtHalf.BOT)),
         LabelledRally('remote', (500,), (None,)),
     )
     video = SequenceTrainingVideo('video', 'group', RallyContext(30.0, (first, second), events, option_pool, 220), rallies)
@@ -182,7 +182,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
 
 
 def test_five_frame_row_mismatch_fails() -> None:
-    sequence = ContactSequence(0, 0, 200, (ContactEvent(20, 0.8, Half.TOP),))
+    sequence = ContactSequence(0, 0, 200, (ContactEvent(20, 0.8, CourtHalf.TOP),))
     pool = make_pool((sequence, sequence), (0, 0))
 
     with pytest.raises(ValueError, match='align'):
@@ -195,7 +195,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
 ) -> None:
     pool = make_pool(
         (
-            ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT))),
+            ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT))),
         ),
         (0,),
     )
@@ -229,7 +229,7 @@ def test_target_sidecar_is_compressed_and_matching_complete_output_resumes(
 def test_prepare_targets_smoke_only_uses_spawn_and_resumes(tmp_path: Path) -> None:
     pool = make_pool(
         (
-            ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, Half.TOP), ContactEvent(60, 0.9, Half.BOT))),
+            ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT))),
         ),
         (0,),
     )
@@ -261,8 +261,8 @@ def test_target_stage_rejects_pools_from_the_old_target_rule(tmp_path: Path) -> 
 
 @pytest.mark.parametrize(('tolerance', 'next_label'), [(5, 109), (10, 114)])
 def test_proposal_targets_do_not_use_padding_to_reach_another_rally(tolerance, next_label):
-    sequence = ContactSequence(0, 0, 100, (ContactEvent(95, .9, Half.TOP),))
+    sequence = ContactSequence(0, 0, 100, (ContactEvent(95, .9, CourtHalf.TOP),))
     pool = make_pool((sequence,), (0,))
-    video = replace(pool.video, rallies=(LabelledRally('next', (next_label,), (Half.TOP,)),))
+    video = replace(pool.video, rallies=(LabelledRally('next', (next_label,), (CourtHalf.TOP,)),))
     (actual,) = option_targets_at_tolerances(video, pool.runtime, (tolerance,))
     np.testing.assert_array_equal(actual, [-1])

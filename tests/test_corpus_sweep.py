@@ -81,7 +81,7 @@ def _full_metrics(matched: int) -> dict[str, int | float]:
         contact_gt_total=20,
         n_raw_contacts=30,
         n_filtered_contacts=10,
-        hit_height_failures=0,
+        unavailable_hit_height_reasons=0,
     )
     return metrics
 

@@ -26,7 +26,7 @@ ARMS = ('base', 'veto', 'base_inference_veto')
 
 
 def label_coverage(events: Sequence[ContactEvent], rallies: Sequence[LabelledRally], fps: float) -> dict[str, set]:
-    """Return the same human label keys for timing and correct-side comparisons."""
+    """Return the same GT label keys for timing and correct-side comparisons."""
     labels = []
     for rally in rallies:
         for frame, side in zip(rally.frames, rally.sides, strict=True):

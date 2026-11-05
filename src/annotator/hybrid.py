@@ -9,7 +9,7 @@ from annotator.contacts.features import ContactFeatures, build_contact_features
 from annotator.contacts.model import ScoredContacts, score_contact_features
 from annotator.courts.scenes import court_at_frame
 from annotator.models import AnnotatorModels, SideGeometry
-from annotator.outcomes.point_winner import Half, attribute_half
+from annotator.outcomes.point_winner import CourtHalf, attribute_half
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.candidates import build_rally_candidates
 from annotator.sequence.contacts import ContactEvent, initial_sequences
@@ -55,7 +55,7 @@ def build_rally_context(
 ) -> RallyContext:
     """Prepare the same initial rallies and candidate contacts for fitting and inference."""
     @cache
-    def side_for_frame(frame: int) -> Half | None:
+    def side_for_frame(frame: int) -> CourtHalf | None:
         net_band = evidence.net_band
         if side_geometry is SideGeometry.SCENE:
             # Serve look-back frames can precede the accepted scene and its tracker.

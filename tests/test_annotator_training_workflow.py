@@ -1,6 +1,7 @@
 """Manifest contracts, held-out isolation and the runnable retune workflow."""
 
 import json
+import weakref
 from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
@@ -12,7 +13,7 @@ import pytest
 
 from annotator.contacts.features import ContactFeatures
 from annotator.models import SideGeometry
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.training import workflow
 from annotator.training.sequences import LabelledRally
@@ -41,8 +42,8 @@ def manifest_file(directory: Path) -> Path:
 
 def final_sequences() -> tuple[ContactSequence, ...]:
     return (
-        ContactSequence(0, 80, 150, (ContactEvent(100, .9, Half.TOP),)),
-        ContactSequence(1, 280, 370, (ContactEvent(340, .7, Half.BOT),)),
+        ContactSequence(0, 80, 150, (ContactEvent(100, .9, CourtHalf.TOP),)),
+        ContactSequence(1, 280, 370, (ContactEvent(340, .7, CourtHalf.BOT),)),
     )
 
 
@@ -80,7 +81,7 @@ def test_bad_labels_fail_clearly(tmp_path: Path, body: str) -> None:
 def test_labels_keep_unknown_sides(tmp_path: Path) -> None:
     path = tmp_path / 'unknown.csv'
     path.write_text('rally_id,frame,side\nfirst,100,Top\nfirst,130,\n')
-    assert workflow.load_labels(path, 200) == (LabelledRally('first', (100, 130), (Half.TOP, None)),)
+    assert workflow.load_labels(path, 200) == (LabelledRally('first', (100, 130), (CourtHalf.TOP, None)),)
 
 
 def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
@@ -100,10 +101,18 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     contact_training_identities = {}
     pool_models = {}
     saved = []
+    prepared_arrays = []
 
     def evidence(_run: Path, identity: str, _settings: Any) -> Any:
         seen.append(identity)
-        return SimpleNamespace(identity=identity, fps=30.0, track=np.zeros((400, 3)))
+        track = np.zeros((400, 3))
+        prepared_arrays.append(weakref.ref(track))
+        return SimpleNamespace(identity=identity, fps=30.0, track=track)
+
+    def features(_evidence: Any) -> ContactFeatures:
+        rows = np.zeros(1)
+        prepared_arrays.append(weakref.ref(rows))
+        return ContactFeatures(rows, [], [])
 
     def contact_fit(videos: list, _settings: Any) -> Any:
         identities = [video.identity for video in videos]
@@ -122,6 +131,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         return SimpleNamespace(identity=identity, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
 
     def sequence_fit(videos: list, _settings: Any) -> Any:
+        assert all(array() is None for array in prepared_arrays)
         assert [video.identity for video in videos] == training_order
         predictions = {
             video.identity: SimpleNamespace(identity=video.identity, sequences=final_sequences()) for video in videos
@@ -137,7 +147,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         return review_model
 
     monkeypatch.setattr(workflow, 'load_contact_evidence', evidence)
-    monkeypatch.setattr(workflow, 'features_from_evidence', lambda _evidence: ContactFeatures(np.zeros(1), [], []))
+    monkeypatch.setattr(workflow, 'features_from_evidence', features)
     monkeypatch.setattr(workflow, 'fit_contact_model', contact_fit)
     monkeypatch.setattr(workflow, 'sequence_training_video', sequence_input)
     monkeypatch.setattr(workflow, 'fit_rally_models', sequence_fit)
@@ -277,43 +287,45 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
 
 
 @pytest.mark.parametrize(('frames', 'sides', 'expected'), [
-    ((100, 130), (Half.TOP, Half.BOT), 1),
-    ((100,), (Half.TOP,), 0),
-    ((100, 115, 130), (Half.TOP, Half.TOP, Half.BOT), 0),
-    ((100, 130), (Half.BOT, Half.TOP), 0),
-    ((90, 140), (Half.TOP, Half.BOT), 1),
-    ((100, 141), (Half.TOP, Half.BOT), 0),
-    ((100, 109), (Half.TOP, Half.BOT), 0),
+    ((100, 130), (CourtHalf.TOP, CourtHalf.BOT), 1),
+    ((100,), (CourtHalf.TOP,), 0),
+    ((100, 115, 130), (CourtHalf.TOP, CourtHalf.TOP, CourtHalf.BOT), 0),
+    ((100, 130), (CourtHalf.BOT, CourtHalf.TOP), 0),
+    ((90, 140), (CourtHalf.TOP, CourtHalf.BOT), 1),
+    ((100, 141), (CourtHalf.TOP, CourtHalf.BOT), 0),
+    ((100, 109), (CourtHalf.TOP, CourtHalf.BOT), 0),
 ])
 def test_whole_rally_correctness_matches_selected_judgement(
     frames: tuple, sides: tuple, expected: int,
 ) -> None:
-    rally = LabelledRally('first', (100, 130), (Half.TOP, Half.BOT))
+    rally = LabelledRally('first', (100, 130), (CourtHalf.TOP, CourtHalf.BOT))
     events = tuple(ContactEvent(frame, .8, side) for frame, side in zip(frames, sides, strict=True))
     sequence = ContactSequence(0, 80, 150, events)
     assert workflow.whole_rally_correctness(sequence, (rally,), 30) == expected
 
 
 def test_unknown_side_abstains_only_after_known_contradictions() -> None:
-    rally = LabelledRally('first', (100, 130), (Half.TOP, None))
-    complete = ContactSequence(0, 80, 150, (ContactEvent(100, .8, Half.TOP), ContactEvent(130, .8, Half.BOT)))
-    missing = ContactSequence(0, 80, 150, (ContactEvent(100, .8, Half.TOP),))
+    rally = LabelledRally('first', (100, 130), (CourtHalf.TOP, None))
+    complete = ContactSequence(0, 80, 150, (ContactEvent(100, .8, CourtHalf.TOP), ContactEvent(130, .8, CourtHalf.BOT)))
+    missing = ContactSequence(0, 80, 150, (ContactEvent(100, .8, CourtHalf.TOP),))
     assert workflow.whole_rally_correctness(complete, (rally,), 30) == -1
     assert workflow.whole_rally_correctness(missing, (rally,), 30) == 0
 
 
 def test_short_inward_errors_and_neighbouring_rallies_use_shared_rule() -> None:
-    rally = LabelledRally('rally', (300, 400), (Half.TOP, Half.BOT))
-    sequence = ContactSequence(0, 305, 397, (ContactEvent(305, .9, Half.TOP), ContactEvent(395, .9, Half.BOT)))
+    rally = LabelledRally('rally', (300, 400), (CourtHalf.TOP, CourtHalf.BOT))
+    sequence = ContactSequence(0, 305, 397, (
+        ContactEvent(305, .9, CourtHalf.TOP), ContactEvent(395, .9, CourtHalf.BOT),
+    ))
     assert workflow.whole_rally_correctness(sequence, (rally,), 30) == 1
-    neighbour = LabelledRally('neighbour', (420, 440), (Half.TOP, Half.BOT))
+    neighbour = LabelledRally('neighbour', (420, 440), (CourtHalf.TOP, CourtHalf.BOT))
     merged = replace(sequence, end_frame=441)
     assert workflow.whole_rally_correctness(merged, (rally, neighbour), 30) == 0
 
 
 def test_timing_allowance_does_not_merge_a_neighbour_outside_the_span() -> None:
-    rally = LabelledRally('rally', (100, 200, 300), (Half.TOP, Half.BOT, Half.TOP))
-    neighbour = LabelledRally('neighbour', (398, 450), (Half.BOT, Half.TOP))
+    rally = LabelledRally('rally', (100, 200, 300), (CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP))
+    neighbour = LabelledRally('neighbour', (398, 450), (CourtHalf.BOT, CourtHalf.TOP))
     events = tuple(ContactEvent(frame, .9, side) for frame, side in zip(rally.frames, rally.sides, strict=True))
     sequence = ContactSequence(0, 40, 391, events)
     for tolerance in (5, 10):
@@ -321,17 +333,20 @@ def test_timing_allowance_does_not_merge_a_neighbour_outside_the_span() -> None:
 
 
 def test_unlimited_context_preserves_rally_and_contact_checks() -> None:
-    rally = LabelledRally('rally', (300, 400, 500), (Half.TOP, Half.BOT, Half.TOP))
+    rally = LabelledRally('rally', (300, 400, 500), (CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP))
     events = tuple(ContactEvent(frame, .9, side) for frame, side in zip(rally.frames, rally.sides, strict=True))
     sequence = ContactSequence(0, 0, 1000, events)
     assert workflow.whole_rally_correctness(sequence, (rally,), 30) == 1
-    neighbour = LabelledRally('neighbour', (800, 900), (Half.BOT, Half.TOP))
+    neighbour = LabelledRally('neighbour', (800, 900), (CourtHalf.BOT, CourtHalf.TOP))
     assert workflow.whole_rally_correctness(sequence, (rally, neighbour), 30) == 0
+    opposite_events = []
+    for event in events:
+        side = CourtHalf.BOT if event.side == CourtHalf.TOP else CourtHalf.TOP
+        opposite_events.append(replace(event, side=side))
     for changed in (
         replace(sequence, start_frame=350),
         replace(sequence, events=events[:-1]),
-        replace(sequence, events=(*events, ContactEvent(600, .9, Half.BOT))),
-        replace(sequence, events=tuple(replace(event, side=Half.BOT if event.side == Half.TOP else Half.TOP)
-                                       for event in events)),
+        replace(sequence, events=(*events, ContactEvent(600, .9, CourtHalf.BOT))),
+        replace(sequence, events=tuple(opposite_events)),
     ):
         assert workflow.whole_rally_correctness(changed, (rally,), 30) == 0

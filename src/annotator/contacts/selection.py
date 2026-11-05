@@ -53,8 +53,8 @@ def select_heuristic_contacts(
                 'rally_id': rally_id,
                 'start_frame': start,
                 'end_frame': end,
-                'trigger_frame': before_mask[0],
-                'trigger_code': '',
+                'first_rejected_frame': before_mask[0],
+                'rejection_grade': '',
             })
     rallies, _stream = fit_rally_sides(sequences, events)
     return rallies

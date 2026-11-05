@@ -10,12 +10,12 @@ import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     LandingFilterOptions,
     LandingKinematics,
     LandingWindow,
-    VerdictSource,
+    WinnerSource,
     attribute_half,
     build_landing_kinematics,
     carried_terminal,
@@ -74,20 +74,20 @@ def _sticky(n_frames: int, *, picks: np.ndarray, heights: np.ndarray, distances:
 # ---------------------------------------------------------------------------
 def test_fit_alternation_picks_the_higher_scoring_phase():
     # Every guess matches the phase whose final stroke is Bot (phase(Bot,4) = [Top,Bot,Top,Bot]).
-    guesses = [Half.TOP, Half.BOT, Half.TOP, Half.BOT]
-    assert fit_alternation(guesses) == Half.BOT
+    guesses = [CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP, CourtHalf.BOT]
+    assert fit_alternation(guesses) == CourtHalf.BOT
 
 
 def test_fit_alternation_a_tie_returns_none():
     # Two strokes, both guessed Top: phase(Top,2) matches stroke 1 only, phase(Bot,2) matches
     # stroke 0 only -> both score 1, a genuine tie.
-    assert fit_alternation([Half.TOP, Half.TOP]) is None
+    assert fit_alternation([CourtHalf.TOP, CourtHalf.TOP]) is None
 
 
 def test_fit_alternation_ignores_none_guesses_when_scoring():
     # One ambiguous stroke in the middle; the other two both fit phase(final=Bot).
-    guesses = [Half.TOP, None, Half.TOP, Half.BOT]
-    assert fit_alternation(guesses) == Half.BOT
+    guesses = [CourtHalf.TOP, None, CourtHalf.TOP, CourtHalf.BOT]
+    assert fit_alternation(guesses) == CourtHalf.BOT
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
         0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
     )
 
-    assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
+    assert window == LandingWindow(5, ('next_rally',), search_shortened_by_exclusion=False)
 
 
 def test_landing_window_labels_final_rally_video_end():
@@ -213,7 +213,7 @@ def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
         0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
     )
 
-    assert window == LandingWindow(5, ('next_rally',), window_closed_by_mask=False)
+    assert window == LandingWindow(5, ('next_rally',), search_shortened_by_exclusion=False)
 
 
 def test_landing_window_reports_sustained_loss_and_exclusion_tie():
@@ -227,7 +227,7 @@ def test_landing_window_reports_sustained_loss_and_exclusion_tie():
         shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
     )
 
-    assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'), window_closed_by_mask=False)
+    assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'), search_shortened_by_exclusion=False)
 
 
 def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
@@ -240,7 +240,7 @@ def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
         shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
     )
 
-    assert window == LandingWindow(5, ('definitive_exclusion',), window_closed_by_mask=True)
+    assert window == LandingWindow(5, ('definitive_exclusion',), search_shortened_by_exclusion=True)
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +265,7 @@ def test_attribute_half_reads_the_sticky_nearest_pick_half():
     sticky = _sticky(n_frames, picks=picks, heights=heights, distances=distances)
 
     half = attribute_half(contact, track, sticky, bboxes, (400.0, 500.0))
-    assert half == Half.BOT
+    assert half == CourtHalf.BOT
 
 
 def test_attribute_half_none_when_shuttle_invisible_or_no_detection():
@@ -395,7 +395,7 @@ def test_is_net_ender_true_when_flight_stays_in_band_and_dies_there():
         [0.5, 450.0 / resolution[1], 1],
         [0.5, 480.0 / resolution[1], 1],
     ])
-    assert is_net_ender(0, 3, track, Half.TOP, (400.0, 500.0), resolution) is True
+    assert is_net_ender(0, 3, track, CourtHalf.TOP, (400.0, 500.0), resolution) is True
 
 
 def test_is_net_ender_false_when_flight_crosses_the_band():
@@ -405,7 +405,7 @@ def test_is_net_ender_false_when_flight_crosses_the_band():
         [0.5, 600.0 / resolution[1], 1],  # crosses past band_hi: not a net-ender any more
         [0.5, 480.0 / resolution[1], 1],
     ])
-    assert is_net_ender(0, 3, track, Half.TOP, (400.0, 500.0), resolution) is False
+    assert is_net_ender(0, 3, track, CourtHalf.TOP, (400.0, 500.0), resolution) is False
 
 
 # ---------------------------------------------------------------------------
@@ -414,12 +414,12 @@ def test_is_net_ender_false_when_flight_crosses_the_band():
 def test_inout_verdict_at_margin_zero_resolves_exactly_on_the_line():
     # Landing exactly on the receiver's (Bot) baseline: clearance to that line is exactly 0, so at
     # margin 0 it is neither strictly inside (won) nor strictly outside (lost) -> ambiguous.
-    assert landing_margins((0.5, 1.0), Half.BOT).margin_m == 0
+    assert landing_margins((0.5, 1.0), CourtHalf.BOT).margin_m == 0
 
 
 def test_inout_verdict_at_margin_zero_still_resolves_a_clear_landing():
-    assert landing_margins((0.5, 0.9), Half.BOT).margin_m > 0
-    assert landing_margins((0.5, 0.01), Half.BOT).margin_m < 0
+    assert landing_margins((0.5, 0.9), CourtHalf.BOT).margin_m > 0
+    assert landing_margins((0.5, 0.01), CourtHalf.BOT).margin_m < 0
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +428,7 @@ def test_inout_verdict_at_margin_zero_still_resolves_a_clear_landing():
 def test_landing_margins_inside_receiver_half_is_positive():
     # x=0.5 is centred between the sidelines; y=0.75 sits 0.25 either side of the net/baseline
     # in the Bot half [0.5, 1.0], so the sideline clearance binds (the smaller of the two).
-    margins = landing_margins((0.5, 0.75), Half.BOT)
+    margins = landing_margins((0.5, 0.75), CourtHalf.BOT)
     assert margins.net_clear_m == pytest.approx(0.25 * COURT_LENGTH_M)
     assert margins.margin_m > 0
     assert margins.margin_m == pytest.approx(margins.line_clear_m)
@@ -436,7 +436,7 @@ def test_landing_margins_inside_receiver_half_is_positive():
 
 def test_landing_margins_outside_is_negative_point_to_rectangle_distance():
     # Past the far baseline (y=1.1) but inside x: only the y overshoot contributes.
-    margins = landing_margins((0.5, 1.1), Half.BOT)
+    margins = landing_margins((0.5, 1.1), CourtHalf.BOT)
     assert margins.margin_m == pytest.approx(-(0.1 * COURT_LENGTH_M))
 
 
@@ -468,63 +468,63 @@ def test_hit_height_raises_when_shuttle_not_visible():
 # Verdict assembly
 # ---------------------------------------------------------------------------
 def _landing(norm, net_ender=False, at_border=False, frame=5):
-    half = Half.TOP if norm[1] < 0.5 else Half.BOT
+    half = CourtHalf.TOP if norm[1] < 0.5 else CourtHalf.BOT
     return Landing(frame=frame, norm=norm, half=half, at_border=at_border, net_ender=net_ender)
 
 
 def test_net_fault_loses_for_both_landing_rules():
-    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 0.9), net_ender=True), 0.1)
-    assert outcome.winner is Half.BOT
-    assert outcome.landing_only_winner is Half.BOT
-    assert outcome.winner_source is VerdictSource.NET_RULE
+    outcome = resolve_rally_outcome(CourtHalf.TOP, None, _landing((0.5, 0.9), net_ender=True), 0.1)
+    assert outcome.winner is CourtHalf.BOT
+    assert outcome.conservative_landing_winner is CourtHalf.BOT
+    assert outcome.winner_source is WinnerSource.NET_RULE
 
 
 def test_best_estimate_calls_an_out_landing_at_the_image_border():
-    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 1.1), at_border=True), 0.1)
-    assert outcome.winner is Half.BOT
-    assert outcome.landing_only_winner is None
+    outcome = resolve_rally_outcome(CourtHalf.TOP, None, _landing((0.5, 1.1), at_border=True), 0.1)
+    assert outcome.winner is CourtHalf.BOT
+    assert outcome.conservative_landing_winner is None
 
 
 def test_conservative_estimate_withholds_an_exact_court_line():
-    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 1.0)), 0.1)
-    assert outcome.winner is Half.TOP
-    assert outcome.landing_only_winner is None
+    outcome = resolve_rally_outcome(CourtHalf.TOP, None, _landing((0.5, 1.0)), 0.1)
+    assert outcome.winner is CourtHalf.TOP
+    assert outcome.conservative_landing_winner is None
 
 
 @pytest.mark.parametrize(('hitter', 'position'), [
-    (Half.TOP, (0.5, -0.1)), (Half.BOT, (0.5, 1.1)),
-    (Half.TOP, (-0.1, 0.25)), (Half.BOT, (1.1, 0.75)),
+    (CourtHalf.TOP, (0.5, -0.1)), (CourtHalf.BOT, (0.5, 1.1)),
+    (CourtHalf.TOP, (-0.1, 0.25)), (CourtHalf.BOT, (1.1, 0.75)),
 ])
 def test_out_landing_on_hitters_half_withholds_geometry_but_keeps_next_server(hitter, position):
     landing = Landing(20, position, hitter, False, False)
     outcome = resolve_rally_outcome(hitter, None, landing, 0.1)
     assert outcome.winner is None
-    assert outcome.landing_only_winner is None
+    assert outcome.conservative_landing_winner is None
     assert outcome.winner_source is None
     next_serve = resolve_rally_outcome(hitter, hitter, landing, 0.1)
     assert next_serve.winner is hitter
-    assert next_serve.winner_source is VerdictSource.NEXT_SERVER
+    assert next_serve.winner_source is WinnerSource.NEXT_SERVER
 
 
 def test_next_server_takes_priority_over_a_net_fault():
-    outcome = resolve_rally_outcome(Half.TOP, Half.TOP, _landing((0.5, 0.9), net_ender=True), 0.1)
-    assert outcome.winner is Half.TOP
-    assert outcome.winner_source is VerdictSource.NEXT_SERVER
-    assert outcome.landing_only_winner is Half.BOT
+    outcome = resolve_rally_outcome(CourtHalf.TOP, CourtHalf.TOP, _landing((0.5, 0.9), net_ender=True), 0.1)
+    assert outcome.winner is CourtHalf.TOP
+    assert outcome.winner_source is WinnerSource.NEXT_SERVER
+    assert outcome.conservative_landing_winner is CourtHalf.BOT
 
 
 def test_landing_winner_and_margin_flags_are_independent():
-    outcome = resolve_rally_outcome(Half.TOP, None, _landing((0.5, 0.9)), 10.0)
-    assert outcome.winner is Half.TOP
-    assert outcome.winner_source is VerdictSource.LANDING_GEOMETRY
+    outcome = resolve_rally_outcome(CourtHalf.TOP, None, _landing((0.5, 0.9)), 10.0)
+    assert outcome.winner is CourtHalf.TOP
+    assert outcome.winner_source is WinnerSource.LANDING_GEOMETRY
     assert outcome.within_line_margin is True
     assert outcome.within_net_margin is True
 
 
 def test_missing_landing_leaves_the_winner_unresolved():
-    outcome = resolve_rally_outcome(Half.TOP, None, None, 0.1)
+    outcome = resolve_rally_outcome(CourtHalf.TOP, None, None, 0.1)
     assert outcome.winner is None
-    assert outcome.landing_only_winner is None
+    assert outcome.conservative_landing_winner is None
     assert outcome.winner_source is None
     assert outcome.landing_margin_m is None
     assert outcome.within_line_margin is False
@@ -557,14 +557,14 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
         2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool),
     ).end_frame
     landing = pick_landing_to_end(
-        2, end_frame, track, kin, opts, Half.TOP, net_band, resolution, court_info, constants,
+        2, end_frame, track, kin, opts, CourtHalf.TOP, net_band, resolution, court_info, constants,
         np.zeros(len(track), dtype=bool),
     )
 
     assert landing is not None
     assert landing.frame == 4
     assert landing.norm == pytest.approx((0.5, 0.9))
-    assert landing.half == Half.BOT  # y=0.9 >= NET_COURT_Y(0.5)
+    assert landing.half == CourtHalf.BOT  # y=0.9 >= NET_COURT_Y(0.5)
     assert landing.at_border is False
     assert landing.net_ender is False
 
@@ -588,7 +588,7 @@ def test_landing_window_end_feeds_explicit_landing():
     constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
     window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool))
     landing = pick_landing_to_end(
-        2, window.end_frame, track, kin, opts, Half.TOP, (100.0, 200.0), resolution, court_info, constants,
+        2, window.end_frame, track, kin, opts, CourtHalf.TOP, (100.0, 200.0), resolution, court_info, constants,
         np.zeros(len(track), dtype=bool),
     )
     assert window.end_frame == n_frames

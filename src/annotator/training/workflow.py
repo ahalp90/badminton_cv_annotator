@@ -27,7 +27,7 @@ from annotator.hybrid import (
     predict_contacts,
 )
 from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.shuttle_track import validate_shuttle_track
@@ -73,7 +73,7 @@ class Split(StrEnum):
 
 @dataclass(frozen=True)
 class VideoInput:
-    """One dataset-builder video and its human contact-label file."""
+    """One dataset-builder video and its GT contact-label file."""
 
     identity: str
     group: str
@@ -98,6 +98,17 @@ class TrainingManifest:
             if video.group in group_splits and group_splits[video.group] != video.split:
                 raise ValueError(f'group {video.group!r} occurs in more than one split')
             group_splits[video.group] = video.split
+
+
+@dataclass(frozen=True)
+class LoadedTrainingVideo:
+    """Prepared evidence, features and GT labels for one training video."""
+
+    entry: VideoInput
+    evidence: AnnotationEvidence
+    features: ContactFeatures
+    rallies: tuple[LabelledRally, ...]
+    contact_input: ContactTrainingVideo
 
 
 @dataclass(frozen=True)
@@ -170,7 +181,7 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
     seen = set()
     current = None
     frames: list[int] = []
-    sides: list[Half | None] = []
+    sides: list[CourtHalf | None] = []
     with path.open(newline='') as handle:
         reader = csv.DictReader(handle)
         expected_columns = {'rally_id', 'frame', 'side'}
@@ -192,7 +203,7 @@ def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
             try:
                 frame = int(row['frame'])
                 side_text = row['side'].strip()
-                side = Half(side_text) if side_text else None
+                side = CourtHalf(side_text) if side_text else None
             except ValueError as error:
                 raise ValueError(f'{path}:{line}: frame must be an integer and side Top, Bot or empty') from error
             if not 0 <= frame < frame_count:
@@ -263,10 +274,10 @@ def fit_from_manifest(
         rallies = load_labels(entry.labels, len(evidence.track))
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
         contact_input = ContactTrainingVideo(entry.identity, features.rows, frames, evidence.fps)
-        loaded.append((entry, evidence, features, rallies, contact_input))
+        loaded.append(LoadedTrainingVideo(entry, evidence, features, rallies, contact_input))
     try:
         contact_model = fit_contact_model(
-            [contact_input for _, _, _, _, contact_input in loaded], settings.contact,
+            [video.contact_input for video in loaded], settings.contact,
         ).model
     except ValueError as error:
         raise ValueError(f'contact-model fitting failed: {error}') from error
@@ -274,18 +285,18 @@ def fit_from_manifest(
     for group in groups:
         try:
             contact_models_by_held_group[group] = fit_contact_model(
-                [contact_input for entry, _, _, _, contact_input in loaded if entry.group != group], settings.contact,
+                [video.contact_input for video in loaded if video.entry.group != group], settings.contact,
             ).model
         except ValueError as error:
             raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
     training_videos = []
-    for entry, evidence, features, rallies, _contact_input in loaded:
+    for video in loaded:
         training_videos.append(sequence_training_video(
-            entry.identity, entry.group, evidence, features, rallies,
-            contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
+            video.entry.identity, video.entry.group, video.evidence, video.features, video.rallies,
+            contact_models_by_held_group[video.entry.group], settings.contact_prediction, side_geometry,
         ))
     # Release the large contact-feature arrays before building rally-training pools.
-    del loaded, evidence, features, contact_input, _contact_input
+    del loaded, video, evidence, features, contact_input
     rally_fit = fit_rally_models(training_videos, settings.rally)
     review_model = fit_rally_review_model(
         training_videos, rally_fit.held_group_predictions, settings.confidence,

@@ -11,7 +11,7 @@ import numpy as np
 
 from annotator.config import frames_at_fps
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     alternating_player_sides,
     fit_alternation,
 )
@@ -118,26 +118,10 @@ def finish_rallies(
     """Finish selected rallies and retain the result of fitting their sides."""
     choices = {span_id: pool.sequences[row] for span_id, row in rows.items()}
     context = pool.context
-    sequences, events = finish_choices(
-        context.initial, context.events, choices, context.fps,
-        frame_count=context.frame_count, bounds_supplied=context.bounds_supplied,
-    )
+    sequences, events = apply_choices(context.initial, context.events, choices)
+    if not context.bounds_supplied:
+        sequences = extend_boundaries(sequences, events, context.fps, frame_count=context.frame_count)
     return fit_rally_sides(sequences, events)
-
-
-def finish_choices(
-    initial: Sequence[ContactSequence], events: Sequence[ContactEvent], choices: dict[int, ContactSequence], fps: float,
-    *, frame_count: int | None = None, bounds_supplied: bool = False,
-) -> tuple[tuple[ContactSequence, ...], tuple[ContactEvent, ...]]:
-    """Rebuild owned contacts, then extend discovery bounds around chosen contacts.
-
-    Chosen spans retain their context. Dataset clip padding belongs to export;
-    discovery only adds the small contact margin checked against neighbours.
-    """
-    sequences, stream = apply_choices(initial, events, choices)
-    if not bounds_supplied:
-        sequences = extend_boundaries(sequences, stream, fps, frame_count=frame_count)
-    return sequences, stream
 
 
 def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
@@ -197,7 +181,7 @@ def fit_rally_sides(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent],
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
     """Fit each rally once and keep its resolved final side with its sequence."""
-    side_by_frame: dict[int, Half | None] = {}
+    side_by_frame: dict[int, CourtHalf | None] = {}
     final_halves = []
     for sequence in sequences:
         final_half = fit_alternation([event.side for event in sequence.events])

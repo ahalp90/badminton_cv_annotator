@@ -11,10 +11,10 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     RallyOutcome,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
@@ -152,15 +152,15 @@ def _annotation() -> AnnotatorResult:
     return AnnotatorResult(
         rallies=(
             FinishedRally(ContactSequence(0, 0, 50, (
-                ContactEvent(20, np.nan, Half.BOT), ContactEvent(30, np.nan, Half.TOP),
-            )), Half.TOP),
+                ContactEvent(20, np.nan, CourtHalf.BOT), ContactEvent(30, np.nan, CourtHalf.TOP),
+            )), CourtHalf.TOP),
             FinishedRally(ContactSequence(1, 60, 100, (ContactEvent(70, np.nan, None),)), None),
         ),
         outcomes={0: RallyOutcome(
-            Half.BOT, VerdictSource.NET_RULE, Landing(45, (0.4, 0.8), Half.BOT, False, True),
-            -0.2, False, True, Half.BOT, True,
+            CourtHalf.BOT, WinnerSource.NET_RULE, Landing(45, (0.4, 0.8), CourtHalf.BOT, False, True),
+            -0.2, False, True, CourtHalf.BOT, True,
         )},
-        hit_heights={20: 1, 70: 2}, hit_height_failures={30: "shuttle not visible"},
+        hit_heights={20: 1, 70: 2}, unavailable_hit_height_reasons={30: "shuttle not visible"},
         contact_events=(), heuristic_candidates=[rejected, first, second, unresolved], rally_confidence=(),
     )
 
@@ -299,7 +299,7 @@ def test_final_contact_sides_and_review_scores_reach_rally_records(tmp_path: Pat
     original = _annotation()
     annotation = original._replace(
         rallies=(original.rallies[0], FinishedRally(
-            ContactSequence(1, 60, 100, (ContactEvent(70, .8, Half.BOT),)), None,
+            ContactSequence(1, 60, 100, (ContactEvent(70, .8, CourtHalf.BOT),)), None,
         )), rally_confidence=(.9, .4),
     )
     records = _assemble(tmp_path, annotation=annotation).records
@@ -574,7 +574,7 @@ def test_outcome_primitives_must_match_their_typed_producer_contracts(tmp_path: 
         _assemble(tmp_path, annotation=invalid_landing)
 
     invalid_geometric = annotation._replace(
-        outcomes={0: annotation.outcomes[0]._replace(window_closed_by_mask=1)},
+        outcomes={0: annotation.outcomes[0]._replace(search_shortened_by_exclusion=1)},
     )
     with pytest.raises(TypeError, match="flags must be boolean"):
         _assemble(tmp_path, annotation=invalid_geometric)

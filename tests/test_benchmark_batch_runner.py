@@ -7,7 +7,7 @@ import pytest
 
 from annotator.hybrid import HybridPrediction
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
     RallyReview,
@@ -39,7 +39,7 @@ def models(identity=b'contact', selector='selector'):
 
 
 def prediction(probability=0.8, pool=None):
-    event = ContactEvent(100, 0.9, Half.BOT)
+    event = ContactEvent(100, 0.9, CourtHalf.BOT)
     sequence = ContactSequence(0, 90, 110, (event,))
     refined = SimpleNamespace(sequences=(sequence,), events=(event,), pool=pool)
     review = RallyReview(RallyReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))

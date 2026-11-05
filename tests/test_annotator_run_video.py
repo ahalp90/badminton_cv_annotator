@@ -14,7 +14,7 @@ from annotator.contacts.selection import scoring_filter
 from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     LandingFilterOptions,
     convert_landing_options,
@@ -37,7 +37,7 @@ from experiments.annotator.landing_search import (
 def test_model_contacts_and_raw_side_ties_survive_the_full_chain(monkeypatch, annotator_models):
     inputs = _synthetic_inputs()
     inputs['raw_exclusion_mask'][1:30] = True
-    final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, Half.TOP), ContactEvent(17, .8, Half.TOP))
+    final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, CourtHalf.TOP), ContactEvent(17, .8, CourtHalf.TOP))
     sequence = ContactSequence(0, 8, 23, final_events[1:])
     prediction = SimpleNamespace(
         refined=SimpleNamespace(rallies=(FinishedRally(sequence, None),), events=final_events),
@@ -213,14 +213,14 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
     del inputs['raw_exclusion_mask']
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
-        lambda *args, **kwargs: Half.TOP,
+        lambda *args, **kwargs: CourtHalf.TOP,
     )
 
     result = run_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert [rally.final_half for rally in result.rallies] == [Half.TOP]
+    assert [rally.final_half for rally in result.rallies] == [CourtHalf.TOP]
     assert 0 in result.outcomes
 
 
@@ -233,7 +233,7 @@ def test_run_video_does_not_use_earlier_contact_when_final_is_rejected(monkeypat
     )
     called_frames = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -256,7 +256,7 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         base=BaseAnnotatorConfig(rejected_grades=frozenset({1})), inpaint_codes=codes,
     )
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -293,7 +293,7 @@ def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeyp
     assert result.outcomes == {}
     assert rows == [{
         'rule': 'all_contacts_on_believed_mask', 'rally_id': 0,
-        'start_frame': 10, 'end_frame': 20, 'trigger_frame': 12, 'trigger_code': '',
+        'start_frame': 10, 'end_frame': 20, 'first_rejected_frame': 12, 'rejection_grade': '',
     }]
 
 
@@ -307,7 +307,7 @@ def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
 
     run_video(
@@ -317,7 +317,7 @@ def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
 
     assert rows == [{
         'rule': 'final_contact', 'rally_id': 0, 'start_frame': 14, 'end_frame': 17,
-        'trigger_frame': 14, 'trigger_code': 3,
+        'first_rejected_frame': 14, 'rejection_grade': 3,
     }]
 
 
@@ -330,7 +330,7 @@ def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
@@ -356,7 +356,7 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
     )
 
     def attribute(_frame, *_args, **_kwargs):
-        return Half.TOP if _frame in {12, 14, 16, 30, 34} else Half.BOT
+        return CourtHalf.TOP if _frame in {12, 14, 16, 30, 34} else CourtHalf.BOT
 
     monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', attribute)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
@@ -366,11 +366,11 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
         contacts=contacts, heuristic_only=True,
     )
 
-    assert result.outcomes[0].winner is Half.TOP
+    assert result.outcomes[0].winner is CourtHalf.TOP
     assert result.outcomes[0].winner_source.value == 'next_server'
     assert [event.frame for event in result.rallies[0].sequence.events] == contacts[0]
     assert set(result.hit_heights) == {frame for frames in contacts.values() for frame in frames}
-    assert result.hit_height_failures == {}
+    assert result.unavailable_hit_height_reasons == {}
 
 
 def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
@@ -382,7 +382,7 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     )
     rows = []
     monkeypatch.setattr(
-        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP,
+        run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP,
     )
 
     def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
@@ -405,14 +405,14 @@ def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
     assert {row['rule'] for row in rows} == {
         'final_contact', 'lost_shuttle_guard', 'landing_descent',
     }
-    assert all(row['trigger_code'] == 3 for row in rows)
+    assert all(row['rejection_grade'] == 3 for row in rows)
 
 
 def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
-        lambda *args, **kwargs: Half.TOP,
+        lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
@@ -424,20 +424,20 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
     )
 
     diagnostic = result.outcomes[0]
-    assert diagnostic.landing_only_winner is None
+    assert diagnostic.conservative_landing_winner is None
     assert diagnostic.winner is None
-    assert diagnostic.window_closed_by_mask is False
+    assert diagnostic.search_shortened_by_exclusion is False
 
 
 def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     inputs = _synthetic_inputs()
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
-        lambda *args, **kwargs: Half.TOP,
+        lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end',
-        lambda *args, **kwargs: Landing(15, (0.5, 0.75), Half.BOT, False, False),
+        lambda *args, **kwargs: Landing(15, (0.5, 0.75), CourtHalf.BOT, False, False),
     )
 
     result = run_video(
@@ -445,9 +445,9 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
     )
 
     diagnostic = result.outcomes[0]
-    assert diagnostic.landing_only_winner is Half.TOP
-    assert diagnostic.winner is Half.TOP
-    assert diagnostic.window_closed_by_mask is False
+    assert diagnostic.conservative_landing_winner is CourtHalf.TOP
+    assert diagnostic.winner is CourtHalf.TOP
+    assert diagnostic.search_shortened_by_exclusion is False
 
 
 def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkeypatch):
@@ -458,7 +458,7 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
     inputs['track'][14:, 2] = 1.0
     monkeypatch.setattr(
         run_video_module.point_winner, 'attribute_half',
-        lambda *args, **kwargs: Half.TOP,
+        lambda *args, **kwargs: CourtHalf.TOP,
     )
     monkeypatch.setattr(
         run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
@@ -468,7 +468,7 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.outcomes[0].window_closed_by_mask is True
+    assert result.outcomes[0].search_shortened_by_exclusion is True
 
 
 def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
@@ -476,7 +476,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
     inputs['raw_exclusion_mask'][15:28] = True  # 13-frame run survives filtering at 25 fps
     inputs['track'][14, 1] = 0.5
     inputs['track'][14, 2] = 1.0
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: Half.TOP)
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args, **kwargs: CourtHalf.TOP)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
     result = run_video(
@@ -484,7 +484,7 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
         spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
 
-    assert result.outcomes[0].window_closed_by_mask is False
+    assert result.outcomes[0].search_shortened_by_exclusion is False
 
 
 def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypatch):
@@ -552,7 +552,7 @@ def test_landing_search_rejects_invalid_time_limits(limits):
 def test_run_video_scales_landing_options_before_search(monkeypatch):
     inputs = _synthetic_inputs()
     seen_options = []
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
 
     def record_options(_start, _end, _track, _kinematics, options, *_args, **_kwargs):
         seen_options.append(options)
@@ -570,7 +570,7 @@ def test_run_video_scales_landing_options_before_search(monkeypatch):
 def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
     capture = RunCapture()
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
     result = run_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
@@ -588,11 +588,11 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
     capture = RunCapture()
-    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: Half.TOP)
+    monkeypatch.setattr(run_video_module.point_winner, 'attribute_half', lambda *args: CourtHalf.TOP)
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
         position = (0.5, 0.25) if end_frame < len(inputs['track']) else (0.5, 0.75)
-        half = Half.TOP if position[1] < 0.5 else Half.BOT
+        half = CourtHalf.TOP if position[1] < 0.5 else CourtHalf.BOT
         return Landing(end_frame - 1, position, half, False, False)
 
     monkeypatch.setattr(run_video_module.point_winner, 'pick_landing_to_end', fake_pick)
@@ -604,8 +604,8 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
         capture.evidence, result.rallies, result.outcomes, (1.0, 11.44), inputs["landing_options"],
     )
     assert short.normal_outcome.landing != short.trial_outcome.landing
-    assert short.normal_outcome.winner is Half.TOP
-    assert short.trial_outcome.winner is Half.BOT
+    assert short.normal_outcome.winner is CourtHalf.TOP
+    assert short.trial_outcome.winner is CourtHalf.BOT
     assert short.normal_outcome.winner_source.value == 'landing_geometry'
     assert short.trial_outcome.winner_source.value == 'landing_geometry'
     assert tied.trial_end_frame == tied.normal_end_frame == len(inputs['track'])
@@ -726,7 +726,7 @@ def test_write_geometric_verdicts_csv_serialises_nulls_blank(tmp_path) -> None:
     path = tmp_path / 'pilot_geometric_verdicts.csv'
     write_geometric_verdicts_csv(rows, path)
     assert path.read_text(encoding='utf-8').splitlines() == [
-        'rally_id,geometric_verdict,geometric_winner,agreement,window_closed_by_mask',
+        'rally_id,geometric_verdict,geometric_winner,agreement,search_shortened_by_exclusion',
         '0,won,Top,True,False',
         '2,,,,False',
     ]

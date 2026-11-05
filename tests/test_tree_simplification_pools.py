@@ -6,7 +6,7 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_options import RallyContext
@@ -18,11 +18,11 @@ from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
 def example_pool() -> LabelledOptions:
-    first = ContactEvent(10, 0.9, Half.TOP)
-    second = ContactEvent(20, 0.8, Half.BOT)
-    addition = ContactEvent(15, 0.7, Half.TOP)
-    other = ContactEvent(40, 0.85, Half.BOT)
-    other_addition = ContactEvent(35, 0.6, Half.TOP)
+    first = ContactEvent(10, 0.9, CourtHalf.TOP)
+    second = ContactEvent(20, 0.8, CourtHalf.BOT)
+    addition = ContactEvent(15, 0.7, CourtHalf.TOP)
+    other = ContactEvent(40, 0.85, CourtHalf.BOT)
+    other_addition = ContactEvent(35, 0.6, CourtHalf.TOP)
     initial = (
         ContactSequence(0, 5, 25, (first, second)),
         ContactSequence(1, 30, 45, (other,)),

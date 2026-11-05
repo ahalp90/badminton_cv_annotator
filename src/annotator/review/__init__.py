@@ -1,1 +1,1 @@
-"""Tools for human timeline and rally-start review."""
+"""Tools for manual timeline and rally-start review."""

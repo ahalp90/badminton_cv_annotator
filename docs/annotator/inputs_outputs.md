@@ -181,14 +181,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.4
+annotator-result/0.5
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.4",
+  "schema": "annotator-result/0.5",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -198,9 +198,16 @@ Top-level shape:
 
 The serialiser writes every field from `AnnotatorResult`, so the saved JSON and the Python result type stay in step when fields are added.
 
-Each rally outcome stores its winning court half directly, its source, landing,
-landing-margin flags and a conservative landing-only winner. Rally-record exports
-still derive the relative `won`/`lost` columns for the final striker.
+Each rally outcome stores `winner`, `winner_source`, landing evidence and
+landing-margin flags. `conservative_landing_winner` withholds image-border and
+exact-line calls. `search_shortened_by_exclusion` is true when an excluded frame
+stops the landing search before any other boundary would stop it.
+
+In Python, `CourtHalf.TOP` and `CourtHalf.BOT` identify the camera-relative court
+halves; `WinnerSource` identifies the observation or rule used to choose the
+winner. Their saved values remain `Top`/`Bot` and `next_server`,
+`landing_geometry` or `net_rule`. Rally-record exports still derive the relative
+`won`/`lost` columns for the final striker and retain their legacy field names.
 
 ### `raw_replay_mask.npy.xz`
 
@@ -226,7 +233,7 @@ these objects.
 | `rallies` | Finished rallies, with bounds, contact events and fitted final striker | Rally timing, contact membership and server estimates |
 | `outcomes` | Rally ID -> winner estimate, landing and geometric comparison | Outcome export and inspection |
 | `hit_heights` | Contact frame -> ShuttleSet hit-height code | Contact export and features |
-| `hit_height_failures` | Contact frame -> reason its height could not be measured | Missing-evidence diagnostics |
+| `unavailable_hit_height_reasons` | Contact frame -> reason its height could not be measured | Missing-evidence diagnostics |
 | `contact_events` | Full learned contact stream, including events outside rallies | Model diagnostics |
 | `heuristic_candidates` | Raw heuristic candidates and their gate flags; empty in learned mode | Heuristic rejection analysis |
 | `rally_confidence` | One review-ordering score per rally; empty in heuristic mode | Review prioritisation |
@@ -260,7 +267,7 @@ They are not permanent player identities. When players change ends, the labels r
 
 ### Missing outcome values
 
-Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds its frame and reason to `hit_height_failures`.
+Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds its frame and reason to `unavailable_hit_height_reasons`.
 
 ## Direct Python call
 

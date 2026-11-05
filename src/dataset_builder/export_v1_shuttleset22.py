@@ -2,7 +2,7 @@
 
 ShuttleSet22 has whole-video shuttle, pose, and court primitives from issues
 #106 and #120, but no production dataset-builder run. There are therefore no
-annotator rallies: every rally row comes from human contacts, with
+annotator rallies: every rally row comes from manually labelled contacts, with
 ``rally_origin`` set to ``source_contacts``.
 
 The layout under ``data_root`` is the one the issue #104 comparison consumed:

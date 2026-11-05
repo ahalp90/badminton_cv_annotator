@@ -30,10 +30,10 @@ from annotator.courts.evidence import (
 from annotator.masks.inpaint import grade_track
 from annotator.models import AnnotatorModels, save_models
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     RallyOutcome,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence import ContactEvent
@@ -1086,13 +1086,15 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     raw = ContactCandidate(0, 11, False, False, None)
     result = AnnotatorResult(
         rallies=(FinishedRally(ContactSequence(0, 5, 30, (
-            ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP),
-        )), Half.TOP),),
+            ContactEvent(12, .9, CourtHalf.BOT), ContactEvent(14, .6, CourtHalf.TOP),
+        )), CourtHalf.TOP),),
         outcomes={0: RallyOutcome(
-            Half.TOP, VerdictSource.NEXT_SERVER, Landing(24, (0.4, 0.8), Half.BOT, False, False),
-            0.2, False, True, Half.TOP, False,
-        )}, hit_heights={12: 2}, hit_height_failures={14: "unmeasured"},
-        contact_events=(ContactEvent(2, .4, None), ContactEvent(12, .9, Half.BOT), ContactEvent(14, .6, Half.TOP)),
+            CourtHalf.TOP, WinnerSource.NEXT_SERVER, Landing(24, (0.4, 0.8), CourtHalf.BOT, False, False),
+            0.2, False, True, CourtHalf.TOP, False,
+        )}, hit_heights={12: 2}, unavailable_hit_height_reasons={14: "unmeasured"},
+        contact_events=(
+            ContactEvent(2, .4, None), ContactEvent(12, .9, CourtHalf.BOT), ContactEvent(14, .6, CourtHalf.TOP),
+        ),
         heuristic_candidates=[raw, accepted], rally_confidence=(.75,),
     )
     raw_mask = np.zeros(50, dtype=bool)
@@ -1109,7 +1111,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     artifacts = vision.persist_annotation_run(tmp_path, run, frame_count=50)
     payload = vision.load_json_gz(artifacts.result)
 
-    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA
+    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA == "annotator-result/0.5"
     assert payload["video_id"] == "match-alpha"
     primitives = payload["result"]
     assert isinstance(primitives, dict)
@@ -1131,8 +1133,10 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
         },
     ]
     assert primitives["outcomes"]["0"]["winner_source"] == "next_server"
+    assert primitives["outcomes"]["0"]["conservative_landing_winner"] == "Top"
+    assert primitives["outcomes"]["0"]["search_shortened_by_exclusion"] is False
     assert primitives["outcomes"]["0"]["landing"]["norm"] == [0.4, 0.8]
-    assert primitives["hit_height_failures"] == {"14": "unmeasured"}
+    assert primitives["unavailable_hit_height_reasons"] == {"14": "unmeasured"}
     from dataset_builder._runtime_support import _annotation_result
 
     assert _annotation_result(primitives) == result

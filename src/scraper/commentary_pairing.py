@@ -116,22 +116,20 @@ def build_video_fps_csv(video_dir: Path, out_csv: Path = VIDEO_FPS_CSV) -> Path:
 def chunk_start_on_mask(start_s: float, fps: float, replay_mask: np.ndarray) -> bool:
     """True if the chunk's start time lands on a masked frame (so it is unpairable).
 
-    Public because both the issue #104 benchmark and the issue #138 dataset export
-    test a chunk start against a replay mask; an underscore name across a package
-    boundary is a promise nobody can keep.
+    Both the commentary benchmark and dataset export use this rule.
     """
     frame = int(start_s * fps)
     return 0 <= frame < len(replay_mask) and bool(replay_mask[frame])
 
 
-def _believed_replay_in_rally_interior(
-    duration_filtered_replay_mask: np.ndarray, start_frame: int, end_frame: int, grace: int,
+def believed_replay_in_rally_interior(
+    duration_filtered_replay_mask: np.ndarray, start_frame: int, end_frame: int, minimum_run: int,
 ) -> bool:
     """Return whether duration-filtered replay lies in a rally's interior after boundary grace.
 
-    A rally's asserted start and end get ``grace`` frames for measurement error.
-    Only believed replay deeper than that grace from either asserted boundary
-    disqualifies the rally. An empty interior never disqualifies it.
+    ``minimum_run`` is the minimum believed replay length and the allowance for
+    measurement error at either rally boundary. Only replay deeper than that
+    allowance disqualifies the rally. An empty interior never disqualifies it.
     """
     if (start_frame < 0 or end_frame < start_frame
             or end_frame > len(duration_filtered_replay_mask)):
@@ -141,7 +139,7 @@ def _believed_replay_in_rally_interior(
         )
     return bool(
         duration_filtered_replay_mask[
-            start_frame + grace : max(start_frame + grace, end_frame - grace)
+            start_frame + minimum_run : max(start_frame + minimum_run, end_frame - minimum_run)
         ].any()
     )
 
@@ -160,7 +158,8 @@ def pair_video(
     A rally pairs with the first chunk whose start falls in
     `(rally_end_t, rally_end_t + pair_window_s]`, where `rally_end_t = end_frame
     / fps`. The default window is the configured `PAIR_WINDOW_S`. A rally
-    overlapping the replay mask is held out (kept, unpaired); a
+    containing duration-filtered replay beyond the boundary allowance is held
+    out (kept, unpaired); a
     chunk whose start lands on a masked frame is not pairable. Every rally
     yields exactly one row (blank commentary fields when unpaired), the
     keep-with-flag default.
@@ -202,7 +201,7 @@ def pair_video(
         }
         rally_masked = (
             duration_filtered_replay_mask is not None
-            and _believed_replay_in_rally_interior(
+            and believed_replay_in_rally_interior(
                 duration_filtered_replay_mask, start_frame, end_frame, minimum_run,
             )
         )

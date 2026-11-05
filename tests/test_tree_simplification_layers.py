@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from threadpoolctl import threadpool_limits
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence import rally_model
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
@@ -22,11 +22,11 @@ from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
 def example_pool() -> LabelledOptions:
-    first = ContactEvent(20, 0.8, Half.TOP)
-    last = ContactEvent(40, 0.7, Half.TOP)
-    added = ContactEvent(30, 0.6, Half.BOT)
-    neighbour = ContactEvent(70, 0.9, Half.BOT)
-    outside = ContactEvent(100, 0.6, Half.TOP)
+    first = ContactEvent(20, 0.8, CourtHalf.TOP)
+    last = ContactEvent(40, 0.7, CourtHalf.TOP)
+    added = ContactEvent(30, 0.6, CourtHalf.BOT)
+    neighbour = ContactEvent(70, 0.9, CourtHalf.BOT)
+    outside = ContactEvent(100, 0.6, CourtHalf.TOP)
     initial = (ContactSequence(0, 15, 45, (first, last)), ContactSequence(1, 65, 75, (neighbour,)))
     sequences = (
         initial[0], replace(initial[0], events=(first, added, last)),
@@ -149,13 +149,13 @@ def test_joint_finishing_expands_bounds_alternates_sides_and_keeps_external_even
     sequences = tuple(rally.sequence for rally in rallies)
     assert [(sequence.start_frame, sequence.end_frame) for sequence in sequences] == [(10, 51), (60, 81)]
     assert tuple(event.frame for event in sequences[0].events) == (20, 30, 40)
-    assert tuple(event.side for event in sequences[0].events) == (Half.TOP, Half.BOT, Half.TOP)
+    assert tuple(event.side for event in sequences[0].events) == (CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP)
     assert tuple(event.frame for event in events) == (20, 30, 40, 70, 100)
     rallies, deletion_events = rally_model.finish_rallies(runtime, rally_model.choose_rows(runtime, np.asarray([0.2, 0.1, 0.9, 0.5])))
     deleted = tuple(rally.sequence for rally in rallies)
     assert tuple(event.frame for event in deleted[0].events) == (40,)
     assert tuple(event.frame for event in deletion_events) == (40, 70, 100)
-    earlier = ContactEvent(52, 0.8, Half.TOP)
+    earlier = ContactEvent(52, 0.8, CourtHalf.TOP)
     revised = replace(pool.sequences[3], start_frame=52, events=(earlier, *pool.sequences[3].events))
     interacting = replace(pool, sequences=(*pool.sequences[:3], revised))
     runtime = interacting.runtime

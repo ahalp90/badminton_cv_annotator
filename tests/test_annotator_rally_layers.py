@@ -10,7 +10,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
@@ -38,13 +38,13 @@ from annotator.training.trees import TreeFitConfig
 
 
 def training_video(identity: str, group: str, correct: bool) -> SequenceTrainingVideo:
-    event = ContactEvent(40, .9, Half.TOP)
+    event = ContactEvent(40, .9, CourtHalf.TOP)
     sequence = ContactSequence(7, 10, 80, (event,))
     pool = RallyCandidates(
         {},
         {40: np.zeros(len(CONTACT_FEATURE_NAMES))},
     )
-    label = LabelledRally('rally', (40 if correct else 60,), (Half.TOP,))
+    label = LabelledRally('rally', (40 if correct else 60,), (CourtHalf.TOP,))
     return SequenceTrainingVideo(identity, group, RallyContext(30.0, (sequence,), (event,), pool, 100), (label,))
 
 
@@ -95,7 +95,7 @@ def test_review_features_keep_raw_sides_when_finished_sides_change() -> None:
     features = build_review_features(prediction)
     changed = tuple(
         replace(rally, sequence=replace(
-            rally.sequence, events=tuple(replace(event, side=Half.BOT) for event in rally.sequence.events),
+            rally.sequence, events=tuple(replace(event, side=CourtHalf.BOT) for event in rally.sequence.events),
         ))
         for rally in prediction.rallies
     )
@@ -132,7 +132,10 @@ def test_review_cross_fitting_requires_an_extra_group() -> None:
 @pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
 def test_review_tolerance_changes_correctness_labels(fps, shift, monkeypatch):
     video = training_video('video', 'A', True)
-    video = replace(video, context=replace(video.context, fps=fps), rallies=(LabelledRally('rally', (40 + shift,), (Half.TOP,)),))
+    video = replace(
+        video, context=replace(video.context, fps=fps),
+        rallies=(LabelledRally('rally', (40 + shift,), (CourtHalf.TOP,)),),
+    )
     options = build_rally_options(video.context)
     prediction = predict_rally_options(dummy_layers(), options)
     monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _matrix, labels, _config: labels)

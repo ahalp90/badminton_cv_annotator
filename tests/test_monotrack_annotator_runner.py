@@ -15,7 +15,7 @@ import annotator.models as model_module
 import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.models import SideGeometry
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, CourtHalf
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -130,9 +130,9 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
         return empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
             ContactSequence(0, *kwargs['spans'][0], (
-                ContactEvent(10, np.nan, Half.TOP), ContactEvent(20, np.nan, Half.BOT),
+                ContactEvent(10, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
             )),
-            Half.BOT,
+            CourtHalf.BOT,
         ),))
 
     monkeypatch.setattr(video_module, 'run_video', infer)
@@ -157,7 +157,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
 def test_full_default_keeps_the_selected_models_and_capture_stream(
     runner: ModuleType, inputs: SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, condition: str,
 ) -> None:
-    events = (ContactEvent(10, 0.8, Half.TOP), ContactEvent(20, 0.9, Half.BOT))
+    events = (ContactEvent(10, 0.8, CourtHalf.TOP), ContactEvent(20, 0.9, CourtHalf.BOT))
     sequences = (ContactSequence(0, 0, 45, events),)
 
     def infer(*args: Any, **kwargs: Any) -> Any:

@@ -187,7 +187,7 @@ def validate_artifact_directory(output: Path, source: Source) -> ArtifactMetadat
 def load_annotation_rallies(
     set_dir: Path, frame_count: int
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """Build feature records from usable ShuttleSet22 human contact rows."""
+    """Build feature records from usable ShuttleSet22 GT contact rows."""
     tables = []
     for path in sorted(Path(set_dir).glob("set*.csv*")):
         table = pd.read_csv(path)
@@ -458,9 +458,9 @@ def evaluate_corpus(
             },
         },
         "policy": {
-            "rally_frames": "human contacts from first frame through final frame inclusive",
-            "contact_frames": "human ShuttleSet22 frame_num after flaw and range exclusions",
-            "player_attribution": "first striker top/bottom slot from human player and opponent image y",
+            "rally_frames": "GT contacts from first frame through final frame inclusive",
+            "contact_frames": "GT ShuttleSet22 frame_num after flaw and range exclusions",
+            "player_attribution": "first striker top/bottom slot from GT player and opponent image y",
             "rally_duration_end_offset": "unresolved",
             "serve_endpoint_and_static_tolerance": "unresolved",
             "degradation_temperature": "unresolved",

@@ -18,10 +18,10 @@ import numpy as np
 
 from annotator.models import AnnotatorModels, load_models
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     Landing,
     RallyOutcome,
-    VerdictSource,
+    WinnerSource,
 )
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
@@ -898,7 +898,7 @@ def _annotation_result(payload: object) -> AnnotatorResult:
             _integer(sequence["start_frame"], "rally start"),
             _integer(sequence["end_frame"], "rally end"),
             tuple(restore_contact_event(event) for event in _list(sequence["events"])),
-        ), None if rally["final_half"] is None else Half(rally["final_half"])))
+        ), None if rally["final_half"] is None else CourtHalf(rally["final_half"])))
     outcomes = {}
     for key, value in _dict(payload["outcomes"]).items():
         outcomes[_integer_key(key)] = _rally_outcome(value)
@@ -906,8 +906,10 @@ def _annotation_result(payload: object) -> AnnotatorResult:
         rallies=tuple(rallies), outcomes=outcomes,
         hit_heights={_integer_key(key): _integer(value, "hit height")
                      for key, value in _dict(payload["hit_heights"]).items()},
-        hit_height_failures={_integer_key(key): _string(value, "hit-height failure reason")
-                             for key, value in _dict(payload["hit_height_failures"]).items()},
+        unavailable_hit_height_reasons={
+            _integer_key(key): _string(value, "unavailable hit-height reason")
+            for key, value in _dict(payload["unavailable_hit_height_reasons"]).items()
+        },
         contact_events=tuple(restore_contact_event(event) for event in _list(payload["contact_events"])),
         heuristic_candidates=[_contact(row) for row in _list(payload["heuristic_candidates"])],
         rally_confidence=tuple(
@@ -923,7 +925,7 @@ def restore_contact_event(payload: object) -> ContactEvent:
     return ContactEvent(
         _integer(row['frame'], 'contact frame'),
         math.nan if row['probability'] is None else _finite_float(row['probability'], 'contact probability'),
-        None if row['side'] is None else Half(row['side']),
+        None if row['side'] is None else CourtHalf(row['side']),
     )
 
 
@@ -945,14 +947,14 @@ def _rally_outcome(payload: object) -> RallyOutcome:
     if set(row) != set(RallyOutcome._fields):
         raise ValueError("persisted outcome fields differ")
     return RallyOutcome(
-        None if row["winner"] is None else Half(row["winner"]),
-        None if row["winner_source"] is None else VerdictSource(row["winner_source"]),
+        None if row["winner"] is None else CourtHalf(row["winner"]),
+        None if row["winner_source"] is None else WinnerSource(row["winner_source"]),
         None if row["landing"] is None else _landing(row["landing"]),
         _optional_float(row["landing_margin_m"], "landing margin"),
         _boolean(row["within_line_margin"], "within_line_margin"),
         _boolean(row["within_net_margin"], "within_net_margin"),
-        None if row["landing_only_winner"] is None else Half(row["landing_only_winner"]),
-        _boolean(row["window_closed_by_mask"], "window_closed_by_mask"),
+        None if row["conservative_landing_winner"] is None else CourtHalf(row["conservative_landing_winner"]),
+        _boolean(row["search_shortened_by_exclusion"], "search_shortened_by_exclusion"),
     )
 
 
@@ -966,7 +968,7 @@ def _landing(payload: object) -> Landing:
     return Landing(
         _integer(row["frame"], "landing frame"),
         (_finite_float(norm[0], "landing x"), _finite_float(norm[1], "landing y")),
-        Half(_string(row["half"], "landing half")),
+        CourtHalf(_string(row["half"], "landing half")),
         _boolean(row["at_border"], "landing at_border"),
         _boolean(row["net_ender"], "landing net_ender"),
     )

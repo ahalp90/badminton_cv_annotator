@@ -253,7 +253,7 @@ def _contacts(payload: object, rally: tuple[int, int]) -> int:
     stroke_count = _integer(contacts["stroke_count"], "record stroke_count")
     if stroke_count != len(accepted):
         raise ValueError("record stroke_count differs from accepted contacts")
-    failed = _hit_height_failures(contacts["hit_height_failures"], accepted)
+    failed = _unavailable_hit_height_indices(contacts["hit_height_failures"], accepted)
     for stroke_idx, row in enumerate(accepted):
         has_height = row["hit_height_code"] is not None
         if has_height == (stroke_idx in failed):
@@ -310,7 +310,7 @@ def _accepted_contacts(
     return normalized
 
 
-def _hit_height_failures(
+def _unavailable_hit_height_indices(
     payload: object,
     accepted: Sequence[Mapping[str, object]],
 ) -> set[int]:

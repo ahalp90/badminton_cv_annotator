@@ -3,7 +3,7 @@
 The export never reruns extraction or annotation. It reads the validated
 rally-record collection and the pinned shuttle, pose, and court artifacts,
 derives the kept issue #22 features, and writes the ``schema_v1`` tables plus
-a dataset manifest. ShuttleSet human contacts and commentary are optional
+a dataset manifest. ShuttleSet manually labelled contacts and commentary are optional
 inputs and produce source-scoped, auxiliary rows.
 
 ``build_video_tables`` and ``write_dataset`` are shared with the ShuttleSet22
@@ -508,7 +508,7 @@ def _source_contact_features(
     player_inputs: PlayerFeatureInputs,
     fps: float,
 ) -> SourceContactFeatures:
-    """Fill source_contacts' recovery and movement columns from human contact order.
+    """Fill source_contacts' recovery and movement columns from manually labelled contact order.
 
     Per rally, a contact's striker slot is its hitter matched against the
     rally's top and bottom player ids. A null or unmatched hitter leaves that

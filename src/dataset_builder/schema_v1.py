@@ -7,7 +7,7 @@ table, column, type, or nullability changes the frozen schema and must bump
 Decisions come from issue #22 (formulas), issue #104 (keep, cut, unresolved),
 issue #18 (this freeze), Ari's review of PR #135 (player identity and sex),
 and issue #138 (rally-dataset/1.1: shots per rally, recovery, and movement
-inefficiency, once the dataset moved onto human ShuttleSet contacts; and
+inefficiency, once the dataset moved onto manually labelled ShuttleSet contacts; and
 ``rallies.flaw_marked``, once a flaw-marked rally stopped being dropped;
 rally-dataset/1.2: player degradation trends and their tanh temperature; and
 rally-dataset/1.3: the commentary-to-rally link, aligned times from issue
@@ -49,11 +49,11 @@ RELIABILITY_MEANINGS: dict[ReliabilityClass, str] = {
         "Exact source identity, timing, or file metadata after validation."
     ),
     ReliabilityClass.SOURCE_ANNOTATION: (
-        "Human ShuttleSet or ShuttleSet22 label carried verbatim. Not an annotator prediction."
+        "Manually labelled ShuttleSet or ShuttleSet22 label carried verbatim. Not an annotator prediction."
     ),
     ReliabilityClass.PREDICTED: (
         "Production annotator heuristic output. Measured weak on ShuttleSet: 66% of "
-        "human rallies covered, strict contact F1 49%."
+        "GT rallies covered, strict contact F1 49%."
     ),
     ReliabilityClass.DERIVED: (
         "Verified computation over frame-aligned primitives. Not validated against "
@@ -193,7 +193,7 @@ def _rally_key_columns() -> tuple[ColumnSpec, ...]:
         ColumnSpec(
             "rally_origin", ColumnType.STRING, False, ReliabilityClass.OBSERVED,
             "annotator: a predicted span from the production annotator. source_contacts: "
-            "the half-open span from the first to one past the last usable human contact "
+            "the half-open span from the first to one past the last usable manually labelled contact "
             "of one ShuttleSet rally.",
         ),
         ColumnSpec(
@@ -278,12 +278,12 @@ RALLIES = TableSpec(
         ),
         ColumnSpec(
             "shots_per_rally", ColumnType.INTEGER, True, ReliabilityClass.DERIVED,
-            "Count of human contact rows in this rally, exact by construction. Null on "
+            "Count of manually labelled contact rows in this rally, exact by construction. Null on "
             "annotator rows, which have no contact rows.",
         ),
         ColumnSpec(
             "flaw_marked", ColumnType.BOOLEAN, False, ReliabilityClass.SOURCE_ANNOTATION,
-            "True when any human contact row in this rally carries the ShuttleSet flaw "
+            "True when any manually labelled contact row in this rally carries the ShuttleSet flaw "
             "flag. No upstream definition of this flag exists; for most flagged rows its "
             "meaning is unknown. On roughly 320 of the 40-video corpus's 1,314 flagged "
             "rows the contact frame number is demonstrably wrong (see "
@@ -295,7 +295,7 @@ RALLIES = TableSpec(
     ),
     description=(
         "One row per rally. Annotator rows come from the production rally records. "
-        "source_contacts rows come from usable human ShuttleSet contact rows. The two "
+        "source_contacts rows come from usable manually labelled ShuttleSet contact rows. The two "
         "origins are never joined to each other here; the benchmark showed that join is "
         "unsafe."
     ),
@@ -317,7 +317,7 @@ PLAYER_RALLIES = TableSpec(
             "players.player_id of the person on court_side in this rally. source_contacts "
             "rows: exact, from the match table's downcourt flag, the set number, and the "
             "set-3 change of ends when a score first reaches 11. annotator rows: the one "
-            "side phase whose human-contact frame envelope overlaps the span; null when no "
+            "side phase whose manually labelled contact frame envelope overlaps the span; null when no "
             "phase or more than one overlaps, or when the video has no source annotations.",
         ),
         ColumnSpec(
@@ -485,7 +485,7 @@ SOURCE_CONTACTS = TableSpec(
         ),
         ColumnSpec(
             "frame_num", ColumnType.INTEGER, True, ReliabilityClass.SOURCE_ANNOTATION,
-            "Human contact frame on the source-video timeline. Null when the source "
+            "Manually labelled contact frame on the source-video timeline. Null when the source "
             "field is empty or not a number.",
         ),
         ColumnSpec(
@@ -539,7 +539,7 @@ SOURCE_CONTACTS = TableSpec(
         ),
     ),
     description=(
-        "Human ShuttleSet contact rows, restricted to the kept source fields: contact "
+        "Manually labelled ShuttleSet contact rows, restricted to the kept source fields: contact "
         "type, rally and shot numbers, set, and frame. All other ShuttleSet columns are "
         "excluded from v1. Rows are source-scoped and never annotator predictions. "
         "recovery_distance, recovery_frames_valid, movement_inefficiency_top, and "
@@ -684,7 +684,7 @@ COMMENTARY_RALLY_LINKS = TableSpec(
         ),
         ColumnSpec(
             "rally_origin", ColumnType.STRING, False, ReliabilityClass.DERIVED,
-            "Always source_contacts: only ShuttleSet human-contact rallies are linked "
+            "Always source_contacts: only ShuttleSet manually labelled contact rallies are linked "
             "in v1. Kept as a column so the key joins directly to rallies.",
         ),
         ColumnSpec(
@@ -768,7 +768,7 @@ PRIMITIVE_ARTIFACT_NOTES: tuple[ArtifactNote, ...] = (
     ArtifactNote(
         "shuttle_track", ReliabilityClass.PREDICTED,
         "(frame_count, 3) TrackNet x, y normalised by resolution, and visibility. Median "
-        "court error 0.459 units at human contacts. Do not describe as accurate.",
+        "court error 0.459 units at manually labelled contacts. Do not describe as accurate.",
     ),
     ArtifactNote(
         "shuttle_guard_codes", ReliabilityClass.PREDICTED,
@@ -866,7 +866,7 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
             "source_contacts.source_set", "source_contacts.source_rally",
             "source_contacts.ball_round", "source_contacts.contact_type",
         ),
-        "Direct human-source fields, kept source-scoped and never presented as predictions.",
+        "Direct manually annotated source fields, kept source-scoped and never presented as predictions.",
     ),
     FeatureDisposition(
         "Raw pose, court, and shuttle primitives", Disposition.KEEP,
@@ -915,7 +915,7 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
         "Shots per rally", Disposition.KEEP,
         ("rallies.shots_per_rally",),
         "Issue #104 measured this against predicted contacts, exact on only 298 of 3,287 "
-        "rallies. It is now the count of human ShuttleSet contact rows in the rally, exact "
+        "rallies. It is now the count of manually labelled ShuttleSet contact rows in the rally, exact "
         "by construction, so the weak input that cut it is gone.",
     ),
     FeatureDisposition(
@@ -925,7 +925,7 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
             "player_rallies.recovery_distance_median",
         ),
         "Cut because predicted contact and server attribution were too weak for a "
-        "player-specific window. Human ShuttleSet contacts fix the contact frame, and the "
+        "player-specific window. Manually labelled ShuttleSet contacts fix the contact frame, and the "
         "hitter resolved against the match table's own side assignment fixes the "
         "non-striking player, so both weak inputs are gone.",
     ),
@@ -937,7 +937,7 @@ FEATURE_DISPOSITIONS: tuple[FeatureDisposition, ...] = (
             "player_rallies.movement_inefficiency_median",
         ),
         "Cut because production intervals used predicted contacts that missed or added "
-        "events. Human ShuttleSet contacts fix each interval's start and end exactly.",
+        "events. Manually labelled ShuttleSet contacts fix each interval's start and end exactly.",
     ),
     FeatureDisposition(
         "Serve speed proxy", Disposition.UNRESOLVED, (),

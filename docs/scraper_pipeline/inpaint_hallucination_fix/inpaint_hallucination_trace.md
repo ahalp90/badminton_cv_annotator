@@ -372,7 +372,7 @@ read directly in the per-rally event loop
 
 1. The latest unmasked contact becomes the candidate final contact.
 2. Trailing masked contacts are skipped and recorded as a `final_contact`
-   rejection. The first flagged frame supplies `trigger_code` when source
+   rejection. The first flagged frame supplies `rejection_grade` when source
    codes came from `inpaint_codes`.
 3. If every contact is masked, the rally receives no landing and no normal
    verdict.
@@ -401,12 +401,12 @@ mask.
 
 `_record_rejection` records a row only when the candidate interval contains
 at least one event-mask frame. It stores the rule, rally, interval, first
-masked trigger frame, and the matching source code when available
+rejected frame (`first_rejected_frame`), and the matching source code when available
 (`src/annotator/run_video.py:48-75`).
 
 With an external boolean mask there is no source code array, so
-`trigger_code` is blank. With `inpaint_codes`, the original code array is
-retained specifically so diagnostics can say whether the trigger was proof,
+`rejection_grade` is blank. With `inpaint_codes`, the original code array is
+retained specifically so diagnostics can say whether the rejection grade was proof,
 flat suspicion, or degraded.
 
 ## Mermaid chart: runtime integration

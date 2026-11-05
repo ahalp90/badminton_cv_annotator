@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
 
 
-ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.4"
+ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.5"
 COURT_EVIDENCE_SCHEMA = "court-evidence/0.3"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"

@@ -2,7 +2,7 @@
 
 Issue #18 moved the formulas issue #104 kept into ``dataset_builder.features``;
 issue #138 moved ``recovery_at_opponent_contacts`` and ``movement_inefficiency``
-there too, once human ShuttleSet contacts made them reliable enough to export.
+there too, once GT ShuttleSet contacts made them reliable enough to export.
 This module keeps the prototypes that never shipped to production.
 """
 

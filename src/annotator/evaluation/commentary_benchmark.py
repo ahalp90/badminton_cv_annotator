@@ -23,12 +23,13 @@ from annotator.masks.replay import filter_short_exclusion_runs
 from dataset_builder.vision import save_json_gz
 from scraper.commentary_pairing import (
     PAIR_WINDOW_S,
+    believed_replay_in_rally_interior,
     chunk_start_on_mask,
     pair_video,
 )
 from scraper.commentary_retiming import AlignStatus
 
-RESULT_SCHEMA = "issue104-commentary-benchmark/4"
+RESULT_SCHEMA = "issue104-commentary-benchmark/5"
 EVALUATOR_BASE_COMMIT = "002238dc62ac0390c2e2b4005780cf3d81420255"
 FIVE_SECOND_WINDOW = 5.0
 # Post-rally lag windows swept on the aligned rows so the lag can be chosen from data (issue #138).
@@ -55,24 +56,24 @@ PAIRING_POLICY: dict[str, Any] = {
     "semantic_outputs": "not implemented by the supported cleaning or pairing contracts",
     "rally_views": (
         "ShuttleSet production predictions are reported separately; the corpus comparison "
-        "uses human contact intervals for both datasets"
+        "uses GT contact intervals for both datasets"
     ),
 }
 
 
 ALIGNED_RESULT_KEYS = (
     "aligned_primary_pairing",
-    "aligned_human_contact_pairing",
+    "aligned_gt_contact_pairing",
     "aligned_multi_primary_pairing",
-    "aligned_multi_human_contact_pairing",
+    "aligned_multi_gt_contact_pairing",
     "aligned_lag_sweep_primary",
-    "aligned_lag_sweep_human_contact",
+    "aligned_lag_sweep_gt_contact",
     "retiming",
 )
 ALIGNED_AGGREGATE_KEYS = (
-    "aligned_human_contact_pairing",
-    "aligned_multi_human_contact_pairing",
-    "aligned_lag_sweep_human_contact",
+    "aligned_gt_contact_pairing",
+    "aligned_multi_gt_contact_pairing",
+    "aligned_lag_sweep_gt_contact",
     "retiming",
 )
 MULTI_RALLY_SUM_FIELDS = (
@@ -110,14 +111,14 @@ def _distribution(values: Sequence[float]) -> dict[str, int | float | None]:
 def _masked_rally_ids(
     rallies: Sequence[tuple[int, int, int]],
     filtered_mask: np.ndarray | None,
-    boundary_grace: int,
+    minimum_run: int,
 ) -> set[int]:
     """Exclude replay in the rally interior, allowing grace at both boundaries."""
     if filtered_mask is None:
         return set()
     return {
         rally_id for rally_id, start, end in rallies
-        if filtered_mask[start + boundary_grace:max(start + boundary_grace, end - boundary_grace)].any()
+        if believed_replay_in_rally_interior(filtered_mask, start, end, minimum_run)
     }
 
 
@@ -331,7 +332,7 @@ def _aligned_summaries(
     inputs: VideoInputs,
     filtered_mask: np.ndarray | None,
     primary_masked: set[int],
-    human_masked: set[int],
+    gt_masked: set[int],
 ) -> tuple[dict[str, Any], dict[str, list[float]]]:
     """Evaluate the WhisperX-aligned view of one video alongside the supported one.
 
@@ -341,24 +342,24 @@ def _aligned_summaries(
     if inputs.retimed_chunks is None:
         return (
             dict.fromkeys(ALIGNED_RESULT_KEYS),
-            {"aligned_primary": [], "aligned_human_contact": []},
+            {"aligned_primary": [], "aligned_gt_contact": []},
         )
     aligned_inputs = dataclasses.replace(inputs, chunks=inputs.retimed_chunks)
     primary_pairing, primary_gaps = _pairing_summary(aligned_inputs, inputs.rallies, primary_masked)
-    human_pairing, human_gaps = _pairing_summary(aligned_inputs, inputs.human_rallies, human_masked)
+    gt_pairing, gt_gaps = _pairing_summary(aligned_inputs, inputs.gt_rallies, gt_masked)
     primary_sweep = _lag_sweep(aligned_inputs, inputs.rallies, primary_masked, filtered_mask)
-    human_sweep = _lag_sweep(aligned_inputs, inputs.human_rallies, human_masked, filtered_mask)
+    gt_sweep = _lag_sweep(aligned_inputs, inputs.gt_rallies, gt_masked, filtered_mask)
     return (
         {
             "aligned_primary_pairing": primary_pairing,
-            "aligned_human_contact_pairing": human_pairing,
+            "aligned_gt_contact_pairing": gt_pairing,
             "aligned_multi_primary_pairing": primary_sweep[_window_key(PAIR_WINDOW_S)],
-            "aligned_multi_human_contact_pairing": human_sweep[_window_key(PAIR_WINDOW_S)],
+            "aligned_multi_gt_contact_pairing": gt_sweep[_window_key(PAIR_WINDOW_S)],
             "aligned_lag_sweep_primary": primary_sweep,
-            "aligned_lag_sweep_human_contact": human_sweep,
+            "aligned_lag_sweep_gt_contact": gt_sweep,
             "retiming": _retiming_summary(inputs.retimed_chunks, inputs.retimed_sha256),
         },
-        {"aligned_primary": primary_gaps, "aligned_human_contact": human_gaps},
+        {"aligned_primary": primary_gaps, "aligned_gt_contact": gt_gaps},
     )
 
 
@@ -366,16 +367,16 @@ def evaluate_video(
     inputs: VideoInputs,
 ) -> tuple[dict[str, Any], dict[str, list[float]], list[float], list[int]]:
     """Evaluate one video's supported pairing and cleaning coverage."""
-    boundary_grace = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
+    minimum_run = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     filtered_mask = (
         None if inputs.replay_mask is None
-        else filter_short_exclusion_runs(inputs.replay_mask, boundary_grace)
+        else filter_short_exclusion_runs(inputs.replay_mask, minimum_run)
     )
-    primary_masked = _masked_rally_ids(inputs.rallies, filtered_mask, boundary_grace)
-    human_masked = _masked_rally_ids(inputs.human_rallies, filtered_mask, boundary_grace)
+    primary_masked = _masked_rally_ids(inputs.rallies, filtered_mask, minimum_run)
+    gt_masked = _masked_rally_ids(inputs.gt_rallies, filtered_mask, minimum_run)
     primary_pairing, primary_gaps = _pairing_summary(inputs, inputs.rallies, primary_masked)
-    human_pairing, human_gaps = _pairing_summary(inputs, inputs.human_rallies, human_masked)
-    aligned_result, aligned_gaps = _aligned_summaries(inputs, filtered_mask, primary_masked, human_masked)
+    gt_pairing, gt_gaps = _pairing_summary(inputs, inputs.gt_rallies, gt_masked)
+    aligned_result, aligned_gaps = _aligned_summaries(inputs, filtered_mask, primary_masked, gt_masked)
     scores = [float(chunk["bert_f1"]) for chunk in inputs.chunks]
     raw_word_counts = [len(str(chunk["text"]).split()) for chunk in inputs.chunks]
     clean_word_counts = [
@@ -400,16 +401,16 @@ def evaluate_video(
         "primary_rally_source": (
             "production_predicted"
             if inputs.dataset == "ShuttleSet"
-            else "human_contact"
+            else "gt_contact"
         ),
         "primary_pairing": primary_pairing,
-        "human_contact_pairing": human_pairing,
+        "gt_contact_pairing": gt_pairing,
         "annotation_population": inputs.annotation_population,
         **aligned_result,
     }
     return (
         result,
-        {"primary": primary_gaps, "human_contact": human_gaps, **aligned_gaps},
+        {"primary": primary_gaps, "gt_contact": gt_gaps, **aligned_gaps},
         scores,
         [clean - raw for clean, raw in zip(clean_word_counts, raw_word_counts)],
     )
@@ -531,14 +532,14 @@ def _aligned_dataset_aggregate(
     dataset: str,
     rows: Sequence[Mapping[str, Any]],
     primary_gaps: Sequence[float],
-    human_gaps: Sequence[float],
+    gt_gaps: Sequence[float],
 ) -> dict[str, Any]:
     """Aggregate the WhisperX-aligned views, or None-fill them when any video lacks a sidecar.
 
     :param dataset: the dataset name; ShuttleSet also reports its production-predicted view.
     :param rows: the dataset's per-video result dicts.
     :param primary_gaps: aligned post-rally gaps against the primary rally view.
-    :param human_gaps: aligned post-rally gaps against the human-contact rally view.
+    :param gt_gaps: aligned post-rally gaps against the GT contact rally view.
     :return: the aligned aggregate keys, every value None when the corpus is unaligned.
     """
     keys = list(ALIGNED_AGGREGATE_KEYS)
@@ -551,7 +552,7 @@ def _aligned_dataset_aggregate(
     aligned_rows = _rows_with_commentary(rows)
     if not aligned_rows or any(row["retiming"] is None for row in aligned_rows):
         return dict.fromkeys(keys)
-    aggregate = _aligned_human_contact_aggregate(aligned_rows, human_gaps)
+    aggregate = _aligned_gt_contact_aggregate(aligned_rows, gt_gaps)
     if dataset == "ShuttleSet":
         aggregate["aligned_production_predicted_pairing"] = _pairing_aggregate(
             aligned_rows, primary_gaps, "aligned_primary_pairing"
@@ -565,25 +566,25 @@ def _aligned_dataset_aggregate(
     return aggregate
 
 
-def _aligned_human_contact_aggregate(
+def _aligned_gt_contact_aggregate(
     rows: Sequence[Mapping[str, Any]],
-    human_gaps: Sequence[float],
+    gt_gaps: Sequence[float],
 ) -> dict[str, Any]:
-    """The aligned human-contact aggregates shared by every dataset and the corpus total.
+    """The aligned GT contact aggregates shared by every dataset and the corpus total.
 
     :param rows: per-video result dicts that all carry a ``retiming`` summary.
-    :param human_gaps: aligned post-rally gaps against the human-contact rally view.
+    :param gt_gaps: aligned post-rally gaps against the GT contact rally view.
     :return: the ALIGNED_AGGREGATE_KEYS values.
     """
     return {
-        "aligned_human_contact_pairing": _pairing_aggregate(
-            rows, human_gaps, "aligned_human_contact_pairing"
+        "aligned_gt_contact_pairing": _pairing_aggregate(
+            rows, gt_gaps, "aligned_gt_contact_pairing"
         ),
-        "aligned_multi_human_contact_pairing": _multi_rally_aggregate(
-            [row["aligned_multi_human_contact_pairing"] for row in rows]
+        "aligned_multi_gt_contact_pairing": _multi_rally_aggregate(
+            [row["aligned_multi_gt_contact_pairing"] for row in rows]
         ),
-        "aligned_lag_sweep_human_contact": _lag_sweep_aggregate(
-            rows, "aligned_lag_sweep_human_contact"
+        "aligned_lag_sweep_gt_contact": _lag_sweep_aggregate(
+            rows, "aligned_lag_sweep_gt_contact"
         ),
         "retiming": _retiming_aggregate(rows),
     }
@@ -647,31 +648,31 @@ def _dataset_aggregate(
     primary_gaps = [
         gap for row in rows for gap in gaps_by_video[str(row["video_id"])]["primary"]
     ]
-    human_gaps = [
+    gt_gaps = [
         gap
         for row in rows
-        for gap in gaps_by_video[str(row["video_id"])]["human_contact"]
+        for gap in gaps_by_video[str(row["video_id"])]["gt_contact"]
     ]
     aligned_primary_gaps = [
         gap
         for row in rows
         for gap in gaps_by_video[str(row["video_id"])]["aligned_primary"]
     ]
-    aligned_human_gaps = [
+    aligned_gt_gaps = [
         gap
         for row in rows
-        for gap in gaps_by_video[str(row["video_id"])]["aligned_human_contact"]
+        for gap in gaps_by_video[str(row["video_id"])]["aligned_gt_contact"]
     ]
     dataset_result: dict[str, Any] = {
         "cleaning": _cleaning_aggregate(rows, scores),
-        "human_contact_pairing": _pairing_aggregate(
-            rows, human_gaps, "human_contact_pairing"
+        "gt_contact_pairing": _pairing_aggregate(
+            rows, gt_gaps, "gt_contact_pairing"
         ),
-        "human_contact_leave_one_video_out": _leave_one_video_out(
-            rows, "human_contact_pairing"
+        "gt_contact_leave_one_video_out": _leave_one_video_out(
+            rows, "gt_contact_pairing"
         ),
         **_aligned_dataset_aggregate(
-            dataset, rows, aligned_primary_gaps, aligned_human_gaps
+            dataset, rows, aligned_primary_gaps, aligned_gt_gaps
         ),
     }
     if dataset == "ShuttleSet":
@@ -717,11 +718,11 @@ def evaluate_corpus(
         for dataset in ("ShuttleSet", "ShuttleSet22")
     }
     all_rows = list(per_video.values())
-    all_human_gaps = [
-        gap for gaps in gaps_by_video.values() for gap in gaps["human_contact"]
+    all_gt_gaps = [
+        gap for gaps in gaps_by_video.values() for gap in gaps["gt_contact"]
     ]
-    all_aligned_human_gaps = [
-        gap for gaps in gaps_by_video.values() for gap in gaps["aligned_human_contact"]
+    all_aligned_gt_gaps = [
+        gap for gaps in gaps_by_video.values() for gap in gaps["aligned_gt_contact"]
     ]
     aligned_rows = _rows_with_commentary(all_rows)
     corpus_is_aligned = bool(aligned_rows) and all(
@@ -744,11 +745,11 @@ def evaluate_corpus(
             **_cleaning_aggregate(all_rows, all_scores),
             "word_count_delta": _distribution([float(value) for value in word_deltas]),
             "semantic_output_counts": semantic_totals,
-            "human_contact_pairing": _pairing_aggregate(
-                all_rows, all_human_gaps, "human_contact_pairing"
+            "gt_contact_pairing": _pairing_aggregate(
+                all_rows, all_gt_gaps, "gt_contact_pairing"
             ),
             **(
-                _aligned_human_contact_aggregate(aligned_rows, all_aligned_human_gaps)
+                _aligned_gt_contact_aggregate(aligned_rows, all_aligned_gt_gaps)
                 if corpus_is_aligned
                 else dict.fromkeys(ALIGNED_AGGREGATE_KEYS)
             ),

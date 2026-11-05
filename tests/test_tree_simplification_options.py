@@ -5,7 +5,7 @@ from dataclasses import replace
 import numpy as np
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.candidates import (
     RallyCandidates,
 )
@@ -20,12 +20,12 @@ from experiments.annotator.tree_simplification.options import (
 
 def example_video() -> SequenceTrainingVideo:
     frames = (10, 35, 60, 90, 120, 150, 180, 250, 280, 330, 345, 390, 405)
-    events = tuple(ContactEvent(frame, 0.55 + index * 0.04, Half.TOP if index % 2 else Half.BOT)
+    events = tuple(ContactEvent(frame, 0.55 + index * 0.04, CourtHalf.TOP if index % 2 else CourtHalf.BOT)
                    for index, frame in enumerate(frames))
     initial = initial_sequences(((0, 50), (70, 210), (240, 300), (320, 360), (380, 420)), events)
-    serve = tuple(ContactEvent(frame, 0.8, Half.TOP) for frame in (52, 75))
+    serve = tuple(ContactEvent(frame, 0.8, CourtHalf.TOP) for frame in (52, 75))
     # The close and out-of-bound later rows exercise rejection in new combinations.
-    later = tuple(ContactEvent(frame, 0.7, Half.BOT) for frame in (40, 105, 135, 149, 165, 195))
+    later = tuple(ContactEvent(frame, 0.7, CourtHalf.BOT) for frame in (40, 105, 135, 149, 165, 195))
     physical = {event.frame: np.full(len(CONTACT_FEATURE_NAMES), event.frame, dtype=float)
                 for event in (*events, *serve, *later)}
     candidates = {1: tuple(sorted((*serve, *later), key=lambda event: event.frame))}
@@ -81,7 +81,7 @@ def test_features_and_order_are_deterministic_and_independent_of_labels() -> Non
     video = example_video()
     first = expand_pool(video)
     second = expand_pool(video)
-    changed = expand_pool(replace(video, rallies=(LabelledRally('different', (90,), (Half.TOP,)),)))
+    changed = expand_pool(replace(video, rallies=(LabelledRally('different', (90,), (CourtHalf.TOP,)),)))
     assert first.sequences == second.sequences == changed.sequences
     np.testing.assert_array_equal(first.matrix, second.matrix)
     np.testing.assert_array_equal(first.matrix, changed.matrix)

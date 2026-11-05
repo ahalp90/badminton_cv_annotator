@@ -36,17 +36,17 @@ from shared.court import (
 )
 
 
-class Half(StrEnum):
+class CourtHalf(StrEnum):
     """Camera-relative court half of a player or landing: far (Top) or near (Bot)."""
 
     TOP = 'Top'
     BOT = 'Bot'
 
 
-OTHER_HALF = {Half.TOP: Half.BOT, Half.BOT: Half.TOP}
+OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 
 
-class VerdictSource(StrEnum):
+class WinnerSource(StrEnum):
     """The observation or rule used to determine the winner."""
 
     NEXT_SERVER = 'next_server'      # winner-serves-next: rally n+1's fitted first-stroke half
@@ -95,7 +95,7 @@ def project_pixels_to_court(
 # ---------------------------------------------------------------------------
 def attribute_half(
     frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, net_band: tuple[float, float],
-) -> Half | None:
+) -> CourtHalf | None:
     """Court half of the sticky pick nearest to the shuttle at `frame`, or None.
 
     The pick and its cached nearest-wrist body-unit distance come from the sticky tracker. The
@@ -114,16 +114,16 @@ def attribute_half(
     foot_y = float(bboxes[frame, slot][3])
     band_lo, band_hi = net_band
     if foot_y < band_lo:
-        return Half.TOP
+        return CourtHalf.TOP
     if foot_y > band_hi:
-        return Half.BOT
+        return CourtHalf.BOT
     return None  # inside the net band
 
 
 # ---------------------------------------------------------------------------
 # Alternation-rhythm fit
 # ---------------------------------------------------------------------------
-def alternating_player_sides(final_half: Half, n_strokes: int) -> list[Half]:
+def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[CourtHalf]:
     """Alternating half per stroke for a rally whose LAST stroke is `final_half`.
 
     Stroke i counts back from the last (index n-1 = final_half); each step back flips halves.
@@ -134,7 +134,7 @@ def alternating_player_sides(final_half: Half, n_strokes: int) -> list[Half]:
             for i in range(n_strokes)]
 
 
-def fit_alternation(guesses: list[Half | None]) -> Half | None:
+def fit_alternation(guesses: list[CourtHalf | None]) -> CourtHalf | None:
     """Fitted final-stroke half from the two alternating phases, or None on a tie.
 
     Score each phase (final stroke Top, or final stroke Bot) by the count of non-None per-stroke
@@ -144,11 +144,11 @@ def fit_alternation(guesses: list[Half | None]) -> Half | None:
     phase_score = {
         final_half: sum(1 for guess, assigned in zip(guesses, alternating_player_sides(final_half, len(guesses)))
                         if guess is not None and guess == assigned)
-        for final_half in (Half.TOP, Half.BOT)
+        for final_half in (CourtHalf.TOP, CourtHalf.BOT)
     }
-    if phase_score[Half.TOP] == phase_score[Half.BOT]:
+    if phase_score[CourtHalf.TOP] == phase_score[CourtHalf.BOT]:
         return None
-    return Half.TOP if phase_score[Half.TOP] > phase_score[Half.BOT] else Half.BOT
+    return CourtHalf.TOP if phase_score[CourtHalf.TOP] > phase_score[CourtHalf.BOT] else CourtHalf.BOT
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +156,11 @@ def fit_alternation(guesses: list[Half | None]) -> Half | None:
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class LandingWindow:
-    """The safe half-open landing endpoint and the guards that closed it."""
+    """The half-open landing search endpoint and reasons to stop there."""
 
     end_frame: int
     search_stop_reasons: tuple[str, ...]
-    window_closed_by_mask: bool
+    search_shortened_by_exclusion: bool
 
 
 def gap_after_top_exit(
@@ -184,11 +184,11 @@ def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray,
 ) -> LandingWindow:
-    """Find the safe landing endpoint and all guards tied at that endpoint.
+    """Find the landing search endpoint and all reasons to stop there.
 
     Half-open: the window is [final_contact, window_end). Scans forward from final_contact + 1.
 
-    A sustained-loss gap does NOT close the window when the last visible sample before it sits at
+    A sustained-loss gap does not stop the search when the last visible sample before it sits at
     the frame top: the shuttle lobbed out of the top of the picture and will descend back into
     view, so the search waits for the re-entry, still bounded by the next serve and the replay
     mask and by any later sustained-loss gap that did not follow a top exit.
@@ -213,18 +213,18 @@ def landing_window(
                 continue  # lob left the frame top; wait for the shuttle to re-enter
             boundaries['sustained_loss'] = scan_start + run_start
             break
-    safe_end = max(final_contact + 1, min(boundaries.values()))
+    search_end = max(final_contact + 1, min(boundaries.values()))
     reason_order = ('next_rally', 'definitive_exclusion', 'sustained_loss', 'video_end')
     reasons = tuple(
         reason for reason in reason_order
-        if boundaries.get(reason) == safe_end
+        if boundaries.get(reason) == search_end
     )
-    end_without_mask = max(final_contact + 1, min(
+    end_without_exclusion = max(final_contact + 1, min(
         end for reason, end in boundaries.items() if reason != 'definitive_exclusion'
     ))
     return LandingWindow(
-        end_frame=safe_end, search_stop_reasons=reasons,
-        window_closed_by_mask=safe_end < end_without_mask,
+        end_frame=search_end, search_stop_reasons=reasons,
+        search_shortened_by_exclusion=search_end < end_without_exclusion,
     )
 
 
@@ -444,7 +444,7 @@ def filtered_descending_landing(
 # ---------------------------------------------------------------------------
 def is_net_ender(
     final_contact: int, win_end: int, track: np.ndarray,
-    striker_half: Half, net_band: tuple[float, float], resolution: tuple[float, float],
+    striker_half: CourtHalf, net_band: tuple[float, float], resolution: tuple[float, float],
 ) -> bool:
     """Flight never crosses the net line's image y AND dies (terminal sample) in the net band.
 
@@ -463,7 +463,7 @@ def is_net_ender(
     ys = track[visible, 1] * height  # image-y pixels
     band_lo, band_hi = net_band
     terminal_y = float(ys[-1])
-    if striker_half == Half.TOP:
+    if striker_half == CourtHalf.TOP:
         never_crossed = bool(np.all(ys <= band_hi))
     else:
         never_crossed = bool(np.all(ys >= band_lo))
@@ -486,11 +486,11 @@ class LandingMargins(NamedTuple):
     line_clear_m: float
 
 
-def landing_margins(landing_norm: tuple[float, float], receiver_half: Half) -> LandingMargins:
+def landing_margins(landing_norm: tuple[float, float], receiver_half: CourtHalf) -> LandingMargins:
     """Court-metre clearances for a landing against the receiver's singles half."""
     x, y = float(landing_norm[0]), float(landing_norm[1])
-    y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == Half.BOT else (0.0, NET_COURT_Y)
-    baseline_y = y_hi if receiver_half == Half.BOT else y_lo  # the non-net y edge = receiver baseline
+    y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == CourtHalf.BOT else (0.0, NET_COURT_Y)
+    baseline_y = y_hi if receiver_half == CourtHalf.BOT else y_lo  # the non-net y edge = receiver baseline
 
     net_clear_m = abs(y - NET_COURT_Y) * COURT_LENGTH_M
     line_clear_m = min(abs(x - SINGLES_X_LO) * COURT_WIDTH_M,
@@ -550,14 +550,14 @@ class Landing(NamedTuple):
 
     frame: int
     norm: tuple[float, float]
-    half: Half
+    half: CourtHalf
     at_border: bool
     net_ender: bool
 
 
 def pick_landing_to_end(
     final_contact: int, end_frame: int, track: np.ndarray,
-    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: Half,
+    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: CourtHalf,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
     constants: Thresholds,
     shuttle_hallucination_mask: np.ndarray,
@@ -580,7 +580,7 @@ def pick_landing_to_end(
     px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
     proj = project_pixels_to_court(px, resolution, court_info)
     norm = (float(proj[0, 0]), float(proj[1, 0]))
-    half = Half.TOP if norm[1] < NET_COURT_Y else Half.BOT
+    half = CourtHalf.TOP if norm[1] < NET_COURT_Y else CourtHalf.BOT
     return Landing(
         frame=landing_frame, norm=norm, half=half,
         at_border=at_frame_border(landing_xy),
@@ -591,19 +591,19 @@ def pick_landing_to_end(
 class RallyOutcome(NamedTuple):
     """Absolute point winner, landing evidence and a conservative landing-only estimate."""
 
-    winner: Half | None
-    winner_source: VerdictSource | None
+    winner: CourtHalf | None
+    winner_source: WinnerSource | None
     landing: Landing | None
     landing_margin_m: float | None
     within_line_margin: bool
     within_net_margin: bool
-    landing_only_winner: Half | None
-    window_closed_by_mask: bool
+    conservative_landing_winner: CourtHalf | None
+    search_shortened_by_exclusion: bool
 
 
 def resolve_rally_outcome(
-    striker_half: Half, next_server: Half | None, landing: Landing | None,
-    band_m: float | None, *, window_closed_by_mask: bool = False,
+    striker_half: CourtHalf, next_server: CourtHalf | None, landing: Landing | None,
+    band_m: float | None, *, search_shortened_by_exclusion: bool = False,
 ) -> RallyOutcome:
     """Use the next server when known, otherwise the best landing estimate.
 
@@ -613,7 +613,7 @@ def resolve_rally_outcome(
     over either landing estimate. Landing ambiguity flags are independent of winner.
     """
     receiver = OTHER_HALF[striker_half]
-    landing_winner = landing_only_winner = None
+    landing_winner = conservative_landing_winner = None
     margin_m = None
     within_line = within_net = False
     if landing is not None:
@@ -626,20 +626,20 @@ def resolve_rally_outcome(
             landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0
         )
         if landing.net_ender:
-            landing_winner = landing_only_winner = receiver
+            landing_winner = conservative_landing_winner = receiver
         elif not out_on_own_half:
             landing_winner = striker_half if margin_m >= 0 else receiver
             if not landing.at_border and margin_m != 0:
-                landing_only_winner = landing_winner
+                conservative_landing_winner = landing_winner
     winner = next_server if next_server is not None else landing_winner
     source = None
     if next_server is not None:
-        source = VerdictSource.NEXT_SERVER
+        source = WinnerSource.NEXT_SERVER
     elif landing is not None and winner is not None:
-        source = VerdictSource.NET_RULE if landing.net_ender else VerdictSource.LANDING_GEOMETRY
+        source = WinnerSource.NET_RULE if landing.net_ender else WinnerSource.LANDING_GEOMETRY
     return RallyOutcome(
         winner, source, landing, margin_m, within_line, within_net,
-        landing_only_winner, window_closed_by_mask,
+        conservative_landing_winner, search_shortened_by_exclusion,
     )
 
 

@@ -1,4 +1,4 @@
-"""Reader for ShuttleSet human contact annotations into the frozen v1 schema.
+"""Reader for ShuttleSet manually labelled contact annotations into the frozen v1 schema.
 
 Builds usable rally spans and the columns this module owns for one match's
 ShuttleSet set CSVs: every ``schema_v1.SOURCE_CONTACTS`` column except the
@@ -56,7 +56,7 @@ def english_label(label: object) -> object:
 
 
 class SourceRally(NamedTuple):
-    """One usable ShuttleSet rally, rebuilt from its human contact rows."""
+    """One usable ShuttleSet rally, rebuilt from its manually labelled contact rows."""
 
     source_set: int
     source_rally: int

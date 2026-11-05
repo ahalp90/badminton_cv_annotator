@@ -119,9 +119,10 @@ def run_video(
         rejection_diagnostics=rejection_diagnostics,
     )
     report("calculating hit heights")
-    hit_heights, hit_height_failures = build_hit_heights(evidence, rallies)
+    hit_heights, unavailable_hit_height_reasons = build_hit_heights(evidence, rallies)
     return AnnotatorResult(
-        rallies=rallies, outcomes=outcomes, hit_heights=hit_heights, hit_height_failures=hit_height_failures,
+        rallies=rallies, outcomes=outcomes, hit_heights=hit_heights,
+        unavailable_hit_height_reasons=unavailable_hit_height_reasons,
         contact_events=contact_events, heuristic_candidates=heuristic_candidates, rally_confidence=rally_confidence,
     )
 
@@ -140,7 +141,7 @@ class AnnotatorResult(NamedTuple):
     rallies: tuple[FinishedRally, ...]
     outcomes: dict[int, RallyOutcome]
     hit_heights: dict[int, int]
-    hit_height_failures: dict[int, str]
+    unavailable_hit_height_reasons: dict[int, str]
     contact_events: tuple[ContactEvent, ...]
     heuristic_candidates: list[ContactCandidate]
     rally_confidence: tuple[float, ...]

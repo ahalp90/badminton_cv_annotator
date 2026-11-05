@@ -11,7 +11,7 @@ import numpy as np
 
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.scoring import GtRally
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.review.broadcast_labels import (
     SceneTruth,
     VideoMetadata,
@@ -183,13 +183,13 @@ def test_contact_injection_copies_accepted_contacts_and_keeps_spans(monkeypatch)
         seen.update(kwargs)
         return SimpleNamespace(rallies=(FinishedRally(
             ContactSequence(0, 10, 25, (
-                ContactEvent(8, np.nan, Half.TOP), ContactEvent(20, np.nan, Half.BOT),
-            )), Half.BOT,
+                ContactEvent(8, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
+            )), CourtHalf.BOT,
         ),))
 
     monkeypatch.setattr(measurement.candidate_measurement, "run_video", fake_run_video)
     natural = SimpleNamespace(rallies=(FinishedRally(
-        ContactSequence(0, 10, 25, (ContactEvent(20, np.nan, Half.BOT),)), Half.BOT,
+        ContactSequence(0, 10, 25, (ContactEvent(20, np.nan, CourtHalf.BOT),)), CourtHalf.BOT,
     ),))
     statuses = [{
         "rally_index": 0,

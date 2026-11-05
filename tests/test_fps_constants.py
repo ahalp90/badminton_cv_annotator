@@ -20,7 +20,7 @@ from annotator.config import (
 from annotator.courts.scenes import SceneCourt
 from annotator.masks.replay import combine_mask, court_absence_signal
 from annotator.outcomes.point_winner import (
-    Half,
+    CourtHalf,
     LandingFilterOptions,
     LandingKinematics,
     attribute_half,
@@ -351,7 +351,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         if contact.wrist_near is not False and contact.suppressed is not True
     ][-1]
     sticky = full_sticky
-    assert attribute_half(final_contact, track, sticky, bboxes, (520.0, 560.0)) is Half.TOP
+    assert attribute_half(final_contact, track, sticky, bboxes, (520.0, 560.0)) is CourtHalf.TOP
     # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the resolved 20.
     # It exposes two post-contact descents: five samples (base 3 accepts; resolved 6 rejects),
     # then eight samples (resolved 6 accepts; double-scaled 12 rejects).
@@ -381,7 +381,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
             np.zeros(len(landing_track), dtype=bool),
         ).end_frame
         return pick_landing_to_end(
-            final_contact, end_frame, landing_track, kin, opts, Half.TOP, (520.0, 560.0), (1920.0, 1080.0),
+            final_contact, end_frame, landing_track, kin, opts, CourtHalf.TOP, (520.0, 560.0), (1920.0, 1080.0),
             court_info, constants, np.zeros(len(landing_track), dtype=bool),
         )
 

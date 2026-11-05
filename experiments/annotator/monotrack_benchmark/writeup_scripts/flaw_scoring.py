@@ -35,7 +35,7 @@ from annotator.config import frames_at_fps
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import stream_from_payload
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
@@ -107,7 +107,7 @@ def left_out_labels(item: dict) -> tuple[list[LabelledRally], dict[str, int], li
             check['left_out_no_side'] += sum(side is None for side in sides)
             check['left_out_rallies_no_side'] += any(side is None for side in sides)
             rallies.append(LabelledRally(f'left_out:{identity}', tuple(int(frame) for frame in ordered['frame_num']),
-                                         tuple(None if side is None else Half(side) for side in sides)))
+                                         tuple(None if side is None else CourtHalf(side) for side in sides)))
     return rallies, check, hits
 
 

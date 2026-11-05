@@ -82,7 +82,7 @@ repair it. Initial contacts outside every rough rally remain part of that stream
 ### How contact training uses ground truth
 
 The contact model learns from frames in these broad heuristic-defined search
-regions, labelled against the human-annotated contacts. It is not restricted to
+regions, labelled against the GT contacts. It is not restricted to
 the heuristic's final hit predictions.
 
 For example, at 30 fps, a heuristic seed at frame 95 creates a search region

@@ -248,7 +248,7 @@ def test_export_writes_every_table_and_manifest(tmp_path: Path) -> None:
     assert list(zip(source["start_frame"], source["end_frame"])) == [(5, 21), (61, 71)]
     assert source["source_set"].tolist() == [1, 1]
     assert source["source_rally"].tolist() == [1, 2]
-    # Issue #138: exact by construction from the human contact rows, 3 then 2;
+    # Issue #138: exact by construction from the GT contact rows, 3 then 2;
     # null on the annotator-origin rows, which have no contact rows.
     assert source["shots_per_rally"].tolist() == [3, 2]
     assert annotator["shots_per_rally"].isna().all()
@@ -487,7 +487,7 @@ def test_export_video_id_filter_selects_known_videos_only(tmp_path: Path) -> Non
 
 
 # Issue #138: shots per rally, recovery, and movement inefficiency, now computed on
-# human ShuttleSet contacts. build_video_tables is exercised directly, with a
+# manually labelled ShuttleSet contacts. build_video_tables is exercised directly, with a
 # hand-crafted PlayerFeatureInputs, so the court positions behind these formulas are
 # fully controlled without needing real shuttle/pose/court primitives.
 FEATURES_FRAME_COUNT = 200
@@ -552,7 +552,7 @@ def _rally_features_video_inputs(tmp_path: Path) -> VideoInputs:
     )
 
 
-def test_shots_recovery_and_movement_are_wired_from_human_contacts(tmp_path: Path) -> None:
+def test_shots_recovery_and_movement_are_wired_from_gt_contacts(tmp_path: Path) -> None:
     inputs = _rally_features_video_inputs(tmp_path)
     tables = build_video_tables(tmp_path / "export", inputs)
 

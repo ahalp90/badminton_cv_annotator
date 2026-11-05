@@ -25,7 +25,7 @@ from annotator.evaluation.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.outcomes.point_winner import Half, VerdictSource
+from annotator.outcomes.point_winner import CourtHalf, WinnerSource
 from dataset_builder.vision import save_json_gz
 
 
@@ -91,12 +91,12 @@ def test_projection_to_annotator_result_restores_scored_fields() -> None:
     assert [event.frame for event in rally.sequence.events] == [15]
     assert np.isnan(rally.sequence.events[0].probability)
     assert result.hit_heights == {15: 1}
-    assert rally.final_half is Half.TOP
-    assert rally.first_half is Half.TOP
-    assert result.outcomes[0].winner is Half.TOP
-    assert result.outcomes[0].winner_source is VerdictSource.NEXT_SERVER
+    assert rally.final_half is CourtHalf.TOP
+    assert rally.first_half is CourtHalf.TOP
+    assert result.outcomes[0].winner is CourtHalf.TOP
+    assert result.outcomes[0].winner_source is WinnerSource.NEXT_SERVER
     assert result.outcomes[0].landing.norm == (0.4, 0.8)
-    assert result.outcomes[0].landing_only_winner is Half.TOP
+    assert result.outcomes[0].conservative_landing_winner is CourtHalf.TOP
 
 
 def test_contact_curve_aggregation_uses_integer_populations() -> None:

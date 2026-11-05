@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactSequence
 from annotator.sequence.rally_model import fit_rally_sides
 from annotator.sequence.rally_options import RallyContext
@@ -14,11 +14,11 @@ from annotator.sequence.rally_options import RallyContext
 
 @dataclass(frozen=True)
 class LabelledRally:
-    """Human contact frames in chronological order and their aligned court halves."""
+    """GT contact frames in chronological order and their aligned court halves."""
 
     identity: str
     frames: tuple[int, ...]
-    sides: tuple[Half | None, ...]
+    sides: tuple[CourtHalf | None, ...]
 
     def __post_init__(self) -> None:
         if len(self.frames) != len(self.sides) or tuple(sorted(self.frames)) != self.frames:
@@ -34,7 +34,7 @@ class RallyBoundaryJudgement:
 
 @dataclass(frozen=True)
 class SequenceTrainingVideo:
-    """One training video's detector proposals and human contact labels."""
+    """One training video's detector proposals and GT contact labels."""
 
     identity: str
     group: str
@@ -169,7 +169,7 @@ def whole_rally_correctness(
     """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
 
     Missing contacts, merged/partial rallies, extra events and known side
-    contradictions are wrong even when another human side label is unavailable.
+    contradictions are wrong even when another GT side label is unavailable.
     """
     tolerance = frames_at_fps(tolerance_at_30_fps, fps)
     boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)

@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
-from annotator.outcomes.point_winner import Half
+from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactSequence
 
 SUMMARY_FEATURE_NAMES = (
@@ -130,8 +130,8 @@ def side_agreement(sequence: ContactSequence) -> tuple[float, float, float, floa
         for index, side in enumerate(guesses):
             if side is None:
                 continue
-            top_matches += side == (Half.TOP if index % 2 == 0 else Half.BOT)
-            bot_matches += side == (Half.BOT if index % 2 == 0 else Half.TOP)
+            top_matches += side == (CourtHalf.TOP if index % 2 == 0 else CourtHalf.BOT)
+            bot_matches += side == (CourtHalf.BOT if index % 2 == 0 else CourtHalf.TOP)
         top_agreement = top_matches / known_count
         bot_agreement = bot_matches / known_count
     adjacent = [(first, second) for first, second in pairwise(guesses) if first is not None and second is not None]

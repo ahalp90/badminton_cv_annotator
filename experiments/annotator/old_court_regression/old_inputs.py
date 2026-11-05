@@ -20,7 +20,7 @@ import pandas as pd
 
 from annotator.courts.evidence import CourtInputs
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, CourtHalf
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.shuttle_track import validate_shuttle_track
@@ -46,7 +46,7 @@ TEST_GUARD_CODES_FILENAME = 'shuttle_guard_codes_inpainted.npy.xz'
 TEST_FPS = 30.0
 # The original ShuttleSet22 run used one fixed clock and frame size for all 47 videos.
 TEST_RESOLUTION = (1920.0, 1080.0)
-SIDE_BY_LABEL = {'Top': Half.TOP, 'Bot': Half.BOT, 'Bottom': Half.BOT}
+SIDE_BY_LABEL = {'Top': CourtHalf.TOP, 'Bot': CourtHalf.BOT, 'Bottom': CourtHalf.BOT}
 ALL_SOURCE_RALLY_COUNT = 3965
 ALL_SOURCE_CONTACT_COUNT = 43159
 
@@ -154,7 +154,7 @@ def run_old_video(
     )
 
 
-def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int, Half | None]]]]) -> None:
+def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int, CourtHalf | None]]]]) -> None:
     """Write the supported rally_id,frame,side contract; empty side means unknown."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')
@@ -167,7 +167,7 @@ def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int,
     temporary.replace(path)
 
 
-def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str, list[tuple[int, Half | None]]]]:
+def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str, list[tuple[int, CourtHalf | None]]]]:
     """Read one ShuttleSet video's contacts from shots_master.csv as the original fits did.
 
     Rallies are keyed by set and rally number; frames are sorted within each
@@ -187,7 +187,7 @@ def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str
     return rallies
 
 
-def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, list[tuple[int, Half | None]]]]]:
+def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, list[tuple[int, CourtHalf | None]]]]]:
     """Read the 3,422 trusted ShuttleSet22 rallies saved by the PR149 scorer."""
     payload = json.loads(gzip.decompress(clean_labels.read_bytes()))
     if payload.get('schema') != 'shuttleset22-clean-contact-labels/1' or payload.get('status') != 'complete':
@@ -203,13 +203,13 @@ def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, lis
     return by_video
 
 
-def source_player_side(player_y: object, opponent_y: object) -> Half | None:
+def source_player_side(player_y: object, opponent_y: object) -> CourtHalf | None:
     """Apply the PR149 rule: the player nearer the top of the image is Top."""
     player = pd.to_numeric(pd.Series([player_y]), errors='coerce').iloc[0]
     opponent = pd.to_numeric(pd.Series([opponent_y]), errors='coerce').iloc[0]
     if not np.isfinite(player) or not np.isfinite(opponent) or player == opponent:
         return None
-    return Half.TOP if player < opponent else Half.BOT
+    return CourtHalf.TOP if player < opponent else CourtHalf.BOT
 
 
 def all_source_rallies(
@@ -260,7 +260,7 @@ def stream_from_output(
     start/end frames when the saved boundary correction is stored separately.
     """
     events = tuple(
-        ContactEvent(int(frame), float(score), None if side is None else Half(side))
+        ContactEvent(int(frame), float(score), None if side is None else CourtHalf(side))
         for frame, score, side in output['contacts'][fixture]
     )
     by_frame = {event.frame: event for event in events}

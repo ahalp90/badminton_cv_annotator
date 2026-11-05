@@ -36,7 +36,7 @@ from annotator.masks.inpaint import code_counts, grade_track
 from annotator.outcomes import point_winner
 from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
-    Half,
+    CourtHalf,
 )
 from annotator.run_video import AnnotatorResult, run_video
 from shared.court import load_all_court_info
@@ -119,7 +119,7 @@ REFERENCE_SCORES = {
         'contact_gt_total': 1641,
         'n_raw_contacts': 3096,
         'n_filtered_contacts': 1749,
-        'hit_height_failures': 0,
+        'n_unavailable_hit_heights': 0,
     },
     'sset_15': {
         'covered_fraction': 0.8076923076923077,
@@ -191,7 +191,7 @@ REFERENCE_SCORES = {
         'contact_gt_total': 824,
         'n_raw_contacts': 2210,
         'n_filtered_contacts': 1233,
-        'hit_height_failures': 0,
+        'n_unavailable_hit_heights': 0,
     },
     'sset_21': {
         'covered_fraction': 0.72,
@@ -263,7 +263,7 @@ REFERENCE_SCORES = {
         'contact_gt_total': 663,
         'n_raw_contacts': 2246,
         'n_filtered_contacts': 1090,
-        'hit_height_failures': 0,
+        'n_unavailable_hit_heights': 0,
     },
 }
 
@@ -286,7 +286,7 @@ DISPLAY_METRICS = (
     "getpoint_primary", "getpoint_primary_correct", "getpoint_primary_total", "getpoint_covered",
     "getpoint_covered_correct", "getpoint_covered_total", "contact_f1", "contact_precision",
     "contact_recall", "contact_matches", "contact_filtered_total", "contact_gt_total",
-    "n_raw_contacts", "n_filtered_contacts", "hit_height_failures",
+    "n_raw_contacts", "n_filtered_contacts", "n_unavailable_hit_heights",
 )
 
 
@@ -410,8 +410,9 @@ class VideoScoring(NamedTuple):
 
     ``rows`` and ``boundary_metrics`` retain rally-level and boundary results.
     ``ColumnAgg`` fields and timing pairs hold primary and covered-only counts.
+    Timing's correct counts are also contact matches within the scoring tolerance.
     Contact totals support precision and recall, while the remaining lists and
-    mappings retain hit-height failures, absolute errors, and verdict details.
+    mappings retain unavailable hit-height reasons, absolute errors and landing details.
     """
 
     name: str
@@ -430,7 +431,7 @@ class VideoScoring(NamedTuple):
     contact_gt_total: int
     n_raw_contacts: int
     n_filtered_contacts: int
-    hit_height_failures: list[tuple[int, int, int, str]]
+    unavailable_hit_height_reasons: list[tuple[int, int, int, str]]
     ball_round_diffs: list[int]
     timing_errs: list[int]
     geometric_verdict_rows: list[tuple[int, str, str, bool | None, bool]]
@@ -672,10 +673,10 @@ def score_video(
             detected = result.hit_heights.get(candidates[candidate_index])
             if not math.isnan(gt_height) and detected is not None and int(gt_height) == detected:
                 hh_correct += 1
-        gt_player = Half.TOP if frame_side[rally.stroke_frames[-1]] == "Top" else Half.BOT
+        gt_player = CourtHalf.TOP if frame_side[rally.stroke_frames[-1]] == "Top" else CourtHalf.BOT
         pred_player = result.rallies[span].final_half if covered else None
         p_ok = covered and pred_player == gt_player
-        gt_server = Half.TOP if frame_side[rally.stroke_frames[0]] == "Top" else Half.BOT
+        gt_server = CourtHalf.TOP if frame_side[rally.stroke_frames[0]] == "Top" else CourtHalf.BOT
         pred_server = result.rallies[span].first_half if covered else None
         s_ok = covered and pred_server == gt_server
         gt_winner = recon.winners[index].winner_half
@@ -699,7 +700,7 @@ def score_video(
                     point_winner.HOMOGRAPHY_RESOLUTION,
                     landing_court,
                 )
-                landing_half = Half.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else Half.BOT
+                landing_half = CourtHalf.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else CourtHalf.BOT
                 ld_ok = covered and pred_landing == landing_half
             else:
                 ld_ok = False
@@ -713,27 +714,44 @@ def score_video(
     raw_contact_count = len(result.heuristic_candidates) if result.heuristic_candidates else len(contacts)
     geometric_rows = []
     for rally_id, outcome in result.outcomes.items():
-        landing_winner = outcome.landing_only_winner
+        conservative_winner = outcome.conservative_landing_winner
         relative_winner = ""
-        if landing_winner is not None:
-            relative_winner = "won" if landing_winner == result.rallies[rally_id].final_half else "lost"
-        agreement = None if outcome.winner is None or landing_winner is None else outcome.winner == landing_winner
+        if conservative_winner is not None:
+            relative_winner = "won" if conservative_winner == result.rallies[rally_id].final_half else "lost"
+        agreement = None if outcome.winner is None or conservative_winner is None else outcome.winner == conservative_winner
         geometric_rows.append((
-            rally_id, relative_winner, "" if landing_winner is None else landing_winner.value,
-            agreement, outcome.window_closed_by_mask,
+            rally_id, relative_winner, "" if conservative_winner is None else conservative_winner.value,
+            agreement, outcome.search_shortened_by_exclusion,
         ))
     counts = aggregate_rally_scores(rows)
     timing = counts["timing"]
-    return VideoScoring(fixture.name, rows, boundaries, counts["ball_round"],
-        (timing.primary_correct, timing.primary_total), (timing.secondary_correct, timing.secondary_total),
-        counts["player"], counts["server"], counts["hit_height"], counts["landing"], counts["getpoint"],
-        timing.primary_correct, len(contacts), timing.primary_total, raw_contact_count,
-        len(contacts), [
-            (rally_id, stroke_idx, event.frame, result.hit_height_failures[event.frame])
+    return VideoScoring(
+        name=fixture.name,
+        rows=rows,
+        boundary_metrics=boundaries,
+        ball_round=counts["ball_round"],
+        timing_primary=(timing.primary_correct, timing.primary_total),
+        timing_covered=(timing.secondary_correct, timing.secondary_total),
+        player=counts["player"],
+        server=counts["server"],
+        hit_height=counts["hit_height"],
+        landing=counts["landing"],
+        getpoint=counts["getpoint"],
+        contact_matches=timing.primary_correct,
+        contact_filtered_total=len(contacts),
+        contact_gt_total=timing.primary_total,
+        n_raw_contacts=raw_contact_count,
+        n_filtered_contacts=len(contacts),
+        unavailable_hit_height_reasons=[
+            (rally_id, stroke_idx, event.frame, result.unavailable_hit_height_reasons[event.frame])
             for rally_id, rally in enumerate(result.rallies) for stroke_idx, event in enumerate(rally.sequence.events)
-            if event.frame in result.hit_height_failures
-        ], ball_round_diffs, timing_errs,
-        geometric_rows, recon)
+            if event.frame in result.unavailable_hit_height_reasons
+        ],
+        ball_round_diffs=ball_round_diffs,
+        timing_errs=timing_errs,
+        geometric_verdict_rows=geometric_rows,
+        reconciliation=recon,
+    )
 
 
 def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
@@ -760,7 +778,13 @@ def flatten_metrics(scoring: VideoScoring) -> dict[str, int | float | None]:
     precision = _ratio(scoring.contact_matches, scoring.contact_filtered_total)
     recall = _ratio(scoring.contact_matches, scoring.contact_gt_total)
     f1 = None if precision is None or recall is None else safe_f1(precision, recall)
-    values.update(contact_f1=f1, contact_precision=precision, contact_recall=recall, contact_matches=scoring.contact_matches, contact_filtered_total=scoring.contact_filtered_total, contact_gt_total=scoring.contact_gt_total, n_raw_contacts=scoring.n_raw_contacts, n_filtered_contacts=scoring.n_filtered_contacts, hit_height_failures=len(scoring.hit_height_failures))
+    values.update(
+        contact_f1=f1, contact_precision=precision, contact_recall=recall,
+        contact_matches=scoring.contact_matches, contact_filtered_total=scoring.contact_filtered_total,
+        contact_gt_total=scoring.contact_gt_total, n_raw_contacts=scoring.n_raw_contacts,
+        n_filtered_contacts=scoring.n_filtered_contacts,
+        n_unavailable_hit_heights=len(scoring.unavailable_hit_height_reasons),
+    )
     return values
 
 
@@ -805,7 +829,7 @@ def write_geometric_verdicts_csv(rows: Iterable[tuple[int, str, str, bool | None
         writer = csv.writer(handle)
         writer.writerow((
             "rally_id", "geometric_verdict", "geometric_winner", "agreement",
-            "window_closed_by_mask",
+            "search_shortened_by_exclusion",
         ))
         writer.writerows(rows)
 
@@ -823,7 +847,7 @@ def write_guard_diagnostics(
     with (video_dir / "rejections.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=("rule", "rally_id", "start_frame", "end_frame", "trigger_frame", "trigger_code"),
+            fieldnames=("rule", "rally_id", "start_frame", "end_frame", "first_rejected_frame", "rejection_grade"),
         )
         writer.writeheader()
         writer.writerows(rows)
