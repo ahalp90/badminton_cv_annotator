@@ -1,4 +1,4 @@
-"""Draw the VideoMAE-B pilot figures and print the report tables.
+"""Draw the VideoMAE (base) pilot figures and print the report tables.
 
 Reads the compact run records and stride-three scores that ``rescore_videomae.py``
 copies into ``results/``. Each run is scored at its earliest minimum-validation-CE
@@ -10,14 +10,16 @@ Usage, from the repository root:
     python experiments/annotator/video_models_benchmark/writeup_scripts/make_videomae_figures.py
 
 Once ``results/videomae_test/`` holds both selected test seeds, the same command
-also draws the held-out test comparison and the test stride-three figure.
+also draws the shared test comparison. Once
+``compare_videomae_lr5e4.py`` has filled ``results/videomae_lr5e4/``, it also draws
+all three learning rates at stride-three validation. That trial is one
+validation-only seed and does not enter the learning-rate ranking.
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import gzip
-import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,11 +60,8 @@ from experiments.annotator.video_models_benchmark.writeup_scripts.make_x3d_figur
     X3D_COLOUR,
     DotRow,
     dot_plot,
-    rank_configurations,
     read_json,
-)
-from experiments.annotator.video_models_benchmark.writeup_scripts.make_x3d_figures import (
-    load_runs as load_x3d_runs,
+    sampling_scores,
 )
 
 BENCHMARK = Path(__file__).resolve().parents[1]
@@ -71,43 +70,12 @@ FIGURES = BENCHMARK / 'writeup_figures'
 MONOTRACK_SUMMARY = (BENCHMARK.parent / 'monotrack_benchmark/benchmark_results/discovery_context/primary'
                      / 'contact_summary.json.gz')
 VIDEOMAE_COLOUR = '#138a8a'
+# Indigo stays distinct from LR 1e-4's orange under protanopia; the two share one figure.
+TRIAL_COLOUR = '#6250d6'
 SEED_LINES = {0: '-', 1: (0, (5, 2))}
 LOSS_BIN_UPDATES = 1_000
-# Every scored validation centre, at the natural rate: about 10% are within a frame of a contact.
-VALIDATION_CONTACT_PERCENT = 10
-# Panel rows for the stride figure: (metric, hitter rule, title). Contact scores are
-# the same under both hitter rules, because alternation runs after suppression.
-STRIDE_PANELS = (
-    (('contact_recall', 'alternating', 'Contact recall (%)'),
-     ('contact_precision', 'alternating', 'Contact precision (%)')),
-    (('correct_player_f1', 'raw', "Correct-player F1 (%)\nraw: each hit's own most likely hitter"),
-     ('correct_player_f1', 'alternating', 'Correct-player F1 (%)\nalternating hitters, as reported')),
-    (('fully_correct_percent', 'raw', 'Fully correct rallies (%)\nraw hitters'),
-     ('fully_correct_percent', 'alternating', 'Fully correct rallies (%)\nalternating hitters, as reported')),
-)
 SAMPLING_LABELS = {(1, 0): 'Dense', (3, 0): 'Stride 3, offset 0', (3, 1): 'Stride 3, offset 1',
                    (3, 2): 'Stride 3, offset 2'}
-VALIDATION_STRIDE_NOTES = (
-    ('Each run is scored at its lowest-validation-loss checkpoint; a hit counts within ±10 frames at 30 fps. '
-     'Axes do not start at zero.'),
-    ('Stride 3 with offset k keeps only centres whose video frame number leaves remainder k when divided by 3. '
-     'Suppression and matching are unchanged.'),
-    ("Offsets are three samplings of one model, not extra seeds. Raw hitters keep each hit's own guess; "
-     'alternating hitters are what the benchmark reports.'),
-)
-TEST_COMPARISON_NOTES = (
-    'All four systems are given the rally bounds; a hit counts within ±10 frames at 30 fps.',
-    ('Each selected checkpoint is tested once. Dots: seed mean; black lines span the lowest to highest seed. '
-     'Axes do not start at zero.'),
-)
-TEST_STRIDE_NOTES = (
-    ('Both seeds of the validation-selected learning rate, each tested once at its lowest-validation-loss '
-     'checkpoint; a hit counts within ±10 frames at 30 fps.'),
-    ('Test scores did not choose any setting. Axes do not start at zero.'),
-)
-# Fixed SVG dates keep regenerated figures byte-stable.
-os.environ.setdefault('SOURCE_DATE_EPOCH', '0')
-plt.rcParams['svg.hashsalt'] = 'videomae'
 
 
 class Window(NamedTuple):
@@ -154,8 +122,7 @@ def thousands(step: float, _position: object = None) -> str:
 
 
 def save(figure: plt.Figure, out: Path, stem: str) -> None:
-    for suffix in ('.png', '.svg'):
-        figure.savefig(out / f'{stem}{suffix}', dpi=150, facecolor=SURFACE)
+    figure.savefig(out / f'{stem}.png', dpi=150, facecolor=SURFACE)
     plt.close(figure)
 
 
@@ -247,7 +214,7 @@ def lr_colours(runs: list[PilotRun]) -> dict[float, str]:
 
 
 def run_handles(runs: list[PilotRun], colours: dict[float, str]) -> list:
-    handles: list = [Line2D([], [], color=colour, linewidth=2.2, label=f'Head LR {rate_label(rate)}')
+    handles: list = [Line2D([], [], color=colour, linewidth=2.2, label=f'LR {rate_label(rate)}')
                      for rate, colour in colours.items()]
     for seed in sorted({run.seed for run in runs}):
         handles.append(Line2D([], [], color=MUTED, linestyle=SEED_LINES[seed], marker=SEED_MARKERS[seed],
@@ -262,35 +229,6 @@ def mark_in_progress(axes: plt.Axes, run: PilotRun, value: float) -> None:
     if not run.finished:
         axes.annotate('still training', (run.history[-1]['steps'], value), xytext=(6, 0),
                       textcoords='offset points', va='center', fontsize=8.5, color=MUTED, style='italic')
-
-
-def selection_figure(ranking: list[list[PilotRun]], selected: bool, x3d_rows: DotRow, populations: tuple[int, int],
-                     out: Path) -> None:
-    colours = lr_colours([run for members in ranking for run in members])
-    rows = []
-    for rank, members in enumerate(ranking):
-        rate = members[0].learning_rate
-        label = f'VideoMAE-B, LR {rate_label(rate)}'
-        if selected and rank == 0:
-            label += ' (selected)'
-        unfinished = [run for run in members if not run.finished]
-        if unfinished:
-            label += '\n' + ', '.join(f'seed {run.seed}' for run in unfinished) + ' still training'
-        rows.append(DotRow(label, colours[rate], 'o', {metric: [run.score(metric) for run in members]
-                                                       for metric, _title in METRICS}))
-    rows.append(x3d_rows)
-    rallies, contacts = populations
-    notes = [
-        ('Each run is scored at its lowest-validation-loss checkpoint. Dots: mean of seeds 0 and 1; black lines '
-         'join the two seeds. Axes do not start at zero.'),
-        ('Rally bounds are given; a hit counts within ±10 frames at 30 fps. X3D-M: its selected configuration on '
-         'the same validation rallies.'),
-    ]
-    if not selected:
-        notes.append('The learning-rate order is provisional until every run finishes and the queue selects one.')
-    for suffix in ('.png', '.svg'):
-        dot_plot(rows, f'VideoMAE-B validation pilot: 8 videos, {rallies:,} rallies, {contacts:,} labelled hits',
-                 tuple(notes), out / f'videomae_fig1_validation_selection{suffix}')
 
 
 def training_figure(runs: list[PilotRun], out: Path) -> None:
@@ -316,10 +254,8 @@ def training_figure(runs: list[PilotRun], out: Path) -> None:
                                 edgecolor=TEXT, linewidth=1.5, zorder=4)
         mark_in_progress(validation_axes, run, validation_losses[-1])
     rate_axes.yaxis.set_major_formatter(FuncFormatter(lambda rate, _position: f'{rate * 1e5:g}'))
-    rate_axes.set_ylabel('Head learning rate (×10⁻⁵)', color=TEXT)
-    rate_axes.set_title('Learning rate; both seeds share each schedule. Each earlier transformer block uses 0.75 '
-                        'times the rate of the block above it.',
-                        fontsize=10, color=TEXT, loc='left')
+    rate_axes.set_ylabel('Learning rate (×10⁻⁵)', color=TEXT)
+    rate_axes.set_title('Learning-rate schedule', fontsize=10, color=TEXT, loc='left')
     # Log scale keeps the warm-up losses in view without flattening the later differences.
     train_axes.set_yscale('log')
     train_axes.yaxis.set_major_locator(FixedLocator([0.15, 0.2, 0.3, 0.5, 0.7, 1.0]))
@@ -329,65 +265,72 @@ def training_figure(runs: list[PilotRun], out: Path) -> None:
     train_axes.set_title(f'Training loss on sampled batches, half centred on contacts; mean per '
                          f'{LOSS_BIN_UPDATES:,} updates', fontsize=10, color=TEXT, loc='left')
     validation_axes.set_ylabel('Cross-entropy', color=TEXT)
-    validation_axes.set_title(f'Validation loss on every validation centre, about {VALIDATION_CONTACT_PERCENT}% '
-                              'near contacts; checked at 2,500, 5,000, then every 5,000 updates',
-                              fontsize=10, color=TEXT, loc='left')
+    validation_axes.set_title('Validation loss (stride 1)', fontsize=10, color=TEXT, loc='left')
     validation_axes.set_xlabel('Updates (batches of 16 clips)', color=TEXT)
     validation_axes.set_xlim(0, last_step + 2500)
     validation_axes.xaxis.set_major_formatter(FuncFormatter(thousands))
-    figure.suptitle('VideoMAE-B pilot: learning rate, training loss and validation loss for all four runs',
+    figure.suptitle('VideoMAE (base) pilot: learning rate, training loss and validation loss for all four runs',
                     fontsize=13, color=TEXT, x=0.01, ha='left')
     figure.legend(handles=run_handles(runs, colours), loc='upper left', bbox_to_anchor=(0.01, 0.965), ncol=3,
                   frameon=False, fontsize=9.5)
-    figure.text(0.01, 0.012, 'Training and validation losses use different contact rates, so their levels are not '
-                'directly comparable. Compare each with itself over time.', fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.03, 1, 0.925), h_pad=2.0)
-    save(figure, out, 'videomae_fig2_training')
-
-
-def validation_events_figure(runs: list[PilotRun], out: Path) -> None:
-    colours = lr_colours(runs)
-    figure, axes_row = plt.subplots(1, 3, figsize=(14, 5.4), sharex=True, facecolor=SURFACE)
-    last_step = max(run.history[-1]['steps'] for run in runs)
-    for axes, (metric, title) in zip(axes_row, METRICS, strict=True):
-        style_axes(axes, 'both')
-        axes.axvspan(ORIGINAL_UPDATES, last_step + 2500, color=GRID, alpha=0.6, linewidth=0, zorder=0)
-        for run in runs:
-            steps = [check['steps'] for check in run.history]
-            scores = [check['events'][TOLERANCE][metric] for check in run.history]
-            axes.plot(steps, scores, color=colours[run.learning_rate], linestyle=SEED_LINES[run.seed],
-                      linewidth=1.6, marker=SEED_MARKERS[run.seed], markersize=4)
-            axes.scatter(run.selected['steps'], run.score(metric), s=150, facecolor='none', edgecolor=TEXT,
-                         linewidth=1.5, zorder=4)
-            mark_in_progress(axes, run, scores[-1])
-        axes.set_title(title, fontsize=11, color=TEXT, loc='left')
-        axes.set_xlabel('Updates', color=TEXT)
-        axes.xaxis.set_major_formatter(FuncFormatter(thousands))
-    axes_row[0].set_xlim(0, last_step + 2500)
-    figure.suptitle('VideoMAE-B validation event scores at every check, all four runs', fontsize=13, color=TEXT,
-                    x=0.01, ha='left')
-    figure.legend(handles=run_handles(runs, colours), loc='upper left', bbox_to_anchor=(0.01, 0.94), ncol=6,
-                  frameon=False, fontsize=9)
-    figure.text(0.01, 0.015, 'Rally bounds are given; a hit counts within ±10 frames at 30 fps. Circles mark the '
-                'checkpoint chosen by lowest validation loss, not by these scores. Axes do not start at zero.',
+    figure.text(0.01, 0.012, 'LR is shown for the classifier; each earlier transformer block uses 0.75× '
+                'the rate of the block above it.',
                 fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.04, 1, 0.9))
-    save(figure, out, 'videomae_fig3_validation_events')
+    figure.tight_layout(rect=(0, 0.03, 1, 0.925), h_pad=2.0)
+    save(figure, out, 'videomae_training')
+
+
+def checked_rows(path: Path, runs: list[PilotRun]) -> list[dict[str, str]]:
+    """Read a score CSV whose every row must come from its run's current lowest-loss checkpoint."""
+    selected_steps = {run.name: run.selected['steps'] for run in runs}
+    with gzip.open(path, 'rt', newline='') as source:
+        rows = list(csv.DictReader(source))
+    for row in rows:
+        if int(row['best_step']) != selected_steps[row['run']]:
+            raise ValueError(f'{path}: {row["run"]} was rescored at {row["best_step"]} updates, but its history '
+                             f'now selects {selected_steps[row["run"]]}; rerun the script that wrote this file')
+    return rows
 
 
 def read_scores(path: Path, runs: list[PilotRun]) -> dict[tuple[str, int, int, str, str], dict]:
     """Rows keyed by (run, stride, offset, hitter rule, tolerance), checked against the histories' checkpoints."""
-    selected_steps = {run.name: run.selected['steps'] for run in runs}
     rows = {}
-    with gzip.open(path, 'rt', newline='') as source:
-        for row in csv.DictReader(source):
-            if int(row['best_step']) != selected_steps[row['run']]:
-                raise ValueError(f'{path}: {row["run"]} was rescored at {row["best_step"]} updates, but its history '
-                                 f'now selects {selected_steps[row["run"]]}; rerun rescore_videomae.py')
-            key = (row['run'], int(row['stride']), int(row['offset']), row['hitter_rule'], row['tolerance'])
-            rows[key] = {name: float(value) for name, value in row.items()
-                         if name not in ('split', 'run', 'hitter_rule')}
+    for row in checked_rows(path, runs):
+        key = (row['run'], int(row['stride']), int(row['offset']), row['hitter_rule'], row['tolerance'])
+        rows[key] = {name: float(value) for name, value in row.items() if name not in ('split', 'run', 'hitter_rule')}
     return rows
+
+
+def read_frame_scores(path: Path, runs: list[PilotRun]) -> dict[tuple[str, int, int], dict]:
+    """Validation cross-entropy and macro F1 keyed by (run, stride, offset)."""
+    rows = {}
+    for row in checked_rows(path, runs):
+        rows[row['run'], int(row['stride']), int(row['offset'])] = {
+            'cross_entropy': float(row['cross_entropy']), 'macro_f1': float(row['macro_f1'])}
+    return rows
+
+
+def validation_sampling(run: PilotRun) -> tuple[int, int]:
+    """The run's validation sampling; histories that predate sampling metadata were dense."""
+    sampling = run.history[-1]['validation'].get('sampling', {'stride': 1, 'offset': 0})
+    return sampling['stride'], sampling['offset']
+
+
+def training_rate(progress: list[dict]) -> float:
+    """Training updates per second, between the first and last progress reading of each interval."""
+    intervals: dict[tuple[float, int], list[dict]] = {}
+    for reading in progress:
+        intervals.setdefault((reading['session_started'], reading['interval_start_step']), []).append(reading)
+    updates = seconds = 0.0
+    for readings in intervals.values():
+        updates += readings[-1]['step'] - readings[0]['step']
+        seconds += readings[-1]['updated_at'] - readings[0]['updated_at']
+    return updates / seconds
+
+
+def recorded_hours(run: PilotRun, last_step: int) -> float:
+    """Training, validation and event-scoring time recorded up to a check; start-up time is not recorded."""
+    return sum(check['seconds'] for check in run.history if check['steps'] <= last_step) / 3600
 
 
 def available_samplings(scores: dict, members: list[PilotRun], tolerance: str) -> list[tuple[int, int]]:
@@ -432,71 +375,6 @@ def sampling_label(sampling: tuple[int, int]) -> str:
     return f'stride {stride}, offset {offset}'
 
 
-def video_system_label(rate: float, seed_count: int, sampling: tuple[int, int]) -> str:
-    return f'VideoMAE-B test, {sampling_label(sampling)}\nLR {rate_label(rate)} ({seed_count} seeds)'
-
-
-def stride_figure(scores: dict, members: list[PilotRun], colours: dict[float, str], group_labels: list[str],
-                  title: str, notes: tuple[str, ...], out: Path, stem: str) -> None:
-    """Compare only the dense and stride conditions present in the score file."""
-    figure, axes_grid = plt.subplots(3, 2, figsize=(12, 11.5), facecolor=SURFACE)
-    groups = np.arange(len(members))
-    samplings = available_samplings(scores, members, TOLERANCE)
-    stride_samplings = [sampling for sampling in samplings if sampling != (1, 0)]
-    if len(stride_samplings) == 3:
-        stride_shifts = (0.02, 0.13, 0.24)
-    elif len(stride_samplings) == 1 and (1, 0) not in samplings:
-        stride_shifts = (0.0,)
-    else:
-        first_shift, last_shift = ((0.02, 0.24) if (1, 0) in samplings else (-0.12, 0.12))
-        stride_shifts = np.linspace(first_shift, last_shift, len(stride_samplings))
-    for panel_row, panels in zip(axes_grid, STRIDE_PANELS, strict=True):
-        for axes, (metric, rule, panel_title) in zip(panel_row, panels, strict=True):
-            style_axes(axes, 'y')
-            for group, run in zip(groups, members, strict=True):
-                colour = colours[run.learning_rate]
-                if (1, 0) in samplings:
-                    dense = scores[run.name, 1, 0, rule, TOLERANCE][metric]
-                    axes.plot([group - 0.32, group + 0.32], [dense, dense], color=MUTED, linewidth=0.9,
-                              linestyle=':')
-                    axes.scatter(group - 0.16, dense, s=80, color=colour, marker='o', edgecolor=SURFACE, zorder=3)
-                for (stride, offset), shift in zip(stride_samplings, stride_shifts, strict=True):
-                    value = scores[run.name, stride, offset, rule, TOLERANCE][metric]
-                    axes.scatter(group + shift, value, s=48, facecolor=SURFACE, edgecolor=colour, marker='^',
-                                 linewidth=1.6, zorder=3)
-            axes.set_xticks(groups, group_labels, fontsize=9.5)
-            axes.set_xlim(-0.6, len(members) - 0.4)
-            axes.set_title(panel_title, fontsize=10.5, color=TEXT, loc='left')
-        low = min(axes.dataLim.y0 for axes in panel_row)
-        high = max(axes.dataLim.y1 for axes in panel_row)
-        margin = 0.08 * (high - low)
-        for axes in panel_row:
-            axes.set_ylim(low - margin, high + margin)
-    handles = []
-    if (1, 0) in samplings:
-        handles.append(Line2D([], [], color=MUTED, marker='o', markersize=8, linestyle='none',
-                              label='Dense: every frame'))
-    if stride_samplings == [(3, 0), (3, 1), (3, 2)]:
-        handles.append(Line2D([], [], color=MUTED, marker='^', markersize=7, markerfacecolor=SURFACE,
-                              linestyle='none', label='Stride 3: offsets 0, 1 and 2, left to right'))
-    else:
-        handles.extend(Line2D([], [], color=MUTED, marker='^', markersize=7, markerfacecolor=SURFACE,
-                               linestyle='none', label=f'Stride {stride}, offset {offset}')
-                       for stride, offset in stride_samplings)
-    if (1, 0) in samplings:
-        handles.append(Line2D([], [], color=MUTED, linestyle=':', label='Dense level, for reference'))
-    rates = sorted({run.learning_rate for run in members})
-    handles += [Line2D([], [], color=colours[rate], marker='s', linestyle='none', label=f'Head LR {rate_label(rate)}')
-                for rate in rates]
-    figure.suptitle(title, fontsize=13, color=TEXT, x=0.01, ha='left')
-    figure.legend(handles=handles, loc='upper left', bbox_to_anchor=(0.01, 0.955), ncol=3, frameon=False, fontsize=9.5)
-    note_height = 0.018
-    for index, note in enumerate(reversed(notes)):
-        figure.text(0.01, 0.01 + index * note_height, note, fontsize=9, color=MUTED)
-    figure.tight_layout(rect=(0, 0.015 + len(notes) * note_height, 1, 0.925), h_pad=2.2)
-    save(figure, out, stem)
-
-
 def seed_scores(paths: list[Path], tolerance: str) -> dict[str, list[float]]:
     scores: dict[str, list[float]] = {metric: [] for metric, _title in METRICS}
     for path in paths:
@@ -509,21 +387,42 @@ def seed_scores(paths: list[Path], tolerance: str) -> dict[str, list[float]]:
     return scores
 
 
-def test_systems(videomae_paths: list[Path], results: Path, monotrack_summary: Path, rate: float,
-                 sampling: tuple[int, int], tolerance: str) -> list[DotRow]:
+def test_systems(videomae_paths: list[Path], results: Path, monotrack_summary: Path, tolerance: str) -> list[DotRow]:
     """VideoMAE's selected seeds beside X3D-M, our annotator and MonoTrack, all given the rally bounds."""
     summary = read_json(monotrack_summary)['summary']
     systems = [
-        DotRow(video_system_label(rate, len(videomae_paths), sampling), VIDEOMAE_COLOUR, '^',
+        DotRow('VideoMAE (base)', VIDEOMAE_COLOUR, '^',
                seed_scores(videomae_paths, tolerance)),
-        DotRow('X3D-M, selected configuration (2 seeds)', X3D_COLOUR, 'D',
-               seed_scores(sorted((results / 'x3d_test').glob('seed*/events.json.gz')), tolerance)),
+        DotRow('X3D-M', X3D_COLOUR, 'D',
+               sampling_scores(results / 'x3d_stride3' / 'test', tolerance)),
     ]
-    for key, label, colour, marker in (('annotator_our_courts', 'Our annotator, our courts', ANNOTATOR_COLOUR, 'o'),
-                                       ('monotrack_own_courts', 'MonoTrack, its own courts', MONOTRACK_COLOUR, 's')):
+    for key, label, colour, marker in (('annotator_our_courts', 'Our annotator', ANNOTATOR_COLOUR, 'o'),
+                                       ('monotrack_own_courts', 'MonoTrack', MONOTRACK_COLOUR, 's')):
         scores = {metric: summary[key][tolerance][MONOTRACK_METRICS[metric]]['runs'] for metric, _title in METRICS}
-        systems.append(DotRow(f'{label} ({len(scores["fully_correct_percent"])} seeds)', colour, marker, scores))
+        systems.append(DotRow(label, colour, marker, scores))
     return systems
+
+
+def validation_figure(runs: list[PilotRun], scores: dict, selected_rate: float, out: Path) -> None:
+    """Compare every learning rate on the same stride-three validation centres."""
+    groups: dict[float, list[PilotRun]] = {}
+    for run in runs:
+        groups.setdefault(run.learning_rate, []).append(run)
+    rows = []
+    colours = (ANNOTATOR_COLOUR, MONOTRACK_COLOUR, TRIAL_COLOUR)
+    for index, (rate, members) in enumerate(sorted(groups.items())):
+        label = f'LR {rate_label(rate)}' + (' (selected)' if rate == selected_rate else '')
+        values = {metric: [scores[run.name, 3, 0, 'alternating', TOLERANCE][metric] for run in members]
+                  for metric, _title in METRICS}
+        rows.append(DotRow(label, colours[index], 'D' if len(members) == 1 else 'o', values))
+    notes = (
+        'Stride 3, offset 0; enforced alternation; given rally bounds; contact tolerance ±10 frames at 30 fps.',
+        'Dots: seed mean; lines: seed range. LR 3.125e-5 and 1e-4: two seeds each. LR 5e-4: seed 0 only.',
+        'All configurations use positive centres within ±1 frame and 50% contact clips per batch.',
+    )
+    rallies, contacts = validation_population(runs)
+    dot_plot(rows, f'VideoMAE (base) validation: 8 videos, {rallies:,} rallies, {contacts:,} labelled hits',
+             notes, out / 'videomae_validation.png')
 
 
 def print_validation_tables(runs: list[PilotRun], ranking: list[list[PilotRun]], selected: bool,
@@ -537,7 +436,7 @@ def print_validation_tables(runs: list[PilotRun], ranking: list[list[PilotRun]],
               f"| {run.selected['validation']['loss']:.4f} | {run.score('fully_correct_percent'):.2f} "
               f"| {run.score('correct_player_f1'):.2f} | {run.score('contact_f1'):.2f} |")
     print(f"\nLearning-rate ranking ({'selected by the queue' if selected else 'provisional'}):\n")
-    print('| Rank | Head LR | Fully correct rallies (%), seed 0 / 1 / mean | Correct-player F1 (%), seed 0 / 1 / mean '
+    print('| Rank | LR | Fully correct rallies (%), seed 0 / 1 / mean | Correct-player F1 (%), seed 0 / 1 / mean '
           '| Contact F1 (%), mean | Selected checkpoints |')
     print('|---:|---|---:|---:|---:|---|')
     for rank, members in enumerate(ranking, start=1):
@@ -578,7 +477,61 @@ def print_test_table(systems_by_tolerance: dict[str, list[DotRow]]) -> None:
         for system in systems:
             cells = [f'{np.mean(system.scores[metric]):.2f} ({min(system.scores[metric]):.2f}–'
                      f'{max(system.scores[metric]):.2f})' for metric, _title in METRICS]
-            print(f"| ±{tolerance} frames | {system.label} | {' | '.join(cells)} |")
+            # Figure labels wrap onto two lines; a Markdown table cell must stay on one.
+            label = system.label.replace('\n', ', ')
+            print(f"| ±{tolerance} frames | {label} | {' | '.join(cells)} |")
+
+
+def print_trial_tables(runs: list[PilotRun], trial: PilotRun, reference: list[PilotRun], scores: dict,
+                       frame: dict) -> None:
+    """Every run at the trial's sampling, then training time for the trial and the selected learning rate."""
+    stride, offset = validation_sampling(trial)
+    print(f'\nValidation at stride {stride}, offset {offset}, each run at its selected checkpoint, '
+          f'±{TOLERANCE} frames:\n')
+    print('| Run | Selected (updates) | Validation loss | Macro F1 | Contact recall (%) | Contact precision (%) '
+          '| Contact F1 (%) | Raw player F1 (%) | Alternating player F1 (%) | Fully correct rallies (%) |')
+    print('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|')
+    for run in [*runs, trial]:
+        raw = scores[run.name, stride, offset, 'raw', TOLERANCE]
+        alternating = scores[run.name, stride, offset, 'alternating', TOLERANCE]
+        frame_row = frame[run.name, stride, offset]
+        print(f"| {run.label} | {run.selected['steps']:,} | {frame_row['cross_entropy']:.4f} "
+              f"| {frame_row['macro_f1']:.4f} | {raw['contact_recall']:.2f} | {raw['contact_precision']:.2f} "
+              f"| {raw['contact_f1']:.2f} | {raw['correct_player_f1']:.2f} | {alternating['correct_player_f1']:.2f} "
+              f"| {alternating['fully_correct_percent']:.2f} |")
+    print('\nTraining time. Recorded hours cover training, validation and event scoring at each check:\n')
+    print('| Run | Validation sampling | Selected (updates) | Last check (updates) | Recorded hours to selected '
+          '| Recorded hours to last check | Training updates per second | Estimated validation minutes per check |')
+    print('|---|---|---:|---:|---:|---:|---:|---:|')
+    for run in [*reference, trial]:
+        rate = training_rate(run.progress)
+        last_step = run.history[-1]['steps']
+        total_seconds = recorded_hours(run, last_step) * 3600
+        validation_minutes = (total_seconds - last_step / rate) / len(run.history) / 60
+        print(f"| {run.label} | {sampling_label(validation_sampling(run))} | {run.selected['steps']:,} "
+              f"| {last_step:,} | {recorded_hours(run, run.selected['steps']):.2f} | {total_seconds / 3600:.2f} "
+              f"| {rate:.2f} | {validation_minutes:.1f} |")
+
+
+def draw_test_results(args: argparse.Namespace, chosen: list[PilotRun]) -> None:
+    """Draw the shared test comparison and retain detailed scores in tables."""
+    paths = [args.results / 'videomae_test' / f'seed{run.seed}' / 'events.json.gz' for run in chosen]
+    sampling = test_sampling(paths)
+    systems = {tolerance: test_systems(paths, args.results, args.monotrack_summary, tolerance)
+               for tolerance in (TOLERANCE, '5')}
+    print_test_table(systems)
+    notes = (
+        (f'VideoMAE: LR {rate_label(chosen[0].learning_rate)}, stride {sampling[0]}, offset {sampling[1]}. '
+         'X3D-M: LR 0.02, stride 3, offset 0. Both: ±1-frame positives, 50% contact clips.'),
+        'All systems: given rally bounds, enforced alternation, contact tolerance ±10 frames at 30 fps.',
+        ('Dots: seed mean; lines: seed range. Video models: 2 seeds each; '
+         'annotator and MonoTrack: 5 each, using their own courts.'),
+    )
+    dot_plot(systems[TOLERANCE], f'Test: 46 videos, {TEST_RALLIES:,} rallies, {TEST_CONTACTS:,} labelled hits',
+             notes, args.out / 'test_comparison.png')
+    test_scores = read_scores(args.results / 'videomae_stride3' / 'test_scores.csv.gz', chosen)
+    for tolerance in (TOLERANCE, '5'):
+        print_stride_table(test_scores, chosen, tolerance)
 
 
 def main() -> None:
@@ -595,47 +548,26 @@ def main() -> None:
     selected = selection_path.exists()
     if selected:
         check_selection(ranking, read_json(selection_path))
-    populations = validation_population(runs)
-    x3d_best = rank_configurations(load_x3d_runs(args.results / 'x3d_pilot'))[0]
-    if validation_population(runs) != (x3d_best.runs[0].selected['events'][TOLERANCE]['rallies'],
-                                       x3d_best.runs[0].selected['events'][TOLERANCE]['labelled']):
-        raise ValueError('X3D-M and VideoMAE-B were validated on different populations')
-    x3d_row = DotRow('X3D-M, selected configuration', X3D_COLOUR, 'D',
-                     {metric: x3d_best.scores(metric) for metric, _title in METRICS})
     validation_scores = read_scores(args.results / 'videomae_stride3' / 'validation_scores.csv.gz', runs)
     print_validation_tables(runs, ranking, selected, validation_scores)
-    selection_figure(ranking, selected, x3d_row, populations, args.out)
     training_figure(runs, args.out)
-    validation_events_figure(runs, args.out)
-    rallies, contacts = populations
-    stride_figure(validation_scores, runs, lr_colours(runs), [run.label.replace(', ', '\n') for run in runs],
-                  f'VideoMAE-B validation: dense versus every third frame, {rallies:,} rallies, {contacts:,} hits',
-                  VALIDATION_STRIDE_NOTES, args.out, 'videomae_fig4_stride_validation')
-    test_directory = args.results / 'videomae_test'
-    if not test_directory.exists():
-        print('\nTest results: pending. Run rescore_videomae.py with --test-index once both test seeds finish.')
-        return
-    if not selected:
-        raise ValueError('Test results exist without the queue selection that chose their checkpoints')
     chosen = ranking[0]
-    paths = [test_directory / f'seed{run.seed}' / 'events.json.gz' for run in chosen]
-    test_sampling_condition = test_sampling(paths)
-    systems = {tolerance: test_systems(paths, args.results, args.monotrack_summary, chosen[0].learning_rate,
-                                       test_sampling_condition, tolerance)
-               for tolerance in (TOLERANCE, '5')}
-    print_test_table(systems)
-    for suffix in ('.png', '.svg'):
-        dot_plot(systems[TOLERANCE], f'Held-out test: 46 ShuttleSet22 videos, {TEST_RALLIES:,} rallies, '
-                 f'{TEST_CONTACTS:,} labelled hits',
-                 TEST_COMPARISON_NOTES, args.out / f'videomae_fig5_test_comparison{suffix}')
-    test_scores = read_scores(args.results / 'videomae_stride3' / 'test_scores.csv.gz', chosen)
-    for tolerance in (TOLERANCE, '5'):
-        print_stride_table(test_scores, chosen, tolerance)
-    stride_figure(test_scores, chosen, lr_colours(runs),
-                  [f'Seed {run.seed}\nselected at {run.selected["steps"] // 1000}k' for run in chosen],
-                  f'VideoMAE-B held-out test: {sampling_label(test_sampling_condition)}, '
-                  f'{TEST_RALLIES:,} rallies',
-                  TEST_STRIDE_NOTES, args.out, 'videomae_fig6_stride_test')
+    test_directory = args.results / 'videomae_test'
+    if test_directory.exists():
+        if not selected:
+            raise ValueError('Test results exist without the queue selection that chose their checkpoints')
+        draw_test_results(args, chosen)
+    else:
+        print('\nTest results: pending. Run rescore_videomae.py with --test-index once both test seeds finish.')
+    trial_directory = args.results / 'videomae_lr5e4'
+    if trial_directory.exists():
+        (trial,) = load_runs(trial_directory)
+        trial_scores = read_scores(trial_directory / 'validation_scores.csv.gz', [trial])
+        frame = read_frame_scores(trial_directory / 'frame_scores.csv.gz', [*runs, trial])
+        print_trial_tables(runs, trial, chosen, {**validation_scores, **trial_scores}, frame)
+        runs = [*runs, trial]
+        validation_scores = {**validation_scores, **trial_scores}
+    validation_figure(runs, validation_scores, chosen[0].learning_rate, args.out)
 
 
 if __name__ == '__main__':

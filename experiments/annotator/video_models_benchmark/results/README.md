@@ -1,6 +1,6 @@
 # Video-model validation and test results
 
-X3D-M records come first; [VideoMAE-B records](#videomae-b-pilot) follow.
+X3D-M records come first; [VideoMAE (base) records](#videomae-b-pilot) follow.
 
 Each directory under [`x3d_pilot/`](x3d_pilot/) is one training run, named
 `{scheme}-contact{percent}-lr{rate}-seed{seed}`. We keep all 12 runs,
@@ -25,7 +25,7 @@ covers the same 668 validation rallies and 5,696 labelled hits.
 The two selected checkpoints are in [`../weights/`](../weights/README.md).
 Other checkpoints and per-frame probabilities are not included.
 
-## Held-out test results
+## Test results
 
 [`x3d_test/`](x3d_test/) contains `seed0/` and `seed1/`, evaluated using the
 selected ±1-frame-positive, 50%-contact, LR 0.02 checkpoints at 25,000 and
@@ -37,10 +37,23 @@ labelled hits. Settings and checkpoint selection were fixed before testing.
 | `events.json.gz` | Aggregate contact F1, correct-player F1 and fully correct rally scores at ±5 and ±10 frames, with supporting counts; decoded event predictions grouped by video and rally. |
 | `frame_metrics.json.gz` | Test cross-entropy, macro F1 and frame confusion matrix, using the same class order as the validation histories. |
 
-The [report](../x3d_results.md#held-out-test-comparison) compares the two seeds
+The [report](../x3d_results.md#test-comparison) compares the two seeds
 with the five-seed supplied-boundary annotator and MonoTrack results.
 
 ## Other files
+
+### X3D at stride three
+
+[`x3d_stride3/`](x3d_stride3/) contains `validation/seed0`, `validation/seed1`,
+`test/seed0` and `test/seed1`. Each `scores.json.gz` records the selected checkpoint,
+stride 3, offset 0, and event counts and scores with enforced alternation.
+Validation directories also include `frame_metrics.json.gz`.
+
+Validation used native stride-three inference. Test scores were derived from
+the saved dense probability arrays. Both use the original validation-selected
+LR 0.02 checkpoints with ±1-frame positives and 50% contact clips per batch.
+
+### Development and timing
 
 | File | Contents |
 |---|---|
@@ -51,7 +64,7 @@ with the five-seed supplied-boundary annotator and MonoTrack results.
 
 Each run keeps its lowest-validation-loss check, the earliest on a tie. Scores
 are at ±10 frames. The selected configuration's two runs, in bold, are the
-checkpoints used for the held-out test evaluation.
+checkpoints used for the test evaluation.
 
 | Run | Selected (updates) | Last check (updates) | Validation loss | Fully correct rallies (%) | Correct-player F1 (%) |
 |---|---:|---:|---:|---:|---:|
@@ -73,7 +86,7 @@ different frames as contacts. B-contact50-lr0.02-seed1 had already gone three
 checks without improvement at 30,000 updates, so its continuation stopped
 before any further training.
 
-## VideoMAE-B pilot
+## VideoMAE (base) pilot
 
 Each directory under [`videomae_pilot/`](videomae_pilot/) is one training run,
 named `videomae-lr{rate}-seed{seed}`. Each holds the same four files as an X3D-M
@@ -83,10 +96,11 @@ the [run guide](../VIDEOMAE.md). Every check covers the same 668 validation
 rallies and 5,696 labelled hits as X3D-M. The write-up is
 [`../videomae_results.md`](../videomae_results.md).
 
-After all four runs finish, `videomae_pilot/selection.json.gz` records the
-queue's learning-rate ranking and each run's selected checkpoint. Test outputs
-for both selected seeds then go in `videomae_test/seed0/` and
-`videomae_test/seed1/`, with the same two files as `x3d_test/`.
+`videomae_pilot/selection.json.gz` records the queue's learning-rate ranking
+and each run's selected checkpoint. [`videomae_test/`](videomae_test/) contains
+`seed0/` and `seed1/`, evaluated using the selected LR 1e-4 checkpoints at
+55,000 and 40,000 updates respectively, with the same two files as `x3d_test/`.
+Both cover the same 46 videos, 3,327 rallies and 37,184 labelled hits as X3D-M.
 
 [`videomae_stride3/validation_scores.csv.gz`](videomae_stride3/validation_scores.csv.gz)
 has one row per run, sampling, hitter rule and tolerance. Columns:
@@ -101,9 +115,35 @@ has one row per run, sampling, hitter rule and tolerance. Columns:
 | `labelled`, `predicted`, `matched`, `correct_player`, `rallies`, `fully_correct` | Counts behind the scores |
 | `contact_recall`, `contact_precision`, `contact_f1`, `correct_player_f1`, `fully_correct_percent` | Scores in percent |
 
-`test_scores.csv.gz` will use the same columns for the two test seeds.
-VideoMAE test inference uses stride 3, offset 0, so only that condition is available
-for test rescoring. Test event and frame-metric records include `sampling` metadata;
-frame metrics cover sampled centres, while event scores retain all contacts and rallies.
+[`videomae_stride3/test_scores.csv.gz`](videomae_stride3/test_scores.csv.gz)
+uses the same columns for the two test seeds. VideoMAE test inference used
+stride 3, offset 0, so the file has only that sampling; skipped frames hold
+no-contact placeholders, not model predictions. Test event and frame-metric
+records include `sampling` metadata; frame metrics cover sampled centres, while
+event scores retain all contacts and rallies.
+The figure script's printed tables are in
+[`videomae_stride3/tables.md`](videomae_stride3/tables.md).
 [`videomae_timing/`](videomae_timing/) holds the batch-size throughput measurements.
 Checkpoints and per-frame probabilities are not included.
+
+### Learning rate 5e-4 trial
+
+[`videomae_lr5e4/`](videomae_lr5e4/) holds one extra validation-only run at
+learning rate 5e-4, seed 0. It is not part of the learning-rate selection and has
+no test scores.
+
+| File | Contents |
+|---|---|
+| `videomae-lr0.0005-seed0/` | The same four files as each pilot run. Validation checks score stride 3, offset 0 only; each history entry's `sampling` records this. |
+| `validation_scores.csv.gz` | The run's selected checkpoint rescored at stride 3, offset 0, with the same columns as `videomae_stride3/validation_scores.csv.gz`. |
+| `frame_scores.csv.gz` | Validation cross-entropy and macro F1 for all five runs at their selected checkpoints: at stride 3, offset 0 for every run, and over every centre for the four pilot runs. |
+
+`frame_scores.csv.gz` columns:
+
+| Column | Meaning |
+|---|---|
+| `split`, `run`, `learning_rate`, `seed`, `best_step` | As in the score files above |
+| `stride`, `offset` | 1 and 0 for every centre; 3 and 0 for every third video frame |
+| `scored_centres` | Centres in the loss: those on the sampling grid, leaving out centres two frames from a hit |
+| `cross_entropy` | Mean validation cross-entropy over the scored centres |
+| `macro_f1` | Mean of the three per-class frame F1 scores (no contact, bottom player, top player) |
