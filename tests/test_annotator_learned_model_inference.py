@@ -78,7 +78,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     selected = {event.frame: event for event in context.events}
     assert selected[220].side is not None
     assert selected[220].wrist_distances == (0.5, 0.8)
-    earlier = {event.frame: event for event in context.candidates_by_span[0]}
+    earlier = {event.frame: event for event in context.shortlisted_by_span[0]}
     assert earlier[160].side is None
     assert earlier[170].side is None
     assert earlier[160].wrist_distances is None
@@ -136,7 +136,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == [10, 80]
     for context, matrix in zip((training.context, inference.refined.pool.context), scored_matrices, strict=True):
-        candidate_frames = [event.frame for event in context.candidates_by_span[0]]
+        candidate_frames = [event.frame for event in context.shortlisted_by_span[0]]
         assert candidate_frames == [1, 40, 60]
         assert set(context.physical_by_frame) == {1, 10, 40, 60, 80}
         for physical in context.physical_by_frame.values():

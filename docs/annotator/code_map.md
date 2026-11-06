@@ -27,6 +27,9 @@ prepare the initial rallies and shortlisted contacts, then build the alternative
 and their model rows. Both inference and training use these two steps.
 The shortlisting rules follow the two builders in the same file, then
 `toggle_proposals()` defines contact edits, duplicate removal and ordering.
+`shortlisted_by_span` contains possible additions to each rally. Unused-contact
+features consider that shortlist and every contact in any proposal, including stream contacts
+absorbed when an earlier serve extends a rally.
 The detailed feature calculations come afterwards in the same file, including
 contact probabilities, spacing, raw player-side agreement and unused candidates.
 
@@ -40,6 +43,11 @@ selected proposal’s raw player guesses and final rally bounds, calling
 All three trees use `positive_probabilities()` in
 [contacts/model.py](../../src/annotator/contacts/model.py). It reads the class-1
 probability from trees fitted on labels 0 and 1.
+
+Preparation uses supplied rally bounds unchanged. With supplied contacts and no
+bounds, it finds bounds on the original track. With neither supplied, it finds
+bounds on the track after dead-time masking. Replay-mask estimation also uses
+original-track bounds when needed.
 
 `heuristic_only=True` uses the same preparation, then selects rule-based contacts
 and fits their player order before outcome estimation. Supplying `spans` lets

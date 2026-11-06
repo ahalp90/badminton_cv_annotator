@@ -70,7 +70,7 @@ class RallyContext:
     fps: float
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
-    candidates_by_span: dict[int, tuple[ContactEvent, ...]]
+    shortlisted_by_span: dict[int, tuple[ContactEvent, ...]]
     physical_by_frame: dict[int, np.ndarray]
     frame_count: int | None = None
     bounds_supplied: bool = False
@@ -101,7 +101,7 @@ def build_rally_context(
     initial = initial_sequences(evidence.heuristic_spans, events)
     contacts_by_frame = {event.frame: event for event in events}
     used_rows = set(contacts.kept_indices)
-    candidates_by_span = {}
+    shortlisted_by_span = {}
     previous_end = -1
     for before in initial:
         serve_rows = shortlist_serve_rows(before, contacts, evidence.fps, previous_end=previous_end)
@@ -114,7 +114,7 @@ def build_rally_context(
             # Retained contacts already have player evidence; attribute only additions.
             if frame not in contacts_by_frame:
                 contacts_by_frame[frame] = event_for_row(row)
-        candidates_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
+        shortlisted_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
         previous_end = before.end_frame
     selected_rows = sorted(used_rows)
     selected_frames = contacts.candidates['frame'][selected_rows]
@@ -123,7 +123,7 @@ def build_rally_context(
     physical_rows = contacts.feature_matrix[selected_rows]
     physical_by_frame = {int(frame): physical for frame, physical in zip(selected_frames, physical_rows, strict=True)}
     return RallyContext(
-        evidence.fps, initial, events, candidates_by_span, physical_by_frame,
+        evidence.fps, initial, events, shortlisted_by_span, physical_by_frame,
         frame_count=len(evidence.track), bounds_supplied=evidence.bounds_supplied,
     )
 
@@ -139,21 +139,22 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
     for before in context.initial:
-        candidates = context.candidates_by_span.get(before.span_id, ())
-        earliest = min((before.start_frame, *(event.frame for event in candidates)))
+        shortlisted = context.shortlisted_by_span.get(before.span_id, ())
+        earliest = min((before.start_frame, *(event.frame for event in shortlisted)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
         earliest_start = before.start_frame if context.bounds_supplied else previous_end
         proposals = toggle_proposals(
-            before, candidates, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
+            before, shortlisted, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
         )
-        evidence = {event.frame: event for sequence in proposals for event in sequence.events}
-        evidence.update((event.frame, event) for event in candidates)
-        evidence_candidates = tuple(evidence[frame] for frame in sorted(evidence))
+        # An earlier serve can absorb stream contacts; include them in unused-contact features.
+        considered_by_frame = {event.frame: event for sequence in proposals for event in sequence.events}
+        considered_by_frame.update((event.frame, event) for event in shortlisted)
+        considered_contacts = tuple(considered_by_frame[frame] for frame in sorted(considered_by_frame))
         before_summary, before_sides = sequence_summary(before, context.fps), side_agreement(before)
         start_row = len(sequences)
         for after in proposals:
             sequences.append(after)
-            matrices.append(option_features(before, after, evidence_candidates, context, before_summary, before_sides))
+            matrices.append(option_features(before, after, considered_contacts, context, before_summary, before_sides))
         span_rows[before.span_id] = np.arange(start_row, len(sequences), dtype=np.int64)
         previous_end = before.end_frame
     matrix = np.asarray(matrices, dtype=np.float32).reshape(len(sequences), len(FEATURE_NAMES))
@@ -196,7 +197,7 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     frames = scores.candidates["frame"].astype(np.int64)
     eligible = (frames > sequence.events[0].frame) & (frames < sequence.end_frame)
-    rows = np.flatnonzero(eligible & np.isfinite(scores.probabilities))
+    rows = np.flatnonzero(eligible)
     return strongest_spaced_rows(
         rows, frames, scores.probabilities, distance,
         limit=LATER_CONTACT_CANDIDATES, taken_frames=[event.frame for event in sequence.events],
@@ -204,13 +205,13 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
 
 
 def toggle_proposals(
-    before: ContactSequence, candidates: tuple[ContactEvent, ...], stream: tuple[ContactEvent, ...],
+    before: ContactSequence, shortlisted: tuple[ContactEvent, ...], stream: tuple[ContactEvent, ...],
     earliest_start: int, distance: int, max_edits: int, deletion_candidates: int,
 ) -> list[ContactSequence]:
     """Return unique alternatives, unchanged first and then fewest contact edits."""
     original_frames = tuple(event.frame for event in before.events)
     original_set = set(original_frames)
-    additions = tuple(event for event in candidates
+    additions = tuple(event for event in shortlisted
                       if event.frame not in original_set and event.frame < before.end_frame)
     deletions = []
     if before.events and deletion_candidates:
@@ -242,7 +243,7 @@ def toggle_proposals(
 
 
 def option_features(
-    before: ContactSequence, after: ContactSequence, candidates: tuple[ContactEvent, ...],
+    before: ContactSequence, after: ContactSequence, considered_contacts: tuple[ContactEvent, ...],
     context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
 ) -> np.ndarray:
     """Measure a proposed contact sequence against the initial rally evidence."""
@@ -257,7 +258,7 @@ def option_features(
         after.events[0].frame if after.events else None,
         None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
     )
-    unused_features, unused_frame = unused_evidence(after, candidates, context.fps)
+    unused_features, unused_frame = unused_evidence(after, considered_contacts, context.fps)
     return np.concatenate((
         before_summary,
         sequence_summary(after, context.fps),
@@ -342,7 +343,7 @@ def physical_or_nan(physical: Mapping[int, np.ndarray], frame: int | None) -> np
 
 
 def unused_evidence(
-    after: ContactSequence, candidates: tuple[ContactEvent, ...], fps: float,
+    after: ContactSequence, considered_contacts: tuple[ContactEvent, ...], fps: float,
 ) -> tuple[tuple[float, ...], int | None]:
     """Measure omitted contacts and the gaps where another contact could fit.
 
@@ -351,7 +352,7 @@ def unused_evidence(
     """
     frames = np.asarray([event.frame for event in after.events], dtype=np.int64)
     chosen = set(frames.tolist())
-    unused = tuple(event for event in candidates if event.frame not in chosen)
+    unused = tuple(event for event in considered_contacts if event.frame not in chosen)
     durations = np.diff([after.start_frame, *frames.tolist(), after.end_frame])
     positive_gaps = set(np.flatnonzero(durations > 0).tolist())
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)

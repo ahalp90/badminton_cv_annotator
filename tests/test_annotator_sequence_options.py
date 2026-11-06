@@ -89,7 +89,7 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
         (120, 0, .1, False),
         (130, 0, .2, False),
         (140, 0, .3, False),
-        (150, 0, np.nan, False),
+        (150, 0, .01, False),
         (160, 0, .4, False),
         (170, 0, .5, False),
         (180, 0, .05, False),

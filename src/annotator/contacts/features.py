@@ -95,7 +95,8 @@ def build_contact_features(
     :param scene_spans: Half-open scene spans in chronological order.
     :param fps: Source video frame rate.
     :param resolution: Source width and height in pixels.
-    :return: Candidate rows ready for scoring or training, and their search intervals.
+    :return: One candidate row per nominated frame, sorted by frame, and their
+        search intervals.
     """
     if exclusion_mask.shape != (len(track),) or exclusion_mask.dtype != np.bool_:
         raise ValueError("exclusion mask must match the shuttle timeline")
