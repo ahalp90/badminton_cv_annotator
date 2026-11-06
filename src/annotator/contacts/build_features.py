@@ -15,9 +15,9 @@ from typing import NamedTuple
 import numpy as np
 
 from annotator.array_calc_helpers import true_runs
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.contacts.heuristics import span_impulses
 from annotator.types import WRIST_L, WRIST_R, SmoothingMode, TrackedPlayers, WristGaps
+from shared.frame_timing import frames_at_fps
 from shared.progress import progress_iter
 
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
@@ -197,12 +197,14 @@ def build_shuttle_signals(
     speed = np.hypot(vx, vy)
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
-    # Learned motion features retain their training defaults when heuristic settings change.
-    thresholds = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
+    smooth_window = frames_at_fps(3, fps)
+    impulse_floor_half_window = frames_at_fps(12, fps)
     for start, end in spans:
-        # The tree was trained on zero-filled impulse smoothing, including invisible
-        # shuttle rows. Changing it to ignore missing rows changes model inputs.
-        measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        measured = span_impulses(
+            track, start, end, smooth_window=smooth_window,
+            impulse_floor_half_window=impulse_floor_half_window,
+            smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE,
+        )
         if measured is None:
             continue
         magnitudes, ratios, _visible = measured

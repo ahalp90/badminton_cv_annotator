@@ -9,13 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import (
-    BaseAnnotatorConfig,
-    Thresholds,
-    frames_at_fps,
-    scale_config_to_fps,
-    speed_at_fps,
-)
+from annotator.config import BaseAnnotatorConfig, Thresholds, scale_config_to_fps
 from annotator.contacts.player_attribution import contact_player_evidence
 from annotator.courts.frame_geometry import SceneCourt
 from annotator.excluded_frames.replay import combine_mask, court_absence_signal
@@ -29,8 +23,10 @@ from annotator.rally_results.landing_and_winner import (
     pick_landing_to_end,
 )
 from annotator.types import CourtHalf
+from shared.camera_cuts import MIN_SCENE_FRAMES_AT_30_FPS
+from shared.frame_timing import frames_at_fps, speed_at_fps
 from shared.video_metadata import probe_fps
-from tests.annotator_config import burst_config
+from tests.annotator_config import trajectory_config
 
 
 def test_scaled_thresholds_has_base_30_identity_for_every_scaled_row() -> None:
@@ -40,26 +36,24 @@ def test_scaled_thresholds_has_base_30_identity_for_every_scaled_row() -> None:
     assert values.start_speed == 0.014999999999999998
     assert (
         values.rest_window, values.start_min_frames, values.smooth_window,
-        values.end_rest_frames, values.court_absent_window, values.replay_mask_min_frames,
+        values.end_rest_frames, values.replay_mask_min_frames,
         values.impulse_floor_half_window_frames, values.contact_dedup_radius_frames,
         values.contact_suppression_radius_frames,
         values.sustained_loss_frames,
         values.min_descend_samples, values.body_unit_half_window,
-        values.composition_min_scene_len,
-    ) == (5, 3, 3, 90, 15, 15, 12, 3, 9, 10, 3, 12, 15)
+    ) == (5, 3, 3, 90, 15, 12, 3, 9, 10, 3, 12)
 
     values25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
     assert values25.rest_speed == 0.0024
     assert values25.start_speed == 0.018
     assert (
         values25.rest_window, values25.start_min_frames, values25.smooth_window,
-        values25.end_rest_frames, values25.court_absent_window, values25.replay_mask_min_frames,
+        values25.end_rest_frames, values25.replay_mask_min_frames,
         values25.impulse_floor_half_window_frames, values25.contact_dedup_radius_frames,
         values25.contact_suppression_radius_frames,
         values25.sustained_loss_frames,
         values25.min_descend_samples, values25.body_unit_half_window,
-        values25.composition_min_scene_len,
-    ) == (4, 3, 3, 75, 13, 13, 10, 3, 8, 8, 3, 10, 13)
+    ) == (4, 3, 3, 75, 13, 10, 3, 8, 8, 3, 10)
 
 
 def test_scaled_thresholds_half_up_spots_and_floor_one() -> None:
@@ -68,13 +62,10 @@ def test_scaled_thresholds_half_up_spots_and_floor_one() -> None:
     assert values50.impulse_floor_half_window_frames == 20
     assert values60.contact_dedup_radius_frames == 6
     assert values60.contact_suppression_radius_frames == 18
-    assert values60.composition_min_scene_len == 30
-    assert values60.court_absent_window == 30
     assert values60.replay_mask_min_frames == 30
     assert scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.contact_suppression_radius_frames == 8
-    assert scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window == 13
     assert scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.replay_mask_min_frames == 13
-    assert scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.composition_min_scene_len == 13
+    assert frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, 25.0) == 13
     assert scale_config_to_fps(BaseAnnotatorConfig(), 1.0).thresholds.start_min_frames == 1
 
 
@@ -84,18 +75,16 @@ def test_resolution_scales_body_unit_window() -> None:
     assert scale_config_to_fps(base, 50.0).thresholds.body_unit_half_window == 20
 
 
-def test_scaled_thresholds_composition_scene_length_is_distinct_but_currently_equal() -> None:
-    values60 = scale_config_to_fps(BaseAnnotatorConfig(), 60.0).thresholds
-    values25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
-    assert values60.composition_min_scene_len == values60.court_absent_window
-    assert values25.composition_min_scene_len == values25.court_absent_window
+@pytest.mark.parametrize('name', ['court_absent_window', 'composition_min_scene_len'])
+def test_fixed_replay_and_camera_settings_are_not_heuristic_overrides(name):
+    with pytest.raises(ValueError, match='unknown base-30'):
+        scale_config_to_fps(BaseAnnotatorConfig(overrides_base30={name: 20}), 30.0)
 
 
 def test_replay_mask_min_frames_is_distinct_and_overridable() -> None:
     values = scale_config_to_fps(
-        BaseAnnotatorConfig(overrides_base30={'court_absent_window': 20, 'replay_mask_min_frames': 7}), 30.0
+        BaseAnnotatorConfig(overrides_base30={'replay_mask_min_frames': 7}), 30.0
     ).thresholds
-    assert values.court_absent_window == 20
     assert values.replay_mask_min_frames == 7
 
 
@@ -184,17 +173,18 @@ def test_probe_fps_remains_lightweight_when_header_frame_count_is_unavailable(
     assert commands[0][commands[0].index("-show_entries") + 1] == "stream=r_frame_rate,avg_frame_rate"
 
 
-def test_stage8_scaled_preset_changes_segmentation_at_50fps() -> None:
+def test_scaled_speed_threshold_changes_segmentation_at_50fps() -> None:
     track = np.zeros((300, 3), dtype=float)
     track[:, 2] = 1
     track[20:40, 0] = np.arange(20) * 0.01
     track[40:, 0] = track[39, 0]
-    unaware, _ = segment_video(track, video_config=replace(burst_config(), thresholds=burst_config().thresholds))
+    unaware, _ = segment_video(track, video_config=replace(trajectory_config(), thresholds=trajectory_config().thresholds))
     aware, _ = segment_video(
-        track, video_config=replace(burst_config(), thresholds=scale_config_to_fps(BaseAnnotatorConfig(), 50.0).thresholds)
+        track, video_config=replace(trajectory_config(), thresholds=scale_config_to_fps(BaseAnnotatorConfig(), 50.0).thresholds)
     )
     assert unaware == []
-    assert aware == [(21, 41)]
+    # The initial rest is too short to split the active region.
+    assert aware == [(0, 41)]
 
 
 def test_replay_court_absence_scales_at_50fps() -> None:
@@ -228,9 +218,8 @@ def test_landing_options_use_shared_scaling_rules(fps: float) -> None:
 def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
 ) -> None:
     """Use one 60-fps config for replay, segmentation, player assignment and landing."""
-    base = BaseAnnotatorConfig()
+    base = BaseAnnotatorConfig(overrides_base30={'end_rest_frames': 20})
     video_config = scale_config_to_fps(base, 60.0)
-    assert video_config.thresholds.court_absent_window == 30
     assert video_config.thresholds.sustained_loss_frames == 20
     assert video_config.thresholds.min_descend_samples == 6
     assert video_config.thresholds.body_unit_half_window == 24
@@ -259,9 +248,9 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     present = np.ones(n_frames, dtype=bool)
     present[45:75] = False
     replay = combine_mask(present,  None, None, n_frames, video_config.fps)
-    plain_spans, _ = segment_video(track, video_config=replace(burst_config(), thresholds=video_config.thresholds))
+    plain_spans, _ = segment_video(track, video_config=replace(trajectory_config(), thresholds=video_config.thresholds))
     masked_spans, _ = segment_video(
-        track, exclusion_mask=replay, video_config=replace(burst_config(), thresholds=video_config.thresholds)
+        track, exclusion_mask=replay, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
     )
     assert plain_spans[0][0] == 45
     assert masked_spans[0][0] == 75
@@ -308,10 +297,10 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     base_radius_contacts = segment_video(
         track,
         sticky_distances=short_gaps.nearest,
-        video_config=replace(burst_config(), thresholds=base_radius_thresholds),
+        video_config=replace(trajectory_config(), thresholds=base_radius_thresholds),
     )[1]
     scaled_contacts = segment_video(
-        track, sticky_distances=short_gaps.nearest, video_config=replace(burst_config(), thresholds=video_config.thresholds)
+        track, sticky_distances=short_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
@@ -326,7 +315,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     full_contacts = segment_video(
         track,
         sticky_distances=full_gaps.nearest,
-        video_config=replace(burst_config(), thresholds=base_radius_thresholds),
+        video_config=replace(trajectory_config(), thresholds=base_radius_thresholds),
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
     full_contact = next(contact for contact in full_contacts if contact.contact_frame == 82)
@@ -336,7 +325,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     # The final contact with scaled settings uses the same track, sticky cache, and scaled constants for
     # attribution and landing.
     scaled_full_contacts = segment_video(
-        track, sticky_distances=full_gaps.nearest, video_config=replace(burst_config(), thresholds=video_config.thresholds)
+        track, sticky_distances=full_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
     )[1]
     final_contact = [
         contact.contact_frame for contact in scaled_full_contacts

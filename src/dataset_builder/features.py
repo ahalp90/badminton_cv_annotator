@@ -19,12 +19,12 @@ from typing import NamedTuple
 
 import numpy as np
 
-from annotator.config import frames_at_fps
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.player_tracking import track_sticky_players, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
 from shared.court import project_pixels_to_court
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
+from shared.frame_timing import frames_at_fps
 
 EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)

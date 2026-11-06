@@ -11,12 +11,8 @@ import numpy as np
 import pytest
 
 import annotator.excluded_frames.replay as replay_mask_module
-from annotator.config import (
-    SLOWMO_SPEED_FRAC,
-    BaseAnnotatorConfig,
-    scale_config_to_fps,
-)
 from annotator.excluded_frames.replay import (
+    SLOWMO_SPEED_FRAC,
     combine_mask,
     court_absence_signal,
     filter_short_exclusion_runs,
@@ -27,6 +23,7 @@ from experiments.annotator.legacy_evaluation.perspective_shift import (
     PERSPECTIVE_SHIFT_THRESHOLD,
     perspective_shift_signal,
 )
+from shared.frame_timing import frames_at_fps
 
 # Reference court corners (interleaved [corner, xy]); bbox diagonal 500.
 REFERENCE_CORNERS = [100.0, 100.0, 500.0, 100.0, 100.0, 400.0, 500.0, 400.0]
@@ -41,7 +38,7 @@ def _homography_row(video_id: str, start: int, end: int, corners: list[float]) -
 def test_court_absence_fires_on_sustained_gap_not_blips():
     n_frames = 60
     court_present = np.ones(n_frames, dtype=bool)
-    window = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window
+    window = frames_at_fps(15, 25.0)
     long_gap = slice(10, 10 + window + 5)   # sustained absence, fires
     short_blip = slice(45, 48)                            # 3 frames, below the window
     court_present[long_gap] = False

@@ -5,13 +5,9 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from annotator.config import (
-    BaseAnnotatorConfig,
-    frames_at_fps,
-    scale_config_to_fps,
-    speed_at_fps,
-)
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.types import Slot, SmoothingMode
+from shared.frame_timing import frames_at_fps, speed_at_fps
 from shared.player_tracking import BOTTOM_ROW, TOP_ROW
 
 _FIELDS = {
@@ -21,14 +17,12 @@ _FIELDS = {
     'start_min_frames': (3.0, frames_at_fps),
     'smooth_window': (3.0, frames_at_fps),
     'end_rest_frames': (90.0, frames_at_fps),
-    'court_absent_window': (15.0, frames_at_fps),
     'impulse_floor_half_window_frames': (12.0, frames_at_fps),
     'contact_dedup_radius_frames': (3.0, frames_at_fps),
     'contact_suppression_radius_frames': (9.0, frames_at_fps),
     'sustained_loss_frames': (10.0, frames_at_fps),
     'min_descend_samples': (3.0, frames_at_fps),
     'body_unit_half_window': (12.0, frames_at_fps),
-    'composition_min_scene_len': (15.0, frames_at_fps),
 }
 
 
@@ -58,16 +52,16 @@ def test_slot_values_pin_sticky_storage_rows() -> None:
 
 
 def test_scale_preserves_smoothing_mode_without_fps_scaling() -> None:
-    base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.ZERO_FILL)
+    base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE)
     video_config = scale_config_to_fps(base, 50.0)
-    assert video_config.smoothing_mode is SmoothingMode.ZERO_FILL
+    assert video_config.smoothing_mode is SmoothingMode.INCLUDE_INVISIBLE
 
 
 def test_config_dataclasses_are_frozen() -> None:
     base = BaseAnnotatorConfig()
     video_config = scale_config_to_fps(base, 30.0)
     with pytest.raises(FrozenInstanceError):
-        base.smoothing_mode = SmoothingMode.ZERO_FILL  # type: ignore[misc]
+        base.smoothing_mode = SmoothingMode.INCLUDE_INVISIBLE  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
         video_config.fps = 60.0  # type: ignore[misc]
 

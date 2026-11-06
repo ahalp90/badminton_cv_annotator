@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.courts import prepare_courts as evidence
 from annotator.courts.frame_geometry import build_scene_courts, scene_ref_corners
 from experiments.annotator.legacy_evaluation import static_courts
 from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
+from shared.camera_cuts import COMPOSITION_CONTENT_THRESHOLD
 from shared.court import project_pixels_to_court
 
 

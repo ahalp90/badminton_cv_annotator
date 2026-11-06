@@ -31,7 +31,7 @@ from threadpoolctl import threadpool_limits
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.inference.learned import features_from_evidence
 from annotator.inference.prepare_contact_inference import prepare_contact_inference
-from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.types import SmoothingMode
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
@@ -62,12 +62,8 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
 
         smoothing_mode=SmoothingMode(record['smoothing_mode']),
         overrides_base30=overrides,
-        span_open=SpanOpen(record['span_open']) if record['span_open'] is not None else None,
-        gap_state_demotion_bound=record['gap_state_demotion_bound'],
-        reentry_guard_variant=(
-            ReentryGuardVariant(record['reentry_guard_variant'])
-            if record['reentry_guard_variant'] is not None else None
-        ),
+        require_fast_burst=record['require_fast_burst'],
+        max_high_shot_gap_frames=record['max_high_shot_gap_frames'],
         reentry_guard_buffer=record['reentry_guard_buffer'],
         rejected_grades=frozenset(rejected_grades),
     )

@@ -865,7 +865,7 @@ def _spec_from_payload(payload: object, label: str) -> sweep.CandidateSpec:
     spec = sweep.CandidateSpec(
         label,
         {str(key): float(value) for key, value in overrides.items()},
-        {str(key): str(value) for key, value in strategies.items()},
+        dict(strategies),
     )
     sweep.serialise_spec(spec)
     return spec

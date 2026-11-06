@@ -49,7 +49,11 @@ def impulse_cell_candidates(
     Require visibility on all three frames around each velocity change. Compare
     its size with the local median, then apply the configured minimum spacing.
     """
-    measured = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+    measured = span_impulses(
+        track, start, end, smooth_window=thresholds.smooth_window,
+        impulse_floor_half_window=thresholds.impulse_floor_half_window_frames,
+        smoothing_mode=smoothing_mode,
+    )
     if measured is None:
         return []
     impulses, ratios, around_visible = measured
@@ -61,7 +65,8 @@ def impulse_cell_candidates(
 
 
 def span_impulses(
-    track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
+    track: np.ndarray, start: int, end: int, *,
+    smooth_window: int, impulse_floor_half_window: int,
     smoothing_mode: SmoothingMode,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
     """Measure changes in velocity and their size relative to nearby changes.
@@ -71,15 +76,14 @@ def span_impulses(
     across those three frames. Return None if fewer than smooth_window + 2 samples.
 
     IGNORE_INVISIBLE treats invisible xy values as NaN while smoothing.
-    ZERO_FILL uses the supplied coordinates, including invisible frames.
+    INCLUDE_INVISIBLE uses the supplied coordinates, including invisible frames.
     A window with no visible samples gives NaN in IGNORE_INVISIBLE mode.
     """
-    smooth_window = thresholds.smooth_window
     span = track[start:end]
     if len(span) < smooth_window + 2:
         return None
 
-    if smoothing_mode is SmoothingMode.ZERO_FILL:
+    if smoothing_mode is SmoothingMode.INCLUDE_INVISIBLE:
         smooth_x = rolling_mean(span[:, 0], smooth_window)
         smooth_y = rolling_mean(span[:, 1], smooth_window)
     else:
@@ -91,7 +95,7 @@ def span_impulses(
     impulses = np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
     visible = span[:, 2] == 1
     around_visible = visible[:-2] & visible[1:-1] & visible[2:]
-    floors = rolling_floor(impulses, around_visible, thresholds.impulse_floor_half_window_frames)
+    floors = rolling_floor(impulses, around_visible, impulse_floor_half_window)
     ratios = impulses / np.maximum(floors, FLOOR_EPS)
     return impulses, ratios, around_visible
 

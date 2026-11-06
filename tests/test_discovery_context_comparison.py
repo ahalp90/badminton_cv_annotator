@@ -4,7 +4,6 @@ from dataclasses import replace
 
 import pytest
 
-from annotator.config import frames_at_fps
 from annotator.training.sequences import LabelledRally
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.contact_records import stream_payload
@@ -23,6 +22,7 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.compare_discovery
     score_validation,
     selection_key,
 )
+from shared.frame_timing import frames_at_fps
 
 
 def test_equal_rally_totals_use_player_f1_despite_percentage_rounding() -> None:

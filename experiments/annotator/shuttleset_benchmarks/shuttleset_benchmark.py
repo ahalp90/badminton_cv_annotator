@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from annotator.annotate_video import AnnotatorResult
-from annotator.config import BaseAnnotatorConfig, frames_at_fps
+from annotator.config import BaseAnnotatorConfig
 from annotator.rally_results.landing_and_winner import (
     Landing,
     RallyOutcome,
@@ -62,6 +62,7 @@ from shared.court import (
     load_all_court_info,
     project_pixels_to_court,
 )
+from shared.frame_timing import frames_at_fps
 from shared.video_metadata import VideoMetadata
 
 BENCHMARK_SCHEMA = "shuttleset-production-benchmark/1"

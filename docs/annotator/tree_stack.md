@@ -126,7 +126,7 @@ the runtime versions, ordered feature names and proposal budgets. The fitted
 review model is stored in `models.joblib`.
 Changing feature order or proposal semantics requires a new fit and evaluation.
 
-The schema for newly fitted bundles is `annotator-three-models/2`. Earlier
+The schema for newly fitted bundles is `annotator-three-models/3`. Earlier
 bundles use the source and environment they were fitted with.
 
 See the [refit guide](retuning.md) for commands, configuration and saved results.

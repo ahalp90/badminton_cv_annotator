@@ -19,6 +19,7 @@ ANALYSIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO / "src"))
 
 from annotator.excluded_frames import shuttle_hallucination as inpaint_guard  # noqa: E402
+from annotator.types import ShuttleGrade  # noqa: E402
 
 FIXTURES = {"sset_01": 1, "sset_15": 15, "sset_21": 21}
 
@@ -170,13 +171,13 @@ def split_recurrence_components(
 
     coordinate_valid = ~np.all(track[:, :2] == 0, axis=1)
     degraded = (halo | global_hit) & ~core & coordinate_valid
-    if not np.array_equal(degraded, codes == inpaint_guard.DEGRADED):
+    if not np.array_equal(degraded, codes == ShuttleGrade.DEGRADED):
         raise ValueError("reproduced grade-3 components disagree with grade_track")
     return {
-        "recurrence_grade1_core": codes == inpaint_guard.FABRICATED,
+        "recurrence_grade1_core": codes == ShuttleGrade.FABRICATED,
         "recurrence_core_plus_halo": (core | halo) & coordinate_valid,
         "recurrence_core_plus_global_hit": (core | global_hit) & coordinate_valid,
-        "recurrence_current_all_nonzero": codes != inpaint_guard.NO_FLAG,
+        "recurrence_current_all_nonzero": codes != ShuttleGrade.NO_FLAG,
     }
 
 
@@ -292,7 +293,7 @@ def main() -> None:
         contacts = contacts_by_video[video_id]
         finals = finals_by_video[video_id]
         spans = load_visual_spans(fixture)
-        guard_clean = candidate & (codes == inpaint_guard.NO_FLAG)
+        guard_clean = candidate & (codes == ShuttleGrade.NO_FLAG)
         long_sidecar_runs = retain_runs(sidecar & valid, 15)
         selected_blocks = fully_selected_blocks(sidecar, valid)
 
@@ -313,7 +314,7 @@ def main() -> None:
         for fraction in (0.75, 1.0):
             suffix = str(fraction).replace(".", "_")
             ransac_masks[f"guard_clean_vote_fraction_ge_{suffix}"] = (
-                (codes == inpaint_guard.NO_FLAG)
+                (codes == ShuttleGrade.NO_FLAG)
                 & valid
                 & (fields["eligible"] > 0)
                 & (fields["fraction"] >= fraction)

@@ -11,9 +11,9 @@ from typing import Any, Literal
 
 import numpy as np
 
-from annotator.config import frames_at_fps
 from annotator.contacts.score_candidates import contact_feature_matrix
 from annotator.training.trees import fit_binary_tree
+from shared.frame_timing import frames_at_fps
 
 POSITIVE_RADIUS_AT_30_FPS = 1
 IGNORED_RADIUS_AT_30_FPS = 4

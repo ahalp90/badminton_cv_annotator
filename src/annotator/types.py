@@ -129,31 +129,22 @@ class FinishedRally:
 # Rally and contact detection choices
 
 
+class ShuttleGrade(IntEnum):
+    """Quality of a shuttle position, stored as one integer per video frame."""
+
+    NO_FLAG = 0
+    FABRICATED = 1
+    SUSPECT_FLAT = 2
+    DEGRADED = 3
+
+
+REJECTABLE_SHUTTLE_GRADES = frozenset({
+    ShuttleGrade.FABRICATED, ShuttleGrade.SUSPECT_FLAT, ShuttleGrade.DEGRADED,
+})
+
+
 class SmoothingMode(StrEnum):
     """Whether to include invisible shuttle coordinates when smoothing the track."""
 
-    ZERO_FILL = 'zero_fill'
+    INCLUDE_INVISIBLE = 'include_invisible'
     IGNORE_INVISIBLE = 'ignore_invisible'
-
-
-class SpanOpen(StrEnum):
-    """Where to start a rally between long rests.
-
-    REGION_START uses the start of every such interval. BACK_FILL uses the
-    same start, but only if the interval includes a sustained fast burst.
-    Use None for the setting to start at the first fast burst instead.
-    """
-
-    REGION_START = 'region_start'
-    BACK_FILL = 'back_fill'
-
-
-class ReentryGuardVariant(StrEnum):
-    """Checks for a shuttle returning after leaving the top of the image.
-
-    REENTRY_ONLY requires a return near the top, moving downwards. TWO_SIDED
-    also requires the last position before disappearing to be near the top.
-    """
-
-    TWO_SIDED = 'two-sided'
-    REENTRY_ONLY = 'reentry-only'

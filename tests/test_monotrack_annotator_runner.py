@@ -96,7 +96,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 def _selected_spec() -> CandidateSpec:
     return CandidateSpec(
-        'selected', {'wrist_distance_body_heights': 1.8, 'smooth_window': 6.0}, {'span_open': 'REGION_START'},
+        'selected', {'wrist_distance_body_heights': 1.8, 'smooth_window': 6.0}, {'require_fast_burst': False},
     )
 
 

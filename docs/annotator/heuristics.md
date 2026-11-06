@@ -90,7 +90,7 @@ Examples at 30 FPS include:
 | Fast movement must last this long before it counts as a rally-start burst | 3 frames | `start_min_frames` |
 | Shuttle positions are smoothed across this many frames before motion changes are measured | 3 frames | `smooth_window` |
 | A rest period this long separates one rally from the next | 90 frames | `end_rest_frames` |
-| The court must be absent this long before the full absence run is excluded | 15 frames | `court_absent_window` |
+| The court must be absent this long before the full absence run is excluded | 15 frames | `excluded_frames/replay.py` |
 | A replay or slow-motion exclusion signal must last this long before it is kept | 15 frames | `replay_mask_min_frames` |
 | A possible hit is compared with nearby shuttle-motion changes across this many junctions on each side | 12 junctions | `impulse_floor_half_window_frames` |
 | Raw hit-like motion changes closer than this compete so the stronger one survives | 3 frames | `contact_dedup_radius_frames` |
@@ -134,7 +134,7 @@ At the current defaults:
 1. shuttle position is smoothed over a short window;
 2. a sustained fast burst confirms that an active region contains real play;
 3. a long rest separates one active region from the next;
-4. `SpanOpen.BACK_FILL` opens the rally at the start of that active region once a qualifying burst has been found.
+4. `require_fast_burst=True` opens the rally at the start of that active region once a qualifying burst has been found.
 
 This gives deliberately broad rally spans. The fitted sequence stage later has room to repair the first contact, and final bounds can move again after contacts are selected.
 

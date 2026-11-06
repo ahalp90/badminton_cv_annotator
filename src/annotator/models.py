@@ -17,7 +17,7 @@ from annotator.contacts.score_candidates import (
 from annotator.rallies.build_contact_proposals import FEATURE_NAMES
 from annotator.rallies.refine_rallies import REVIEW_FEATURE_NAMES, RallySelector
 
-MODEL_SCHEMA = 'annotator-three-models/2'
+MODEL_SCHEMA = 'annotator-three-models/3'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (

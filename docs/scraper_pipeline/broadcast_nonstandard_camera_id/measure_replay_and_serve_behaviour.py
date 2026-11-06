@@ -38,24 +38,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from annotator.annotate_video import annotate_video
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
-from annotator.config import (
-    SLOWMO_SPEED_FRAC,
-    BaseAnnotatorConfig,
-    frames_at_fps,
-    scale_config_to_fps,
-)
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.heuristics import impulse_cell_candidates
 from annotator.courts.frame_geometry import build_scene_courts
 from annotator.excluded_frames.replay import (
+    SLOWMO_SPEED_FRAC,
     court_absence_signal,
     filter_short_exclusion_runs,
     velocity_drop_signal,
 )
-from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES
 from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.player_tracking import tracker_segments
 from annotator.rallies.find_rallies import find_rally_spans
-from annotator.types import TrackedPlayers, WristGaps
+from annotator.types import ShuttleGrade, TrackedPlayers, WristGaps
 from experiments.annotator.legacy_evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -82,6 +78,7 @@ from labelling.scene_labels import (
     read_label_csv,
     validate_partition,
 )
+from shared.frame_timing import frames_at_fps
 
 SERVE_LOOKBACK_AT_30_FPS = 25
 
@@ -442,12 +439,12 @@ def evaluate_serve_candidates(
                 np.isfinite(sticky_distance)
                 and sticky_distance <= video_config.thresholds.wrist_distance_body_heights
             )
-            evidence_pass = visible and code == NO_FLAG and wrist_pass
+            evidence_pass = visible and code == ShuttleGrade.NO_FLAG and wrist_pass
             policy_pass = evidence_pass and not bool(definitive_mask[frame])
             reasons = []
             if not visible:
                 reasons.append("track-not-visible")
-            if code != NO_FLAG:
+            if code != ShuttleGrade.NO_FLAG:
                 reasons.append(f"inpaint-code-{code}")
             if not wrist_pass:
                 reasons.append("sticky-wrist-gate")
@@ -526,7 +523,7 @@ def evaluate_serve_candidates(
             "gt_serve_tolerance_frames": tolerance,
             "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,
-            "requires_inpaint_code": NO_FLAG,
+            "requires_inpaint_code": ShuttleGrade.NO_FLAG,
             "definitive_mask_policy": "blocked",
             "selection": "largest impulse, then earliest frame",
         },

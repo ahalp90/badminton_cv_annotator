@@ -7,7 +7,7 @@ from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.types import WRIST_L, WRIST_R
-from tests.annotator_config import burst_config
+from tests.annotator_config import trajectory_config
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -229,7 +229,7 @@ def test_segment_video_sticky_distance_shape_is_checked():
     track = np.zeros((3, 3), dtype=np.float64)
 
     with pytest.raises(ValueError, match='shape'):
-        segment_video(track, sticky_distances=np.zeros(2), video_config=burst_config())
+        segment_video(track, sticky_distances=np.zeros(2), video_config=trajectory_config())
 
 
 def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds():

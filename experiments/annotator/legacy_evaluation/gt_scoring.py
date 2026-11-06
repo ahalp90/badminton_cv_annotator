@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 
 from annotator.annotate_video import AnnotatorResult, annotate_video
-from annotator.config import frames_at_fps
 from annotator.courts.frame_geometry import SceneCourt, court_at_frame
 from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
 from annotator.rally_results import landing_and_winner as point_winner
@@ -42,6 +41,7 @@ from shared.court import (
     load_all_court_info,
     project_pixels_to_court,
 )
+from shared.frame_timing import frames_at_fps
 
 log = logging.getLogger(__name__)
 

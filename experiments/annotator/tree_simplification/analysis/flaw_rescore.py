@@ -31,7 +31,6 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from annotator.config import frames_at_fps
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -62,6 +61,7 @@ from experiments.annotator.tree_simplification.analysis.common import (
     read_json,
     write_json_gz,
 )
+from shared.frame_timing import frames_at_fps
 
 OLD_ANNOTATOR = 'old-annotator-hgb-grid-017'
 OLD_PREDICTIONS = REPOSITORY / 'experiments/annotator/tree_hp_tune/results/test_rerun/A/v32/grid-017'

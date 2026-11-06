@@ -9,9 +9,10 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from annotator.annotate_video import annotate_video
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.heuristics import impulse_cell_candidates
-from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES
+from annotator.types import ShuttleGrade
 from experiments.annotator.legacy_evaluation.fixtures import Fixture
 from experiments.annotator.legacy_evaluation.gt_scoring import canonical_tolerance
 from experiments.annotator.legacy_evaluation.scoring import (
@@ -25,6 +26,7 @@ from labelling.scene_labels import (
     read_label_csv,
     validate_partition,
 )
+from shared.frame_timing import frames_at_fps
 
 POSE_BANDS = {
     "middle-half": 0.5,
@@ -188,7 +190,7 @@ def _candidate_reasons(
     reasons = []
     if not visible:
         reasons.append("track-not-visible")
-    if inpaint_code != NO_FLAG:
+    if inpaint_code != ShuttleGrade.NO_FLAG:
         reasons.append(f"inpaint-code-{inpaint_code}")
     if not court_absent:
         reasons.append("court-present")
@@ -282,7 +284,7 @@ def _target_outcomes(
             outcome = "selected_match"
         elif not near:
             outcome = "no_raw_candidate_within_tolerance"
-        elif not any(row["track_visible"] and row["inpaint_code"] == NO_FLAG for row in near):
+        elif not any(row["track_visible"] and row["inpaint_code"] == ShuttleGrade.NO_FLAG for row in near):
             outcome = "no_clean_shuttle_evidence"
         elif not any(row["court_absent"] for row in near):
             outcome = "court_present_not_prototype_target"
@@ -343,7 +345,7 @@ def _build_candidate_row(
         and np.isfinite(pose.wrist_distance_bh)
         and pose.wrist_distance_bh <= wrist_distance_body_heights
     )
-    evidence_pass = visible and code == NO_FLAG and court_absent and wrist_pass
+    evidence_pass = visible and code == ShuttleGrade.NO_FLAG and court_absent and wrist_pass
     anchor_distance = anchor - frame
     anchor_suppression_pass = bool(
         anchor_source != "first-accepted-contact"

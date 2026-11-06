@@ -9,13 +9,12 @@ import logging
 import numpy as np
 
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian, true_runs
-from annotator.config import (
-    SLOWMO_SPEED_FRAC,
-    BaseAnnotatorConfig,
-    scale_config_to_fps,
-)
+from shared.frame_timing import frames_at_fps, speed_at_fps
 
 log = logging.getLogger(__name__)
+
+# A lower fraction avoids mistaking rally-end deceleration for slow motion.
+SLOWMO_SPEED_FRAC = 0.15
 
 
 def combine_mask(
@@ -98,8 +97,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
     if len(court_present) != n_frames:
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)
-    # Replay signals use FPS-scaled defaults independently of heuristic overrides.
-    window = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
+    window = frames_at_fps(15, fps)
     for start, end in true_runs(absent):
         if end - start >= window:
             mask[start:end] = True
@@ -151,12 +149,10 @@ def velocity_drop_signal(
         log.info('rally median speed is zero; velocity-drop signal all-False')
         return mask
 
-    # Replay signals use FPS-scaled defaults independently of heuristic overrides.
-    values = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
-    rolling_median = rolling_nanmedian(speed, values.rest_window)
+    rolling_median = rolling_nanmedian(speed, frames_at_fps(5, fps))
     visible = track[:, 2] == 1
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)
-    moving = rolling_median >= values.rest_speed
+    moving = rolling_median >= speed_at_fps(0.002, fps)
     mask[below_norm & moving & visible] = True
     return mask
 

@@ -16,21 +16,18 @@ from scenedetect import open_video
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
-from annotator.config import (
-    COMPOSITION_KEEP_VOTE,
-    BaseAnnotatorConfig,
-    scale_config_to_fps,
-)
 from experiments.annotator.artifact_io import load_npy
 from experiments.annotator.legacy_evaluation.scoring import (
     _scale_base30_frames,
     load_gt_rallies,
 )
 from experiments.annotator.scene_cut_mask import (
+    COMPOSITION_KEEP_VOTE,
     CompositionSegment,
     build_composition_mask,
 )
-from shared.camera_cuts import detect_cuts
+from shared.camera_cuts import MIN_SCENE_FRAMES_AT_30_FPS, detect_cuts
+from shared.frame_timing import frames_at_fps
 from shared.video_metadata import probe_fps
 
 VIDEO_IDS = (1, 15, 21)
@@ -313,7 +310,7 @@ def main() -> None:
     cut_lists: dict[int, dict[int, np.ndarray]] = {22: {}, 27: {}}
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
+        min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, video_input['fps'])
         detected_cuts = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],
@@ -335,7 +332,7 @@ def main() -> None:
     print("Threshold-27 gate passed for all videos; detecting threshold 22")
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
+        min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, video_input['fps'])
         cut_lists[22][video_id] = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],

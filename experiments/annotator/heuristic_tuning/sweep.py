@@ -2,8 +2,7 @@
 
 The routing rule is deliberately centralised: numeric names in
 ``_OVERRIDABLE_THRESHOLD_FIELDS`` become ``BaseAnnotatorConfig.overrides_base30``;
-``gap_state_demotion_bound`` is a direct base field. Strategy names are enum
-names, never enum values.
+``max_high_shot_gap_frames`` is a direct base field. ``require_fast_burst`` is a boolean choice.
 """
 from __future__ import annotations
 
@@ -27,10 +26,8 @@ from annotator.annotate_video import annotate_video
 from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
-    frames_at_fps,
     scale_config_to_fps,
 )
-from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import selection
 from experiments.annotator.heuristic_tuning.schemas import (
     CSV_COLUMNS_BY_FILENAME,
@@ -61,17 +58,15 @@ from experiments.annotator.legacy_evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
+from shared.frame_timing import frames_at_fps
 
 LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
 WINNER_FILENAME = "config_winner.json"
 WINNER_SCHEMA_VERSION = 1
-# Persisted compatibility field from the retired direction-and-speed detector.
-# Live contact detection does not read this value.
-LEGACY_MIN_CONTACT_SPEED = 0.005
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
-DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound"})
+DIRECT_BASE_KEYS = frozenset({"max_high_shot_gap_frames"})
 
 BOUNDARY_VALUES = {
     "rest_speed": (1 / 600, 1 / 400, 1 / 240, 1 / 120, 1 / 60),
@@ -219,7 +214,7 @@ class CandidateSpec:
 
     label: str
     overrides_base30: Mapping[str, float]
-    strategies: Mapping[str, str]
+    strategies: Mapping[str, bool]
 
 
 def build_boundary_grid() -> list[CandidateSpec]:
@@ -250,15 +245,12 @@ def base_config(spec: CandidateSpec) -> BaseAnnotatorConfig:
             direct[key] = value
         else:
             raise ValueError(f"cannot route numeric sweep key {key!r}")
-    strategies: dict[str, Any] = {}
-    for key, name in spec.strategies.items():
-        if key != "span_open":
+    for key, value in spec.strategies.items():
+        if key != "require_fast_burst":
             raise ValueError(f"cannot route strategy key {key!r}")
-        try:
-            strategies[key] = SpanOpen[name]
-        except KeyError as error:
-            raise ValueError(f"invalid strategy value for key {key!r}: {name!r}") from error
-    return BaseAnnotatorConfig(overrides_base30=overrides or None, **direct, **strategies)
+        if not isinstance(value, bool):
+            raise TypeError(f"invalid strategy value for key {key!r}: {value!r}")
+    return BaseAnnotatorConfig(overrides_base30=overrides or None, **direct, **spec.strategies)
 
 
 def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
@@ -268,8 +260,8 @@ def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
 
 
 def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
-    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "span_open")
-    ranks = {"span_open": {None: 0, "REGION_START": 1, "BACK_FILL": 2}}
+    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "max_high_shot_gap_frames", "require_fast_burst")
+    ranks = {"require_fast_burst": {False: 1, True: 2}}
     values: list[tuple[int, object]] = []
     for key in keys:
         value = spec.strategies.get(key) if key in ranks else spec.overrides_base30.get(key)
@@ -291,8 +283,8 @@ def _changed_from_defaults(spec: CandidateSpec) -> int:
     for key, value in spec.overrides_base30.items():
         default = shipped_base30[key] if key in _OVERRIDABLE_THRESHOLD_FIELDS else getattr(shipped, key)
         changed += value != default
-    if "span_open" in spec.strategies:
-        changed += base.span_open != shipped.span_open
+    if "require_fast_burst" in spec.strategies:
+        changed += base.require_fast_burst != shipped.require_fast_burst
     return changed
 
 
@@ -323,7 +315,6 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     row: dict[str, Any] = {
         "label": spec.label,
         **_display_config(spec),
-        "min_contact_speed": LEGACY_MIN_CONTACT_SPEED,
         "n_spans": len(spans), **boundary, "clean_covered": len(clean), "swallowed_rallies": sum(max(0, count - 1) for count in contained), "max_rallies_in_one_span": max(contained, default=0),
         "strict_align_median": float(np.median(offsets)) if offsets else None, "strict_align_p90": float(np.percentile(offsets, 90)) if offsets else None,
         "total_candidates": len(contacts), "changed_from_defaults": _changed_from_defaults(spec),

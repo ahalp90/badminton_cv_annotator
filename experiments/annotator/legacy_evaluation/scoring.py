@@ -14,8 +14,8 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import frames_at_fps
 from annotator.types import ContactCandidate
+from shared.frame_timing import frames_at_fps
 
 CANONICAL_CONTACT_TOLERANCE_BASE30 = 5
 CONTACT_TOLERANCES_BASE30 = (1, 2, CANONICAL_CONTACT_TOLERANCE_BASE30, 10)

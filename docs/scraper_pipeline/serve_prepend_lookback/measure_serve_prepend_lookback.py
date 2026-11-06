@@ -40,13 +40,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from annotator.annotate_video import annotate_video
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
-from annotator.excluded_frames.shuttle_hallucination import (
-    DEGRADED,
-    FABRICATED,
-    NO_FLAG,
-    SUSPECT_FLAT,
-)
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.types import ShuttleGrade
 from experiments.annotator.heuristic_tuning import (
     serve_prepend_measurement as candidate_measurement,
 )
@@ -69,6 +64,7 @@ from experiments.annotator.legacy_evaluation.scoring import (
     load_gt_rallies,
 )
 from labelling.scene_labels import VideoMetadata
+from shared.frame_timing import frames_at_fps
 
 WINDOW_SECONDS = 1.0
 CLEAN_RUN_BASE30_FRAMES = 5
@@ -228,16 +224,16 @@ def _segment_stats(
     believed_slice = believed_mask[start:end]
     court_slice = court_present[start:end]
     visible = track_slice[:, 2] == 1
-    clean_visible = visible & (code_slice == NO_FLAG)
+    clean_visible = visible & (code_slice == ShuttleGrade.NO_FLAG)
     return {
         "frame_count": end - start,
         "visible_frames": int(visible.sum()),
         "clean_visible_frames": int(clean_visible.sum()),
         "visible_fraction": _fraction(visible),
         "clean_fraction": _fraction(clean_visible),
-        "fabricated_fraction": _fraction(code_slice == FABRICATED),
-        "suspect_flat_fraction": _fraction(code_slice == SUSPECT_FLAT),
-        "degraded_fraction": _fraction(code_slice == DEGRADED),
+        "fabricated_fraction": _fraction(code_slice == ShuttleGrade.FABRICATED),
+        "suspect_flat_fraction": _fraction(code_slice == ShuttleGrade.SUSPECT_FLAT),
+        "degraded_fraction": _fraction(code_slice == ShuttleGrade.DEGRADED),
         "longest_clean_run": _longest_true_run(clean_visible),
         "raw_mask_fraction": _fraction(raw_slice),
         "believed_mask_fraction": _fraction(believed_slice),

@@ -10,7 +10,6 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import frames_at_fps
 from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.contacts.score_candidates import positive_probabilities
 from annotator.rallies.build_contact_proposals import (
@@ -22,6 +21,7 @@ from annotator.rallies.build_contact_proposals import (
     sequence_summary,
 )
 from annotator.types import ContactEvent, ContactSequence, FinishedRally
+from shared.frame_timing import frames_at_fps
 
 BOUNDARY_PADDING_AT_30_FPS = 10
 

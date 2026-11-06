@@ -9,7 +9,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from annotator.config import frames_at_fps
+from shared.frame_timing import frames_at_fps
 
 os.environ.update(OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))

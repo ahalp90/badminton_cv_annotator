@@ -18,7 +18,7 @@ from annotator.rallies.refine_rallies import (
 )
 from annotator.training.contact import ContactTrainingVideo
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
-from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.types import SmoothingMode
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, prepare
 
@@ -43,10 +43,9 @@ def test_preprocessing_record_round_trips_default_and_nondefault_settings() -> N
     custom = replace(
         default,
 
-        smoothing_mode=SmoothingMode.ZERO_FILL,
+        smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE,
         overrides_base30={'smooth_window': 9},
-        span_open=SpanOpen.REGION_START,
-        reentry_guard_variant=ReentryGuardVariant.REENTRY_ONLY,
+        require_fast_burst=False,
         reentry_guard_buffer=0.1,
         rejected_grades=frozenset({1, 3}),
     )
@@ -77,7 +76,7 @@ def test_prepare_resume_rejects_preprocessing_identity_mismatch(tmp_path: Path) 
         'video': identity,
         'preprocessing': prepare.preprocessing_record(BaseAnnotatorConfig()),
     })
-    requested = replace(BaseAnnotatorConfig(), gap_state_demotion_bound=60.0)
+    requested = replace(BaseAnnotatorConfig(), max_high_shot_gap_frames=60.0)
 
     with pytest.raises(ValueError, match='cached preprocessing differs'):
         prepare.prepare_video(SimpleNamespace(identity=identity), 'A', {}, tmp_path, requested)

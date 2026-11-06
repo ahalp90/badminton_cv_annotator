@@ -19,7 +19,7 @@ from experiments.annotator.heuristic_tuning.sweep import (
     base_config,
     serialise_spec,
 )
-from tests.annotator_config import burst_config
+from tests.annotator_config import trajectory_config
 
 
 @pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
@@ -67,7 +67,7 @@ def test_scaled_wrist_distance_changes_contact_acceptance() -> None:
 
 
 def test_default_wrist_gate_keeps_existing_verdicts_and_contacts() -> None:
-    assert burst_config().thresholds.wrist_distance_body_heights == 1.4
+    assert trajectory_config().thresholds.wrist_distance_body_heights == 1.4
     distances = np.array([1.39, 1.4, 1.41, np.nan])
     assert [wrist_contact_near(distances, frame, threshold=1.4) for frame in range(4)] == [True, True, False, False]
     assert wrist_contact_near(None, 0, threshold=2.0) is None
@@ -76,7 +76,7 @@ def test_default_wrist_gate_keeps_existing_verdicts_and_contacts() -> None:
 
     track = _turning_track()
     kwargs = {'spans': [(0, len(track))], 'sticky_distances': np.full(len(track), 1.4)}
-    _, contacts = segment_video(track, video_config=burst_config(), **kwargs)
+    _, contacts = segment_video(track, video_config=trajectory_config(), **kwargs)
     assert [contact.contact_frame for contact in contacts] == [1, 40, 78]
 
 

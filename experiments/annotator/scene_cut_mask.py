@@ -33,15 +33,16 @@ from typing import NamedTuple
 
 import numpy as np
 
-from annotator.config import (
-    COMPOSITION_CONTENT_THRESHOLD,
-    COMPOSITION_KEEP_VOTE,
-    BaseAnnotatorConfig,
-    scale_config_to_fps,
-)
 from scraper.config import MASKS_DIR
-from shared.camera_cuts import detect_cuts
+from shared.camera_cuts import (
+    COMPOSITION_CONTENT_THRESHOLD,
+    MIN_SCENE_FRAMES_AT_30_FPS,
+    detect_cuts,
+)
+from shared.frame_timing import frames_at_fps
 from shared.video_metadata import probe_fps
+
+COMPOSITION_KEEP_VOTE = 0.5
 
 log = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def main() -> None:
     n_frames = len(keep_vote)
 
     fps = args.fps if args.fps is not None else probe_fps(args.video)
-    min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
+    min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, fps)
     cut_frames = detect_cuts(args.video, n_frames, args.content_threshold, min_scene_len)
     mask, segments = build_composition_mask(cut_frames, keep_vote, n_frames, args.vote)
     n_live = sum(1 for seg in segments if not seg.is_dead)

@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from annotator.config import scale_config_to_fps
-from annotator.types import ContactEvent, ContactSequence, FinishedRally, SpanOpen
+from annotator.types import ContactEvent, ContactSequence, FinishedRally
 from experiments.annotator.heuristic_tuning import sweep
 from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
 from experiments.annotator.legacy_evaluation.fixtures import SSET_01
@@ -50,7 +50,6 @@ def test_sweep_row_preserves_the_legacy_speed_schema_value() -> None:
         ContactSequence(0, 5, 35, tuple(ContactEvent(frame, np.nan, None) for frame in (10, 20, 30))), None,
     ),))
     row = sweep._row_for_result(SSET_01, sweep.shipped_spec(), result, master)
-    assert row["min_contact_speed"] == sweep.LEGACY_MIN_CONTACT_SPEED == 0.005
     assert row["rest_speed"] == 0.002
 
 
@@ -72,15 +71,15 @@ def test_grids_and_routing_cover_every_key_class() -> None:
     boundary = {key: values[0] for key, values in sweep.BOUNDARY_VALUES.items()}
     assert len(sweep.build_contact_grid(boundary)) == 108
     spec = sweep.CandidateSpec(
-        "grid", {**boundary, "smooth_window": 4, "gap_state_demotion_bound": 2},
-        {"span_open": "BACK_FILL"},
+        "grid", {**boundary, "smooth_window": 4, "max_high_shot_gap_frames": 2},
+        {"require_fast_burst": True},
     )
     base = sweep.base_config(spec)
     assert base.overrides_base30 is not None
     assert base.overrides_base30["smooth_window"] == 4
-    assert base.gap_state_demotion_bound == 2
-    assert base.span_open is SpanOpen.BACK_FILL
-    assert sweep.serialise_spec(spec)["overrides_base30"]["gap_state_demotion_bound"] == 2
+    assert base.max_high_shot_gap_frames == 2
+    assert base.require_fast_burst is True
+    assert sweep.serialise_spec(spec)["overrides_base30"]["max_high_shot_gap_frames"] == 2
 
 
 @pytest.mark.parametrize("key", ("unrelated_field", "rest_widnow"))
@@ -254,14 +253,14 @@ def test_alignment_split_log_and_csv_serialisation_rules(tmp_path) -> None:
     assert (tmp_path / "split.csv").read_text(encoding="utf-8").splitlines()[1] == "1,0,10-20;30-40"
 
 
-def test_routing_depth_enums_and_changed_defaults() -> None:
-    spec = sweep.CandidateSpec("grid", {"gap_state_demotion_bound": 2}, {"span_open": "REGION_START"})
+def test_routing_high_shot_duration_and_fast_burst_choice() -> None:
+    spec = sweep.CandidateSpec("grid", {"max_high_shot_gap_frames": 2}, {"require_fast_burst": False})
     base = sweep.base_config(spec)
-    assert base.gap_state_demotion_bound == 2
-    assert base.span_open is SpanOpen.REGION_START
-    assert sweep.base_config(sweep.CandidateSpec("grid", {}, {})).span_open is SpanOpen.BACK_FILL
-    for strategies in ({"unknown": "TRIM"}, {"mode": "TRIM"}, {"close": "BURST"}, {"span_open": "bad"}):
-        with pytest.raises(ValueError):
+    assert base.max_high_shot_gap_frames == 2
+    assert base.require_fast_burst is False
+    assert sweep.base_config(sweep.CandidateSpec("grid", {}, {})).require_fast_burst is True
+    for strategies in ({"unknown": "TRIM"}, {"mode": "TRIM"}, {"close": "BURST"}, {"require_fast_burst": "bad"}):
+        with pytest.raises((TypeError, ValueError)):
             sweep.base_config(sweep.CandidateSpec("grid", {}, strategies))
     shipped = sweep._shipped_base30_values()
     assert sweep._changed_from_defaults(sweep.CandidateSpec("grid", {

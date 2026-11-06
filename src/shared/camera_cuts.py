@@ -3,6 +3,9 @@ from pathlib import Path
 
 import numpy as np
 
+COMPOSITION_CONTENT_THRESHOLD = 27.0  # PySceneDetect ContentDetector default
+MIN_SCENE_FRAMES_AT_30_FPS = 15
+
 
 def detect_cuts(video_path: Path, expected_frames: int, threshold: float, min_scene_len: int) -> np.ndarray:
     """Detect camera cuts and return the first frame of each new scene.

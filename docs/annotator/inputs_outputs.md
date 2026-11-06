@@ -153,7 +153,7 @@ experiments/annotator/tree_simplification/results/three_models/models/raw_baseli
 
 Loading checks:
 
-- schema `annotator-three-models/2`;
+- schema `annotator-three-models/3`;
 - exact contact, rally and review feature order;
 - rally proposal budgets and the fitted review model;
 - that `models.joblib` contains an `AnnotatorModels` object.

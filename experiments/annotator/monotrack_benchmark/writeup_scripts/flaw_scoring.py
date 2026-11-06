@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.config import frames_at_fps
+from shared.frame_timing import frames_at_fps
 
 # Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))

@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from annotator.config import frames_at_fps
 from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.training.sequences import (
     LabelledRally,
@@ -24,6 +23,7 @@ from annotator.training.workflow import load_labels, whole_rally_correctness
 from annotator.types import ContactSequence
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.contact_records import stream_from_payload
+from shared.frame_timing import frames_at_fps
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN = ROOT / "raw/run/output"

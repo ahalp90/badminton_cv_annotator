@@ -1,4 +1,4 @@
-"""Explicit configuration for standalone burst-opening trajectory fixtures."""
+"""Supported settings for synthetic trajectory tests."""
 
 from annotator.config import (
     BaseAnnotatorConfig,
@@ -8,11 +8,7 @@ from annotator.config import (
 from annotator.types import SmoothingMode
 
 
-def burst_config(fps: float = 25.0) -> FpsScaledAnnotatorConfig:
+def trajectory_config(fps: float = 25.0) -> FpsScaledAnnotatorConfig:
     return scale_config_to_fps(BaseAnnotatorConfig(
-        smoothing_mode=SmoothingMode.ZERO_FILL,
-        span_open=None,
-        gap_state_demotion_bound=None,
-        reentry_guard_variant=None,
-        reentry_guard_buffer=None,
+        smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE,
     ), fps)

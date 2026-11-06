@@ -238,7 +238,7 @@ def _shuttle_signals(
     values = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     thresholds = values
     for start, end in spans:
-        measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE)
         if measured is None:
             continue
         magnitudes, ratios, _visible = measured

@@ -20,12 +20,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import (
-    BASE_FPS,
-    BaseAnnotatorConfig,
-    frames_at_fps,
-    scale_config_to_fps,
-)
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.build_features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
@@ -38,6 +33,7 @@ from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.heuristic_only_tune.run import source_record
+from shared.frame_timing import BASE_FPS, frames_at_fps
 
 SCHEMA = 'contact-motion-base30/1'
 VELOCITY_SCHEMA = 'contact-velocity-base30/1'
@@ -93,7 +89,11 @@ def normalise_contact_features(
 
     ratio = np.full(len(track), np.nan, dtype=np.float64)
     for start, end in features.search_intervals:
-        measured = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
+        measured = span_impulses(
+            track, start, end, smooth_window=constants.smooth_window,
+            impulse_floor_half_window=constants.impulse_floor_half_window_frames,
+            smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE,
+        )
         if measured is None:
             continue
         impulse, _ratios, around_visible = measured

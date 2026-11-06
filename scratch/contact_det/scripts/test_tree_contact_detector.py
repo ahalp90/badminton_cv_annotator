@@ -29,7 +29,7 @@ def test_impulses_keep_the_production_junction_alignment() -> None:
     signals = freezer._shuttle_signals(track, spans, 30.0)
     values = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     thresholds = values
-    expected = span_impulses(track, 2, 16, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+    expected = span_impulses(track, 2, 16, thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE)
     assert expected is not None
     magnitudes, ratios, _visible = expected
     np.testing.assert_allclose(signals["shuttle_impulse"][3:15], magnitudes)

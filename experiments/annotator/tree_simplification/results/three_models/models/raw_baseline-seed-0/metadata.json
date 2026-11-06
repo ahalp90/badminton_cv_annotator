@@ -1,5 +1,5 @@
 {
-  "schema": "annotator-three-models/2",
+  "schema": "annotator-three-models/3",
   "scikit_learn": "1.9.1",
   "contact_features": [
     "shuttle_vx_t-10",

@@ -18,7 +18,7 @@ from typing import NamedTuple
 import numpy as np
 
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian, true_runs
-from annotator.config import Thresholds, frames_at_fps, speed_at_fps
+from annotator.config import Thresholds
 from annotator.types import (
     ANKLE_L,
     ANKLE_R,
@@ -30,6 +30,7 @@ from annotator.types import (
 )
 from shared.court import project_pixels_to_court
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M, SINGLES_INSET_M
+from shared.frame_timing import frames_at_fps, speed_at_fps
 
 
 class WinnerSource(StrEnum):

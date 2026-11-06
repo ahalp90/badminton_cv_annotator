@@ -264,7 +264,7 @@ def freeze_fixture(
         speed,
         track,
         video_config.thresholds,
-        gap_state_demotion_bound=video_config.gap_state_demotion_bound,
+        max_high_shot_gap_frames=video_config.max_high_shot_gap_frames,
         reentry_guard_variant=video_config.reentry_guard_variant,
         reentry_guard_buffer=video_config.reentry_guard_buffer,
     )

@@ -11,7 +11,6 @@ from itertools import combinations, pairwise
 
 import numpy as np
 
-from annotator.config import frames_at_fps
 from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
 from annotator.contacts.player_attribution import contact_player_evidence
 from annotator.contacts.score_candidates import (
@@ -21,6 +20,7 @@ from annotator.contacts.score_candidates import (
 )
 from annotator.inference.prepare_contact_inference import AnnotationEvidence
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from shared.frame_timing import frames_at_fps
 
 EARLIER_SERVE_CANDIDATES = 2
 LATER_CONTACT_CANDIDATES = 6

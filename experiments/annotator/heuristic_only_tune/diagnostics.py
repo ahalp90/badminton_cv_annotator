@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from annotator.config import frames_at_fps
 from annotator.training.sequences import match_contacts
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -25,6 +24,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     load_manifest,
     read_json,
 )
+from shared.frame_timing import frames_at_fps
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / 'results'

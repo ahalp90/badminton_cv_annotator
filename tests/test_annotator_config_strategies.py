@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.rallies.find_rallies import gap_state_rest_mask
-from annotator.types import ReentryGuardVariant, SmoothingMode
-from tests.annotator_config import burst_config
+from annotator.rallies.find_rallies import build_rest_mask
+from annotator.types import SmoothingMode
+from tests.annotator_config import trajectory_config
 
 
 def test_base30_overrides_scale_all_scaling_kinds() -> None:
@@ -28,9 +28,8 @@ def test_shipped_tracking_strategies_scale_at_video_fps() -> None:
     video_config25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0)
     video_config30 = scale_config_to_fps(BaseAnnotatorConfig(), 30.0)
     assert video_config25.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
-    assert video_config25.gap_state_demotion_bound == 63
-    assert video_config30.gap_state_demotion_bound == 75
-    assert video_config30.reentry_guard_variant is ReentryGuardVariant.TWO_SIDED
+    assert video_config25.max_high_shot_gap_frames == 63
+    assert video_config30.max_high_shot_gap_frames == 75
     assert video_config30.reentry_guard_buffer == 0.05
 
 
@@ -57,56 +56,35 @@ def test_rejected_grades_are_validated_and_copied_to_scaled_config() -> None:
         BaseAnnotatorConfig(rejected_grades={1})
 
 
-@pytest.mark.parametrize('kwargs', [
-    {
-        'gap_state_demotion_bound': None,
-        'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY,
-        'reentry_guard_buffer': None,
-    },
-    {
-        'gap_state_demotion_bound': None,
-        'reentry_guard_variant': None,
-        'reentry_guard_buffer': 0.1,
-    },
-    {
-        'gap_state_demotion_bound': 10.0,
-        'reentry_guard_variant': ReentryGuardVariant.REENTRY_ONLY,
-        'reentry_guard_buffer': None,
-    },
-    {
-        'gap_state_demotion_bound': 10.0,
-        'reentry_guard_variant': None,
-        'reentry_guard_buffer': 0.1,
-    },
+@pytest.mark.parametrize(('last_before', 'first_after', 'last_after', 'held_open'), [
+    (0.05, 0.05, 0.15, True),
+    (0.20, 0.05, 0.15, False),
+    (0.05, 0.20, 0.30, False),
+    (0.05, 0.05, 0.01, False),
 ])
-def test_invalid_gap_guard_configurations_fail_loudly(kwargs: dict) -> None:
-    with pytest.raises(ValueError, match='reentry guard'):
-        BaseAnnotatorConfig(**kwargs)
-
-
-def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
-    base = BaseAnnotatorConfig(
-        gap_state_demotion_bound=None,
-        reentry_guard_variant=None,
-        reentry_guard_buffer=None,
-    )
-    video_config = scale_config_to_fps(base, 25.0)
-    assert video_config.gap_state_demotion_bound is None
-    assert video_config.reentry_guard_variant is None
-    assert video_config.reentry_guard_buffer is None
-
-
-def test_gap_state_with_and_without_reentry_guard() -> None:
-    pre_y = np.linspace(0.5, 0.05, 6)
-    y = np.concatenate([pre_y, np.zeros(12), [0.5, 0.6, 0.7]])
+def test_high_shot_gap_requires_top_edge_departure_and_downward_return(
+    last_before, first_after, last_after, held_open,
+) -> None:
+    y = np.concatenate([np.linspace(last_before + 0.45, last_before, 6), np.zeros(12),
+                        np.linspace(first_after, last_after, 3)])
     track = np.column_stack([np.full(len(y), 0.5), y, np.ones(len(y))])
     track[6:18, 2] = 0
     speed = np.full(len(track), np.nan)
-    thresholds = replace(burst_config().thresholds, rest_window=3, rest_speed=1.0)
-    unguarded = gap_state_rest_mask(speed, track, thresholds, 75, None, None)
-    guarded = gap_state_rest_mask(speed, track, thresholds, 75, ReentryGuardVariant.REENTRY_ONLY, 0.1)
-    assert not unguarded[10]
-    assert guarded[10]
+    thresholds = replace(trajectory_config().thresholds, rest_window=3, rest_speed=1.0)
+    at_rest = build_rest_mask(speed, track, thresholds, max_high_shot_gap_frames=75, reentry_guard_buffer=0.1)
+    assert bool(at_rest[10]) is not held_open
+
+
+def test_high_shot_gap_becomes_rest_after_the_allowed_duration() -> None:
+    y = np.concatenate([np.linspace(0.5, 0.05, 6), np.zeros(12)])
+    track = np.column_stack([np.full(len(y), 0.5), y, np.ones(len(y))])
+    track[6:, 2] = 0
+    at_rest = build_rest_mask(
+        np.full(len(track), np.nan), track, trajectory_config().thresholds,
+        max_high_shot_gap_frames=5, reentry_guard_buffer=0.1,
+    )
+    assert not at_rest[6:11].any()
+    assert at_rest[11:].all()
 
 
 def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
@@ -127,7 +105,7 @@ def test_impulse_cell_candidates_consumes_threshold_multiple() -> None:
     apex = np.array([0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0], dtype=float) * 0.05
     track = np.column_stack([np.full(len(apex), 0.5), apex, np.ones(len(apex))])
     assert impulse_cell_candidates(
-        track, 0, len(track), burst_config().thresholds, smoothing_mode=SmoothingMode.ZERO_FILL
+        track, 0, len(track), trajectory_config().thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE
     )
-    strict = replace(burst_config().thresholds, contact_impulse_multiple=1000000000000.0)
-    assert impulse_cell_candidates(track, 0, len(track), strict, smoothing_mode=SmoothingMode.ZERO_FILL) == []
+    strict = replace(trajectory_config().thresholds, contact_impulse_multiple=1000000000000.0)
+    assert impulse_cell_candidates(track, 0, len(track), strict, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE) == []

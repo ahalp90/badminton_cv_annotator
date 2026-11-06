@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from annotator.config import frames_at_fps
 from annotator.training.sequences import LabelledRally, match_contacts
 from annotator.training.workflow import load_labels
 from annotator.types import ContactEvent
@@ -21,6 +20,7 @@ from experiments.annotator.development import (
     TEST_VIDEO_IDS,
     score_stream,
 )
+from shared.frame_timing import frames_at_fps
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 ARMS = ('base', 'veto', 'base_inference_veto')

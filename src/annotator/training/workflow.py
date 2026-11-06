@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.build_features import ContactFeatures
 from annotator.contacts.score_candidates import (
     ContactModelConfig,
@@ -58,6 +58,7 @@ from dataset_builder.vision import (
     load_pose_arrays,
     save_json_gz,
 )
+from shared.frame_timing import frames_at_fps
 from shared.shuttle_track_validation import validate_shuttle_track
 from shared.video_metadata import VideoMetadata
 

@@ -6,8 +6,8 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import frames_at_fps
 from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
+from shared.frame_timing import frames_at_fps
 
 NEARBY_CONTACT_DISTANCE_AT_30_FPS = 6
 

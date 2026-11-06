@@ -15,12 +15,12 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import frames_at_fps
 from annotator.training.contact import (
     POSITIVE_RADIUS_AT_30_FPS,
     nearest_contact_distances,
 )
 from experiments.annotator.development import load_prepared
+from shared.frame_timing import frames_at_fps
 
 
 def measure(arguments: tuple[Path, str, str]) -> dict[str, Any]:

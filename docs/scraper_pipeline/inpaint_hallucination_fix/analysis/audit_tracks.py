@@ -54,7 +54,6 @@ def segment_shuttle_track(
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Segment a shuttle track without player tracking or court evidence.
 
-    The batch CLI uses this operation with ``span_open=None`` by default.
     Its optional mask excludes dead time without adding court-based exclusions.
     """
     if raw_exclusion_mask is None:
@@ -584,7 +583,7 @@ def build_event_outputs(
             ),
             "fps": spec.fps,
             "smoothing_mode": str(video_config.smoothing_mode),
-            "span_open": str(video_config.span_open),
+            "require_fast_burst": video_config.require_fast_burst,
             "impulse_floor_half_window_frames": int(
                 video_config.thresholds.impulse_floor_half_window_frames
             ),

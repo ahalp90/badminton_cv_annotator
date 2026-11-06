@@ -15,7 +15,6 @@ from typing import Any, NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import BASE_FPS, frames_at_fps
 from annotator.courts.frame_geometry import build_scene_courts, scene_ref_corners
 from dataset_builder.features import (
     InterpolationType,
@@ -28,6 +27,7 @@ from dataset_builder.features import (
     validate_frame_range,
 )
 from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
+from shared.frame_timing import BASE_FPS, frames_at_fps
 from shared.shuttle_track_validation import validate_shuttle_track
 
 

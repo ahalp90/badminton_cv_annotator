@@ -14,21 +14,19 @@ from typing import Any
 
 import numpy as np
 
+from annotator.types import ShuttleGrade
+
 log = logging.getLogger(__name__)
 
 DETECTOR_VERSION = 4
 DEFAULT_WINDOW = 16
 DEFAULT_HALO_FRAMES = 3
-NO_FLAG = 0
-FABRICATED = 1
-SUSPECT_FLAT = 2
-DEGRADED = 3
 
 CODE_NAMES = {
-    NO_FLAG: "no flag",
-    FABRICATED: "fabricated (proof)",
-    SUSPECT_FLAT: "suspect flat",
-    DEGRADED: "degraded",
+    ShuttleGrade.NO_FLAG: "no flag",
+    ShuttleGrade.FABRICATED: "fabricated (proof)",
+    ShuttleGrade.SUSPECT_FLAT: "suspect flat",
+    ShuttleGrade.DEGRADED: "degraded",
 }
 
 _MIN_CANDIDATE_EPISODES = 2
@@ -124,10 +122,10 @@ def build_mask(
     for pos_x, pos_y in positions:
         on_attractor |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
 
-    codes[(halo | on_attractor) & ~core] = DEGRADED
-    codes[suspect] = SUSPECT_FLAT
-    codes[proven] = FABRICATED
-    codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = NO_FLAG
+    codes[(halo | on_attractor) & ~core] = ShuttleGrade.DEGRADED
+    codes[suspect] = ShuttleGrade.SUSPECT_FLAT
+    codes[proven] = ShuttleGrade.FABRICATED
+    codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = ShuttleGrade.NO_FLAG
     info["counts_per_code"] = code_counts(codes)
     return codes, info
 

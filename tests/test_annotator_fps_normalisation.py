@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import BASE_FPS
 from annotator.contacts.build_features import (
     BASE_MISSINGNESS_SIGNALS,
     WINDOW_OFFSETS_BASE30,
@@ -23,6 +22,7 @@ from experiments.annotator.tree_simplification.fps_normalisation import (
     normalise_contact_features,
     preparation_receipt,
 )
+from shared.frame_timing import BASE_FPS
 
 GEOMETRY_SIGNALS = (
     'wrist_gap_min',

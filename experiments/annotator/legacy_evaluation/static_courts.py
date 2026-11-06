@@ -8,11 +8,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.config import (
-    COMPOSITION_CONTENT_THRESHOLD,
-    BaseAnnotatorConfig,
-    scale_config_to_fps,
-)
 from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
     SCENE_VALID_MIN_FRACTION,
@@ -25,8 +20,13 @@ from annotator.courts.prepare_courts import (
     build_keep_vote,
     build_scene_rows,
 )
-from shared.camera_cuts import detect_cuts
+from shared.camera_cuts import (
+    COMPOSITION_CONTENT_THRESHOLD,
+    MIN_SCENE_FRAMES_AT_30_FPS,
+    detect_cuts,
+)
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
+from shared.frame_timing import frames_at_fps
 
 SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
 
@@ -57,7 +57,7 @@ def build_raw_cut_intervals(video_path: Path, n_frames: int, fps: float) -> list
         video_path,
         expected_frames=n_frames,
         threshold=COMPOSITION_CONTENT_THRESHOLD,
-        min_scene_len=scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len,
+        min_scene_len=frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, fps),
     )
     cut_frames = np.asarray(cut_frames, dtype=int)
     boundaries = np.concatenate((np.array([0], dtype=int), cut_frames, np.array([n_frames], dtype=int)))
