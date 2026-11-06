@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Freeze label-blind per-frame features for the tree contact trial.
 
 The freezer reads standard vision stages and saved annotator spans. It never

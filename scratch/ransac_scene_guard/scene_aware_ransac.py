@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Compare the pinned RANSAC audit with scene-boundary-aware model windows.
 
 This is an analysis-only experiment. It reuses the original fitter and changes

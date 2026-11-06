@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Fit and score tree contact baselines from a verified label-blind freeze."""
 
 # ruff: noqa: E402

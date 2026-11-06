@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses point_winner.Half.
+# Use the matching historical checkout, or port this script before running it.
+
 """Typed input loading for the corrected contact and refit EDA."""
 
 from __future__ import annotations

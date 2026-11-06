@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Test incoming shuttle motion at the first accepted contact, then prepend a shot."""
 
 from __future__ import annotations

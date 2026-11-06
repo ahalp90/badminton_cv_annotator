@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Rebuild contact, rally and selection tables from saved predictions and source labels."""
 
 from __future__ import annotations

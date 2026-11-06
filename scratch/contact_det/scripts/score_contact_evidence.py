@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Score the label-blind contact evidence freeze against ShuttleSet tables.
 
 Manifest and evidence checks run before this module imports any ground-truth

@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the old point_winner API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Brief H: the honest end-to-end number.
 
 Runs the whole GT-free detection chain (crowned rally segmentation + composition mask, wrist-
