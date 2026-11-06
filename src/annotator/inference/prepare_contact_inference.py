@@ -1,8 +1,7 @@
-"""Build the inputs shared by heuristic and learned contact inference.
+"""Prepare courts, players and initial contacts for either inference route.
 
-Prepare scene geometry, track players, measure wrist gaps, exclude unusable
-frames and find initial rallies and heuristic contact candidates. Training
-uses the same prepared evidence before building learned-model features.
+Track players and measure wrist distances before masking footage. Then find
+initial rallies and heuristic contacts. Training reuses the same evidence.
 """
 
 from collections.abc import Sequence
@@ -25,7 +24,23 @@ from annotator.types import ContactCandidate, StickyResult
 
 @dataclass(frozen=True)
 class AnnotationEvidence:
-    """Original vision arrays, tracked players, masks and initial rally/contact detections."""
+    """Prepared video inputs shared by contact inference and outcome estimation.
+
+    Arrays use original video frame indices. ``track`` is unchanged; only
+    heuristic segmentation uses a copy with excluded footage frozen in place.
+    ``tracker_intervals`` are accepted court-view ranges, incl start, excl end.
+
+    ``raw_exclusion_mask`` flags footage before short-run filtering.
+    ``exclusion_mask`` keeps sustained exclusions and adds frames without usable
+    court geometry.
+    ``shuttle_hallucination_mask`` marks rejected shuttle grades, used when
+    measuring speed evidence and interpreting final flights and landings.
+    ``source_codes`` retains those grades for rejection diagnostics.
+
+    ``heuristic_contacts`` includes failed and unchecked candidates, not just
+    accepted hits. ``bounds_supplied`` prevents learned refinement from moving
+    supplied rally bounds.
+    """
 
     identity: str
     resolution: tuple[float, float]
@@ -51,7 +66,7 @@ class AnnotationEvidence:
 
     @property
     def raw_contact_frames(self) -> list[int]:
-        """Every candidate frame, preserving injected and detected contact order."""
+        """All initial candidate frames, in supplied or detection order."""
         return [contact.contact_frame for contact in self.heuristic_contacts]
 
 
@@ -74,11 +89,10 @@ def prepare_contact_inference(
     inpaint_codes: np.ndarray | None = None,
     court_invalid_is_excluded: bool = False,
 ) -> AnnotationEvidence:
-    """Prepare player/court evidence and initial rallies for contact inference.
+    """Prepare courts, players, masks and initial rallies for inference or training.
 
-    The result feeds either inference route and supplies feature inputs during
-    training. Supplied contacts bypass candidate detection and retain their order.
-    Supplied spans bypass span finding. Neither changes the original shuttle track.
+    Supplied spans skip rally detection. Supplied contacts skip contact
+    detection and keep their order. The original shuttle track is unchanged.
     """
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
@@ -138,7 +152,7 @@ def prepare_contact_inference(
 def build_shuttle_hallucination_mask(
     n_frames: int, rejected_grades: frozenset[int], inpaint_codes: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
-    """Resolve one frame-aligned event mask from the supplied shuttle grades."""
+    """Mark frames whose shuttle grade is rejected; also return the original codes."""
     if inpaint_codes is None:
         return np.zeros(n_frames, dtype=bool), None
     if inpaint_codes.ndim != 1 or len(inpaint_codes) != n_frames:

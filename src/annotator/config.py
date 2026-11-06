@@ -1,8 +1,8 @@
-"""Heuristic preprocessing settings resolved for each video.
+"""Preprocessing settings saved with the models, then scaled for each video.
 
-The model bundle carries the preprocessing settings used during fitting.
-Changing these settings changes the inputs the trees see and requires a refit.
-Direct tree-scoring settings live with the contact model.
+Base frame counts and speeds use 30 fps. ``resolve`` converts them to the
+video's frame rate. Changing preprocessing changes the model inputs, so
+fitted models must use the settings they were trained with.
 """
 import math
 from collections.abc import Mapping
@@ -41,9 +41,11 @@ def speed_at_fps(speed_at_30_fps: float, fps: float) -> float:
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Numeric thresholds for one video's frame rate.
+    """Numeric settings after conversion to the video's frame rate.
 
-    Impulse multiples and wrist distances do not depend on frame rate.
+    Windows and durations are in video frames. Speeds are normalised image
+    distance per frame. Impulse ratios and distances in body heights do not
+    change with frame rate.
     """
     rest_speed: float
     rest_window: int
@@ -52,9 +54,7 @@ class Thresholds:
     smooth_window: int
     end_rest_frames: int
     court_absent_window: int
-    # Same value as court_absent_window today; distinct concept (the minimum
-    # masked run a mask consumer trusts enough to act on), so tuning one never
-    # silently moves the other.
+    # Minimum excluded run to retain; independent of the court-absence window.
     replay_mask_min_frames: int
     impulse_floor_half_window_frames: int
     contact_dedup_radius_frames: int
@@ -62,8 +62,7 @@ class Thresholds:
     sustained_loss_frames: int
     min_descend_samples: int
     body_unit_half_window: int
-    # Same value as court_absent_window today; distinct concept (PySceneDetect's
-    # minimum scene length), so tuning one never silently moves the other.
+    # Minimum camera-scene length for cut detection.
     composition_min_scene_len: int
     blip_max_frames: int
     high_shot_oob_lookback_frames: int
@@ -80,11 +79,18 @@ _OVERRIDABLE_THRESHOLD_FIELDS = frozenset(field.name for field in fields(Thresho
 
 @dataclass(frozen=True)
 class BaseAnnotatorConfig:
-    """Heuristic preprocessing policy saved with the fitted model bundle.
+    """Preprocessing choices saved with a fitted model bundle.
 
-    ``overrides_base30`` replaces named numeric settings before their final per-video
-    values are built. These settings define model inputs and are saved with
-    each fitted bundle.
+    ``overrides_base30`` replaces named Thresholds defaults before scaling.
+    Frame counts and speeds in those overrides use 30 fps.
+
+    ``gap_state_demotion_bound`` limits how long a missing shuttle can be
+    treated as a high shot still in play; in frames at 30 fps. None selects
+    the simpler rule based on speed and the fraction of visible frames.
+    ``reentry_guard_buffer`` is the top-edge distance as a fraction of image
+    height. Set both re-entry settings to None to skip the return check.
+    ``rejected_grades`` selects shuttle grades excluded from speed evidence
+    and final-flight/landing decisions.
     """
 
     # Invisible coordinates must not pull a smoothed trajectory towards zero.
@@ -94,7 +100,7 @@ class BaseAnnotatorConfig:
     gap_state_demotion_bound: float | None = 75.0
     reentry_guard_variant: ReentryGuardVariant | None = ReentryGuardVariant.TWO_SIDED
     reentry_guard_buffer: float | None = 0.05
-    # Reject contacts and landings on uncertain or fabricated shuttle tracks.
+    # Shuttle grades to exclude when estimating speed and final flights.
     rejected_grades: frozenset[int] = frozenset({1, 2, 3})
 
     def __post_init__(self) -> None:
@@ -114,10 +120,11 @@ class BaseAnnotatorConfig:
 
 @dataclass(frozen=True)
 class ResolvedAnnotatorConfig:
-    """Final per-video configuration, built once and never rescaled.
+    """Preprocessing settings ready for one video; do not scale again.
 
-    ``thresholds`` contains every resolved numeric value. Strategy fields retain
-    the selected policy; frame-count strategies are scaled with the same rules.
+    ``thresholds`` contains the converted numeric defaults/overrides.
+    ``gap_state_demotion_bound`` is also converted to video frames. Other
+    choices are copied from the saved base settings.
     """
 
     fps: float
@@ -131,7 +138,7 @@ class ResolvedAnnotatorConfig:
 
 
 def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
-    """Convert saved settings for a video's frame rate."""
+    """Convert the saved preprocessing settings to the video frame rate."""
     overrides = base.overrides_base30
     if overrides is not None:
         unknown_settings = sorted(set(overrides) - _OVERRIDABLE_THRESHOLD_FIELDS)
@@ -154,7 +161,7 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
 
 
 def _resolve_thresholds(fps: float, overrides_base30: Mapping[str, float] | None) -> Thresholds:
-    """Scale the base-30 table for a positive finite CFR frame rate."""
+    """Apply numeric overrides, then convert frame counts and speeds from 30 fps."""
     base30 = {} if overrides_base30 is None else overrides_base30
 
     def frame_count(name: str, default: float) -> int:

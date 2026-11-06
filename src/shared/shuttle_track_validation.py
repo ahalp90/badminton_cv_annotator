@@ -1,4 +1,4 @@
-"""Shared validation for normalized whole-video shuttle tracks."""
+"""Check normalised shuttle positions and visibility before annotation."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ import numpy as np
 
 
 def validate_shuttle_track(track: np.ndarray, frame_count: int | None = None) -> None:
-    """Validate normalized x, y, and visibility columns shaped ``(frames, 3)``."""
+    """Require a finite floating array of (x, y, visible), one row per video frame.
+
+    Visibility must be 0 or 1. Visible xy must be within [0, 1]; invisible xy
+    only needs to be finite. If frame_count is supplied, require that many rows.
+    """
     values = np.asarray(track)
     expected_shape = (frame_count, 3) if frame_count is not None else None
     if expected_shape is not None and values.shape != expected_shape:

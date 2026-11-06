@@ -13,7 +13,10 @@ from annotator.training.sequences import (
 def option_targets_at_tolerances(
     video: SequenceTrainingVideo, pool: RallyOptions, tolerances_at_30_fps: tuple[int, ...],
 ) -> tuple[np.ndarray, ...]:
-    """Judge proposals at each tolerance; boundary padding belongs to inference."""
+    """Judge each proposed contact list at each matching tolerance.
+
+    Use the proposed bounds here. Inference extends bounds after selection.
+    """
     fps = video.context.fps
     targets = tuple(np.empty(len(pool.sequences), dtype=np.int8) for _ in tolerances_at_30_fps)
     tolerance_frames = [frames_at_fps(tolerance, fps) for tolerance in tolerances_at_30_fps]
@@ -38,11 +41,16 @@ def option_targets_at_tolerances(
 def option_targets(
     video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
 ) -> np.ndarray:
+    """Judge every proposal at one frame-rate-scaled matching tolerance."""
     return option_targets_at_tolerances(video, pool, (tolerance_at_30_fps,))[0]
 
 
 def preferred_targets(pool: RallyOptions, wide: np.ndarray, preferred: np.ndarray) -> np.ndarray:
-    """Prefer tighter labels only when a judged span retains a positive option."""
+    """Use tighter labels for a rally when at least one judged option stays correct.
+
+    Otherwise retain the wider-tolerance labels. Rows unjudgeable at the wider
+    tolerance stay unjudgeable.
+    """
     if wide.shape != (len(pool.sequences),) or preferred.shape != wide.shape:
         raise ValueError('preferred targets must align with every option row')
     targets = wide.copy()

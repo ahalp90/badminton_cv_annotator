@@ -19,7 +19,12 @@ def build_outcomes(
     landing_options: landing_and_winner.LandingFilterOptions,
     rejection_diagnostics: list[dict[str, object]] | None,
 ) -> dict[int, landing_and_winner.RallyOutcome]:
-    """Resolve each final flight using landing options already scaled for this video."""
+    """Estimate landings and winners for rallies whose final hitter is known.
+
+    Measure video-wide motion once, then search each final flight. Reject a
+    final contact on a flagged shuttle frame; the next server can still give
+    a winner. Landing options must already use this video's frame rate.
+    """
     video_kinematics = landing_and_winner.build_landing_kinematics(
         evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
     )
@@ -79,7 +84,11 @@ def build_outcomes(
 def final_flight_range(
     final_contact: int, next_start: int, rally_end: int, evidence: AnnotationEvidence,
 ) -> tuple[SceneCourt, int, int] | None:
-    """Choose one camera view and its half-open search range for the final flight."""
+    """Choose a camera view and landing search range, incl start, excl end.
+
+    Prefer the view containing the final contact. If the view returns later,
+    use it only within the rally's live time and when its first frame is usable.
+    """
     scene = next((scene for scene in evidence.scene_courts
                   if scene.end_frame > final_contact and scene.start_frame < rally_end), None)
     if scene is None:
@@ -95,7 +104,7 @@ def final_flight_range(
 def build_hit_heights(
     evidence: AnnotationEvidence, rallies: Sequence[FinishedRally],
 ) -> tuple[dict[int, int], dict[int, str]]:
-    """Measure hit heights and record why unavailable heights could not be measured."""
+    """Measure each contact height; record a reason when its position/court is unavailable."""
     hit_height_by_frame: dict[int, int] = {}
     unavailable_hit_height_reasons: dict[int, str] = {}
     for rally in rallies:

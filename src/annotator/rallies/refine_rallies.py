@@ -1,6 +1,7 @@
-"""Select rally contacts, extend their bounds and fit striker order.
+"""Choose rally contacts, finish their bounds and assign alternating players.
 
-The final sequences also supply features for review ranking.
+Review scoring uses the selected proposal's hitter guesses and the finished
+rally's bounds. This preserves player uncertainty when ranking rallies.
 """
 
 from collections.abc import Sequence
@@ -40,7 +41,7 @@ REVIEW_FEATURE_NAMES = (
 
 @dataclass(frozen=True)
 class RallySelector:
-    """Fitted rally-proposal classifier and the edit limits used to generate its inputs."""
+    """Fitted proposal classifier and the edit limits to reuse when building its inputs."""
 
     selector: Any
     max_edits: int = 3
@@ -53,7 +54,13 @@ class RallySelector:
 
 @dataclass(frozen=True)
 class RallyPrediction:
-    """Chosen rallies, candidate contact stream and the proposal scores used to select them."""
+    """Selected rallies alongside the alternatives and scores used to choose them.
+
+    ``chosen`` maps initial rally IDs to rows in ``pool`` and ``scores``.
+    ``rallies`` has final bounds and fitted player sides; ``pool`` keeps the
+    earlier bounds and individual player guesses for review features.
+    ``events`` is the finished contact list, including hits outside rallies.
+    """
 
     rallies: tuple[FinishedRally, ...]
     events: tuple[ContactEvent, ...]
@@ -63,13 +70,13 @@ class RallyPrediction:
 
     @property
     def sequences(self) -> tuple[ContactSequence, ...]:
-        """Selected sequences for scoring and stream export."""
+        """Finished contact sequences in rally order."""
         return tuple(rally.sequence for rally in self.rallies)
 
 
 @dataclass(frozen=True)
 class RallyReviewFeatures:
-    """Selected-option evidence with final boundaries, one row per output span."""
+    """Review-model feature rows with their initial rally IDs, in matching order."""
 
     span_ids: tuple[int, ...]
     matrix: np.ndarray
@@ -77,7 +84,7 @@ class RallyReviewFeatures:
 
 @dataclass(frozen=True)
 class RallyReview:
-    """Confidence scores used to rank rallies for review; lower scores need more attention."""
+    """Rally correctness scores aligned with features.span_ids; lower needs more review."""
 
     features: RallyReviewFeatures
     scores: np.ndarray
@@ -104,10 +111,11 @@ def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
 def finish_rallies(
     pool: RallyOptions, rows: dict[int, int],
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
-    """Finish selected rallies and rebuild their full contact stream.
+    """Finish the chosen contact lists, rally bounds and alternating player sides.
 
-    Each chosen rally owns the contacts inside its bounds. Detector contacts
-    outside every chosen rally survive in the full stream.
+    Replace contacts inside each chosen range with that proposal's contacts.
+    Preserve selected contacts outside all chosen ranges. Extend discovered
+    bounds where possible, then assign player sides in the full contact list.
     """
     context = pool.context
     sequences = tuple(pool.sequences[rows[initial.span_id]] for initial in context.initial)
@@ -124,32 +132,22 @@ def finish_rallies(
     return rallies, tuple(fitted.get(event.frame, event) for event in events)
 
 
-def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
-    if not sequence.events:
-        return [sequence.start_frame, sequence.end_frame]
-    first_frame = min(event.frame for event in sequence.events)
-    last_frame = max(event.frame for event in sequence.events)
-    start = max(0, min(sequence.start_frame, first_frame - padding))
-    end = max(sequence.end_frame, last_frame + padding + 1)
-    return [start, end]
-
-
 def extend_boundaries(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent], fps: float,
     *, frame_count: int | None = None,
 ) -> tuple[ContactSequence, ...]:
-    """Pad each sequence around its first and last contact, keeping its contacts.
+    """Add space before the first hit and after the last, keeping the same contacts.
 
-    Padding never moves a bound inward and stops at the neighbouring
-    sequences' current bounds. When both neighbours reach into one gap, the
-    gap's midpoint divides it. A sequence whose padded bounds would take in or
-    lose any full-stream contact keeps its current bounds instead.
+    Extend outwards only, stopping at neighbouring rallies and video end.
+    If both neighbours extend into the same gap, divide it at the midpoint.
+    Keep the old bounds if an extension would change which contacts belong
+    to the rally.
 
-    :param sequences: Chosen sequences in chronological order, disjoint.
-    :param events: Full-stream contact events in frame order.
-    :param fps: Source frame rate.
-    :param frame_count: Video length; bound extensions stop at this exclusive end.
-    :return: Sequences in the same order, with the same contacts.
+    :param sequences: Non-overlapping rallies in time order.
+    :param events: Full contact list in frame order, including hits outside rallies.
+    :param fps: Video frame rate.
+    :param frame_count: Optional video length; bounds exclude this endpoint.
+    :return: Same rallies and contacts, with permitted extensions.
     """
     padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, fps)
     bounds = [proposed_bounds(sequence, padding) for sequence in sequences]
@@ -177,11 +175,31 @@ def extend_boundaries(
     return tuple(extended)
 
 
-def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
-    """Measure the selected proposal and its final rally bounds for review ranking.
+def proposed_bounds(sequence: ContactSequence, padding: int) -> list[int]:
+    """Extend bounds to pad the first/last hit; keep existing bounds for an empty rally."""
+    if not sequence.events:
+        return [sequence.start_frame, sequence.end_frame]
+    first_frame = min(event.frame for event in sequence.events)
+    last_frame = max(event.frame for event in sequence.events)
+    start = max(0, min(sequence.start_frame, first_frame - padding))
+    end = max(sequence.end_frame, last_frame + padding + 1)
+    return [start, end]
 
-    Keep the proposed contact sides so the ranker sees uncertainty that final
-    player alternation may resolve. Use final bounds for the timing summaries.
+
+# Rank finished rallies for review
+
+def score_rally_review(prediction: RallyPrediction, model: Any) -> RallyReview:
+    """Estimate each finished rally's probability of being correct."""
+    features = build_review_features(prediction)
+    scores = positive_probabilities(model, features.matrix)
+    return RallyReview(features, scores)
+
+
+def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
+    """Measure each selected proposal and its finished rally for review scoring.
+
+    Keep the original hitter guesses so the model can see uncertainty hidden
+    by the fitted alternating order. Use final bounds for timing measurements.
     """
     pool = prediction.pool
     span_ids = tuple(prediction.chosen)
@@ -203,10 +221,3 @@ def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
     sequence_summaries = np.asarray(summaries, dtype=np.float64).reshape(len(span_ids), len(SUMMARY_FEATURE_NAMES))
     scores = np.asarray(scores, dtype=np.float64).reshape(len(span_ids), 2)
     return RallyReviewFeatures(span_ids, np.column_stack((option_features, scores, sequence_summaries)))
-
-
-def score_rally_review(prediction: RallyPrediction, model: Any) -> RallyReview:
-    """Estimate each finished rally's probability of being correct."""
-    features = build_review_features(prediction)
-    scores = positive_probabilities(model, features.matrix)
-    return RallyReview(features, scores)

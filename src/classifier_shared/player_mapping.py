@@ -1,11 +1,8 @@
-"""ShuttleSet player A/B -> Top/Bottom mapping + per-match shot collection.
+"""Convert ShuttleSet player A/B labels to camera-relative Top/Bottom.
 
-The ShuttleSet CSVs label players as 'A' and 'B'. Which physical player is
-Top (far court) vs Bottom (near court) depends on:
-
-  1. The ``downcourt`` flag in match.csv (initial court assignment)
-  2. Which set is being played (sides swap between sets 1 and 2)
-  3. In set 3, a mid-game court switch at 11 points
+Start from the match.csv downcourt assignment. Swap ends for set 2 and
+again after the first player reaches 11 points in set 3. ``collect_shots``
+applies these changes while reading and filtering the set CSVs.
 """
 from __future__ import annotations
 
@@ -21,57 +18,18 @@ _SHOT_COLS = ['rally', 'ball_round', 'frame_num',
               'roundscore_A', 'roundscore_B', 'player', 'type']
 
 
-def map_players(df: pd.DataFrame, first_A_is_top: bool, set_num: int) -> pd.DataFrame:
-    """Replace 'A'/'B' in the 'player' column with 'Top'/'Bottom'.
-
-    The mapping depends on court orientation (``first_A_is_top``) and set
-    number. For sets 1 and 2 players swap sides between sets; for set 3
-    callers must split at the 11-point switch and call this twice.
-    XOR logic:
-      - If ``(first_A_is_top XOR set_num == 2)``: A -> Top, B -> Bottom
-      - Otherwise: A -> Bottom, B -> Top
-    """
-    df = df.copy()
-    if first_A_is_top ^ (set_num == 2):
-        df['player'] = np.where(df['player'] == 'A', 'Top', 'Bottom')
-    else:
-        df['player'] = np.where(df['player'] == 'B', 'Top', 'Bottom')
-    return df
-
-
-def find_set3_switch_rally(df: pd.DataFrame) -> int:
-    """Return the iloc splitting set-3 rallies into pre/post 11-point switch.
-
-    In badminton, players switch sides in set 3 when one reaches 11 points.
-    We find the first rally where either player's score reaches 11 and
-    return the iloc of the rally AFTER it (the first post-switch rally).
-    """
-    i_A = df['roundscore_A'].searchsorted(11, side='left')
-    i_B = df['roundscore_B'].searchsorted(11, side='left')
-    i = min(i_A, i_B)
-
-    # Guard for retirements (nobody hits 11 in the recorded data).
-    if i >= len(df):
-        return len(df)
-
-    switch_rally = df.iloc[i]['rally']
-    return df['rally'].searchsorted(switch_rally, side='right')
-
-
 def collect_shots(
     set_info_dir: Path,
     v_info: pd.Series,
     stroke_types_zh: list[str],
 ) -> pd.DataFrame:
-    """Collect every shot in a video across all sets, with Top/Bottom mapped.
+    """Read a video's labelled shots across sets and assign camera-relative players.
 
-    :param set_info_dir: Path containing the per-match folders.
-    :param v_info: Series from match.csv with 'video' and 'downcourt'.
-    :param stroke_types_zh: Chinese stroke-type names to keep (other rows
-        are filtered out — usually noise / unrecognised type strings).
-    :return: DataFrame with columns
-        ``set, rally, ball_round, frame_num, roundscore_A, roundscore_B,
-        player ('Top'/'Bottom'), type (English)``.
+    :param set_info_dir: Directory containing the match folders.
+    :param v_info: match.csv row with video folder name and downcourt assignment.
+    :param stroke_types_zh: Chinese stroke names to retain.
+    :return: Rows with set, rally, ball_round, frame_num, roundscore_A/B,
+        player (Top/Bottom) and type (English).
     """
     folder_path = set_info_dir / v_info['video']
     first_A_is_top = bool(v_info['downcourt'])
@@ -94,8 +52,7 @@ def collect_shots(
         df = pd.read_csv(csv_path)[_SHOT_COLS]
         df.insert(0, 'set', np.full(len(df), 3, dtype=int))
 
-        # switch detection needs the unfiltered frame: positional index +
-        # complete scores; filter after splitting.
+        # Find the switch before filtering, while all score rows are present.
         i_split = find_set3_switch_rally(df)
         df_before = map_players(df.iloc[:i_split], first_A_is_top, 1)
         df_after = map_players(df.iloc[i_split:], first_A_is_top, 2)
@@ -110,3 +67,37 @@ def collect_shots(
     result = pd.concat(collected).reset_index(drop=True)
     result['type'] = result['type'].map(ZH_TO_EN)
     return result
+
+
+def map_players(df: pd.DataFrame, first_A_is_top: bool, set_num: int) -> pd.DataFrame:
+    """Copy the rows and replace A/B player labels with Top/Bottom.
+
+    Use the initial court assignment for set 1; reverse it for set 2.
+    For set 3, split at the 11-point switch and call with set_num 1 before it
+    and 2 after it.
+    """
+    df = df.copy()
+    if first_A_is_top ^ (set_num == 2):
+        df['player'] = np.where(df['player'] == 'A', 'Top', 'Bottom')
+    else:
+        df['player'] = np.where(df['player'] == 'B', 'Top', 'Bottom')
+    return df
+
+
+def find_set3_switch_rally(df: pd.DataFrame) -> int:
+    """Row position where players change ends in set 3.
+
+    Find the first rally where either recorded score reaches 11. Return the
+    first row after that rally, or len(df) if nobody reaches 11. Use the full
+    score rows before filtering shots.
+    """
+    i_A = df['roundscore_A'].searchsorted(11, side='left')
+    i_B = df['roundscore_B'].searchsorted(11, side='left')
+    i = min(i_A, i_B)
+
+    # The recorded set may end before anyone reaches 11.
+    if i >= len(df):
+        return len(df)
+
+    switch_rally = df.iloc[i]['rally']
+    return df['rally'].searchsorted(switch_rally, side='right')

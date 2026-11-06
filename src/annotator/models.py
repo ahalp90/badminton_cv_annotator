@@ -28,7 +28,13 @@ DEFAULT_MODEL_DIRECTORY = (
 
 @dataclass(frozen=True)
 class AnnotatorModels:
-    """Contact classifier, rally selector and review ranker with their fitted settings."""
+    """The three fitted classifiers and the settings needed to use them.
+
+    ``contact`` scores individual frames; ``sequences`` chooses rally contact
+    lists; ``confidence`` estimates whether each finished rally is correct.
+    Keep preprocessing and contact-selection settings with the trees so
+    inference builds the same inputs as training.
+    """
 
     contact: Any
     sequences: RallySelector
@@ -46,10 +52,12 @@ def model_files(directory: Path) -> dict[str, Path]:
 
 
 def fitted_trees(models: AnnotatorModels) -> tuple[Any, ...]:
+    """Contact, rally and review classifiers, in processing order."""
     return (models.contact, models.sequences.selector, models.confidence)
 
 
 def selector_contract(models: RallySelector) -> dict[str, Any]:
+    """Proposal limits and feature names recorded with the saved rally selector."""
     return {
         'max_edits': models.max_edits,
         'deletion_candidates': models.deletion_candidates,
@@ -59,7 +67,7 @@ def selector_contract(models: RallySelector) -> dict[str, Any]:
 
 
 def save_models(models: AnnotatorModels, directory: Path) -> None:
-    """Save all fitted stages together with their runtime and feature order."""
+    """Save the fitted models, preprocessing, feature order and library versions."""
     directory.mkdir(parents=True, exist_ok=True)
     joblib.dump(models, directory / MODEL_FILENAME)
     metadata = {
@@ -74,7 +82,7 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
 
 
 def load_models(directory: Path) -> AnnotatorModels:
-    """Load the fitted models and check their feature and annotation settings."""
+    """Load all three models and check the saved feature order and proposal settings."""
     missing = [path.name for path in model_files(directory).values() if not path.is_file()]
     if missing:
         raise FileNotFoundError(

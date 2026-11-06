@@ -1,7 +1,7 @@
-"""Detect, gate and suppress heuristic contact candidates within supplied spans.
+"""Find contacts from sudden shuttle movement, wrist proximity and spacing.
 
-`rallies.find_rallies.segment_video` applies excluded-frame masking and finds
-the spans before calling these contact rules.
+``segment_video`` first masks excluded footage and chooses rally ranges.
+These functions measure and filter contacts within those ranges.
 """
 
 import numpy as np
@@ -18,22 +18,22 @@ def assemble_contacts(
     thresholds: Thresholds, sticky_distances: np.ndarray | None,
     *, smoothing_mode: SmoothingMode,
 ) -> list[ContactCandidate]:
-    """Detect, gate, and suppress contacts for already-selected spans."""
+    """Find contacts within rally ranges and record the wrist and spacing checks."""
     contacts = []
-    gated = []
+    near_wrist_candidates = []
     for rally_id, (start, end) in enumerate(spans):
         candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
         for frame, impulse in candidates:
             near_wrist = wrist_contact_near(sticky_distances, frame, thresholds.wrist_distance_body_heights)
             contacts.append(ContactCandidate(rally_id, frame, near_wrist, None))
             if near_wrist:
-                gated.append((frame, impulse))
+                near_wrist_candidates.append((frame, impulse))
     if sticky_distances is None:
         return contacts
 
-    # The second suppression stage compares gated contacts across rally boundaries.
+    # This spacing check also compares contacts across rally boundaries.
     radius = thresholds.contact_suppression_radius_frames
-    accepted = {frame for frame, _ in suppress_contact_flags(gated, radius=radius)}
+    accepted = {frame for frame, _ in suppress_contact_flags(near_wrist_candidates, radius=radius)}
     return [
         contact._replace(suppressed=contact.wrist_near and contact.contact_frame not in accepted)
         for contact in contacts
@@ -44,11 +44,10 @@ def impulse_cell_candidates(
     track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
     smoothing_mode: SmoothingMode,
 ) -> list[tuple[int, float]]:
-    """Find raw impulse candidates and retain their impulse for suppression.
+    """Find sudden changes in shuttle velocity, keeping the strongest nearby ones.
 
-    The measured rule is pure impulse. It uses the three-frame visibility mask,
-    a rolling impulse floor, and largest-impulse-first de-duplication at the
-    three-frame boundary used at 25 fps.
+    Require visibility on all three frames around each velocity change. Compare
+    its size with the local median, then apply the configured minimum spacing.
     """
     measured = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
     if measured is None:
@@ -65,16 +64,15 @@ def span_impulses(
     track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
     smoothing_mode: SmoothingMode,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
-    """Measure impulse magnitude, ratio to the local floor and junction visibility.
+    """Measure changes in velocity and their size relative to nearby changes.
 
-    Annotation prepares a replay-masked track before detecting contacts.
-    Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.
-    Track xy inputs are finite. IGNORE_INVISIBLE makes a float copy whose invisible
-    xy values are NaN. A NaN impulse means its smoothing window was unmeasurable;
-    downstream comparisons drop the corresponding junction.
+    Output index k corresponds to video frame start + k + 1, the middle of
+    three frames. Return magnitudes, ratios to the local median and visibility
+    across those three frames. None if too few samples to smooth and difference.
 
-    :return: Magnitudes, ratios and three-frame visibility, each indexed by junction.
-        Return None when the span is too short for smoothing and two differences.
+    IGNORE_INVISIBLE treats invisible xy values as NaN while smoothing.
+    ZERO_FILL uses the supplied coordinates, including invisible frames.
+    An unmeasurable smoothing window gives NaN; later comparisons reject it.
     """
     smooth_window = thresholds.smooth_window
     span = track[start:end]
@@ -102,10 +100,10 @@ def rolling_floor(
     values: np.ndarray, around_visible: np.ndarray,
     half_window: int,
 ) -> np.ndarray:
-    """Median floor over visible junctions within a frame-count window.
+    """Local median impulse, using only fully visible three-frame samples.
 
-    ``half_window`` counts junctions on each side at the video's frame rate. A junction with no
-    visible neighbour in its window receives NaN and cannot pass the rule.
+    ``half_window`` counts samples on each side. No usable sample gives NaN,
+    so the contact cannot pass the impulse comparison.
     """
     visible_values = np.where(around_visible, values, np.nan)
     floor = np.full(len(values), np.nan)
@@ -122,10 +120,10 @@ def suppress_contact_flags(
     flags: list[tuple[int, float]],
     radius: int,
 ) -> list[tuple[int, float]]:
-    """Greedy argmax suppression over ``(frame, impulse)`` flags.
+    """Keep the largest impulses, with at least ``radius`` frames between contacts.
 
-    Flags are ranked by descending impulse and then ascending frame. A flag is
-    accepted only when it is at least ``radius`` frames from every accepted flag.
+    Input pairs are (frame, impulse). Earlier frames win equal-impulse ties.
+    Return accepted pairs in frame order.
     """
     ordered = sorted(flags, key=lambda flag: (-flag[1], flag[0]))
     accepted: list[tuple[int, float]] = []

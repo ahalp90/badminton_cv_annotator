@@ -25,7 +25,12 @@ from shared.progress import report
 
 @dataclass(frozen=True)
 class LearnedModelPrediction:
-    """Finished rally predictions and the measured inputs retained for training or inspection."""
+    """Results of all three learned stages, with their measured inputs.
+
+    Contact features/scores support inspection and training. ``refined`` keeps
+    both the proposals and finished rallies; ``confidence`` ranks those rallies
+    for review.
+    """
 
     features: ContactFeatures
     contacts: ScoredContacts
@@ -43,7 +48,7 @@ def predict_contacts(evidence: AnnotationEvidence, models: AnnotatorModels) -> L
 def predict_contact_features(
     evidence: AnnotationEvidence, features: ContactFeatures, models: AnnotatorModels,
 ) -> LearnedModelPrediction:
-    """Annotate precomputed contact features through the same production path."""
+    """Score precomputed features, choose rally contacts, then score rally confidence."""
     report("scoring contact candidates")
     contacts = score_contact_features(
         features.rows, models.contact, evidence.fps, models.contact_settings,

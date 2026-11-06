@@ -1,12 +1,13 @@
-"""Estimate rally outcomes from contact sides, shuttle flight and court geometry.
+"""Estimate the point winner from the next server or the shuttle landing.
 
-The next server determines the winner when known. Otherwise, a filtered landing
-provides a geometric estimate. Outcomes use the already-fitted player order
-without changing contact sides.
+Use the next server when known. Otherwise, estimate a landing from the last
+flight and compare it with the receiver's court. Contact sides have already
+been assigned.
 
-Landing filters reject carried shuttle motion and stop at ground settling. They
-assume full-frame broadcast footage: a shuttle leaving the image's top edge may
-be a lob that returns to view. Each landing search stays within one camera view.
+Landing search stops at ground settling. Prefer descents away from players'
+wrists, falling back to the last accepted descent if all look carried.
+Each search stays within one camera view. A shuttle leaving the image top
+may be a high shot that returns to view.
 """
 from __future__ import annotations
 
@@ -34,60 +35,232 @@ from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M, SINGLES_INSET_M
 class WinnerSource(StrEnum):
     """The observation or rule used to determine the winner."""
 
-    NEXT_SERVER = 'next_server'      # winner-serves-next: rally n+1's fitted first-stroke half
+    NEXT_SERVER = 'next_server'  # next rally's fitted first hitter
     LANDING_GEOMETRY = 'landing_geometry'  # in/out of the receiver's singles half
-    NET_RULE = 'net_rule'            # flight never crossed the net and died in the net band
+    NET_RULE = 'net_rule'  # flight stayed on the hitter's side and ended at the net
 
 
-# Singles-court geometry in the normalised court space (doubles outline -> unit square, x = court
-# WIDTH 6.10 m, y = court LENGTH 13.40 m). Singles sidelines sit inset (6.10-5.18)/2 = 0.46 m each
-# side; baselines are the unit-square y edges; net at y=0.5.
-SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
-SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
+# Court xy uses the doubles outline as a unit square: x across, y along the
+# court. Singles sidelines are inset 0.46 m; baselines at y=0 and y=1, net at 0.5.
+SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M  # ~0.07541
+SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M  # ~0.92459
 NET_COURT_Y = 0.5
-# Image-y fraction that counts as the frame's TOP edge for the window fix (a lob that exits the
-# top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
-# (2% of any edge).
+# Within 2% of the top edge: allow a high shot to return after disappearing.
+# The same distance from any edge flags a possible exit before landing.
 TOP_EDGE_FRAC = 0.02
 
-# ---------------------------------------------------------------------------
-# Landing search window
-# ---------------------------------------------------------------------------
+
+# Landing result and point winner
+
+
+class Landing(NamedTuple):
+    """Selected landing, projected court position and uncertainty flags.
+
+    :param frame: Original video frame index.
+    :param norm: Court xy; doubles outline mapped to the unit square.
+    :param half: Top/Bot from court y versus 0.5. This does not establish in/out.
+    :param at_border: Position within 2% of an image edge; it may be an exit
+        from view before the shuttle reaches the floor.
+    :param net_ender: Observed flight stayed on the hitter's side and ended
+        in the net band.
+    """
+
+    frame: int
+    norm: tuple[float, float]
+    half: CourtHalf
+    at_border: bool
+    net_ender: bool
+
+
+class RallyOutcome(NamedTuple):
+    """Estimated winner, landing and reasons for uncertainty.
+
+    ``winner`` uses the next server when known, otherwise landing/net evidence.
+    ``winner_source`` identifies that choice. ``conservative_landing_winner``
+    ignores the next server and withholds image-border and exact-line calls
+    unless a net fault determines the result.
+
+    ``landing_margin_m`` is signed distance to the receiver's singles bounds.
+    ``within_line_margin`` and ``within_net_margin`` flag proximity within the
+    court error estimate, independently of the winner. The final flag records
+    whether excluded footage shortened the landing search.
+    """
+
+    winner: CourtHalf | None
+    winner_source: WinnerSource | None
+    landing: Landing | None
+    landing_margin_m: float | None
+    within_line_margin: bool
+    within_net_margin: bool
+    conservative_landing_winner: CourtHalf | None
+    search_shortened_by_exclusion: bool
+
+
+def resolve_rally_outcome(
+    striker_half: CourtHalf, next_server: CourtHalf | None, landing: Landing | None,
+    band_m: float | None, *, search_shortened_by_exclusion: bool = False,
+) -> RallyOutcome:
+    """Choose the next server as winner when known; otherwise use landing evidence.
+
+    A net fault awards the point to the receiver before any in/out check.
+    For other landings, withhold an out landing on the hitter's own half.
+    The conservative landing estimate also withholds image-border and
+    exact-line calls. Keep ambiguity flags even when the next server is known.
+    """
+    receiver = OTHER_HALF[striker_half]
+    landing_winner = conservative_landing_winner = None
+    margin_m = None
+    within_line = within_net = False
+    if landing is not None:
+        assert band_m is not None
+        margins = landing_margins(landing.norm, receiver)
+        margin_m = margins.margin_m
+        within_line = margins.line_clear_m < band_m
+        within_net = margins.net_clear_m < band_m
+        out_on_own_half = (
+            landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0
+        )
+        if landing.net_ender:
+            landing_winner = conservative_landing_winner = receiver
+        elif not out_on_own_half:
+            landing_winner = striker_half if margin_m >= 0 else receiver
+            if not landing.at_border and margin_m != 0:
+                conservative_landing_winner = landing_winner
+    winner = next_server if next_server is not None else landing_winner
+    source = None
+    if next_server is not None:
+        source = WinnerSource.NEXT_SERVER
+    elif landing is not None and winner is not None:
+        source = WinnerSource.NET_RULE if landing.net_ender else WinnerSource.LANDING_GEOMETRY
+    return RallyOutcome(
+        winner, source, landing, margin_m, within_line, within_net,
+        conservative_landing_winner, search_shortened_by_exclusion,
+    )
+
+
+# Landing search settings and measurements
+
+
+class LandingFilterOptions(NamedTuple):
+    """Settings for distinguishing a landing from a pause or movement by hand.
+
+    Pass base-30-fps values to ``annotate_video``. ``convert_landing_options``
+    scales them once; lower-level landing functions take the converted values.
+
+    :param settle_win: Rolling-median speed window, in frames.
+    :param settle_thr: Maximum still speed, in normalised image distance/frame.
+    :param settle_min: Consecutive still, grounded frames needed to stop searching.
+    :param carry_win: Trailing window for median wrist distance, in frames.
+    :param carry_thr: Maximum wrist distance considered carried, in body heights.
+        Also distinguishes a held pause from a ground settle.
+    """
+
+    settle_win: int
+    settle_thr: float
+    settle_min: int
+    carry_win: int
+    carry_thr: float
+
+
+SHIPPED_LANDING_FILTER_OPTIONS = LandingFilterOptions(
+    settle_win=7,
+    settle_thr=0.004,
+    settle_min=5,
+    carry_win=7,
+    carry_thr=0.75,
+)
+
+
+def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
+    """Scale base-30-fps landing settings to the video frame rate; call once."""
+    def frame_count(value: int) -> int:
+        return frames_at_fps(value, fps)
+
+    return opts._replace(
+        settle_win=frame_count(opts.settle_win),
+        settle_thr=speed_at_fps(opts.settle_thr, fps),
+        settle_min=frame_count(opts.settle_min),
+        carry_win=frame_count(opts.carry_win),
+    )
+
+
 @dataclass(frozen=True)
 class LandingWindow:
-    """The half-open landing search endpoint and reasons to stop there."""
+    """Where to stop looking for a landing, excluding ``end_frame``.
+
+    ``search_stop_reasons`` lists any limits reached at that frame.
+    ``search_shortened_by_exclusion`` is True only when excluded footage made
+    the search shorter than it would otherwise have been.
+    """
 
     end_frame: int
     search_stop_reasons: tuple[str, ...]
     search_shortened_by_exclusion: bool
 
 
-def gap_after_top_exit(
-    final_contact: int, run_start: int, track: np.ndarray,
-    shuttle_hallucination_mask: np.ndarray,
-) -> bool:
-    """Check whether the last visible sample before a gap was at the image's top edge.
+class LandingKinematics(NamedTuple):
+    """Per-frame shuttle speed and distances used by the landing filters.
 
-    The gap starts at ``final_contact + 1 + run_start``. A visible preceding sample
-    within ``TOP_EDGE_FRAC`` of the top edge permits a lob-return search; it does
-    not establish that the shuttle will return.
+    :param carry_ratio: Nearest wrist distance in body heights. Divide each
+        selected player's distance by their current box height, then take the
+        minimum. NaN for an invisible shuttle or no usable selected player.
+    :param ankle_ratio: Nearest ankle distance, measured the same way. The
+        nearest wrist and ankle may belong to different players.
+    :param speed: Normalised image distance per frame. NaN if either end of
+        the step is invisible.
     """
-    last_vis = final_contact + run_start
-    visible = track[last_vis, 2] == 1
-    visible = visible and not shuttle_hallucination_mask[last_vis]
-    return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
+
+    carry_ratio: np.ndarray
+    ankle_ratio: np.ndarray
+    speed: np.ndarray
+
+
+# Find and check a landing
+
+
+def pick_landing_to_end(
+    final_contact: int, end_frame: int, track: np.ndarray,
+    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: CourtHalf,
+    net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
+    constants: Thresholds,
+    shuttle_hallucination_mask: np.ndarray,
+    rejected_intervals: list[tuple[int, int]] | None = None,
+    *, infer_net_fault: bool = True,
+) -> Landing | None:
+    """Choose a descent, project its endpoint onto the court and check for a net fault.
+
+    Search one camera view, incl final_contact, excl end_frame. ``opts`` must
+    already use the video frame rate. Disable net-fault inference for a
+    returning camera view: the unseen flight may already have crossed the net.
+    """
+    landing = filtered_descending_landing(
+        final_contact, end_frame, track, kin, opts,
+        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
+    )
+    if landing is None:
+        return None
+    landing_frame, landing_xy = landing
+    px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
+    proj = project_pixels_to_court(px, resolution, court_info)
+    norm = (float(proj[0, 0]), float(proj[1, 0]))
+    half = CourtHalf.TOP if norm[1] < NET_COURT_Y else CourtHalf.BOT
+    return Landing(
+        frame=landing_frame, norm=norm, half=half,
+        at_border=at_frame_border(landing_xy),
+        net_ender=infer_net_fault and is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
+    )
 
 
 def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray,
 ) -> LandingWindow:
-    """Find the half-open landing-search endpoint and its stopping reasons.
+    """Find the landing search end, excluding the returned endpoint.
 
-    Scan forward from ``final_contact + 1``. A sustained visibility gap after a
-    top-edge exit may be a lob, so continue looking for re-entry. The search remains
-    bounded by its supplied limit, excluded frames, rejected shuttle observations
-    and a later sustained gap without a preceding top-edge exit.
+    Start after ``final_contact``. Stop at the supplied limit, excluded footage
+    or sustained shuttle loss. For visibility, ignore rejected shuttle grades.
+    A gap after a top-edge exit may be a high shot; continue looking for its
+    return instead of stopping at that gap.
     """
     video_end = len(track)
     boundaries: dict[str, int] = {'video_end': video_end}
@@ -124,94 +297,35 @@ def landing_window(
     )
 
 
-def at_frame_border(xy: np.ndarray) -> bool:
-    """Check whether the terminal sample is within 2% of an image edge."""
-    x, y = float(xy[0]), float(xy[1])
-    return x < TOP_EDGE_FRAC or x > 1.0 - TOP_EDGE_FRAC or y < TOP_EDGE_FRAC or y > 1.0 - TOP_EDGE_FRAC
+def gap_after_top_exit(
+    final_contact: int, run_start: int, track: np.ndarray,
+    shuttle_hallucination_mask: np.ndarray,
+) -> bool:
+    """Was the last visible, accepted position before this gap near the image top?
 
-
-# ---------------------------------------------------------------------------
-# Kinematic landing filter (settle cap + carry filter, both ankle-rule refined)
-# ---------------------------------------------------------------------------
-# A pickup or toss-back after a rally can look like a later landing. Projecting
-# that airborne shuttle onto the court floor can put it in the wrong court half.
-# Limit the search when the shuttle settles on the ground, and filter descending
-# runs that stay close to a player's wrist. A shuttle nearer an ankle than a wrist
-# is treated as grounded. These checks use motion and player distance, not court bounds.
-class LandingKinematics(NamedTuple):
-    """Shuttle motion and distance from players, measured at each video frame.
-
-    :param carry_ratio: (t,) minimum wrist-to-shuttle distance in player body
-        heights. Divide each selected player's distance by their box height before
-        taking the minimum. NaN when the shuttle is invisible or no selected
-        player has a finite height.
-    :param ankle_ratio: (t,) minimum ankle-to-shuttle distance, calculated in the
-        same way. The nearest ankle and wrist can belong to different players.
-    :param speed: (t,) shuttle speed in normalised image coordinates per frame;
-        NaN when either endpoint of a step is invisible.
+    The gap starts at final_contact + 1 + run_start. A top-edge exit allows
+    a longer search for a returning high shot.
     """
-
-    carry_ratio: np.ndarray
-    ankle_ratio: np.ndarray
-    speed: np.ndarray
-
-
-class LandingFilterOptions(NamedTuple):
-    """Settings for distinguishing a landing from a pause or movement by hand.
-
-    :param settle_win: rolling-median window for shuttle speed, in frames.
-    :param settle_thr: maximum speed considered still, in normalised image units
-        per frame.
-    :param settle_min: consecutive still, grounded frames needed to end the search.
-    :param carry_win: trailing window for median wrist distance, in frames.
-    :param carry_thr: maximum median wrist distance considered carried, in body heights.
-        Also used per frame to distinguish a held shuttle from a ground settle.
-    """
-
-    settle_win: int
-    settle_thr: float
-    settle_min: int
-    carry_win: int
-    carry_thr: float
-
-
-SHIPPED_LANDING_FILTER_OPTIONS = LandingFilterOptions(
-    settle_win=7,
-    settle_thr=0.004,
-    settle_min=5,
-    carry_win=7,
-    carry_thr=0.75,
-)
-
-
-def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFilterOptions:
-    """Convert base-30 landing options once; returned fields are final fps values."""
-    def frame_count(value: int) -> int:
-        return frames_at_fps(value, fps)
-
-    return opts._replace(
-        settle_win=frame_count(opts.settle_win),
-        settle_thr=speed_at_fps(opts.settle_thr, fps),
-        settle_min=frame_count(opts.settle_min),
-        carry_win=frame_count(opts.carry_win),
-    )
+    last_vis = final_contact + run_start
+    visible = track[last_vis, 2] == 1
+    visible = visible and not shuttle_hallucination_mask[last_vis]
+    return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
 def build_landing_kinematics(
     track: np.ndarray, sticky: StickyResult, kps: np.ndarray, resolution: tuple[float, float],
 ) -> LandingKinematics:
-    """Measure shuttle speed and proximity to the tracked players' wrists and ankles.
+    """Measure speed and the nearest wrist/ankle distances at each frame.
 
-    Distances use the nearer wrist or ankle on each selected player, divided by
-    that player's current box height. Missing visible shuttle or usable player
-    geometry produces NaN distances.
+    Divide each selected player's distances by their current box height.
+    Invisible shuttle frames and frames with no usable player get NaN.
 
-    :param resolution: video width and height used to convert shuttle coordinates to pixels.
+    :param resolution: Video width and height for converting shuttle xy to pixels.
     """
     width, height = resolution
     n_frames = len(track)
     carry_ratio = np.full(n_frames, np.nan)
-    ankle_ratio = np.full(n_frames, np.nan)  # nearer-ANKLE / box-height; mirrors carry_ratio exactly
+    ankle_ratio = np.full(n_frames, np.nan)
     for frame in np.flatnonzero(track[:, 2] == 1):
         shuttle_x, shuttle_y = track[frame, 0] * width, track[frame, 1] * height
         wrist_ratios = []
@@ -223,8 +337,7 @@ def build_landing_kinematics(
                 continue
             wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]
             wrist_px = np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min()
-            # NaN unreachable in practice (pose model always emits 17 keypoints); the 0-substitute
-            # keeps the min() reductions below deterministic if that ever changes.
+            # A missing joint distance becomes zero (near the player) for the minimum.
             wrist_ratio = wrist_px / box_height
             wrist_ratios.append(0.0 if np.isnan(wrist_ratio) else wrist_ratio)
             ankles = kps[frame, slot, (ANKLE_L, ANKLE_R), :]
@@ -237,68 +350,22 @@ def build_landing_kinematics(
     return LandingKinematics(carry_ratio=carry_ratio, ankle_ratio=ankle_ratio, speed=compute_speed(track))
 
 
-def landing_settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
-                opts: LandingFilterOptions) -> int:
-    """First ground-settle onset in the window, or win_end when none.
-
-    Ground-static = the shuttle self-speed rolling-median is <= settle_thr AND the shuttle is NOT
-    held at a wrist (carry_ratio <= carry_thr, the carve-out that keeps a hand-held pause from
-    reading as a floor rest). The cap is the onset frame of the first run of >= settle_min such
-    frames: the moment the shuttle came to rest, after which all motion is out-of-play.
-    """
-    speed_seg = kin.speed[final_contact:win_end]
-    # Unseen frames stay out of the median (nanmedian) but take their visible
-    # neighbours' verdict; an all-unseen window reads not-static (NaN <= thr is False).
-    static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
-    held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
-    # A shuttle nearer an ankle than a wrist is grounded, even beside a player.
-    seg_carry = kin.carry_ratio[final_contact:win_end]
-    seg_ankle = kin.ankle_ratio[final_contact:win_end]
-    held = held & ~(seg_ankle < seg_carry)
-    ground_static = static & ~held
-    run = 0
-    for offset, is_static in enumerate(ground_static):
-        run = run + 1 if is_static else 0
-        if run >= opts.settle_min:
-            return final_contact + offset - opts.settle_min + 1  # run onset
-    return win_end
-
-
-def carried_terminal(
-    final_contact: int, terminal: int, kin: LandingKinematics, opts: LandingFilterOptions,
-) -> bool:
-    """Did the shuttle sit sustained-close to a wrist over the carry_win frames ending at terminal?
-
-    A carried classification is overturned when the terminal sample itself sits
-    nearer a player's ANKLE than any player's wrist: that is the shuttle grounded by the feet, a
-    landing rather than a lowering-by-hand. Association mirrors carry_ratio (nearest ankle vs nearest
-    wrist over the sticky-selected players, body-height units); see build_landing_kinematics.
-    """
-    lo = max(final_contact, terminal - opts.carry_win + 1)
-    window = kin.carry_ratio[lo:terminal + 1]
-    finite = window[np.isfinite(window)]
-    carried = len(finite) > 0 and bool(np.median(finite) <= opts.carry_thr)
-    if carried:
-        ankle_r = kin.ankle_ratio[terminal]
-        wrist_r = kin.carry_ratio[terminal]
-        if np.isfinite(ankle_r) and np.isfinite(wrist_r) and ankle_r < wrist_r:
-            return False  # nearer an ankle than a wrist -> grounded, keep the run as a landing
-    return carried
-
-
 def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
     shuttle_hallucination_mask: np.ndarray,
     rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
-    """The landing: the last descending run surviving the settle cap and carry filter.
+    """Choose the last uncarried descent, or the last accepted descent as fallback.
 
-    Descending = the shuttle physically falling = image-y INCREASING. Runs are
-    at least ``min_descend_samples`` consecutive VISIBLE samples, strictly
-    image-y-increasing. The search window is first capped at the settle onset,
-    then carried runs are dropped. Returns (landing_frame, [x, y]) (frame,
-    normalised xy) or None when nothing survives.
+    Stop searching at the first ground settle. A descent needs at least
+    min_descend_samples visible positions with increasing image y. Invisible
+    frames between those samples are skipped. Reject a descent if any frame
+    in its full range has a rejected shuttle grade.
+
+    Prefer the last descent that does not look carried. If all accepted
+    descents look carried, keep the last one. Return (frame, normalised xy),
+    or None if no descent remains.
     """
     cap = landing_settle_cap(final_contact, win_end, kin, opts)
     search_end = max(cap, final_contact + 1)
@@ -331,21 +398,65 @@ def filtered_descending_landing(
     return landing_frame, track[landing_frame, :2].copy()
 
 
-# ---------------------------------------------------------------------------
-# Net rule, in/out verdict, margins
-# ---------------------------------------------------------------------------
+def landing_settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
+                opts: LandingFilterOptions) -> int:
+    """First sustained ground-rest frame, or win_end if none is found.
+
+    Require low rolling-median speed and a shuttle away from the wrists.
+    A shuttle closer to an ankle than a wrist also counts as grounded.
+    Stop at the start of the first run lasting settle_min frames.
+    """
+    speed_seg = kin.speed[final_contact:win_end]
+    # Missing speeds are skipped by the median. Nearby visible frames can still
+    # establish rest; an entirely missing window cannot.
+    static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
+    held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
+    # A shuttle nearer an ankle than a wrist is grounded, even beside a player.
+    seg_carry = kin.carry_ratio[final_contact:win_end]
+    seg_ankle = kin.ankle_ratio[final_contact:win_end]
+    held = held & ~(seg_ankle < seg_carry)
+    ground_static = static & ~held
+    run = 0
+    for offset, is_static in enumerate(ground_static):
+        run = run + 1 if is_static else 0
+        if run >= opts.settle_min:
+            return final_contact + offset - opts.settle_min + 1  # run onset
+    return win_end
+
+
+def carried_terminal(
+    final_contact: int, terminal: int, kin: LandingKinematics, opts: LandingFilterOptions,
+) -> bool:
+    """Check whether a descent ends with the shuttle held near a wrist.
+
+    Use the median wrist distance over the trailing carry_win frames, starting
+    no earlier than the final contact. If the terminal position is closer to
+    an ankle than a wrist, treat it as grounded instead.
+    """
+    lo = max(final_contact, terminal - opts.carry_win + 1)
+    window = kin.carry_ratio[lo:terminal + 1]
+    finite = window[np.isfinite(window)]
+    carried = len(finite) > 0 and bool(np.median(finite) <= opts.carry_thr)
+    if carried:
+        ankle_r = kin.ankle_ratio[terminal]
+        wrist_r = kin.carry_ratio[terminal]
+        if np.isfinite(ankle_r) and np.isfinite(wrist_r) and ankle_r < wrist_r:
+            return False
+    return carried
+
+
+# Net faults and court boundaries
+
+
 def is_net_ender(
     final_contact: int, win_end: int, track: np.ndarray,
     striker_half: CourtHalf, net_band: tuple[float, float], resolution: tuple[float, float],
 ) -> bool:
-    """Flight never crosses the net line's image y AND dies (terminal sample) in the net band.
+    """Check whether the flight stays on the hitter's side and ends in the net band.
 
-    Image-space, per the only concrete net-band numbers available (the homography net band).
-    A Top striker (small image-y) must never send the shuttle past band_hi (to the receiver's
-    side); a Bot striker never below band_lo. The terminal sample is the last visible sample in
-    the window. True => 'died at the net' => striker lost.
-
-    :param resolution: (width, height) the shuttle image-y (normalised) scales to pixels by.
+    Use visible image-y positions in pixels. Top hitter: y never exceeds
+    band_hi. Bot hitter: y never falls below band_lo. The final visible
+    position must be inside the band. True means the hitter lost at the net.
     """
     frames = np.arange(final_contact, win_end)
     visible = frames[track[frames, 2] == 1]
@@ -363,14 +474,21 @@ def is_net_ender(
     return never_crossed and dies_at_net
 
 
-class LandingMargins(NamedTuple):
-    """Signed court-metre clearances for one landing vs the receiver's singles half.
+def at_frame_border(xy: np.ndarray) -> bool:
+    """Check whether the terminal sample is within 2% of an image edge."""
+    x, y = float(xy[0]), float(xy[1])
+    return x < TOP_EDGE_FRAC or x > 1.0 - TOP_EDGE_FRAC or y < TOP_EDGE_FRAC or y > 1.0 - TOP_EDGE_FRAC
 
-    :param margin_m: signed metres to the NEAREST boundary line overall; + inside the receiver
-        half, - outside (point-to-rectangle distance).
-    :param net_clear_m: unsigned metres from the landing to the net (halfway) line.
-    :param line_clear_m: unsigned metres to the nearest of the two sidelines and the receiver's
-        baseline (the in/out lines, net excluded).
+
+class LandingMargins(NamedTuple):
+    """Distances from the landing to the receiver's singles-court boundaries.
+
+    :param margin_m: Signed metres to the nearest boundary: positive inside,
+        zero on the line, negative outside. Outside a corner, use the diagonal
+        distance to that corner.
+    :param net_clear_m: Unsigned metres to the net line.
+    :param line_clear_m: Unsigned metres to the nearest sideline or receiver
+        baseline, excluding the net.
     """
 
     margin_m: float
@@ -379,10 +497,10 @@ class LandingMargins(NamedTuple):
 
 
 def landing_margins(landing_norm: tuple[float, float], receiver_half: CourtHalf) -> LandingMargins:
-    """Court-metre clearances for a landing against the receiver's singles half."""
+    """Measure landing clearances in metres against the receiver's singles half."""
     x, y = float(landing_norm[0]), float(landing_norm[1])
     y_lo, y_hi = (NET_COURT_Y, 1.0) if receiver_half == CourtHalf.BOT else (0.0, NET_COURT_Y)
-    baseline_y = y_hi if receiver_half == CourtHalf.BOT else y_lo  # the non-net y edge = receiver baseline
+    baseline_y = y_hi if receiver_half == CourtHalf.BOT else y_lo
 
     net_clear_m = abs(y - NET_COURT_Y) * COURT_LENGTH_M
     line_clear_m = min(abs(x - SINGLES_X_LO) * COURT_WIDTH_M,
@@ -403,133 +521,21 @@ def landing_margins(landing_norm: tuple[float, float], receiver_half: CourtHalf)
     return LandingMargins(margin_m=margin_m, net_clear_m=net_clear_m, line_clear_m=line_clear_m)
 
 
-class Landing(NamedTuple):
-    """One rally's picked shuttle landing: frame, projected court position, and quality flags.
-
-    :param frame: whole-video frame index of the landing.
-    :param norm: normalised court xy (doubles outline = unit square).
-    :param half: court half the landing's projected position falls in (court-space y against the
-        net line at 0.5): a side call only, never an in/out call — the singles boundary plays no
-        part in it.
-    :param at_border: True when the picked terminal sat within 2% of any image edge (the shuttle
-        left frame mid-fall, not a seen landing).
-    :param net_ender: True when the rally's flight never crossed the net and died in the net band.
-    """
-
-    frame: int
-    norm: tuple[float, float]
-    half: CourtHalf
-    at_border: bool
-    net_ender: bool
+# Contact height code
 
 
-def pick_landing_to_end(
-    final_contact: int, end_frame: int, track: np.ndarray,
-    kin: LandingKinematics, opts: LandingFilterOptions, striker_half: CourtHalf,
-    net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
-    constants: Thresholds,
-    shuttle_hallucination_mask: np.ndarray,
-    rejected_intervals: list[tuple[int, int]] | None = None,
-    *, infer_net_fault: bool = True,
-) -> Landing | None:
-    """Pick a landing within one camera view.
-
-    ``opts`` must already be scaled to the video frame rate. Disable net-fault
-    inference when the start is a returning view rather than the contact: the
-    unseen flight may already have crossed the net.
-    """
-    landing = filtered_descending_landing(
-        final_contact, end_frame, track, kin, opts,
-        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
-    )
-    if landing is None:
-        return None
-    landing_frame, landing_xy = landing
-    px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
-    proj = project_pixels_to_court(px, resolution, court_info)
-    norm = (float(proj[0, 0]), float(proj[1, 0]))
-    half = CourtHalf.TOP if norm[1] < NET_COURT_Y else CourtHalf.BOT
-    return Landing(
-        frame=landing_frame, norm=norm, half=half,
-        at_border=at_frame_border(landing_xy),
-        net_ender=infer_net_fault and is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
-    )
-
-
-class RallyOutcome(NamedTuple):
-    """Estimated point winner, selected landing and a conservative landing-only winner."""
-
-    winner: CourtHalf | None
-    winner_source: WinnerSource | None
-    landing: Landing | None
-    landing_margin_m: float | None
-    within_line_margin: bool
-    within_net_margin: bool
-    conservative_landing_winner: CourtHalf | None
-    search_shortened_by_exclusion: bool
-
-
-def resolve_rally_outcome(
-    striker_half: CourtHalf, next_server: CourtHalf | None, landing: Landing | None,
-    band_m: float | None, *, search_shortened_by_exclusion: bool = False,
-) -> RallyOutcome:
-    """Use the next server when known, otherwise the best landing estimate.
-
-    The conservative landing-only estimate withholds image-border and exact-line
-    calls. Both landing estimates withhold an out landing on the striker's own
-    half. A net fault takes priority over geometry; a next server takes priority
-    over either landing estimate. Landing ambiguity flags are independent of winner.
-    """
-    receiver = OTHER_HALF[striker_half]
-    landing_winner = conservative_landing_winner = None
-    margin_m = None
-    within_line = within_net = False
-    if landing is not None:
-        assert band_m is not None
-        margins = landing_margins(landing.norm, receiver)
-        margin_m = margins.margin_m
-        within_line = margins.line_clear_m < band_m
-        within_net = margins.net_clear_m < band_m
-        out_on_own_half = (
-            landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0
-        )
-        if landing.net_ender:
-            landing_winner = conservative_landing_winner = receiver
-        elif not out_on_own_half:
-            landing_winner = striker_half if margin_m >= 0 else receiver
-            if not landing.at_border and margin_m != 0:
-                conservative_landing_winner = landing_winner
-    winner = next_server if next_server is not None else landing_winner
-    source = None
-    if next_server is not None:
-        source = WinnerSource.NEXT_SERVER
-    elif landing is not None and winner is not None:
-        source = WinnerSource.NET_RULE if landing.net_ender else WinnerSource.LANDING_GEOMETRY
-    return RallyOutcome(
-        winner, source, landing, margin_m, within_line, within_net,
-        conservative_landing_winner, search_shortened_by_exclusion,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Hit height (ShuttleSet coding; decoupled from the verdict path)
-# ---------------------------------------------------------------------------
 def hit_height(
     track: np.ndarray, contact_frame: int, net_band: tuple[float, float],
     resolution: tuple[float, float],
 ) -> int:
-    """ShuttleSet hit_height coding for one contact: 1 above the net-band centre, 2 at/below it.
+    """ShuttleSet height code: 1 above the net-band centre, 2 at or below it.
 
-    Reads the shuttle's own image-y at the contact frame against the net band's CENTRE line
-    (resolution-scaled pixels): smaller image-y (higher in frame) than the centre is 1; equal to
-    or below the centre is 2 (the centre itself resolves to 2, mirroring is_net_ender's >=
-    convention for "below"). Fails loud when the shuttle is not visible at the contact frame:
-    hit_height needs an actual detected position, not a guess.
+    Compare the shuttle's image y at contact with the net-band centre, both in
+    pixels. Require a visible shuttle position. This is an image-height code,
+    not a measured height above the court.
 
-    :param net_band: image-y net band (pixels, `resolution`-scaled), the striker/receiver
-        half-split band.
-    :param resolution: (width, height) the shuttle xy normalises by.
-    :return: 1 (above the net-band centre) or 2 (at or below it), the ShuttleSet hit_height coding.
+    :param net_band: Lower/upper image-y bounds in video pixels.
+    :param resolution: Video width and height.
     """
     if track[contact_frame, 2] != 1:
         raise ValueError(f'shuttle not visible at contact frame {contact_frame}: cannot read hit_height')

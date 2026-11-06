@@ -23,7 +23,12 @@ DEFAULT_CONTACT_MODEL_CONFIG = ContactModelConfig()
 
 
 class ScoredContacts(NamedTuple):
-    """Candidate rows, their model inputs, probabilities and selected row indices."""
+    """All scored candidates, including possible additions during rally refinement.
+
+    ``candidates``, ``feature_matrix`` and ``probabilities`` share row indices.
+    ``kept_indices`` selects the initial contacts after probability and spacing
+    checks. Rejected rows remain available for recovering missed contacts.
+    """
 
     candidates: np.ndarray
     feature_matrix: np.ndarray
@@ -34,6 +39,30 @@ class ScoredContacts(NamedTuple):
     def frames(self) -> np.ndarray:
         """Return selected contact frames in chronological order."""
         return self.candidates["frame"][self.kept_indices]
+
+
+def score_contact_features(
+    rows: np.ndarray,
+    model: Any,
+    fps: float,
+    config: ContactModelConfig = DEFAULT_CONTACT_MODEL_CONFIG,
+) -> ScoredContacts:
+    """Score every candidate, then retain strong, sufficiently separated contacts.
+
+    :param rows: One video's structured rows from ``build_contact_features``.
+    :param model: Fitted classifier; probability columns are classes 0 and 1.
+    :param fps: Video frame rate, used to scale the minimum contact spacing.
+    :param config: Minimum probability to retain a contact.
+    :return: All rows and scores, plus indices of the selected contacts.
+    """
+    matrix = contact_feature_matrix(rows)
+    # Float32 comparison would round the cutoff and can accept scores just below it.
+    probabilities = positive_probabilities(model, matrix).astype(np.float64, copy=False)
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
+    kept = remove_nearby_contacts(
+        rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
+    )
+    return ScoredContacts(rows, matrix, probabilities, kept)
 
 
 def contact_feature_matrix(
@@ -64,11 +93,11 @@ def remove_nearby_contacts(
     cutoff: float,
     distance: int,
 ) -> np.ndarray:
-    """Select strongest contacts per interval; earlier frames win score ties.
+    """Keep the strongest contacts in each search interval.
 
-    Frames exactly ``distance`` apart compete. Greedy suppression compares
-    each remaining candidate against accepted contacts, rather than merging
-    chains of nearby candidates into a single group.
+    Earlier frames win score ties. Frames exactly ``distance`` apart compete.
+    Compare each remaining candidate with accepted contacts; a chain of nearby
+    candidates can therefore keep more than one contact.
     """
     kept: list[int] = []
     for interval_id in np.unique(interval_ids):
@@ -81,7 +110,11 @@ def strongest_spaced_rows(
     rows: Sequence[int] | np.ndarray, frames: np.ndarray, scores: np.ndarray, distance: int,
     *, limit: int | None = None, taken_frames: Sequence[int] = (),
 ) -> list[int]:
-    """Keep strongest rows clear of earlier picks; earlier frames win score ties."""
+    """Choose rows by score, keeping more than ``distance`` from occupied frames.
+
+    Earlier frames win ties. ``taken_frames`` are already occupied; each new
+    selection adds another occupied frame. Stop at ``limit`` if supplied.
+    """
     strongest_first = sorted(rows, key=lambda row: (-float(scores[row]), int(frames[row])))
     occupied = list(taken_frames)
     selected = []
@@ -93,27 +126,3 @@ def strongest_spaced_rows(
             if limit is not None and len(selected) == limit:
                 break
     return selected
-
-
-def score_contact_features(
-    rows: np.ndarray,
-    model: Any,
-    fps: float,
-    config: ContactModelConfig = DEFAULT_CONTACT_MODEL_CONFIG,
-) -> ScoredContacts:
-    """Score candidate-region rows for one video and select contact frames.
-
-    :param rows: All rows returned by ``build_contact_features`` for one video.
-    :param model: Fitted annotator tree with class-0/class-1 probability columns.
-    :param fps: Source frame rate, used to scale nearby-contact suppression.
-    :param config: Contact score cutoff.
-    :return: Candidate rows, model inputs, probabilities and accepted indices.
-    """
-    matrix = contact_feature_matrix(rows)
-    # Float32 comparison would round the cutoff and can accept scores just below it.
-    probabilities = positive_probabilities(model, matrix).astype(np.float64, copy=False)
-    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
-    kept = remove_nearby_contacts(
-        rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
-    )
-    return ScoredContacts(rows, matrix, probabilities, kept)

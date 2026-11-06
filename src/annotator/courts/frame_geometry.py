@@ -17,7 +17,12 @@ from shared.court import HOMOGRAPHY_RESOLUTION
 
 @dataclass(frozen=True)
 class SceneCourt:
-    """Geometry, net band and landing uncertainty for one accepted frame interval."""
+    """Geometry for one accepted camera view, incl start_frame, excl end_frame.
+
+    ``court_info`` projects image positions onto the court. ``net_band`` uses
+    video pixels; ``landing_error_band_m`` estimates uncertainty in court metres.
+    Reuse these measurements for tracking, player assignment and landings.
+    """
     start_frame: int
     end_frame: int
     court_info: dict[str, object]
@@ -25,33 +30,10 @@ class SceneCourt:
     landing_error_band_m: float
 
 
-def scene_ref_corners(
-    row: Mapping[str, object], resolution: tuple[float, float]
-) -> np.ndarray:
-    """Scale one scene row's native corner quad to the homography reference frame."""
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-    native = np.array(
-        [
-            [row["upleft_x"], row["upleft_y"]],
-            [row["upright_x"], row["upright_y"]],
-            [row["downright_x"], row["downright_y"]],
-            [row["downleft_x"], row["downleft_y"]],
-        ],
-        dtype=float,
-    )
-    if not np.isfinite(native).all():
-        raise ValueError("scene corners must be finite")
-    return native * np.array(
-        [HOMOGRAPHY_RESOLUTION[0] / width, HOMOGRAPHY_RESOLUTION[1] / height]
-    )
-
-
 def build_scene_courts(
     rows: Iterable[Mapping[str, object]], resolution: tuple[float, float], ref_err_px: float = 3.5,
 ) -> tuple[SceneCourt, ...]:
-    """Derive projections and net bands once from the saved scene corner rows."""
+    """Prepare each scene's projection, net band and landing uncertainty, in frame order."""
     scenes = []
     for row in rows:
         corners = scene_ref_corners(row, resolution)
@@ -80,3 +62,26 @@ def court_at_frame(scenes: Sequence[SceneCourt], frame: int) -> SceneCourt:
     if index < 0 or frame >= scenes[index].end_frame:
         raise ValueError(f"no accepted court geometry at frame {frame}")
     return scenes[index]
+
+
+def scene_ref_corners(
+    row: Mapping[str, object], resolution: tuple[float, float]
+) -> np.ndarray:
+    """Convert a saved scene's video-pixel corners to the 1280x720 reference size."""
+    width, height = map(float, resolution)
+    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
+        raise ValueError("resolution must contain positive finite values")
+    native = np.array(
+        [
+            [row["upleft_x"], row["upleft_y"]],
+            [row["upright_x"], row["upright_y"]],
+            [row["downright_x"], row["downright_y"]],
+            [row["downleft_x"], row["downleft_y"]],
+        ],
+        dtype=float,
+    )
+    if not np.isfinite(native).all():
+        raise ValueError("scene corners must be finite")
+    return native * np.array(
+        [HOMOGRAPHY_RESOLUTION[0] / width, HOMOGRAPHY_RESOLUTION[1] / height]
+    )

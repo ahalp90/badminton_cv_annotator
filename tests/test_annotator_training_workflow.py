@@ -93,7 +93,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     path.write_text(json.dumps(payload))
     manifest = workflow.load_manifest(path)
     training_order = ['one', 'two', 'four', 'three']
-    group_by_video = {video.identity: video.group for video in manifest.videos}
+    group_by_video = {video.video_id: video.group for video in manifest.videos}
     seen = []
     contact_model, sequence_models, review_model = object(), object(), object()
     contact_training_identities = {}

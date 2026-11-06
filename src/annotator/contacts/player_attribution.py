@@ -21,11 +21,11 @@ from annotator.types import (
 def contact_player_evidence(
     frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, scene_courts: Sequence[SceneCourt],
 ) -> tuple[CourtHalf | None, tuple[float, float] | None]:
-    """Return the nearest player's half and optional TOP/BOT wrist gaps.
+    """Guess the hitter from the nearest wrist; return Top/Bot distances if usable.
 
-    Wrist gaps are in body-height units. A single tracked player can identify
-    the hitter; comparing alternating orders needs one player on each half.
-    Invisible shuttles and missing wrist evidence leave both results unknown.
+    Distances are in body heights. One tracked player can identify a hitter;
+    comparing the two alternating orders needs a player on each half. Return
+    (None, None) for an invisible shuttle or missing wrist evidence.
     """
     if track[frame, 2] != 1:
         return None, None
@@ -59,7 +59,12 @@ def contact_player_evidence(
 
 
 def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally, ...]:
-    """Assign one alternating top/bottom order to each rally and retain its final hitter."""
+    """Choose one alternating player order per rally and assign its contact sides.
+
+    Individual guesses vote for the order. Wrist distances break equal votes.
+    Return new sequences with fitted sides; keep the original objects unchanged.
+    If no hitter is known, keep the guesses and leave the final hitter unknown.
+    """
     rallies = []
     for sequence in sequences:
         final_half = fit_alternation(
@@ -97,7 +102,7 @@ def fit_alternation(
             if distances is None:
                 continue
             top_final_distance, bot_final_distance = distances
-            # An odd number of strokes before a TOP finish, BOT is hitting.
+            # An odd number of hits before a Top finish puts this hit on Bot.
             if (len(guesses) - index - 1) % 2:
                 top_final_distance, bot_final_distance = bot_final_distance, top_final_distance
             top_final_cost += top_final_distance
@@ -109,11 +114,7 @@ def fit_alternation(
 
 
 def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[CourtHalf]:
-    """Alternating half per stroke for a rally whose LAST stroke is `final_half`.
-
-    Stroke i counts back from the last (index n-1 = final_half); each step back flips halves.
-    The two possible phases (final_half Top vs Bot) are exact complements of each other.
-    """
+    """Sides in contact order, alternating backwards from the known final hitter."""
     last = n_strokes - 1
     return [final_half if (last - i) % 2 == 0 else OTHER_HALF[final_half]
             for i in range(n_strokes)]

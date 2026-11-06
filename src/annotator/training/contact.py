@@ -1,8 +1,8 @@
-"""Fit the contact tree on explicitly supplied training videos.
+"""Choose labelled examples and fit the contact classifier.
 
-Feature construction supplies candidate rows. Positive radii and negative sampling
-follow the fitted contact model's policy. Supply videos in a stable order to
-reproduce sampling. Validation and test videos belong to the caller's evaluation path.
+Keep candidates close to labelled hits as positives, omit ambiguous nearby
+frames, and sample negatives. Video order and random seed determine the
+sample. The caller supplies training videos only.
 """
 
 from collections.abc import Sequence
@@ -23,7 +23,7 @@ MAXIMUM_NEGATIVES_PER_POSITIVE = 24
 
 @dataclass(frozen=True)
 class ContactTrainingVideo:
-    """One training video's feature rows and sorted contact-frame labels."""
+    """One video's candidate rows, sorted contact labels and frame rate."""
 
     identity: str
     features: np.ndarray
@@ -33,7 +33,12 @@ class ContactTrainingVideo:
 
 @dataclass(frozen=True)
 class ContactFitConfig:
-    """Tree settings maintainers may change during a dataset retune."""
+    """Contact-tree settings and distances used to label training candidates.
+
+    Frames within positive_radius_at_30_fps of a labelled contact are positive.
+    Frames outside that radius but within ignored_radius_at_30_fps are omitted.
+    Both distances are scaled from 30 fps to each video's frame rate.
+    """
 
     learning_rate: float = 0.06
     max_iter: int = 180
@@ -52,7 +57,7 @@ DEFAULT_CONTACT_FIT_CONFIG = ContactFitConfig()
 
 @dataclass(frozen=True)
 class ContactTrainingCounts:
-    """Numbers of examples selected from one video's candidate rows."""
+    """Selected positive and negative counts for one video, with their total."""
 
     positive: int
     nearby_negative: int
@@ -62,7 +67,11 @@ class ContactTrainingCounts:
 
 @dataclass(frozen=True)
 class ContactTrainingSelection:
-    """Selected feature rows, aligned binary labels and counts by video."""
+    """Selected examples with one binary label per row and sampling counts per video.
+
+    Rows stay grouped by video, so ``video_counts`` also identifies each video's
+    portion of the combined training arrays.
+    """
 
     rows: np.ndarray
     labels: np.ndarray
@@ -71,21 +80,46 @@ class ContactTrainingSelection:
 
 @dataclass(frozen=True)
 class ContactModelFit:
-    """Fitted contact tree and the examples already selected for its fit."""
+    """Fitted tree and its selected examples, available without repeating sampling."""
 
     model: Any
     selection: ContactTrainingSelection
 
 
-def nearest_contact_distances(frames: np.ndarray, contacts: np.ndarray) -> np.ndarray:
-    if not len(contacts):
-        return np.full(len(frames), np.iinfo(np.int32).max, dtype=np.int32)
-    positions = np.searchsorted(contacts, frames)
-    left_positions = np.maximum(positions - 1, 0)
-    right_positions = np.minimum(positions, len(contacts) - 1)
-    left_distances = np.abs(frames - contacts[left_positions])
-    right_distances = np.abs(frames - contacts[right_positions])
-    return np.minimum(left_distances, right_distances).astype(np.int32)
+def fit_contact_model(
+    training_videos: Sequence[ContactTrainingVideo],
+    config: ContactFitConfig = DEFAULT_CONTACT_FIT_CONFIG,
+    *,
+    fit_video_order: Sequence[str] | None = None,
+) -> ContactModelFit:
+    """Select examples and fit a class-balanced contact classifier.
+
+    :param training_videos: Training features and labels, in sampling order.
+    :param config: Tree settings and example-selection distances/seed.
+    :param fit_video_order: Optional video-ID order for the already selected
+        rows. Sampling still follows training_videos order.
+    :return: Fitted model and the selected examples.
+    """
+    selection = select_contact_training_rows(training_videos, config)
+    if fit_video_order is not None:
+        if len(fit_video_order) != len(selection.video_counts) or set(fit_video_order) != selection.video_counts.keys():
+            raise ValueError('fit_video_order must contain each training video ID exactly once')
+        if tuple(fit_video_order) != tuple(selection.video_counts):
+            slices = {}
+            position = 0
+            for identity, counts in selection.video_counts.items():
+                slices[identity] = slice(position, position + counts.selected)
+                position += counts.selected
+            selection = ContactTrainingSelection(
+                np.concatenate([selection.rows[slices[identity]] for identity in fit_video_order]),
+                np.concatenate([selection.labels[slices[identity]] for identity in fit_video_order]),
+                {identity: selection.video_counts[identity] for identity in fit_video_order},
+            )
+    model = fit_binary_tree(
+        contact_feature_matrix(selection.rows), selection.labels, config,
+        balanced=True, early_stopping=config.early_stopping,
+    )
+    return ContactModelFit(model, selection)
 
 
 def select_contact_training_rows(
@@ -143,37 +177,16 @@ def select_contact_training_rows(
     return ContactTrainingSelection(np.concatenate(row_chunks), labels, video_counts)
 
 
-def fit_contact_model(
-    training_videos: Sequence[ContactTrainingVideo],
-    config: ContactFitConfig = DEFAULT_CONTACT_FIT_CONFIG,
-    *,
-    fit_video_order: Sequence[str] | None = None,
-) -> ContactModelFit:
-    """Fit a balanced contact tree using only the named training videos.
+def nearest_contact_distances(frames: np.ndarray, contacts: np.ndarray) -> np.ndarray:
+    """Distance in frames from each candidate to the nearest sorted contact label.
 
-    :param training_videos: Explicit training features and labels; omit held-out videos.
-    :param config: Tree backend, fit settings and sampling seed.
-    :param fit_video_order: Optional permutation of video IDs for the selected fit
-        rows. Negative sampling still follows ``training_videos`` order.
-    :return: Fitted model and its selected examples without repeating selection.
+    With no labels, return the largest int32 value so no candidate is nearby.
     """
-    selection = select_contact_training_rows(training_videos, config)
-    if fit_video_order is not None:
-        if len(fit_video_order) != len(selection.video_counts) or set(fit_video_order) != selection.video_counts.keys():
-            raise ValueError('fit_video_order must contain each training video ID exactly once')
-        if tuple(fit_video_order) != tuple(selection.video_counts):
-            slices = {}
-            position = 0
-            for identity, counts in selection.video_counts.items():
-                slices[identity] = slice(position, position + counts.selected)
-                position += counts.selected
-            selection = ContactTrainingSelection(
-                np.concatenate([selection.rows[slices[identity]] for identity in fit_video_order]),
-                np.concatenate([selection.labels[slices[identity]] for identity in fit_video_order]),
-                {identity: selection.video_counts[identity] for identity in fit_video_order},
-            )
-    model = fit_binary_tree(
-        contact_feature_matrix(selection.rows), selection.labels, config,
-        balanced=True, early_stopping=config.early_stopping,
-    )
-    return ContactModelFit(model, selection)
+    if not len(contacts):
+        return np.full(len(frames), np.iinfo(np.int32).max, dtype=np.int32)
+    positions = np.searchsorted(contacts, frames)
+    left_positions = np.maximum(positions - 1, 0)
+    right_positions = np.minimum(positions, len(contacts) - 1)
+    left_distances = np.abs(frames - contacts[left_positions])
+    right_distances = np.abs(frames - contacts[right_positions])
+    return np.minimum(left_distances, right_distances).astype(np.int32)

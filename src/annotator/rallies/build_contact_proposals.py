@@ -1,6 +1,8 @@
-"""Propose rally contacts and measure each alternative for the fitted selector.
+"""Propose alternative contact lists and measure them for the rally selector.
 
-Feature names, column order and NaN placement are part of saved model bundles.
+Start with the contact model's selected hits. Try adding likely missed hits
+or removing weak ones, within the edit limit. Saved models depend on the
+feature names, column order and treatment of missing values.
 """
 
 from collections.abc import Mapping, Sequence
@@ -64,7 +66,15 @@ FEATURE_NAMES = (
 
 @dataclass(frozen=True)
 class RallyContext:
-    """Detector evidence shared by all options for one video."""
+    """Contact evidence reused across all rally proposals for one video.
+
+    ``initial`` groups the selected contacts into initial rally ranges.
+    ``events`` also includes selected contacts outside those ranges.
+    ``shortlisted_by_span`` supplies possible additions to each rally.
+    ``physical_by_frame`` keeps contact-feature rows for selected/shortlisted
+    frames, so proposal building can release the full video feature matrix.
+    ``bounds_supplied`` prevents changes to supplied rally bounds.
+    """
 
     fps: float
     initial: tuple[ContactSequence, ...]
@@ -77,7 +87,12 @@ class RallyContext:
 
 @dataclass(frozen=True)
 class RallyOptions:
-    """Alternative contact lists and their feature rows, grouped by initial rally."""
+    """Alternative contact lists with one model-feature row per alternative.
+
+    ``sequences`` and ``matrix`` share row indices. ``span_rows`` maps each
+    initial rally ID to its alternative rows. ``context`` retains the initial
+    contacts needed to finish selected rallies and rebuild the contact list.
+    """
 
     sequences: tuple[ContactSequence, ...]
     matrix: np.ndarray
@@ -88,7 +103,11 @@ class RallyOptions:
 def build_rally_context(
     evidence: AnnotationEvidence, contacts: ScoredContacts,
 ) -> RallyContext:
-    """Prepare initial rallies and shortlisted contacts for fitting and inference."""
+    """Group selected contacts into rallies and shortlist possible missed hits.
+
+    Attribute players once per selected/shortlisted contact. Keep only their
+    feature rows for later proposal building, shared by fitting and inference.
+    """
     def event_for_row(row: int) -> ContactEvent:
         frame = int(contacts.candidates['frame'][row])
         side, distances = contact_player_evidence(
@@ -119,16 +138,40 @@ def build_rally_context(
     selected_frames = contacts.candidates['frame'][selected_rows]
     # Each frame has one feature row. Copy the selection so training contexts
     # do not retain the full video matrix.
-    physical_rows = contacts.feature_matrix[selected_rows]
-    physical_by_frame = {int(frame): physical for frame, physical in zip(selected_frames, physical_rows, strict=True)}
+    feature_rows = contacts.feature_matrix[selected_rows]
+    physical_by_frame = {int(frame): features for frame, features in zip(selected_frames, feature_rows, strict=True)}
     return RallyContext(
         evidence.fps, initial, events, shortlisted_by_span, physical_by_frame,
         frame_count=len(evidence.track), bounds_supplied=evidence.bounds_supplied,
     )
 
 
+def initial_sequences(
+    spans: Sequence[tuple[int, int]], events: Sequence[ContactEvent],
+) -> tuple[ContactSequence, ...]:
+    """Group selected contacts into the initial rally ranges.
+
+    Ranges must be ordered, non-overlapping and non-empty; incl start, excl end.
+    Later proposals may move a serve earlier, as far as the previous rally end.
+    """
+    sequences = []
+    previous_end = -1
+    for span_id, (start_frame, end_frame) in enumerate(spans):
+        if not previous_end <= start_frame < end_frame:
+            raise ValueError(f"span {span_id}: rally spans must be ordered, disjoint and non-empty")
+        owned = events_between(events, start_frame, end_frame)
+        sequences.append(ContactSequence(span_id, start_frame, end_frame, owned))
+        previous_end = end_frame
+    return tuple(sequences)
+
+
 def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
-    """Build ordered contact-toggle proposals from detector evidence alone."""
+    """Propose contact additions/removals and measure each alternative.
+
+    Include the unchanged sequence. ``max_edits`` limits additions plus
+    deletions; ``deletion_candidates`` limits which existing contacts may be
+    removed. Proposals use detector evidence only, without contact labels.
+    """
     if max_edits < 0 or deletion_candidates < 0:
         raise ValueError('edit and deletion budgets must be non-negative')
     sequences = []
@@ -145,7 +188,7 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
         proposals = toggle_proposals(
             before, shortlisted, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
         )
-        # An earlier serve can absorb stream contacts; include them in unused-contact features.
+        # Moving the start earlier can include more selected contacts. Measure those too.
         considered_by_frame = {event.frame: event for sequence in proposals for event in sequence.events}
         considered_by_frame.update((event.frame, event) for event in shortlisted)
         considered_contacts = tuple(considered_by_frame[frame] for frame in sorted(considered_by_frame))
@@ -163,10 +206,10 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
 def shortlist_serve_rows(
     sequence: ContactSequence, scores: ScoredContacts, fps: float, *, previous_end: int,
 ) -> list[int]:
-    """Shortlist earlier serves from the first contact's search interval.
+    """Find possible earlier serves in the first contact's search interval.
 
-    Stay after the previous rally. Stronger rows win, then earlier frames.
-    Keep up to two, spaced clear of the first contact and each earlier pick.
+    Stay after the previous rally. Keep up to two candidates, strongest first,
+    clear of the first contact and each other. Earlier frames win score ties.
     """
     if not sequence.events:
         return []
@@ -207,7 +250,12 @@ def toggle_proposals(
     before: ContactSequence, shortlisted: tuple[ContactEvent, ...], stream: tuple[ContactEvent, ...],
     earliest_start: int, distance: int, max_edits: int, deletion_candidates: int,
 ) -> list[ContactSequence]:
-    """Return unique alternatives, unchanged first and then fewest contact edits."""
+    """Try contact additions and removals; return unique lists, fewest edits first.
+
+    The unchanged list is first. An earlier serve can extend the start and
+    include selected contacts newly inside the range. Added contacts must
+    remain clear of other hits; deletions come from the first/weakest hits.
+    """
     original_frames = tuple(event.frame for event in before.events)
     original_set = set(original_frames)
     additions = tuple(event for event in shortlisted
@@ -223,7 +271,7 @@ def toggle_proposals(
             start = min((before.start_frame, *(event.frame for event in added)))
             if start < earliest_start:
                 continue
-            # An earlier serve absorbs the full stream before removing explicit deletions.
+            # Include selected contacts after the earlier start, then apply deletions.
             base = {event.frame: event for event in stream if start <= event.frame < before.end_frame}
             base.update((event.frame, event) for event in added)
             for deleted_count in range(min(max_edits - added_count, len(deletions)) + 1):
@@ -235,11 +283,13 @@ def toggle_proposals(
                         continue
                     sequence = replace(before, start_frame=start, events=events)
                     proposals.setdefault(tuple(event.frame for event in events), sequence)
-    # Only additions move the start earlier, and they cannot be deleted, so
-    # contact frames identify each proposal. Zero edits puts the original first.
+    # Only added contacts move the start; they cannot also be deleted. The contact
+    # frames therefore identify a proposal, and zero edits keeps the original first.
     ordered_frames = sorted(proposals, key=lambda frames: (len(original_set ^ set(frames)), frames))
     return [proposals[frames] for frames in ordered_frames]
 
+
+# Features for comparing contact lists
 
 def option_features(
     before: ContactSequence, after: ContactSequence, considered_contacts: tuple[ContactEvent, ...],
@@ -252,7 +302,7 @@ def option_features(
     deleted = tuple(event for event in before.events if event.frame not in after_frames)
     strongest = min(added, key=lambda event: (-event.probability, event.frame)) if added else None
     weakest = min(deleted, key=lambda event: (event.probability, event.frame)) if deleted else None
-    physical_frames = (
+    feature_frames = (
         before.events[0].frame if before.events else None,
         after.events[0].frame if after.events else None,
         None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
@@ -266,17 +316,17 @@ def option_features(
         (len(added), len(deleted)),
         probability_summary(added),
         probability_summary(deleted),
-        *(physical_or_nan(context.physical_by_frame, frame) for frame in physical_frames),
+        *(contact_features_or_nan(context.physical_by_frame, frame) for frame in feature_frames),
         unused_features,
-        physical_or_nan(context.physical_by_frame, unused_frame),
+        contact_features_or_nan(context.physical_by_frame, unused_frame),
     ))
 
 
 def sequence_summary(sequence: ContactSequence, fps: float) -> tuple[float, ...]:
-    """Summarise contact count, probabilities, spacing and unanswered sides.
+    """Contact count, scores, timing and number of unknown hitters.
 
-    A sequence without contacts uses zero for every probability and timing
-    summary. One contact has zero gaps but keeps its probability.
+    No contacts: zero probability and contact-timing summaries, but keep the
+    rally duration. One contact: keep its probability, with zero inter-hit gaps.
     """
     events = sequence.events
     probabilities = tuple(float(event.probability) for event in events)
@@ -311,10 +361,12 @@ def sequence_summary(sequence: ContactSequence, fps: float) -> tuple[float, ...]
 
 
 def side_agreement(sequence: ContactSequence) -> tuple[float, float, float, float]:
-    """Measure how well raw side guesses fit each alternating pattern.
+    """Compare individual hitter guesses with both alternating player orders.
 
-    The two agreement values count known guesses matching a pattern that starts
-    Top or starts Bot. They are NaN when no guess is known.
+    Return the known fraction, agreement when starting Top, agreement when
+    starting Bot, and the same-side fraction among adjacent known pairs.
+    Agreement is NaN if no hitter is known; adjacent-pair fraction is NaN if
+    no neighbouring pair has both hitters known.
     """
     guesses = [event.side for event in sequence.events]
     known_count = sum(side is not None for side in guesses)
@@ -335,19 +387,14 @@ def side_agreement(sequence: ContactSequence) -> tuple[float, float, float, floa
     return (fraction_known, top_agreement, bot_agreement, same_side)
 
 
-def physical_or_nan(physical: Mapping[int, np.ndarray], frame: int | None) -> np.ndarray:
-    if frame is None:
-        return np.full(len(CONTACT_FEATURE_NAMES), np.nan)
-    return physical[frame]
-
-
 def unused_evidence(
     after: ContactSequence, considered_contacts: tuple[ContactEvent, ...], fps: float,
 ) -> tuple[tuple[float, ...], int | None]:
-    """Measure omitted contacts and the gaps where another contact could fit.
+    """Measure omitted candidates and gaps that could contain another contact.
 
-    A usable candidate lies inside the rally and far enough from selected contacts.
-    Gaps include the intervals before the first and after the last contact.
+    A usable candidate is inside the rally and far enough from selected hits.
+    Include the gaps before the first hit and after the last. Also return the
+    strongest unused candidate's frame for its contact features.
     """
     frames = np.asarray([event.frame for event in after.events], dtype=np.int64)
     chosen = set(frames.tolist())
@@ -389,6 +436,13 @@ def unused_evidence(
     return values, None if strongest is None else strongest.frame
 
 
+def contact_features_or_nan(features_by_frame: Mapping[int, np.ndarray], frame: int | None) -> np.ndarray:
+    """Contact features for the requested frame; all NaN if no frame was selected."""
+    if frame is None:
+        return np.full(len(CONTACT_FEATURE_NAMES), np.nan)
+    return features_by_frame[frame]
+
+
 def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]:
     """Summarise the strongest candidate in each gap with available evidence."""
     if not values:
@@ -400,6 +454,7 @@ def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]
 
 
 def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float, float]:
+    """Minimum, maximum and mean contact probability; all NaN for no contacts."""
     if not events:
         return np.nan, np.nan, np.nan
     values = [event.probability for event in events]
@@ -407,23 +462,5 @@ def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float,
 
 
 def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: int) -> tuple[ContactEvent, ...]:
-    """Return the events inside one half-open frame interval, keeping their order."""
+    """Contacts in [start_frame, end_frame), incl start, excl end; keep their order."""
     return tuple(event for event in events if start_frame <= event.frame < end_frame)
-
-
-def initial_sequences(
-    spans: Sequence[tuple[int, int]], events: Sequence[ContactEvent],
-) -> tuple[ContactSequence, ...]:
-    """Group the initial contacts into ordered, disjoint rally spans.
-
-    Later serve edits can move a start back only as far as the previous span's end.
-    """
-    sequences = []
-    previous_end = -1
-    for span_id, (start_frame, end_frame) in enumerate(spans):
-        if not previous_end <= start_frame < end_frame:
-            raise ValueError(f"span {span_id}: rally spans must be ordered, disjoint and non-empty")
-        owned = events_between(events, start_frame, end_frame)
-        sequences.append(ContactSequence(span_id, start_frame, end_frame, owned))
-        previous_end = end_frame
-    return tuple(sequences)

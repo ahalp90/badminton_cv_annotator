@@ -52,27 +52,27 @@ def annotate_video(
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
 ) -> AnnotatorResult:
-    """Find rallies and contacts, assign hitters, and estimate landings and winners.
+    """Find rallies and contacts, assign hitters, then estimate landings and winners.
 
-    The inputs are frame-aligned vision arrays, not an RGB video to decode.
-    The default route uses the supplied fitted models or loads the selected bundle.
-    ``base`` must match the bundle's preprocessing. ``heuristic_only=True`` uses
-    rule-based contacts with the same preparation and rally-result estimates.
+    Takes saved vision arrays with matching frame indices. The learned route
+    uses ``models``, or loads the default bundle. Its saved preprocessing
+    settings apply; an explicit ``base`` must match. ``heuristic_only=True``
+    uses rule-based contacts with the same preparation and outcome estimates.
 
-    Core arrays are normalised shuttle ``track`` (frames, 3), pose ``bboxes``
+    Array shapes: normalised shuttle ``track`` (frames, 3), pose ``bboxes``
     (frames, detections, 4), ``scores`` (frames, detections), ``kps`` (frames,
-    detections, 17, 2) and ``ndet`` counts (frames,). ``homography_rows`` supplies
-    court corners and frame intervals as records or a DataFrame.
+    detections, 17, 2), and ``ndet`` (frames,). ``homography_rows`` gives court
+    corners and frame ranges as records or a DataFrame.
 
-    ``spans`` and ``contacts`` optionally supply initial rally bounds and contact
-    frames. ``raw_exclusion_mask`` supplies excluded footage before short-run
-    filtering; ``inpaint_codes`` supplies per-frame shuttle-hallucination grades.
-    Frames outside accepted court geometry are excluded. Set
-    ``court_invalid_is_excluded`` to also exclude frames without court presence.
+    ``spans`` and ``contacts`` can supply initial bounds and contact frames.
+    ``raw_exclusion_mask`` supplies footage flags before short-run filtering;
+    ``inpaint_codes`` supplies shuttle-quality grades. Frames without accepted
+    court geometry are excluded. ``court_invalid_is_excluded`` also excludes
+    frames where ``court_present`` is False.
 
-    ``capture`` is reset at entry and retains prepared inputs and learned predictions
-    after each stage succeeds. ``rejection_diagnostics`` receives rejection rows
-    in processing-stage order rather than rally order.
+    ``capture`` is cleared at entry, then filled as preparation and prediction
+    finish. This lets callers inspect completed stages if a later stage fails.
+    ``rejection_diagnostics`` collects rows in processing order.
     """
     if capture is not None:
         capture.evidence = None
@@ -125,14 +125,17 @@ def annotate_video(
 
 
 class AnnotatorResult(NamedTuple):
-    """Finished rallies and their outcomes for one source video.
+    """Finished annotations for one video.
 
-    Rally IDs are positions in ``rallies``. Each rally retains its selected contacts,
-    fitted final striker and bounds. ``outcomes`` contains the rallies with a resolved
-    final striker. Hit heights and unavailable-height reasons are keyed by contact frame.
-    ``contact_events`` retains the learned model's full stream, including contacts
-    outside rallies. ``heuristic_candidates`` retains raw gate flags in heuristic mode.
-    Review scores follow rally order and are empty in heuristic mode.
+    Rally IDs index ``rallies``. Each rally includes bounds, assigned contact
+    sides and its final hitter. ``outcomes`` includes rallies whose final
+    hitter is known. Heights and missing-height reasons are keyed by contact
+    frame.
+
+    ``contact_events`` is the full learned contact list, including contacts
+    outside rallies. ``heuristic_candidates`` includes the wrist/spacing check
+    results in heuristic mode. ``rally_confidence`` follows rally order and
+    is empty in heuristic mode.
     """
 
     rallies: tuple[FinishedRally, ...]
@@ -146,7 +149,11 @@ class AnnotatorResult(NamedTuple):
 
 @dataclass
 class RunCapture:
-    """Prepared evidence and learned-model predictions retained for an optional caller."""
+    """Optional access to completed preparation and prediction stages.
+
+    Pass to ``annotate_video`` for inspection or failure reporting. Fields are
+    cleared at entry and assigned after each stage succeeds.
+    """
 
     evidence: AnnotationEvidence | None = None
     learned_model_prediction: LearnedModelPrediction | None = None

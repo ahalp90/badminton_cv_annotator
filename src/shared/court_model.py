@@ -1,12 +1,12 @@
-"""Official BWF court dimensions and painted lines, in court metres.
+"""Court dimensions and painted lines in metres.
 
-x runs across the court from the left doubles sideline (0) to the right one
-(6.10). y runs along it from the far baseline (0) to the near baseline (13.40).
-On footage from behind a baseline, the image's top corners are the far baseline.
-Corners are in TL, TR, BR, BL order.
+x runs across the court: left doubles sideline 0, right sideline 6.10.
+y runs along it: far baseline 0, near baseline 13.40. For a camera behind
+the baseline, the image's top corners correspond to the far baseline.
+Corner order: top-left, top-right, bottom-right, bottom-left.
 
-This module holds NumPy constants only. It is separate from shared.court, which
-imports pandas and uses a rotated (length, width) reference rectangle.
+These constants need NumPy only. ``shared.court`` also loads saved geometry
+with pandas and uses an older (length, width) reference rectangle.
 """
 
 from __future__ import annotations

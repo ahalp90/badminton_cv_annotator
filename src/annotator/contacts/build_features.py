@@ -1,9 +1,9 @@
-"""Measure candidate hits for contact-model training and prediction.
+"""Measure candidate contacts for model training and prediction.
 
-Each row combines shuttle motion, tracked-player geometry and visibility at
-nearby frames. The heuristic-only route does not build this feature matrix.
-Motion stays in raw per-frame units, matching the fitted contact model. Windows
-and candidate regions scale with FPS and stop at their search boundaries.
+Each row combines shuttle motion, tracked-player positions and visibility
+near a candidate frame. The heuristic route does not need these features.
+Motion uses per-frame units. Time offsets and search windows scale with
+video frame rate.
 """
 
 from __future__ import annotations
@@ -65,7 +65,14 @@ CONTACT_FEATURE_NAMES = tuple(name for _signal, _offset, name in _FEATURE_COLUMN
 
 
 class ContactFeatures(NamedTuple):
-    """Measured candidate rows and the court-view/search intervals used to build them."""
+    """Candidate measurements and the frame ranges used to build them.
+
+    ``rows`` has one structured row per candidate frame, sorted by frame.
+    It includes frame/search-interval IDs and the named model features.
+    ``eligible_intervals`` are tracked court ranges with excluded footage
+    removed. ``search_intervals`` extend them backwards to find earlier serves
+    and merge overlaps. All ranges include start, exclude end.
+    """
 
     rows: np.ndarray
     eligible_intervals: list[tuple[int, int]]
@@ -84,20 +91,19 @@ def build_contact_features(
     fps: float,
     resolution: tuple[float, float],
 ) -> ContactFeatures:
-    """Build one video's feature rows without reading files or contact labels.
+    """Measure candidate frames from shuttle motion, players and initial rallies.
 
-    :param track: Frame-aligned normalised shuttle ``[x, y, visible]``.
-    :param pose_kps: Pixel keypoints indexed by frame, raw player slot and joint.
-    :param sticky: Cached player selections and body-height wrist distances.
-    :param tracker_intervals: Court-present half-open frame intervals.
-    :param exclusion_mask: Boolean replay/broadcast exclusion for every frame.
-    :param heuristic_spans: Half-open rally spans from heuristic segmentation.
-    :param raw_contact_frames: Heuristic contact seeds before filtering.
-    :param scene_spans: Half-open scene spans in chronological order.
-    :param fps: Source video frame rate.
-    :param resolution: Source width and height in pixels.
-    :return: One candidate row per nominated frame, sorted by frame, and their
-        search intervals.
+    :param track: (frames, 3) normalised shuttle [x, y, visible].
+    :param pose_kps: Pixel keypoints indexed by frame, pose detection and joint.
+    :param sticky: Selected players and measured wrist distances.
+    :param tracker_intervals: Court-view ranges, incl start, excl end.
+    :param exclusion_mask: True on footage excluded from annotation.
+    :param heuristic_spans: Initial rally ranges, incl start, excl end.
+    :param raw_contact_frames: All heuristic candidate frames, before filtering.
+    :param scene_spans: Camera-scene ranges in time order, incl start, excl end.
+    :param fps: Video frame rate.
+    :param resolution: Video width and height in pixels.
+    :return: Candidate rows sorted by frame and the ranges used to measure them.
     """
     if exclusion_mask.shape != (len(track),) or exclusion_mask.dtype != np.bool_:
         raise ValueError("exclusion mask must match the shuttle timeline")
@@ -177,7 +183,11 @@ def build_shuttle_signals(
     spans: Sequence[tuple[int, int]],
     fps: float,
 ) -> dict[str, np.ndarray]:
-    """Build frame-aligned shuttle kinematics with the production impulse convention."""
+    """Measure shuttle movement at each frame and impulses within search ranges.
+
+    Motion features use the smoothing settings used to train the contact model,
+    independently of the current heuristic settings.
+    """
     n_frames = len(track)
     visible = track[:, 2] == 1
     shuttle_xy = np.where(visible[:, None], track[:, :2], np.nan)
@@ -213,7 +223,7 @@ def build_player_signals(
     sticky: StickyResult,
     resolution: tuple[float, float],
 ) -> dict[str, np.ndarray]:
-    """Build frame-aligned player–shuttle geometry from sticky-picked players."""
+    """Measure player movement and shuttle-to-wrist positions at each video frame."""
     n_frames = len(track)
     width, height = resolution
     scale = np.asarray([width, height], dtype=np.float64)
@@ -282,7 +292,11 @@ def build_candidate_mask(
     scene_spans: Sequence[tuple[int, int]],
     fps: float,
 ) -> np.ndarray:
-    """Nominate contact frames from motion, player proximity and rally context."""
+    """Choose frames to score from motion, wrist proximity and rally/scene starts.
+
+    Expand each clue into a nearby region within an eligible court interval.
+    Also include every frame in the earlier-serve search before each interval.
+    """
     n_frames = len(signals["shuttle_visible"])
     seeds = {name: np.zeros(n_frames, dtype=bool) for name in REGION_RADII_BASE30}
     for frame in raw_contact_frames:
@@ -318,6 +332,7 @@ def build_candidate_mask(
 
 
 def find_local_minima(values: np.ndarray, limit: float, radius: int) -> np.ndarray:
+    """Mark finite values no greater than the limit or any neighbour within the radius."""
     finite = np.isfinite(values) & (values <= limit)
     minima = np.zeros(len(values), dtype=bool)
     for frame in np.flatnonzero(finite):
@@ -339,6 +354,7 @@ def expand_seed_region(seed: np.ndarray, radius: int) -> np.ndarray:
 
 
 def contact_feature_dtype() -> np.dtype:
+    """Structured row format: search-interval ID, video frame and named float features."""
     fields = [("interval_id", "<i4"), ("frame", "<i4")]
     fields.extend((name, "<f4") for name in CONTACT_FEATURE_NAMES)
     return np.dtype(fields)
@@ -351,6 +367,7 @@ def shift_within_interval(
     start: int,
     end: int,
 ) -> np.ndarray:
+    """Sample each frame plus an offset; NaN outside [start, end), incl start, excl end."""
     source = frames + offset
     result = np.full(len(frames), np.nan, dtype=np.float32)
     valid = (source >= start) & (source < end)

@@ -14,8 +14,7 @@ from annotator.array_calc_helpers import true_runs
 from annotator.courts.frame_geometry import SceneCourt, court_at_frame
 from annotator.types import ANKLE_L, ANKLE_R, Slot, StickyResult
 
-# sticky_anchor is part of BST-X, not the scraper package. Keep the import seam
-# at the package boundary so the picker remains the single implementation.
+# Reuse the player tracker from BST-X, whose imports need its package root.
 _BST_X_ROOT = Path(__file__).resolve().parents[1] / 'bst_x'
 if str(_BST_X_ROOT) not in sys.path:
     sys.path.insert(0, str(_BST_X_ROOT))
@@ -74,8 +73,7 @@ def track_sticky_players(
         standing_count=np.zeros(n_frames, dtype=int),
         ankle_pos=np.full((n_frames, 2, 2), np.nan),
         bbox_height=np.full((n_frames, 2), np.nan),
-        # Per-slot fail-closed sentinel: +inf outside tracker segments, NaN once a
-        # tracker segment is analysed but a slot carries no finite gap.
+        # Infinity outside tracked intervals; NaN for missing gaps inside them.
         distances_per_slot=np.full((n_frames, 2), np.inf, dtype=np.float64),
         wrist_dist_px=np.full((n_frames, 2), np.inf, dtype=np.float64),
         analysed=np.zeros(n_frames, dtype=bool),

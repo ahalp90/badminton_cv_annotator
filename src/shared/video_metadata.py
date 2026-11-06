@@ -1,4 +1,9 @@
-"""Canonical exact video metadata for frame-aligned annotator pipelines."""
+"""Video dimensions and exact timing for annotation and extraction.
+
+``probe_video_metadata`` checks every frame timestamp against a constant
+frame rate. ``probe_video_fps`` reads the declared rates only, for callers
+that need the rate without decoding the whole video.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +24,15 @@ _FULL_METADATA_ENTRIES = (
 
 @dataclass(frozen=True)
 class VideoMetadata:
-    """Validated CFR metadata shared by every consumer of a source video."""
+    """Source video size, frame count and exact frame rate shared by extraction stages.
+
+    ``fps`` uses Fraction so frame times do not accumulate rounding errors.
+    ``sample_aspect_ratio`` is pixel width divided by pixel height; 1 means
+    square pixels. ``source_path`` is absolute.
+
+    Construction validates these values. Use ``probe_video_metadata`` to also
+    verify the file's actual frame count and timestamps.
+    """
 
     source_path: Path
     fps: Fraction
@@ -47,7 +60,7 @@ class VideoMetadata:
 
 
     def to_dict(self) -> dict[str, str | int]:
-        """Return the exact, JSON-compatible persisted metadata contract."""
+        """JSON-ready fields; keep frame rate and pixel aspect ratio as exact fractions."""
         return {
             "source_path": str(self.source_path),
             "fps": _fraction_text(self.fps),
@@ -59,7 +72,7 @@ class VideoMetadata:
 
     @classmethod
     def from_dict(cls, payload: object) -> VideoMetadata:
-        """Validate and restore persisted canonical metadata."""
+        """Check saved metadata fields and restore their Path, integer and Fraction values."""
         if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
             raise ValueError("video metadata must be a JSON object")
         expected = {"source_path", "fps", "frame_count", "width", "height", "sample_aspect_ratio"}
@@ -82,16 +95,17 @@ class VideoMetadata:
 
 
 def probe_video_metadata(video: Path) -> VideoMetadata:
-    """Read strict CFR metadata and validate the decoded frame total.
+    """Read video metadata and verify a constant frame rate from every timestamp.
 
-    A container header count is checked when present. The decoded total and
-    complete frame timestamp sequence remain required.
+    Require a zero start time and no rotation metadata. Count decoded frames,
+    compare with the header count when available, and check each timestamp
+    equals frame_index / fps.
 
     :param video: Source video path.
-    :return: Exact source dimensions, frame count and frame rate.
-    :raises FileNotFoundError: if ``video`` is not a regular file.
-    :raises ValueError: if required ffprobe metadata violates the contract.
-    :raises RuntimeError: if ffprobe cannot inspect the file.
+    :return: Exact frame rate, frame count, dimensions and pixel aspect ratio.
+    :raises FileNotFoundError: Source file missing.
+    :raises ValueError: Unsupported timing or invalid metadata values.
+    :raises RuntimeError: ffprobe could not inspect the file.
     """
     requested_path = Path(video)
     if not requested_path.is_file():
@@ -138,7 +152,11 @@ def probe_video_metadata(video: Path) -> VideoMetadata:
 
 
 def probe_video_fps(video: Path) -> Fraction:
-    """Read the exact CFR rate when frame count and dimensions are not needed."""
+    """Read the exact frame rate and require matching nominal and average rates.
+
+    This checks the declared rates only. Use ``probe_video_metadata`` to check
+    every frame timestamp and the decoded frame count too.
+    """
     video = Path(video)
     command = [
         "ffprobe",
@@ -160,7 +178,7 @@ def probe_video_fps(video: Path) -> Fraction:
 
 
 def probe_fps(video_path: Path) -> float:
-    """Return the canonical CFR frame rate as a float."""
+    """Read the declared constant frame rate as a float."""
     return float(probe_video_fps(video_path))
 
 
@@ -218,6 +236,7 @@ def _validate_frame_timestamps(
     fps: Fraction,
     frame_count: int,
 ) -> None:
+    """Require exactly one timestamp per frame, starting at zero and spaced by 1/fps."""
     frames = metadata.get("frames")
     if not isinstance(frames, list):
         raise TypeError("video frame timestamps are missing")
@@ -291,7 +310,7 @@ def _parse_int(value: object, field_name: str) -> int:
 
 
 def _parse_sample_aspect_ratio(value: object) -> Fraction:
-    """Read a sample aspect ratio, treating ffprobe's unspecified forms as square."""
+    """Read pixel width/height ratio; use square pixels when ffprobe leaves it unspecified."""
     if value is None or (isinstance(value, str) and value.strip().upper() in {"", "N/A"}):
         return Fraction(1)
     if not isinstance(value, str):
@@ -312,6 +331,7 @@ def _parse_sample_aspect_ratio(value: object) -> Fraction:
 
 
 def _has_rotation_metadata(stream: dict[str, Any]) -> bool:
+    """Check rotation tags and display matrices; even a declared zero rotation counts."""
     tags = stream.get("tags")
     if isinstance(tags, dict) and "rotate" in tags:
         return True

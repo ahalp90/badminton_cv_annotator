@@ -18,9 +18,11 @@ from annotator.types import (
 def select_heuristic_contacts(
     evidence: AnnotationEvidence, rejection_diagnostics: list[dict[str, object]] | None = None,
 ) -> tuple[FinishedRally, ...]:
-    """Finish heuristic rallies from their gate-passing, unmasked contacts.
+    """Select heuristic contacts and fit alternating players within each rally.
 
-    Append a diagnostic when every gate-passing contact in a rally is masked.
+    Keep contacts that pass the wrist and spacing checks, then remove those
+    on excluded footage. Record a rejection if that removes every accepted
+    contact in a rally.
     """
     frames_by_rally: dict[int, list[int]] = {}
     for contact in accepted_heuristic_contacts(evidence.heuristic_contacts):
@@ -36,7 +38,7 @@ def select_heuristic_contacts(
             side, distances = contact_player_evidence(
                 frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
             )
-            # Heuristic contacts have no fitted probability; learned inference reads it.
+            # Heuristic contacts have no model probability.
             events.append(ContactEvent(frame, math.nan, side, distances))
         sequences.append(ContactSequence(rally_id, start, end, tuple(events)))
         if frames and not events and rejection_diagnostics is not None:
@@ -52,7 +54,7 @@ def select_heuristic_contacts(
 
 
 def accepted_heuristic_contacts(contacts: list[ContactCandidate]) -> list[ContactCandidate]:
-    """Keep contacts that failed neither the wrist-distance check nor suppression."""
+    """Keep candidates unless a wrist or spacing check rejected them."""
     return [
         contact
         for contact in contacts
