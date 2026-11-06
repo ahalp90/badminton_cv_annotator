@@ -75,6 +75,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
     np.testing.assert_array_equal(evidence.track, original)
 
 
+@pytest.mark.parametrize('supplied_spans', [False, True])
 @pytest.mark.parametrize(('supplied_mask', 'supplied_contacts', 'unmasked_count', 'masked_count'), [
     (False, False, 1, 1),
     (True, False, 0, 1),
@@ -82,7 +83,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
     (True, True, 1, 0),
 ])
 def test_preparation_uses_original_or_masked_spans_for_each_input_path(
-    preparation_inputs, monkeypatch, supplied_contacts, supplied_mask, unmasked_count, masked_count,
+    preparation_inputs, monkeypatch, supplied_contacts, supplied_mask, supplied_spans, unmasked_count, masked_count,
 ):
     from annotator import preparation
 
@@ -91,6 +92,7 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     track[:, 0] = np.linspace(0.1, 0.9, len(track))
     track[:, 1:] = 1.0
     original = track.copy()
+    provided_spans = [(10, 180)] if supplied_spans else None
     unmasked_spans = [(0, len(track))]
     masked_spans = [(150, 250)]
     raw_mask = np.zeros(len(track), dtype=bool)
@@ -110,7 +112,7 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     def replay_mask(court_present, track_arg, spans, n_frames, fps, *, non_evidence):
         assert not supplied_mask
         assert track_arg is track
-        assert spans is unmasked_spans
+        assert spans is (provided_spans if supplied_spans else unmasked_spans)
         return raw_mask
 
     if supplied_mask:
@@ -118,11 +120,13 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     monkeypatch.setattr(preparation, 'find_rally_spans', find)
     monkeypatch.setattr(preparation, 'combine_mask', replay_mask)
     contacts = {0: [20, 150]} if supplied_contacts else None
-    evidence = prepare_annotation(**preparation_inputs, contacts=contacts)
+    evidence = prepare_annotation(**preparation_inputs, contacts=contacts, spans=provided_spans)
 
-    assert len(unmasked_calls) == unmasked_count
-    assert len(masked_calls) == masked_count
-    assert evidence.heuristic_spans is (unmasked_spans if supplied_contacts else masked_spans)
+    assert len(unmasked_calls) == (0 if supplied_spans else unmasked_count)
+    assert len(masked_calls) == (0 if supplied_spans else masked_count)
+    expected_spans = provided_spans if supplied_spans else (unmasked_spans if supplied_contacts else masked_spans)
+    assert evidence.heuristic_spans is expected_spans
+    assert evidence.bounds_supplied is supplied_spans
     if supplied_contacts:
         assert evidence.raw_contact_frames == [20, 150]
     np.testing.assert_array_equal(track, original)

@@ -85,13 +85,13 @@ def prepare_annotation(
         resolution, resolved.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
     )
-    # Replay-speed estimation and supplied contacts use the original-track spans.
-    spans_before_masking = spans
-    if spans_before_masking is None and (raw_exclusion_mask is None or contacts is not None):
-        spans_before_masking = find_rally_spans(track, resolved=resolved)
+    original_spans = spans
     if raw_exclusion_mask is None:
+        # Replay-mask estimation needs bounds from the original track.
+        if original_spans is None:
+            original_spans = find_rally_spans(track, resolved)
         raw_exclusion_mask = combine_mask(
-            court_present, track, spans_before_masking, len(track), resolved.fps,
+            court_present, track, original_spans, len(track), resolved.fps,
             non_evidence=shuttle_hallucination_mask,
         )
     exclusion_mask = filter_exclusion_mask(raw_exclusion_mask, len(track), resolved.thresholds.replay_mask_min_frames)
@@ -106,21 +106,24 @@ def prepare_annotation(
     if exclusion_mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
     if contacts is not None:
-        final_spans = spans_before_masking
+        # Supplied contacts belong to the original track, before dead-time masking.
+        if original_spans is None:
+            original_spans = find_rally_spans(track, resolved)
+        rally_spans = original_spans
         raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
     else:
         frozen_track = apply_replay_mask(track, exclusion_mask)
-        final_spans = spans if spans is not None else find_rally_spans(frozen_track, resolved)
+        rally_spans = spans if spans is not None else find_rally_spans(frozen_track, resolved)
         raw_contacts = assemble_contacts(
-            frozen_track, positions=None, spans=final_spans, thresholds=resolved.thresholds,
+            frozen_track, positions=None, spans=rally_spans, thresholds=resolved.thresholds,
             sticky_distances=sticky.distances, smoothing_mode=resolved.smoothing_mode,
         )
     return AnnotationEvidence(
         identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
         sticky=sticky, tracker_intervals=segments, scene_courts=scene_courts,
         resolved=resolved, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
-        heuristic_spans=final_spans, heuristic_contacts=raw_contacts,
+        heuristic_spans=rally_spans, heuristic_contacts=raw_contacts,
         shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,
         bounds_supplied=spans is not None,
     )
