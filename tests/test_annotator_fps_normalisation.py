@@ -13,7 +13,7 @@ from annotator.contacts.build_features import (
     build_contact_features,
 )
 from annotator.contacts.heuristics import FLOOR_EPS
-from annotator.types import StickyResult
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import input_stages
 from experiments.annotator.tree_simplification.fps_normalisation import (
@@ -75,16 +75,8 @@ def build_motion_features(
     distances = np.full(frame_count, np.nan, dtype=np.float64)
     finite_gaps = np.isfinite(gaps).any(axis=1)
     distances[finite_gaps] = np.nanmin(gaps[finite_gaps], axis=1)
-    sticky = StickyResult(
-        distances=distances,
-        picks=picks,
-        standing_count=np.full(frame_count, 2, dtype=np.int32),
-        ankle_pos=ankle_pos,
-        bbox_height=np.full((frame_count, 2), 100.0, dtype=np.float64),
-        distances_per_slot=gaps,
-        wrist_dist_px=gaps * 100.0,
-        analysed=np.ones(frame_count, dtype=bool),
-    )
+    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0, dtype=np.float64))
+    wrist_gaps = WristGaps(distances, gaps)
     pose_kps = np.full((frame_count, 2, 17, 2), 500.0, dtype=np.float64)
     exclusion_mask = np.zeros(frame_count, dtype=bool)
     first_end = 4 * int(fps)
@@ -92,7 +84,7 @@ def build_motion_features(
     features = build_contact_features(
         track=track,
         pose_kps=pose_kps,
-        sticky=sticky,
+        players=players, wrist_gaps=wrist_gaps,
         tracker_intervals=((0, first_end), (second_start, frame_count)),
         exclusion_mask=exclusion_mask,
         heuristic_spans=((0, first_end), (second_start, frame_count)),

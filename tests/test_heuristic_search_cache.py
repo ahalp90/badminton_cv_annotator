@@ -13,22 +13,18 @@ import numpy as np
 import pytest
 
 from annotator.inference import prepare_contact_inference as player_evidence
-from annotator.types import StickyResult
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator.heuristic_only_tune.cache import (
     StickyCacheError,
     cache_sticky_result,
 )
 
 
-def _result(value: float) -> StickyResult:
-    return StickyResult(
-        np.full(3, value), np.zeros((3, 2), dtype=int), np.full(3, 2, dtype=int),
-        np.full((3, 2, 2), value), np.full((3, 2), 100.0), np.full((3, 2), value),
-        np.full((3, 2), value), np.ones(3, dtype=bool),
-    )
+def _result(value: float) -> tuple[TrackedPlayers, WristGaps]:
+    return (TrackedPlayers(np.zeros((3, 2), dtype=int), np.full((3, 2, 2), value), np.full((3, 2), 100.0)), WristGaps(np.full(3, value), np.full((3, 2), value)))
 
 
-def _build(half_window: int = 1) -> StickyResult:
+def _build(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:
     return _result(float(half_window))
 
 
@@ -36,13 +32,13 @@ def _process_job(cache_dir: Path, barrier: Any, results: Any) -> None:
     barrier.wait(timeout=10)
     with cache_sticky_result(cache_dir, 'video'):
         result = player_evidence.build_player_evidence(half_window=2)
-        results.put(float(result.distances[0]))
+        results.put(float(result[1].nearest[0]))
 
 
 def test_cache_reuses_saved_arrays_after_the_context_ends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
-    def build(half_window: int = 1) -> StickyResult:
+    def build(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:
         calls.append(half_window)
         return _result(7.0)
 
@@ -54,18 +50,18 @@ def test_cache_reuses_saved_arrays_after_the_context_ends(tmp_path: Path, monkey
         second = player_evidence.build_player_evidence(half_window=1)
     assert calls == [1]
     assert second is not first
-    for computed, loaded in zip(first, second, strict=True):
+    for computed, loaded in zip((*first[0], *first[1]), (*second[0], *second[1]), strict=True):
         np.testing.assert_array_equal(computed, loaded)
         assert not computed.flags.writeable
         assert not loaded.flags.writeable
     with pytest.raises(ValueError, match='read-only'):
-        second.distances[0] = 100.0
+        second[1].nearest[0] = 100.0
 
 
 def test_video_and_resolved_window_each_get_separate_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
-    def build(half_window: int = 1) -> StickyResult:
+    def build(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:
         calls.append(half_window)
         return _result(float(half_window))
 
@@ -74,13 +70,13 @@ def test_video_and_resolved_window_each_get_separate_files(tmp_path: Path, monke
         with cache_sticky_result(tmp_path, video):
             for window in (1, 2, 1):
                 result = player_evidence.build_player_evidence(window)
-                np.testing.assert_array_equal(result.distances, np.full(3, window))
+                np.testing.assert_array_equal(result[1].nearest, np.full(3, window))
     assert calls == [1, 2, 1, 2]
     assert len(list(tmp_path.rglob('*.pkl.gz'))) == 4
 
 
 def test_builder_exception_restores_helper_and_releases_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fail(half_window: int = 1) -> StickyResult:
+    def fail(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:
         raise RuntimeError('tracking failed')
 
     monkeypatch.setattr(player_evidence, 'build_player_evidence', fail)
@@ -149,7 +145,7 @@ def test_unwritable_cache_path_raises_cache_error(tmp_path: Path, monkeypatch: p
 def test_two_processes_build_one_shared_cache_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     counter = tmp_path / 'builds.txt'
 
-    def build(half_window: int = 1) -> StickyResult:
+    def build(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:
         with counter.open('a') as handle:
             handle.write('built\n')
         time.sleep(0.1)

@@ -29,7 +29,7 @@ def build_outcomes(
     reports. Leave it as None to skip that bookkeeping; outcomes are the same.
     """
     video_kinematics = landing_and_winner.build_landing_kinematics(
-        evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
+        evidence.track, evidence.players, evidence.pose_kps, evidence.resolution,
     )
     outcomes = {}
     for rally_id, rally in enumerate(progress_iter(rallies, "resolving outcomes", unit="rallies")):

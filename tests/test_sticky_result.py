@@ -1,4 +1,4 @@
-"""Direct contract tests for the cached StickyResult evidence arrays."""
+"""Tracking intervals, missing measurements and wrist-gap normalisation."""
 
 import numpy as np
 import pytest
@@ -120,7 +120,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     )
     assert not np.allclose(scene_courts[0].court_info['H'], scene_courts[1].court_info['H'])
 
-    local_result = build_player_evidence(
+    local_players, _ = build_player_evidence(
         track,
         [(0, 2), (2, 4)],
         bboxes,
@@ -135,7 +135,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     # A displaced global outline rejects the top player in scene 0, while the
     # scene-local rows retain both picks in both camera views.
     global_scene = build_scene_courts([row(0, 4, 500.0, 1780.0)], (1280.0, 720.0))[0]
-    global_result = build_player_evidence(
+    global_players, _ = build_player_evidence(
         track,
         [(0, 4)],
         bboxes,
@@ -147,15 +147,14 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
         scene_courts=(global_scene,),
     )
 
-    np.testing.assert_array_equal(local_result.picks, np.tile([0, 1], (4, 1)))
-    assert local_result.analysed.all()
-    assert local_result.picks[0, 0] == 0
-    assert global_result.picks[0].tolist() == [-1, 1]
+    np.testing.assert_array_equal(local_players.detection_indices, np.tile([0, 1], (4, 1)))
+    assert local_players.detection_indices[0, 0] == 0
+    assert global_players.detection_indices[0].tolist() == [-1, 1]
 
 
 def test_build_player_evidence_pins_failure_defaults_and_success_contract():
     (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
-    result = build_player_evidence(
+    players, gaps = build_player_evidence(
         track,
         segments,
         bboxes,
@@ -167,41 +166,36 @@ def test_build_player_evidence_pins_failure_defaults_and_success_contract():
         scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
-    assert np.isposinf(result.distances[0])
-    assert result.picks[0].tolist() == [-1, -1]
-    assert result.standing_count[0] == 0
-    assert np.isnan(result.ankle_pos[0]).all()
-    assert np.isnan(result.bbox_height[0]).all()
+    assert np.isposinf(gaps.nearest[0])
+    assert players.detection_indices[0].tolist() == [-1, -1]
+    assert np.isnan(players.ankle_xy[0]).all()
+    assert np.isnan(players.box_heights_px[0]).all()
 
-    assert np.isnan(result.distances[1])
-    assert result.standing_count[1] == 1
-    assert result.picks[2].tolist() == [1, 2]
-    assert result.bbox_height[2].tolist() == [120.0, 120.0]
-    np.testing.assert_allclose(result.ankle_pos[2, 0], [610 / 1280, 180 / 720])
-    np.testing.assert_allclose(result.ankle_pos[2, 1], [610 / 1280, 540 / 720])
+    assert np.isnan(gaps.nearest[1])
+    assert players.detection_indices[2].tolist() == [1, 2]
+    assert players.box_heights_px[2].tolist() == [120.0, 120.0]
+    np.testing.assert_allclose(players.ankle_xy[2, 0], [610 / 1280, 180 / 720])
+    np.testing.assert_allclose(players.ankle_xy[2, 1], [610 / 1280, 540 / 720])
 
-    # Additive Stage 5 fields: analysed marks exactly the segment frames; per-slot
-    # distances are +inf outside the segments, NaN on a visited frame with no
-    # finite gap, and consistent with the min-collapsed series where finite.
-    assert result.analysed.tolist() == [False, True, True, True, False]
-    assert np.isposinf(result.distances_per_slot[0]).all()
-    assert np.isposinf(result.distances_per_slot[4]).all()
-    assert np.isnan(result.distances_per_slot[1]).all()
-    per_slot = result.distances_per_slot[2]
+    # Gaps distinguish untracked frames from missing measurements inside an interval.
+    assert np.isposinf(gaps.per_player[0]).all()
+    assert np.isposinf(gaps.per_player[4]).all()
+    assert np.isnan(gaps.per_player[1]).all()
+    per_slot = gaps.per_player[2]
     finite = np.isfinite(per_slot)
-    assert np.isfinite(result.distances[2]) == finite.any()
+    assert np.isfinite(gaps.nearest[2]) == finite.any()
     if finite.any():
-        assert result.distances[2] == per_slot[finite].min()
+        assert gaps.nearest[2] == per_slot[finite].min()
 
     # Frame 3's single top-half detection: the unpicked bottom slot stays NaN
     # while the picked top slot owns whatever gap the collapse saw.
-    assert result.picks[3].tolist()[1] == -1
-    assert result.picks[3][0] >= 0
-    assert np.isnan(result.distances_per_slot[3, 1])
-    top_gap = result.distances_per_slot[3, 0]
-    assert np.isfinite(result.distances[3]) == bool(np.isfinite(top_gap))
+    assert players.detection_indices[3].tolist()[1] == -1
+    assert players.detection_indices[3][0] >= 0
+    assert np.isnan(gaps.per_player[3, 1])
+    top_gap = gaps.per_player[3, 0]
+    assert np.isfinite(gaps.nearest[3]) == bool(np.isfinite(top_gap))
     if np.isfinite(top_gap):
-        assert result.distances[3] == top_gap
+        assert gaps.nearest[3] == top_gap
 
 
 def test_build_player_evidence_wrist_distance_visibility_and_sentinels():
@@ -212,7 +206,7 @@ def test_build_player_evidence_wrist_distance_visibility_and_sentinels():
     kps[3, 0, WRIST_L] = (640.0, 300.0)
     kps[3, 0, WRIST_R] = (600.0, 180.0)
 
-    result = build_player_evidence(
+    _, gaps = build_player_evidence(
         track,
         segments,
         bboxes,
@@ -224,19 +218,11 @@ def test_build_player_evidence_wrist_distance_visibility_and_sentinels():
         scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
-    assert result.wrist_dist_px.shape == (len(track), 2)
-    assert result.wrist_dist_px.dtype == np.float64
-    assert np.isposinf(result.wrist_dist_px[0]).all()
-    assert np.isposinf(result.wrist_dist_px[4]).all()
-    assert np.isnan(result.wrist_dist_px[2]).all()
-    assert np.isnan(result.wrist_dist_px[3, 1])
-    assert result.wrist_dist_px[3, 0] == pytest.approx(10.0)
 
-    # The invisible frame keeps the old corner-derived contact-distance cache and collapse,
-    # while the serve-only raw wrist cache refuses to measure it.
-    assert np.isfinite(result.distances_per_slot[2]).all()
-    assert np.isfinite(result.distances[2])
-    assert result.distances[2] == pytest.approx(np.min(result.distances_per_slot[2]))
+    # Invisible coordinates still contribute to contact-distance measurements.
+    assert np.isfinite(gaps.per_player[2]).all()
+    assert np.isfinite(gaps.nearest[2])
+    assert gaps.nearest[2] == pytest.approx(np.min(gaps.per_player[2]))
 
 
 def test_segment_video_sticky_distance_shape_is_checked():
@@ -258,7 +244,7 @@ def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds()
         kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
     track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
-    result = build_player_evidence(
+    players, gaps = build_player_evidence(
         track,
         [(0, 3), (3, 6)],
         bboxes,
@@ -271,8 +257,8 @@ def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds()
     )
 
     numerator = np.hypot(600.0 - 600.0, 360.0 - 170.0)
-    picked_half = int(np.flatnonzero(result.picks[2] >= 0)[0])
-    assert result.distances_per_slot[2, picked_half] == pytest.approx(numerator / 100.0)
+    picked_half = int(np.flatnonzero(players.detection_indices[2] >= 0)[0])
+    assert gaps.per_player[2, picked_half] == pytest.approx(numerator / 100.0)
 
 
 def test_build_player_evidence_fails_when_candidate_has_no_finite_height() -> None:

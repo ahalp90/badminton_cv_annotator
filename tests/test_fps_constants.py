@@ -282,7 +282,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     ndet = np.ones(n_frames, dtype=int)
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
                   'border_U': 0.0, 'border_D': 1080.0}
-    short_sticky = build_player_evidence(
+    _, short_gaps = build_player_evidence(
         track.copy(),
         [(0, n_frames)],
         bboxes.copy(),
@@ -293,7 +293,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
         12,
         scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),
     )
-    full_sticky = build_player_evidence(
+    full_players, full_gaps = build_player_evidence(
         track.copy(),
         [(0, n_frames)],
         bboxes.copy(),
@@ -307,11 +307,11 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     base_radius_thresholds = replace(video_config.thresholds, contact_suppression_radius_frames=9)
     base_radius_contacts = segment_video(
         track,
-        sticky_distances=short_sticky.distances,
+        sticky_distances=short_gaps.nearest,
         video_config=replace(burst_config(), thresholds=base_radius_thresholds),
     )[1]
     scaled_contacts = segment_video(
-        track, sticky_distances=short_sticky.distances, video_config=replace(burst_config(), thresholds=video_config.thresholds)
+        track, sticky_distances=short_gaps.nearest, video_config=replace(burst_config(), thresholds=video_config.thresholds)
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
@@ -325,7 +325,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     short_window_contacts = base_radius_contacts
     full_contacts = segment_video(
         track,
-        sticky_distances=full_sticky.distances,
+        sticky_distances=full_gaps.nearest,
         video_config=replace(burst_config(), thresholds=base_radius_thresholds),
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
@@ -336,15 +336,14 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     # The final contact with scaled settings uses the same track, sticky cache, and scaled constants for
     # attribution and landing.
     scaled_full_contacts = segment_video(
-        track, sticky_distances=full_sticky.distances, video_config=replace(burst_config(), thresholds=video_config.thresholds)
+        track, sticky_distances=full_gaps.nearest, video_config=replace(burst_config(), thresholds=video_config.thresholds)
     )[1]
     final_contact = [
         contact.contact_frame for contact in scaled_full_contacts
         if contact.wrist_near is not False and contact.suppressed is not True
     ][-1]
-    sticky = full_sticky
     attribution_scenes = (SceneCourt(0, len(track), {}, (520.0, 560.0), 0.1),)
-    side, _ = contact_player_evidence(final_contact, track, sticky, bboxes, attribution_scenes)
+    side, _ = contact_player_evidence(final_contact, track, full_players, full_gaps, bboxes, attribution_scenes)
     assert side is CourtHalf.TOP
     # A 15-frame loss is longer than the unscaled base-30 10 but shorter than the scaled 20.
     # It exposes two post-contact descents: five samples (base 3 accepts; scaled 6 rejects),

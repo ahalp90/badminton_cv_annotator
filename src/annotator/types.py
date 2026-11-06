@@ -36,37 +36,27 @@ WRIST_L, WRIST_R = 9, 10
 ANKLE_L, ANKLE_R = 15, 16
 
 
-class StickyResult(NamedTuple):
-    """Tracked players and their measurements, one row per video frame.
+class TrackedPlayers(NamedTuple):
+    """Selected top/bottom players, one row per video frame.
 
-    Player tracking fills picks and body positions first. Wrist measurement
-    then fills the distance arrays in place. Player axis: [TOP, BOTTOM].
-
-    :param distances: (frames,) nearest wrist gap in body heights. Infinity
-        outside tracked intervals; NaN if no usable gap within an interval.
-    :param picks: (frames, 2) indices into the original pose detections.
-        -1 means no player selected on that half.
-    :param standing_count: (frames,) standing in-court detections.
-    :param ankle_pos: (frames, 2, 2) mean ankle xy, divided by video width and
-        height. NaN where no player was selected.
-    :param bbox_height: (frames, 2) selected players' box heights in pixels.
-        NaN where no player was selected.
-    :param distances_per_slot: (frames, 2) wrist gaps in body heights, before
-        choosing the nearest player. Same infinity/NaN meanings as distances.
-    :param wrist_dist_px: (frames, 2) wrist gaps in pixels, measured only for
-        visible shuttle frames. Infinity outside tracked intervals; NaN when
-        unavailable within them.
-    :param analysed: (frames,) True where player tracking ran.
+    Detection indices address the original pose arrays; -1 means no selection.
+    Ankle xy is divided by video width/height. Missing positions/heights are NaN.
     """
 
-    distances: np.ndarray
-    picks: np.ndarray
-    standing_count: np.ndarray
-    ankle_pos: np.ndarray
-    bbox_height: np.ndarray
-    distances_per_slot: np.ndarray
-    wrist_dist_px: np.ndarray
-    analysed: np.ndarray
+    detection_indices: np.ndarray  # (frames, players)
+    ankle_xy: np.ndarray  # (frames, players, xy)
+    box_heights_px: np.ndarray  # (frames, players)
+
+
+class WristGaps(NamedTuple):
+    """Shuttle-to-wrist distances in body heights, for contact detection/attribution.
+
+    Infinity outside tracked intervals; NaN for unavailable gaps inside them.
+    Each player's distance uses its nearer wrist and mean nearby box height.
+    """
+
+    nearest: np.ndarray  # (frames,)
+    per_player: np.ndarray  # (frames, players), top then bottom
 
 
 # Contacts and rallies

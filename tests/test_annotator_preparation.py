@@ -165,7 +165,7 @@ def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tm
         first = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
         second = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
     assert len(calls) == 1
-    for first_array, second_array in zip(first.sticky, second.sticky, strict=True):
+    for first_array, second_array in zip((*first.players, *first.wrist_gaps), (*second.players, *second.wrist_gaps), strict=True):
         np.testing.assert_array_equal(first_array, second_array)
         assert not first_array.flags.writeable
         assert not second_array.flags.writeable

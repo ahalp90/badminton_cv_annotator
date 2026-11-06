@@ -49,7 +49,7 @@ def compare_landing_searches(
     validate_search_limits(search_seconds)
     options = point_winner.convert_landing_options(landing_options, evidence.fps)
     video_kinematics = point_winner.build_landing_kinematics(
-        evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
+        evidence.track, evidence.players, evidence.pose_kps, evidence.resolution,
     )
     rows = []
     for rally_id, rally in enumerate(rallies):

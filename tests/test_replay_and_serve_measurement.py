@@ -5,11 +5,11 @@ from __future__ import annotations
 import gzip
 import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator.legacy_evaluation.scoring import GtRally
 from labelling.scene_labels import SceneTruth, VideoMetadata, make_interval
 
@@ -114,11 +114,12 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     raw_mask[7:9] = True
     definitive = raw_mask.copy()
     distances = np.full(25, 0.5)
-    sticky = SimpleNamespace(
-        distances=distances,
-        analysed=np.ones(25, dtype=bool),
-        picks=np.zeros((25, 2), dtype=int),
+    players = TrackedPlayers(
+        detection_indices=np.zeros((25, 2), dtype=int),
+        ankle_xy=np.zeros((25, 2, 2)),
+        box_heights_px=np.ones((25, 2)),
     )
+    wrist_gaps = WristGaps(nearest=distances, per_player=np.full((25, 2), 0.5))
     rallies = [GtRally("set1", 1, (5, 20))]
     statuses = [{
         "rally_index": 0,
@@ -133,7 +134,8 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
         inpaint_codes=inpaint_codes,
         raw_mask=raw_mask,
         definitive_mask=definitive,
-        sticky=sticky,
+        players=players,
+        wrist_gaps=wrist_gaps,
         spans=[(5, 20)],
         natural_raw_frames=set(),
         accepted_by_span={0: [15]},

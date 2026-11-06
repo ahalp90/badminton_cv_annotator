@@ -106,16 +106,20 @@ Pose extraction can return several people and store the same person in a
 different array slot from one frame to the next. The sticky player logic tries
 to follow one person on each court half across nearby frames.
 
-Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). From those picks it records:
+Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). `TrackedPlayers` contains:
 
-- wrist-to-shuttle distance, measured in player body-height units;
-- ankle position and ankle movement;
-- the raw pose slot assigned to each court half;
-- whether each player or wrist measurement is available.
+- selected indices into the original pose detections;
+- ankle positions, divided by video width and height;
+- bounding-box heights in pixels.
+
+Wrist measurement then produces `WristGaps`: one distance per player and the
+nearest distance per frame, all measured in body heights. Missing values
+distinguish untracked frames from unavailable measurements within an interval.
 
 This information later feeds contact features, serve-repair features and the initial `Top`/`Bot` guess for each contact.
 
-Relevant code: `player_tracking.py`, `types.py::StickyResult`.
+Relevant code: `shared/player_tracking.py`, `annotator/player_tracking.py`,
+`types.py::TrackedPlayers`, `types.py::WristGaps`.
 
 ## Rough rally spans
 

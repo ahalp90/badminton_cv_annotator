@@ -21,8 +21,7 @@ import numpy as np
 
 from annotator.config import frames_at_fps
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
-from annotator.inference.prepare_contact_inference import build_player_evidence
-from annotator.player_tracking import tracker_segments
+from annotator.player_tracking import track_sticky_players, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
 from shared.court import project_pixels_to_court
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
@@ -31,8 +30,6 @@ EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)
 ANKLE_INDICES = (15, 16)
 COURT_SIDES = ("top", "bottom")
-# Dataset features use a fixed window, independently of annotation frame-rate scaling.
-DATASET_BODY_UNIT_HALF_WINDOW = 12
 # Issue #32 fixed the clip offsets: 2 s of lead-in before the first contact and
 # 3 s of tail after the last, so a clip keeps the serve setup and the point ending.
 CLIP_LEAD_SECONDS = 2
@@ -89,23 +86,22 @@ def derive_player_feature_inputs(
         raise ValueError("shuttle, pose, and court frame populations differ")
     scene_courts = build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution)
     segments = tracker_segments(scene_courts, court.evidence.court_present, len(track))
-    sticky = build_player_evidence(
-        track,
+    players = track_sticky_players(
+        len(track),
         segments,
         pose.bboxes,
         pose.scores,
         pose.kps,
         pose.ndet,
         inputs.resolution,
-        DATASET_BODY_UNIT_HALF_WINDOW,
         scene_courts=scene_courts,
     )
-    selected_keypoints = select_sticky_keypoints(pose.kps, sticky.picks)
+    selected_keypoints = select_sticky_keypoints(pose.kps, players.detection_indices)
     raw_posture = posture_signal(selected_keypoints)
     posture_values, posture_interpolation = interpolate_internal_gaps(
         raw_posture[:, :, np.newaxis], segments
     )
-    image_positions = sticky.ankle_pos * np.asarray(inputs.resolution, dtype=float)
+    image_positions = players.ankle_xy * np.asarray(inputs.resolution, dtype=float)
     court_positions = project_positions_by_scene(
         image_positions,
         scene_courts,

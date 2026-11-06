@@ -37,15 +37,14 @@ from __future__ import annotations
 import numpy as np
 from pipeline.config import COCO_N_JOINTS
 
-from .base import (
+from shared.player_tracking import (
     DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
-    ClipContext,
-    HeuristicOutput,
-    RawClip,
     count_standing_in_court,
     is_sitting,
 )
+
+from .base import ClipContext, HeuristicOutput, RawClip
 
 
 def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:

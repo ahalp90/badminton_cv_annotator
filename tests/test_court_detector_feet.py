@@ -78,7 +78,7 @@ def test_same_shot_run_matches_the_evidence_script() -> None:
 
 
 def test_is_sitting_matches_bst_x() -> None:
-    from bst_x.preparing_data.heuristics.base import SITTING_THRESHOLD, is_sitting
+    from shared.player_tracking import SITTING_THRESHOLD, is_sitting
 
     random = np.random.default_rng(20260925)
     poses = random.uniform(0, 1000, size=(2000, 17, 2))

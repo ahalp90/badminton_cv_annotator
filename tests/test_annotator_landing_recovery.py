@@ -30,7 +30,7 @@ def returning_view_evidence() -> SimpleNamespace:
     exclusions[:10] = True
     return SimpleNamespace(
         track=track, fps=30.0,
-        sticky=SimpleNamespace(picks=np.full((25, 2), -1), bbox_height=np.full((25, 2), np.nan)),
+        players=SimpleNamespace(detection_indices=np.full((25, 2), -1), box_heights_px=np.full((25, 2), np.nan)),
         pose_kps=np.empty((25, 0, 17, 2)),
         resolution=resolution,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), exclusion_mask=exclusions,
@@ -111,7 +111,7 @@ def test_returning_view_suppresses_cut_speed_without_changing_shared_kinematics(
     evidence = returning_view_evidence()
     evidence.track[9] = (0.2, 0.2, 1)
     kinematics = point_winner.build_landing_kinematics(
-        evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
+        evidence.track, evidence.players, evidence.pose_kps, evidence.resolution,
     )
     cut_speed = kinematics.speed[10]
     assert np.isfinite(cut_speed)

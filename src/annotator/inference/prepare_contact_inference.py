@@ -19,7 +19,7 @@ from annotator.excluded_frames.replay import (
     filter_exclusion_mask,
 )
 from annotator.rallies.find_rallies import find_rally_spans, segment_video
-from annotator.types import ContactCandidate, StickyResult
+from annotator.types import ContactCandidate, TrackedPlayers, WristGaps
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,8 @@ class AnnotationEvidence:
     track: np.ndarray
     pose_kps: np.ndarray
     bboxes: np.ndarray
-    sticky: StickyResult
+    players: TrackedPlayers
+    wrist_gaps: WristGaps
     tracker_intervals: Sequence[tuple[int, int]]
     scene_courts: tuple[SceneCourt, ...]
     video_config: FpsScaledAnnotatorConfig
@@ -102,7 +103,7 @@ def prepare_contact_inference(
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
     # Player tracking needs the original track before dead-time masking.
     segments = player_tracking.tracker_segments(scene_courts, court_present, len(track))
-    sticky = build_player_evidence(
+    players, wrist_gaps = build_player_evidence(
         track, segments, bboxes, scores, kps, ndet,
         resolution, video_config.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
@@ -137,11 +138,11 @@ def prepare_contact_inference(
     else:
         rally_spans, raw_contacts = segment_video(
             track, video_config=video_config, exclusion_mask=exclusion_mask,
-            sticky_distances=sticky.distances, spans=spans,
+            sticky_distances=wrist_gaps.nearest, spans=spans,
         )
     return AnnotationEvidence(
         identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
-        sticky=sticky, tracker_intervals=segments, scene_courts=scene_courts,
+        players=players, wrist_gaps=wrist_gaps, tracker_intervals=segments, scene_courts=scene_courts,
         video_config=video_config, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=rally_spans, heuristic_contacts=raw_contacts,
         shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,
@@ -166,9 +167,9 @@ def build_player_evidence(
     pose_ndet: np.ndarray,
     resolution: tuple[float, float], half_window: int,
     *, scene_courts: tuple[SceneCourt, ...],
-) -> StickyResult:
+) -> tuple[TrackedPlayers, WristGaps]:
     """Track the top/bottom players, then measure their shuttle-to-wrist gaps."""
-    evidence = player_tracking.track_sticky_players(
+    players = player_tracking.track_sticky_players(
         len(track),
         segments,
         pose_bboxes,
@@ -178,5 +179,5 @@ def build_player_evidence(
         resolution,
         scene_courts,
     )
-    measure_wrist_distances(track, segments, pose_kps, resolution, half_window, evidence)
-    return evidence
+    wrist_gaps = measure_wrist_distances(track, segments, pose_kps, resolution, half_window, players)
+    return players, wrist_gaps

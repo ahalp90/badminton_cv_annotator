@@ -14,7 +14,7 @@ from annotator.contacts.build_features import (
     build_player_signals,
 )
 from annotator.contacts.score_candidates import CONTACT_FEATURE_NAMES
-from annotator.types import StickyResult
+from annotator.types import TrackedPlayers, WristGaps
 
 
 def feature_inputs() -> dict:
@@ -30,14 +30,12 @@ def feature_inputs() -> dict:
     gaps[0:3] = np.inf
     ankle = np.full((frame_count, 2, 2), 0.5)
     ankle[40:44] = np.nan
-    sticky = StickyResult(
-        gaps.min(axis=1), picks, np.full(frame_count, 2), ankle,
-        np.full((frame_count, 2), 100.0), gaps, gaps * 100, np.ones(frame_count, dtype=bool),
-    )
+    players = TrackedPlayers(picks, ankle, np.full((frame_count, 2), 100.0))
+    wrist_gaps = WristGaps(gaps.min(axis=1), gaps)
     mask = np.zeros(frame_count, dtype=bool)
     mask[80:83] = True
     return {
-        'track': track, 'pose_kps': pose, 'sticky': sticky,
+        'track': track, 'pose_kps': pose, 'players': players, 'wrist_gaps': wrist_gaps,
         'tracker_intervals': [(50, 160)], 'exclusion_mask': mask,
         'heuristic_spans': [(55, 75), (90, 150)], 'raw_contact_frames': [60, 110],
         'scene_spans': [(0, 100), (100, 180)], 'resolution': (1920.0, 1080.0),
@@ -79,15 +77,15 @@ def test_exclusion_splits_half_open_intervals() -> None:
 
 def test_player_motion_keeps_players_separate_and_stops_at_missing_coordinates() -> None:
     inputs = feature_inputs()
-    ankle = inputs['sticky'].ankle_pos.copy()
+    ankle = inputs['players'].ankle_xy.copy()
     ankle[:4] = [
         [[0, 0], [10, 20]],
         [[3, 4], [10, 22]],
         [[np.nan, 8], [13, 26]],
         [[9, 12], [13, 26]],
     ]
-    sticky = inputs['sticky']._replace(ankle_pos=ankle)
-    signals = build_player_signals(inputs['track'], inputs['pose_kps'], sticky, inputs['resolution'])
+    players = inputs['players']._replace(ankle_xy=ankle)
+    signals = build_player_signals(inputs['track'], inputs['pose_kps'], players, inputs['wrist_gaps'], inputs['resolution'])
     np.testing.assert_allclose(signals['ankle_speed_top'][:4], [np.nan, 5, np.nan, np.nan])
     np.testing.assert_allclose(signals['ankle_speed_bot'][:4], [np.nan, 2, 5, 0])
 

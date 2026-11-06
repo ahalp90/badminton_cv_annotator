@@ -17,7 +17,7 @@ import numpy as np
 from annotator.array_calc_helpers import true_runs
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.contacts.heuristics import span_impulses
-from annotator.types import WRIST_L, WRIST_R, SmoothingMode, StickyResult
+from annotator.types import WRIST_L, WRIST_R, SmoothingMode, TrackedPlayers, WristGaps
 from shared.progress import progress_iter
 
 WINDOW_OFFSETS_BASE30 = (-10, -5, 0, 5, 10)
@@ -82,7 +82,8 @@ class ContactFeatures(NamedTuple):
 def build_contact_features(
     track: np.ndarray,
     pose_kps: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
+    wrist_gaps: WristGaps,
     tracker_intervals: Sequence[tuple[int, int]],
     exclusion_mask: np.ndarray,
     heuristic_spans: Sequence[tuple[int, int]],
@@ -95,7 +96,8 @@ def build_contact_features(
 
     :param track: (frames, 3) normalised shuttle [x, y, visible].
     :param pose_kps: Pixel keypoints indexed by frame, pose detection and joint.
-    :param sticky: Selected players and measured wrist distances.
+    :param players: Selected detections and body positions.
+    :param wrist_gaps: Shuttle-to-wrist distances in body heights.
     :param tracker_intervals: Court-view ranges, incl start, excl end.
     :param exclusion_mask: True on footage excluded from annotation.
     :param heuristic_spans: Initial rally ranges, incl start, excl end.
@@ -110,7 +112,7 @@ def build_contact_features(
     eligible_intervals = build_eligible_intervals(tracker_intervals, exclusion_mask)
     search_intervals = extend_intervals_with_lookback(eligible_intervals, len(track), fps)
     signals = build_shuttle_signals(track, search_intervals, fps)
-    signals.update(build_player_signals(track, pose_kps, sticky, resolution))
+    signals.update(build_player_signals(track, pose_kps, players, wrist_gaps, resolution))
     candidates = build_candidate_mask(
         signals,
         eligible_intervals,
@@ -220,7 +222,8 @@ def build_shuttle_signals(
 def build_player_signals(
     track: np.ndarray,
     pose_kps: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
+    wrist_gaps: WristGaps,
     resolution: tuple[float, float],
 ) -> dict[str, np.ndarray]:
     """Measure player movement and shuttle-to-wrist positions at each video frame."""
@@ -230,17 +233,17 @@ def build_player_signals(
     wrist_xy = np.full((n_frames, 2, 2), np.nan, dtype=np.float64)
     visible = track[:, 2] == 1
     for slot in range(2):
-        valid_frames = np.flatnonzero((sticky.picks[:, slot] >= 0) & visible)
+        valid_frames = np.flatnonzero((players.detection_indices[:, slot] >= 0) & visible)
         if not len(valid_frames):
             continue
-        raw_slots = sticky.picks[valid_frames, slot].astype(int)
+        raw_slots = players.detection_indices[valid_frames, slot].astype(int)
         wrists = pose_kps[valid_frames, raw_slots][:, (WRIST_L, WRIST_R), :] / scale
         shuttle_xy = track[valid_frames, :2]
         gaps = np.linalg.norm(wrists - shuttle_xy[:, None, :], axis=2)
         closest = np.argmin(gaps, axis=1)
         wrist_xy[valid_frames, slot] = wrists[np.arange(len(valid_frames)), closest]
 
-    slot_gaps = finite_to_fp32_inf_as_nan(np.asarray(sticky.distances_per_slot, dtype=np.float64))
+    slot_gaps = finite_to_fp32_inf_as_nan(np.asarray(wrist_gaps.per_player, dtype=np.float64))
     finite_gaps = np.isfinite(slot_gaps)
     gap_min = np.full(n_frames, np.nan, dtype=np.float32)
     has_gap = finite_gaps.any(axis=1)
@@ -253,7 +256,7 @@ def build_player_signals(
     nearest_wrist[valid_nearest] = wrist_xy[valid_nearest, nearest_slot[valid_nearest]]
     relative = nearest_wrist - track[:, :2]
 
-    ankle = finite_to_fp32_inf_as_nan(np.asarray(sticky.ankle_pos, dtype=np.float64))
+    ankle = finite_to_fp32_inf_as_nan(np.asarray(players.ankle_xy, dtype=np.float64))
     ankle_steps = frame_differences(ankle)  # (frame, court half, xy).
     ankle_speed = np.hypot(ankle_steps[:, :, 0], ankle_steps[:, :, 1])
 
@@ -265,8 +268,8 @@ def build_player_signals(
         "nearest_wrist_dy": finite_to_fp32_inf_as_nan(relative[:, 1]),
         "ankle_speed_top": finite_to_fp32_inf_as_nan(ankle_speed[:, 0]),
         "ankle_speed_bot": finite_to_fp32_inf_as_nan(ankle_speed[:, 1]),
-        "pose_valid_top": (sticky.picks[:, 0] >= 0).astype(np.float32),
-        "pose_valid_bot": (sticky.picks[:, 1] >= 0).astype(np.float32),
+        "pose_valid_top": (players.detection_indices[:, 0] >= 0).astype(np.float32),
+        "pose_valid_bot": (players.detection_indices[:, 1] >= 0).astype(np.float32),
         "wrist_valid_top": np.isfinite(slot_gaps[:, 0]).astype(np.float32),
         "wrist_valid_bot": np.isfinite(slot_gaps[:, 1]).astype(np.float32),
     }

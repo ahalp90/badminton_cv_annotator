@@ -41,9 +41,13 @@ track; the excluded-frame copy is only for rally/contact detection.
 
 ## Courts and players
 
-[`player_tracking.py`](../../src/annotator/player_tracking.py) follows the top and
-bottom players across frames. Wrist-distance measurement is a later operation
-in contact attribution; it does not decide which players are tracked.
+Player selection and running-position updates are shared with BST-X in
+[`shared/player_tracking.py`](../../src/shared/player_tracking.py).
+`track_sticky_players` in
+[`annotator/player_tracking.py`](../../src/annotator/player_tracking.py) collects
+the selected detections, ankle positions and box heights for accepted court
+intervals. Contact attribution then measures separate `WristGaps`. Dataset
+player features need only the `TrackedPlayers` result.
 
 Court preparation and frame lookup answer different questions:
 

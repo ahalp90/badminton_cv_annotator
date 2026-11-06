@@ -5,22 +5,16 @@ records player rows and positions; contact attribution measures wrist gaps
 in a separate step.
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
 from annotator.array_calc_helpers import true_runs
 from annotator.courts.frame_geometry import SceneCourt, court_at_frame
-from annotator.types import ANKLE_L, ANKLE_R, Slot, StickyResult
-
-# Reuse the player tracker from BST-X, whose imports need its package root.
-_BST_X_ROOT = Path(__file__).resolve().parents[1] / 'bst_x'
-if str(_BST_X_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BST_X_ROOT))
-
-from preparing_data.heuristics import sticky_anchor  # noqa: E402
-from preparing_data.heuristics.base import RawClip  # noqa: E402
+from annotator.types import ANKLE_L, ANKLE_R, Slot, TrackedPlayers
+from shared.player_tracking import (
+    StickyAnchorParams,
+    compute_halfcourt_centres,
+    track_frame_players,
+)
 
 
 def tracker_segments(
@@ -52,66 +46,35 @@ def track_sticky_players(
     pose_ndet: np.ndarray,
     resolution: tuple[float, float],
     scene_courts: tuple[SceneCourt, ...],
-) -> StickyResult:
+) -> TrackedPlayers:
     """Track players frame by frame; save their detection indices and body positions.
 
     Each segment must lie within one court scene, as produced by tracker_segments.
-    ``measure_wrist_distances`` fills distances and wrist gaps afterwards.
     """
-    params = sticky_anchor.StickyAnchorParams()
-    raw = RawClip(
-        kps=pose_kps,
-        bboxes=pose_bboxes,
-        scores=pose_scores,
-        # The picker does not read keypoint scores, but RawClip requires the field.
-        kp_scores=np.zeros((*pose_scores.shape, 17), dtype=np.float32),
-        ndet=pose_ndet,
-    )
-    evidence = StickyResult(
-        distances=np.full(n_frames, np.inf),
-        picks=np.full((n_frames, 2), -1, dtype=int),
-        standing_count=np.zeros(n_frames, dtype=int),
-        ankle_pos=np.full((n_frames, 2, 2), np.nan),
-        bbox_height=np.full((n_frames, 2), np.nan),
-        # Infinity outside tracked intervals; NaN for missing gaps inside them.
-        distances_per_slot=np.full((n_frames, 2), np.inf, dtype=np.float64),
-        wrist_dist_px=np.full((n_frames, 2), np.inf, dtype=np.float64),
-        analysed=np.zeros(n_frames, dtype=bool),
+    params = StickyAnchorParams()
+    players = TrackedPlayers(
+        detection_indices=np.full((n_frames, 2), -1, dtype=int),
+        ankle_xy=np.full((n_frames, 2, 2), np.nan),
+        box_heights_px=np.full((n_frames, 2), np.nan),
     )
 
     for start, end in segments:
         scene = court_at_frame(scene_courts, start)
-        halfcourt_centre = sticky_anchor.compute_halfcourt_centres(scene.court_info)
-        ema = halfcourt_centre.copy()
+        halfcourt_centres = compute_halfcourt_centres(scene.court_info)
+        running_positions = halfcourt_centres.copy()
         for frame in range(start, end):
-            evidence.analysed[frame] = True
-            evidence.distances_per_slot[frame] = np.nan
-            evidence.wrist_dist_px[frame] = np.nan
-            analysis = sticky_anchor.analyse_frame(
-                raw, frame, ema, halfcourt_centre, scene.court_info, resolution, params,
+            detection_count = int(pose_ndet[frame])
+            frame_players = track_frame_players(
+                pose_bboxes[frame, :detection_count], pose_scores[frame, :detection_count],
+                pose_kps[frame, :detection_count], running_positions, halfcourt_centres, scene.court_info, resolution, params,
             )
-            evidence.standing_count[frame] = analysis.standing_in_court_count
-            if analysis.picks is None:
-                ema[:] = halfcourt_centre
-                continue
-            assert analysis.court_base_pos is not None
-            assert analysis.bboxes is not None
-            assert analysis.filtered_to_raw is not None
-            for slot in Slot:
-                pick = analysis.picks[slot]
-                if pick < 0:
-                    ema[slot] = halfcourt_centre[slot]
+            for player_row in Slot:
+                detection_index = int(frame_players.detection_indices[player_row])
+                if detection_index < 0:
                     continue
-                candidate_position = analysis.court_base_pos[pick]
-                if sticky_anchor.in_generous_court(candidate_position, params.update_gate_eps):
-                    ema[slot] = (
-                        params.ema_alpha * candidate_position
-                        + (1 - params.ema_alpha) * ema[slot]
-                    )
-                raw_slot = int(analysis.filtered_to_raw[pick])
-                evidence.picks[frame, slot] = raw_slot
-                box = analysis.bboxes[pick]
-                evidence.bbox_height[frame, slot] = box[3] - box[1]
-                ankles = pose_kps[frame, raw_slot, (ANKLE_L, ANKLE_R), :]
-                evidence.ankle_pos[frame, slot] = ankles.mean(axis=0) / np.asarray(resolution)
-    return evidence
+                players.detection_indices[frame, player_row] = detection_index
+                box = pose_bboxes[frame, detection_index].astype(np.float64)
+                players.box_heights_px[frame, player_row] = box[3] - box[1]
+                ankles = pose_kps[frame, detection_index, (ANKLE_L, ANKLE_R), :]
+                players.ankle_xy[frame, player_row] = ankles.mean(axis=0) / np.asarray(resolution)
+    return players

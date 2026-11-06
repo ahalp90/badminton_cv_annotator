@@ -24,22 +24,25 @@ from uuid import uuid4
 import numpy as np
 
 from annotator.inference import prepare_contact_inference as player_evidence
-from annotator.types import StickyResult
+from annotator.types import TrackedPlayers, WristGaps
 
 
 class StickyCacheError(RuntimeError):
     """A cache failure that must abort the search rather than count as bad inference."""
 
 
-def _readonly(result: Any, path: Path) -> StickyResult:
-    if not isinstance(result, StickyResult) or any(not isinstance(values, np.ndarray) for values in result):
-        raise StickyCacheError(f'{path}: cache does not contain StickyResult arrays')
-    for values in result:
+def _readonly(result: Any, path: Path) -> tuple[TrackedPlayers, WristGaps]:
+    if not (isinstance(result, tuple) and len(result) == 2
+            and isinstance(result[0], TrackedPlayers) and isinstance(result[1], WristGaps)):
+        raise StickyCacheError(f'{path}: cache does not contain tracked players and wrist gaps')
+    for values in (*result[0], *result[1]):
+        if not isinstance(values, np.ndarray):
+            raise StickyCacheError(f'{path}: cache contains a non-array measurement')
         values.flags.writeable = False
     return result
 
 
-def _read_result(path: Path) -> StickyResult:
+def _read_result(path: Path) -> tuple[TrackedPlayers, WristGaps]:
     try:
         with gzip.open(path, 'rb') as handle:
             result = pickle.load(handle)
@@ -48,7 +51,7 @@ def _read_result(path: Path) -> StickyResult:
     return _readonly(result, path)
 
 
-def _write_result(path: Path, result: StickyResult) -> None:
+def _write_result(path: Path, result: tuple[TrackedPlayers, WristGaps]) -> None:
     temporary = path.with_name(f'.{path.name}.{uuid4().hex}.tmp')
     try:
         try:
@@ -92,7 +95,7 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
     signature = inspect.signature(original)
 
     @wraps(original)
-    def cached(*args: Any, **kwargs: Any) -> StickyResult:
+    def cached(*args: Any, **kwargs: Any) -> tuple[TrackedPlayers, WristGaps]:
         bound = signature.bind(*args, **kwargs)
         bound.apply_defaults()
         half_window = bound.arguments['half_window']

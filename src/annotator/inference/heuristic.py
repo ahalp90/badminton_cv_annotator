@@ -36,7 +36,7 @@ def select_heuristic_contacts(
             if evidence.exclusion_mask[frame]:
                 continue
             side, distances = contact_player_evidence(
-                frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
+                frame, evidence.track, evidence.players, evidence.wrist_gaps, evidence.bboxes, evidence.scene_courts,
             )
             # Heuristic contacts have no model probability.
             events.append(ContactEvent(frame, math.nan, side, distances))

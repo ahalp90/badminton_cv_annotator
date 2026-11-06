@@ -111,7 +111,7 @@ def build_rally_context(
     def event_for_row(row: int) -> ContactEvent:
         frame = int(contacts.candidates['frame'][row])
         side, distances = contact_player_evidence(
-            frame, evidence.track, evidence.sticky, evidence.bboxes, evidence.scene_courts,
+            frame, evidence.track, evidence.players, evidence.wrist_gaps, evidence.bboxes, evidence.scene_courts,
         )
         return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)
 

@@ -67,7 +67,8 @@ def features_from_evidence(evidence: AnnotationEvidence) -> ContactFeatures:
     return build_contact_features(
         track=evidence.track,
         pose_kps=evidence.pose_kps,
-        sticky=evidence.sticky,
+        players=evidence.players,
+        wrist_gaps=evidence.wrist_gaps,
         tracker_intervals=evidence.tracker_intervals,
         exclusion_mask=evidence.exclusion_mask,
         heuristic_spans=evidence.heuristic_spans,

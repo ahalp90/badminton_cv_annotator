@@ -15,7 +15,7 @@ from annotator.contacts.score_candidates import (
     score_contact_features,
 )
 from annotator.training.trees import TreeFitConfig, fit_binary_tree
-from annotator.types import StickyResult
+from annotator.types import TrackedPlayers, WristGaps
 
 
 def _rows() -> np.ndarray:
@@ -113,11 +113,9 @@ def _nomination_features(fps: float, nomination_frame: int) -> ContactFeatures:
     picks = np.full((frame_count, 2), -1)
     picks[nomination_frame, 0] = 0
     gaps = np.full((frame_count, 2), np.nan)
-    sticky = StickyResult(
-        np.full(frame_count, np.nan), picks, np.zeros(frame_count), np.full((frame_count, 2, 2), np.nan),
-        np.full((frame_count, 2), np.nan), gaps, gaps.copy(), np.ones(frame_count, dtype=bool),
-    )
+    players = TrackedPlayers(picks, np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan))
+    wrist_gaps = WristGaps(np.full(frame_count, np.nan), gaps)
     return build_contact_features(
-        track, np.zeros((frame_count, 2, 17, 2)), sticky, [(100, 150)],
+        track, np.zeros((frame_count, 2, 17, 2)), players, wrist_gaps, [(100, 150)],
         np.zeros(frame_count, dtype=bool), [(100, 150)], [70], [(100, 150)], fps, (1280.0, 720.0),
     )

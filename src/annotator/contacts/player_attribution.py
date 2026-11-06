@@ -14,12 +14,14 @@ from annotator.types import (
     CourtHalf,
     FinishedRally,
     Slot,
-    StickyResult,
+    TrackedPlayers,
+    WristGaps,
 )
 
 
 def contact_player_evidence(
-    frame: int, track: np.ndarray, sticky: StickyResult, bboxes: np.ndarray, scene_courts: Sequence[SceneCourt],
+    frame: int, track: np.ndarray, players: TrackedPlayers, wrist_gaps: WristGaps,
+    bboxes: np.ndarray, scene_courts: Sequence[SceneCourt],
 ) -> tuple[CourtHalf | None, tuple[float, float] | None]:
     """Guess the hitter from the nearest wrist; return Top/Bot distances if usable.
 
@@ -29,7 +31,7 @@ def contact_player_evidence(
     """
     if track[frame, 2] != 1:
         return None, None
-    distances = sticky.distances_per_slot[frame]
+    distances = wrist_gaps.per_player[frame]
     finite_distances = np.isfinite(distances)
     # Serve look-back frames before an accepted scene have no tracker distances.
     if not finite_distances.any():
@@ -38,7 +40,7 @@ def contact_player_evidence(
 
     # Ignore missing distances; equal distances favour the top tracker slot.
     nearest = int(np.nanargmin(distances))
-    slot = sticky.picks[frame, nearest]
+    slot = players.detection_indices[frame, nearest]
     foot_y = float(bboxes[frame, slot, 3])
     side = None
     if foot_y < band_lo:
@@ -49,7 +51,7 @@ def contact_player_evidence(
     # Comparing Top/Bot hitter distances needs one player on each half.
     if not finite_distances.all():
         return side, None
-    first_foot, second_foot = bboxes[frame, sticky.picks[frame], 3]
+    first_foot, second_foot = bboxes[frame, players.detection_indices[frame], 3]
     first_distance, second_distance = map(float, distances)
     if first_foot < band_lo and second_foot > band_hi:
         return side, (first_distance, second_distance)
@@ -126,28 +128,27 @@ def measure_wrist_distances(
     pose_kps: np.ndarray,
     resolution: tuple[float, float],
     half_window: int,
-    evidence: StickyResult,
-) -> None:
-    """Measure shuttle gaps to each tracked player's nearer wrist.
+    players: TrackedPlayers,
+) -> WristGaps:
+    """Measure each tracked player's nearer wrist gap, divided by nearby box height.
 
-    Divide pixel gaps by the player's mean box height over nearby frames to get
-    body-height units. Save these for every analysed frame with a picked player;
-    save pixel gaps only where the shuttle is visible. Keep the nearest finite
-    normalised gap per frame. Update the supplied evidence in place; player
-    tracking has already selected the player rows.
+    Measure every tracked frame, including frames where the shuttle is hidden;
+    callers apply visibility.
     """
+    gaps = WristGaps(np.full(len(track), np.inf), np.full((len(track), 2), np.inf))
     width, height = resolution
     for start, end in segments:
+        gaps.per_player[start:end] = np.nan
         for frame in range(start, end):
             shuttle_x = track[frame, 0] * width
             shuttle_y = track[frame, 1] * height
             for half in Slot:
-                pick = evidence.picks[frame, half]
+                pick = players.detection_indices[frame, half]
                 if pick < 0:
                     continue
                 wrists = pose_kps[frame, pick, (WRIST_L, WRIST_R), :]
                 numerator = float(np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min())
-                window = evidence.bbox_height[
+                window = players.box_heights_px[
                     max(start, frame - half_window):min(end, frame + half_window + 1), half
                 ]
                 if not np.isfinite(window).any():
@@ -161,10 +162,9 @@ def measure_wrist_distances(
                         f'sticky body-unit distance: non-finite or non-positive body-scale '
                         f'denominator for slot {half} at frame {frame}'
                     )
-                evidence.distances_per_slot[frame, half] = numerator / divisor
-                if track[frame, 2] == 1:
-                    evidence.wrist_dist_px[frame, half] = numerator
+                gaps.per_player[frame, half] = numerator / divisor
 
-    for frame in np.flatnonzero(evidence.analysed):
-        finite_distances = evidence.distances_per_slot[frame][np.isfinite(evidence.distances_per_slot[frame])]
-        evidence.distances[frame] = float(finite_distances.min()) if len(finite_distances) else float('nan')
+        for frame in range(start, end):
+            finite_distances = gaps.per_player[frame][np.isfinite(gaps.per_player[frame])]
+            gaps.nearest[frame] = float(finite_distances.min()) if len(finite_distances) else float('nan')
+    return gaps

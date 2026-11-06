@@ -55,6 +55,7 @@ from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
 from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.player_tracking import tracker_segments
 from annotator.rallies.find_rallies import find_rally_spans
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator.legacy_evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -106,7 +107,7 @@ SLOW_COLUMNS = (
 CANDIDATE_COLUMNS = (
     "span_id", "span_start", "span_end", "anchor_frame", "lookback_start",
     "candidate_frame", "impulse", "manual_truth", "inpaint_code", "inpaint_name",
-    "track_visible", "sticky_analysed", "sticky_distance_bh", "sticky_top_pick",
+    "track_visible", "sticky_distance_bh", "sticky_top_pick",
     "sticky_bottom_pick", "wrist_gate_pass", "evidence_pass", "definitive_mask",
     "raw_mask", "policy_pass", "selected_evidence", "selected_policy", "reject_reasons",
     "nearest_replay_or_cutaway_distance", "nearest_gt_rally_index", "nearest_gt_serve_frame",
@@ -394,7 +395,8 @@ def evaluate_serve_candidates(
     inpaint_codes: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
-    sticky: Any,
+    players: TrackedPlayers,
+    wrist_gaps: WristGaps,
     spans: Sequence[tuple[int, int]],
     natural_raw_frames: set[int],
     accepted_by_span: dict[int, list[int]],
@@ -433,7 +435,7 @@ def evaluate_serve_candidates(
                 key=lambda index: (abs(gt_serve_frames[index] - frame), index),
             )
             nearest_delta = abs(gt_serve_frames[nearest_gt] - frame)
-            sticky_distance = float(sticky.distances[frame])
+            sticky_distance = float(wrist_gaps.nearest[frame])
             visible = bool(track[frame, 2] == 1)
             code = int(inpaint_codes[frame])
             wrist_pass = bool(
@@ -463,10 +465,9 @@ def evaluate_serve_candidates(
                 "inpaint_code": code,
                 "inpaint_name": CODE_NAMES[code],
                 "track_visible": visible,
-                "sticky_analysed": bool(sticky.analysed[frame]),
                 "sticky_distance_bh": sticky_distance if np.isfinite(sticky_distance) else None,
-                "sticky_top_pick": int(sticky.picks[frame, 0]),
-                "sticky_bottom_pick": int(sticky.picks[frame, 1]),
+                "sticky_top_pick": int(players.detection_indices[frame, 0]),
+                "sticky_bottom_pick": int(players.detection_indices[frame, 1]),
                 "wrist_gate_pass": wrist_pass,
                 "evidence_pass": evidence_pass,
                 "definitive_mask": bool(definitive_mask[frame]),
@@ -806,7 +807,7 @@ def run_measurement(
 
     scene_courts = build_scene_courts(row_records, fixture.resolution)
     segments = tracker_segments(scene_courts, court_present, len(track))
-    sticky = build_player_evidence(
+    players, wrist_gaps = build_player_evidence(
         track,
         segments,
         bboxes,
@@ -835,7 +836,8 @@ def run_measurement(
         inpaint_codes=inpaint_codes,
         raw_mask=raw_union,
         definitive_mask=e2e_definitive,
-        sticky=sticky,
+        players=players,
+        wrist_gaps=wrist_gaps,
         spans=spans,
         natural_raw_frames=raw_frames,
         accepted_by_span=accepted_by_span,

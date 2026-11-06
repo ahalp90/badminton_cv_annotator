@@ -12,7 +12,7 @@ from annotator.config import (
     speed_at_fps,
 )
 from annotator.types import Slot, SmoothingMode
-from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
+from shared.player_tracking import BOTTOM_ROW, TOP_ROW
 
 _FIELDS = {
     'rest_speed': (0.002, speed_at_fps),
@@ -50,8 +50,8 @@ def test_scaling_kind_rejects_invalid_fps(kind, fps: float) -> None:
 
 
 def test_slot_values_pin_sticky_storage_rows() -> None:
-    assert Slot.TOP == SLOT_TOP
-    assert Slot.BOTTOM == SLOT_BOTTOM
+    assert Slot.TOP == TOP_ROW
+    assert Slot.BOTTOM == BOTTOM_ROW
     rows = ['row 0', 'row 1']
     assert rows[Slot.TOP] == 'row 0'
     assert rows[Slot.BOTTOM] == 'row 1'

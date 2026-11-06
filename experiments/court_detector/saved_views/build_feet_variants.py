@@ -100,10 +100,7 @@ def main() -> None:
     differences = {row["case_id"]: row["differences"]
                    for row in map(json.loads, shot_check.read_text().splitlines())}
     sys.path[:0] = [str(repo_root / "src"), str(repo_root / "src/bst_x")]
-    from preparing_data.heuristics.base import (  # pyrefly: ignore[missing-import]
-        SITTING_THRESHOLD,
-        is_sitting,
-    )
+    from shared.player_tracking import SITTING_THRESHOLD, is_sitting
 
     variants = {name: {} for name in ("everyone", "standing", "movers", "standing_movers")}
     stats = {}

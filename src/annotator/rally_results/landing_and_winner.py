@@ -26,7 +26,7 @@ from annotator.types import (
     WRIST_L,
     WRIST_R,
     CourtHalf,
-    StickyResult,
+    TrackedPlayers,
 )
 from shared.court import project_pixels_to_court
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M, SINGLES_INSET_M
@@ -317,7 +317,7 @@ def gap_after_top_exit(
 
 
 def build_landing_kinematics(
-    track: np.ndarray, sticky: StickyResult, kps: np.ndarray, resolution: tuple[float, float],
+    track: np.ndarray, players: TrackedPlayers, kps: np.ndarray, resolution: tuple[float, float],
 ) -> LandingKinematics:
     """Measure speed and the nearest wrist/ankle distances at each frame.
 
@@ -335,8 +335,8 @@ def build_landing_kinematics(
         wrist_ratios = []
         ankle_ratios = []
         for half in range(2):
-            slot = sticky.picks[frame, half]
-            box_height = sticky.bbox_height[frame, half]
+            slot = players.detection_indices[frame, half]
+            box_height = players.box_heights_px[frame, half]
             if slot < 0 or not np.isfinite(box_height):
                 continue
             wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]

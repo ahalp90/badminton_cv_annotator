@@ -23,7 +23,8 @@ from annotator.types import (
     ContactSequence,
     CourtHalf,
     FinishedRally,
-    StickyResult,
+    TrackedPlayers,
+    WristGaps,
 )
 
 
@@ -51,14 +52,11 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
     track[:, 2] = 1
     bboxes = np.zeros((10, 1, 4))
     bboxes[:, 0, 3] = 20
-    sticky = StickyResult(
-        np.ones(10), np.zeros((10, 2), dtype=int), np.zeros(10, dtype=int),
-        np.zeros((10, 2, 2)), np.zeros((10, 2)), np.ones((10, 2)),
-        np.ones((10, 2)), np.ones(10, dtype=bool),
-    )
+    players = TrackedPlayers(np.zeros((10, 2), dtype=int), np.zeros((10, 2, 2)), np.zeros((10, 2)))
+    wrist_gaps = WristGaps(np.ones(10), np.ones((10, 2)))
     evidence = SimpleNamespace(
         heuristic_spans=[(0, 5), (5, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),
-        track=track, sticky=sticky, bboxes=bboxes, scene_courts=scenes, fps=30.0, bounds_supplied=True,
+        track=track, players=players, wrist_gaps=wrist_gaps, bboxes=bboxes, scene_courts=scenes, fps=30.0, bounds_supplied=True,
     )
     rallies = select_heuristic_contacts(evidence)
     assert tuple(event.side for rally in rallies for event in rally.sequence.events) == expected
@@ -128,7 +126,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
 
     contact_data = (FinishedRally(ContactSequence(0, 0, 12, (ContactEvent(7, np.nan, CourtHalf.TOP),)), CourtHalf.TOP),)
     evidence = SimpleNamespace(
-        track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), sticky=None,
+        track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), players=None,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
         net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
         source_codes=None, scene_courts=scenes,

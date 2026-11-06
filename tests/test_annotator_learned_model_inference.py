@@ -25,7 +25,7 @@ from annotator.rallies.refine_rallies import (
     RallySelector,
 )
 from annotator.training.workflow import sequence_training_video
-from annotator.types import ContactCandidate, CourtHalf, StickyResult
+from annotator.types import ContactCandidate, CourtHalf, TrackedPlayers, WristGaps
 from experiments.annotator.tree_simplification.options import expand_pool
 
 
@@ -44,11 +44,8 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     distances_per_slot[in_scene, 1] = 0.8
     distances_per_slot[260] = (0.1, 2.0)
     picks = np.where(in_scene[:, None], [[0, 1]], -1)
-    sticky = StickyResult(
-        np.where(in_scene, 0.5, np.inf), picks, np.zeros(frame_count, dtype=int),
-        np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan),
-        distances_per_slot, distances_per_slot.copy(), in_scene.copy(),
-    )
+    players = TrackedPlayers(picks, np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan))
+    wrist_gaps = WristGaps(np.where(in_scene, 0.5, np.inf), distances_per_slot)
     bboxes = np.zeros((frame_count, 2, 4))
     bboxes[:, 0, 3] = 300.0
     bboxes[:, 1, 3] = 800.0
@@ -67,7 +64,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
 
     evidence = AnnotationEvidence(
         identity='scene-gap', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
-        bboxes=bboxes, sticky=sticky, tracker_intervals=[(0, 100), (200, 400)],
+        bboxes=bboxes, players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, 100), (200, 400)],
         exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
         heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [220, 260]],
         raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool), source_codes=None,
@@ -99,17 +96,18 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     features = ContactFeatures(rows, [(0, frame_count)], [(0, frame_count)])
     mask = np.zeros(frame_count, dtype=bool)
     mask[[1, 10, 40, 60]] = True
-    sticky = StickyResult(
-        np.full(frame_count, np.inf), np.full((frame_count, 2), -1), np.zeros(frame_count),
-        np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan),
-        np.full((frame_count, 2), np.inf), np.full((frame_count, 2), np.inf), np.ones(frame_count, dtype=bool),
+    players = TrackedPlayers(
+        np.full((frame_count, 2), -1),
+        np.full((frame_count, 2, 2), np.nan),
+        np.full((frame_count, 2), np.nan),
     )
+    wrist_gaps = WristGaps(np.full(frame_count, np.inf), np.full((frame_count, 2), np.inf))
     track = np.zeros((frame_count, 3))
     track[:, 2] = 1
     evidence = AnnotationEvidence(
         identity='masked', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
         track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)), bboxes=np.zeros((frame_count, 2, 4)),
-        sticky=sticky, tracker_intervals=[(0, frame_count)],
+        players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, frame_count)],
         exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),
         heuristic_spans=[(0, 90)], heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [16, 80]],
         scene_courts=(), shuttle_hallucination_mask=mask, source_codes=None,
