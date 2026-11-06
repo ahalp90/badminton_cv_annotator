@@ -88,12 +88,11 @@ def normalise_contact_features(
 
     ratio = np.full(len(track), np.nan, dtype=np.float64)
     for start, end in features.search_intervals:
-        impulse = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
-        if impulse is None:
+        measured = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
+        if measured is None:
             continue
+        impulse, _ratios, around_visible = measured
         impulse = impulse * factor ** 2
-        visible = track[start:end, 2] == 1
-        around_visible = visible[:-2] & visible[1:-1] & visible[2:]
         floor = rolling_floor(impulse, around_visible, constants.impulse_floor_half_window_frames)
         ratio[start + 1:start + 1 + len(impulse)] = impulse / np.maximum(floor, FLOOR_EPS)
     for interval_id, (start, end) in enumerate(features.search_intervals):

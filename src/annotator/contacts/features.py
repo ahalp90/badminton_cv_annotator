@@ -15,7 +15,7 @@ import numpy as np
 
 from annotator.calc_helpers import true_runs
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
-from annotator.rally.contacts import rolling_floor, span_impulses
+from annotator.rally.contacts import span_impulses
 from annotator.types import WRIST_L, WRIST_R, SmoothingMode, StickyResult
 from shared.progress import progress_iter
 
@@ -188,15 +188,13 @@ def build_shuttle_signals(
     for start, end in spans:
         # The tree was trained on zero-filled impulse smoothing, including invisible
         # shuttle rows. Changing it to ignore missing rows changes model inputs.
-        span_values = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
-        if span_values is None:
+        measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        if measured is None:
             continue
-        span = track[start:end]
-        around_visible = (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
-        floor = rolling_floor(span_values, around_visible, thresholds.impulse_floor_half_window_frames)
-        frames = np.arange(start + 1, start + 1 + len(span_values))
-        impulse[frames] = span_values
-        impulse_ratio[frames] = span_values / np.maximum(floor, 1e-4)
+        magnitudes, ratios, _visible = measured
+        frames = slice(start + 1, end - 1)
+        impulse[frames] = magnitudes
+        impulse_ratio[frames] = ratios
     return {
         "shuttle_visible": visible.astype(np.float32),
         "shuttle_vx": _finite_or_nan(vx),

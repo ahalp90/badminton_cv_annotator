@@ -120,9 +120,11 @@ def test_ignore_invisible_smoothing_uses_even_fps_scaled_window() -> None:
         [1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     ])
 
-    impulses = span_impulses(
+    measured = span_impulses(
         track, 0, len(track), thresholds, smoothing_mode=SmoothingMode.IGNORE_INVISIBLE,
     )
+    assert measured is not None
+    impulses, _ratios, _visible = measured
 
     # Width-six smoothing gives [2, 3, 4, 5, 7, 8, 9, 10], so the impulse is
     # the absolute velocity change [0, 0, 1, 1, 0, 0].
@@ -134,11 +136,14 @@ def test_ignore_invisible_smoothing_marks_all_invisible_span_unmeasurable() -> N
     thresholds = replace(burst_config().thresholds, smooth_window=6)
     track = np.column_stack([np.arange(8, dtype=float), np.zeros(8), np.zeros(8)])
 
-    impulses = span_impulses(
+    measured = span_impulses(
         track, 0, len(track), thresholds, smoothing_mode=SmoothingMode.IGNORE_INVISIBLE,
     )
-
+    assert measured is not None
+    impulses, ratios, visible = measured
     assert np.isnan(impulses).all()
+    assert np.isnan(ratios).all()
+    assert not visible.any()
 
 
 def test_nan_rolling_mean_matches_stock_mean_on_finite_input() -> None:

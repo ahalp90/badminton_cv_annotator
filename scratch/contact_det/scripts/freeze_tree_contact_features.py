@@ -220,7 +220,7 @@ def _shuttle_signals(
     """Build frame-aligned shuttle kinematics with the production impulse convention."""
 
 
-    from annotator.rally.contacts import rolling_floor, span_impulses
+    from annotator.rally.contacts import span_impulses
 
     n_frames = len(track)
     visible = track[:, 2] == 1
@@ -234,15 +234,13 @@ def _shuttle_signals(
     values = resolve(BaseAnnotatorConfig(), fps).thresholds
     thresholds = values
     for start, end in spans:
-        span_values = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
-        if span_values is None:
+        measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
+        if measured is None:
             continue
-        span = track[start:end]
-        around_visible = (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
-        floor = rolling_floor(span_values, around_visible, values.impulse_floor_half_window_frames)
-        frames = np.arange(start + 1, start + 1 + len(span_values))
-        impulse[frames] = span_values
-        impulse_ratio[frames] = span_values / np.maximum(floor, 1e-4)
+        magnitudes, ratios, _visible = measured
+        frames = slice(start + 1, end - 1)
+        impulse[frames] = magnitudes
+        impulse_ratio[frames] = ratios
     return {
         "shuttle_x": _finite_or_nan(x),
         "shuttle_y": _finite_or_nan(y),

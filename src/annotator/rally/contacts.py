@@ -47,36 +47,31 @@ def impulse_cell_candidates(
     a rolling impulse floor, and largest-impulse-first de-duplication at the
     three-frame boundary used at 25 fps.
     """
-    span = track[start:end]
-    impulses = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
-    if impulses is None:
+    measured = span_impulses(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+    if measured is None:
         return []
-
-    around_visible = (
-        (span[:-2, 2] == 1) & (span[1:-1, 2] == 1) & (span[2:, 2] == 1)
-    )
-    half_window = thresholds.impulse_floor_half_window_frames
-    dedup_radius = thresholds.contact_dedup_radius_frames
-    floors = rolling_floor(impulses, around_visible, half_window)
-    impulse_multiple = thresholds.contact_impulse_multiple
-    impulse_pass = impulses / np.maximum(floors, FLOOR_EPS) > impulse_multiple
+    impulses, ratios, around_visible = measured
+    impulse_pass = ratios > thresholds.contact_impulse_multiple
     is_contact = impulse_pass & around_visible
 
     candidates = [(start + int(junction) + 1, float(impulses[junction])) for junction in np.flatnonzero(is_contact)]
-    return suppress_contact_flags(candidates, radius=dedup_radius)
+    return suppress_contact_flags(candidates, radius=thresholds.contact_dedup_radius_frames)
 
 
 def span_impulses(
     track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
     smoothing_mode: SmoothingMode,
-) -> np.ndarray | None:
-    """Return ``|v_out - v_in|`` for each junction in one rally span.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Measure impulse magnitude, ratio to the local floor and junction visibility.
 
     Annotation prepares a replay-masked track before detecting contacts.
     Junction ``k`` sits at local frame ``k + 1`` and touches three straddling frames.
     Track xy inputs are finite. IGNORE_INVISIBLE makes a float copy whose invisible
-    xy values are NaN. A NaN output means its smoothing window was unmeasurable;
+    xy values are NaN. A NaN impulse means its smoothing window was unmeasurable;
     downstream comparisons drop the corresponding junction.
+
+    :return: Magnitudes, ratios and three-frame visibility, each indexed by junction.
+        Return None when the span is too short for smoothing and two differences.
     """
     smooth_window = thresholds.smooth_window
     span = track[start:end]
@@ -92,7 +87,12 @@ def span_impulses(
         smooth_x = _nan_rolling_mean(smooth_xy[:, 0], smooth_window)
         smooth_y = _nan_rolling_mean(smooth_xy[:, 1], smooth_window)
     velocity = np.diff(np.column_stack([smooth_x, smooth_y]), axis=0)
-    return np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
+    impulses = np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
+    visible = span[:, 2] == 1
+    around_visible = visible[:-2] & visible[1:-1] & visible[2:]
+    floors = rolling_floor(impulses, around_visible, thresholds.impulse_floor_half_window_frames)
+    ratios = impulses / np.maximum(floors, FLOOR_EPS)
+    return impulses, ratios, around_visible
 
 
 def rolling_floor(

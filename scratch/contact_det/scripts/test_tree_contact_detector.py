@@ -31,7 +31,9 @@ def test_impulses_keep_the_production_junction_alignment() -> None:
     thresholds = values
     expected = span_impulses(track, 2, 16, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
     assert expected is not None
-    np.testing.assert_allclose(signals["shuttle_impulse"][3:15], expected)
+    magnitudes, ratios, _visible = expected
+    np.testing.assert_allclose(signals["shuttle_impulse"][3:15], magnitudes)
+    np.testing.assert_allclose(signals["shuttle_impulse_ratio"][3:15], ratios)
     assert np.isnan(signals["shuttle_impulse"][[2, 15]]).all()
 
 
