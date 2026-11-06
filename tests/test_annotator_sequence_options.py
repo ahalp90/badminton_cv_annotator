@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from annotator.contacts.features import contact_feature_dtype
-from annotator.contacts.model import ScoredContacts
+from annotator.contacts.model import ScoredContacts, contact_feature_matrix
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -23,7 +23,7 @@ def _scores(rows: list[tuple[int, int, float, bool]]) -> ScoredContacts:
     candidates = np.zeros(len(rows), dtype=contact_feature_dtype())
     candidates['frame'] = frames
     candidates['interval_id'] = interval_ids
-    return ScoredContacts(candidates, np.asarray(probabilities), np.flatnonzero(kept))
+    return ScoredContacts(candidates, contact_feature_matrix(candidates), np.asarray(probabilities), np.flatnonzero(kept))
 
 
 def _frames(sequence: ContactSequence) -> list[int]:

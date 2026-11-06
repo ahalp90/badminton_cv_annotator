@@ -13,6 +13,7 @@ from annotator.contacts.model import (
     CONTACT_FEATURE_NAMES,
     ContactModelConfig,
     ScoredContacts,
+    contact_feature_matrix,
 )
 from annotator.courts.scenes import SceneCourt
 from annotator.heuristic_inference import select_heuristic_contacts
@@ -60,7 +61,9 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         position += end - start
     candidate_frames = np.array([160, 170, 220, 240, 260])
     candidates = rows[np.isin(rows['frame'], candidate_frames)]
-    contacts = ScoredContacts(candidates, np.array([0.5, 0.4, 0.95, 0.6, 0.93]), np.array([2, 4]))
+    contacts = ScoredContacts(
+        candidates, contact_feature_matrix(candidates), np.array([0.5, 0.4, 0.95, 0.6, 0.93]), np.array([2, 4]),
+    )
 
     evidence = AnnotationEvidence(
         identity='scene-gap', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
@@ -112,8 +115,10 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         scene_courts=(), shuttle_hallucination_mask=mask, source_codes=None,
     )
     probability_column = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
+    scored_matrices = []
 
     def predict(matrix: np.ndarray) -> np.ndarray:
+        scored_matrices.append(matrix)
         probabilities = matrix[:, probability_column]
         return np.column_stack((1.0 - probabilities, probabilities))
 
@@ -130,10 +135,13 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == [10, 80]
-    for context in (training.context, inference.refined.pool.context):
+    for context, matrix in zip((training.context, inference.refined.pool.context), scored_matrices, strict=True):
         candidate_frames = [event.frame for event in context.candidates_by_span[0]]
         assert candidate_frames == [1, 40, 60]
         assert set(context.physical_by_frame) == {1, 10, 40, 60, 80}
+        for physical in context.physical_by_frame.values():
+            assert physical.dtype == np.float32
+            assert not np.shares_memory(physical, matrix)
         # Frame numbers differ from row indices; keep each contact's own feature values.
         np.testing.assert_allclose(
             [context.physical_by_frame[frame][probability_column] for frame in [1, 10, 40, 60, 80]],

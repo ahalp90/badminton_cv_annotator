@@ -116,10 +116,12 @@ def build_rally_context(
                 contacts_by_frame[frame] = event_for_row(row)
         candidates_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
         previous_end = before.end_frame
-    # Feature rows are unique by frame; keep evidence for retained and shortlisted contacts.
-    feature_rows = contacts.candidates[sorted(used_rows)]
-    feature_matrix = np.column_stack([feature_rows[name].astype(np.float64) for name in CONTACT_FEATURE_NAMES])
-    physical_by_frame = {int(frame): feature_matrix[row] for row, frame in enumerate(feature_rows['frame'])}
+    selected_rows = sorted(used_rows)
+    selected_frames = contacts.candidates['frame'][selected_rows]
+    # Each frame has one feature row. Copy the selection so training contexts
+    # do not retain the full video matrix.
+    physical_rows = contacts.feature_matrix[selected_rows]
+    physical_by_frame = {int(frame): physical for frame, physical in zip(selected_frames, physical_rows, strict=True)}
     return RallyContext(
         evidence.fps, initial, events, candidates_by_span, physical_by_frame,
         frame_count=len(evidence.track), bounds_supplied=evidence.bounds_supplied,

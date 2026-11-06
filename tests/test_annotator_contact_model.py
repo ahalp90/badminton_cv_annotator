@@ -59,7 +59,8 @@ def test_candidate_cutoff_and_fps_scaling(fps: float, expected: list[int]) -> No
     result = score_contact_features(_rows()[:3], model, fps)
     np.testing.assert_array_equal(result.frames, expected)
     assert len(result.probabilities) == 3
-    assert observed[0].shape == (3, 85)
+    assert result.feature_matrix is observed[0]
+    assert result.feature_matrix.shape == (3, 85)
     assert np.isnan(observed[0][1, 0])
 
 
@@ -105,6 +106,7 @@ def test_empty_candidates_skip_prediction() -> None:
     rows = _rows()[:0]
     result = score_contact_features(rows, SimpleNamespace(), 30.0, ContactModelConfig())
     assert len(result.frames) == 0
+    assert result.feature_matrix.shape == (0, len(CONTACT_FEATURE_NAMES))
     assert result.probabilities.dtype == np.float64
 
 

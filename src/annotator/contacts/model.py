@@ -23,9 +23,10 @@ DEFAULT_CONTACT_MODEL_CONFIG = ContactModelConfig()
 
 
 class ScoredContacts(NamedTuple):
-    """Candidate rows, their probabilities and selected row indices."""
+    """Candidate rows, their model inputs, probabilities and selected row indices."""
 
     candidates: np.ndarray
+    feature_matrix: np.ndarray
     probabilities: np.ndarray
     kept_indices: np.ndarray
 
@@ -106,7 +107,7 @@ def score_contact_features(
     :param model: Fitted annotator tree with class-0/class-1 probability columns.
     :param fps: Source frame rate, used to scale nearby-contact suppression.
     :param config: Contact score cutoff.
-    :return: Candidate rows, probabilities and accepted candidate indices.
+    :return: Candidate rows, model inputs, probabilities and accepted indices.
     """
     matrix = contact_feature_matrix(rows)
     # Float32 comparison would round the cutoff and can accept scores just below it.
@@ -115,4 +116,4 @@ def score_contact_features(
     kept = remove_nearby_contacts(
         rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
     )
-    return ScoredContacts(rows, probabilities, kept)
+    return ScoredContacts(rows, matrix, probabilities, kept)
