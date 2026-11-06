@@ -3,7 +3,7 @@
 The current court loaders accept only court-evidence/0.2. These videos have
 court-evidence/0.1, whose operational fields match 0.2 but whose per-scene
 provenance records do not. This adapter reads the operational fields with the
-existing parsers for full annotation through ``run_video``, as the dataset
+existing parsers for full annotation through ``annotate_video``, as the dataset
 builder does. Training uses the same preparation inputs without calculating
 outcomes. The old provenance records are ignored rather than converted.
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
+from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
 from annotator.courts.prepare_courts import CourtInputs
 from annotator.models import AnnotatorModels
 from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
@@ -91,7 +91,7 @@ def load_old_inputs(
     if payload.get('video_id') != identity:
         raise ValueError(f'{identity}: court evidence names video {payload.get("video_id")!r}')
     raw_cuts = _raw_cuts_from_payload(payload['raw_cuts'])
-    # run_video derives scene cut frames from these intervals, so they must tile the video.
+    # annotate_video derives scene cut frames from these intervals, so they must tile the video.
     starts = [start for start, _end in raw_cuts]
     ends = [end for _start, end in raw_cuts]
     if starts[0] != 0 or ends[-1] != frame_count or starts[1:] != ends[:-1]:
@@ -139,7 +139,7 @@ def run_old_video(
 ) -> AnnotatorResult:
     """Run complete heuristic or fitted-model annotation on saved old-court inputs."""
     court = inputs.court
-    return run_video(
+    return annotate_video(
         inputs.track, inputs.pose.bboxes, inputs.pose.scores, inputs.pose.kps, inputs.pose.ndet,
         fps=inputs.fps,
         base=DEFAULT_TRAINING_SETTINGS.preprocessing if models is None else models.preprocessing,

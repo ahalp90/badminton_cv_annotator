@@ -1,4 +1,4 @@
-"""Calculate player evidence for a contact using the current camera scene."""
+"""Measure shuttle-to-wrist gaps, attribute hitters and fit alternating player order."""
 
 from collections.abc import Sequence
 from dataclasses import replace
@@ -59,7 +59,7 @@ def contact_player_evidence(
 
 
 def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally, ...]:
-    """Fit each rally once and keep its resolved final side with its sequence."""
+    """Assign one alternating top/bottom order to each rally and retain its final hitter."""
     rallies = []
     for sequence in sequences:
         final_half = fit_alternation(
@@ -119,7 +119,7 @@ def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[Cour
             for i in range(n_strokes)]
 
 
-def measure_sticky_distances(
+def measure_wrist_distances(
     track: np.ndarray,
     segments: list[tuple[int, int]],
     pose_kps: np.ndarray,
@@ -127,7 +127,14 @@ def measure_sticky_distances(
     half_window: int,
     evidence: StickyResult,
 ) -> None:
-    """Measure each picked wrist and retain the nearest finite body-unit gap."""
+    """Measure shuttle gaps to each tracked player's nearer wrist.
+
+    Store height-normalised gaps for every analysed frame with a picked player,
+    and pixel gaps only where the shuttle is visible. Heights are the player's
+    local mean box height. Retain the nearest finite normalised gap per frame.
+    Update the supplied evidence in place; player tracking has already selected
+    the player rows.
+    """
     width, height = resolution
     for start, end in segments:
         for frame in range(start, end):

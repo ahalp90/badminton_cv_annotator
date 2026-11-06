@@ -1,4 +1,4 @@
-"""Prepare video evidence, select contacts and calculate rally outcomes."""
+"""Annotate a video from saved shuttle, player-pose and court arrays."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from annotator.inference.heuristic import select_heuristic_contacts
 from annotator.inference.learned import LearnedModelPrediction, predict_contacts
 from annotator.inference.prepare_contact_inference import (
     AnnotationEvidence,
-    prepare_annotation,
+    prepare_contact_inference,
 )
 from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_models
 from annotator.rally_results import landing_and_winner
@@ -27,7 +27,7 @@ from shared.progress import report
 DEFAULT_PREPROCESSING = BaseAnnotatorConfig()
 
 
-def run_video(
+def annotate_video(
     track: np.ndarray,
     bboxes: np.ndarray,
     scores: np.ndarray,
@@ -52,31 +52,27 @@ def run_video(
     capture: RunCapture | None = None,
     court_invalid_is_excluded: bool = False,
 ) -> AnnotatorResult:
-    """Find rallies and contacts, assign player halves, then estimate outcomes.
+    """Find rallies and contacts, assign hitters, and estimate landings and winners.
 
-    Uses the supplied fitted models or the selected bundle. ``base`` must match
-    its fitted preprocessing. ``heuristic_only=True`` selects rule-based contacts.
-    Heuristic spans and contacts also seed the learned route's rally options and
-    contact candidates.
+    The inputs are frame-aligned vision arrays, not an RGB video to decode.
+    The default route uses the supplied fitted models or loads the selected bundle.
+    ``base`` must match the bundle's preprocessing. ``heuristic_only=True`` uses
+    rule-based contacts with the same preparation and rally-result estimates.
 
     Core arrays are normalised shuttle ``track`` (frames, 3), pose ``bboxes``
     (frames, detections, 4), ``scores`` (frames, detections), ``kps`` (frames,
-    detections, 17, 2) and ``ndet`` counts (frames,). Preparation uses the original
-    arrays and scene geometry. ``spans`` and ``contacts`` can supply prior research results.
+    detections, 17, 2) and ``ndet`` counts (frames,). ``homography_rows`` supplies
+    court corners and frame intervals as records or a DataFrame.
 
-    Preparation requires all five arrays, ``resolution``, ``video_id``,
-    ``court_present`` booleans (frames,) and scene
-    ``homography_rows`` as a DataFrame or a list of row dictionaries. Outcomes
-    use ``landing_options`` and the selected scene's court geometry.
+    ``spans`` and ``contacts`` optionally supply initial rally bounds and contact
+    frames. ``raw_exclusion_mask`` supplies excluded footage before short-run
+    filtering; ``inpaint_codes`` supplies per-frame shuttle-hallucination grades.
+    Frames outside accepted court geometry are excluded. Set
+    ``court_invalid_is_excluded`` to also exclude frames without court presence.
 
-    ``raw_exclusion_mask`` supplies the dead-time mask before short-run filtering.
-    ``inpaint_codes`` supplies the frame-aligned shuttle grades used for event rejection.
-    Frames outside accepted scene geometry are excluded;
-    ``court_invalid_is_excluded`` also excludes frames without court presence.
-
-    ``capture`` is reset at entry and retains prepared evidence and model
-    predictions after their stages succeed. ``rejection_diagnostics`` receives
-    rejection rows grouped by filtering and outcome stages rather than rally order.
+    ``capture`` is reset at entry and retains prepared inputs and learned predictions
+    after each stage succeeds. ``rejection_diagnostics`` receives rejection rows
+    in processing-stage order rather than rally order.
     """
     if capture is not None:
         capture.evidence = None
@@ -91,7 +87,7 @@ def run_video(
     if base is None:
         base = DEFAULT_PREPROCESSING
     report("finding rallies")
-    evidence = prepare_annotation(
+    evidence = prepare_contact_inference(
         track, bboxes, scores, kps, ndet,
         resolved=resolve(base, fps), resolution=resolution, video_id=video_id,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,

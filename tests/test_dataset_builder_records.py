@@ -149,10 +149,10 @@ def _metadata(
 
 
 def _annotation() -> AnnotatorResult:
-    rejected = ContactCandidate(0, 10, False, False, None)
-    first = ContactCandidate(0, 20, True, True, False)
-    second = ContactCandidate(0, 30, True, True, False)
-    unresolved = ContactCandidate(1, 70, None, None, False)
+    rejected = ContactCandidate(0, 10, False, None)
+    first = ContactCandidate(0, 20, True, False)
+    second = ContactCandidate(0, 30, True, False)
+    unresolved = ContactCandidate(1, 70, None, False)
     return AnnotatorResult(
         rallies=(
             FinishedRally(ContactSequence(0, 0, 50, (
@@ -344,19 +344,16 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                 "raw_candidates": [
                     {
                         "contact_frame": 10,
-                        "proximity_ok": False,
                         "wrist_near": False,
                         "suppressed": None,
                     },
                     {
                         "contact_frame": 20,
-                        "proximity_ok": True,
                         "wrist_near": True,
                         "suppressed": False,
                     },
                     {
                         "contact_frame": 30,
-                        "proximity_ok": True,
                         "wrist_near": True,
                         "suppressed": False,
                     },
@@ -430,7 +427,6 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
             "contacts": {
                 "raw_candidates": [{
                     "contact_frame": 70,
-                    "proximity_ok": None,
                     "wrist_near": None,
                     "suppressed": False,
                 }],

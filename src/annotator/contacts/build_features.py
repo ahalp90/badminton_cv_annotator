@@ -1,8 +1,9 @@
-"""Build label-free contact features from in-memory vision and heuristic evidence.
+"""Measure candidate hits for contact-model training and prediction.
 
-Motion stays in raw per-frame units, matching the trained contact tree. Feature
-windows and candidate regions scale with FPS. Windows stop at search-interval
-boundaries, including the serve lookback before each eligible interval.
+Each row combines shuttle motion, tracked-player geometry and visibility at
+nearby frames. The heuristic-only route does not build this feature matrix.
+Motion stays in raw per-frame units, matching the fitted contact model. Windows
+and candidate regions scale with FPS and stop at their search boundaries.
 """
 
 from __future__ import annotations
@@ -64,7 +65,7 @@ CONTACT_FEATURE_NAMES = tuple(name for _signal, _offset, name in _FEATURE_COLUMN
 
 
 class ContactFeatures(NamedTuple):
-    """Feature rows and the interval boundaries already used to build them."""
+    """Measured candidate rows and the court-view/search intervals used to build them."""
 
     rows: np.ndarray
     eligible_intervals: list[tuple[int, int]]

@@ -28,7 +28,7 @@ DEFAULT_MODEL_DIRECTORY = (
 
 @dataclass(frozen=True)
 class AnnotatorModels:
-    """The three fitted stages with their contact and preprocessing settings."""
+    """Contact classifier, rally selector and review ranker with their fitted settings."""
 
     contact: Any
     sequences: RallySelector
@@ -38,7 +38,7 @@ class AnnotatorModels:
 
 
 def model_files(directory: Path) -> dict[str, Path]:
-    """Return the files that annotation resume checks must fingerprint."""
+    """Return model-bundle paths used by the dataset builder's resume checks."""
     return {
         'annotator_models': directory / MODEL_FILENAME,
         'annotator_metadata': directory / METADATA_FILENAME,

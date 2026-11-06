@@ -17,7 +17,7 @@ from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.score_candidates import ContactModelConfig
 from annotator.inference.learned import predict_contact_features
 from annotator.models import AnnotatorModels, fitted_trees
-from annotator.rallies.refine_rallies import RallySelector, score_selector_review
+from annotator.rallies.refine_rallies import RallySelector
 from annotator.training.sequences import whole_rally_correctness
 from experiments.annotator import development as experiment
 from experiments.annotator.contact_records import stream_payload
@@ -27,6 +27,9 @@ from experiments.annotator.heuristic_only_tune.run import source_record
 from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.fps_normalisation import (
     preparation_receipt,
+)
+from experiments.annotator.tree_simplification.selector_review import (
+    score_selector_review,
 )
 
 

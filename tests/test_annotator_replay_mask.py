@@ -5,7 +5,6 @@ obvious quiet region.
 """
 
 import logging
-import sys
 import warnings
 
 import numpy as np
@@ -13,24 +12,20 @@ import pytest
 
 import annotator.excluded_frames.replay as replay_mask_module
 from annotator.config import (
-    PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
     resolve,
 )
 from annotator.excluded_frames.replay import (
-    HOMOGRAPHY_CORNER_COLS,
-    _cli_non_evidence,
     combine_mask,
     court_absence_signal,
     filter_short_exclusion_runs,
-    perspective_shift_signal,
     velocity_drop_signal,
 )
-from annotator.excluded_frames.shuttle_hallucination import (
-    FABRICATED,
-    code_counts,
-    grade_track,
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    HOMOGRAPHY_CORNER_COLS,
+    PERSPECTIVE_SHIFT_THRESHOLD,
+    perspective_shift_signal,
 )
 
 # Reference court corners (interleaved [corner, xy]); bbox diagonal 500.
@@ -440,122 +435,3 @@ def _borderline_baseline_track(n_frames: int) -> np.ndarray:
     borderline_frames = np.arange(45, 70)
     track[45:70, 1] = 0.4 + 0.005 * (borderline_frames % 2)
     return track
-
-
-def _cli_fabricated_track() -> np.ndarray:
-    """Track with the recurrence pattern used by the guard's fabricated-fill tests."""
-    length = 14000
-    track = np.column_stack((
-        np.arange(length, dtype=float),
-        np.arange(length, dtype=float) * 0.37 + 1.0,
-    ))
-    varying = np.column_stack((
-        np.arange(16, dtype=float) + 100.0,
-        np.arange(16, dtype=float) * 2.0 + 200.0,
-    ))
-    varying_starts = [20 + episode * 100 for episode in range(50)]
-    varying_starts += [7200 + (episode - 50) * 100 for episode in range(50, 100)]
-    for start in varying_starts:
-        track[start:start + 16] = varying
-    flat_starts = tuple([5500 + episode * 50 for episode in range(25)] +
-                        [12500 + episode * 50 for episode in range(25)])
-    for start in flat_starts:
-        track[start:start + 16] = (900.0, 901.0)
-    for start in (6800, 6840, 6880):
-        track[start:start + 16] = (1200.0, 1300.0)
-    return np.column_stack((track, np.ones(length)))
-
-
-def test_cli_non_evidence_grades_rejected_frames_and_logs_counts(caplog):
-    track = _cli_fabricated_track()
-    codes, _info = grade_track(track)
-    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
-
-    result = _cli_non_evidence(track)
-
-    expected = np.isin(codes, (1, 2, 3))
-    np.testing.assert_array_equal(result, expected)
-    assert np.all(codes[20:36] == FABRICATED)
-    assert len(caplog.records) == 1
-    assert str(code_counts(codes)) in caplog.records[0].message
-
-
-def test_cli_non_evidence_returns_none_for_missing_track():
-    assert _cli_non_evidence(None) is None
-
-
-def test_cli_non_evidence_uses_configured_rejected_grades(monkeypatch):
-    track = _cli_fabricated_track()
-    codes, _info = grade_track(track)
-
-    class ConfigDouble:
-        rejected_grades = frozenset({FABRICATED})
-
-    monkeypatch.setattr(replay_mask_module, 'BaseAnnotatorConfig', ConfigDouble)
-    result = _cli_non_evidence(track)
-
-    np.testing.assert_array_equal(result, codes == FABRICATED)
-
-
-def test_cli_non_evidence_propagates_grade_track_errors(monkeypatch):
-    track = np.ones((4, 3), dtype=float)
-
-    def fail(_track):
-        raise RuntimeError('grading failed')
-
-    monkeypatch.setattr(replay_mask_module, 'grade_track', fail)
-    with pytest.raises(RuntimeError, match='grading failed'):
-        _cli_non_evidence(track)
-
-
-def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
-    monkeypatch, tmp_path, caplog,
-):
-    court_path = tmp_path / 'court.npy'
-    out_dir = tmp_path / 'masks'
-    (tmp_path / 'spans.csv').write_text('video_id,start_frame,end_frame\n')
-    np.save(court_path, np.zeros(40, dtype=bool))
-    raw = np.zeros(40, dtype=bool)
-    raw[:14] = True
-    raw[20:] = True
-    monkeypatch.setattr(replay_mask_module, 'combine_mask', lambda *args, **kwargs: raw.copy())
-    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
-
-    monkeypatch.setattr(sys, 'argv', [
-        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
-        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30',
-    ])
-    replay_mask_module.main()
-    np.testing.assert_array_equal(
-        np.load(out_dir / 'v_replay.npy'), raw,
-    )
-
-    monkeypatch.setattr(
-        replay_mask_module, 'combine_mask',
-        lambda *args, **kwargs: pytest.fail('maskless mode must skip detector computation'),
-    )
-    monkeypatch.setattr(sys, 'argv', [
-        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
-        '--fps', '30', '--no-replay-mask',
-    ])
-    replay_mask_module.main()
-    assert not np.load(out_dir / 'v_replay.npy').any()
-    assert 'config: no_replay_mask=True' in caplog.text
-
-
-def test_replay_cli_requires_existing_rally_input(monkeypatch, tmp_path):
-    import sys
-
-    from annotator.excluded_frames import replay
-
-    court_path = tmp_path / 'court.npy'
-    np.save(court_path, np.ones(40, dtype=bool))
-    args = ['replay', '--video-id', 'v', '--court-mask', str(court_path), '--fps', '30']
-    monkeypatch.setattr(sys, 'argv', args)
-    with pytest.raises(SystemExit) as failure:
-        replay.main()
-    assert failure.value.code == 2
-
-    monkeypatch.setattr(sys, 'argv', [*args, '--rally-spans', str(tmp_path / 'missing.csv')])
-    with pytest.raises(FileNotFoundError):
-        replay.main()

@@ -67,7 +67,7 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
         return np.nanmedian(windows, axis=1)
 
 
-def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     """Centred zero-inclusive rolling mean with a shrinking edge window.
 
     This is a plain mean: zeros go in like any other value, nothing is
@@ -83,7 +83,7 @@ def _rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
     return sums / counts
 
 
-def _nan_rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
+def rolling_nanmean(values: np.ndarray, window: int) -> np.ndarray:
     """Centred rolling mean that ignores NaN with a shrinking edge window.
 
     :param values: `(t,)` values, may contain NaN.

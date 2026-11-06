@@ -440,7 +440,7 @@ def _contact_payloads(
                 raise ValueError("accepted contact side must be CourtHalf or null")
             if not annotation.heuristic_candidates:
                 raw_by_rally[rally_id].append({
-                    "contact_frame": event.frame, "proximity_ok": None, "wrist_near": None, "suppressed": None,
+                    "contact_frame": event.frame, "wrist_near": None, "suppressed": None,
                 })
             accepted_by_rally[rally_id].append({
                 "stroke_idx": stroke_idx, "contact_frame": event.frame, "player_half": _enum_value(event.side),
@@ -465,7 +465,7 @@ def _validate_contact(
     start, end = spans[rally_id]
     if not start <= frame < end:
         raise ValueError(f"{name} frame {frame} is outside rally {rally_id} span [{start}, {end})")
-    for field_name in ("proximity_ok", "wrist_near", "suppressed"):
+    for field_name in ("wrist_near", "suppressed"):
         value = getattr(contact, field_name)
         if value is not None and not isinstance(value, bool):
             raise ValueError(f"{name} {field_name} must be boolean or null")
@@ -474,7 +474,6 @@ def _validate_contact(
 def _raw_contact_payload(contact: ContactCandidate) -> dict[str, object]:
     return {
         "contact_frame": contact.contact_frame,
-        "proximity_ok": contact.proximity_ok,
         "wrist_near": contact.wrist_near,
         "suppressed": contact.suppressed,
     }

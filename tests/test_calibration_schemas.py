@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from enum import Enum
 
-from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
 from experiments.annotator.heuristic_tuning.schemas import (
     ALIGNMENT_OWN_COVERED_COLUMNS,
     ALIGNMENT_SHARED_COLUMNS,
@@ -20,6 +19,7 @@ from experiments.annotator.heuristic_tuning.schemas import (
     winner_document,
     winner_spec,
 )
+from experiments.annotator.legacy_evaluation.scoring import CONTACT_TOLERANCES_BASE30
 
 EXPECTED_FROZEN_ROW_COLUMNS = (
     "label", "rest_speed", "rest_window", "end_rest_frames", "start_speed",

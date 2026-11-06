@@ -38,20 +38,6 @@ def test_composition_mask_main_scales_composition_min_scene_len(monkeypatch, tmp
     assert captured == [30, 25]
 
 
-
-
-
-
-
-
-def test_replay_main_requires_fps(monkeypatch: pytest.MonkeyPatch) -> None:
-    from annotator.excluded_frames import replay
-
-    monkeypatch.setattr(sys, 'argv', ['replay', '--video-id', 'one'])
-    with pytest.raises(SystemExit, match='2'):
-        replay.main()
-
-
 @pytest.mark.parametrize(
     ('stride', 'expected_mode'), [(8, 'nonoverlap'), (1, 'weight')],
 )

@@ -1,6 +1,6 @@
 # Code map
 
-Start with [`run_video()` in annotate_video.py](../../src/annotator/annotate_video.py).
+Start with [`annotate_video()` in annotate_video.py](../../src/annotator/annotate_video.py).
 It prepares the inputs, runs heuristic or learned contact inference, and estimates
 rally results. The [source directory guide](../../src/annotator/README.md) gives
 one starting file for each task.
@@ -23,8 +23,8 @@ one starting file for each task.
    constructs alternative contact lists by adding plausible missed hits or removing
    suspected false hits. [`refine_rallies.py`](../../src/annotator/rallies/refine_rallies.py)
    scores those alternatives, selects one per rally and finishes its boundaries.
-   A separate review model scores which finished rallies need attention; its
-   score does not change the annotations.
+   A separate review model estimates the probability that each finished rally
+   is correct. Lower scores suggest closer review; scores do not change annotations.
 4. **Attribute players.**
    [`player_attribution.py`](../../src/annotator/contacts/player_attribution.py)
    measures wrist gaps and identifies individual hitters. Both inference routes
@@ -45,15 +45,15 @@ track; the excluded-frame copy is only for rally/contact detection.
 bottom players across frames. Wrist-distance measurement is a later operation
 in contact attribution; it does not decide which players are tracked.
 
-The three court modules answer different questions:
+Court preparation and frame lookup answer different questions:
 
 - [`prepare_courts.py`](../../src/annotator/courts/prepare_courts.py): build and
-  validate court inputs from supplied calibration or court-detector results.
+  validate court-detector results and their player-occupancy masks.
 - [`frame_geometry.py`](../../src/annotator/courts/frame_geometry.py): find the
   accepted geometry that applies to a particular frame.
-- [`match_recurring_views.py`](../../src/annotator/courts/match_recurring_views.py):
-  identify separate scenes filmed from the same camera view so calibration can
-  be shared.
+
+In the detector, [`view_matching.py`](../../src/court_detector/view_matching.py)
+compares camera views so the detector can reuse a court calibration.
 
 ## Records and model inputs
 
@@ -82,8 +82,9 @@ the learned contact-feature matrix.
 the current learned models. [`training/sequences.py`](../../src/annotator/training/sequences.py)
 defines their contact matching and whole-rally correctness.
 
-[`evaluation/`](../../src/annotator/evaluation/) retains the ground-truth scoring
-and fixture harness used by earlier experiments. Its greedy contact matching
+Use [`experiments/annotator/legacy_evaluation/`](../../experiments/annotator/legacy_evaluation/)
+for the earlier three-video fixture harness, static-court preparation and
+ground-truth scoring. The historical greedy contact matching
 and the current model's chronological optimal matching are different metrics.
 Do not combine their results without identifying which metric was used.
 Pinned ShuttleSet and commentary benchmark runners are under

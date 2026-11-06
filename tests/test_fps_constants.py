@@ -19,7 +19,7 @@ from annotator.config import (
 from annotator.contacts.player_attribution import contact_player_evidence
 from annotator.courts.frame_geometry import SceneCourt
 from annotator.excluded_frames.replay import combine_mask, court_absence_signal
-from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.rally_results.landing_and_winner import (
     LandingFilterOptions,
@@ -282,7 +282,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
     ndet = np.ones(n_frames, dtype=int)
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1920.0,
                   'border_U': 0.0, 'border_D': 1080.0}
-    short_sticky = build_sticky_result(
+    short_sticky = build_player_evidence(
         track.copy(),
         [(0, n_frames)],
         bboxes.copy(),
@@ -293,7 +293,7 @@ def test_resolved_60fps_seam_drives_replay_segmentation_attribution_and_landing(
         12,
         scene_courts=(SceneCourt(0, len(track), court_info.copy(), (0.0, 0.0), 0.0),),
     )
-    full_sticky = build_sticky_result(
+    full_sticky = build_player_evidence(
         track.copy(),
         [(0, n_frames)],
         bboxes.copy(),

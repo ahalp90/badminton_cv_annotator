@@ -50,11 +50,10 @@ class ReentryGuardVariant(StrEnum):
 
 
 class ContactCandidate(NamedTuple):
-    """A contact candidate with proximity, wrist-distance and suppression results."""
+    """A contact candidate with wrist-distance and suppression results."""
 
     rally_id: int
     contact_frame: int
-    proximity_ok: bool | None
     wrist_near: bool | None
     suppressed: bool | None
 

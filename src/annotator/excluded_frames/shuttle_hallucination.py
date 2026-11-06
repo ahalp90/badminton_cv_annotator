@@ -1,10 +1,8 @@
-"""Grade exact recurrence patterns in a canonical shuttle track.
+"""Flag repeated shuttle-position patterns associated with fabricated detections.
 
-The detector identifies repeated position sequences that are too common to be
-ordinary footage. Varying attractors are fabrication proof. Flat attractors
+Repeated varying patterns are classified as fabricated. Repeated flat patterns
 remain suspect because a real shuttle can rest at one pixel. Frames near an
-accepted attractor are degraded rather than fabricated unless they form the
-complete repeated sequence.
+accepted pattern are graded as degraded unless they form the repeated pattern.
 """
 from __future__ import annotations
 

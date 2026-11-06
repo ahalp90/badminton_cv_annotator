@@ -29,8 +29,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 import cv2
 import numpy as np
 
-import annotator.evaluation.gt_scoring as gt_scoring_module
-from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
+import experiments.annotator.legacy_evaluation.gt_scoring as gt_scoring_module
+from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
 from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.courts.prepare_courts import (
@@ -42,30 +42,7 @@ from annotator.courts.prepare_courts import (
     CourtSceneRecord,
     NoAcceptedCourtError,
     build_court_detector_evidence,
-    build_raw_cut_intervals,
-    build_static_court_evidence,
     read_detector_scenes,
-)
-from annotator.evaluation.fixtures import (
-    FIXTURES,
-    REPO_ROOT,
-    SHARED_FILES,
-    FilePin,
-    Fixture,
-    fixtures_root,
-    verify_file,
-)
-from annotator.evaluation.gt_scoring import (
-    canonical_tolerance,
-    flatten_metrics,
-    load_gt_tables,
-    score_video,
-)
-from annotator.evaluation.scoring import (
-    GtRally,
-    safe_f1,
-    strict_contact_rows,
-    wide_edge_contact_rows,
 )
 from annotator.models import AnnotatorModels, load_models, model_files
 from annotator.rally_results.landing_and_winner import (
@@ -82,6 +59,31 @@ from experiments.annotator.artifact_io import (
 from experiments.annotator.landing_search import (
     LandingSearchComparison,
     compare_landing_searches,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    REPO_ROOT,
+    SHARED_FILES,
+    FilePin,
+    Fixture,
+    fixtures_root,
+    verify_file,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    canonical_tolerance,
+    flatten_metrics,
+    load_gt_tables,
+    score_video,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    GtRally,
+    safe_f1,
+    strict_contact_rows,
+    wide_edge_contact_rows,
+)
+from experiments.annotator.legacy_evaluation.static_courts import (
+    build_raw_cut_intervals,
+    build_static_court_evidence,
 )
 from experiments.annotator.records import (
     clean_run,
@@ -888,7 +890,7 @@ def _write_scoring_outputs(
 
 
 def _gt_rallies_for_fixture(master: Any, fixture: Fixture) -> list[GtRally]:
-    from annotator.evaluation.scoring import load_gt_rallies
+    from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies
 
     return load_gt_rallies(master, fixture.video_id)
 
@@ -1011,7 +1013,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             raise ValueError("court evidence has no operational inputs")
         capture = RunCapture()
         input_values = court_result.inputs
-        result = run_video(
+        result = annotate_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
             fps=case.fixed.fps,
             models=driver.models,

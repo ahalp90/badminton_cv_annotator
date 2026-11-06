@@ -17,20 +17,6 @@ import pandas as pd
 
 from annotator.annotate_video import AnnotatorResult
 from annotator.config import BaseAnnotatorConfig, frames_at_fps
-from annotator.evaluation.gt_scoring import (
-    VideoScoring,
-    aggregate_rally_scores,
-    canonical_tolerance,
-    flatten_metrics,
-    load_set_tables,
-    score_video,
-)
-from annotator.evaluation.scoring import (
-    CONTACT_TOLERANCES_BASE30,
-    GtRally,
-    load_gt_rallies,
-    score_contacts,
-)
 from annotator.rally_results.landing_and_winner import (
     Landing,
     RallyOutcome,
@@ -49,6 +35,20 @@ from dataset_builder.features import (
 )
 from dataset_builder.records import load_rally_records
 from dataset_builder.vision import load_json_gz, save_json_gz
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    VideoScoring,
+    aggregate_rally_scores,
+    canonical_tolerance,
+    flatten_metrics,
+    load_set_tables,
+    score_video,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    CONTACT_TOLERANCES_BASE30,
+    GtRally,
+    load_gt_rallies,
+    score_contacts,
+)
 from experiments.annotator.shuttleset_benchmarks.shuttleset_features import (
     coordinate_error_statistics,
     court_corner_error_rows,
@@ -122,8 +122,7 @@ def projection_to_annotator_result(
         contacts = record["contacts"]
         for candidate in contacts["raw_candidates"]:
             candidates.append(ContactCandidate(
-                rally_id, candidate["contact_frame"], candidate["proximity_ok"],
-                candidate["wrist_near"], candidate["suppressed"],
+                rally_id, candidate["contact_frame"], candidate["wrist_near"], candidate["suppressed"],
             ))
         events = []
         for contact in contacts["accepted"]:
@@ -414,7 +413,7 @@ def benchmark_features(
                 "shuttleset_features.py": _sha256(
                     Path(__file__).with_name("shuttleset_features.py")
                 ),
-                "gt_scoring.py": _sha256(Path(__file__).resolve().parents[3] / "src/annotator/evaluation/gt_scoring.py"),
+                "gt_scoring.py": _sha256(Path(__file__).resolve().parents[3] / "experiments/annotator/legacy_evaluation/gt_scoring.py"),
             },
         },
         "policy": {

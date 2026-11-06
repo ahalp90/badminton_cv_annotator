@@ -32,11 +32,7 @@ from annotator.models import (
     load_models,
     save_models,
 )
-from annotator.rallies.refine_rallies import (
-    RallyPrediction,
-    RallySelector,
-    score_selector_review,
-)
+from annotator.rallies.refine_rallies import RallyPrediction, RallySelector
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import (
     whole_rally_correctness,
@@ -53,6 +49,9 @@ from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 from experiments.annotator.tree_simplification.prepare import (
     preprocessing_from_record,
+)
+from experiments.annotator.tree_simplification.selector_review import (
+    score_selector_review,
 )
 
 

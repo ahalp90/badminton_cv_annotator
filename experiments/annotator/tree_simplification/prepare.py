@@ -30,7 +30,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.inference.learned import features_from_evidence
-from annotator.inference.prepare_contact_inference import prepare_annotation
+from annotator.inference.prepare_contact_inference import prepare_contact_inference
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
@@ -115,7 +115,7 @@ def prepare_video(
         inputs = load_original_inputs(video, paths['stages'], paths['development_courts'])
         pose = inputs.pose
         with cache_sticky_result(output / 'sticky', video.identity):
-            evidence = prepare_annotation(
+            evidence = prepare_contact_inference(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                 resolved=resolve(base, inputs.fps), video_id=inputs.identity,
                 resolution=inputs.court.resolution,

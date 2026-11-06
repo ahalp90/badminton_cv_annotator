@@ -36,10 +36,10 @@ import numpy as np
 from annotator.config import (
     COMPOSITION_CONTENT_THRESHOLD,
     COMPOSITION_KEEP_VOTE,
-    MASKS_DIR,
     BaseAnnotatorConfig,
     resolve,
 )
+from scraper.config import MASKS_DIR
 from shared.camera_cuts import detect_cuts
 from shared.video_metadata import probe_fps
 

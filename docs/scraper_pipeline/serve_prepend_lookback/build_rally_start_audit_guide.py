@@ -19,11 +19,18 @@ import hashlib
 import io
 import json
 import math
+import sys
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SHARED_FILES,
+    Fixture,
+)
 from labelling.rally_starts import (
     CONTRACT_PATH,
     DECISION_VALUE_COLUMNS,

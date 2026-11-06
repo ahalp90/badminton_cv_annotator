@@ -5,8 +5,8 @@ import json
 
 import pytest
 
-from annotator.evaluation.fixtures import FIXTURES
 from experiments.annotator.heuristic_tuning import corpus_sweep, sweep
+from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
 
 
 def _inputs() -> tuple[corpus_sweep.CorpusFixtureInput, ...]:

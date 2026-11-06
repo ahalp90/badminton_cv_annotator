@@ -38,10 +38,10 @@ guard codes are the authoritative rejection evidence in the dataset builder.
 
 The annotator has an event-mask seam for frame-aligned evidence.
 
-`annotator.evaluation.gt_scoring.build_run_video_inputs` calls
+`experiments.annotator.legacy_evaluation.gt_scoring.build_run_video_inputs` calls
 `annotator.excluded_frames.shuttle_hallucination.grade_track` on the loaded shuttle track and
 passes the resulting per-frame codes into `run_video` as `inpaint_codes`
-(`src/annotator/evaluation/gt_scoring.py:409`,
+(`experiments/annotator/legacy_evaluation/gt_scoring.py:409`,
 `src/annotator/annotate_video.py:189`). `run_video._build_shuttle_hallucination_mask`
 adapts those grades into a single boolean mask read by the downstream event
 rules and enforces that `inpaint_codes` and an externally supplied mask

@@ -180,14 +180,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.5
+annotator-result/0.6
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.5",
+  "schema": "annotator-result/0.6",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -270,14 +270,14 @@ Some outcome fields can be unresolved even when the contact sequence is usable. 
 
 ## Direct Python call
 
-For callers that already hold the arrays in memory, the main function is `run_video()`:
+For callers that already hold the arrays in memory, the main function is `annotate_video()`:
 
 ```python
 from annotator.models import DEFAULT_MODEL_DIRECTORY, load_models
-from annotator.annotate_video import run_video
+from annotator.annotate_video import annotate_video
 
 models = load_models(DEFAULT_MODEL_DIRECTORY)
-result = run_video(
+result = annotate_video(
     track,
     bboxes,
     scores,
@@ -289,7 +289,7 @@ result = run_video(
 )
 ```
 
-The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `run_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
+The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `annotate_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
 
 The direct call uses the model directory and settings as follows:
 
@@ -297,7 +297,7 @@ The direct call uses the model directory and settings as follows:
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 
-`prepare_annotation()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
+`prepare_contact_inference()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
 accepts the same five arrays plus resolved settings and the court, mask and scene
 inputs. Training and rally-model experiments call it directly. Its
 `AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
@@ -307,3 +307,9 @@ It does not calculate final contact order, landing, winner or hit height.
 The former shuttle-track-only batch command has been retired. Use the complete
 annotator with `heuristic_only=True` for the supported rule-based route. Its
 preparation includes player and court evidence as well as excluded-frame masks.
+
+Annotation result schema 0.6 and rally-record schemas 0.4 omit the retired
+player-position proximity diagnostic. Resuming a dataset-builder run automatically
+invalidates and rebuilds stale stages and their dependants. Direct loaders of old
+annotation JSON or rally-record collections reject them; regenerate those files
+before loading them directly.

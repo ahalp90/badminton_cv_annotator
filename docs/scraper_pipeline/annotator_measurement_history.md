@@ -6,14 +6,14 @@ covers the fitted annotator's measured performance. Every headline number below
 was measured before the 2026-07-28 smoothing and re-entry policy change
 (W2.9). The calibration reference for that rule-based chain is
 `tests/data/annotator_calibration/reference/`, generated after W2.9 by
-`annotator.evaluation.gt_scoring --capture`. The W2.9 behavioural delta
+`experiments.annotator.legacy_evaluation.gt_scoring --capture`. The W2.9 behavioural delta
 is preserved in
 `docs/archive/completed_general_refactors/annotator_cleanup/w2_9_delta.diff`.
 
 Historical fixture aliases (`pilot`, `vid15`, `sset21`) survive in quoted
 tables and CSVs; canonical stems `sset_01` / `sset_15` / `sset_21` are used
 in surrounding prose. Fixture identity is derived from `Fixture.name` in
-`src/annotator/evaluation/fixtures.py`.
+`experiments/annotator/legacy_evaluation/fixtures.py`.
 
 ## Ground-truth substrate
 
@@ -25,7 +25,7 @@ sset_21 was added later and appears alongside the pair rather than inside
 the pool.
 
 Scoring uses the fps-scaled canonical tolerance
-(`annotator.evaluation.gt_scoring.canonical_tolerance`, base-30 "5" band,
+(`experiments.annotator.legacy_evaluation.gt_scoring.canonical_tolerance`, base-30 "5" band,
 so 4 frames at 25 fps and 5 frames at 30 fps). The `+/-10` window in the
 older campaign notes is the ruled usability yardstick for pooled recall /
 precision; wider tolerances flatter, because the median gap between GT

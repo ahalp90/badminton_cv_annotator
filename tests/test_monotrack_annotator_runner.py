@@ -129,7 +129,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
             CourtHalf.BOT,
         ),))
 
-    monkeypatch.setattr(video_module, 'run_video', infer)
+    monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path), heuristic_spec=spec)
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['status'] == 'completed'
@@ -162,7 +162,7 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
         kwargs['capture'].learned_model_prediction = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
         return empty_annotation([], [])
 
-    monkeypatch.setattr(video_module, 'run_video', infer)
+    monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path))
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['mode'] == 'full'
@@ -186,7 +186,7 @@ def test_failed_heuristic_keeps_contacts_and_rallies_in_the_scored_population(
     def fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('failed inference')
 
-    monkeypatch.setattr(video_module, 'run_video', fail)
+    monkeypatch.setattr(video_module, 'annotate_video', fail)
     runner.run_item((inputs.config, inputs.item, 'ours_our_courts', tmp_path), _selected_spec())
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['status'] == 'failed'

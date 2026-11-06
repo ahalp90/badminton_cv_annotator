@@ -1,4 +1,9 @@
-"""Sticky player evidence shared by serve and contact rules."""
+"""Follow the top and bottom players using their court positions across frames.
+
+The sticky picker favours continuity with earlier selections. This module
+records player rows and positions; contact attribution measures wrist gaps
+in a separate step.
+"""
 
 import sys
 from pathlib import Path
@@ -52,7 +57,7 @@ def track_sticky_players(
     """Run the sequential sticky picker and retain its frame-aligned evidence.
 
     Each segment must lie within one court scene, as produced by tracker_segments.
-    ``measure_sticky_distances`` fills distances and wrist gaps afterwards.
+    ``measure_wrist_distances`` fills distances and wrist gaps afterwards.
     """
     params = sticky_anchor.StickyAnchorParams()
     raw = RawClip(

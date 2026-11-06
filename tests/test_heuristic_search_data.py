@@ -145,7 +145,7 @@ def test_run_configuration_discovers_boundaries_without_loading_models(monkeypat
         recorded.update(keyword)
         return empty_annotation([], [])
 
-    monkeypatch.setattr(search_data, 'run_video', run)
+    monkeypatch.setattr(search_data, 'annotate_video', run)
     monkeypatch.setattr(search_data, 'run_video_kwargs', lambda _inputs: {'fps': 30.0})
     assert search_data.run_configuration(inputs, base) == {'sequences': [], 'events': []}
     assert recorded['base'] is base

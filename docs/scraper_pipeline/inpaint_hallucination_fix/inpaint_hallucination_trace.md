@@ -1,5 +1,9 @@
 # Inpaint hallucination guard: operation trace
 
+Historical trace from 13 August 2026. Function names and line references below
+refer to that implementation. For current behaviour, use the
+[annotator guides](../../annotator/README.md).
+
 Status: source trace updated for detector version 4, 2026-08-13.
 
 ## What this trace answers

@@ -9,9 +9,9 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from annotator.evaluation.fixtures import SSET_01
-from annotator.evaluation.scoring import GtRally
 from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
+from experiments.annotator.legacy_evaluation.fixtures import SSET_01
+from experiments.annotator.legacy_evaluation.scoring import GtRally
 from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
@@ -186,7 +186,7 @@ def test_contact_injection_copies_accepted_contacts_and_keeps_spans(monkeypatch)
             )), CourtHalf.BOT,
         ),))
 
-    monkeypatch.setattr(measurement.candidate_measurement, "run_video", fake_run_video)
+    monkeypatch.setattr(measurement.candidate_measurement, "annotate_video", fake_run_video)
     natural = SimpleNamespace(rallies=(FinishedRally(
         ContactSequence(0, 10, 25, (ContactEvent(20, np.nan, CourtHalf.BOT),)), CourtHalf.BOT,
     ),))

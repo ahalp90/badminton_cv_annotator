@@ -15,9 +15,9 @@ import cv2
 import numpy as np
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
 
-from annotator.courts.match_recurring_views import HASH_SIZE, VIEW_RESOLUTION, CourtView
 from annotator.courts.prepare_courts import SceneEvidence, build_detected_court_evidence
 from annotator.excluded_frames import replay as replay_mask
+from court_detector.view_matching import HASH_SIZE, VIEW_RESOLUTION, CourtView
 from dataset_builder.vision import (
     CourtVision,
     load_court_vision,
@@ -28,6 +28,9 @@ from dataset_builder.vision import (
     run_full_annotation_stage,
     save_json_gz,
     save_npy_xz,
+)
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    perspective_shift_signal,
 )
 from scratch.contact_det.scripts.freeze_contact_evidence import FixtureSpec
 from scratch.contact_det.scripts.freeze_tree_contact_features import _fixture_rows
@@ -209,7 +212,7 @@ def _baseline_combine_mask(
 ) -> np.ndarray:
     """Reproduce the a111181 replay-mask composition for baseline runs."""
     court = replay_mask.court_absence_signal(court_present, n_frames, fps)
-    perspective = replay_mask.perspective_shift_signal(homography_rows, n_frames)
+    perspective = perspective_shift_signal(homography_rows, n_frames)
     velocity = replay_mask.velocity_drop_signal(
         track,
         rally_spans,

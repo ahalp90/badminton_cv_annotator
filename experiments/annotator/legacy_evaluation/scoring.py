@@ -1,4 +1,8 @@
-"""Pure scoring functions for rally and contact detection."""
+"""Measure rally-boundary and contact accuracy against ground truth.
+
+Contact matching here greedily takes the nearest available pair. Current
+learned-model evaluation uses the different matching rule in training/sequences.py.
+"""
 from __future__ import annotations
 
 import math
@@ -171,15 +175,11 @@ def _offset_stats(offsets: Sequence[int]) -> dict[str, float | int] | None:
 def score_boundaries(
     spans: Sequence[tuple[int, int]], gt_rallies: Sequence[GtRally]
 ) -> dict:
-    """Boundary-side metrics: coverage taxonomy, merge/spurious counts, alignment.
-
-    Self-contained: re-derives the per-rally classification and merged-span set
-    (both cheap over the small rally/span counts) so the sweep runner and tests
-    can call it in isolation.
+    """Count covered, split, missed, merged and spurious rallies and boundary errors.
 
     :param spans: detected rally spans.
     :param gt_rallies: ground-truth rallies for one video.
-    :return: dict of boundary metrics (see keys inline).
+    :return: boundary counts and start/end timing-error summaries.
     """
     classifications = classify_all(spans, gt_rallies)
     merged = merged_span_indices(spans, gt_rallies)
@@ -497,12 +497,12 @@ def _raw_precision_curve(
         can't inflate the numerator past the denominator.
 
     The greedy matching is re-run here rather than threaded out of
-    ``_tolerance_curve``: keeping that function's return byte-identical matters
+    ``_tolerance_curve``: keeping that function's output format stable matters
     (the sweep CSV's committed columns depend on it) more than the one extra pass,
     which is over the overall rally pairs only and cheap next to segmentation.
 
     :param contacts: detected contacts as
-        ``(rally_id, contact_frame, proximity_ok, wrist_near)``. The full list
+        ``(rally_id, contact_frame, wrist_near, suppressed)``. The full list
         ensures spurious-span candidates land in the denominator.
     :param rally_pairs: one ``(gt_frames, candidate_frames)`` per rally, the same
         pooled pairs ``_tolerance_curve`` scores.
@@ -553,7 +553,7 @@ def score_contacts(
 
     :param spans: detected rally spans.
     :param contacts: detected contacts as
-        ``(rally_id, contact_frame, proximity_ok, wrist_near)``. The two
+        ``(rally_id, contact_frame, wrist_near, suppressed)``. The two
         verdict fields are not used here.
     :param gt_rallies: ground-truth rallies for one video.
     :param tolerances: frame tolerances for the credit curve.

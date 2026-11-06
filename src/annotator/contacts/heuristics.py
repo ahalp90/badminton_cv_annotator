@@ -6,15 +6,15 @@ the spans before calling these contact rules.
 
 import numpy as np
 
-from annotator.array_calc_helpers import _nan_rolling_mean, _rolling_mean
-from annotator.config import PROXIMITY_MAX, Thresholds
+from annotator.array_calc_helpers import rolling_mean, rolling_nanmean
+from annotator.config import Thresholds
 from annotator.types import ContactCandidate, SmoothingMode
 
 FLOOR_EPS = 1e-4
 
 
 def assemble_contacts(
-    track: np.ndarray, positions: np.ndarray | None, spans: list[tuple[int, int]],
+    track: np.ndarray, spans: list[tuple[int, int]],
     thresholds: Thresholds, sticky_distances: np.ndarray | None,
     *, smoothing_mode: SmoothingMode,
 ) -> list[ContactCandidate]:
@@ -24,9 +24,8 @@ def assemble_contacts(
     for rally_id, (start, end) in enumerate(spans):
         candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
         for frame, impulse in candidates:
-            near_player = contact_proximity_ok(track, positions, frame)
             near_wrist = wrist_contact_near(sticky_distances, frame, thresholds.wrist_distance_body_heights)
-            contacts.append(ContactCandidate(rally_id, frame, near_player, near_wrist, None))
+            contacts.append(ContactCandidate(rally_id, frame, near_wrist, None))
             if near_wrist:
                 gated.append((frame, impulse))
     if sticky_distances is None:
@@ -83,13 +82,13 @@ def span_impulses(
         return None
 
     if smoothing_mode is SmoothingMode.ZERO_FILL:
-        smooth_x = _rolling_mean(span[:, 0], smooth_window)
-        smooth_y = _rolling_mean(span[:, 1], smooth_window)
+        smooth_x = rolling_mean(span[:, 0], smooth_window)
+        smooth_y = rolling_mean(span[:, 1], smooth_window)
     else:
         smooth_xy = span[:, :2].astype(float, copy=True)
         smooth_xy[span[:, 2] != 1] = np.nan
-        smooth_x = _nan_rolling_mean(smooth_xy[:, 0], smooth_window)
-        smooth_y = _nan_rolling_mean(smooth_xy[:, 1], smooth_window)
+        smooth_x = rolling_nanmean(smooth_xy[:, 0], smooth_window)
+        smooth_y = rolling_nanmean(smooth_xy[:, 1], smooth_window)
     velocity = np.diff(np.column_stack([smooth_x, smooth_y]), axis=0)
     impulses = np.linalg.norm(velocity[1:] - velocity[:-1], axis=1)
     visible = span[:, 2] == 1
@@ -134,31 +133,6 @@ def suppress_contact_flags(
         if all(abs(frame - other_frame) >= radius for other_frame, _ in accepted):
             accepted.append((frame, impulse))
     return sorted(accepted)
-
-
-def contact_proximity_ok(
-    track: np.ndarray, positions: np.ndarray | None, contact_frame: int
-) -> bool | None:
-    """Guardrail: does a tracked player sit near the shuttle at the contact frame?
-
-    Never filters a contact; it annotates one. When no positions were supplied
-    the check is unmeasured, which returns None (serialised blank downstream):
-    a guardrail with no evidence must not read as a pass.
-
-    :param track: `(t, 3)` whole-video track.
-    :param positions: `(t, 2, 2)` `[slot, xy]` court positions, or None.
-    :param contact_frame: whole-video frame index of the contact.
-    :return: True/False when measured, None when no positions were supplied.
-    """
-    if positions is None:
-        return None
-    shuttle_xy = track[contact_frame, :2]  # (2,)
-    player_xy = positions[contact_frame]  # (2, 2) [slot, xy]
-    distances = np.linalg.norm(player_xy - shuttle_xy, axis=1)  # (2,) per slot
-    if np.all(np.isnan(distances)):
-        # Positions exist but both slots failed this frame: measured, unconfirmed.
-        return False
-    return bool(np.nanmin(distances) <= PROXIMITY_MAX)
 
 
 def wrist_contact_near(

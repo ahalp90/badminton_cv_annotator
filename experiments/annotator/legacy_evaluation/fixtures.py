@@ -1,4 +1,4 @@
-"""Digest-validated input fixtures for annotator calibration."""
+"""Pinned input files for the historical three-video annotator scoring fixture."""
 
 from __future__ import annotations
 
@@ -56,14 +56,11 @@ class FixtureDigests:
 
 @dataclass(frozen=True)
 class Fixture:
-    """All external and repository-local inputs for one scoring fixture.
+    """Inputs for one historical scoring fixture.
 
-    ``name`` is the fixture's sole local identity: every operational path and
-    pin path below is a derived property of it (the stem-plus-role grammar),
-    so copying a fixture with a new ``name`` (e.g. via ``dataclasses.replace``)
-    moves every path consistently. The ``court_present_path`` property is a
-    pose-derived court-view proxy (True = court view); the scene-gated
-    tracker's producer choice is re-approved at its activation commit.
+    File paths are derived from ``name``, so replacing the name selects the
+    corresponding track, pose, mask and scene files. ``court_present_path`` supplies
+    the fixture's pose-derived court-view mask.
     """
 
     name: str
@@ -279,7 +276,7 @@ def _build_fixture(
     name: str, *, video_id: int, fps: float, gt_set_dir: Path,
     n_rallies: int, n_strokes: int, digests: FixtureDigests,
 ) -> Fixture:
-    """Build one fixture; every path is a derived property of ``name`` (the stem-plus-role scheme)."""
+    """Build one scoring fixture with file paths derived from its name."""
     geometry = _CALIBRATION_GEOMETRY[video_id]
     return Fixture(
         name=name,
@@ -396,6 +393,6 @@ def verify_fixture(fixture: Fixture) -> None:
 
 
 def verify_run_video_fixture(fixture: Fixture) -> None:
-    """Assert the external files read while assembling ``run_video`` inputs."""
+    """Check the pinned files used to assemble annotation inputs."""
     for pin in fixture.run_video_files:
         verify_file(pin)

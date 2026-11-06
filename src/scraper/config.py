@@ -14,18 +14,17 @@ Comments describe the current contract and identify provisional values that
 still need tuning.
 """
 import csv
+import os
 import shutil
 from pathlib import Path
-
-from annotator.config import CONTACT_FRAMES_CSV, MASKS_DIR, RALLY_SPANS_CSV, SCRAPE_DIR  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Output layout
 # ---------------------------------------------------------------------------
-# One scrape root holds the flat CSVs plus the per-video sidecar dirs.
-# SCRAPE_DIR, MASKS_DIR, RALLY_SPANS_CSV and CONTACT_FRAMES_CSV are
-# annotator-owned (annotator.config); imported inward here so this module's
-# own consumers keep the same names and values.
+# BADMINTON_SCRAPE_DIR must be bound before importing scraper modules.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
+MASKS_DIR = SCRAPE_DIR / 'masks'
 CANDIDATES_CSV = SCRAPE_DIR / 'candidates.csv'
 VIDEOS_DIR = SCRAPE_DIR / 'videos'
 VIDEO_EXTENSIONS = frozenset({'.mp4', '.mkv', '.webm', '.avi', '.mov'})

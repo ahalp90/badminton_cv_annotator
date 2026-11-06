@@ -8,13 +8,17 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.annotate_video import run_video
+from annotator.annotate_video import annotate_video
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.contacts.heuristics import impulse_cell_candidates
-from annotator.evaluation.fixtures import Fixture
-from annotator.evaluation.gt_scoring import canonical_tolerance
-from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
 from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from experiments.annotator.legacy_evaluation.fixtures import Fixture
+from experiments.annotator.legacy_evaluation.gt_scoring import canonical_tolerance
+from experiments.annotator.legacy_evaluation.scoring import (
+    GtRally,
+    classify_all,
+    greedy_match,
+)
 from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
@@ -594,7 +598,7 @@ def run_contact_injection_counterfactual(
         for row in selected:
             raw_mask[int(row["candidate_frame"])] = False
         keyword["raw_exclusion_mask"] = raw_mask
-    injected_result = run_video(
+    injected_result = annotate_video(
         *inputs.positional,
         **keyword,
         spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies],

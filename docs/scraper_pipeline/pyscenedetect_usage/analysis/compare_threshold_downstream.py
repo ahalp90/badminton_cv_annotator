@@ -17,8 +17,11 @@ from scenedetect import open_video
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from annotator.config import COMPOSITION_KEEP_VOTE, BaseAnnotatorConfig, resolve
-from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
 from experiments.annotator.artifact_io import load_npy
+from experiments.annotator.legacy_evaluation.scoring import (
+    _scale_base30_frames,
+    load_gt_rallies,
+)
 from experiments.annotator.scene_cut_mask import (
     CompositionSegment,
     build_composition_mask,

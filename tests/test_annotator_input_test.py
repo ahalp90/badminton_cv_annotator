@@ -126,7 +126,7 @@ def test_video_scoring_and_review_use_the_same_excluded_window_judgements(tmp_pa
             {'span_id': 7, 'outcome': 'unlabelled_player'},
         ]
 
-    monkeypatch.setattr(input_test, 'run_video', run_video)
+    monkeypatch.setattr(input_test, 'annotate_video', run_video)
     monkeypatch.setattr(input_test.metrics, 'score_stream_for_item', score)
     paths = {name: tmp_path for name in ('inpaint_root', 'pose_root', 'test_courts')}
     (tmp_path / 'streams').mkdir()

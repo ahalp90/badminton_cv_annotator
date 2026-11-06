@@ -11,7 +11,7 @@ from enum import Enum
 from numbers import Real
 from typing import Any
 
-from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
+from experiments.annotator.legacy_evaluation.scoring import CONTACT_TOLERANCES_BASE30
 
 FROZEN_ROW_COLUMNS = (
     "label",

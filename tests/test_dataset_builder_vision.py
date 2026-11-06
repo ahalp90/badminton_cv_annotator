@@ -16,7 +16,7 @@ import pytest
 
 import annotator.annotate_video as run_video_module
 import annotator.courts.prepare_courts as court_evidence_module
-from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
+from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
 from annotator.cli import main as annotation_main
 from annotator.courts.prepare_courts import (
     DETECTOR_RESULT_SCHEMA,
@@ -191,7 +191,7 @@ def _direct_annotation(
     inputs = court.evidence.inputs
     assert inputs is not None
     capture = RunCapture()
-    result = run_video(
+    result = annotate_video(
         track,
         pose.bboxes,
         pose.scores,
@@ -983,7 +983,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
-    monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
+    monkeypatch.setattr(run_video_module, 'annotate_video', fake_run_video)
     output = vision.run_full_annotation_stage(
         video_id="video",
         metadata=metadata,
@@ -1033,7 +1033,7 @@ def test_malformed_run_capture_masks_raise_original_error(
         setattr(capture.evidence, mask_name, bad_mask)
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
-    monkeypatch.setattr(run_video_module, "run_video", fake_run_video)
+    monkeypatch.setattr(run_video_module, 'annotate_video', fake_run_video)
     output_dir = tmp_path / "annotation"
     with pytest.raises(ValueError, match="one-dimensional boolean"):
         vision.run_full_annotation_stage(
@@ -1079,8 +1079,8 @@ def test_annotation_persistence_rejects_malformed_captured_masks(
 def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     tmp_path: Path,
 ) -> None:
-    accepted = ContactCandidate(0, 12, True, True, False)
-    raw = ContactCandidate(0, 11, False, False, None)
+    accepted = ContactCandidate(0, 12, True, False)
+    raw = ContactCandidate(0, 11, False, None)
     result = AnnotatorResult(
         rallies=(FinishedRally(ContactSequence(0, 5, 30, (
             ContactEvent(12, .9, CourtHalf.BOT), ContactEvent(14, .6, CourtHalf.TOP),
@@ -1108,7 +1108,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     artifacts = vision.persist_annotation_run(tmp_path, run, frame_count=50)
     payload = vision.load_json_gz(artifacts.result)
 
-    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA == "annotator-result/0.5"
+    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA == "annotator-result/0.6"
     assert payload["video_id"] == "match-alpha"
     primitives = payload["result"]
     assert isinstance(primitives, dict)
@@ -1117,14 +1117,12 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
         {
             "rally_id": 0,
             "contact_frame": 11,
-            "proximity_ok": False,
             "wrist_near": False,
             "suppressed": None,
         },
         {
             "rally_id": 0,
             "contact_frame": 12,
-            "proximity_ok": True,
             "wrist_near": True,
             "suppressed": False,
         },

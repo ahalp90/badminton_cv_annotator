@@ -1,4 +1,8 @@
-"""Apply the contact tree and sequence refinements to one video's evidence."""
+"""Run contact detection, rally refinement and review scoring for one video.
+
+The contact model scores individual candidate frames. The rally selector scores
+alternative contact lists. The review model ranks the finished rallies.
+"""
 
 from dataclasses import dataclass
 
@@ -21,7 +25,7 @@ from shared.progress import report
 
 @dataclass(frozen=True)
 class LearnedModelPrediction:
-    """Final sequences and the already-computed inputs needed for a retune."""
+    """Finished rally predictions and the measured inputs retained for training or inspection."""
 
     features: ContactFeatures
     contacts: ScoredContacts
@@ -54,7 +58,7 @@ def predict_contact_features(
 
 
 def features_from_evidence(evidence: AnnotationEvidence) -> ContactFeatures:
-    """Build model features from the already-computed heuristic inputs."""
+    """Measure learned contact features from prepared shuttle, player and rally evidence."""
     return build_contact_features(
         track=evidence.track,
         pose_kps=evidence.pose_kps,

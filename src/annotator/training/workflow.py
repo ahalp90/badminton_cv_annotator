@@ -27,7 +27,7 @@ from annotator.contacts.score_candidates import (
 from annotator.inference.learned import features_from_evidence, predict_contacts
 from annotator.inference.prepare_contact_inference import (
     AnnotationEvidence,
-    prepare_annotation,
+    prepare_contact_inference,
 )
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.rallies.build_contact_proposals import build_rally_context
@@ -237,7 +237,7 @@ def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnot
     inputs = court.evidence.inputs
     if inputs is None:
         raise ValueError(f'{identity}: court extraction has no usable operational court inputs')
-    return prepare_annotation(
+    return prepare_contact_inference(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(preprocessing, float(metadata.fps)),
         resolution=inputs.resolution, video_id=identity,

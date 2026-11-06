@@ -1,4 +1,4 @@
-"""Filter heuristic contacts and fit the player order used by outcomes."""
+"""Turn accepted heuristic hits into rallies with alternating top/bottom hitters."""
 
 import math
 
@@ -23,7 +23,7 @@ def select_heuristic_contacts(
     Append a diagnostic when every gate-passing contact in a rally is masked.
     """
     frames_by_rally: dict[int, list[int]] = {}
-    for contact in scoring_filter(evidence.heuristic_contacts):
+    for contact in accepted_heuristic_contacts(evidence.heuristic_contacts):
         frames_by_rally.setdefault(contact.rally_id, []).append(contact.contact_frame)
 
     sequences = []
@@ -51,8 +51,8 @@ def select_heuristic_contacts(
     return fit_rally_sides(sequences)
 
 
-def scoring_filter(contacts: list[ContactCandidate]) -> list[ContactCandidate]:
-    """Return contacts accepted by the scorer's wrist and suppression gates."""
+def accepted_heuristic_contacts(contacts: list[ContactCandidate]) -> list[ContactCandidate]:
+    """Keep contacts that failed neither the wrist-distance check nor suppression."""
     return [
         contact
         for contact in contacts

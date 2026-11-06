@@ -2,7 +2,7 @@
 
 The annotator turns saved shuttle tracks, player poses and court geometry into
 rallies, racket contacts and estimated outcomes. Start with
-[`run_video()`](../../src/annotator/annotate_video.py): it shows the order of the
+[`annotate_video()`](../../src/annotator/annotate_video.py): it shows the order of the
 work. The [quickstart](quickstart.md) explains how to supply a video's files.
 
 The main path has three parts:
@@ -211,7 +211,7 @@ debugging or experiments. Run landing-time comparisons separately with
 `experiments.annotator.landing_search.compare_landing_searches()`.
 
 The standalone command, dataset builder and MonoTrack adapter all call
-`run_video()`. Their loading and persistence differ; the annotation decisions
+`annotate_video()`. Their loading and persistence differ; the annotation decisions
 come from the same function. See [Inputs and outputs](inputs_outputs.md) for
 the saved contracts, [Code map](code_map.md) for source entry points, and
 [How the trees work together](tree_stack.md) for model and training details.

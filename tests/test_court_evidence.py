@@ -8,7 +8,8 @@ import pytest
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.courts import prepare_courts as evidence
 from annotator.courts.prepare_courts import corner_error_band_from_corners
-from annotator.evaluation.fixtures import FIXTURES
+from experiments.annotator.legacy_evaluation import static_courts
+from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
 from shared.court import project_pixels_to_court
 
 
@@ -82,8 +83,8 @@ def test_static_corner_order_matches_pose_columns(monkeypatch) -> None:
         [31.0, 32.0],
         [41.0, 42.0],
     ])
-    monkeypatch.setattr(evidence, 'get_corner_camera', lambda _row: camera_order.T)
-    static_corners = evidence._static_corners_refpx(pd.Series(dtype=float))
+    monkeypatch.setattr(static_courts, 'get_corner_camera', lambda _row: camera_order.T)
+    static_corners = static_courts._static_corners_refpx(pd.Series(dtype=float))
     np.testing.assert_array_equal(static_corners, clockwise_order)
 
     rows = evidence.build_scene_rows(
@@ -107,8 +108,8 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
         calls.append((video_path, kwargs))
         return np.array([13, 28], dtype=int)
 
-    monkeypatch.setattr(evidence, 'detect_cuts', fake_detect)
-    intervals = evidence.build_raw_cut_intervals('video.mp4', 40, fps)
+    monkeypatch.setattr(static_courts, 'detect_cuts', fake_detect)
+    intervals = static_courts.build_raw_cut_intervals('video.mp4', 40, fps)
 
     assert intervals == [(0, 13), (13, 28), (28, 40)]
     assert calls == [(
@@ -347,7 +348,7 @@ def test_static_parent_net_band_matches_fixture(video_id: int) -> None:
     homography = pd.read_csv(
         'training/data/shuttleset/annotations/set/homography.csv',
     ).set_index('id')
-    inputs = evidence.build_static_court_inputs(
+    inputs = static_courts.build_static_court_inputs(
         video_id, homography, fixture.resolution, [(0, 10)],
     )
     assert inputs.net_band == fixture.net_band
@@ -361,7 +362,7 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     static_bboxes = np.zeros((4, 1, 4), dtype=float)
     static_scores = np.full((4, 1), np.nan, dtype=float)
     static_ndet = np.zeros(4, dtype=int)
-    static_result = evidence.build_static_court_evidence(
+    static_result = static_courts.build_static_court_evidence(
         'case-a',
         'static_shuttleset_homography',
         1,
@@ -387,7 +388,7 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     def fail_static_lookup(*_args, **_kwargs):
         raise AssertionError('detected parent must not read static homography')
 
-    monkeypatch.setattr(evidence, 'get_court_info', fail_static_lookup)
+    monkeypatch.setattr(static_courts, 'get_court_info', fail_static_lookup)
     bboxes, scores, ndet = _pose_inputs(4)
     detected_result = evidence.build_court_detector_evidence(
         'case-a', 1, (1280.0, 720.0), (512.0, 288.0), [_scene(0, 4, FULL_FRAME_PX)], bboxes, scores, ndet,
@@ -423,7 +424,7 @@ def test_static_error_band_wrapper_matches_pure_helper() -> None:
         'training/data/shuttleset/annotations/set/homography.csv',
     ).set_index('id')
     fixture = next(item for item in FIXTURES if item.video_id == 1)
-    inputs = evidence.build_static_court_inputs(1, homography, fixture.resolution, [(0, 1)])
+    inputs = static_courts.build_static_court_inputs(1, homography, fixture.resolution, [(0, 1)])
     assert inputs.landing_error_band_m == pytest.approx(
         corner_error_band_from_corners(inputs.active_corners_refpx, inputs.court_info, 3.5),
     )

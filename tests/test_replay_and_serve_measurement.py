@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.evaluation.scoring import GtRally
+from experiments.annotator.legacy_evaluation.scoring import GtRally
 from labelling.scene_labels import SceneTruth, VideoMetadata, make_interval
 
 SCRIPT_PATH = (

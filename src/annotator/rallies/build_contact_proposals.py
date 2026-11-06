@@ -77,7 +77,7 @@ class RallyContext:
 
 @dataclass(frozen=True)
 class RallyOptions:
-    """Ordered options and their features, grouped by the initial rally span."""
+    """Alternative contact lists and their feature rows, grouped by initial rally."""
 
     sequences: tuple[ContactSequence, ...]
     matrix: np.ndarray
@@ -414,14 +414,9 @@ def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: 
 def initial_sequences(
     spans: Sequence[tuple[int, int]], events: Sequence[ContactEvent],
 ) -> tuple[ContactSequence, ...]:
-    """Number chronological half-open rally spans and give each its contacts.
+    """Group the initial contacts into ordered, disjoint rally spans.
 
-    Later stages rely on the spans being ordered and disjoint: serve edits may
-    move a start back only as far as the previous span's end.
-
-    :param spans: Heuristic ``(start_frame, end_frame)`` rally intervals.
-    :param events: Full-stream contact events in frame order.
-    :return: One contact sequence per span, numbered by position.
+    Later serve edits can move a start back only as far as the previous span's end.
     """
     sequences = []
     previous_end = -1

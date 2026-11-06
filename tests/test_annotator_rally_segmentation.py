@@ -10,11 +10,10 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.array_calc_helpers import _nan_rolling_mean, _rolling_mean, compute_speed
+from annotator.array_calc_helpers import compute_speed, rolling_mean, rolling_nanmean
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts import heuristics as contact_detection
 from annotator.contacts.heuristics import (
-    contact_proximity_ok,
     impulse_cell_candidates,
     span_impulses,
     suppress_contact_flags,
@@ -147,7 +146,7 @@ def test_ignore_invisible_smoothing_marks_all_invisible_span_unmeasurable() -> N
 def test_nan_rolling_mean_matches_stock_mean_on_finite_input() -> None:
     values = np.array([1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0])
 
-    assert np.array_equal(_nan_rolling_mean(values, 6), _rolling_mean(values, 6))
+    assert np.array_equal(rolling_nanmean(values, 6), rolling_mean(values, 6))
 
 
 def _triangle_track(step: float) -> np.ndarray:
@@ -193,7 +192,7 @@ def test_contact_assembly_keeps_gate_verdicts_and_suppresses_across_rallies(monk
         distances = np.zeros(len(track))
         distances[26] = np.inf
     contacts = contact_detection.assemble_contacts(
-        track, None, [(0, 20), (20, 40)], thresholds, distances, smoothing_mode=SmoothingMode.ZERO_FILL,
+        track, [(0, 20), (20, 40)], thresholds, distances, smoothing_mode=SmoothingMode.ZERO_FILL,
     )
     assert [(contact.rally_id, contact.contact_frame) for contact in contacts] == [(0, 18), (1, 22), (1, 26)]
     if with_wrist_distances:
@@ -201,37 +200,6 @@ def test_contact_assembly_keeps_gate_verdicts_and_suppresses_across_rallies(monk
         assert [contact.suppressed for contact in contacts] == [False, True, False]
     else:
         assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts)
-
-
-def test_proximity_ok_true_false_blank():
-    track, _, _, contacts = _build_rally_track()
-    contact_frame = contacts[0]
-    shuttle_xy = track[contact_frame, :2]
-
-    # Unmeasured: no positions supplied -> blank (None), never True.
-    assert contact_proximity_ok(track, None, contact_frame) is None
-
-    # Near player (slot 0 on top of the shuttle) -> True.
-    near = np.full((len(track), 2, 2), 5.0)
-    near[contact_frame, 0] = shuttle_xy
-    assert contact_proximity_ok(track, near, contact_frame) is True
-
-    # Both players far away -> False (measured, unconfirmed).
-    far = np.full((len(track), 2, 2), 5.0)
-    assert contact_proximity_ok(track, far, contact_frame) is False
-
-
-def test_segment_video_proximity_paths():
-    track, _, _, _ = _build_rally_track()
-    # No positions: every contact carries a blank guardrail.
-    _, contacts_blank = segment_video(track, positions=None, resolved=burst_config())
-    assert contacts_blank
-    assert all(contact.proximity_ok is None for contact in contacts_blank)
-
-    # Player sitting on the shuttle at every frame: every contact reads True.
-    positions = np.repeat(track[:, None, :2], 2, axis=1)  # (t, 2, 2) both slots on the shuttle
-    _, contacts_near = segment_video(track, positions=positions, resolved=burst_config())
-    assert all(contact.proximity_ok is True for contact in contacts_near)
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +226,7 @@ def test_segment_video_wrist_near_paths():
     assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts_blank)
     assert contacts_blank[0][:4] == (
         contacts_blank[0].rally_id, contacts_blank[0].contact_frame,
-        contacts_blank[0].proximity_ok, contacts_blank[0].wrist_near,
+        contacts_blank[0].wrist_near, contacts_blank[0].suppressed,
     )
 
     # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and

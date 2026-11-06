@@ -1,52 +1,21 @@
-"""Build the replay and off-rally mask.
+"""Exclude sustained court absence and slow-motion footage from rally detection.
 
-See ``docs/scraper_pipeline/scraper_architecture.md`` for the pipeline context.
-
-Court absence and slow-motion evidence are unioned into one `(frames,)` mask,
-true where the frame is a replay or otherwise off-rally. Saved per video to
-`config.MASKS_DIR / f'{video_id}_replay.npy'`, the same 1-D bool-over-frames
-convention as the pose `_failed.npy`.
-
-Missing inputs contribute an all-False component with a log line. Camera geometry
-describes the view but cannot distinguish live alternate coverage from a replay.
-
-Speed helpers in ``annotator.array_calc_helpers`` supply the same per-frame speed used by
-the rally rules.
-
-Run as `python -m annotator.excluded_frames.replay --video-id ...` with PYTHONPATH=src.
-Supply `--rally-spans` explicitly when computing a mask. `--no-replay-mask`
-writes an all-False mask without reading rally spans.
+Missing inputs contribute an all-False component. Camera changes alone do not
+distinguish live alternate coverage from replays.
 """
 
-import argparse
-import csv
 import logging
-from pathlib import Path
 
 import numpy as np
 
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian, true_runs
 from annotator.config import (
-    MASKS_DIR,
-    PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
     resolve,
 )
-from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
 
 log = logging.getLogger(__name__)
-
-# Corner columns of the per-segment homography CSV, in `[corner, xy]` order so
-# the flat 8-vector reshapes straight to (4, 2). Read by name (DictReader), so
-# the physical column order in the file is irrelevant.
-HOMOGRAPHY_CORNER_COLS = [
-    'upleft_x', 'upleft_y',
-    'upright_x', 'upright_y',
-    'downleft_x', 'downleft_y',
-    'downright_x', 'downright_y',
-]
-
 
 # ---------------------------------------------------------------------------
 # Signal 1: court absence
@@ -74,74 +43,6 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
     for start, end in true_runs(absent):
         if end - start >= window:
             mask[start:end] = True
-    return mask
-
-
-# ---------------------------------------------------------------------------
-# Signal 2: perspective shift
-# ---------------------------------------------------------------------------
-def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
-    """Weighted median: the smallest value whose cumulative weight reaches half.
-
-    Ties resolve to the lower value (searchsorted left). Used to pick the
-    dominant broadcast view, weighting each segment by its frame duration.
-
-    :param values: `(k,)` values.
-    :param weights: `(k,)` non-negative weights.
-    :return: the weighted-median value.
-    """
-    order = np.argsort(values)
-    sorted_values = values[order]
-    cumulative = np.cumsum(weights[order])
-    half = 0.5 * cumulative[-1]
-    idx = int(np.searchsorted(cumulative, half))
-    return float(sorted_values[min(idx, len(sorted_values) - 1)])
-
-
-def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) -> np.ndarray:
-    """Fire on segments whose court corners deviate from the dominant view.
-
-    The dominant broadcast view is the duration-weighted median of each corner
-    coordinate across all segments; a segment whose mean corner displacement
-    from it (normalised by the reference court's bounding-box diagonal) exceeds
-    PERSPECTIVE_SHIFT_THRESHOLD has a different view and its frames fire.
-
-    This is a descriptive camera-change signal, not a replay classification.
-    The normalisation uses the reference court's diagonal, so no frame resolution
-    is needed.
-
-    :param homography_rows: per-segment dict rows for this video, or None/empty.
-    :param n_frames: video frame count (the mask length).
-    :return: `(n_frames,)` bool signal.
-    """
-    mask = np.zeros(n_frames, dtype=bool)
-    if not homography_rows:
-        log.info('homography rows missing; perspective-shift signal all-False')
-        return mask
-
-    starts = np.array([int(row['start_frame']) for row in homography_rows])  # (n_seg,)
-    ends = np.array([int(row['end_frame']) for row in homography_rows])  # (n_seg,)
-    durations = (ends - starts).astype(float)  # (n_seg,) weight
-    corners = np.array(
-        [[float(row[col]) for col in HOMOGRAPHY_CORNER_COLS] for row in homography_rows]
-    )  # (n_seg, 8)
-
-    reference = np.array(
-        [_weighted_median(corners[:, col], durations) for col in range(corners.shape[1])]
-    )  # (8,) dominant view
-    seg_xy = corners.reshape(len(homography_rows), 4, 2)  # (n_seg, 4, 2) [corner, xy]
-    ref_xy = reference.reshape(4, 2)  # (4, 2)
-
-    mean_displacement = np.linalg.norm(seg_xy - ref_xy, axis=2).mean(axis=1)  # (n_seg,)
-    ref_span = ref_xy.max(axis=0) - ref_xy.min(axis=0)  # (2,) bbox width, height
-    diagonal = float(np.hypot(*ref_span))
-    if diagonal <= 0:
-        log.info('degenerate reference court (zero diagonal); perspective-shift signal all-False')
-        return mask
-
-    shifted = (mean_displacement / diagonal) > PERSPECTIVE_SHIFT_THRESHOLD  # (n_seg,)
-    for seg in np.flatnonzero(shifted):
-        mask[starts[seg]:ends[seg]] = True
     return mask
 
 
@@ -272,80 +173,6 @@ def filter_exclusion_mask(raw_mask: np.ndarray, n_frames: int, min_frames: int) 
     if raw_mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
     return filter_short_exclusion_runs(raw_mask, min_frames)
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-
-def _read_rally_spans(csv_path: Path, video_id: str) -> list[tuple[int, int]]:
-    """Read `(start_frame, end_frame)` rally spans for one video from the spans CSV."""
-    with csv_path.open(newline='', encoding='utf-8') as handle:
-        return [
-            (int(row['start_frame']), int(row['end_frame']))
-            for row in csv.DictReader(handle)
-            if row.get('video_id') == video_id
-        ]
-
-
-def _cli_non_evidence(track: np.ndarray | None) -> np.ndarray | None:
-    """Grade a CLI track and return frames rejected by the resolved policy."""
-    if track is None:
-        return None
-    codes, _guard_info = grade_track(track)
-    log.info('inpaint grade counts: %s', code_counts(codes))
-    return np.isin(codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description='Replay masking: replay/off-rally mask for one video.')
-    parser.add_argument('--video-id', required=True)
-    parser.add_argument('--shuttle', type=Path, default=None,
-                        help='<video_id>.npy (t, 3) shuttle track')
-    parser.add_argument('--court-mask', type=Path, default=None,
-                        help='<video_id> court-present (frames,) bool npy')
-    parser.add_argument('--rally-spans', type=Path, help='rally spans CSV required when computing the replay mask')
-    parser.add_argument('--out-dir', type=Path, default=MASKS_DIR)
-    parser.add_argument('--fps', type=float, required=True)
-    parser.add_argument('--no-replay-mask', action='store_true',
-                        help='skip detector computation and write an all-False mask')
-    args = parser.parse_args()
-    if not args.no_replay_mask and args.rally_spans is None:
-        parser.error('--rally-spans is required unless --no-replay-mask is used')
-
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
-    log.info('config: no_replay_mask=%s', args.no_replay_mask)
-
-    track = np.load(args.shuttle) if args.shuttle and args.shuttle.exists() else None
-    court_present = np.load(args.court_mask) if args.court_mask and args.court_mask.exists() else None
-    rally_spans = [] if args.no_replay_mask else _read_rally_spans(args.rally_spans, args.video_id)
-
-    # Frame count: court mask and shuttle track both span the whole video; use
-    # whichever is present. Without either there is nothing to size the mask to.
-    if court_present is not None:
-        n_frames = len(court_present)
-    elif track is not None:
-        n_frames = len(track)
-    else:
-        raise FileNotFoundError('need a court-present mask or a shuttle track to size the frame mask')
-
-    if args.no_replay_mask:
-        mask = np.zeros(n_frames, dtype=bool)
-    else:
-        mask = combine_mask(
-            court_present,  track, rally_spans, n_frames, args.fps,
-            non_evidence=_cli_non_evidence(track),
-        )
-
-    args.out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = args.out_dir / f'{args.video_id}_replay.npy'
-    np.save(out_path, mask)
-    log.info('%s: %d/%d frames masked -> %s', args.video_id, int(mask.sum()), n_frames, out_path)
-
-
-if __name__ == '__main__':
-    main()
 
 
 def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:

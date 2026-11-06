@@ -17,6 +17,7 @@ from shared.court import HOMOGRAPHY_RESOLUTION
 
 @dataclass(frozen=True)
 class SceneCourt:
+    """Geometry, net band and landing uncertainty for one accepted frame interval."""
     start_frame: int
     end_frame: int
     court_info: dict[str, object]

@@ -1,7 +1,7 @@
 # Maintainer guide
 
 Preserve the decisions and data contracts at each stage when changing the
-annotator. [`run_video()`](../../src/annotator/annotate_video.py) is the main reading
+annotator. [`annotate_video()`](../../src/annotator/annotate_video.py) is the main reading
 entry point; the [code map](code_map.md) identifies the owner of each decision.
 The [algorithm guide](how_it_works.md) explains why the stages exist.
 
@@ -80,7 +80,7 @@ Joblib records Python class paths, so moving saved classes can require rebuildin
 their artefacts. Use the corresponding historical checkout for older bundles and
 settings.
 
-Training and inference share `prepare_annotation()` in
+Training and inference share `prepare_contact_inference()` in
 [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py). Rebuild prepared inputs in a
 fresh directory when their feature layout changes. The prepared-input loader
 checks the current candidate-row columns before training or scoring.

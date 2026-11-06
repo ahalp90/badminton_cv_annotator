@@ -40,7 +40,7 @@ REVIEW_FEATURE_NAMES = (
 
 @dataclass(frozen=True)
 class RallySelector:
-    """Fitted selector and the proposal budgets used during training."""
+    """Fitted rally-proposal classifier and the edit limits used to generate its inputs."""
 
     selector: Any
     max_edits: int = 3
@@ -53,7 +53,7 @@ class RallySelector:
 
 @dataclass(frozen=True)
 class RallyPrediction:
-    """Final annotations and the option scores that produced them."""
+    """Chosen rallies, candidate contact stream and the proposal scores used to select them."""
 
     rallies: tuple[FinishedRally, ...]
     events: tuple[ContactEvent, ...]
@@ -77,14 +77,14 @@ class RallyReviewFeatures:
 
 @dataclass(frozen=True)
 class RallyReview:
-    """Review priority scores; they do not change annotations or approve rallies."""
+    """Confidence scores used to rank rallies for review; lower scores need more attention."""
 
     features: RallyReviewFeatures
     scores: np.ndarray
 
 
 def predict_rally_options(models: RallySelector, pool: RallyOptions) -> RallyPrediction:
-    """Choose one option per rally, then finish its bounds and player sides."""
+    """Score alternative contact lists, choose one per rally, and finish bounds and hitters."""
     scores = positive_probabilities(models.selector, pool.matrix)
     chosen = choose_rows(pool, scores)
     rallies, events = finish_rallies(pool, chosen)
@@ -206,13 +206,7 @@ def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
 
 
 def score_rally_review(prediction: RallyPrediction, model: Any) -> RallyReview:
+    """Estimate each finished rally's probability of being correct."""
     features = build_review_features(prediction)
     scores = positive_probabilities(model, features.matrix)
-    return RallyReview(features, scores)
-
-
-def score_selector_review(prediction: RallyPrediction) -> RallyReview:
-    """Expose selector scores for experimental ranking comparisons."""
-    features = build_review_features(prediction)
-    scores = prediction.scores[list(prediction.chosen.values())]
     return RallyReview(features, scores)

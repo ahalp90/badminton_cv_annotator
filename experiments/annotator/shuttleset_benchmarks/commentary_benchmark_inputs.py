@@ -17,7 +17,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.scoring import load_gt_rallies
 from dataset_builder.commentary_inputs import (
     _mapping,
     _sequence,
@@ -27,6 +26,7 @@ from dataset_builder.commentary_inputs import (
     load_retimed_chunks_for_video,
 )
 from dataset_builder.vision import load_json_gz, load_npy_xz
+from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies
 from experiments.annotator.shuttleset_benchmarks.shuttleset22_features import (
     ANNOTATION_TREE_SHA256,
     _tree_digest,
@@ -296,7 +296,7 @@ def _issue103_inputs(
         "issue #103 run manifest", run_manifest_path, ISSUE103_RUN_MANIFEST_SHA256
     )
     collection = load_json_gz(rally_records_path)
-    if collection.get("schema") != "rally-record-collection/0.3":
+    if collection.get("schema") != "rally-record-collection/0.4":
         raise ValueError("issue #103 rally-record schema differs")
     rallies: dict[str, list[tuple[int, int, int]]] = {
         video_id: [] for video_id in EXPECTED_SHUTTLESET_IDS

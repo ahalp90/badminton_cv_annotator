@@ -1,4 +1,9 @@
-"""Prepare shuttle, player and court evidence for annotation and model fitting."""
+"""Build the inputs shared by heuristic and learned contact inference.
+
+Prepare scene geometry, track players, measure wrist gaps, exclude unusable
+frames and find initial rallies and heuristic contact candidates. Training
+uses the same prepared evidence before building learned-model features.
+"""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -8,7 +13,7 @@ import pandas as pd
 
 from annotator import player_tracking
 from annotator.config import ResolvedAnnotatorConfig
-from annotator.contacts.player_attribution import measure_sticky_distances
+from annotator.contacts.player_attribution import measure_wrist_distances
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.excluded_frames.replay import (
     combine_mask,
@@ -20,7 +25,7 @@ from annotator.types import ContactCandidate, StickyResult
 
 @dataclass(frozen=True)
 class AnnotationEvidence:
-    """Original video arrays and completed rally/contact preparation."""
+    """Original vision arrays, tracked players, masks and initial rally/contact detections."""
 
     identity: str
     resolution: tuple[float, float]
@@ -50,7 +55,7 @@ class AnnotationEvidence:
         return [contact.contact_frame for contact in self.heuristic_contacts]
 
 
-def prepare_annotation(
+def prepare_contact_inference(
     track: np.ndarray,
     bboxes: np.ndarray,
     scores: np.ndarray,
@@ -69,9 +74,10 @@ def prepare_annotation(
     inpaint_codes: np.ndarray | None = None,
     court_invalid_is_excluded: bool = False,
 ) -> AnnotationEvidence:
-    """Build masks, sticky players and initial rallies from the original arrays.
+    """Prepare player/court evidence and initial rallies for contact inference.
 
-    Supplied contacts bypass candidate detection and retain their input order.
+    The result feeds either inference route and supplies feature inputs during
+    training. Supplied contacts bypass candidate detection and retain their order.
     Supplied spans bypass span finding. Neither changes the original shuttle track.
     """
     if isinstance(homography_rows, pd.DataFrame):
@@ -82,7 +88,7 @@ def prepare_annotation(
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
     # Player tracking needs the original track before dead-time masking.
     segments = player_tracking.tracker_segments(scene_courts, court_present, len(track))
-    sticky = build_sticky_result(
+    sticky = build_player_evidence(
         track, segments, bboxes, scores, kps, ndet,
         resolution, resolved.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
@@ -112,7 +118,7 @@ def prepare_annotation(
         if original_spans is None:
             original_spans = find_rally_spans(track, resolved)
         rally_spans = original_spans
-        raw_contacts = [ContactCandidate(rally_id, frame, None, None, None)
+        raw_contacts = [ContactCandidate(rally_id, frame, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
     else:
         rally_spans, raw_contacts = segment_video(
@@ -140,14 +146,14 @@ def build_shuttle_hallucination_mask(
     return np.isin(inpaint_codes, tuple(rejected_grades)), inpaint_codes
 
 
-def build_sticky_result(
+def build_player_evidence(
     track: np.ndarray, segments: list[tuple[int, int]],
     pose_bboxes: np.ndarray, pose_scores: np.ndarray, pose_kps: np.ndarray,
     pose_ndet: np.ndarray,
     resolution: tuple[float, float], half_window: int,
     *, scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
-    """Run sticky player tracking and measure its contact and serve evidence."""
+    """Track the top/bottom players, then measure their shuttle-to-wrist gaps."""
     evidence = player_tracking.track_sticky_players(
         len(track),
         segments,
@@ -158,5 +164,5 @@ def build_sticky_result(
         resolution,
         scene_courts,
     )
-    measure_sticky_distances(track, segments, pose_kps, resolution, half_window, evidence)
+    measure_wrist_distances(track, segments, pose_kps, resolution, half_window, evidence)
     return evidence

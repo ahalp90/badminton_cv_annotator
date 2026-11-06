@@ -3,8 +3,8 @@
 import numpy as np
 
 from annotator.array_calc_helpers import (
-    _rolling_mean,
     compute_speed,
+    rolling_mean,
     rolling_nanmedian,
     true_runs,
 )
@@ -97,7 +97,7 @@ def build_rest_mask(
     speed_median = rolling_nanmedian(speed, rest_window)  # (t,)
     slow = speed_median < rest_speed  # NaN windows read not-slow here...
     visible = (track[:, 2] == 1).astype(float)  # (t,) 1.0 where tracked
-    frac_visible = _rolling_mean(visible, rest_window)  # (t,) fraction tracked in window
+    frac_visible = rolling_mean(visible, rest_window)  # (t,) fraction tracked in window
     mostly_untracked = frac_visible < VISIBILITY_REST_FRAC  # ...and the OR below catches them
     return slow | mostly_untracked
 
@@ -206,7 +206,7 @@ def find_rally_spans(
 
 
 def segment_video(
-    track: np.ndarray, positions: np.ndarray | None = None, *,
+    track: np.ndarray, *,
     resolved: ResolvedAnnotatorConfig,
     exclusion_mask: np.ndarray | None = None,
     sticky_distances: np.ndarray | None = None,
@@ -228,6 +228,6 @@ def segment_video(
     if spans is None:
         spans = find_rally_spans(track, resolved)
     return spans, assemble_contacts(
-        track, positions, spans, resolved.thresholds, sticky_distances,
+        track, spans, resolved.thresholds, sticky_distances,
         smoothing_mode=resolved.smoothing_mode,
     )

@@ -16,11 +16,10 @@ contact times, top/bottom hitters, landings and estimated winners.
 | Initial rally boundaries | [`rallies/find_rallies.py`](rallies/find_rallies.py) |
 | Alternative contact lists for each rally | [`rallies/build_contact_proposals.py`](rallies/build_contact_proposals.py) |
 | Choosing a contact list and finishing rally bounds | [`rallies/refine_rallies.py`](rallies/refine_rallies.py) |
-| Camera geometry and recurring views | [`courts/`](courts/) |
+| Per-scene court geometry | [`courts/`](courts/) |
 | Excluded footage and fabricated shuttle positions | [`excluded_frames/`](excluded_frames/) |
 | Landings, point winners and contact heights | [`rally_results/`](rally_results/) |
 | Fitting and evaluating the current learned models | [`training/`](training/) |
-| Ground-truth scoring used by earlier fixture experiments | [`evaluation/`](evaluation/) |
 
 `python -m annotator` runs the full annotator. `python -m annotator.training`
 fits or evaluates the three learned models. See the
@@ -29,3 +28,7 @@ fits or evaluates the three learned models. See the
 Manual editors are in [`labelling`](../labelling/). Video rendering is in
 [`video_overlay`](../video_overlay/). Historical pinned benchmarks are in
 [`experiments/annotator/shuttleset_benchmarks`](../../experiments/annotator/shuttleset_benchmarks/).
+
+Historical fixture scoring and static calibration experiments are in
+[`legacy_evaluation`](../../experiments/annotator/legacy_evaluation/). Recurring
+camera views are matched in [`court_detector/view_matching.py`](../court_detector/view_matching.py).

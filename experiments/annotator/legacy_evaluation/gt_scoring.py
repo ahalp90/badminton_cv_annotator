@@ -1,4 +1,4 @@
-"""Committed ShuttleSet ground-truth scoring for the annotator chain."""
+"""Score saved or newly inferred rallies against ShuttleSet ground-truth columns."""
 from __future__ import annotations
 
 import argparse
@@ -12,10 +12,14 @@ from typing import NamedTuple, Protocol
 import numpy as np
 import pandas as pd
 
-from annotator.annotate_video import AnnotatorResult, run_video
+from annotator.annotate_video import AnnotatorResult, annotate_video
 from annotator.config import frames_at_fps
 from annotator.courts.frame_geometry import SceneCourt, court_at_frame
-from annotator.evaluation.fixtures import (
+from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
+from annotator.rally_results import landing_and_winner as point_winner
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.types import CourtHalf
+from experiments.annotator.legacy_evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
     SHARED_FILES,
@@ -24,7 +28,7 @@ from annotator.evaluation.fixtures import (
     verify_file,
     verify_run_video_fixture,
 )
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.scoring import (
     CANONICAL_CONTACT_TOLERANCE_BASE30,
     RallyBoundary,
     classify_all,
@@ -33,10 +37,6 @@ from annotator.evaluation.scoring import (
     safe_f1,
     score_boundaries,
 )
-from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
-from annotator.rally_results import landing_and_winner as point_winner
-from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.types import CourtHalf
 from shared.court import (
     HOMOGRAPHY_RESOLUTION,
     load_all_court_info,
@@ -408,13 +408,11 @@ def aggregate_rally_scores(rows: Sequence[RallyRow]) -> dict[str, ColumnAgg]:
 
 
 class VideoScoring(NamedTuple):
-    """All per-video calibration rows, aggregates, counts, and diagnostics.
+    """Per-video accuracy rows, totals and unavailable-result diagnostics.
 
-    ``rows`` and ``boundary_metrics`` retain rally-level and boundary results.
-    ``ColumnAgg`` fields and timing pairs hold primary and covered-only counts.
-    Timing's correct counts are also contact matches within the scoring tolerance.
-    Contact totals support precision and recall, while the remaining lists and
-    mappings retain unavailable hit-height reasons, absolute errors and landing details.
+    Primary totals include all eligible labels. Covered-only totals include labels
+    whose rallies map to one detected span. Timing totals count matched contacts
+    within tolerance; the remaining fields retain errors and unavailable estimates.
     """
 
     name: str
@@ -441,10 +439,10 @@ class VideoScoring(NamedTuple):
 
 
 class RunVideoInputs(NamedTuple):
-    """Fixture-invariant arguments for one ``run_video`` invocation.
+    """Prepared positional and keyword arguments for an annotation experiment.
 
-    Calibration callers overlay only the candidate configuration, serve request,
-    or an explicitly supplied replacement dead mask.
+    Callers may override preprocessing settings or supply an alternative exclusion
+    mask before invoking ``annotate_video``.
     """
 
     positional: tuple[object, object, object, object, object]
@@ -487,7 +485,7 @@ def load_gt_tables() -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:
 
 
 def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
-    """Load one fixture and assemble its invariant ``run_video`` inputs."""
+    """Load one fixture and assemble the inputs shared by its annotation experiments."""
     arrays = load_fixture_arrays(fixture)
     master, _homo, courts, _resolution = load_gt_tables()
     track, bboxes, scores, kps, ndet, committed_mask = arrays
@@ -808,7 +806,7 @@ def run_fixture(
             raise TypeError('fixture track must be a numpy array')
         keyword['raw_exclusion_mask'] = np.zeros(len(track), dtype=bool)
     keyword["rejection_diagnostics"] = rejection_rows
-    result = run_video(*inputs.positional, **keyword, heuristic_only=True)
+    result = annotate_video(*inputs.positional, **keyword, heuristic_only=True)
     if diagnostics_dir is not None:
         write_guard_diagnostics(fixture, inputs, rejection_rows, diagnostics_dir)
     return score_video(fixture, result, inputs.master, inputs.courts, canonical_tolerance(fixture.fps))
@@ -822,7 +820,7 @@ def write_rallies_csv(rows: Iterable[RallyRow], path: Path) -> None:
 
 
 def write_geometric_verdicts_csv(rows: Iterable[tuple[int, str, str, bool | None, bool]], path: Path) -> None:
-    """Write the additive per-rally geometric winner diagnostics."""
+    """Write per-rally landing-based winner estimates and their agreement with labels."""
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow((
@@ -835,7 +833,7 @@ def write_geometric_verdicts_csv(rows: Iterable[tuple[int, str, str, bool | None
 def write_guard_diagnostics(
     fixture: Fixture, inputs: RunVideoInputs, rows: Iterable[dict[str, object]], output_dir: Path,
 ) -> None:
-    """Write unpinned inpaint grades and event-rejection rows for one video."""
+    """Write shuttle-hallucination grades and event-rejection rows for one video."""
     video_dir = output_dir / fixture.name
     video_dir.mkdir(parents=True, exist_ok=True)
     codes = inputs.keyword["inpaint_codes"]

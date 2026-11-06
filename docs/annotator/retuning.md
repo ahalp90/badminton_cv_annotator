@@ -148,7 +148,7 @@ Record the manifest and full fit settings beside the model. Record input version
 seeds, sampling order and fit-row order when comparing runs. A seed alone does
 not reproduce a fit when rows or features change order.
 
-Heuristic experiments remain available through `run_video(...,
+Heuristic experiments remain available through `annotate_video(...,
 heuristic_only=True, base=config)` and the existing
 [`heuristic_only_tune`](../../experiments/annotator/heuristic_only_tune/) tools.
 Use separate result directories for each configuration. The same preprocessing

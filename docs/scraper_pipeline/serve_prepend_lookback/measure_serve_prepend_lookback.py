@@ -28,6 +28,7 @@ import json
 import lzma
 import math
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -36,23 +37,10 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.annotate_video import RunCapture, run_video
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from annotator.annotate_video import RunCapture, annotate_video
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
-from annotator.evaluation.fixtures import (
-    FIXTURES,
-    SSET_01,
-    SSET_15,
-    SSET_21,
-    Fixture,
-    fixtures_root,
-)
-from annotator.evaluation.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.evaluation.scoring import (
-    RallyBoundary,
-    classify_all,
-    greedy_match,
-    load_gt_rallies,
-)
 from annotator.excluded_frames.shuttle_hallucination import (
     DEGRADED,
     FABRICATED,
@@ -61,6 +49,24 @@ from annotator.excluded_frames.shuttle_hallucination import (
 )
 from experiments.annotator.heuristic_tuning import (
     serve_prepend_measurement as candidate_measurement,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SSET_01,
+    SSET_15,
+    SSET_21,
+    Fixture,
+    fixtures_root,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    build_run_video_inputs,
+    canonical_tolerance,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    RallyBoundary,
+    classify_all,
+    greedy_match,
+    load_gt_rallies,
 )
 from labelling.scene_labels import VideoMetadata
 
@@ -302,7 +308,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     capture = RunCapture()
     keyword["capture"] = capture
     keyword["rejection_diagnostics"] = []
-    result = run_video(*inputs.positional, **keyword)
+    result = annotate_video(*inputs.positional, **keyword)
 
     assert capture.evidence is not None
     raw_mask = capture.evidence.raw_exclusion_mask
@@ -463,7 +469,7 @@ def measure_candidate_fixture(
     keyword = dict(inputs.keyword)
     capture = RunCapture()
     keyword["capture"] = capture
-    natural_result = run_video(*inputs.positional, **keyword)
+    natural_result = annotate_video(*inputs.positional, **keyword)
     assert capture.evidence is not None
 
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)

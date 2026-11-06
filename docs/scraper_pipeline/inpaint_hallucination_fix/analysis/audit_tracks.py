@@ -39,18 +39,17 @@ from annotator.config import (  # noqa: E402
     resolve,
 )
 from annotator.contacts.heuristics import impulse_cell_candidates  # noqa: E402
-from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
 from annotator.excluded_frames.replay import filter_exclusion_mask  # noqa: E402
 from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track  # noqa: E402
 from annotator.rallies.find_rallies import segment_video  # noqa: E402
 from annotator.types import ContactCandidate  # noqa: E402
+from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies  # noqa: E402
 
 
 def segment_shuttle_track(
     track: np.ndarray,
     resolved: ResolvedAnnotatorConfig,
     *,
-    positions: np.ndarray | None = None,
     raw_exclusion_mask: np.ndarray | None = None,
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Segment a shuttle track without player tracking or court evidence.
@@ -63,7 +62,7 @@ def segment_shuttle_track(
     exclusion_mask = filter_exclusion_mask(
         raw_exclusion_mask, len(track), resolved.thresholds.replay_mask_min_frames,
     )
-    return segment_video(track, positions=positions, resolved=resolved, exclusion_mask=exclusion_mask)
+    return segment_video(track, resolved=resolved, exclusion_mask=exclusion_mask)
 
 
 FRAME_WIDTH = 512

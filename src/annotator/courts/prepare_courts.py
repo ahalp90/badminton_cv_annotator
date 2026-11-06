@@ -1,36 +1,24 @@
-"""Court evidence and parent-specific geometry for the annotator chain.
+"""Prepare detected court geometry and accepted-frame masks for annotation.
 
-Here, a parent is one alternative court-evidence producer profile for a run,
-not process lineage. The static parent reads the ShuttleSet homography table.
-The detected parent reads one ``court_detector.run_video`` result. Both give
-the same operational interface. The two parents share only their raw scene
-intervals; scene geometry and person votes are built from the active parent.
+Each detected scene is accepted using player occupancy against its own court
+geometry. Static ShuttleSet fixtures are prepared by the historical experiments.
 """
 from __future__ import annotations
 
-import itertools
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
 
 import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig, resolve
-from shared.camera_cuts import detect_cuts
 from shared.court import (
     HOMOGRAPHY_RESOLUTION,
-    get_corner_camera,
-    get_court_info,
     project_pixels_to_court,
 )
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
-
-# ShuttleSet TL, TR, BL, BR corners become the detector's TL, TR, BR, BL order.
-SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
 
 DETECTED_PARENT = 'court_detector'
 # court_detector.run_video.VIDEO_RESULT_SCHEMA. Importing run_video would set
@@ -60,10 +48,11 @@ UNIT_COURT_CORNERS = np.array(
 
 
 class SceneStatus(StrEnum):
-    """One scene's court outcome, in ``court_detector.run_video``'s words.
+    """The court detector's classification of one scene.
 
-    Only ``court`` scenes carry corners. Every static-parent scene is ``court``,
-    because the homography table supplies one.
+    Only ``court`` scenes carry corners. The historical supplied-calibration
+    helpers in ``experiments.annotator.legacy_evaluation.static_courts`` also
+    assign that status because their homography rows already provide a court.
     """
 
     COURT = 'court'
@@ -74,11 +63,10 @@ class SceneStatus(StrEnum):
 
 @dataclass(frozen=True)
 class CourtInputs:
-    """All court-dependent inputs needed by one ``run_video`` parent.
+    """Court geometry, frame masks and scene rows supplied to annotation.
 
-    Arrays and tables are copied at construction because the dataclass's frozen
-    fields prevent rebinding, but do not make mutable NumPy or pandas values
-    immutable themselves.
+    Construction copies mutable arrays and tables; frozen dataclass fields alone
+    would only prevent rebinding.
     """
 
     court_info: dict[str, object]
@@ -143,7 +131,7 @@ class CourtSceneRecord:
 
 @dataclass(frozen=True)
 class CourtEvidenceResult:
-    """One parent build, including operational arrays and writer evidence."""
+    """Prepared court inputs, occupancy votes and per-scene records."""
 
     inputs: CourtInputs | None
     scene_records: tuple[CourtSceneRecord, ...]
@@ -170,45 +158,6 @@ def _copy_court_info(court_info: dict[str, object]) -> dict[str, object]:
         key: value.copy() if isinstance(value, np.ndarray) else value
         for key, value in court_info.items()
     }
-
-
-def _normalise_intervals(raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame) -> list[tuple[int, int]]:
-    """Return sorted, contiguous half-open intervals."""
-    if isinstance(raw_cuts, pd.DataFrame):
-        interval_values = raw_cuts[['start_frame', 'end_frame']].itertuples(index=False, name=None)
-    else:
-        interval_values = raw_cuts
-    intervals = sorted((int(start), int(end)) for start, end in interval_values)
-    if not intervals:
-        raise ValueError('raw cuts must contain at least one scene')
-    expected_start = intervals[0][0]
-    if expected_start != 0:
-        raise ValueError('raw cuts must begin at frame zero')
-    for start, end in intervals:
-        if start != expected_start or end <= start:
-            raise ValueError('raw cuts must be non-empty, contiguous half-open intervals')
-        expected_start = end
-    return intervals
-
-
-def build_raw_cut_intervals(video_path: Path, n_frames: int, fps: float) -> list[tuple[int, int]]:
-    """Run the pinned cut detector once and return complete half-open intervals."""
-    cut_frames = detect_cuts(
-        video_path,
-        expected_frames=n_frames,
-        threshold=COMPOSITION_CONTENT_THRESHOLD,
-        min_scene_len=resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len,
-    )
-    cut_frames = np.asarray(cut_frames, dtype=int)
-    boundaries = np.concatenate((np.array([0], dtype=int), cut_frames, np.array([n_frames], dtype=int)))
-    intervals = [(int(start), int(end)) for start, end in itertools.pairwise(boundaries)]
-    if any(start < 0 or end > n_frames or end <= start for start, end in intervals):
-        raise ValueError('detected cuts do not form non-empty in-range intervals')
-    if intervals[0][0] != 0 or intervals[-1][1] != n_frames:
-        raise ValueError('detected cuts do not cover the video')
-    if any(end != next_start for (_, end), (next_start, _) in itertools.pairwise(intervals)):
-        raise ValueError('detected cuts contain a gap or overlap')
-    return intervals
 
 
 def read_detector_scenes(
@@ -264,18 +213,6 @@ def _as_ref_corners(corners: np.ndarray, source_resolution: tuple[float, float])
     corners = np.asarray(corners, dtype=float)
     scale = np.asarray(HOMOGRAPHY_RESOLUTION, dtype=float) / np.asarray(source_resolution, dtype=float)
     return corners * scale
-
-
-def _as_native_corners(corners_refpx: np.ndarray) -> np.ndarray:
-    """Convert reference-space corners to native 512x288 video pixels."""
-    scale = np.asarray(DETECTOR_RESOLUTION, dtype=float) / np.asarray(HOMOGRAPHY_RESOLUTION, dtype=float)
-    return np.asarray(corners_refpx, dtype=float) * scale
-
-
-def _static_corners_refpx(homography_row: pd.Series) -> np.ndarray:
-    """Return static row corners in TL/TR/BR/BL order."""
-    source_order = get_corner_camera(homography_row).T
-    return source_order[list(SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER)].copy()
 
 
 def detected_court_info(corners_refpx: np.ndarray) -> dict[str, object]:
@@ -361,7 +298,7 @@ def build_scene_rows(
     corners_refpx: Sequence[np.ndarray],
     resolution: tuple[float, float],
 ) -> pd.DataFrame:
-    """Build the pose-resolution scene table expected by sticky and replay."""
+    """Build per-scene corner rows in the pose video's pixel coordinates."""
     rows = [
         _scene_row(video_id, interval, corners, resolution)
         for interval, corners in zip(intervals, corners_refpx)
@@ -409,7 +346,7 @@ def build_court_present(
     scene_intervals: Sequence[tuple[int, int]],
     scene_valid: Sequence[bool],
 ) -> np.ndarray:
-    """Expand each scene's exactly-two majority to the sole court vector."""
+    """Mark frames in scenes whose majority vote identifies exactly two in-court players."""
     court_present = np.zeros(len(keep_vote), dtype=np.bool_)
     for scene_index, (start_frame, end_frame) in enumerate(scene_intervals):
         court_present[start_frame:end_frame] = bool(scene_valid[scene_index])
@@ -440,84 +377,9 @@ def corner_error_band_from_corners(
     return float(np.median(displacements))
 
 
-def build_static_court_inputs(
-    video_id: int | str,
-    homo_df: pd.DataFrame,
-    resolution: tuple[float, float],
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    *,
-    ref_err_px: float = 3.5,
-) -> CourtInputs:
-    """Build static inputs from the existing ShuttleSet homography row."""
-    intervals = _normalise_intervals(raw_cuts)
-    court_info = get_court_info(homo_df, video_id)
-    active_corners = _static_corners_refpx(homo_df.loc[video_id])
-    homography_rows = build_scene_rows(video_id, intervals, [active_corners] * len(intervals), resolution)
-    return CourtInputs(
-        court_info=court_info,
-
-        net_band=build_net_band(court_info, resolution),
-        resolution=tuple(map(float, resolution)),
-        homography_rows=homography_rows,
-        landing_error_band_m=corner_error_band_from_corners(active_corners, court_info, ref_err_px),
-        active_corners_refpx=active_corners,
-    )
-
-
 def _scene_fraction(keep_vote: np.ndarray, interval: tuple[int, int]) -> float:
     start_frame, end_frame = interval
     return float(keep_vote[start_frame:end_frame].mean())
-
-
-def build_static_court_evidence(
-    case_id: str,
-    parent: str,
-    video_id: int | str,
-    homo_df: pd.DataFrame,
-    resolution: tuple[float, float],
-    raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    bboxes: np.ndarray,
-    scores: np.ndarray,
-    ndet: np.ndarray,
-    *,
-    ref_err_px: float = 3.5,
-) -> CourtEvidenceResult:
-    """Build static inputs, votes and writer records in one parent pass."""
-    intervals = _normalise_intervals(raw_cuts)
-    inputs = build_static_court_inputs(
-        video_id, homo_df, resolution, intervals,
-        ref_err_px=ref_err_px,
-    )
-    provisional_infos = [inputs.court_info] * len(intervals)
-    keep_vote = build_keep_vote(
-        bboxes, scores, ndet, resolution, intervals, provisional_infos,
-    )
-    scene_valid = [
-        _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
-        for interval in intervals
-    ]
-    court_present = build_court_present(keep_vote, intervals, scene_valid)
-    static_corners_px = _as_native_corners(inputs.active_corners_refpx)
-    records = []
-    for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid)):
-        records.append(CourtSceneRecord(
-            video_id=video_id,
-            case_id=case_id,
-            parent=parent,
-            scene_index=scene_index,
-            start_frame=start,
-            end_frame=end,
-            status=SceneStatus.COURT,
-            analysed_frame=None,
-            corners_native_px=static_corners_px,
-            no_court_reason=None,
-            reused_from=None,
-            error=None,
-            exactly_two_count=int(keep_vote[start:end].sum()),
-            exactly_two_fraction=_scene_fraction(keep_vote, (start, end)),
-            scene_valid=valid,
-        ))
-    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)
 
 
 def build_court_detector_evidence(
@@ -532,16 +394,13 @@ def build_court_detector_evidence(
     *,
     ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
-    """Vote on each scene's own detected court and assemble the detected parent.
+    """Accept scene-specific detected courts using their player-occupancy votes.
 
-    A ``court`` scene is accepted when at least half its frames hold exactly two
-    people inside its court's margin. Accepted scenes keep their own corners in
-    the scene rows. Every other scene gets ``court_present`` False and keeps its
-    status as the reason.
+    A ``court`` scene is accepted when at least half its frames contain exactly two
+    people inside the court margin. Accepted scenes retain their own corner rows.
+    Rejected scenes have ``court_present`` False and keep their rejection status.
 
-    :param resolution: pose pixel size, which ``bboxes`` use.
-    :param native_size: source-video pixel size, which the detector corners use.
-    :raises NoAcceptedCourtError: when no scene is accepted.
+    :param resolution: width and height of the pose video, in pixels.
     """
     intervals = [(scene.start_frame, scene.end_frame) for scene in scenes]
     corners_refpx = [

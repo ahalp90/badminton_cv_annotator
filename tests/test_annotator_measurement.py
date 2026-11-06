@@ -390,7 +390,7 @@ def test_inference_failure_keeps_closed_court_evidence_and_terminal_manifest(
         "build_static_court_evidence",
         lambda *_args, **_kwargs: _fake_court_result(case, state.parent),
     )
-    monkeypatch.setattr(runner, "run_video", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("inference")))
+    monkeypatch.setattr(runner, "annotate_video", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("inference")))
     runner._run_one_configuration(state, driver)
     assert state.status == "failed"
     assert state.manifest_path is not None
@@ -536,7 +536,7 @@ def _install_synthetic_runner(
         )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
-    monkeypatch.setattr(runner, "run_video", fake_run_video)
+    monkeypatch.setattr(runner, "annotate_video", fake_run_video)
     monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
     scoring_fail_seen = False
 
@@ -649,7 +649,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
         )
         return AnnotatorResult((), {}, {}, {}, (), [], ())
 
-    monkeypatch.setattr(runner, "run_video", fake_run_video)
+    monkeypatch.setattr(runner, "annotate_video", fake_run_video)
     monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
     def fake_score_video(*_args):
         assert gt_verified
@@ -842,7 +842,7 @@ def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
         raise runner.NoAcceptedCourtError(failed, "no scene has an accepted court; scene statuses: {'no_court': 1}")
 
     monkeypatch.setattr(runner, "detect_case_courts", no_court)
-    monkeypatch.setattr(runner, "run_video", lambda *_args, **_kwargs: pytest.fail("inference must not run"))
+    monkeypatch.setattr(runner, "annotate_video", lambda *_args, **_kwargs: pytest.fail("inference must not run"))
     runner._run_one_configuration(state, driver)
 
     assert state.status == "failed"

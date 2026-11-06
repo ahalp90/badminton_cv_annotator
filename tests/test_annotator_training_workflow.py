@@ -270,7 +270,7 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
     monkeypatch.setattr(workflow, 'load_npy_xz', load_array)
     monkeypatch.setattr(workflow, 'load_pose_arrays', lambda path, _count: paths.append(path) or pose)
     monkeypatch.setattr(workflow, 'load_court_vision', lambda path, **_kwargs: paths.append(path) or court)
-    monkeypatch.setattr(workflow, 'prepare_annotation', prepare)
+    monkeypatch.setattr(workflow, 'prepare_contact_inference', prepare)
     assert workflow.load_contact_evidence(tmp_path, 'video', workflow.TrainingSettings().preprocessing) is captured
     assert tmp_path / 'stages/metadata/video/video_metadata.json.gz' in paths
     assert tmp_path / 'stages/shuttle/video/shuttle_guard_codes.npy.xz' in paths

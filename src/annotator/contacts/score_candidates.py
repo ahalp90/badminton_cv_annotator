@@ -1,4 +1,4 @@
-"""Score binary trees and select contacts from the contact model's predictions."""
+"""Run the contact classifier and retain strong, sufficiently separated hit candidates."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -14,7 +14,7 @@ NEARBY_CONTACT_DISTANCE_AT_30_FPS = 6
 
 @dataclass(frozen=True)
 class ContactModelConfig:
-    """Prediction settings maintainers may retune for a new dataset."""
+    """Probability cutoff for retaining contact candidates."""
 
     score_cutoff: float = 0.9
 
@@ -46,7 +46,7 @@ def contact_feature_matrix(
 
 
 def positive_probabilities(model: Any, matrix: np.ndarray) -> np.ndarray:
-    """Score an annotator tree trained on labels 0 and 1, keeping its dtype."""
+    """Return class-1 probabilities from a classifier fitted on labels 0 and 1."""
     if not len(matrix):
         return np.empty(0, dtype=np.float64)
     probabilities = np.asarray(model.predict_proba(matrix))[:, 1]

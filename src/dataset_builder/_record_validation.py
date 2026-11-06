@@ -11,9 +11,9 @@ from dataset_builder.manifest import redact_configuration
 from dataset_builder.models import RunManifest, StageOutcome
 from shared.video_metadata import VideoMetadata
 
-RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.3"
-RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.3"
-RALLY_RECORD_SCHEMA = "rally-record/0.3"
+RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.4"
+RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.4"
+RALLY_RECORD_SCHEMA = "rally-record/0.4"
 RALLY_RECORDS_FILENAME = "rally_records.json.gz"
 RAW_REPLAY_ARTIFACT = "raw_replay_mask"
 DEFINITIVE_EXCLUSION_ARTIFACT = "definitive_exclusion_mask"
@@ -268,12 +268,12 @@ def _raw_contacts(payload: object, rally: tuple[int, int]) -> set[int]:
         row = _object(raw_row, "raw contact candidate")
         _exact_fields(
             row,
-            {"contact_frame", "proximity_ok", "wrist_near", "suppressed"},
+            {"contact_frame", "wrist_near", "suppressed"},
             "raw contact candidate",
         )
         frame = _frame_in_rally(row["contact_frame"], rally, "raw contact frame")
         frames.append(frame)
-        for name in ("proximity_ok", "wrist_near", "suppressed"):
+        for name in ("wrist_near", "suppressed"):
             _optional_boolean(row[name], f"raw contact {name}")
     if frames != sorted(frames) or len(frames) != len(set(frames)):
         raise ValueError("raw contact frames must be unique and ascending")

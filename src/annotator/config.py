@@ -1,35 +1,18 @@
-"""Fixed heuristic preprocessing settings and shared annotation output paths.
+"""Heuristic preprocessing settings resolved for each video.
 
 The model bundle carries the preprocessing settings used during fitting.
 Changing these settings changes the inputs the trees see and requires a refit.
 Direct tree-scoring settings live with the contact model.
 """
 import math
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
-from pathlib import Path
 
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
-# Scrape-output paths
-# ---------------------------------------------------------------------------
-# One scrape root holds the flat CSVs plus the per-video sidecar dirs. Default
-# sits under the repo's gitignored data/ tree; BADMINTON_SCRAPE_DIR overrides.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRAPE_DIR = Path(os.environ.get('BADMINTON_SCRAPE_DIR', _REPO_ROOT / 'data' / 'scrape_output'))
-MASKS_DIR = SCRAPE_DIR / 'masks'
-RALLY_SPANS_CSV = SCRAPE_DIR / 'rally_spans.csv'
-CONTACT_FRAMES_CSV = SCRAPE_DIR / 'contact_frames.csv'
-
-PROXIMITY_MAX = 0.15  # normalised court distance for the proximity guardrail
-
-# ---------------------------------------------------------------------------
 # Replay and off-rally masking rules
 # ---------------------------------------------------------------------------
-# Reprojected-corner displacement as a fraction of frame size.
-PERSPECTIVE_SHIFT_THRESHOLD = 0.05
 # A lower speed fraction avoids mistaking rally-end deceleration for slow motion.
 SLOWMO_SPEED_FRAC = 0.15
 

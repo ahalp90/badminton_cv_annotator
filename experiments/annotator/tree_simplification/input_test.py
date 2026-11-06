@@ -13,9 +13,8 @@ sys.path.insert(0, str(REPOSITORY / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.annotate_video import RunCapture, run_video
+from annotator.annotate_video import RunCapture, annotate_video
 from annotator.models import AnnotatorModels, fitted_trees, load_models
-from annotator.rallies.refine_rallies import score_selector_review
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
@@ -29,6 +28,9 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
 from experiments.annotator.tree_simplification.integrate import ranking_metrics
+from experiments.annotator.tree_simplification.selector_review import (
+    score_selector_review,
+)
 
 EXPECTED_VIDEOS = 46
 EXPECTED_LEFT_OUT = 524
@@ -46,7 +48,7 @@ def evaluate_video(
     inputs = load_test_inputs(video, paths['inpaint_root'], paths['pose_root'], paths['test_courts'])
     capture = RunCapture()
     pose = inputs.pose
-    run_video(
+    annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         base=models.preprocessing, models=models, capture=capture, **run_video_kwargs(inputs),
     )

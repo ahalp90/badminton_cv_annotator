@@ -25,6 +25,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -33,7 +34,9 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.annotate_video import RunCapture, run_video
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from annotator.annotate_video import RunCapture, annotate_video
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
@@ -43,29 +46,34 @@ from annotator.config import (
 )
 from annotator.contacts.heuristics import impulse_cell_candidates
 from annotator.courts.frame_geometry import build_scene_courts
-from annotator.evaluation.fixtures import (
+from annotator.excluded_frames.replay import (
+    court_absence_signal,
+    filter_short_exclusion_runs,
+    velocity_drop_signal,
+)
+from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from annotator.inference.prepare_contact_inference import build_player_evidence
+from annotator.player_tracking import tracker_segments
+from annotator.rallies.find_rallies import find_rally_spans
+from experiments.annotator.legacy_evaluation.fixtures import (
     SSET_01,
     Fixture,
     FixtureDigests,
     fixtures_root,
 )
-from annotator.evaluation.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    build_run_video_inputs,
+    canonical_tolerance,
+)
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    perspective_shift_signal,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
     GtRally,
     classify_all,
     greedy_match,
     load_gt_rallies,
 )
-from annotator.excluded_frames.replay import (
-    court_absence_signal,
-    filter_short_exclusion_runs,
-    perspective_shift_signal,
-    velocity_drop_signal,
-)
-from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
-from annotator.inference.prepare_contact_inference import build_sticky_result
-from annotator.player_tracking import tracker_segments
-from annotator.rallies.find_rallies import find_rally_spans
 from labelling.scene_labels import (
     LabelInterval,
     SceneTruth,
@@ -768,7 +776,7 @@ def run_measurement(
     keyword["raw_exclusion_mask"] = raw_union
     keyword["court_invalid_is_excluded"] = True
     keyword["capture"] = capture
-    result = run_video(*inputs.positional, **keyword)
+    result = annotate_video(*inputs.positional, **keyword)
     assert capture.evidence is not None
     if not np.array_equal(capture.evidence.raw_exclusion_mask, raw_union):
         raise RuntimeError("run_video raw mask differs from the fresh replay union")
@@ -798,7 +806,7 @@ def run_measurement(
 
     scene_courts = build_scene_courts(row_records, fixture.resolution)
     segments = tracker_segments(scene_courts, court_present, len(track))
-    sticky = build_sticky_result(
+    sticky = build_player_evidence(
         track,
         segments,
         bboxes,

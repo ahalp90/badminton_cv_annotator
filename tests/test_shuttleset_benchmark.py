@@ -8,15 +8,15 @@ import pandas as pd
 import pytest
 
 import experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark as benchmark
-from annotator.evaluation.gt_scoring import (
+from annotator.rally_results.landing_and_winner import WinnerSource
+from annotator.types import CourtHalf
+from dataset_builder.vision import save_json_gz
+from experiments.annotator.legacy_evaluation.gt_scoring import (
     ColumnAgg,
     RallyRow,
     _hit_height_gt_map,
     aggregate_rally_scores,
 )
-from annotator.rally_results.landing_and_winner import WinnerSource
-from annotator.types import CourtHalf
-from dataset_builder.vision import save_json_gz
 from experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
     _aggregate_contact_curves,
@@ -38,13 +38,11 @@ def _record(rally_id: int = 0) -> dict[str, object]:
             "raw_candidates": [
                 {
                     "contact_frame": 15,
-                    "proximity_ok": None,
                     "wrist_near": True,
                     "suppressed": False,
                 },
                 {
                     "contact_frame": 24,
-                    "proximity_ok": True,
                     "wrist_near": True,
                     "suppressed": True,
                 },

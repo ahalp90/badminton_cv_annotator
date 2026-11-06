@@ -9,20 +9,6 @@ import pytest
 
 from annotator.annotate_video import AnnotatorResult
 from annotator.courts.frame_geometry import SceneCourt
-from annotator.evaluation import gt_scoring
-from annotator.evaluation.fixtures import FIXTURES
-from annotator.evaluation.gt_scoring import (
-    REFERENCE_SCORES,
-    flatten_metrics,
-    render_table,
-    run_fixture,
-)
-from annotator.evaluation.scoring import (
-    CANONICAL_CONTACT_TOLERANCE_BASE30,
-    GtRally,
-    strict_contact_rows,
-    wide_edge_contact_rows,
-)
 from annotator.rally_results.landing_and_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
     Landing,
@@ -35,6 +21,20 @@ from annotator.types import (
     ContactSequence,
     CourtHalf,
     FinishedRally,
+)
+from experiments.annotator.legacy_evaluation import gt_scoring
+from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    REFERENCE_SCORES,
+    flatten_metrics,
+    render_table,
+    run_fixture,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    CANONICAL_CONTACT_TOLERANCE_BASE30,
+    GtRally,
+    strict_contact_rows,
+    wide_edge_contact_rows,
 )
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
@@ -145,10 +145,10 @@ def test_strict_contact_rows_keep_all_row_kinds_and_scaled_tolerances():
     rows = strict_contact_rows(
         [(0, 20), (30, 40), (50, 60)],
         [
-            ContactCandidate(0, 6, None, None, None),
-            ContactCandidate(0, 24, None, None, None),
-            ContactCandidate(1, 33, None, None, None),
-            ContactCandidate(2, 54, None, None, None),
+            ContactCandidate(0, 6, None, None),
+            ContactCandidate(0, 24, None, None),
+            ContactCandidate(1, 33, None, None),
+            ContactCandidate(2, 54, None, None),
         ],
         rallies,
         fps=25.0,
@@ -172,10 +172,10 @@ def test_wide_edge_contact_rows_split_midpoint_and_omit_outside_candidates():
     rows = wide_edge_contact_rows(
         rallies,
         [
-            ContactCandidate(0, 15, None, None, None),
-            ContactCandidate(0, 16, None, None, None),
-            ContactCandidate(1, 29, None, None, None),
-            ContactCandidate(1, 30, None, None, None),
+            ContactCandidate(0, 15, None, None),
+            ContactCandidate(0, 16, None, None),
+            ContactCandidate(1, 29, None, None),
+            ContactCandidate(1, 30, None, None),
         ],
         fps=30.0,
         n_frames=30,
@@ -194,8 +194,8 @@ def test_wide_edge_contact_rows_split_midpoint_and_omit_outside_candidates():
 def test_contact_reports_use_source_order_for_repeated_set_rally_numbers():
     rallies = [GtRally('set1', 1, (10,)), GtRally('set2', 1, (20,))]
     contacts = [
-        ContactCandidate(0, 10, None, None, None),
-        ContactCandidate(1, 20, None, None, None),
+        ContactCandidate(0, 10, None, None),
+        ContactCandidate(1, 20, None, None),
     ]
 
     strict = strict_contact_rows([(0, 15), (15, 25)], contacts, rallies, fps=30.0)
@@ -209,7 +209,7 @@ def test_strict_contact_rows_scale_at_30_fps_and_keep_tie_order():
     rallies = [GtRally('set1', 1, (10, 20))]
     rows = strict_contact_rows(
         [(0, 30)],
-        [ContactCandidate(0, 15, None, None, None)],
+        [ContactCandidate(0, 15, None, None)],
         rallies,
         fps=30.0,
     )
@@ -227,7 +227,7 @@ def test_wide_edge_contact_rows_use_one_candidate_for_duplicate_targets():
     rallies = [GtRally('set1', 1, (10,)), GtRally('set2', 1, (10,))]
     rows = wide_edge_contact_rows(
         rallies,
-        [ContactCandidate(0, 10, None, None, None)],
+        [ContactCandidate(0, 10, None, None)],
         fps=30.0,
         n_frames=30,
     )
@@ -241,7 +241,7 @@ def test_wide_edge_contact_rows_use_one_candidate_for_duplicate_targets():
 def test_wide_edge_contact_rows_keep_duplicate_first_and_last_strokes():
     rows = wide_edge_contact_rows(
         [GtRally('set1', 1, (10, 10))],
-        [ContactCandidate(0, 10, None, None, None)],
+        [ContactCandidate(0, 10, None, None)],
         fps=30.0,
         n_frames=30,
     )
@@ -257,8 +257,8 @@ def test_wide_edge_contact_rows_leave_abutting_windows_unchanged():
     rows = wide_edge_contact_rows(
         rallies,
         [
-            ContactCandidate(0, 180, None, None, None),
-            ContactCandidate(1, 181, None, None, None),
+            ContactCandidate(0, 180, None, None),
+            ContactCandidate(1, 181, None, None),
         ],
         fps=30.0,
         n_frames=400,

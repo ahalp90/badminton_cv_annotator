@@ -46,7 +46,7 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
         _scene(0, 5, 'first', (10.0, 11.0), 0.1),
         _scene(5, 10, 'second', second_band, 0.2),
     )
-    contacts = [ContactCandidate(rally_id, frame, None, None, None) for rally_id, frame in enumerate((2, 7))]
+    contacts = [ContactCandidate(rally_id, frame, None, None) for rally_id, frame in enumerate((2, 7))]
     track = np.zeros((10, 3))
     track[:, 2] = 1
     bboxes = np.zeros((10, 1, 4))

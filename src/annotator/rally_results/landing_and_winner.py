@@ -66,12 +66,11 @@ def gap_after_top_exit(
     final_contact: int, run_start: int, track: np.ndarray,
     shuttle_hallucination_mask: np.ndarray,
 ) -> bool:
-    """Did the last visible sample before an invisible run sit at the frame's TOP edge?
+    """Check whether the last visible sample before a gap was at the image's top edge.
 
-    The invisible run begins at absolute frame ``final_contact + 1 + run_start``, so the sample
-    just before it is ``final_contact + run_start`` (the contact frame itself when run_start == 0).
-    A visible sample there with image-y within TOP_EDGE_FRAC of 0 means the shuttle left the frame
-    upward (a lob) and will fall back into view; a non-visible or non-top sample reads False.
+    The gap starts at ``final_contact + 1 + run_start``. A visible preceding sample
+    within ``TOP_EDGE_FRAC`` of the top edge permits a lob-return search; it does
+    not establish that the shuttle will return.
     """
     last_vis = final_contact + run_start
     visible = track[last_vis, 2] == 1
@@ -83,14 +82,12 @@ def landing_window(
     final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
     sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray,
 ) -> LandingWindow:
-    """Find the landing search endpoint and all reasons to stop there.
+    """Find the half-open landing-search endpoint and its stopping reasons.
 
-    Half-open: the window is [final_contact, window_end). Scans forward from final_contact + 1.
-
-    A sustained-loss gap does not stop the search when the last visible sample before it sits at
-    the frame top: the shuttle lobbed out of the top of the picture and will descend back into
-    view, so the search waits for the re-entry, still bounded by the next serve and the replay
-    mask and by any later sustained-loss gap that did not follow a top exit.
+    Scan forward from ``final_contact + 1``. A sustained visibility gap after a
+    top-edge exit may be a lob, so continue looking for re-entry. The search remains
+    bounded by its supplied limit, excluded frames, rejected shuttle observations
+    and a later sustained gap without a preceding top-edge exit.
     """
     video_end = len(track)
     boundaries: dict[str, int] = {'video_end': video_end}
@@ -128,11 +125,7 @@ def landing_window(
 
 
 def at_frame_border(xy: np.ndarray) -> bool:
-    """Terminal sample within 2% of any image edge (normalised coords).
-
-    True => the descending run ran off-frame: the shuttle left the picture mid-fall rather than
-    being seen to come down, so there is no trustworthy landing.
-    """
+    """Check whether the terminal sample is within 2% of an image edge."""
     x, y = float(xy[0]), float(xy[1])
     return x < TOP_EDGE_FRAC or x > 1.0 - TOP_EDGE_FRAC or y < TOP_EDGE_FRAC or y > 1.0 - TOP_EDGE_FRAC
 
@@ -207,13 +200,13 @@ def convert_landing_options(opts: LandingFilterOptions, fps: float) -> LandingFi
 def build_landing_kinematics(
     track: np.ndarray, sticky: StickyResult, kps: np.ndarray, resolution: tuple[float, float],
 ) -> LandingKinematics:
-    """Per-frame carry proximity (wrist / box-height) and shuttle self-speed for the landing filter.
+    """Measure shuttle speed and proximity to the tracked players' wrists and ankles.
 
-    Reads the sticky pick for each court half, then uses its nearer WRIST (COCO 9/10) rather than
-    the bbox centre for the numerator. NaN where the shuttle is invisible or no sticky pick has a
-    finite current-frame height.
+    Distances use the nearer wrist or ankle on each selected player, divided by
+    that player's current box height. Missing visible shuttle or usable player
+    geometry produces NaN distances.
 
-    :param resolution: (width, height) the shuttle xy and the wrist/ankle pixels normalise by.
+    :param resolution: video width and height used to convert shuttle coordinates to pixels.
     """
     width, height = resolution
     n_frames = len(track)
@@ -464,7 +457,7 @@ def pick_landing_to_end(
 
 
 class RallyOutcome(NamedTuple):
-    """Absolute point winner, landing evidence and a conservative landing-only estimate."""
+    """Estimated point winner, selected landing and a conservative landing-only winner."""
 
     winner: CourtHalf | None
     winner_source: WinnerSource | None

@@ -26,16 +26,20 @@ from annotator.courts.prepare_courts import (
     build_net_band,
     detected_court_info,
 )
-from annotator.evaluation.fixtures import (
+from annotator.inference import prepare_contact_inference as player_evidence
+from annotator.types import OTHER_HALF, WRIST_L, WRIST_R, CourtHalf, StickyResult
+from experiments.annotator.legacy_evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
     SHARED_FILES,
     Fixture,
     verify_file,
 )
-from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
-from annotator.inference import prepare_contact_inference as player_evidence
-from annotator.types import OTHER_HALF, WRIST_L, WRIST_R, CourtHalf, StickyResult
+from experiments.annotator.legacy_evaluation.scoring import (
+    RallyBoundary,
+    classify_all,
+    load_gt_rallies,
+)
 from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
 
 REFERENCE_TAG = "shuttleset-annotator-heuristic-reference-v1"
@@ -211,7 +215,7 @@ def load_sticky(
     scene_courts = build_scene_courts(scene_rows.to_dict("records"), fixture.resolution)
     segments = player_tracking.tracker_segments(scene_courts, court_present, expected_frames)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
-    sticky = player_evidence.build_sticky_result(
+    sticky = player_evidence.build_player_evidence(
         track,
         segments,
         bboxes,

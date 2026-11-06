@@ -23,29 +23,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.annotate_video import run_video
+from annotator.annotate_video import annotate_video
 from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
     frames_at_fps,
     resolve,
-)
-from annotator.evaluation.fixtures import (
-    FIXTURES,
-    SHARED_FILES,
-    FilePin,
-    Fixture,
-    verify_file,
-)
-from annotator.evaluation.gt_scoring import RunVideoInputs, build_run_video_inputs
-from annotator.evaluation.scoring import (
-    CONTACT_TOLERANCES_BASE30,
-    RallyBoundary,
-    classify_all,
-    load_gt_rallies,
-    merged_span_indices,
-    score_boundaries,
-    score_contacts,
 )
 from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import selection
@@ -57,6 +40,26 @@ from experiments.annotator.heuristic_tuning.schemas import (
     WINNER_SPEC_STRATEGIES_KEY,
     winner_document,
     winner_spec,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SHARED_FILES,
+    FilePin,
+    Fixture,
+    verify_file,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    RunVideoInputs,
+    build_run_video_inputs,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    CONTACT_TOLERANCES_BASE30,
+    RallyBoundary,
+    classify_all,
+    load_gt_rallies,
+    merged_span_indices,
+    score_boundaries,
+    score_contacts,
 )
 
 LABEL_SHIPPED = "shipped_defaults"
@@ -373,7 +376,7 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
 
 
 def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spec: CandidateSpec) -> dict[str, Any]:
-    """Run and score one candidate; resolution remains inside ``run_video``."""
+    """Run and score one candidate; resolution remains inside ``annotate_video``."""
     video_id = fixture_inputs.keyword["video_id"]
     fixture = next(
         fixture
@@ -383,7 +386,7 @@ def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spe
     base = base_config(candidate_spec)
     keyword = dict(fixture_inputs.keyword)
     keyword.update(base=base)
-    result = run_video(*fixture_inputs.positional, **keyword, heuristic_only=True)
+    result = annotate_video(*fixture_inputs.positional, **keyword, heuristic_only=True)
     return _row_for_result(fixture, candidate_spec, result, fixture_inputs.master)
 
 

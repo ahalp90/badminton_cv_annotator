@@ -186,9 +186,9 @@ model. Use the same prepared arrays and court/landing inputs:
 
 ```python
 from annotator.config import BaseAnnotatorConfig
-from annotator.annotate_video import run_video
+from annotator.annotate_video import annotate_video
 
-result = run_video(
+result = annotate_video(
     track, bboxes, scores, kps, ndet,
     fps=fps,
     heuristic_only=True,
@@ -199,7 +199,7 @@ result = run_video(
 
 This returns heuristic contacts, player assignments and outcome estimates.
 Change `base` for a heuristic experiment and save its configuration with the
-result. For feature inputs, call `prepare_annotation()` directly. For a shuttle
+result. For feature inputs, call `prepare_contact_inference()` directly. For a shuttle
 track without player or court evidence, use `segment_shuttle_track()`. The
 [input guide](inputs_outputs.md#direct-python-call) explains these calls.
 
@@ -235,7 +235,6 @@ inference with `--heuristic-only`.
 | Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
 | Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |
 
-The standalone replay-mask and commentary-pairing tools require an explicit
-`--rally-spans` CSV when processing rallies. Replay masking's `--no-replay-mask`
-mode writes an all-False mask and needs no rally CSV. The dataset builder passes
-rally information in memory and does not use the retired batch command.
+The standalone commentary-pairing tool requires an explicit `--rally-spans` CSV.
+The dataset builder computes replay exclusion in memory. The standalone
+replay-mask writer and track-only batch segmentation command have been retired.

@@ -940,7 +940,6 @@ def _contact(payload: object) -> ContactCandidate:
     return ContactCandidate(
         _integer(row["rally_id"], "contact rally_id"),
         _integer(row["contact_frame"], "contact frame"),
-        _optional_boolean(row["proximity_ok"], "contact proximity_ok"),
         _optional_boolean(row["wrist_near"], "contact wrist_near"),
         _optional_boolean(row["suppressed"], "contact suppressed"),
     )

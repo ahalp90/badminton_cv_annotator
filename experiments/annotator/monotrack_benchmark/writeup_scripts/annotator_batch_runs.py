@@ -39,7 +39,7 @@ from annotator.inference.learned import (
 )
 from annotator.inference.prepare_contact_inference import (
     AnnotationEvidence,
-    prepare_annotation,
+    prepare_contact_inference,
 )
 from annotator.models import AnnotatorModels, load_models
 from annotator.rallies.refine_rallies import predict_rally_options, score_rally_review
@@ -207,9 +207,9 @@ def prepare_group(group: VideoGroup, paths: BatchPaths, models: AnnotatorModels)
 def prepare_inputs(
     inputs: OldVideoInputs, models: AnnotatorModels, spans: list[tuple[int, int]] | None,
 ) -> AnnotationEvidence:
-    """The preparation part of run_video, retaining its supplied-bound semantics."""
+    """The preparation part of annotate_video, retaining its supplied-bound semantics."""
     pose, court = inputs.pose, inputs.court
-    return prepare_annotation(
+    return prepare_contact_inference(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
         video_id=inputs.identity,

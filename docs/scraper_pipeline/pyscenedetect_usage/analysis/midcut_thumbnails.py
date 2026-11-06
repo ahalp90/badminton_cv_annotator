@@ -19,7 +19,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from annotator.config import COMPOSITION_KEEP_VOTE
-from annotator.evaluation.scoring import GtRally, load_gt_rallies
+from experiments.annotator.legacy_evaluation.scoring import GtRally, load_gt_rallies
 from experiments.annotator.scene_cut_mask import (
     CompositionSegment,
     build_composition_mask,

@@ -24,17 +24,21 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.annotate_video import run_video
-from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
-from annotator.evaluation.gt_scoring import (
+from annotator.annotate_video import annotate_video
+from experiments.annotator.heuristic_tuning import selection, sweep
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SHARED_FILES,
+    Fixture,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
     RunVideoInputs,
     canonical_tolerance,
     flatten_metrics,
     load_gt_tables,
     score_video,
 )
-from annotator.evaluation.scoring import load_gt_rallies, safe_f1
-from experiments.annotator.heuristic_tuning import selection, sweep
+from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies, safe_f1
 
 RUN_SCHEMA = "annotator-corpus-sweep/1"
 ATTEMPT_SCHEMA = "annotator-corpus-sweep-attempt/1"
@@ -276,7 +280,7 @@ def run_production_candidate(
             base = sweep.base_config(spec)
             keyword = dict(item.inputs.keyword)
             keyword.update(base=base)
-            result = run_video(*item.inputs.positional, **keyword, heuristic_only=True)
+            result = annotate_video(*item.inputs.positional, **keyword, heuristic_only=True)
             row = sweep._row_for_result(
                 item.fixture,
                 spec,

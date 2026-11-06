@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
-from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.types import WRIST_L, WRIST_R
 from tests.annotator_config import burst_config
@@ -120,7 +120,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     )
     assert not np.allclose(scene_courts[0].court_info['H'], scene_courts[1].court_info['H'])
 
-    local_result = build_sticky_result(
+    local_result = build_player_evidence(
         track,
         [(0, 2), (2, 4)],
         bboxes,
@@ -135,7 +135,7 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     # A displaced global outline rejects the top player in scene 0, while the
     # scene-local rows retain both picks in both camera views.
     global_scene = build_scene_courts([row(0, 4, 500.0, 1780.0)], (1280.0, 720.0))[0]
-    global_result = build_sticky_result(
+    global_result = build_player_evidence(
         track,
         [(0, 4)],
         bboxes,
@@ -153,9 +153,9 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     assert global_result.picks[0].tolist() == [-1, 1]
 
 
-def test_build_sticky_result_pins_failure_defaults_and_success_contract():
+def test_build_player_evidence_pins_failure_defaults_and_success_contract():
     (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
-    result = build_sticky_result(
+    result = build_player_evidence(
         track,
         segments,
         bboxes,
@@ -204,7 +204,7 @@ def test_build_sticky_result_pins_failure_defaults_and_success_contract():
         assert result.distances[3] == top_gap
 
 
-def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
+def test_build_player_evidence_wrist_distance_visibility_and_sentinels():
     (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     track = track.copy()
     track[2, :2] = 0.0
@@ -212,7 +212,7 @@ def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
     kps[3, 0, WRIST_L] = (640.0, 300.0)
     kps[3, 0, WRIST_R] = (600.0, 180.0)
 
-    result = build_sticky_result(
+    result = build_player_evidence(
         track,
         segments,
         bboxes,
@@ -246,7 +246,7 @@ def test_segment_video_sticky_distance_shape_is_checked():
         segment_video(track, sticky_distances=np.zeros(2), resolved=burst_config())
 
 
-def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
+def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds():
     n_frames = 6
     bboxes = np.full((n_frames, 1, 4), np.nan, dtype=np.float32)
     scores = np.ones((n_frames, 1), dtype=np.float32)
@@ -258,7 +258,7 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
         kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
     track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
-    result = build_sticky_result(
+    result = build_player_evidence(
         track,
         [(0, 3), (3, 6)],
         bboxes,
@@ -275,14 +275,14 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
     assert result.distances_per_slot[2, picked_half] == pytest.approx(numerator / 100.0)
 
 
-def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None:
+def test_build_player_evidence_fails_when_candidate_has_no_finite_height() -> None:
     (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = np.nan
     bboxes[2, 1, 1] = np.nan
     bboxes[3, 0, 1] = np.nan
 
     with pytest.raises(ValueError, match='no accepted finite height'):
-        build_sticky_result(
+        build_player_evidence(
             track,
             segments,
             bboxes,
@@ -295,14 +295,14 @@ def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None
         )
 
 
-def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
+def test_build_player_evidence_fails_on_non_positive_height_denominator() -> None:
     (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = bboxes[1, 1, 3]
     bboxes[2, 1, 1] = bboxes[2, 1, 3]
     bboxes[3, 0, 1] = bboxes[3, 0, 3]
 
     with pytest.raises(ValueError, match='non-finite or non-positive body-scale denominator'):
-        build_sticky_result(
+        build_player_evidence(
             track,
             segments,
             bboxes,

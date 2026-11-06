@@ -12,7 +12,7 @@ from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.inference import prepare_contact_inference as player_evidence
 from annotator.inference.prepare_contact_inference import (
     AnnotationEvidence,
-    prepare_annotation,
+    prepare_contact_inference,
 )
 from annotator.types import ContactCandidate
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
@@ -34,14 +34,14 @@ def preparation_inputs():
 
 def test_preparation_keeps_original_arrays_and_injected_contact_order(preparation_inputs, tmp_path):
     spans = [(0, 100), (150, 250)]
-    evidence = prepare_annotation(**preparation_inputs, spans=spans, contacts={1: [190, 160], 0: [80, 20]})
+    evidence = prepare_contact_inference(**preparation_inputs, spans=spans, contacts={1: [190, 160], 0: [80, 20]})
     assert evidence.track is preparation_inputs['track']
     assert evidence.bboxes is preparation_inputs['bboxes']
     assert evidence.pose_kps is preparation_inputs['kps']
     assert evidence.heuristic_spans is spans
     assert evidence.heuristic_contacts == [
-        ContactCandidate(1, 190, None, None, None), ContactCandidate(1, 160, None, None, None),
-        ContactCandidate(0, 80, None, None, None), ContactCandidate(0, 20, None, None, None),
+        ContactCandidate(1, 190, None, None), ContactCandidate(1, 160, None, None),
+        ContactCandidate(0, 80, None, None), ContactCandidate(0, 20, None, None),
     ]
     assert evidence.raw_contact_frames == [190, 160, 80, 20]
     path = tmp_path / 'prepared.joblib'
@@ -70,7 +70,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
 
     monkeypatch.setattr(preparation, 'find_rally_spans', find)
     monkeypatch.setattr('annotator.rallies.find_rallies.find_rally_spans', find)
-    evidence = prepare_annotation(**preparation_inputs, contacts={0: [20, 150]})
+    evidence = prepare_contact_inference(**preparation_inputs, contacts={0: [20, 150]})
     assert evidence.heuristic_spans == [(0, 200)]
     assert evidence.raw_contact_frames == [20, 150]
     np.testing.assert_array_equal(evidence.track, original)
@@ -122,7 +122,7 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     monkeypatch.setattr('annotator.rallies.find_rallies.find_rally_spans', find)
     monkeypatch.setattr(preparation, 'combine_mask', replay_mask)
     contacts = {0: [20, 150]} if supplied_contacts else None
-    evidence = prepare_annotation(**preparation_inputs, contacts=contacts, spans=provided_spans)
+    evidence = prepare_contact_inference(**preparation_inputs, contacts=contacts, spans=provided_spans)
 
     assert len(unmasked_calls) == (0 if supplied_spans else unmasked_count)
     assert len(masked_calls) == (0 if supplied_spans else masked_count)
@@ -141,7 +141,7 @@ def test_preparation_filters_short_runs_and_excludes_unusable_court_frames(prepa
     row = preparation_inputs['homography_rows'][0]
     preparation_inputs['homography_rows'] = [dict(row, end_frame=150), dict(row, start_frame=160)]
     preparation_inputs['court_present'][200] = False
-    evidence = prepare_annotation(**preparation_inputs, spans=[], contacts={}, court_invalid_is_excluded=True)
+    evidence = prepare_contact_inference(**preparation_inputs, spans=[], contacts={}, court_invalid_is_excluded=True)
     expected = np.zeros(len(raw_mask), dtype=bool)
     expected[40:120] = True
     expected[150:160] = True
@@ -152,7 +152,7 @@ def test_preparation_filters_short_runs_and_excludes_unusable_court_frames(prepa
 
 
 def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tmp_path, monkeypatch):
-    original = player_evidence.build_sticky_result
+    original = player_evidence.build_player_evidence
     calls = []
 
     @wraps(original)
@@ -160,10 +160,10 @@ def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tm
         calls.append(args)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(player_evidence, 'build_sticky_result', build)
+    monkeypatch.setattr(player_evidence, 'build_player_evidence', build)
     with cache_sticky_result(tmp_path, str(preparation_inputs['video_id'])):
-        first = prepare_annotation(**preparation_inputs, spans=[], contacts={})
-        second = prepare_annotation(**preparation_inputs, spans=[], contacts={})
+        first = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
+        second = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
     assert len(calls) == 1
     for first_array, second_array in zip(first.sticky, second.sticky, strict=True):
         np.testing.assert_array_equal(first_array, second_array)

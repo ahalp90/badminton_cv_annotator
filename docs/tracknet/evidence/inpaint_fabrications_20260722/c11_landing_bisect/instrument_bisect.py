@@ -21,9 +21,7 @@ from pathlib import Path
 import numpy as np
 
 import annotator.rally_results.landing_and_winner as pw
-from annotator.annotate_video import run_video
-from annotator.evaluation.fixtures import PILOT
-from annotator.evaluation.gt_scoring import build_run_video_inputs
+from annotator.annotate_video import annotate_video
 from annotator.rally_results.landing_and_winner import LandingKinematics
 from annotator.rally_segmentation import (
     ANKLE_L,
@@ -34,6 +32,8 @@ from annotator.rally_segmentation import (
     court_scale_boxes,
     rolling_nanmedian,
 )
+from experiments.annotator.legacy_evaluation.fixtures import PILOT
+from experiments.annotator.legacy_evaluation.gt_scoring import build_run_video_inputs
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 
@@ -194,7 +194,7 @@ def run_once(inputs, pool_kin=False):
 
         pw.build_landing_kinematics = fake
     try:
-        result = run_video(*inputs.positional, **inputs.keyword)
+        result = annotate_video(*inputs.positional, **inputs.keyword)
     finally:
         pw.build_landing_kinematics = orig_blk
         _restore_trace()

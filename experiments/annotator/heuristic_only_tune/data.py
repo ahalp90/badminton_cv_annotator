@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
+from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import AnnotatorModels
 from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
@@ -177,7 +177,7 @@ def run_configuration(
     """Run the complete annotator with discovered boundaries and optional fitted models."""
     capture = RunCapture()
     pose = inputs.pose
-    result = run_video(
+    result = annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         base=base, heuristic_only=models is None, models=models,
         capture=capture, **run_video_kwargs(inputs),

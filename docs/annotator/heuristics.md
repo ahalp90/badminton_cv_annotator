@@ -59,7 +59,7 @@ The current codes are:
 | `3` | degraded frame near one of those recurrent patterns | flagged as unreliable |
 
 `BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3}`.
-`run_video()` marks positions with those grades in a boolean frame mask, which
+`annotate_video()` marks positions with those grades in a boolean frame mask, which
 the code calls the shuttle hallucination mask. Each stage uses that mask
 differently, as described below.
 

@@ -21,7 +21,7 @@ import numpy as np
 
 from annotator.config import frames_at_fps
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
-from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.inference.prepare_contact_inference import build_player_evidence
 from annotator.player_tracking import tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
 from shared.court import project_pixels_to_court
@@ -89,7 +89,7 @@ def derive_player_feature_inputs(
         raise ValueError("shuttle, pose, and court frame populations differ")
     scene_courts = build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution)
     segments = tracker_segments(scene_courts, court.evidence.court_present, len(track))
-    sticky = build_sticky_result(
+    sticky = build_player_evidence(
         track,
         segments,
         pose.bboxes,
