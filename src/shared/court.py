@@ -51,8 +51,7 @@ def project_pixels_to_court(
 def normalize_position(arr: np.ndarray, court_info: dict) -> np.ndarray:
     """Map court xy to a unit square using the supplied left/right/top/bottom bounds.
 
-    Input and output: (2, points). Positions outside the court remain outside
-    [0, 1]; this does not clip them to the boundaries.
+    Input and output: (2, points). Allow values outside [0, 1] for off-court positions.
     """
     x_dist = court_info['border_R'] - court_info['border_L']
     y_dist = court_info['border_D'] - court_info['border_U']
@@ -162,7 +161,7 @@ def check_pos_in_court(
     """
     n_people = keypoints.shape[0]
 
-    # Use foot keypoints (last 2 joints in COCO format) as position proxy
+    # Estimate each person's court position from the midpoint between their ankles.
     feet_camera = keypoints[:, -2:, :].reshape(-1, 2).T  # (2, n_people*2)
     feet_court = to_court_coordinate(feet_camera, vid, all_court_info, res_df)
     feet_court = feet_court.reshape(2, n_people, -1)  # (2, n_people, 2)

@@ -20,7 +20,12 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BASE_FPS, BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.config import (
+    BASE_FPS,
+    BaseAnnotatorConfig,
+    frames_at_fps,
+    scale_config_to_fps,
+)
 from annotator.contacts.build_features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
@@ -73,7 +78,7 @@ def normalise_contact_features(
     The impulse ratio uses a floor in the same base-30 units. Its smoothing and
     missing-data policy remain those of the original contact feature builder.
     """
-    constants = resolve(BaseAnnotatorConfig(), fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     if fps == BASE_FPS:
         return features
     factor = fps / BASE_FPS

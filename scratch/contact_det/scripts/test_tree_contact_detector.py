@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import score_tree_contact_detector as scorer
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.types import SmoothingMode
 
 
@@ -27,7 +27,7 @@ def test_impulses_keep_the_production_junction_alignment() -> None:
     track[:, 0] = np.concatenate([np.linspace(0.1, 0.8, 9), np.linspace(0.8, 0.2, 9)])
     spans = ((2, 16),)
     signals = freezer._shuttle_signals(track, spans, 30.0)
-    values = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    values = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     thresholds = values
     expected = span_impulses(track, 2, 16, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)
     assert expected is not None

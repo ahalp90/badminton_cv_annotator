@@ -102,11 +102,11 @@ class PySceneDetectSource:
         from annotator.config import (
             COMPOSITION_CONTENT_THRESHOLD,
             BaseAnnotatorConfig,
-            resolve,
+            scale_config_to_fps,
         )
         from shared.camera_cuts import detect_cuts
 
-        min_scene_len = resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
+        min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
         # detect_cuts raises unless both frame counts equal expected_frames. Each cut
         # is the first frame of a new scene, in ascending order, and so the exclusive
         # end of the scene before it.

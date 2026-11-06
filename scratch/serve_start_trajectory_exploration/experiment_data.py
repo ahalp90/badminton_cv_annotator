@@ -16,7 +16,7 @@ from typing import Any, TypedDict
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.evaluation.fixtures import FIXTURES, Fixture
 from annotator.evaluation.gt_scoring import load_gt_tables
 from annotator.evaluation.scoring import (
@@ -347,7 +347,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
     if not scene_rows:
         raise ValueError(f"{fixture.name}: scene rows are missing")
     segments = tracker_segments(scene_rows, court_present, n_frames)
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
     gate_courts = {str(video_id): court for video_id, court in courts.items()}
     gate_resolution = resolution_table.copy()
     gate_resolution.index = gate_resolution.index.astype(str)

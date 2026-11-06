@@ -417,7 +417,7 @@ def test_global_gt_failure_retains_inference_outputs_and_marks_inference_only(
     state = runner.ConfigurationState(
         fixed, runner.PARENTS[0], fixture, case, output_root / runner.PARENTS[0] / fixed.case_id,
         [], "now", 0.0, result=AnnotatorResult((), {}, {}, {}, (), [], ()),
-        resolved_config=runner.resolve(runner.BASE_ANNOTATOR_CONFIG, fixed.fps),
+        video_config=runner.scale_config_to_fps(runner.BASE_ANNOTATOR_CONFIG, fixed.fps),
         status="inference_only",
     )
     state.directory.mkdir(parents=True)
@@ -525,7 +525,7 @@ def _install_synthetic_runner(
 
     inference_fail_seen = False
 
-    def fake_run_video(*_args, capture: runner.RunCapture, video_id: int, **_kwargs) -> AnnotatorResult:
+    def fake_run_video(*_args, capture: runner.AnnotationWorkingData, video_id: int, **_kwargs) -> AnnotatorResult:
         nonlocal inference_fail_seen
         events["inference"] += 1
         if inference_failure_video_id == video_id and not inference_fail_seen:
@@ -634,7 +634,7 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     monkeypatch.setattr(runner, "verify_eligible_gt_files", fake_verify_gt_files)
 
     def fake_run_video(
-        *_args, capture: runner.RunCapture, base, models, inpaint_codes, landing_options, **_kwargs,
+        *_args, capture: runner.AnnotationWorkingData, base, models, inpaint_codes, landing_options, **_kwargs,
     ) -> AnnotatorResult:
         nonlocal inference_calls
         inference_calls += 1

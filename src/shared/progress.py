@@ -21,6 +21,8 @@ PROGRESS_ENV = "BADMINTON_PROGRESS_FILE"
 LOG_ENV = "BADMINTON_PROGRESS_LOG"
 
 
+# Progress messages for the terminal display
+
 def enabled() -> bool:
     """Whether a progress output file has been configured."""
     return bool(os.environ.get(PROGRESS_ENV))
@@ -76,8 +78,8 @@ def progress_iter[T](
 ) -> Iterator[T]:
     """Yield items and report completed iterations, at most five updates per second.
 
-    Count an item after the caller resumes iteration. Early termination or an
-    exception therefore leaves unfinished items out of the completed count.
+    Count an item when the caller asks for the next one. A break or exception
+    leaves the last yielded item uncounted.
     """
     if not enabled():
         yield from items
@@ -99,6 +101,8 @@ def progress_iter[T](
             last = now
     report(activity, completed, total, unit, worker=worker)
 
+
+# Redirect worker stdout/stderr to a log
 
 class SafeOutput:
     """Write to a log, falling back to the terminal if writing fails.

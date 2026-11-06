@@ -48,7 +48,9 @@ def grade_track(
     :param track: Full video track; columns 0 and 1 are exact x and y values.
     :param window: Number of consecutive positions in a repeated pattern.
     :param halo_frames: Extra frames marked degraded around repeated runs.
-    :return: (codes, info), copied so callers cannot change the cached result.
+    :return: (codes, info): per-frame grades and a report of pattern counts,
+        thresholds and any reason detection was unavailable. Both are copies
+        of the cached result.
     """
     _validate_track(track, window)
     _validate_halo_frames(halo_frames)
@@ -75,7 +77,8 @@ def build_mask(
     Output: one uint8 code per original video frame. Moving repeats are
     FABRICATED, flat repeats SUSPECT_FLAT. Adjacent frames and other matches
     to their positions are DEGRADED. (0, 0) positions remain NO_FLAG.
-    The input track is unchanged; the second result explains the detection.
+    Return (codes, info). ``info`` reports pattern counts, thresholds and any
+    reason detection was unavailable. The dataset builder saves it with the grades.
     """
     _validate_track(track, window)
     _validate_halo_frames(halo_frames)
@@ -284,7 +287,7 @@ def code_counts(codes: np.ndarray) -> dict[int, int]:
     return {code: int(np.count_nonzero(codes == code)) for code in range(4)}
 
 
-# Input checks, diagnostics and cache
+# Input checks
 
 def _validate_track(track: np.ndarray, window: int) -> None:
     if not isinstance(track, np.ndarray):
@@ -308,6 +311,8 @@ def _validate_halo_frames(halo_frames: int) -> None:
         raise ValueError("halo_frames must be a non-negative integer")
 
 
+# Detection report when no patterns could be accepted
+
 def _empty_info(
     window: int,
     halo_frames: int,
@@ -328,6 +333,8 @@ def _empty_info(
         "counts_per_code": {code: 0 for code in range(4)},
     }
 
+
+# Reuse grades and their report for the same track and settings
 
 def _cache_key(track: np.ndarray, window: int, halo_frames: int) -> tuple[Any, ...]:
     canonical_bytes = np.ascontiguousarray(track).tobytes(order="C")

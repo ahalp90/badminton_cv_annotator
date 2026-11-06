@@ -14,7 +14,7 @@ import annotator.excluded_frames.replay as replay_mask_module
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
-    resolve,
+    scale_config_to_fps,
 )
 from annotator.excluded_frames.replay import (
     combine_mask,
@@ -41,7 +41,7 @@ def _homography_row(video_id: str, start: int, end: int, corners: list[float]) -
 def test_court_absence_fires_on_sustained_gap_not_blips():
     n_frames = 60
     court_present = np.ones(n_frames, dtype=bool)
-    window = resolve(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window
+    window = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window
     long_gap = slice(10, 10 + window + 5)   # sustained absence, fires
     short_blip = slice(45, 48)                            # 3 frames, below the window
     court_present[long_gap] = False

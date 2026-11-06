@@ -68,8 +68,10 @@ Contacts outside rallies remain in the full contact stream.
 `ScoredContacts` retains those rows, model probabilities and selected row indices.
 `RallyOptions` contains alternative contact lists and their model features.
 `RallyPrediction` retains the selected rallies and their scores.
-`AnnotatorResult` is the result used by the dataset builder; `RunCapture` optionally
-retains intermediate evidence and predictions for experiments.
+`AnnotatorResult` is the finished annotation. Use `AnnotationWorkingData` to
+also keep the working data: excluded-frame masks, tracked players, candidate
+contacts and model scores. The dataset builder saves the masks; evaluation code
+uses the working data to inspect predictions.
 
 [`models.py`](../../src/annotator/models.py) loads and saves the three-model bundle.
 Feature construction and scoring are separate functions so training can build

@@ -68,11 +68,11 @@ def span_impulses(
 
     Output index k corresponds to video frame start + k + 1, the middle of
     three frames. Return magnitudes, ratios to the local median and visibility
-    across those three frames. None if too few samples to smooth and difference.
+    across those three frames. Return None if fewer than smooth_window + 2 samples.
 
     IGNORE_INVISIBLE treats invisible xy values as NaN while smoothing.
     ZERO_FILL uses the supplied coordinates, including invisible frames.
-    An unmeasurable smoothing window gives NaN; later comparisons reject it.
+    A window with no visible samples gives NaN in IGNORE_INVISIBLE mode.
     """
     smooth_window = thresholds.smooth_window
     span = track[start:end]
@@ -102,8 +102,8 @@ def rolling_floor(
 ) -> np.ndarray:
     """Local median impulse, using only fully visible three-frame samples.
 
-    ``half_window`` counts samples on each side. No usable sample gives NaN,
-    so the contact cannot pass the impulse comparison.
+    ``half_window`` counts samples on each side. Return NaN if none are usable;
+    the contact then fails the impulse check.
     """
     visible_values = np.where(around_visible, values, np.nan)
     floor = np.full(len(values), np.nan)

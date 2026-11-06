@@ -36,7 +36,7 @@ def contact_player_evidence(
         return None, None
     band_lo, band_hi = court_at_frame(scene_courts, frame).net_band
 
-    # A finite value beats sentinels; exact ties retain the far/top tracker pick.
+    # Ignore missing distances; equal distances favour the top tracker slot.
     nearest = int(np.nanargmin(distances))
     slot = sticky.picks[frame, nearest]
     foot_y = float(bboxes[frame, slot, 3])
@@ -46,7 +46,7 @@ def contact_player_evidence(
     elif foot_y > band_hi:
         side = CourtHalf.BOT
 
-    # A missing player or two picks on the same half cannot supply competing costs.
+    # Comparing Top/Bot hitter distances needs one player on each half.
     if not finite_distances.all():
         return side, None
     first_foot, second_foot = bboxes[frame, sticky.picks[frame], 3]
@@ -83,7 +83,7 @@ def fit_alternation(
 ) -> CourtHalf | None:
     """Choose the alternating order that agrees with the most player guesses.
 
-    Each known guess votes for the final striker implied by its position.
+    Each hitter guess votes for a final hitter, assuming alternating sides.
     Break equal votes with the lower summed wrist distance when available, then
     the first known guess. Return None if no player guess is known.
     """
@@ -130,11 +130,11 @@ def measure_wrist_distances(
 ) -> None:
     """Measure shuttle gaps to each tracked player's nearer wrist.
 
-    Store height-normalised gaps for every analysed frame with a picked player,
-    and pixel gaps only where the shuttle is visible. Heights are the player's
-    local mean box height. Retain the nearest finite normalised gap per frame.
-    Update the supplied evidence in place; player tracking has already selected
-    the player rows.
+    Divide pixel gaps by the player's mean box height over nearby frames to get
+    body-height units. Save these for every analysed frame with a picked player;
+    save pixel gaps only where the shuttle is visible. Keep the nearest finite
+    normalised gap per frame. Update the supplied evidence in place; player
+    tracking has already selected the player rows.
     """
     width, height = resolution
     for start, end in segments:

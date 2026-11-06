@@ -1,11 +1,15 @@
 """Explicit configuration for standalone burst-opening trajectory fixtures."""
 
-from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
+from annotator.config import (
+    BaseAnnotatorConfig,
+    FpsScaledAnnotatorConfig,
+    scale_config_to_fps,
+)
 from annotator.types import SmoothingMode
 
 
-def burst_config(fps: float = 25.0) -> ResolvedAnnotatorConfig:
-    return resolve(BaseAnnotatorConfig(
+def burst_config(fps: float = 25.0) -> FpsScaledAnnotatorConfig:
+    return scale_config_to_fps(BaseAnnotatorConfig(
         smoothing_mode=SmoothingMode.ZERO_FILL,
         span_open=None,
         gap_state_demotion_bound=None,

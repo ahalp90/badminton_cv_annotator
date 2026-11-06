@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.heuristics import wrist_contact_near
 from annotator.rallies.find_rallies import segment_video
 from experiments.annotator.heuristic_only_tune.run import load_candidates, write_json
@@ -25,17 +25,17 @@ from tests.annotator_config import burst_config
 @pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
 def test_wrist_distance_stays_in_body_heights_at_each_fps(fps: float) -> None:
     base = BaseAnnotatorConfig(overrides_base30={'wrist_distance_body_heights': 1.8, 'smooth_window': 6.0})
-    resolved = resolve(base, fps)
-    assert resolved.thresholds.wrist_distance_body_heights == 1.8
-    assert resolved.thresholds.smooth_window == round(6.0 * fps / 30.0)
-    assert resolve(BaseAnnotatorConfig(), fps).thresholds.wrist_distance_body_heights == 1.4
+    video_config = scale_config_to_fps(base, fps)
+    assert video_config.thresholds.wrist_distance_body_heights == 1.8
+    assert video_config.thresholds.smooth_window == round(6.0 * fps / 30.0)
+    assert scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.wrist_distance_body_heights == 1.4
 
 
-def test_resolved_wrist_distance_supports_direct_numeric_changes() -> None:
-    resolved = resolve(BaseAnnotatorConfig(), 60.0)
-    custom = replace(resolved, thresholds=replace(resolved.thresholds, wrist_distance_body_heights=1.1))
+def test_scaled_wrist_distance_supports_direct_numeric_changes() -> None:
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), 60.0)
+    custom = replace(video_config, thresholds=replace(video_config.thresholds, wrist_distance_body_heights=1.1))
     assert custom.thresholds.wrist_distance_body_heights == 1.1
-    assert custom.thresholds.smooth_window == resolved.thresholds.smooth_window == 6
+    assert custom.thresholds.smooth_window == video_config.thresholds.smooth_window == 6
 
 
 def _turning_track() -> np.ndarray:
@@ -44,7 +44,7 @@ def _turning_track() -> np.ndarray:
     return np.column_stack((horizontal, np.full(80, 0.5), np.ones(80)))
 
 
-def test_resolved_wrist_distance_changes_contact_acceptance() -> None:
+def test_scaled_wrist_distance_changes_contact_acceptance() -> None:
     track = _turning_track()
     distances = np.full(len(track), 1.6)
     candidates = []
@@ -54,7 +54,7 @@ def test_resolved_wrist_distance_changes_contact_acceptance() -> None:
             track,
             spans=[(0, len(track))],
             sticky_distances=distances,
-            resolved=resolve(base, 30.0),
+            video_config=scale_config_to_fps(base, 30.0),
         )
         candidates.append(contacts)
     strict, loose = candidates
@@ -75,7 +75,7 @@ def test_default_wrist_gate_keeps_existing_verdicts_and_contacts() -> None:
 
     track = _turning_track()
     kwargs = {'spans': [(0, len(track))], 'sticky_distances': np.full(len(track), 1.4)}
-    _, contacts = segment_video(track, resolved=burst_config(), **kwargs)
+    _, contacts = segment_video(track, video_config=burst_config(), **kwargs)
     assert [contact.contact_frame for contact in contacts] == [1, 40, 78]
 
 
@@ -84,7 +84,7 @@ def test_current_preprocessing_pickle_contains_only_the_clean_schema() -> None:
     restored = pickle.loads(pickle.dumps(config))
     assert restored == config
     assert 'thresholds' not in vars(restored)
-    assert resolve(restored, 60.0).thresholds.wrist_distance_body_heights == 1.8
+    assert scale_config_to_fps(restored, 60.0).thresholds.wrist_distance_body_heights == 1.8
 
 
 def test_sweep_routes_and_saves_wrist_distance_without_changing_its_identity(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_sweep_routes_and_saves_wrist_distance_without_changing_its_identity(tmp
     identity = candidate_id(spec)
     payload = serialise_spec(spec)
     base = base_config(spec)
-    assert resolve(base, 60.0).thresholds.wrist_distance_body_heights == 2.0
+    assert scale_config_to_fps(base, 60.0).thresholds.wrist_distance_body_heights == 2.0
     assert payload['overrides_base30']['wrist_distance_body_heights'] == 2.0
     path = tmp_path / 'candidates.json.gz'
     write_json(path, {'candidates': [{'label': spec.label, **payload}]})

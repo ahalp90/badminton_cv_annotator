@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import annotator.annotate_video as orchestration
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.inference import prepare_contact_inference as player_evidence
 from annotator.inference.prepare_contact_inference import (
     AnnotationEvidence,
@@ -26,7 +26,7 @@ def preparation_inputs():
     inputs = _synthetic_inputs()
     return {
         'track': inputs['track'], 'bboxes': inputs['bboxes'], 'scores': inputs['scores'],
-        'kps': inputs['kps'], 'ndet': inputs['ndet'], 'resolved': resolve(BaseAnnotatorConfig(), inputs['fps']),
+        'kps': inputs['kps'], 'ndet': inputs['ndet'], 'video_config': scale_config_to_fps(BaseAnnotatorConfig(), inputs['fps']),
         'resolution': inputs['resolution'], 'video_id': inputs['video_id'],
         'raw_exclusion_mask': inputs['raw_exclusion_mask'], **_default_scene_inputs(len(inputs['track'])),
     }
@@ -48,8 +48,8 @@ def test_preparation_keeps_original_arrays_and_injected_contact_order(preparatio
     joblib.dump(evidence, path)
     restored = joblib.load(path)
     assert isinstance(restored, AnnotationEvidence)
-    assert restored.resolved == evidence.resolved
-    assert restored.fps == preparation_inputs['resolved'].fps
+    assert restored.video_config == evidence.video_config
+    assert restored.fps == preparation_inputs['video_config'].fps
     assert restored.heuristic_contacts == evidence.heuristic_contacts
     assert restored.raw_contact_frames == evidence.raw_contact_frames
     np.testing.assert_array_equal(restored.track, evidence.track)
@@ -63,7 +63,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
     preparation_inputs['raw_exclusion_mask'][10:100] = True
     original = track.copy()
 
-    def find(track_arg, resolved):
+    def find(track_arg, video_config):
         assert track_arg is track
         np.testing.assert_array_equal(track_arg, original)
         return [(0, 200)]
@@ -101,7 +101,7 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     unmasked_calls = []
     masked_calls = []
 
-    def find(track_arg, resolved):
+    def find(track_arg, video_config):
         if track_arg is track:
             np.testing.assert_array_equal(track_arg, original)
             unmasked_calls.append(track_arg)
@@ -180,7 +180,7 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
     monkeypatch.setattr(orchestration, 'build_hit_heights', unexpected)
     inputs = preparation_inputs
     source = SimpleNamespace(
-        identity=str(inputs['video_id']), fps=inputs['resolved'].fps, track=inputs['track'],
+        identity=str(inputs['video_id']), fps=inputs['video_config'].fps, track=inputs['track'],
         pose=SimpleNamespace(bboxes=inputs['bboxes'], scores=inputs['scores'], kps=inputs['kps'], ndet=inputs['ndet']),
         court=SimpleNamespace(resolution=inputs['resolution'],
                               homography_rows=inputs['homography_rows']),
@@ -192,6 +192,6 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
     record = experiment.prepare_video(video, 'group', {'stages': tmp_path, 'development_courts': tmp_path}, tmp_path)
     prepared = joblib.load(tmp_path / 'videos' / f'{source.identity}.joblib')
     assert isinstance(prepared.evidence, AnnotationEvidence)
-    assert prepared.evidence.resolved == inputs['resolved']
+    assert prepared.evidence.video_config == inputs['video_config']
     assert len(prepared.features.rows) == record['feature_rows']
     np.testing.assert_array_equal(prepared.evidence.track, inputs['track'])

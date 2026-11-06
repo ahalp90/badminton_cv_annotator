@@ -41,7 +41,7 @@ REVIEW_FEATURE_NAMES = (
 
 @dataclass(frozen=True)
 class RallySelector:
-    """Fitted proposal classifier and the edit limits to reuse when building its inputs."""
+    """Fitted rally selector, with the contact-edit limits used during training."""
 
     selector: Any
     max_edits: int = 3
@@ -84,7 +84,7 @@ class RallyReviewFeatures:
 
 @dataclass(frozen=True)
 class RallyReview:
-    """Rally correctness scores aligned with features.span_ids; lower needs more review."""
+    """Correctness score for each rally in features.span_ids; review low scores first."""
 
     features: RallyReviewFeatures
     scores: np.ndarray
@@ -99,7 +99,7 @@ def predict_rally_options(models: RallySelector, pool: RallyOptions) -> RallyPre
 
 
 def choose_rows(pool: RallyOptions, scores: np.ndarray) -> dict[int, int]:
-    """Choose each rally's highest-scoring option, retaining pool order for ties."""
+    """Choose each rally's highest-scoring option; first in pool order wins ties."""
     if scores.shape != (len(pool.sequences),) or not np.isfinite(scores).all():
         raise ValueError('scores must be finite and align with every pool option')
     chosen = {}

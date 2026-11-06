@@ -15,7 +15,7 @@ from typing import NamedTuple
 import numpy as np
 
 from annotator.array_calc_helpers import true_runs
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.contacts.heuristics import span_impulses
 from annotator.types import WRIST_L, WRIST_R, SmoothingMode, StickyResult
 from shared.progress import progress_iter
@@ -164,7 +164,7 @@ def extend_intervals_with_lookback(
     frame_count: int,
     fps: float,
 ) -> list[tuple[int, int]]:
-    """Add a bounded pre-roll before each eligible court-view interval."""
+    """Extend court-view intervals backwards to find earlier serves; merge overlaps."""
     lookback = frames_at_fps(SERVE_LOOKBACK_BASE30, fps)
     expanded = [(max(0, start - lookback), end) for start, end in eligible_intervals]
     merged: list[tuple[int, int]] = []
@@ -196,7 +196,7 @@ def build_shuttle_signals(
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
     # Learned motion features retain their training defaults when heuristic settings change.
-    thresholds = resolve(BaseAnnotatorConfig(), fps).thresholds
+    thresholds = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     for start, end in spans:
         # The tree was trained on zero-filled impulse smoothing, including invisible
         # shuttle rows. Changing it to ignore missing rows changes model inputs.
@@ -209,11 +209,11 @@ def build_shuttle_signals(
         impulse_ratio[frames] = ratios
     return {
         "shuttle_visible": visible.astype(np.float32),
-        "shuttle_vx": _finite_or_nan(vx),
-        "shuttle_vy": _finite_or_nan(vy),
-        "shuttle_speed": _finite_or_nan(speed),
-        "shuttle_impulse": _finite_or_nan(impulse),
-        "shuttle_impulse_ratio": _finite_or_nan(impulse_ratio),
+        "shuttle_vx": finite_to_fp32_inf_as_nan(vx),
+        "shuttle_vy": finite_to_fp32_inf_as_nan(vy),
+        "shuttle_speed": finite_to_fp32_inf_as_nan(speed),
+        "shuttle_impulse": finite_to_fp32_inf_as_nan(impulse),
+        "shuttle_impulse_ratio": finite_to_fp32_inf_as_nan(impulse_ratio),
     }
 
 
@@ -240,7 +240,7 @@ def build_player_signals(
         closest = np.argmin(gaps, axis=1)
         wrist_xy[valid_frames, slot] = wrists[np.arange(len(valid_frames)), closest]
 
-    slot_gaps = _finite_or_nan(np.asarray(sticky.distances_per_slot, dtype=np.float64))
+    slot_gaps = finite_to_fp32_inf_as_nan(np.asarray(sticky.distances_per_slot, dtype=np.float64))
     finite_gaps = np.isfinite(slot_gaps)
     gap_min = np.full(n_frames, np.nan, dtype=np.float32)
     has_gap = finite_gaps.any(axis=1)
@@ -253,7 +253,7 @@ def build_player_signals(
     nearest_wrist[valid_nearest] = wrist_xy[valid_nearest, nearest_slot[valid_nearest]]
     relative = nearest_wrist - track[:, :2]
 
-    ankle = _finite_or_nan(np.asarray(sticky.ankle_pos, dtype=np.float64))
+    ankle = finite_to_fp32_inf_as_nan(np.asarray(sticky.ankle_pos, dtype=np.float64))
     ankle_steps = frame_differences(ankle)  # (frame, court half, xy).
     ankle_speed = np.hypot(ankle_steps[:, :, 0], ankle_steps[:, :, 1])
 
@@ -261,10 +261,10 @@ def build_player_signals(
         "wrist_gap_min": gap_min,
         "wrist_gap_top": slot_gaps[:, 0],
         "wrist_gap_bot": slot_gaps[:, 1],
-        "nearest_wrist_dx": _finite_or_nan(relative[:, 0]),
-        "nearest_wrist_dy": _finite_or_nan(relative[:, 1]),
-        "ankle_speed_top": _finite_or_nan(ankle_speed[:, 0]),
-        "ankle_speed_bot": _finite_or_nan(ankle_speed[:, 1]),
+        "nearest_wrist_dx": finite_to_fp32_inf_as_nan(relative[:, 0]),
+        "nearest_wrist_dy": finite_to_fp32_inf_as_nan(relative[:, 1]),
+        "ankle_speed_top": finite_to_fp32_inf_as_nan(ankle_speed[:, 0]),
+        "ankle_speed_bot": finite_to_fp32_inf_as_nan(ankle_speed[:, 1]),
         "pose_valid_top": (sticky.picks[:, 0] >= 0).astype(np.float32),
         "pose_valid_bot": (sticky.picks[:, 1] >= 0).astype(np.float32),
         "wrist_valid_top": np.isfinite(slot_gaps[:, 0]).astype(np.float32),
@@ -280,7 +280,7 @@ def frame_differences(values: np.ndarray) -> np.ndarray:
     return result
 
 
-def _finite_or_nan(values: np.ndarray) -> np.ndarray:
+def finite_to_fp32_inf_as_nan(values: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(values), values, np.nan).astype(np.float32)
 
 
@@ -345,7 +345,7 @@ def find_local_minima(values: np.ndarray, limit: float, radius: int) -> np.ndarr
 
 
 def expand_seed_region(seed: np.ndarray, radius: int) -> np.ndarray:
-    """Expand seed frames within one interval, retaining its length."""
+    """Mark frames within radius of any True sample; keep the input length."""
     if not seed.any():
         return np.zeros(len(seed), dtype=bool)
     kernel = np.ones(2 * radius + 1, dtype=np.int16)
@@ -367,7 +367,7 @@ def shift_within_interval(
     start: int,
     end: int,
 ) -> np.ndarray:
-    """Sample each frame plus an offset; NaN outside [start, end), incl start, excl end."""
+    """Read values at frames + offset; NaN outside the range (incl start, excl end)."""
     source = frames + offset
     result = np.full(len(frames), np.nan, dtype=np.float32)
     valid = (source >= start) & (source < end)

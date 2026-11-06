@@ -21,8 +21,8 @@ def select_heuristic_contacts(
     """Select heuristic contacts and fit alternating players within each rally.
 
     Keep contacts that pass the wrist and spacing checks, then remove those
-    on excluded footage. Record a rejection if that removes every accepted
-    contact in a rally.
+    on excluded footage. If that removes every accepted contact in a rally,
+    append a diagnostic row when ``rejection_diagnostics`` is supplied.
     """
     frames_by_rally: dict[int, list[int]] = {}
     for contact in accepted_heuristic_contacts(evidence.heuristic_contacts):

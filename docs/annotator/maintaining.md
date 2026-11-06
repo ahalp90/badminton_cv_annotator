@@ -71,8 +71,8 @@ Frame counts use `frames_at_fps()` with half-up rounding, and per-frame speeds u
 `speed_at_fps()` with inverse FPS scaling.
 
 Newly fitted model bundles use `annotator-three-models/2`. Saved preprocessing has
-one numeric override mapping, `overrides_base30`. `resolve()` in `config.py`
-converts it into one `Thresholds` value for the video's frame rate.
+one numeric override mapping, `overrides_base30`. `scale_config_to_fps()` in
+`config.py` converts it into one `Thresholds` value for the video's frame rate.
 The loader checks feature order and proposal settings. Player attribution uses
 the current scene's geometry. Runtime
 versions are recorded for reproduction, without requiring an exact version match.
@@ -114,7 +114,7 @@ rules, outcome handling and the two live integrations.
 6. Compare selector scores, then inspect boundary and side finishing.
 7. Inspect outcome rules only after confirming the final contacts.
 
-Use `RunCapture` to retain intermediate predictions and masks. The validation
+Use `AnnotationWorkingData` to retain intermediate predictions and masks. The validation
 overlay and review tools provide visual checks without changing the inference
 path. Keep experimental settings and their saved results together, following
 the [refit guide](retuning.md).

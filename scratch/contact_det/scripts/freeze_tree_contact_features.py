@@ -38,7 +38,7 @@ from freeze_contact_evidence import (
     _stage_paths,
 )
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.types import SmoothingMode
 
 FEATURE_SCHEMA = "tree-contact-features/2"
@@ -235,7 +235,7 @@ def _shuttle_signals(
     speed = np.hypot(vx, vy)
     impulse = np.full(n_frames, np.nan, dtype=np.float64)
     impulse_ratio = np.full(n_frames, np.nan, dtype=np.float64)
-    values = resolve(BaseAnnotatorConfig(), fps).thresholds
+    values = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     thresholds = values
     for start, end in spans:
         measured = span_impulses(track, start, end, thresholds, smoothing_mode=SmoothingMode.ZERO_FILL)

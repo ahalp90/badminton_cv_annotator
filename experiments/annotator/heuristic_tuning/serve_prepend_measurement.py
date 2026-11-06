@@ -9,7 +9,7 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from annotator.annotate_video import annotate_video
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.contacts.heuristics import impulse_cell_candidates
 from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
 from experiments.annotator.legacy_evaluation.fixtures import Fixture
@@ -430,7 +430,7 @@ def evaluate_serve_candidates(
     statuses: Sequence[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Score every bounded raw candidate before each claimed rally start."""
-    resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps)
     tolerance = canonical_tolerance(fixture.fps)
     lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     natural_raw = {
@@ -451,8 +451,8 @@ def evaluate_serve_candidates(
             arrays[0],
             lookback_start,
             anchor,
-            resolved.thresholds,
-            smoothing_mode=resolved.smoothing_mode,
+            video_config.thresholds,
+            smoothing_mode=video_config.smoothing_mode,
         )
         evaluated = [
             _build_candidate_row(
@@ -475,8 +475,8 @@ def evaluate_serve_candidates(
                 gt_rallies=gt_rallies,
                 statuses=statuses,
                 tolerance=tolerance,
-                suppression_radius=resolved.thresholds.contact_suppression_radius_frames,
-                wrist_distance_body_heights=resolved.thresholds.wrist_distance_body_heights,
+                suppression_radius=video_config.thresholds.contact_suppression_radius_frames,
+                wrist_distance_body_heights=video_config.thresholds.wrist_distance_body_heights,
                 natural_raw=natural_raw,
                 natural_accepted=natural_accepted,
             )
@@ -521,9 +521,9 @@ def evaluate_serve_candidates(
             "gt_serve_tolerance_frames": tolerance,
             "central_band_fraction": band_fraction,
             "pose_selection": "largest valid bbox area, then score, then earliest slot",
-            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
+            "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "contact_suppression_radius_frames": (
-                resolved.thresholds.contact_suppression_radius_frames
+                video_config.thresholds.contact_suppression_radius_frames
             ),
             "requires_visible_clean_track": True,
             "requires_court_absent": True,

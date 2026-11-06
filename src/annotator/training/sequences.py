@@ -61,7 +61,7 @@ SKIP_LABEL = np.uint8(3)
 
 
 def better_match_score(candidate: tuple[int, int], incumbent: tuple[int, int]) -> bool:
-    """Return whether a score has a larger count or a lower error at that count."""
+    """Prefer more matched contacts; break ties by lower total timing error."""
     return candidate[0] > incumbent[0] or (
         candidate[0] == incumbent[0] and candidate[1] < incumbent[1]
     )

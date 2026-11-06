@@ -206,8 +206,11 @@ fields. In particular:
 - `rally_confidence` holds review scores in rally order.
 - `outcomes` groups winner, landing and geometric estimates by rally; contact heights and unavailable-height reasons are keyed by frame.
 
-Use `RunCapture` to retain prepared evidence and intermediate predictions for
-debugging or experiments. Run landing-time comparisons separately with
+Use `AnnotationWorkingData` to keep excluded-frame masks, tracked players,
+candidate contacts and model scores. The dataset builder saves the masks;
+evaluation code uses the working data to inspect predictions.
+
+Run landing-time comparisons separately with
 `experiments.annotator.landing_search.compare_landing_searches()`.
 
 The standalone command, dataset builder and MonoTrack adapter all call

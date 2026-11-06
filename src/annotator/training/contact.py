@@ -69,8 +69,8 @@ class ContactTrainingCounts:
 class ContactTrainingSelection:
     """Selected examples with one binary label per row and sampling counts per video.
 
-    Rows stay grouped by video, so ``video_counts`` also identifies each video's
-    portion of the combined training arrays.
+    Rows stay grouped by video. Use ``video_counts`` to find each video's rows
+    when changing the fit order; the counts are also available for reports.
     """
 
     rows: np.ndarray

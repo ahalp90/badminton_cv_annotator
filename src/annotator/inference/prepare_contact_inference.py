@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from annotator import player_tracking
-from annotator.config import ResolvedAnnotatorConfig
+from annotator.config import FpsScaledAnnotatorConfig
 from annotator.contacts.player_attribution import measure_wrist_distances
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.excluded_frames.replay import (
@@ -50,7 +50,7 @@ class AnnotationEvidence:
     sticky: StickyResult
     tracker_intervals: Sequence[tuple[int, int]]
     scene_courts: tuple[SceneCourt, ...]
-    resolved: ResolvedAnnotatorConfig
+    video_config: FpsScaledAnnotatorConfig
     raw_exclusion_mask: np.ndarray
     exclusion_mask: np.ndarray
     heuristic_spans: list[tuple[int, int]]
@@ -61,8 +61,8 @@ class AnnotationEvidence:
 
     @property
     def fps(self) -> float:
-        """Frame rate used to resolve preparation settings."""
-        return self.resolved.fps
+        """Frame rate used to scale the preparation settings."""
+        return self.video_config.fps
 
     @property
     def raw_contact_frames(self) -> list[int]:
@@ -77,7 +77,7 @@ def prepare_contact_inference(
     kps: np.ndarray,
     ndet: np.ndarray,
     *,
-    resolved: ResolvedAnnotatorConfig,
+    video_config: FpsScaledAnnotatorConfig,
     resolution: tuple[float, float],
     video_id: int | str,
     court_present: np.ndarray,
@@ -97,26 +97,26 @@ def prepare_contact_inference(
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
     shuttle_hallucination_mask, source_codes = build_shuttle_hallucination_mask(
-        len(track), resolved.rejected_grades, inpaint_codes,
+        len(track), video_config.rejected_grades, inpaint_codes,
     )
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
     # Player tracking needs the original track before dead-time masking.
     segments = player_tracking.tracker_segments(scene_courts, court_present, len(track))
     sticky = build_player_evidence(
         track, segments, bboxes, scores, kps, ndet,
-        resolution, resolved.thresholds.body_unit_half_window,
+        resolution, video_config.thresholds.body_unit_half_window,
         scene_courts=scene_courts,
     )
     original_spans = spans
     if raw_exclusion_mask is None:
         # Replay-mask estimation needs bounds from the original track.
         if original_spans is None:
-            original_spans = find_rally_spans(track, resolved)
+            original_spans = find_rally_spans(track, video_config)
         raw_exclusion_mask = combine_mask(
-            court_present, track, original_spans, len(track), resolved.fps,
+            court_present, track, original_spans, len(track), video_config.fps,
             non_evidence=shuttle_hallucination_mask,
         )
-    exclusion_mask = filter_exclusion_mask(raw_exclusion_mask, len(track), resolved.thresholds.replay_mask_min_frames)
+    exclusion_mask = filter_exclusion_mask(raw_exclusion_mask, len(track), video_config.thresholds.replay_mask_min_frames)
     usable_court_frames = np.zeros(len(track), dtype=bool)
     for scene in scene_courts:
         start = max(0, scene.start_frame)
@@ -130,19 +130,19 @@ def prepare_contact_inference(
     if contacts is not None:
         # Supplied contacts belong to the original track, before dead-time masking.
         if original_spans is None:
-            original_spans = find_rally_spans(track, resolved)
+            original_spans = find_rally_spans(track, video_config)
         rally_spans = original_spans
         raw_contacts = [ContactCandidate(rally_id, frame, None, None)
                         for rally_id, frames in contacts.items() for frame in frames]
     else:
         rally_spans, raw_contacts = segment_video(
-            track, resolved=resolved, exclusion_mask=exclusion_mask,
+            track, video_config=video_config, exclusion_mask=exclusion_mask,
             sticky_distances=sticky.distances, spans=spans,
         )
     return AnnotationEvidence(
         identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
         sticky=sticky, tracker_intervals=segments, scene_courts=scene_courts,
-        resolved=resolved, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
+        video_config=video_config, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=rally_spans, heuristic_contacts=raw_contacts,
         shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,
         bounds_supplied=spans is not None,

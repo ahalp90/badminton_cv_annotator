@@ -298,8 +298,8 @@ The direct call uses the model directory and settings as follows:
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 
 `prepare_contact_inference()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
-accepts the same five arrays plus resolved settings and the court, mask and scene
-inputs. Training and rally-model experiments call it directly. Its
+accepts the same five arrays plus settings scaled to the video frame rate and
+the court, mask and scene inputs. Training and rally-model experiments call it directly. Its
 `AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
 all heuristic contact rows, raw/final exclusion masks and event-rejection evidence.
 It does not calculate final contact order, landing, winner or hit height.

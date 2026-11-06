@@ -8,7 +8,11 @@ import pytest
 
 import annotator.annotate_video as run_video_module
 from annotator import player_tracking
-from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
+from annotator.annotate_video import (
+    AnnotationWorkingData,
+    AnnotatorResult,
+    annotate_video,
+)
 from annotator.config import BaseAnnotatorConfig
 from annotator.courts.frame_geometry import build_scene_courts
 from annotator.inference import heuristic as heuristic_inference
@@ -58,7 +62,7 @@ def test_model_contacts_and_fitted_sides_survive_the_full_chain(monkeypatch, ann
 
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
     monkeypatch.setattr(run_video_module, 'select_heuristic_contacts', unexpected_reattribution)
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     result = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
         spans=[(10, 20)], contacts={0: [14]}, models=annotator_models, capture=capture,
@@ -530,7 +534,7 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
 
 def test_run_video_capture_exposes_prepared_evidence() -> None:
     inputs = _synthetic_inputs()
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
         capture=capture, heuristic_only=True,
@@ -567,7 +571,7 @@ def test_run_video_scales_landing_options_before_search(monkeypatch):
 
 def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
     monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
     result = annotate_video(
@@ -585,7 +589,7 @@ def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
 def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
@@ -614,7 +618,7 @@ def test_run_video_can_exclude_frames_without_court_presence() -> None:
     inputs = _synthetic_inputs()
     court_present = np.ones(len(inputs['track']), dtype=bool)
     court_present[10] = False
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     scene_inputs = _default_scene_inputs(len(inputs['track']))
     scene_inputs['court_present'] = court_present
 
@@ -648,7 +652,7 @@ def test_run_video_excludes_scene_gaps(
     scene_inputs['court_present'][120] = False
     gap_contact = (gap_start + gap_end) // 2
     contact_frames = sorted([120, gap_contact, 180])
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
 
     result = annotate_video(
         **inputs, **scene_inputs,
@@ -669,7 +673,7 @@ def test_run_video_excludes_scene_gaps(
 
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
     inputs = _synthetic_inputs()
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     scene_inputs = _default_scene_inputs(len(inputs['track']))
     scene_inputs['court_present'] = np.zeros(len(inputs['track']), dtype=bool)
     with pytest.raises(ValueError, match='mask is all True'):
@@ -778,7 +782,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
     models = replace(annotator_models, preprocessing=BaseAnnotatorConfig(rejected_grades=rejected_grades))
     monkeypatch.setattr(preparation, 'build_shuttle_hallucination_mask', build_mask)
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     annotate_video(
         **inputs, **_default_scene_inputs(frame_count), spans=[(10, 20)], contacts={0: [14]},
         models=models, inpaint_codes=codes, capture=capture,

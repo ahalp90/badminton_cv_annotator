@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.build_features import contact_feature_dtype
 from annotator.contacts.score_candidates import ScoredContacts, contact_feature_matrix
 from annotator.courts.frame_geometry import SceneCourt
@@ -129,7 +129,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
     contact_data = (FinishedRally(ContactSequence(0, 0, 12, (ContactEvent(7, np.nan, CourtHalf.TOP),)), CourtHalf.TOP),)
     evidence = SimpleNamespace(
         track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), sticky=None,
-        resolved=resolve(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
+        video_config=scale_config_to_fps(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
         net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
         source_codes=None, scene_courts=scenes,
     )

@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.excluded_frames.replay import filter_short_exclusion_runs
 from dataset_builder.commentary_inputs import RETIMED_ALIGN_STATUSES
 from dataset_builder.vision import save_json_gz
@@ -369,7 +369,7 @@ def evaluate_video(
     inputs: VideoInputs,
 ) -> tuple[dict[str, Any], dict[str, list[float]], list[float], list[int]]:
     """Evaluate one video's supported pairing and cleaning coverage."""
-    minimum_run = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
+    minimum_run = scale_config_to_fps(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     filtered_mask = (
         None if inputs.replay_mask is None
         else filter_short_exclusion_runs(inputs.replay_mask, minimum_run)

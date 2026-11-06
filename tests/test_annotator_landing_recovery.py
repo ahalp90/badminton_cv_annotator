@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.courts.frame_geometry import SceneCourt
 from annotator.rally_results import landing_and_winner as point_winner
 from annotator.rally_results.estimate_results import build_outcomes
@@ -33,7 +33,7 @@ def returning_view_evidence() -> SimpleNamespace:
         sticky=SimpleNamespace(picks=np.full((25, 2), -1), bbox_height=np.full((25, 2), np.nan)),
         pose_kps=np.empty((25, 0, 17, 2)),
         resolution=resolution,
-        resolved=resolve(BaseAnnotatorConfig(), 30.0), exclusion_mask=exclusions,
+        video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), exclusion_mask=exclusions,
         shuttle_hallucination_mask=np.zeros(25, dtype=bool), source_codes=None,
         scene_courts=(SceneCourt(10, 16, court, (340.0, 380.0), 0.1),
                       SceneCourt(16, 25, court, (340.0, 380.0), 0.1)),

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.config import resolve
+from annotator.config import scale_config_to_fps
 from annotator.types import ContactEvent, ContactSequence, FinishedRally, SpanOpen
 from experiments.annotator.heuristic_tuning import sweep
 from experiments.annotator.heuristic_tuning.schemas import CSV_COLUMNS_BY_FILENAME
@@ -54,7 +54,7 @@ def test_sweep_row_preserves_the_legacy_speed_schema_value() -> None:
     assert row["rest_speed"] == 0.002
 
 
-def test_boundary_values_resolve_to_frozen_25fps_literals() -> None:
+def test_boundary_values_scale_to_frozen_25fps_literals() -> None:
     expected = {
         "rest_speed": (0.002, 0.003, 0.005, 0.01, 0.02),
         "rest_window": (5, 7, 9, 15, 21),
@@ -63,8 +63,8 @@ def test_boundary_values_resolve_to_frozen_25fps_literals() -> None:
         "start_min_frames": (1, 2, 3, 5),
     }
     for key, values in sweep.BOUNDARY_VALUES.items():
-        resolved = [getattr(resolve(sweep.BaseAnnotatorConfig(overrides_base30={key: value}), 25).thresholds, key) for value in values]
-        assert resolved == list(expected[key])
+        scaled_values = [getattr(scale_config_to_fps(sweep.BaseAnnotatorConfig(overrides_base30={key: value}), 25).thresholds, key) for value in values]
+        assert scaled_values == list(expected[key])
 
 
 def test_grids_and_routing_cover_every_key_class() -> None:

@@ -6,47 +6,47 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.rallies.find_rallies import gap_state_rest_mask
 from annotator.types import ReentryGuardVariant, SmoothingMode
 from tests.annotator_config import burst_config
 
 
-def test_base30_overrides_resolve_all_scaling_kinds() -> None:
+def test_base30_overrides_scale_all_scaling_kinds() -> None:
     base = BaseAnnotatorConfig(overrides_base30={
         'rest_window': 10.0,
         'rest_speed': 0.003,
         'contact_impulse_multiple': 5.5,
     })
-    resolved = resolve(base, 25.0)
-    assert resolved.thresholds.rest_window == 8
-    assert resolved.thresholds.rest_speed == pytest.approx(0.0036)
-    assert resolved.thresholds.contact_impulse_multiple == 5.5
+    video_config = scale_config_to_fps(base, 25.0)
+    assert video_config.thresholds.rest_window == 8
+    assert video_config.thresholds.rest_speed == pytest.approx(0.0036)
+    assert video_config.thresholds.contact_impulse_multiple == 5.5
 
 
-def test_shipped_tracking_strategies_resolve_at_video_fps() -> None:
-    resolved25 = resolve(BaseAnnotatorConfig(), 25.0)
-    resolved30 = resolve(BaseAnnotatorConfig(), 30.0)
-    assert resolved25.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
-    assert resolved25.gap_state_demotion_bound == 63
-    assert resolved30.gap_state_demotion_bound == 75
-    assert resolved30.reentry_guard_variant is ReentryGuardVariant.TWO_SIDED
-    assert resolved30.reentry_guard_buffer == 0.05
+def test_shipped_tracking_strategies_scale_at_video_fps() -> None:
+    video_config25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0)
+    video_config30 = scale_config_to_fps(BaseAnnotatorConfig(), 30.0)
+    assert video_config25.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
+    assert video_config25.gap_state_demotion_bound == 63
+    assert video_config30.gap_state_demotion_bound == 75
+    assert video_config30.reentry_guard_variant is ReentryGuardVariant.TWO_SIDED
+    assert video_config30.reentry_guard_buffer == 0.05
 
 
 def test_unknown_base30_override_fails_loudly() -> None:
     with pytest.raises(ValueError, match='unknown base-30'):
-        resolve(BaseAnnotatorConfig(overrides_base30={'not_a_row': 1.0}), 30.0)
+        scale_config_to_fps(BaseAnnotatorConfig(overrides_base30={'not_a_row': 1.0}), 30.0)
 
 
 def test_removed_direction_change_override_fails_loudly() -> None:
     with pytest.raises(ValueError, match='unknown base-30'):
-        resolve(BaseAnnotatorConfig(overrides_base30={'min_dir_change_deg': 30.0}), 30.0)
+        scale_config_to_fps(BaseAnnotatorConfig(overrides_base30={'min_dir_change_deg': 30.0}), 30.0)
 
 
-def test_rejected_grades_are_validated_and_copied_to_resolved_config() -> None:
+def test_rejected_grades_are_validated_and_copied_to_scaled_config() -> None:
     base = BaseAnnotatorConfig(rejected_grades=frozenset({1, 3}))
-    assert resolve(base, 30.0).rejected_grades == frozenset({1, 3})
+    assert scale_config_to_fps(base, 30.0).rejected_grades == frozenset({1, 3})
     with pytest.raises(ValueError, match='subset of'):
         BaseAnnotatorConfig(rejected_grades=frozenset({0}))
     with pytest.raises(ValueError, match='subset of'):
@@ -90,10 +90,10 @@ def test_gap_guard_can_be_disabled_as_one_strategy() -> None:
         reentry_guard_variant=None,
         reentry_guard_buffer=None,
     )
-    resolved = resolve(base, 25.0)
-    assert resolved.gap_state_demotion_bound is None
-    assert resolved.reentry_guard_variant is None
-    assert resolved.reentry_guard_buffer is None
+    video_config = scale_config_to_fps(base, 25.0)
+    assert video_config.gap_state_demotion_bound is None
+    assert video_config.reentry_guard_variant is None
+    assert video_config.reentry_guard_buffer is None
 
 
 def test_gap_state_with_and_without_reentry_guard() -> None:
@@ -110,8 +110,8 @@ def test_gap_state_with_and_without_reentry_guard() -> None:
 
 
 def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
-    values25 = resolve(BaseAnnotatorConfig(), 25.0).thresholds
-    values30 = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    values25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
+    values30 = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     fields = (
         'blip_max_frames', 'high_shot_oob_lookback_frames',
         'high_shot_oob_min_visible_frames', 'high_shot_oob_extrap_frames',

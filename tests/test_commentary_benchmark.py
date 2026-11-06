@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.excluded_frames.replay import filter_short_exclusion_runs
 from dataset_builder.commentary_inputs import (
     RETIMED_RELATIVE_DIR,
@@ -408,7 +408,7 @@ RALLIES = ((0, 0, 50), (1, 60, 100), (2, 200, 250))  # seconds: 0-5, 6-10, 20-25
 
 
 def _multi_rally_summary(inputs: VideoInputs, rallies: tuple, seconds: float) -> dict:
-    grace = resolve(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
+    grace = scale_config_to_fps(BaseAnnotatorConfig(), inputs.fps).thresholds.replay_mask_min_frames
     mask = None if inputs.replay_mask is None else filter_short_exclusion_runs(inputs.replay_mask, grace)
     masked = _masked_rally_ids(rallies, mask, grace)
     return _multi_rally_counts(inputs, rallies, seconds, masked, mask)

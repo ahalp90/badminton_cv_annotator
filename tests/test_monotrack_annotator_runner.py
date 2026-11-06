@@ -13,7 +13,7 @@ import pytest
 
 import annotator.annotate_video as video_module
 import annotator.models as model_module
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
 from dataset_builder import vision
@@ -114,9 +114,9 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['heuristic_only'] is True
         assert kwargs['spans'] == [(0, 45)]
         assert kwargs['fps'] == 25.0
-        resolved = resolve(kwargs['base'], kwargs['fps'])
-        assert resolved.thresholds.wrist_distance_body_heights == 1.8
-        assert resolved.thresholds.smooth_window == 5
+        video_config = scale_config_to_fps(kwargs['base'], kwargs['fps'])
+        assert video_config.thresholds.wrist_distance_body_heights == 1.8
+        assert video_config.thresholds.smooth_window == 5
         assert kwargs['landing_options'] is SHIPPED_LANDING_FILTER_OPTIONS
         assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['inpaint_codes'] is inputs.guards

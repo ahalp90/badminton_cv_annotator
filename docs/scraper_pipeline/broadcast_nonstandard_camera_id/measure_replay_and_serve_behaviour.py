@@ -36,13 +36,13 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from annotator.annotate_video import RunCapture, annotate_video
+from annotator.annotate_video import AnnotationWorkingData, annotate_video
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
     frames_at_fps,
-    resolve,
+    scale_config_to_fps,
 )
 from annotator.contacts.heuristics import impulse_cell_candidates
 from annotator.courts.frame_geometry import build_scene_courts
@@ -300,12 +300,12 @@ def slow_motion_details(
     rally_median = float(np.nanmedian(measured))
     if rally_median <= 0:
         raise ValueError("slow-motion rally median must be positive")
-    resolved = resolve(BaseAnnotatorConfig(), fps)
-    rolling_speed = rolling_nanmedian(speed, resolved.thresholds.rest_window)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
+    rolling_speed = rolling_nanmedian(speed, video_config.thresholds.rest_window)
     threshold = SLOWMO_SPEED_FRAC * rally_median
     signal = (
         (track[:, 2] == 1)
-        & (rolling_speed >= resolved.thresholds.rest_speed)
+        & (rolling_speed >= video_config.thresholds.rest_speed)
         & (rolling_speed < threshold)
     )
     return SlowMotionDetails(signal, speed, rolling_speed, rally_median, threshold)
@@ -345,8 +345,8 @@ def slow_motion_rows(
 
 def bootstrap_spans(track: np.ndarray, fps: float) -> list[tuple[int, int]]:
     """Reproduce the current unmasked span pass used to build the replay mask."""
-    resolved = resolve(BaseAnnotatorConfig(), fps)
-    return find_rally_spans(track, resolved)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
+    return find_rally_spans(track, video_config)
 
 
 def gt_statuses(
@@ -403,7 +403,7 @@ def evaluate_serve_candidates(
     fps: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Measure one fixed recording-only serve-lookback candidate rule."""
-    resolved = resolve(BaseAnnotatorConfig(), fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
     tolerance = canonical_tolerance(fps)
     lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fps)
     distance = nearest_replay_or_cutaway_distance(truth)
@@ -423,8 +423,8 @@ def evaluate_serve_candidates(
             track,
             lookback_start,
             anchor,
-            resolved.thresholds,
-            smoothing_mode=resolved.smoothing_mode,
+            video_config.thresholds,
+            smoothing_mode=video_config.smoothing_mode,
         )
         evaluated: list[dict[str, Any]] = []
         for frame, impulse in flags:
@@ -438,7 +438,7 @@ def evaluate_serve_candidates(
             code = int(inpaint_codes[frame])
             wrist_pass = bool(
                 np.isfinite(sticky_distance)
-                and sticky_distance <= resolved.thresholds.wrist_distance_body_heights
+                and sticky_distance <= video_config.thresholds.wrist_distance_body_heights
             )
             evidence_pass = visible and code == NO_FLAG and wrist_pass
             policy_pass = evidence_pass and not bool(definitive_mask[frame])
@@ -523,7 +523,7 @@ def evaluate_serve_candidates(
         "candidate_rule": {
             "lookback_frames": lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
-            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
+            "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,
             "requires_inpaint_code": NO_FLAG,
             "definitive_mask_policy": "blocked",
@@ -766,13 +766,13 @@ def run_measurement(
     raw_union = court | perspective | velocity
     committed_mask = np.asarray(keyword["raw_exclusion_mask"])
     pinned_mask_diff_frames = int(np.count_nonzero(raw_union != committed_mask))
-    resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps)
     duration_filtered = filter_short_exclusion_runs(
-        raw_union, resolved.thresholds.replay_mask_min_frames,
+        raw_union, video_config.thresholds.replay_mask_min_frames,
     )
     e2e_definitive = duration_filtered | ~court_present
 
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     keyword["raw_exclusion_mask"] = raw_union
     keyword["court_invalid_is_excluded"] = True
     keyword["capture"] = capture
@@ -814,7 +814,7 @@ def run_measurement(
         kps,
         ndet,
         fixture.resolution,
-        resolved.thresholds.body_unit_half_window, scene_courts=scene_courts,
+        video_config.thresholds.body_unit_half_window, scene_courts=scene_courts,
     )
     spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
     accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]
@@ -872,7 +872,7 @@ def run_measurement(
             {"path": pin.path.as_posix(), "md5": pin.md5} for pin in fixture.files
         ],
         "replay_mask": {
-            "replay_mask_min_frames": resolved.thresholds.replay_mask_min_frames,
+            "replay_mask_min_frames": video_config.thresholds.replay_mask_min_frames,
             "fresh_union_matches_pinned_raw_mask": pinned_mask_diff_frames == 0,
             "fresh_union_pinned_raw_diff_frames": pinned_mask_diff_frames,
             "detectors": binary_by_detector,

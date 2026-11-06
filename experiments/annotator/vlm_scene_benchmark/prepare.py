@@ -14,7 +14,11 @@ from typing import Any
 
 import cv2
 
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig, resolve
+from annotator.config import (
+    COMPOSITION_CONTENT_THRESHOLD,
+    BaseAnnotatorConfig,
+    scale_config_to_fps,
+)
 from shared.camera_cuts import detect_cuts
 
 from .contracts import ShardSpec
@@ -498,7 +502,7 @@ def prepare_shard(
             height=height,
             context="model video",
         )
-        min_scene_len = resolve(BaseAnnotatorConfig(), source.fps).thresholds.composition_min_scene_len
+        min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), source.fps).thresholds.composition_min_scene_len
         local_cuts = detect_cuts(reference_path, reference.frame_count, content_threshold, min_scene_len)
         cut_frames = tuple(start_frame + int(frame) for frame in local_cuts)
         shard = ShardSpec(

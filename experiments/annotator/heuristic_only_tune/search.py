@@ -8,7 +8,7 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
@@ -148,7 +148,7 @@ def refine_specs(
     rows: list[dict[str, Any]], objective: str, parents: int,
     axes: dict[str, tuple[float, ...]] = AXES,
 ) -> list[CandidateSpec]:
-    default_wrist_distance = resolve(BaseAnnotatorConfig(), 30.0).thresholds.wrist_distance_body_heights
+    default_wrist_distance = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds.wrist_distance_body_heights
     seen = {row['candidate_id'] for row in rows}
     specs = []
 

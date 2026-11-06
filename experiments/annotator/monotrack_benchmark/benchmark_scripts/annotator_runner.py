@@ -32,7 +32,7 @@ def load_heuristic_settings(path: Path) -> CandidateSpec:
 def run_item(
     task: tuple[dict[str, Any], dict[str, Any], str, Path], heuristic_spec: CandidateSpec | None = None,
 ) -> None:
-    from annotator.annotate_video import RunCapture, annotate_video
+    from annotator.annotate_video import AnnotationWorkingData, annotate_video
     from annotator.models import load_models
     from annotator.rally_results.landing_and_winner import (
         SHIPPED_LANDING_FILTER_OPTIONS,
@@ -76,7 +76,7 @@ def run_item(
 
         record.update(candidate_id=candidate_id(heuristic_spec), heuristic_settings=serialise_spec(heuristic_spec))
     started = time.perf_counter()
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     try:
         result = annotate_video(
             track, pose.bboxes, pose.scores, pose.kps, pose.ndet,

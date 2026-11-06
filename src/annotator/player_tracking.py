@@ -26,7 +26,7 @@ from preparing_data.heuristics.base import RawClip  # noqa: E402
 def tracker_segments(
     scene_courts: tuple[SceneCourt, ...], court_present: np.ndarray, n_frames: int,
 ) -> list[tuple[int, int]]:
-    """Intersect validated court scenes with the aligned court-present runs."""
+    """Keep frame ranges where an accepted court scene and court_present overlap."""
     if (
         not isinstance(court_present, np.ndarray)
         or court_present.shape != (n_frames,)
@@ -53,7 +53,7 @@ def track_sticky_players(
     resolution: tuple[float, float],
     scene_courts: tuple[SceneCourt, ...],
 ) -> StickyResult:
-    """Run the sequential sticky picker and retain its frame-aligned evidence.
+    """Track players frame by frame; save their detection indices and body positions.
 
     Each segment must lie within one court scene, as produced by tracker_segments.
     ``measure_wrist_distances`` fills distances and wrist gaps afterwards.

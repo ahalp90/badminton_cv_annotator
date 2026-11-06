@@ -98,7 +98,7 @@ Examples at 30 FPS include:
 
 Frame counts grow with FPS. Per-frame speed thresholds shrink as FPS rises because the shuttle moves a shorter image distance between adjacent frames.
 
-Relevant code: `config.py::resolve()`.
+Relevant code: `config.py::scale_config_to_fps()`.
 
 ## Sticky player evidence
 
@@ -207,8 +207,8 @@ The next layer is described in [How the trees work together](tree_stack.md).
 
 | Concern | Main source |
 | --- | --- |
-| Thresholds resolved for a video's frame rate | `config.py` |
-| assembled preprocessing settings | `config.py::resolve()` |
+| Thresholds scaled to a video's frame rate | `config.py` |
+| Preprocessing settings scaled to the video frame rate | `config.py::scale_config_to_fps()` |
 | replay / off-rally exclusion | `excluded_frames/replay.py` |
 | shuttle recurrence guard | `excluded_frames/shuttle_hallucination.py` |
 | sticky player picks | `player_tracking.py` |

@@ -16,7 +16,11 @@ import pytest
 
 import annotator.annotate_video as run_video_module
 import annotator.courts.prepare_courts as court_evidence_module
-from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
+from annotator.annotate_video import (
+    AnnotationWorkingData,
+    AnnotatorResult,
+    annotate_video,
+)
 from annotator.cli import main as annotation_main
 from annotator.courts.prepare_courts import (
     DETECTOR_RESULT_SCHEMA,
@@ -187,10 +191,10 @@ def _direct_annotation(
     court: vision.CourtVision,
     guard_codes: np.ndarray,
     models,
-) -> tuple[AnnotatorResult, RunCapture]:
+) -> tuple[AnnotatorResult, AnnotationWorkingData]:
     inputs = court.evidence.inputs
     assert inputs is not None
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     result = annotate_video(
         track,
         pose.bboxes,
@@ -972,7 +976,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     def fake_run_video(
         *_args: object,
         inpaint_codes: np.ndarray,
-        capture: RunCapture,
+        capture: AnnotationWorkingData,
         **_kwargs: object,
     ) -> AnnotatorResult:
         np.testing.assert_array_equal(inpaint_codes, guard_codes)
@@ -1023,7 +1027,7 @@ def test_malformed_run_capture_masks_raise_original_error(
 
     def fake_run_video(
         *_args: object,
-        capture: RunCapture,
+        capture: AnnotationWorkingData,
         **_kwargs: object,
     ) -> AnnotatorResult:
         capture.evidence = SimpleNamespace(

@@ -8,7 +8,7 @@ height, and the verdict assembly. No fixtures; each test builds its own small nu
 import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.player_attribution import (
     contact_player_evidence,
     fit_alternation,
@@ -148,7 +148,7 @@ def test_window_end_waits_past_a_top_exit_gap():
     track = np.array(rows, dtype=float)
     dead = np.zeros(len(track), dtype=bool)
     assert landing_window(
-        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+        0, len(track), track, dead, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
         np.zeros(len(track), dtype=bool),
     ).end_frame == len(track)
 
@@ -163,7 +163,7 @@ def test_window_end_closes_at_a_non_top_exit_gap():
     dead = np.zeros(len(track), dtype=bool)
     assert (
         landing_window(
-            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            0, len(track), track, dead, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
             np.zeros(len(track), dtype=bool),
         ).end_frame
         == 1
@@ -182,7 +182,7 @@ def test_window_end_top_exit_wait_still_bounded_by_a_later_non_top_gap():
     dead = np.zeros(len(track), dtype=bool)
     assert (
         landing_window(
-            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            0, len(track), track, dead, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
             np.zeros(len(track), dtype=bool),
         ).end_frame
         == 14
@@ -196,7 +196,7 @@ def test_window_end_masked_frame_closes_regardless_of_the_top_exit_wait():
     dead[3] = True
     assert (
         landing_window(
-            0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+            0, len(track), track, dead, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
             np.zeros(len(track), dtype=bool),
         ).end_frame
         == 3
@@ -211,7 +211,7 @@ def test_window_end_event_mask_removes_top_exit_exemption() -> None:
     event_mask[0] = True
 
     assert landing_window(
-        0, len(track), track, dead, resolve(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
+        0, len(track), track, dead, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.sustained_loss_frames,
         event_mask,
     ).end_frame == 1
 
@@ -389,7 +389,7 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
 
-    min_samples = resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples
+    min_samples = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples
     landing = filtered_descending_landing(0, 3, track, kin, opts, min_samples, np.zeros(len(track), dtype=bool))
     assert landing is not None
     assert landing[0] == 2  # the only run's terminal, kept despite being carried
@@ -410,7 +410,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
-        0, 7, track, kin, opts, resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
+        0, 7, track, kin, opts, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
         shuttle_hallucination_mask=event_mask, rejected_intervals=rejected_intervals,
     )
 
@@ -431,7 +431,7 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
-        0, len(track), track, kin, opts, resolve(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
+        0, len(track), track, kin, opts, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
         shuttle_hallucination_mask=event_mask,
     ) is None
 
@@ -603,7 +603,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
                   'border_U': 0.0, 'border_D': resolution[1]}
     net_band = (100.0, 200.0)  # well above the landing: irrelevant to net_ender here
 
-    constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
     end_frame = landing_window(
         2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool),
     ).end_frame
@@ -636,7 +636,7 @@ def test_landing_window_end_feeds_explicit_landing():
         'H': np.eye(3), 'border_L': 0.0, 'border_R': resolution[0],
         'border_U': 0.0, 'border_D': resolution[1],
     }
-    constants = resolve(BaseAnnotatorConfig(), 25.0).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
     window = landing_window(2, n_frames, track, dead, constants.sustained_loss_frames, np.zeros(len(track), dtype=bool))
     landing = pick_landing_to_end(
         2, window.end_frame, track, kin, opts, CourtHalf.TOP, (100.0, 200.0), resolution, court_info, constants,

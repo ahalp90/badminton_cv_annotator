@@ -145,9 +145,12 @@ class CourtSceneRecord:
 class CourtEvidenceResult:
     """Accepted court inputs, frame masks and records of all scenes.
 
-    ``keep_vote`` marks individual frames with exactly two in-court people.
-    ``court_present`` marks whole accepted scenes. ``inputs`` is None when no
-    court was accepted; scene records and votes still explain the failure.
+    ``inputs`` supplies accepted court geometry for annotation; None if no
+    court was accepted. ``keep_vote`` marks frames with exactly two in-court
+    people; ``court_present`` marks whole accepted scenes.
+
+    The dataset builder saves ``scene_records`` for every scene, including
+    rejections, so missing court coverage can be checked afterwards.
     """
 
     inputs: CourtInputs | None
@@ -376,7 +379,7 @@ def detected_court_info(corners_refpx: np.ndarray) -> dict[str, object]:
 def build_net_band(
     court_info: dict[str, object], resolution: tuple[float, float],
 ) -> tuple[float, float]:
-    """Project a one-metre strip centred on the net into video image-y pixels.
+    """Find image y bounds (pixels) for a one-metre strip centred on the net.
 
     Use the court centreline, half a metre on each side of the net.
     """

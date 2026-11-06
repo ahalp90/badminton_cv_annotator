@@ -28,7 +28,7 @@ from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
     frames_at_fps,
-    resolve,
+    scale_config_to_fps,
 )
 from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import selection
@@ -278,7 +278,7 @@ def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
 
 
 def _shipped_base30_values() -> dict[str, float]:
-    thresholds = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    thresholds = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     return {key: getattr(thresholds, key) for key in _OVERRIDABLE_THRESHOLD_FIELDS}
 
 

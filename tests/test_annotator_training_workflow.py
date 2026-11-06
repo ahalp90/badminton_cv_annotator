@@ -259,7 +259,7 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
 
     def prepare(track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
                 ndet: np.ndarray, **kwargs: Any) -> object:
-        assert kwargs['resolved'].fps == 30.0
+        assert kwargs['video_config'].fps == 30.0
         assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['inpaint_codes'].dtype == np.uint8
         assert 'capture' not in kwargs

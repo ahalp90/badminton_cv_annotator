@@ -95,9 +95,9 @@ def remove_nearby_contacts(
 ) -> np.ndarray:
     """Keep the strongest contacts in each search interval.
 
-    Earlier frames win score ties. Frames exactly ``distance`` apart compete.
-    Compare each remaining candidate with accepted contacts; a chain of nearby
-    candidates can therefore keep more than one contact.
+    Consider candidates at or above cutoff, highest score first; earlier frames
+    win ties. Skip a candidate within ``distance`` frames of an accepted contact
+    in the same interval, including exactly that distance.
     """
     kept: list[int] = []
     for interval_id in np.unique(interval_ids):
@@ -110,10 +110,10 @@ def strongest_spaced_rows(
     rows: Sequence[int] | np.ndarray, frames: np.ndarray, scores: np.ndarray, distance: int,
     *, limit: int | None = None, taken_frames: Sequence[int] = (),
 ) -> list[int]:
-    """Choose rows by score, keeping more than ``distance`` from occupied frames.
+    """Select highest-scoring rows first, keeping contacts more than distance frames apart.
 
-    Earlier frames win ties. ``taken_frames`` are already occupied; each new
-    selection adds another occupied frame. Stop at ``limit`` if supplied.
+    Earlier frames win ties. Also keep that distance from ``taken_frames``.
+    Return selected row indices in selection order; stop at ``limit`` if supplied.
     """
     strongest_first = sorted(rows, key=lambda row: (-float(scores[row]), int(frames[row])))
     occupied = list(taken_frames)

@@ -74,7 +74,7 @@ def compare_landing_searches(
             kinematics = video_kinematics._replace(speed=speed)
         window = point_winner.landing_window(
             search_start, search_limit, evidence.track, evidence.exclusion_mask,
-            evidence.resolved.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
+            evidence.video_config.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
         )
         normal = outcomes[rally_id]
         for seconds in search_seconds:
@@ -93,7 +93,7 @@ def compare_landing_searches(
                     landing = point_winner.pick_landing_to_end(
                         search_start, trial_end, evidence.track, kinematics, options,
                         striker, scene.net_band, evidence.resolution, scene.court_info,
-                        evidence.resolved.thresholds, evidence.shuttle_hallucination_mask,
+                        evidence.video_config.thresholds, evidence.shuttle_hallucination_mask,
                         infer_net_fault=search_start == final_contact,
                     )
                 trial = point_winner.resolve_rally_outcome(

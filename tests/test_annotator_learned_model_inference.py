@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 from sklearn.dummy import DummyClassifier
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.build_features import ContactFeatures, contact_feature_dtype
 from annotator.contacts.score_candidates import (
     CONTACT_FEATURE_NAMES,
@@ -66,7 +66,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     )
 
     evidence = AnnotationEvidence(
-        identity='scene-gap', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
+        identity='scene-gap', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
         bboxes=bboxes, sticky=sticky, tracker_intervals=[(0, 100), (200, 400)],
         exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
         heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [220, 260]],
@@ -107,7 +107,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     track = np.zeros((frame_count, 3))
     track[:, 2] = 1
     evidence = AnnotationEvidence(
-        identity='masked', resolved=resolve(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
+        identity='masked', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
         track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)), bboxes=np.zeros((frame_count, 2, 4)),
         sticky=sticky, tracker_intervals=[(0, frame_count)],
         exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),

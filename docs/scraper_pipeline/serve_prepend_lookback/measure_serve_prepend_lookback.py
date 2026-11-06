@@ -39,8 +39,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from annotator.annotate_video import RunCapture, annotate_video
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.annotate_video import AnnotationWorkingData, annotate_video
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.excluded_frames.shuttle_hallucination import (
     DEGRADED,
     FABRICATED,
@@ -305,7 +305,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     keyword = dict(inputs.keyword)
     if mask_mode == "no_replay":
         keyword["raw_exclusion_mask"] = np.zeros(len(track), dtype=bool)
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     keyword["capture"] = capture
     keyword["rejection_diagnostics"] = []
     result = annotate_video(*inputs.positional, **keyword)
@@ -319,7 +319,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
     classifications = classify_all(spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
     lookback_frames = frames_at_fps(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
@@ -467,7 +467,7 @@ def measure_candidate_fixture(
     metadata = VideoMetadata(fixture.name, fixture.fps, len(track))
     truth, interval_count = expand_truth(labels_path, metadata)
     keyword = dict(inputs.keyword)
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     keyword["capture"] = capture
     natural_result = annotate_video(*inputs.positional, **keyword)
     assert capture.evidence is not None

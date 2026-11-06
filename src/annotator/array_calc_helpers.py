@@ -25,7 +25,7 @@ def compute_speed(track: np.ndarray) -> np.ndarray:
 
 def true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Consecutive True runs as (start, end) ranges, incl start, excl end."""
-    padded = np.concatenate([[0], mask.astype(np.int8), [0]])  # sentinels force edges at the ends
+    padded = np.concatenate([[0], mask.astype(np.int8), [0]])  # zeros close runs that reach either array end
     edges = np.diff(padded)
     starts = np.flatnonzero(edges == 1)
     ends = np.flatnonzero(edges == -1)
@@ -48,7 +48,7 @@ def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
 
 
 def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
-    """Centred mean including zeros; use the available samples at the edges.
+    """Centred mean, incl. zeroes; average by sample count available (smaller at array edges).
 
     Input values must have no NaNs. Mask unwanted samples before calling.
     """
@@ -59,9 +59,9 @@ def rolling_mean(values: np.ndarray, window: int) -> np.ndarray:
 
 
 def rolling_nanmean(values: np.ndarray, window: int) -> np.ndarray:
-    """Centred mean ignoring NaNs; use available samples at the edges.
+    """Centred mean ignoring NaNs; divide by the non-NaN sample count in each window.
 
-    Return NaN where the entire window is missing.
+    Return NaN if no samples remain.
     """
     kernel = np.ones(window)
     valid = ~np.isnan(values)

@@ -170,7 +170,7 @@ def fit_selector(
 
 
 def judged_weights(pool: RallyOptions, targets: np.ndarray) -> np.ndarray:
-    """Give each judged span total weight one, regardless of its option count."""
+    """Divide weight 1 equally among each rally's judged alternatives."""
     weights = np.zeros(len(targets), dtype=np.float64)
     for rows in pool.span_rows.values():
         judged = rows[targets[rows] >= 0]

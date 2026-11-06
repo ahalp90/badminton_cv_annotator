@@ -18,7 +18,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
+from annotator.annotate_video import (
+    AnnotationWorkingData,
+    AnnotatorResult,
+    annotate_video,
+)
 from annotator.courts.prepare_courts import CourtInputs
 from annotator.models import AnnotatorModels
 from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
@@ -135,7 +139,7 @@ def load_test_inputs(inpaint_root: Path, video_id: int) -> OldVideoInputs:
 
 
 def run_old_video(
-    inputs: OldVideoInputs, models: AnnotatorModels | None, capture: RunCapture,
+    inputs: OldVideoInputs, models: AnnotatorModels | None, capture: AnnotationWorkingData,
 ) -> AnnotatorResult:
     """Run complete heuristic or fitted-model annotation on saved old-court inputs."""
     court = inputs.court

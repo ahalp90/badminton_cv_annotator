@@ -243,7 +243,7 @@ def test_segment_video_sticky_distance_shape_is_checked():
     track = np.zeros((3, 3), dtype=np.float64)
 
     with pytest.raises(ValueError, match='shape'):
-        segment_video(track, sticky_distances=np.zeros(2), resolved=burst_config())
+        segment_video(track, sticky_distances=np.zeros(2), video_config=burst_config())
 
 
 def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds():

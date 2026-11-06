@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO / 'src'))
 
 from threadpoolctl import threadpool_limits
 
-from annotator.config import resolve
+from annotator.config import scale_config_to_fps
 from annotator.contacts.build_features import ContactFeatures
 from annotator.inference.learned import (
     LearnedModelPrediction,
@@ -211,7 +211,7 @@ def prepare_inputs(
     pose, court = inputs.pose, inputs.court
     return prepare_contact_inference(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
+        video_config=scale_config_to_fps(models.preprocessing, inputs.fps), resolution=court.resolution,
         video_id=inputs.identity,
         court_present=inputs.court_present,
         homography_rows=court.homography_rows,

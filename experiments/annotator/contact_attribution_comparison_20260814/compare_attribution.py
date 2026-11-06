@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from annotator import player_tracking
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.player_attribution import fit_alternation
 from annotator.courts.frame_geometry import build_scene_courts
 from annotator.courts.prepare_courts import (
@@ -214,7 +214,7 @@ def load_sticky(
     net_band = build_net_band(court_info, fixture.resolution)
     scene_courts = build_scene_courts(scene_rows.to_dict("records"), fixture.resolution)
     segments = player_tracking.tracker_segments(scene_courts, court_present, expected_frames)
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
     sticky = player_evidence.build_player_evidence(
         track,
         segments,

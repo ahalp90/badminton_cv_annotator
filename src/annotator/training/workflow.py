@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.contacts.build_features import ContactFeatures
 from annotator.contacts.score_candidates import (
     ContactModelConfig,
@@ -267,7 +267,7 @@ def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnot
         raise ValueError(f'{video_id}: court extraction has no usable operational court inputs')
     return prepare_contact_inference(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        resolved=resolve(preprocessing, float(metadata.fps)),
+        video_config=scale_config_to_fps(preprocessing, float(metadata.fps)),
         resolution=inputs.resolution, video_id=video_id,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,

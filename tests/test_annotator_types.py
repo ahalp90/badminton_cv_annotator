@@ -1,11 +1,16 @@
-"""Contracts for the annotator's declarations and composition resolver."""
+"""Annotator types and frame-rate scaling."""
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 
 import pytest
 
-from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve, speed_at_fps
+from annotator.config import (
+    BaseAnnotatorConfig,
+    frames_at_fps,
+    scale_config_to_fps,
+    speed_at_fps,
+)
 from annotator.types import Slot, SmoothingMode
 from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
 
@@ -29,7 +34,7 @@ _FIELDS = {
 
 def test_scaling_kind_matches_every_fps_constant_field() -> None:
     for fps in (25.0, 30.0, 50.0, 60.0):
-        constants = resolve(BaseAnnotatorConfig(), fps).thresholds
+        constants = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
         for field, (base30, kind) in _FIELDS.items():
             result = kind(base30, fps)
             assert getattr(constants, field) == result
@@ -52,22 +57,22 @@ def test_slot_values_pin_sticky_storage_rows() -> None:
     assert rows[Slot.BOTTOM] == 'row 1'
 
 
-def test_resolve_preserves_smoothing_mode_without_fps_scaling() -> None:
+def test_scale_preserves_smoothing_mode_without_fps_scaling() -> None:
     base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.ZERO_FILL)
-    resolved = resolve(base, 50.0)
-    assert resolved.smoothing_mode is SmoothingMode.ZERO_FILL
+    video_config = scale_config_to_fps(base, 50.0)
+    assert video_config.smoothing_mode is SmoothingMode.ZERO_FILL
 
 
 def test_config_dataclasses_are_frozen() -> None:
     base = BaseAnnotatorConfig()
-    resolved = resolve(base, 30.0)
+    video_config = scale_config_to_fps(base, 30.0)
     with pytest.raises(FrozenInstanceError):
         base.smoothing_mode = SmoothingMode.ZERO_FILL  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
-        resolved.fps = 60.0  # type: ignore[misc]
+        video_config.fps = 60.0  # type: ignore[misc]
 
 
-def test_resolved_thresholds_are_frozen() -> None:
-    resolved = resolve(BaseAnnotatorConfig(), 30.0)
+def test_scaled_thresholds_are_frozen() -> None:
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), 30.0)
     with pytest.raises(FrozenInstanceError):
-        resolved.thresholds.rest_speed = 0.5  # type: ignore[misc]
+        video_config.thresholds.rest_speed = 0.5  # type: ignore[misc]

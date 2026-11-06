@@ -1,6 +1,6 @@
 """Preprocessing settings saved with the models, then scaled for each video.
 
-Base frame counts and speeds use 30 fps. ``resolve`` converts them to the
+Base frame counts and speeds use 30 fps. ``scale_config_to_fps`` converts them to the
 video's frame rate. Changing preprocessing changes the model inputs, so
 fitted models must use the settings they were trained with.
 """
@@ -33,7 +33,7 @@ def frames_at_fps(frames_at_30_fps: float, fps: float) -> int:
 
 
 def speed_at_fps(speed_at_30_fps: float, fps: float) -> float:
-    """Scale a per-frame speed inversely with the video's positive finite frame rate."""
+    """Convert speed per frame from 30 fps to the video's frame rate."""
     if not math.isfinite(fps) or fps <= 0:
         raise ValueError(f'fps must be positive and finite, got {fps!r}')
     return speed_at_30_fps * BASE_FPS / fps
@@ -119,8 +119,8 @@ class BaseAnnotatorConfig:
 
 
 @dataclass(frozen=True)
-class ResolvedAnnotatorConfig:
-    """Preprocessing settings ready for one video; do not scale again.
+class FpsScaledAnnotatorConfig:
+    """Preprocessing settings scaled to this video's frame rate.
 
     ``thresholds`` contains the converted numeric defaults/overrides.
     ``gap_state_demotion_bound`` is also converted to video frames. Other
@@ -137,18 +137,18 @@ class ResolvedAnnotatorConfig:
     rejected_grades: frozenset[int]
 
 
-def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
+def scale_config_to_fps(base: BaseAnnotatorConfig, fps: float) -> FpsScaledAnnotatorConfig:
     """Convert the saved preprocessing settings to the video frame rate."""
     overrides = base.overrides_base30
     if overrides is not None:
         unknown_settings = sorted(set(overrides) - _OVERRIDABLE_THRESHOLD_FIELDS)
         if unknown_settings:
             raise ValueError(f'unknown base-30 override settings: {unknown_settings}')
-    thresholds = _resolve_thresholds(fps, overrides)
+    thresholds = _scale_thresholds_to_fps(fps, overrides)
 
     def frame_count(value: float | None) -> int | None:
         return None if value is None else frames_at_fps(value, fps)
-    return ResolvedAnnotatorConfig(
+    return FpsScaledAnnotatorConfig(
         fps=fps,
         thresholds=thresholds,
         smoothing_mode=base.smoothing_mode,
@@ -160,7 +160,7 @@ def resolve(base: BaseAnnotatorConfig, fps: float) -> ResolvedAnnotatorConfig:
     )
 
 
-def _resolve_thresholds(fps: float, overrides_base30: Mapping[str, float] | None) -> Thresholds:
+def _scale_thresholds_to_fps(fps: float, overrides_base30: Mapping[str, float] | None) -> Thresholds:
     """Apply numeric overrides, then convert frame counts and speeds from 30 fps."""
     base30 = {} if overrides_base30 is None else overrides_base30
 
@@ -188,7 +188,7 @@ def _resolve_thresholds(fps: float, overrides_base30: Mapping[str, float] | None
         composition_min_scene_len=frame_count('composition_min_scene_len', 15.0),
         blip_max_frames=frame_count('blip_max_frames', 12.0),
         high_shot_oob_lookback_frames=frame_count('high_shot_oob_lookback_frames', 6.0),
-        # Consumers divide by sample count minus one, so each needs two frames.
+        # Speed calculations divide by sample count minus one; need at least two frames.
         high_shot_oob_min_visible_frames=max(2, frame_count('high_shot_oob_min_visible_frames', 2.4)),
         high_shot_oob_extrap_frames=frame_count('high_shot_oob_extrap_frames', 12.0),
         reentry_lookahead_frames=frame_count('reentry_lookahead_frames', 6.0),

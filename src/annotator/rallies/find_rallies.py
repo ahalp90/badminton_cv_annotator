@@ -13,7 +13,7 @@ from annotator.array_calc_helpers import (
     rolling_nanmedian,
     true_runs,
 )
-from annotator.config import ResolvedAnnotatorConfig, Thresholds
+from annotator.config import FpsScaledAnnotatorConfig, Thresholds
 from annotator.contacts.heuristics import assemble_contacts
 from annotator.excluded_frames.replay import apply_replay_mask
 from annotator.types import ContactCandidate, ReentryGuardVariant, SpanOpen
@@ -24,7 +24,7 @@ VISIBILITY_REST_FRAC = 0.5
 
 def segment_video(
     track: np.ndarray, *,
-    resolved: ResolvedAnnotatorConfig,
+    video_config: FpsScaledAnnotatorConfig,
     exclusion_mask: np.ndarray | None = None,
     sticky_distances: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
@@ -32,7 +32,7 @@ def segment_video(
     """Mask excluded footage, find rallies, then check their contact candidates.
 
     :param track: (frames, 3) normalised shuttle xy and visibility.
-    :param resolved: Settings already scaled for this video's frame rate.
+    :param video_config: Settings already scaled for this video's frame rate.
     :param exclusion_mask: Optional footage mask; excluded positions are frozen.
     :param sticky_distances: Optional nearest-wrist distances in body heights.
     :param spans: Supplied ranges skip rally detection; incl start, excl end.
@@ -43,26 +43,26 @@ def segment_video(
     if exclusion_mask is not None:
         track = apply_replay_mask(track, exclusion_mask)
     if spans is None:
-        spans = find_rally_spans(track, resolved)
+        spans = find_rally_spans(track, video_config)
     return spans, assemble_contacts(
-        track, spans, resolved.thresholds, sticky_distances,
-        smoothing_mode=resolved.smoothing_mode,
+        track, spans, video_config.thresholds, sticky_distances,
+        smoothing_mode=video_config.smoothing_mode,
     )
 
 
 def find_rally_spans(
-    track: np.ndarray, resolved: ResolvedAnnotatorConfig,
+    track: np.ndarray, video_config: FpsScaledAnnotatorConfig,
 ) -> list[tuple[int, int]]:
     """Find initial rally ranges using the configured rest and start rules."""
-    thresholds = resolved.thresholds
+    thresholds = video_config.thresholds
     speed = compute_speed(track)
     at_rest = build_rest_mask(
-        speed, track, thresholds, gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-        reentry_guard_variant=resolved.reentry_guard_variant,
-        reentry_guard_buffer=resolved.reentry_guard_buffer,
+        speed, track, thresholds, gap_state_demotion_bound=video_config.gap_state_demotion_bound,
+        reentry_guard_variant=video_config.reentry_guard_variant,
+        reentry_guard_buffer=video_config.reentry_guard_buffer,
     )
-    if resolved.span_open is not None:
-        return active_region_rally_spans(speed, at_rest, thresholds, resolved.span_open)
+    if video_config.span_open is not None:
+        return active_region_rally_spans(speed, at_rest, thresholds, video_config.span_open)
     return burst_rally_spans(speed, at_rest, thresholds)
 
 
@@ -105,8 +105,8 @@ def gap_state_rest_mask(
 ) -> np.ndarray:
     """Mark slow movement and long unexplained visibility gaps as rest.
 
-    A likely high shot can remain active for ``demotion_bound`` missing frames;
-    any longer tail counts as rest. Other gaps count as rest when longer than
+    Allow up to ``demotion_bound`` missing frames for a likely high shot;
+    mark the rest of the gap as rest. Other gaps count as rest when longer than
     ``blip_max_frames``. Optional re-entry checks confirm the high-shot guess.
     """
     speed_median = rolling_nanmedian(speed, thresholds.rest_window)

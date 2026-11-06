@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from annotator.array_calc_helpers import compute_speed, rolling_mean, rolling_nanmean
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts import heuristics as contact_detection
 from annotator.contacts.heuristics import (
     impulse_cell_candidates,
@@ -75,7 +75,7 @@ def test_compute_speed_and_visibility_nan():
 
 def test_single_rally_span_and_three_contacts():
     track, rally_start, rally_end, _truth_contacts = _build_rally_track()
-    spans, contacts = segment_video(track, resolved=burst_config())
+    spans, contacts = segment_video(track, video_config=burst_config())
 
     assert len(spans) == 1
     start, end = spans[0]
@@ -92,7 +92,7 @@ def test_static_track_yields_no_rally():
     track = np.column_stack([
         np.full(150, 0.5), np.full(150, 0.5), np.ones(150),
     ])
-    spans, contacts = segment_video(track, resolved=burst_config())
+    spans, contacts = segment_video(track, video_config=burst_config())
     assert spans == []
     assert contacts == []
 
@@ -102,13 +102,13 @@ def test_invisible_moving_track_reads_as_rest():
     # and the window is mostly untracked -> rest. No rally is found.
     ys = np.tile([0.1, 0.9], 75)
     track = np.column_stack([np.full(150, 0.5), ys, np.zeros(150)])
-    spans, _ = segment_video(track, resolved=burst_config())
+    spans, _ = segment_video(track, video_config=burst_config())
     assert spans == []
 
 
 def test_ignore_invisible_smoothing_uses_even_fps_scaled_window() -> None:
     thresholds = replace(
-        burst_config().thresholds, smooth_window=resolve(BaseAnnotatorConfig(), 60.0).thresholds.smooth_window
+        burst_config().thresholds, smooth_window=scale_config_to_fps(BaseAnnotatorConfig(), 60.0).thresholds.smooth_window
     )
     assert thresholds.smooth_window == 6
     track = np.column_stack([
@@ -221,7 +221,7 @@ def test_segment_video_wrist_near_paths():
 
     # No gate inputs at all: the gate never ran, both verdicts are blank (None), and no
     # suppression happens, so every raw candidate stands (recall-first).
-    _, contacts_blank = segment_video(track, resolved=burst_config())
+    _, contacts_blank = segment_video(track, video_config=burst_config())
     assert contacts_blank
     assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts_blank)
     assert contacts_blank[0][:4] == (
@@ -232,7 +232,7 @@ def test_segment_video_wrist_near_paths():
     # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and
     # suppression records only its losers.
     near = np.zeros(len(track))
-    _, contacts_near = segment_video(track, sticky_distances=near, resolved=burst_config())
+    _, contacts_near = segment_video(track, sticky_distances=near, video_config=burst_config())
     assert [contact.wrist_near for contact in contacts_near] == [True] * len(contacts_near)
     assert [contact.suppressed for contact in contacts_near] == [True, False, True, False, True]
     filtered = [
@@ -245,7 +245,7 @@ def test_segment_video_wrist_near_paths():
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
     far = np.full(len(track), 2.0)
-    _, contacts_far = segment_video(track, sticky_distances=far, resolved=burst_config())
+    _, contacts_far = segment_video(track, sticky_distances=far, video_config=burst_config())
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts_far)
 
 
@@ -257,7 +257,7 @@ def test_sticky_gate_failure_rows_fail_closed(failure_distance):
     monkeypatch: the caller supplies the full-length series directly.
     """
     track, _, _, _ = _build_rally_track()
-    _, contacts = segment_video(track, sticky_distances=np.full(len(track), failure_distance), resolved=burst_config())
+    _, contacts = segment_video(track, sticky_distances=np.full(len(track), failure_distance), video_config=burst_config())
     assert contacts
     assert all(contact.wrist_near is False and contact.suppressed is False for contact in contacts)
 
@@ -297,9 +297,9 @@ def test_thresholds_preset_changes_behaviour():
     # preset raising start_speed to 0.03 rejects the same burst -> no span, proving the preset
     # flows all the way through segmentation.
     track = _burst_track()
-    assert len(segment_video(track, resolved=burst_config())[0]) >= 1
+    assert len(segment_video(track, video_config=burst_config())[0]) >= 1
     stricter = replace(burst_config().thresholds, start_speed=0.03)
-    assert segment_video(track, resolved=replace(burst_config(), thresholds=stricter))[0] == []
+    assert segment_video(track, video_config=replace(burst_config(), thresholds=stricter))[0] == []
 
 
 # ---------------------------------------------------------------------------
@@ -376,10 +376,10 @@ def test_apply_replay_mask_leaves_unmasked_frames_untouched():
 def test_segment_video_exclusion_mask_freezes_masked_region_to_rest():
     # A whole sustained raw run freezes the complete rally region to rest.
     track, rally_start, rally_end, _contacts = _build_rally_track()
-    assert len(segment_video(track, resolved=burst_config())[0]) == 1
+    assert len(segment_video(track, video_config=burst_config())[0]) == 1
     mask = np.zeros(len(track), dtype=bool)
     mask[rally_start:rally_end] = True
-    spans_masked, contacts_masked = segment_video(track, exclusion_mask=mask, resolved=burst_config())
+    spans_masked, contacts_masked = segment_video(track, exclusion_mask=mask, video_config=burst_config())
     assert spans_masked == []
     assert contacts_masked == []
 
@@ -432,5 +432,5 @@ def test_segment_video_span_open_region_start_drops_the_burst_gate():
     # The slow-drift region carries no fast burst: the default rule finds no span, REGION_START
     # opens the region anyway.
     track = _slow_drift_track()
-    assert segment_video(track, resolved=burst_config())[0] == []
-    assert len(segment_video(track, resolved=replace(burst_config(), span_open=SpanOpen.REGION_START))[0]) >= 1
+    assert segment_video(track, video_config=burst_config())[0] == []
+    assert len(segment_video(track, video_config=replace(burst_config(), span_open=SpanOpen.REGION_START))[0]) >= 1

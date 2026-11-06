@@ -28,7 +28,7 @@ from experiments.annotator.heuristic_only_tune.run import (
 import joblib
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.inference.learned import features_from_evidence
 from annotator.inference.prepare_contact_inference import prepare_contact_inference
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
@@ -117,7 +117,7 @@ def prepare_video(
         with cache_sticky_result(output / 'sticky', video.identity):
             evidence = prepare_contact_inference(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                resolved=resolve(base, inputs.fps), video_id=inputs.identity,
+                video_config=scale_config_to_fps(base, inputs.fps), video_id=inputs.identity,
                 resolution=inputs.court.resolution,
 
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,

@@ -37,7 +37,7 @@ from annotator.config import (
     COMPOSITION_CONTENT_THRESHOLD,
     COMPOSITION_KEEP_VOTE,
     BaseAnnotatorConfig,
-    resolve,
+    scale_config_to_fps,
 )
 from scraper.config import MASKS_DIR
 from shared.camera_cuts import detect_cuts
@@ -128,7 +128,7 @@ def main() -> None:
     n_frames = len(keep_vote)
 
     fps = args.fps if args.fps is not None else probe_fps(args.video)
-    min_scene_len = resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
+    min_scene_len = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
     cut_frames = detect_cuts(args.video, n_frames, args.content_threshold, min_scene_len)
     mask, segments = build_composition_mask(cut_frames, keep_vote, n_frames, args.vote)
     n_live = sum(1 for seg in segments if not seg.is_dead)

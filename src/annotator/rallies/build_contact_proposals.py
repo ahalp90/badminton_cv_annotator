@@ -105,7 +105,7 @@ def build_rally_context(
 ) -> RallyContext:
     """Group selected contacts into rallies and shortlist possible missed hits.
 
-    Attribute players once per selected/shortlisted contact. Keep only their
+    Guess the hitter once for each selected or shortlisted contact. Keep only their
     feature rows for later proposal building, shared by fitting and inference.
     """
     def event_for_row(row: int) -> ContactEvent:
@@ -209,7 +209,8 @@ def shortlist_serve_rows(
     """Find possible earlier serves in the first contact's search interval.
 
     Stay after the previous rally. Keep up to two candidates, strongest first,
-    clear of the first contact and each other. Earlier frames win score ties.
+    with the required spacing from the first contact and each other.
+    Earlier frames win score ties.
     """
     if not sequence.events:
         return []
@@ -462,5 +463,5 @@ def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float,
 
 
 def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: int) -> tuple[ContactEvent, ...]:
-    """Contacts in [start_frame, end_frame), incl start, excl end; keep their order."""
+    """Contacts from start_frame (incl) to end_frame (excl), in their original order."""
     return tuple(event for event in events if start_frame <= event.frame < end_frame)

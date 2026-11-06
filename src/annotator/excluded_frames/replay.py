@@ -12,7 +12,7 @@ from annotator.array_calc_helpers import compute_speed, rolling_nanmedian, true_
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
-    resolve,
+    scale_config_to_fps,
 )
 
 log = logging.getLogger(__name__)
@@ -67,8 +67,8 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
     Return a copy with masked positions fixed to the preceding live frame and
     visibility set to one so NaN speed cannot reopen a rally. A mask starting at
-    frame zero uses the first live frame after it. An entirely masked track has
-    no anchor and is rejected.
+    frame zero uses the first live frame after it. Raise ValueError if every frame
+    is masked: no live position to copy.
     """
     if len(mask) != len(track):
         raise ValueError(f'mask length {len(mask)} != track length {len(track)}')
@@ -99,7 +99,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)
     # Replay signals use FPS-scaled defaults independently of heuristic overrides.
-    window = resolve(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
+    window = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds.court_absent_window
     for start, end in true_runs(absent):
         if end - start >= window:
             mask[start:end] = True
@@ -116,10 +116,10 @@ def velocity_drop_signal(
     movement at least as fast as the rest threshold: ordinary pauses between
     rallies must remain available for commentary matching.
 
-    Steps touching ``non_evidence`` frames are omitted from speed measurement.
+    Skip speed measurements if either frame is marked ``non_evidence``.
     ``baseline_exclude`` removes frames from the usual-speed estimate only.
-    A flagged shuttle frame can still be classified from nearby measured steps;
-    a window with no measurements is left unflagged.
+    A ``non_evidence`` frame can still be marked slow motion based on nearby
+    speeds. Leave windows with no speed measurements unflagged.
 
     :return: One boolean per video frame; True means possible slow motion.
     """
@@ -152,7 +152,7 @@ def velocity_drop_signal(
         return mask
 
     # Replay signals use FPS-scaled defaults independently of heuristic overrides.
-    values = resolve(BaseAnnotatorConfig(), fps).thresholds
+    values = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     rolling_median = rolling_nanmedian(speed, values.rest_window)
     visible = track[:, 2] == 1
     below_norm = rolling_median < (SLOWMO_SPEED_FRAC * rally_median)

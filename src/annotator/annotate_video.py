@@ -7,7 +7,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.inference.heuristic import select_heuristic_contacts
 from annotator.inference.learned import LearnedModelPrediction, predict_contacts
 from annotator.inference.prepare_contact_inference import (
@@ -49,7 +49,7 @@ def annotate_video(
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
     rejection_diagnostics: list[dict[str, object]] | None = None,
-    capture: RunCapture | None = None,
+    capture: AnnotationWorkingData | None = None,
     court_invalid_is_excluded: bool = False,
 ) -> AnnotatorResult:
     """Find rallies and contacts, assign hitters, then estimate landings and winners.
@@ -70,11 +70,13 @@ def annotate_video(
     court geometry are excluded. ``court_invalid_is_excluded`` also excludes
     frames where ``court_present`` is False.
 
-    ``capture`` is cleared at entry, then filled as preparation and prediction
-    finish. This lets callers inspect completed stages if a later stage fails.
-    ``rejection_diagnostics`` collects rows in processing order.
+    Pass ``capture=AnnotationWorkingData()`` to keep masks, tracked players,
+    candidate contacts and model scores alongside the finished annotations.
+    ``rejection_diagnostics``, if supplied, collects rejection reasons for
+    evaluation reports. It does not affect the annotations.
     """
     if capture is not None:
+        # Clear the previous call's results before starting.
         capture.evidence = None
         capture.learned_model_prediction = None
     if heuristic_only and models is not None:
@@ -89,12 +91,13 @@ def annotate_video(
     report("finding rallies")
     evidence = prepare_contact_inference(
         track, bboxes, scores, kps, ndet,
-        resolved=resolve(base, fps), resolution=resolution, video_id=video_id,
+        video_config=scale_config_to_fps(base, fps), resolution=resolution, video_id=video_id,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask,
         spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
         court_invalid_is_excluded=court_invalid_is_excluded,
     )
+    # Save completed stages immediately so later failures leave them available.
     if capture is not None:
         capture.evidence = evidence
     contact_events = ()
@@ -148,11 +151,11 @@ class AnnotatorResult(NamedTuple):
 
 
 @dataclass
-class RunCapture:
-    """Optional access to completed preparation and prediction stages.
+class AnnotationWorkingData:
+    """Bookkeeping for debugging and dataset export.
 
-    Pass to ``annotate_video`` for inspection or failure reporting. Fields are
-    cleared at entry and assigned after each stage succeeds.
+    Includes excluded-frame masks, tracked players, candidate contacts and
+    model scores.
     """
 
     evidence: AnnotationEvidence | None = None

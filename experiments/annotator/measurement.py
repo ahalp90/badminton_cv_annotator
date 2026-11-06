@@ -30,8 +30,16 @@ import cv2
 import numpy as np
 
 import experiments.annotator.legacy_evaluation.gt_scoring as gt_scoring_module
-from annotator.annotate_video import AnnotatorResult, RunCapture, annotate_video
-from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
+from annotator.annotate_video import (
+    AnnotationWorkingData,
+    AnnotatorResult,
+    annotate_video,
+)
+from annotator.config import (
+    BaseAnnotatorConfig,
+    FpsScaledAnnotatorConfig,
+    scale_config_to_fps,
+)
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.courts.prepare_courts import (
     DETECTED_PARENT,
@@ -224,7 +232,7 @@ class ConfigurationState:
     court_result: CourtEvidenceResult | None = None
     landing_comparisons: list[LandingSearchComparison] = field(default_factory=list)
     exclusion_fraction: float | None = None
-    resolved_config: ResolvedAnnotatorConfig | None = None
+    video_config: FpsScaledAnnotatorConfig | None = None
     status: str = "not_run"
     failure_path: Path | None = None
     manifest_path: Path | None = None
@@ -900,8 +908,8 @@ def _configuration_manifest(
     driver: RunDriver,
     failure_record: dict[str, Any] | None,
 ) -> dict[str, object]:
-    if state.resolved_config is None:
-        raise ValueError(f"{state.fixed.case_id}: resolved annotator configuration is missing")
+    if state.video_config is None:
+        raise ValueError(f"{state.fixed.case_id}: frame-rate-scaled annotator configuration is missing")
     finished = utc_now()
     artefacts = []
     for path in sorted(state.directory.rglob("*")):
@@ -945,7 +953,7 @@ def _configuration_manifest(
         "finished_at_utc": finished,
         "elapsed_seconds": max(0.0, time.monotonic() - state.started_clock),
         "configuration": _configuration_values(),
-        "resolved_annotator_config": state.resolved_config,
+        "resolved_annotator_config": state.video_config,
         "inputs": inputs,
         "shared_artifacts": [state.case.raw_cuts_artifact] if state.case.raw_cuts_artifact else [],
         "artifacts": artefacts,
@@ -965,7 +973,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     state.started_clock = time.monotonic()
     if driver.models is None:
         raise ValueError("annotator models were not loaded before inference")
-    state.resolved_config = resolve(driver.models.preprocessing, state.fixed.fps)
+    state.video_config = scale_config_to_fps(driver.models.preprocessing, state.fixed.fps)
     if state.case.status != "succeeded":
         state.status = "failed"
         state.failure_path = state.case.failure_path
@@ -1011,7 +1019,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if court_result.inputs is None:
             raise ValueError("court evidence has no operational inputs")
-        capture = RunCapture()
+        capture = AnnotationWorkingData()
         input_values = court_result.inputs
         result = annotate_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,

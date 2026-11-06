@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPOSITORY / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.annotate_video import RunCapture, annotate_video
+from annotator.annotate_video import AnnotationWorkingData, annotate_video
 from annotator.models import AnnotatorModels, fitted_trees, load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
@@ -46,7 +46,7 @@ def evaluate_video(
 ) -> tuple[dict[str, dict[str, int]], list[dict[str, Any]]]:
     """Annotate one video, then score contacts and review ranking with the same exclusions."""
     inputs = load_test_inputs(video, paths['inpaint_root'], paths['pose_root'], paths['test_courts'])
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     pose = inputs.pose
     annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,

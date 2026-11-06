@@ -46,10 +46,10 @@ def option_targets(
 
 
 def preferred_targets(pool: RallyOptions, wide: np.ndarray, preferred: np.ndarray) -> np.ndarray:
-    """Use tighter labels for a rally when at least one judged option stays correct.
+    """Use the tighter matching tolerance if at least one judged option still passes.
 
-    Otherwise retain the wider-tolerance labels. Rows unjudgeable at the wider
-    tolerance stay unjudgeable.
+    Otherwise keep the results from the wider tolerance. Options that cannot be
+    judged at the wider tolerance remain unjudgeable.
     """
     if wide.shape != (len(pool.sequences),) or preferred.shape != wide.shape:
         raise ValueError('preferred targets must align with every option row')

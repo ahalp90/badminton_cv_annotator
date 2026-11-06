@@ -81,9 +81,10 @@ class RallyOutcome(NamedTuple):
     unless a net fault determines the result.
 
     ``landing_margin_m`` is signed distance to the receiver's singles bounds.
-    ``within_line_margin`` and ``within_net_margin`` flag proximity within the
-    court error estimate, independently of the winner. The final flag records
-    whether excluded footage shortened the landing search.
+    ``within_line_margin`` and ``within_net_margin`` mean the landing is close
+    enough to a line or the net to fall within the court-position error estimate.
+    These flags apply even when the winner is known.
+    ``search_shortened_by_exclusion`` means excluded footage cut the search short.
     """
 
     winner: CourtHalf | None
@@ -232,6 +233,9 @@ def pick_landing_to_end(
     Search one camera view, incl final_contact, excl end_frame. ``opts`` must
     already use the video frame rate. Disable net-fault inference for a
     returning camera view: the unseen flight may already have crossed the net.
+
+    ``rejected_intervals`` is an optional output list for reports: append descent
+    ranges rejected because of shuttle grades, incl start, excl end.
     """
     landing = filtered_descending_landing(
         final_contact, end_frame, track, kin, opts,
@@ -366,6 +370,9 @@ def filtered_descending_landing(
     Prefer the last descent that does not look carried. If all accepted
     descents look carried, keep the last one. Return (frame, normalised xy),
     or None if no descent remains.
+
+    If supplied, append ranges rejected for shuttle grades to ``rejected_intervals``
+    for reporting (incl start, excl end).
     """
     cap = landing_settle_cap(final_contact, win_end, kin, opts)
     search_end = max(cap, final_contact + 1)
@@ -430,7 +437,7 @@ def carried_terminal(
     """Check whether a descent ends with the shuttle held near a wrist.
 
     Use the median wrist distance over the trailing carry_win frames, starting
-    no earlier than the final contact. If the terminal position is closer to
+    no earlier than the final contact. If the last position is closer to
     an ankle than a wrist, treat it as grounded instead.
     """
     lo = max(final_contact, terminal - opts.carry_win + 1)
@@ -475,7 +482,7 @@ def is_net_ender(
 
 
 def at_frame_border(xy: np.ndarray) -> bool:
-    """Check whether the terminal sample is within 2% of an image edge."""
+    """Check whether a shuttle position is within 2% of an image edge."""
     x, y = float(xy[0]), float(xy[1])
     return x < TOP_EDGE_FRAC or x > 1.0 - TOP_EDGE_FRAC or y < TOP_EDGE_FRAC or y > 1.0 - TOP_EDGE_FRAC
 

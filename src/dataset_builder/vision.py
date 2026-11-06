@@ -761,7 +761,7 @@ def run_full_annotation_stage(
     ref_err_px: float = 3.5,
 ) -> AnnotationOutput:
     """Run the full annotator with replay masking and persist all primitives."""
-    from annotator.annotate_video import RunCapture, annotate_video
+    from annotator.annotate_video import AnnotationWorkingData, annotate_video
     from annotator.config import BaseAnnotatorConfig
     from annotator.rally_results.landing_and_winner import (
         SHIPPED_LANDING_FILTER_OPTIONS,
@@ -792,7 +792,7 @@ def run_full_annotation_stage(
     if court_inputs is None:
         raise ValueError("detected court evidence has no operational inputs")
 
-    capture = RunCapture()
+    capture = AnnotationWorkingData()
     result = annotate_video(
         track,
         pose.bboxes,

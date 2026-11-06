@@ -24,6 +24,9 @@ def build_outcomes(
     Measure video-wide motion once, then search each final flight. Reject a
     final contact on a flagged shuttle frame; the next server can still give
     a winner. Landing options must already use this video's frame rate.
+
+    Pass a list as ``rejection_diagnostics`` to collect rejection reasons for
+    reports. Leave it as None to skip that bookkeeping; outcomes are the same.
     """
     video_kinematics = landing_and_winner.build_landing_kinematics(
         evidence.track, evidence.sticky, evidence.pose_kps, evidence.resolution,
@@ -59,13 +62,13 @@ def build_outcomes(
             kinematics = video_kinematics._replace(speed=speed)
         window = landing_and_winner.landing_window(
             search_start, search_limit, evidence.track, evidence.exclusion_mask,
-            evidence.resolved.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
+            evidence.video_config.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
         )
         rejected_intervals = []
         landing = landing_and_winner.pick_landing_to_end(
             search_start, window.end_frame, evidence.track, kinematics, landing_options,
             striker, scene.net_band, evidence.resolution, scene.court_info,
-            evidence.resolved.thresholds,
+            evidence.video_config.thresholds,
             shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
             rejected_intervals=rejected_intervals, infer_net_fault=not starts_in_returning_view,
         )
@@ -122,11 +125,17 @@ def build_hit_heights(
     return hit_height_by_frame, unavailable_hit_height_reasons
 
 
+# =============================================================================
+# Optional rejection diagnostics
+# Used by evaluation reports; enabled by passing rejection_diagnostics.
+# These helpers append report rows without changing annotation decisions.
+# =============================================================================
+
 def record_rejected_final_contact(
     rows: list[dict[str, object]], rally_id: int,
     rally: FinishedRally, evidence: AnnotationEvidence,
 ) -> None:
-    """Record the rejected contact tail when its last hit is masked."""
+    """Log the run of rejected hits at the end of the rally as one frame range."""
     final_contact = rally.sequence.events[-1].frame
     start_frame = final_contact
     for event in reversed(rally.sequence.events):
@@ -144,10 +153,14 @@ def record_landing_rejections(
     search_start: int, search_limit: int, search_end: int,
     rejected_intervals: list[tuple[int, int]],
 ) -> None:
-    """Record how rejected shuttle observations changed this landing search."""
+    """Log rejected descents and any search shortened by rejected shuttle detections.
+
+    Recalculate the search end with no shuttle-grade exclusions, then compare
+    with search_end. This comparison is only for reporting.
+    """
     end_without_events = landing_and_winner.landing_window(
         search_start, search_limit, evidence.track, evidence.exclusion_mask,
-        evidence.resolved.thresholds.sustained_loss_frames,
+        evidence.video_config.thresholds.sustained_loss_frames,
         np.zeros(len(evidence.track), dtype=bool),
     ).end_frame
     if search_end < end_without_events:
@@ -171,7 +184,10 @@ def record_rejection(
     shuttle_hallucination_mask: np.ndarray,
     codes: np.ndarray | None,
 ) -> None:
-    """Record one event interval when it contains an event-mask frame."""
+    """Append a diagnostic row for a range containing rejected shuttle frames.
+
+    Include the first rejected frame and its grade, if the grades are available.
+    """
     masked_frames = np.flatnonzero(shuttle_hallucination_mask[start_frame:end_frame]) + start_frame
     if len(masked_frames) == 0:
         return
