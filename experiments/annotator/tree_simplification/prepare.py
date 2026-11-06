@@ -117,11 +117,9 @@ def prepare_video(
         with cache_sticky_result(output / 'sticky', video.identity):
             evidence = prepare_contact_inference(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                video_config=scale_config_to_fps(base, inputs.fps), video_id=inputs.identity,
+                video_config=scale_config_to_fps(base, inputs.fps),
                 resolution=inputs.court.resolution,
-
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
-
                 inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
             )
         features = features_from_evidence(evidence)

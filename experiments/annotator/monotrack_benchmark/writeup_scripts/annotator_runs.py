@@ -93,7 +93,7 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     """Find rallies in one whole video and keep each found rally's review score."""
     from threadpoolctl import threadpool_limits
 
-    from annotator.annotate_video import AnnotationWorkingData, annotate_video
+    from annotator.annotate_video import annotate_video
     from annotator.models import load_models
     from experiments.annotator.contact_records import stream_payload
     from experiments.annotator.heuristic_only_tune import data
@@ -108,12 +108,12 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
         inputs = data.load_original_inputs(video, paths['stages'], paths['development_courts'])
     with threadpool_limits(limits=2):
         models = load_models(bundle)
-        capture = AnnotationWorkingData()
         pose = inputs.pose
-        annotate_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
+        annotation = annotate_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                   base=models.preprocessing, heuristic_only=False, models=models,
-                  capture=capture, **data.run_video_kwargs(inputs))
-    prediction = capture.learned_model_prediction
+                  keep_working_data=True, **data.run_video_kwargs(inputs))
+    assert annotation.working_data is not None
+    prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video_id}: the annotator returned no contact stream')
     sequences = prediction.refined.sequences

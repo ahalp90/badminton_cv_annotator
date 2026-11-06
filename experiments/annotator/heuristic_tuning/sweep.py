@@ -386,7 +386,7 @@ def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spe
     base = base_config(candidate_spec)
     keyword = dict(fixture_inputs.keyword)
     keyword.update(base=base)
-    result = annotate_video(*fixture_inputs.positional, **keyword, heuristic_only=True)
+    result = annotate_video(*fixture_inputs.positional, **keyword, heuristic_only=True).result
     return _row_for_result(fixture, candidate_spec, result, fixture_inputs.master)
 
 

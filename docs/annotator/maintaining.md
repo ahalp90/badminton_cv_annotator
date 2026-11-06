@@ -114,7 +114,8 @@ rules, outcome handling and the two live integrations.
 6. Compare selector scores, then inspect boundary and side finishing.
 7. Inspect outcome rules only after confirming the final contacts.
 
-Use `AnnotationWorkingData` to retain intermediate predictions and masks. The validation
+Pass `keep_working_data=True` to retain intermediate predictions. Exclusion
+masks are always returned. The validation
 overlay and review tools provide visual checks without changing the inference
 path. Keep experimental settings and their saved results together, following
 the [refit guide](retuning.md).

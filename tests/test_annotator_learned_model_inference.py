@@ -63,11 +63,11 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     )
 
     evidence = AnnotationEvidence(
-        identity='scene-gap', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
+         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
         bboxes=bboxes, players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, 100), (200, 400)],
         exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
         heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [220, 260]],
-        raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool), source_codes=None,
+        raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool),
         scene_courts=scenes,
     )
 
@@ -105,12 +105,12 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     track = np.zeros((frame_count, 3))
     track[:, 2] = 1
     evidence = AnnotationEvidence(
-        identity='masked', video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
+         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
         track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)), bboxes=np.zeros((frame_count, 2, 4)),
         players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, frame_count)],
         exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),
         heuristic_spans=[(0, 90)], heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [16, 80]],
-        scene_courts=(), shuttle_hallucination_mask=mask, source_codes=None,
+        scene_courts=(), shuttle_hallucination_mask=mask,
     )
     probability_column = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
     scored_matrices = []

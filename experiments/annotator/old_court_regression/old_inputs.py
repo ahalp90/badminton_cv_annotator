@@ -18,16 +18,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.annotate_video import (
-    AnnotationWorkingData,
-    AnnotatorResult,
-    annotate_video,
-)
 from annotator.courts.prepare_courts import CourtInputs
-from annotator.models import AnnotatorModels
-from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.training.sequences import LabelledRally
-from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
@@ -136,25 +128,6 @@ def load_test_inputs(inpaint_root: Path, video_id: int) -> OldVideoInputs:
     if tuple(inputs.court.resolution) != TEST_RESOLUTION:
         raise ValueError(f'{video_id}: court resolution {inputs.court.resolution} differs from {TEST_RESOLUTION}')
     return inputs
-
-
-def run_old_video(
-    inputs: OldVideoInputs, models: AnnotatorModels | None, capture: AnnotationWorkingData,
-) -> AnnotatorResult:
-    """Run complete heuristic or fitted-model annotation on saved old-court inputs."""
-    court = inputs.court
-    return annotate_video(
-        inputs.track, inputs.pose.bboxes, inputs.pose.scores, inputs.pose.kps, inputs.pose.ndet,
-        fps=inputs.fps,
-        base=DEFAULT_TRAINING_SETTINGS.preprocessing if models is None else models.preprocessing,
-        models=models, heuristic_only=models is None,
-        landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
-        resolution=court.resolution, video_id=inputs.identity,
-        court_present=inputs.court_present, homography_rows=court.homography_rows,
-
-        inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
-        capture=capture,
-    )
 
 
 def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int, CourtHalf | None]]]]) -> None:

@@ -31,7 +31,6 @@ import numpy as np
 
 import experiments.annotator.legacy_evaluation.gt_scoring as gt_scoring_module
 from annotator.annotate_video import (
-    AnnotationWorkingData,
     AnnotatorResult,
     annotate_video,
 )
@@ -42,7 +41,6 @@ from annotator.config import (
 )
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.courts.prepare_courts import (
-    DETECTED_PARENT,
     DETECTOR_RESOLUTION,
     PERSON_COURT_MARGIN,
     SCENE_VALID_MIN_FRACTION,
@@ -102,6 +100,8 @@ from experiments.annotator.records import (
 
 if TYPE_CHECKING:
     from dataset_builder.vision import CourtDetectorSettings
+
+DETECTED_PARENT = "court_detector"
 
 PARENTS = (
     "static_shuttleset_homography",
@@ -577,11 +577,11 @@ def _corner_values(corners: np.ndarray | None) -> list[object]:
     return [float(value) for value in array.reshape(-1)]
 
 
-def _scene_row(record: CourtSceneRecord) -> dict[str, object]:
+def _scene_row(record: CourtSceneRecord, case_id: str, parent: str) -> dict[str, object]:
     return dict(zip(
         COURT_SCENES_COLUMNS,
         [
-            record.video_id, record.case_id, record.parent, record.scene_index, record.start_frame,
+            record.video_id, case_id, parent, record.scene_index, record.start_frame,
             record.end_frame, record.end_frame - record.start_frame,
             record.status, record.analysed_frame, record.no_court_reason, record.reused_from, record.error,
             *_corner_values(record.corners_native_px),
@@ -659,7 +659,6 @@ def _landing_metrics(rows: Sequence[LandingSearchComparison]) -> dict[str, dict[
 def _configuration_values() -> dict[str, object]:
     return {
         "base_annotator_config": "annotator model bundle preprocessing",
-
         "landing_filter_options": {
             "settle_win": LANDING_OPTIONS.settle_win,
             "settle_thr": LANDING_OPTIONS.settle_thr,
@@ -826,11 +825,11 @@ def _write_raw_cuts(case: CaseData, root: Path) -> None:
     case.status = "succeeded"
 
 
-def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult) -> None:
+def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult, case_id: str, parent: str) -> None:
     _write_rows(
         directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
-        (_scene_row(record) for record in court_result.scene_records),
+        (_scene_row(record, case_id, parent) for record in court_result.scene_records),
     )
     _write_rows(
         directory / "scene_rows.csv.gz",
@@ -863,8 +862,7 @@ def _write_scoring_outputs(
     exclusion_fraction: float,
     landing_comparisons: Sequence[LandingSearchComparison],
     master: Any,
-    court_info: dict[str, object],
-    scene_courts: Sequence[SceneCourt] | None = None,
+    scene_courts: Sequence[SceneCourt],
 ) -> dict[str, object]:
     rallies = _gt_rallies_for_fixture(master, fixture)
     spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
@@ -875,7 +873,7 @@ def _write_scoring_outputs(
     _write_rows(directory / "strict_contacts.csv.gz", STRICT_CONTACT_COLUMNS, strict_rows)
     _write_rows(directory / "wide_edge_contacts.csv.gz", WIDE_CONTACT_COLUMNS, wide_rows)
     scoring = score_video(
-        fixture, result, master, {fixture.video_id: court_info}, canonical_tolerance(case.fixed.fps),
+        fixture, result, master, {}, canonical_tolerance(case.fixed.fps),
         scene_courts,
     )
     metrics = {
@@ -989,19 +987,18 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if parent == "static_shuttleset_homography":
             court_result = build_static_court_evidence(
-                case.fixed.case_id, parent, case.fixture.video_id, driver.homo_df, case.fixture.resolution,
+                case.fixture.video_id, driver.homo_df, case.fixture.resolution,
                 case.raw_cuts, case.bboxes, case.scores, case.ndet,
-                ref_err_px=REF_ERR_PX,
             )
         else:
             if driver.court_settings is None:
                 raise ValueError("detected parent has no court detector settings")
             court_result = detect_case_courts(case, driver.court_settings, state.directory)
         state.court_result = court_result
-        _write_scene_evidence(state.directory, court_result)
+        _write_scene_evidence(state.directory, court_result, case.fixed.case_id, parent)
     except NoAcceptedCourtError as error:
         state.court_result = error.result
-        _write_scene_evidence_partial(state.directory, error.result)
+        _write_scene_evidence_partial(state.directory, error.result, case.fixed.case_id, parent)
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "court_acceptance", error)
         state.failure_path = failure_path
@@ -1019,9 +1016,8 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if court_result.inputs is None:
             raise ValueError("court evidence has no operational inputs")
-        capture = AnnotationWorkingData()
         input_values = court_result.inputs
-        result = annotate_video(
+        annotation = annotate_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
             fps=case.fixed.fps,
             models=driver.models,
@@ -1029,17 +1025,17 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             inpaint_codes=case.inpaint_codes,
             landing_options=LANDING_OPTIONS,
             resolution=input_values.resolution,
-            video_id=case.fixture.video_id,
             ref_err_px=REF_ERR_PX,
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
             homography_rows=input_values.homography_rows,
             court_invalid_is_excluded=True,
-            capture=capture,
+            keep_working_data=True,
         )
+        result = annotation.result
         state.result = result
-        assert capture.evidence is not None
-        evidence = capture.evidence
+        assert annotation.working_data is not None
+        evidence = annotation.working_data.evidence
         state.exclusion_fraction = float(evidence.exclusion_mask.mean())
         state.landing_comparisons = compare_landing_searches(
             evidence, result.rallies, result.outcomes, LANDING_SEARCH_SECONDS, LANDING_OPTIONS,
@@ -1058,11 +1054,11 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     state.status = "inference_only"
 
 
-def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult) -> None:
+def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult, case_id: str, parent: str) -> None:
     _write_rows(
         directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
-        (_scene_row(record) for record in result.scene_records),
+        (_scene_row(record, case_id, parent) for record in result.scene_records),
     )
     _save_mask(directory / "keep_vote.npy.xz", result.keep_vote)
     _save_mask(directory / "court_present.npy.xz", result.court_present)
@@ -1228,9 +1224,8 @@ def detect_case_courts(
         )
     scenes = read_detector_scenes(detector_result, frame_count=case.fixed.n_frames, native_size=DETECTOR_RESOLUTION)
     return build_court_detector_evidence(
-        case.fixed.case_id, case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
+        case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
         case.bboxes, case.scores, case.ndet,
-        ref_err_px=REF_ERR_PX,
     )
 
 
@@ -1334,7 +1329,7 @@ def _score_configurations(driver: RunDriver) -> None:
             _write_scoring_outputs(
                 state.directory, state.fixture, state.case, state.result, state.exclusion_fraction,
                 state.landing_comparisons,
-                driver.master, state.court_result.inputs.court_info, scene_courts,
+                driver.master, scene_courts,
             )
             state.status = "succeeded"
             _write_terminal_configuration_manifest(state, driver)

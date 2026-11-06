@@ -39,12 +39,12 @@ def _record(rally_id: int = 0) -> dict[str, object]:
                 {
                     "contact_frame": 15,
                     "wrist_near": True,
-                    "suppressed": False,
+                    "temporal_proximity_suppressed": False,
                 },
                 {
                     "contact_frame": 24,
                     "wrist_near": True,
-                    "suppressed": True,
+                    "temporal_proximity_suppressed": True,
                 },
             ],
             "accepted": [

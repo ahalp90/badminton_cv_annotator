@@ -410,16 +410,14 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     event_mask = np.zeros(7, dtype=bool)
     event_mask[2] = True
-    rejected_intervals: list[tuple[int, int]] = []
 
     landing = filtered_descending_landing(
         0, 7, track, kin, opts, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
-        shuttle_hallucination_mask=event_mask, rejected_intervals=rejected_intervals,
+        shuttle_hallucination_mask=event_mask,
     )
 
     assert landing is not None
     assert landing[0] == 6
-    assert rejected_intervals == [(0, 4)]
 
 
 def test_landing_returns_none_when_every_candidate_interval_is_masked():

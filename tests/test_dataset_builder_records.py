@@ -345,17 +345,17 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                     {
                         "contact_frame": 10,
                         "wrist_near": False,
-                        "suppressed": None,
+                        "temporal_proximity_suppressed": None,
                     },
                     {
                         "contact_frame": 20,
                         "wrist_near": True,
-                        "suppressed": False,
+                        "temporal_proximity_suppressed": False,
                     },
                     {
                         "contact_frame": 30,
                         "wrist_near": True,
-                        "suppressed": False,
+                        "temporal_proximity_suppressed": False,
                     },
                 ],
                 "accepted": [
@@ -428,7 +428,7 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                 "raw_candidates": [{
                     "contact_frame": 70,
                     "wrist_near": None,
-                    "suppressed": False,
+                    "temporal_proximity_suppressed": False,
                 }],
                 "accepted": [
                     {"stroke_idx": 0, "contact_frame": 70, "hit_height_code": 2, "player_half": None},

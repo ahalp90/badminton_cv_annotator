@@ -36,7 +36,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from annotator.annotate_video import AnnotationWorkingData, annotate_video
+from annotator.annotate_video import annotate_video
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
@@ -773,15 +773,13 @@ def run_measurement(
     )
     e2e_definitive = duration_filtered | ~court_present
 
-    capture = AnnotationWorkingData()
     keyword["raw_exclusion_mask"] = raw_union
     keyword["court_invalid_is_excluded"] = True
-    keyword["capture"] = capture
-    result = annotate_video(*inputs.positional, **keyword)
-    assert capture.evidence is not None
-    if not np.array_equal(capture.evidence.raw_exclusion_mask, raw_union):
+    annotation = annotate_video(*inputs.positional, **keyword)
+    result = annotation.result
+    if not np.array_equal(annotation.raw_exclusion_mask, raw_union):
         raise RuntimeError("run_video raw mask differs from the fresh replay union")
-    if not np.array_equal(capture.evidence.exclusion_mask, e2e_definitive):
+    if not np.array_equal(annotation.exclusion_mask, e2e_definitive):
         raise RuntimeError("run_video definitive mask differs from the e2e court-invalid union")
 
     details = slow_motion_details(

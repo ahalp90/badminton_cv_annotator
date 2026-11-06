@@ -21,7 +21,6 @@ from shared.court import (
 )
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
 
-DETECTED_PARENT = 'court_detector'
 # court_detector.run_video.VIDEO_RESULT_SCHEMA. Importing run_video would set
 # single-thread limits for this whole process.
 DETECTOR_RESULT_SCHEMA = 'court-detector-video/1'
@@ -62,29 +61,17 @@ class SceneStatus(StrEnum):
 
 @dataclass(frozen=True)
 class CourtInputs:
-    """Saved scene corners and a representative court for the video.
+    """Accepted scene ranges and their court corners, in video pixels.
 
-    ``homography_rows`` contains accepted frame ranges with their own corners.
-    Annotation builds a SceneCourt for each range. The other geometry fields
-    describe one representative court, chosen from the longest accepted scene
-    for detected footage. Existing single-court callers use those fields.
-
-    ``resolution`` is video width/height; ``active_corners_refpx`` uses the
-    1280x720 homography reference. Construction copies arrays and tables so
-    later edits to the caller's inputs do not change this record.
+    Annotation builds each scene's geometry from ``homography_rows`` using
+    the video's width and height in ``resolution``.
     """
 
-    court_info: dict[str, object]
-    net_band: tuple[float, float]
     resolution: tuple[float, float]
     homography_rows: pd.DataFrame
-    landing_error_band_m: float
-    active_corners_refpx: np.ndarray
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, 'court_info', _copy_court_info(self.court_info))
         object.__setattr__(self, 'homography_rows', self.homography_rows.copy(deep=True))
-        object.__setattr__(self, 'active_corners_refpx', np.asarray(self.active_corners_refpx).copy())
 
 
 @dataclass(frozen=True)
@@ -114,15 +101,12 @@ class CourtSceneRecord:
     check to pass. ``exactly_two_fraction`` is the fraction of frames with
     exactly two in-court people.
 
-    :param parent: Name of the court source, such as court_detector.
     :param analysed_frame: Frame inspected by the detector; None for fixed courts.
     :param corners_native_px: (4, 2) corners in original video pixels, ordered
         top-left, top-right, bottom-right, bottom-left. None for no court.
     """
 
     video_id: int | str
-    case_id: str
-    parent: str
     scene_index: int
     start_frame: int
     end_frame: int
@@ -173,7 +157,6 @@ class NoAcceptedCourtError(ValueError):
 
 
 def build_court_detector_evidence(
-    case_id: str,
     video_id: int | str,
     resolution: tuple[float, float],
     native_size: tuple[float, float],
@@ -181,8 +164,6 @@ def build_court_detector_evidence(
     bboxes: np.ndarray,
     scores: np.ndarray,
     ndet: np.ndarray,
-    *,
-    ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
     """Accept court scenes with exactly two in-court people in at least half the frames.
 
@@ -210,8 +191,6 @@ def build_court_detector_evidence(
         interval = (scene.start_frame, scene.end_frame)
         records.append(CourtSceneRecord(
             video_id=video_id,
-            case_id=case_id,
-            parent=DETECTED_PARENT,
             scene_index=scene_index,
             start_frame=scene.start_frame,
             end_frame=scene.end_frame,
@@ -231,24 +210,12 @@ def build_court_detector_evidence(
         result = CourtEvidenceResult(None, tuple(records), keep_vote, court_present)
         raise NoAcceptedCourtError(result, f'no scene has an accepted court; scene statuses: {statuses}')
 
-    # Keep one representative court for single-court callers; annotation uses
-    # each accepted scene's own corner rows.
-    representative = max(accepted_indices, key=lambda index: intervals[index][1] - intervals[index][0])
-    representative_corners = corners_refpx[representative]
-    active_info = detected_court_info(representative_corners)
     inputs = CourtInputs(
-        court_info=active_info,
-
-        net_band=build_net_band(active_info, resolution),
         resolution=tuple(map(float, resolution)),
         homography_rows=build_scene_rows(
             video_id, [intervals[index] for index in accepted_indices],
             [corners_refpx[index] for index in accepted_indices], resolution,
         ),
-        landing_error_band_m=corner_error_band_from_corners(
-            representative_corners, active_info, ref_err_px,
-        ),
-        active_corners_refpx=representative_corners,
     )
     return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)
 
@@ -449,7 +416,7 @@ def _normalised_court_to_reference(
     return projected[:, :2] / projected[:, 2:3]
 
 
-# Saved scene rows and copies
+# Saved scene rows
 
 def build_scene_rows(
     video_id: int | str,
@@ -486,11 +453,3 @@ def _scene_row(
         row[f'{prefix}_x'] = float(pose_corners[corner_index, 0])
         row[f'{prefix}_y'] = float(pose_corners[corner_index, 1])
     return row
-
-
-def _copy_court_info(court_info: dict[str, object]) -> dict[str, object]:
-    """Copy the dictionary and its mutable array values."""
-    return {
-        key: value.copy() if isinstance(value, np.ndarray) else value
-        for key, value in court_info.items()
-    }

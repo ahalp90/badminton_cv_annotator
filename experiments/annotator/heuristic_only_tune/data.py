@@ -9,7 +9,6 @@ from typing import Any
 import pandas as pd
 
 from annotator.annotate_video import (
-    AnnotationWorkingData,
     AnnotatorResult,
     annotate_video,
 )
@@ -158,8 +157,6 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
         'fps': inputs.fps,
         'landing_options': SHIPPED_LANDING_FILTER_OPTIONS,
         'resolution': court.resolution,
-        'video_id': inputs.identity,
-
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
         'inpaint_codes': inputs.guard_codes,
@@ -179,16 +176,17 @@ def run_configuration(
     models: AnnotatorModels | None = None,
 ) -> dict[str, Any]:
     """Run the complete annotator with discovered boundaries and optional fitted models."""
-    capture = AnnotationWorkingData()
     pose = inputs.pose
-    result = annotate_video(
+    annotation = annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         base=base, heuristic_only=models is None, models=models,
-        capture=capture, **run_video_kwargs(inputs),
+        keep_working_data=True, **run_video_kwargs(inputs),
     )
+    result = annotation.result
     if models is None:
         return heuristic_stream(result)
-    prediction = capture.learned_model_prediction
+    assert annotation.working_data is not None
+    prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{inputs.identity}: fitted annotation did not return its contact stream')
     return stream_payload(prediction.refined.sequences, prediction.refined.events)

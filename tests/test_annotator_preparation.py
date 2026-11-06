@@ -27,7 +27,7 @@ def preparation_inputs():
     return {
         'track': inputs['track'], 'bboxes': inputs['bboxes'], 'scores': inputs['scores'],
         'kps': inputs['kps'], 'ndet': inputs['ndet'], 'video_config': scale_config_to_fps(BaseAnnotatorConfig(), inputs['fps']),
-        'resolution': inputs['resolution'], 'video_id': inputs['video_id'],
+        'resolution': inputs['resolution'],
         'raw_exclusion_mask': inputs['raw_exclusion_mask'], **_default_scene_inputs(len(inputs['track'])),
     }
 
@@ -161,7 +161,7 @@ def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tm
         return original(*args, **kwargs)
 
     monkeypatch.setattr(player_evidence, 'build_player_evidence', build)
-    with cache_sticky_result(tmp_path, str(preparation_inputs['video_id'])):
+    with cache_sticky_result(tmp_path, 'video'):
         first = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
         second = prepare_contact_inference(**preparation_inputs, spans=[], contacts={})
     assert len(calls) == 1
@@ -180,7 +180,7 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
     monkeypatch.setattr(orchestration, 'build_hit_heights', unexpected)
     inputs = preparation_inputs
     source = SimpleNamespace(
-        identity=str(inputs['video_id']), fps=inputs['video_config'].fps, track=inputs['track'],
+        identity='video', fps=inputs['video_config'].fps, track=inputs['track'],
         pose=SimpleNamespace(bboxes=inputs['bboxes'], scores=inputs['scores'], kps=inputs['kps'], ndet=inputs['ndet']),
         court=SimpleNamespace(resolution=inputs['resolution'],
                               homography_rows=inputs['homography_rows']),

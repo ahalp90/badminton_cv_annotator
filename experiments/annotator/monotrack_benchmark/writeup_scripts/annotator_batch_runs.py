@@ -212,7 +212,6 @@ def prepare_inputs(
     return prepare_contact_inference(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         video_config=scale_config_to_fps(models.preprocessing, inputs.fps), resolution=court.resolution,
-        video_id=inputs.identity,
         court_present=inputs.court_present,
         homography_rows=court.homography_rows,
         inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,

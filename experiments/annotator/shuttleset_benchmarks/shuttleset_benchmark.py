@@ -122,7 +122,7 @@ def projection_to_annotator_result(
         contacts = record["contacts"]
         for candidate in contacts["raw_candidates"]:
             candidates.append(ContactCandidate(
-                rally_id, candidate["contact_frame"], candidate["wrist_near"], candidate["suppressed"],
+                rally_id, candidate["contact_frame"], candidate["wrist_near"], candidate["temporal_proximity_suppressed"],
             ))
         events = []
         for contact in contacts["accepted"]:

@@ -35,7 +35,7 @@ def assemble_contacts(
     radius = thresholds.contact_suppression_radius_frames
     accepted = {frame for frame, _ in suppress_contact_flags(near_wrist_candidates, radius=radius)}
     return [
-        contact._replace(suppressed=contact.wrist_near and contact.contact_frame not in accepted)
+        contact._replace(temporal_proximity_suppressed=contact.wrist_near and contact.contact_frame not in accepted)
         for contact in contacts
     ]
 

@@ -188,7 +188,7 @@ model. Use the same prepared arrays and court/landing inputs:
 from annotator.config import BaseAnnotatorConfig
 from annotator.annotate_video import annotate_video
 
-result = annotate_video(
+annotation = annotate_video(
     track, bboxes, scores, kps, ndet,
     fps=fps,
     heuristic_only=True,
@@ -197,11 +197,11 @@ result = annotate_video(
 )
 ```
 
-This returns heuristic contacts, player assignments and outcome estimates.
+`annotation.result` contains heuristic contacts, player assignments and outcome
+estimates. The exclusion masks are returned alongside it.
 Change `base` for a heuristic experiment and save its configuration with the
-result. For feature inputs, call `prepare_contact_inference()` directly. For a shuttle
-track without player or court evidence, use `segment_shuttle_track()`. The
-[input guide](inputs_outputs.md#direct-python-call) explains these calls.
+result. For feature inputs, call `prepare_contact_inference()` directly. See the
+[input guide](inputs_outputs.md#direct-python-call) for the required arrays.
 
 ## 7. Common failures
 
@@ -213,7 +213,7 @@ The saved shuttle track and guard codes disagree. The shuttle stage needs to
 be regenerated as a set.
 
 **Court evidence has no usable operational inputs**
-The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.4` court inputs.
+The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.5` court inputs.
 
 **Output directory must be new or empty**
 The standalone runner found existing files at the chosen output path.

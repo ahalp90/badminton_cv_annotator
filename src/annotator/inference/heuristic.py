@@ -16,13 +16,12 @@ from annotator.types import (
 
 
 def select_heuristic_contacts(
-    evidence: AnnotationEvidence, rejection_diagnostics: list[dict[str, object]] | None = None,
+    evidence: AnnotationEvidence,
 ) -> tuple[FinishedRally, ...]:
     """Select heuristic contacts and fit alternating players within each rally.
 
     Keep contacts that pass the wrist and spacing checks, then remove those
-    on excluded footage. If that removes every accepted contact in a rally,
-    append a diagnostic row when ``rejection_diagnostics`` is supplied.
+    on excluded footage.
     """
     frames_by_rally: dict[int, list[int]] = {}
     for contact in accepted_heuristic_contacts(evidence.heuristic_contacts):
@@ -41,15 +40,6 @@ def select_heuristic_contacts(
             # Heuristic contacts have no model probability.
             events.append(ContactEvent(frame, math.nan, side, distances))
         sequences.append(ContactSequence(rally_id, start, end, tuple(events)))
-        if frames and not events and rejection_diagnostics is not None:
-            rejection_diagnostics.append({
-                'rule': 'all_contacts_on_believed_mask',
-                'rally_id': rally_id,
-                'start_frame': start,
-                'end_frame': end,
-                'first_rejected_frame': frames[0],
-                'rejection_grade': '',
-            })
     return fit_rally_sides(sequences)
 
 
@@ -58,5 +48,5 @@ def accepted_heuristic_contacts(contacts: list[ContactCandidate]) -> list[Contac
     return [
         contact
         for contact in contacts
-        if contact.wrist_near is not False and contact.suppressed is not True
+        if contact.wrist_near is not False and contact.temporal_proximity_suppressed is not True
     ]

@@ -1,4 +1,4 @@
-"""Strict decoder for persisted dataset-builder court provenance."""
+"""Read saved court-scene results and check their video and frame ranges."""
 
 from __future__ import annotations
 
@@ -39,8 +39,6 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
         raise ValueError(f"{name} fields differ from CourtSceneRecord")
     return CourtSceneRecord(
         video_id=_video_id(record["video_id"], f"{name}.video_id"),
-        case_id=_string(record["case_id"], f"{name}.case_id"),
-        parent=_string(record["parent"], f"{name}.parent"),
         scene_index=_integer(record["scene_index"], f"{name}.scene_index"),
         start_frame=_integer(record["start_frame"], f"{name}.start_frame"),
         end_frame=_integer(record["end_frame"], f"{name}.end_frame"),

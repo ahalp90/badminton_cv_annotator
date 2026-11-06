@@ -226,8 +226,6 @@ def load_pinned_replay_fixtures(
             "fps": float(metadata.fps),
             "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
             "resolution": court_inputs.resolution,
-            "video_id": video_id,
-
             "ref_err_px": 3.5,
             "raw_exclusion_mask": None,
             "court_present": court.evidence.court_present,
@@ -239,7 +237,7 @@ def load_pinned_replay_fixtures(
             (shuttle.track, pose.bboxes, pose.scores, pose.kps, pose.ndet),
             keyword,
             master,
-            {fixture.video_id: court_inputs.court_info},
+            {},
         )
         index = artifact_index_path(destination, video_id)
         loaded.append(
@@ -280,7 +278,11 @@ def run_production_candidate(
             base = sweep.base_config(spec)
             keyword = dict(item.inputs.keyword)
             keyword.update(base=base)
-            result = annotate_video(*item.inputs.positional, **keyword, heuristic_only=True)
+            annotation = annotate_video(
+                *item.inputs.positional, **keyword, heuristic_only=True, keep_working_data=True,
+            )
+            result = annotation.result
+            assert annotation.working_data is not None
             row = sweep._row_for_result(
                 item.fixture,
                 spec,
@@ -294,6 +296,7 @@ def run_production_candidate(
                     item.inputs.master,
                     item.inputs.courts,
                     canonical_tolerance(item.fixture.fps),
+                    scene_courts=annotation.working_data.evidence.scene_courts,
                 )
             )
             rows[item.fixture.name] = row

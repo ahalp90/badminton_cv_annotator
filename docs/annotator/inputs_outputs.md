@@ -118,7 +118,7 @@ Contact and side assignment mainly use boxes, keypoint coordinates, detection sc
 Current schema:
 
 ```text
-court-evidence/0.4
+court-evidence/0.5
 ```
 
 It contains:
@@ -127,9 +127,9 @@ It contains:
 - court geometry used by the annotator;
 - per-scene records.
 
-This geometry includes scene homographies (image-to-court transforms), net/court
-measurements and the information used to assign player poses to court halves
-and estimate landings.
+Save the accepted scenes’ court corners and video resolution. Annotation uses
+these to calculate each scene’s image-to-court transform, net position and
+landing error band.
 
 ### `court_keep_vote.npy.xz`
 
@@ -180,14 +180,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.6
+annotator-result/0.7
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.6",
+  "schema": "annotator-result/0.7",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -277,7 +277,7 @@ from annotator.models import DEFAULT_MODEL_DIRECTORY, load_models
 from annotator.annotate_video import annotate_video
 
 models = load_models(DEFAULT_MODEL_DIRECTORY)
-result = annotate_video(
+annotation = annotate_video(
     track,
     bboxes,
     scores,
@@ -288,6 +288,10 @@ result = annotate_video(
     **court_and_mask_inputs,
 )
 ```
+
+`annotation.result` contains the finished annotations. Both exclusion masks
+are returned alongside it. Pass `keep_working_data=True` to also retain prepared
+inputs and model scores.
 
 The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `annotate_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
 
@@ -300,16 +304,6 @@ The direct call uses the model directory and settings as follows:
 `prepare_contact_inference()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
 accepts the same five arrays plus settings scaled to the video frame rate and
 the court, mask and scene inputs. Training and rally-model experiments call it directly. Its
-`AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
-all heuristic contact rows, raw/final exclusion masks and event-rejection evidence.
+`AnnotationEvidence` retains the original arrays, tracked players, wrist gaps, initial rallies,
+all heuristic contact rows, exclusion masks and rejected-shuttle-frame mask.
 It does not calculate final contact order, landing, winner or hit height.
-
-The former shuttle-track-only batch command has been retired. Use the complete
-annotator with `heuristic_only=True` for the supported rule-based route. Its
-preparation includes player and court evidence as well as excluded-frame masks.
-
-Annotation result schema 0.6 and rally-record schemas 0.4 omit the retired
-player-position proximity diagnostic. Resuming a dataset-builder run automatically
-invalidates and rebuilds stale stages and their dependants. Direct loaders of old
-annotation JSON or rally-record collections reject them; regenerate those files
-before loading them directly.

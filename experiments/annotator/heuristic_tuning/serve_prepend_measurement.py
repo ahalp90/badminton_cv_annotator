@@ -603,7 +603,7 @@ def run_contact_injection_counterfactual(
         **keyword,
         spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies],
         contacts=contacts, heuristic_only=True,
-    )
+    ).result
     injected_accepted = {
         (rally_id, event.frame)
         for rally_id, rally in enumerate(injected_result.rallies) for event in rally.sequence.events

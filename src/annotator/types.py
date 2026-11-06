@@ -63,18 +63,16 @@ class WristGaps(NamedTuple):
 
 
 class ContactCandidate(NamedTuple):
-    """Heuristic contact and the results of its wrist and spacing checks.
+    """Heuristic contact, including candidates rejected by wrist distance or timing.
 
-    Includes rejected candidates so callers can inspect why they were dropped.
-    ``rally_id`` indexes the initial rally spans. ``wrist_near`` is None when
-    unchecked; ``suppressed`` is None when spacing was not checked. Supplied
-    contact frames start with both checks unset.
+    ``rally_id`` indexes the initial rally ranges. Supplied contacts and
+    candidates found without wrist measurements have both checks unset.
     """
 
     rally_id: int
     contact_frame: int
     wrist_near: bool | None
-    suppressed: bool | None
+    temporal_proximity_suppressed: bool | None
 
 
 @dataclass(frozen=True)

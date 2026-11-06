@@ -315,10 +315,10 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
-        if contact.wrist_near is not False and contact.suppressed is not True
+        if contact.wrist_near is not False and contact.temporal_proximity_suppressed is not True
     } >= {73, 82}
     assert sum(
-        contact.wrist_near is not False and contact.suppressed is not True
+        contact.wrist_near is not False and contact.temporal_proximity_suppressed is not True
         for contact in scaled_contacts if contact.contact_frame in (73, 82)
     ) == 1
 
@@ -330,8 +330,8 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
     full_contact = next(contact for contact in full_contacts if contact.contact_frame == 82)
-    assert (short_contact.wrist_near, short_contact.suppressed) == (True, False)
-    assert (full_contact.wrist_near, full_contact.suppressed) == (False, False)
+    assert (short_contact.wrist_near, short_contact.temporal_proximity_suppressed) == (True, False)
+    assert (full_contact.wrist_near, full_contact.temporal_proximity_suppressed) == (False, False)
 
     # The final contact with scaled settings uses the same track, sticky cache, and scaled constants for
     # attribution and landing.
@@ -340,7 +340,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     )[1]
     final_contact = [
         contact.contact_frame for contact in scaled_full_contacts
-        if contact.wrist_near is not False and contact.suppressed is not True
+        if contact.wrist_near is not False and contact.temporal_proximity_suppressed is not True
     ][-1]
     attribution_scenes = (SceneCourt(0, len(track), {}, (520.0, 560.0), 0.1),)
     side, _ = contact_player_evidence(final_contact, track, full_players, full_gaps, bboxes, attribution_scenes)

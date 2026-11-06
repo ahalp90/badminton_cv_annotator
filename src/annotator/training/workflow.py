@@ -268,7 +268,7 @@ def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnot
     return prepare_contact_inference(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         video_config=scale_config_to_fps(preprocessing, float(metadata.fps)),
-        resolution=inputs.resolution, video_id=video_id,
+        resolution=inputs.resolution,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
         inpaint_codes=guard_codes, court_invalid_is_excluded=True,
     )

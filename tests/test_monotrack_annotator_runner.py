@@ -122,12 +122,13 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['inpaint_codes'] is inputs.guards
         assert kwargs['court_present'] is inputs.vision.evidence.court_present
         assert kwargs['homography_rows'] is inputs.court.homography_rows
-        return empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
+        result = empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
             ContactSequence(0, *kwargs['spans'][0], (
                 ContactEvent(10, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
             )),
             CourtHalf.BOT,
         ),))
+        return SimpleNamespace(result=result)
 
     monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path), heuristic_spec=spec)
@@ -148,7 +149,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
 
 
 @pytest.mark.parametrize('condition', ['ours_our_courts', 'ours_mono_courts', 'ours_discovery'])
-def test_full_default_keeps_the_selected_models_and_capture_stream(
+def test_full_default_keeps_the_selected_models_and_contact_stream(
     runner: ModuleType, inputs: SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, condition: str,
 ) -> None:
     events = (ContactEvent(10, 0.8, CourtHalf.TOP), ContactEvent(20, 0.9, CourtHalf.BOT))
@@ -159,8 +160,13 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
         assert kwargs['base'] is inputs.models.preprocessing
         assert kwargs['heuristic_only'] is False
         assert kwargs['spans'] == (None if condition == 'ours_discovery' else [(0, 45)])
-        kwargs['capture'].learned_model_prediction = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
-        return empty_annotation([], [])
+        assert kwargs['keep_working_data'] is True
+        return SimpleNamespace(
+            result=empty_annotation([], []),
+            working_data=SimpleNamespace(learned_model_prediction=SimpleNamespace(
+                refined=SimpleNamespace(sequences=sequences, events=events),
+            )),
+        )
 
     monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path))

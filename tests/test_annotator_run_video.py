@@ -9,7 +9,6 @@ import pytest
 import annotator.annotate_video as run_video_module
 from annotator import player_tracking
 from annotator.annotate_video import (
-    AnnotationWorkingData,
     AnnotatorResult,
     annotate_video,
 )
@@ -62,21 +61,21 @@ def test_model_contacts_and_fitted_sides_survive_the_full_chain(monkeypatch, ann
 
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
     monkeypatch.setattr(run_video_module, 'select_heuristic_contacts', unexpected_reattribution)
-    capture = AnnotationWorkingData()
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
-        spans=[(10, 20)], contacts={0: [14]}, models=annotator_models, capture=capture,
+        spans=[(10, 20)], contacts={0: [14]}, models=annotator_models, keep_working_data=True,
     )
+    result = annotation.result
     assert result.contact_events == final_events
     assert result.rallies[0].final_half is CourtHalf.BOT
     assert result.rally_confidence == (.73,)
-    assert capture.learned_model_prediction is prediction
+    assert annotation.working_data is not None
+    assert annotation.working_data.learned_model_prediction is prediction
     assert result.rallies is prediction.refined.rallies
     assert result.heuristic_candidates == []
 
 
 def test_run_video_no_play_returns_empty_result():
-    video_id = 1
     resolution = (1920.0, 1080.0)
     track = np.zeros((300, 3), dtype=np.float64)
     bboxes = np.zeros((300, 1, 4), dtype=np.float32)
@@ -85,16 +84,15 @@ def test_run_video_no_play_returns_empty_result():
     ndet = np.zeros(300, dtype=np.int64)
     dead = np.zeros(300, dtype=bool)
 
-    result = annotate_video(
+    annotation = annotate_video(
         track, bboxes, scores, kps, ndet,
         fps=25.0,
         landing_options=LandingFilterOptions(7, 0.004, 5, 7, 0.75),
         resolution=resolution,
-        video_id=video_id,
-
         raw_exclusion_mask=dead,
         **_default_scene_inputs(len(track)), heuristic_only=True,
     )
+    result = annotation.result
 
     assert result == AnnotatorResult((), {}, {}, {}, (), [], ())
 
@@ -118,13 +116,14 @@ def test_run_video_injected_spans_bypass_natural_span_finding(monkeypatch):
         lambda *args, **kwargs: pytest.fail('natural span finding was not bypassed'),
     )
 
-    result = annotate_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=injected, heuristic_only=True)
+    annotation = annotate_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=injected, heuristic_only=True)
+    result = annotation.result
 
     assert [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies] == injected
 
 
 @pytest.mark.parametrize('field', [
-    'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'video_id', 'landing_options',
+    'bboxes', 'scores', 'kps', 'ndet', 'resolution', 'landing_options',
     'court_present', 'homography_rows',
 ])
 def test_run_video_requires_player_and_scene_inputs(field):
@@ -175,7 +174,8 @@ def test_run_video_injected_contacts_are_unmeasured_and_scored():
     frames = [14, 16]
     expected = [ContactCandidate(0, frame, None, None) for frame in frames]
 
-    result = annotate_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=spans, contacts={0: frames}, heuristic_only=True)
+    annotation = annotate_video(**inputs, **_default_scene_inputs(len(inputs['track'])), spans=spans, contacts={0: frames}, heuristic_only=True)
+    result = annotation.result
 
     assert result.heuristic_candidates == expected
     assert [event.frame for rally in result.rallies for event in rally.sequence.events] == frames
@@ -192,10 +192,11 @@ def test_heuristic_only_keeps_unknown_probabilities_without_using_models(monkeyp
     monkeypatch.setattr(run_video_module, 'load_models', unexpected)
     monkeypatch.setattr(run_video_module, 'predict_contacts', unexpected)
     inputs = _synthetic_inputs()
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
         spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
     assert result.heuristic_candidates == [ContactCandidate(0, 14, None, None)]
     assert np.isnan(result.rallies[0].sequence.events[0].probability)
     payload = annotation_result_payload('heuristic', result)['result']
@@ -217,9 +218,10 @@ def test_run_video_injected_contacts_without_mask_completes(monkeypatch):
         lambda *args, **kwargs: (CourtHalf.TOP, None),
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert [rally.final_half for rally in result.rallies] == [CourtHalf.TOP]
     assert 0 in result.outcomes
@@ -264,85 +266,36 @@ def test_run_video_exhausts_masked_contacts_without_calling_landing(monkeypatch)
         lambda *args, **kwargs: pytest.fail('landing must not run without an unmasked contact'),
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
         contacts={0: [12, 14, 16]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert result.outcomes[0].winner is None
     assert result.outcomes[0].landing is None
 
 
-def test_run_video_drops_trusted_dead_contacts_and_records_the_rejection(monkeypatch):
+def test_run_video_drops_trusted_dead_contacts(monkeypatch):
     inputs = _synthetic_inputs()
     raw_exclusion_mask = np.zeros(len(inputs['track']), dtype=bool)
     raw_exclusion_mask[:23] = True  # contacts 12, 14, and 16 are all past the filter threshold at 25 fps
     inputs['raw_exclusion_mask'] = raw_exclusion_mask
-    rows = []
     monkeypatch.setattr(
         heuristic_inference, 'contact_player_evidence',
         lambda *args, **kwargs: pytest.fail('trusted-dead contacts must not be attributed'),
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
-        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows, heuristic_only=True,
+        contacts={0: [12, 14, 16]},  heuristic_only=True,
     )
+    result = annotation.result
 
     assert all(not rally.sequence.events for rally in result.rallies)
     assert result.rallies[0].final_half is None
     assert result.outcomes == {}
-    assert rows == [{
-        'rule': 'all_contacts_on_believed_mask', 'rally_id': 0,
-        'start_frame': 10, 'end_frame': 20, 'first_rejected_frame': 12, 'rejection_grade': '',
-    }]
 
-
-def test_run_video_rejection_diagnostic_uses_earliest_masked_code(monkeypatch):
-    inputs = _synthetic_inputs()
-    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
-    codes[14] = 3
-    codes[16] = 3
-    inputs.update(
-        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
-    )
-    rows = []
-    monkeypatch.setattr(
-        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
-    )
-
-    annotate_video(
-        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
-        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows, heuristic_only=True,
-    )
-
-    assert rows == [{
-        'rule': 'final_contact', 'rally_id': 0, 'start_frame': 14, 'end_frame': 17,
-        'first_rejected_frame': 14, 'rejection_grade': 3,
-    }]
-
-
-def test_run_video_does_not_record_an_unaffected_mid_rally_mask(monkeypatch):
-    inputs = _synthetic_inputs()
-    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
-    codes[14] = 3
-    inputs.update(
-        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
-    )
-    rows = []
-    monkeypatch.setattr(
-        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
-    )
-    monkeypatch.setattr(
-        run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
-    )
-
-    annotate_video(
-        **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)],
-        contacts={0: [12, 14, 16]}, rejection_diagnostics=rows, heuristic_only=True,
-    )
-
-    assert rows == []
 
 
 def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(monkeypatch):
@@ -363,51 +316,17 @@ def test_run_video_keeps_next_server_verdict_and_masked_contact_measurements(mon
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', attribute)
     monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20), (25, 45)],
         contacts=contacts, heuristic_only=True,
     )
+    result = annotation.result
 
     assert result.outcomes[0].winner is CourtHalf.TOP
     assert result.outcomes[0].winner_source.value == 'next_server'
     assert [event.frame for event in result.rallies[0].sequence.events] == contacts[0]
     assert set(result.hit_heights) == {frame for frames in contacts.values() for frame in frames}
     assert result.unavailable_hit_height_reasons == {}
-
-
-def test_run_video_code_three_rejects_each_diagnostic_rule(monkeypatch):
-    inputs = _synthetic_inputs()
-    codes = np.zeros(len(inputs['track']), dtype=np.uint8)
-    codes[[16, 25, 26, 27, 40]] = 3
-    inputs.update(
-        base=BaseAnnotatorConfig(rejected_grades=frozenset({1, 2, 3})), inpaint_codes=codes,
-    )
-    rows = []
-    monkeypatch.setattr(
-        heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None),
-    )
-
-    def fake_pick(_final_contact, _end_frame, _track, _kin, _opts, _striker, _net_band,
-                  _resolution, _court_info, _constants, *, shuttle_hallucination_mask,
-                  rejected_intervals, infer_net_fault):
-        assert shuttle_hallucination_mask[40]
-        rejected_intervals.append((39, 41))
-
-    monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', fake_pick)
-    track = inputs['track']
-    track[15:27, 2] = 1
-    track[15:27, 1] = 0.5
-    track[27:, 2] = 0
-
-    annotate_video(
-        **inputs, **_default_scene_inputs(len(track)), spans=[(10, 20), (22, 45)],
-        contacts={0: [12, 14, 16], 1: [24]}, rejection_diagnostics=rows, heuristic_only=True,
-    )
-
-    assert {row['rule'] for row in rows} == {
-        'final_contact', 'lost_shuttle_guard', 'landing_descent',
-    }
-    assert all(row['rejection_grade'] == 3 for row in rows)
 
 
 def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
@@ -421,9 +340,10 @@ def test_run_video_geometric_diagnostic_has_nullable_agreement(monkeypatch):
         lambda *args, **kwargs: None,
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     diagnostic = result.outcomes[0]
     assert diagnostic.conservative_landing_winner is None
@@ -442,9 +362,10 @@ def test_run_video_geometric_diagnostic_records_a_resolved_winner(monkeypatch):
         lambda *args, **kwargs: Landing(15, (0.5, 0.75), CourtHalf.BOT, False, False),
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     diagnostic = result.outcomes[0]
     assert diagnostic.conservative_landing_winner is CourtHalf.TOP
@@ -466,9 +387,10 @@ def test_run_video_geometric_diagnostic_marks_a_trusted_mask_window_close(monkey
         run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None,
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert result.outcomes[0].search_shortened_by_exclusion is True
 
@@ -481,10 +403,11 @@ def test_run_video_tied_mask_and_shuttle_loss_is_not_mask_closed(monkeypatch):
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args, **kwargs: (CourtHalf.TOP, None))
     monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
         spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert result.outcomes[0].search_shortened_by_exclusion is False
 
@@ -496,9 +419,10 @@ def test_run_video_has_no_geometric_diagnostic_without_resolved_striker(monkeypa
         lambda *args, **kwargs: (None, None),
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert result.outcomes == {}
 
@@ -523,25 +447,25 @@ def test_run_video_injected_contacts_build_shared_sticky_once(monkeypatch):
         preparation, 'combine_mask', fail_if_called,
     )
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])), spans=[(10, 20)], contacts={0: [14]}, heuristic_only=True,
     )
+    result = annotation.result
 
     assert [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies] == [(10, 20)]
     assert result.heuristic_candidates == [ContactCandidate(0, 14, None, None)]
     assert build_calls == 1
 
 
-def test_run_video_capture_exposes_prepared_evidence() -> None:
+def test_run_video_retains_prepared_evidence_when_requested() -> None:
     inputs = _synthetic_inputs()
-    capture = AnnotationWorkingData()
-    annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
-        capture=capture, heuristic_only=True,
+        keep_working_data=True, heuristic_only=True,
     )
-    assert capture.evidence is not None
-    np.testing.assert_array_equal(capture.evidence.raw_exclusion_mask, inputs['raw_exclusion_mask'])
-    np.testing.assert_array_equal(capture.evidence.exclusion_mask, inputs['raw_exclusion_mask'])
+    assert annotation.working_data is not None
+    np.testing.assert_array_equal(annotation.working_data.evidence.raw_exclusion_mask, inputs['raw_exclusion_mask'])
+    np.testing.assert_array_equal(annotation.working_data.evidence.exclusion_mask, inputs['raw_exclusion_mask'])
 
 
 @pytest.mark.parametrize('limits', [(0.0,), (float('nan'),), (1.0, 1.0)])
@@ -571,15 +495,15 @@ def test_run_video_scales_landing_options_before_search(monkeypatch):
 
 def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
     inputs = _synthetic_inputs()
-    capture = AnnotationWorkingData()
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
     monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', lambda *args, **kwargs: None)
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
-        spans=[(10, 20)], contacts={0: [14]}, capture=capture, heuristic_only=True,
+        spans=[(10, 20)], contacts={0: [14]}, keep_working_data=True, heuristic_only=True,
     )
+    result = annotation.result
     comparisons = compare_landing_searches(
-        capture.evidence, result.rallies, result.outcomes, (1.0, 2.0, 3.0), inputs["landing_options"],
+        annotation.working_data.evidence, result.rallies, result.outcomes, (1.0, 2.0, 3.0), inputs["landing_options"],
     )
     assert [row.search_seconds for row in comparisons] == [1.0, 2.0, 3.0]
     assert all(row.trial_end_frame <= row.normal_end_frame for row in comparisons)
@@ -589,7 +513,6 @@ def test_landing_trials_do_not_extend_the_normal_search(monkeypatch):
 def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     inputs = _synthetic_inputs()
     inputs['track'][14:, 2] = 1.0
-    capture = AnnotationWorkingData()
     monkeypatch.setattr(heuristic_inference, 'contact_player_evidence', lambda *args: (CourtHalf.TOP, None))
 
     def fake_pick(_final_contact, end_frame, *_args, **_kwargs):
@@ -598,12 +521,13 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
         return Landing(end_frame - 1, position, half, False, False)
 
     monkeypatch.setattr(run_video_module.landing_and_winner, 'pick_landing_to_end', fake_pick)
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **_default_scene_inputs(len(inputs['track'])),
-        spans=[(10, 20)], contacts={0: [14]}, capture=capture, heuristic_only=True,
+        spans=[(10, 20)], contacts={0: [14]}, keep_working_data=True, heuristic_only=True,
     )
+    result = annotation.result
     short, tied = compare_landing_searches(
-        capture.evidence, result.rallies, result.outcomes, (1.0, 11.44), inputs["landing_options"],
+        annotation.working_data.evidence, result.rallies, result.outcomes, (1.0, 11.44), inputs["landing_options"],
     )
     assert short.normal_outcome.landing != short.trial_outcome.landing
     assert short.normal_outcome.winner is CourtHalf.TOP
@@ -618,18 +542,17 @@ def test_run_video_can_exclude_frames_without_court_presence() -> None:
     inputs = _synthetic_inputs()
     court_present = np.ones(len(inputs['track']), dtype=bool)
     court_present[10] = False
-    capture = AnnotationWorkingData()
     scene_inputs = _default_scene_inputs(len(inputs['track']))
     scene_inputs['court_present'] = court_present
 
-    annotate_video(
+    annotation = annotate_video(
         **inputs,
         **scene_inputs,
-        capture=capture,
+        keep_working_data=True,
         court_invalid_is_excluded=True, heuristic_only=True,
     )
-    assert capture.evidence.exclusion_mask[10]
-    assert capture.evidence.exclusion_mask[~court_present].all()
+    assert annotation.working_data.evidence.exclusion_mask[10]
+    assert annotation.working_data.evidence.exclusion_mask[~court_present].all()
 
 
 @pytest.mark.parametrize('gap', [(0, 10), (150, 160), (290, 300)])
@@ -652,41 +575,39 @@ def test_run_video_excludes_scene_gaps(
     scene_inputs['court_present'][120] = False
     gap_contact = (gap_start + gap_end) // 2
     contact_frames = sorted([120, gap_contact, 180])
-    capture = AnnotationWorkingData()
 
-    result = annotate_video(
+    annotation = annotate_video(
         **inputs, **scene_inputs,
-        spans=[(0, n_frames)], contacts={0: contact_frames}, capture=capture,
+        spans=[(0, n_frames)], contacts={0: contact_frames}, keep_working_data=True,
         court_invalid_is_excluded=exclude_invalid,
         heuristic_only=True,
     )
+    result = annotation.result
 
-    assert not capture.evidence.raw_exclusion_mask.any()
+    assert not annotation.working_data.evidence.raw_exclusion_mask.any()
     assert [contact.contact_frame for contact in result.heuristic_candidates] == contact_frames
     expected_mask = np.zeros(n_frames, dtype=bool)
     expected_mask[gap_start:gap_end] = True
     expected_mask[120] = exclude_invalid
-    np.testing.assert_array_equal(capture.evidence.exclusion_mask, expected_mask)
+    np.testing.assert_array_equal(annotation.working_data.evidence.exclusion_mask, expected_mask)
     expected_contacts = [180] if exclude_invalid else [120, 180]
     assert [event.frame for rally in result.rallies for event in rally.sequence.events] == expected_contacts
 
 
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
     inputs = _synthetic_inputs()
-    capture = AnnotationWorkingData()
     scene_inputs = _default_scene_inputs(len(inputs['track']))
     scene_inputs['court_present'] = np.zeros(len(inputs['track']), dtype=bool)
     with pytest.raises(ValueError, match='mask is all True'):
         annotate_video(
             **inputs,
             **scene_inputs,
-            capture=capture,
+            keep_working_data=True,
             court_invalid_is_excluded=True, heuristic_only=True,
         )
 
 
 def _synthetic_inputs():
-    video_id = 1
     n_frames = 300
     resolution = (1920.0, 1080.0)
     return {
@@ -698,8 +619,6 @@ def _synthetic_inputs():
         'fps': 25.0,
         'landing_options': LandingFilterOptions(7, 0.004, 5, 7, 0.75),
         'resolution': resolution,
-        'video_id': video_id,
-
         'raw_exclusion_mask': np.zeros(n_frames, dtype=bool),
     }
 
@@ -769,7 +688,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
 
     def build_mask(*args):
         result = original(*args)
-        mask_calls.append(result[0])
+        mask_calls.append(result)
         return result
 
     def predict(evidence, models):
@@ -782,10 +701,9 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
     models = replace(annotator_models, preprocessing=BaseAnnotatorConfig(rejected_grades=rejected_grades))
     monkeypatch.setattr(preparation, 'build_shuttle_hallucination_mask', build_mask)
     monkeypatch.setattr(run_video_module, 'predict_contacts', predict)
-    capture = AnnotationWorkingData()
     annotate_video(
         **inputs, **_default_scene_inputs(frame_count), spans=[(10, 20)], contacts={0: [14]},
-        models=models, inpaint_codes=codes, capture=capture,
+        models=models, inpaint_codes=codes, keep_working_data=True,
     )
     assert len(mask_calls) == 1
     np.testing.assert_array_equal(mask_calls[0], np.isin(codes, tuple(rejected_grades)))

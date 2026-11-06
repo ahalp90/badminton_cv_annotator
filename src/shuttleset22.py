@@ -28,7 +28,6 @@ DEFAULT_SOURCES = REPO_ROOT / "configs" / "shuttleset22" / "sources.toml"
 DEFAULT_TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"
 COURT_RECEIPT_SCHEMA = "shuttleset22-court/0.2"
 COURT_RECEIPT_FILENAME = "court_receipt.json.gz"
-COURT_REF_ERR_PX = 3.5
 YOUTUBE_FORMAT = (
     "bv*[ext=mp4][vcodec^=avc1][fps=30][height<=1080]+ba[ext=m4a]/"
     "b[ext=mp4][vcodec^=avc1][fps=30][height<=1080]"
@@ -439,7 +438,7 @@ def _court_receipt_base(
         "match_id": source.match_id,
         "video": source.video,
         "code_id": code_id,
-        "configuration": {**settings.configuration(), "ref_err_px": COURT_REF_ERR_PX},
+        "configuration": settings.configuration(),
         "metadata": {
             "fps_numerator": metadata.fps.numerator,
             "fps_denominator": metadata.fps.denominator,
@@ -540,7 +539,6 @@ def court_source(
         pose_dir=output,
         settings=settings,
         output_dir=output,
-        ref_err_px=COURT_REF_ERR_PX,
     )
     court = load_court_vision(
         output,

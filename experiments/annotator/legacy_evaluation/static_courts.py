@@ -23,9 +23,7 @@ from annotator.courts.prepare_courts import (
     _scene_fraction,
     build_court_present,
     build_keep_vote,
-    build_net_band,
     build_scene_rows,
-    corner_error_band_from_corners,
 )
 from shared.camera_cuts import detect_cuts
 from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
@@ -93,29 +91,19 @@ def build_static_court_inputs(
     homo_df: pd.DataFrame,
     resolution: tuple[float, float],
     raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    *,
-    ref_err_px: float = 3.5,
 ) -> CourtInputs:
     """Build static inputs from the existing ShuttleSet homography row."""
     intervals = _normalise_intervals(raw_cuts)
-    court_info = get_court_info(homo_df, video_id)
     active_corners = _static_corners_refpx(homo_df.loc[video_id])
     homography_rows = build_scene_rows(video_id, intervals, [active_corners] * len(intervals), resolution)
     return CourtInputs(
-        court_info=court_info,
-
-        net_band=build_net_band(court_info, resolution),
         resolution=tuple(map(float, resolution)),
         homography_rows=homography_rows,
-        landing_error_band_m=corner_error_band_from_corners(active_corners, court_info, ref_err_px),
-        active_corners_refpx=active_corners,
     )
 
 
 
 def build_static_court_evidence(
-    case_id: str,
-    parent: str,
     video_id: int | str,
     homo_df: pd.DataFrame,
     resolution: tuple[float, float],
@@ -123,16 +111,13 @@ def build_static_court_evidence(
     bboxes: np.ndarray,
     scores: np.ndarray,
     ndet: np.ndarray,
-    *,
-    ref_err_px: float = 3.5,
 ) -> CourtEvidenceResult:
     """Build masks and scene records using one supplied court calibration."""
     intervals = _normalise_intervals(raw_cuts)
     inputs = build_static_court_inputs(
         video_id, homo_df, resolution, intervals,
-        ref_err_px=ref_err_px,
     )
-    provisional_infos = [inputs.court_info] * len(intervals)
+    provisional_infos = [get_court_info(homo_df, video_id)] * len(intervals)
     keep_vote = build_keep_vote(
         bboxes, scores, ndet, resolution, intervals, provisional_infos,
     )
@@ -141,13 +126,11 @@ def build_static_court_evidence(
         for interval in intervals
     ]
     court_present = build_court_present(keep_vote, intervals, scene_valid)
-    static_corners_px = _as_native_corners(inputs.active_corners_refpx)
+    static_corners_px = _as_native_corners(_static_corners_refpx(homo_df.loc[video_id]))
     records = []
     for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid)):
         records.append(CourtSceneRecord(
             video_id=video_id,
-            case_id=case_id,
-            parent=parent,
             scene_index=scene_index,
             start_frame=start,
             end_frame=end,

@@ -15,9 +15,12 @@ import pandas as pd
 import pytest
 
 import experiments.annotator.measurement as runner
-from annotator.annotate_video import AnnotatorResult
+from annotator.annotate_video import (
+    AnnotationWorkingData,
+    AnnotatorResult,
+    VideoAnnotation,
+)
 from annotator.courts.prepare_courts import (
-    DETECTED_PARENT,
     DETECTOR_RESULT_SCHEMA,
     PERSON_COURT_MARGIN,
     SCENE_VALID_MIN_FRACTION,
@@ -26,6 +29,7 @@ from annotator.courts.prepare_courts import (
     CourtSceneRecord,
     SceneStatus,
 )
+from annotator.inference.prepare_contact_inference import prepare_contact_inference
 from dataset_builder import vision
 from dataset_builder.vision import CourtDetectorSettings
 from experiments.annotator.artifact_io import (
@@ -277,9 +281,9 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
         raw_rows = list(csv.reader(handle))
     assert raw_rows == [["scene_index", "start_frame", "end_frame"], ["0", "0", "2"]]
 
-    court_result = _fake_court_result(case, runner.PARENTS[0])
+    court_result = _fake_court_result(case)
     directory = root / runner.PARENTS[0] / fixed.case_id
-    runner._write_scene_evidence(directory, court_result)
+    runner._write_scene_evidence(directory, court_result, case_id=fixed.case_id, parent=runner.PARENTS[0])
     with open_text_artifact(directory / "court_scenes.csv.gz", newline="") as handle:
         scene_rows = list(csv.reader(handle))
     assert scene_rows[0] == list(runner.COURT_SCENES_COLUMNS)
@@ -294,7 +298,7 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
     failed_row = runner._scene_row(replace(
         court_result.scene_records[0], status=SceneStatus.DETECTION_FAILED, analysed_frame=1,
         corners_native_px=None, error="CourtFitError()", scene_valid=False,
-    ))
+    ), case_id=fixed.case_id, parent=runner.PARENTS[0])
     assert failed_row["status"] is SceneStatus.DETECTION_FAILED
     assert failed_row["analysed_frame"] == 1
     assert failed_row["error"] == "CourtFitError()"
@@ -388,7 +392,7 @@ def test_inference_failure_keeps_closed_court_evidence_and_terminal_manifest(
     monkeypatch.setattr(
         runner,
         "build_static_court_evidence",
-        lambda *_args, **_kwargs: _fake_court_result(case, state.parent),
+        lambda *_args, **_kwargs: _fake_court_result(case),
     )
     monkeypatch.setattr(runner, "annotate_video", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("inference")))
     runner._run_one_configuration(state, driver)
@@ -457,27 +461,39 @@ def _fake_case(fixed: runner.FixedCase, fixture: runner.Fixture) -> runner.CaseD
     )
 
 
-def _fake_court_result(case: runner.CaseData, parent: str) -> CourtEvidenceResult:
-    info = {"H": np.eye(3), "border_L": 0.0, "border_R": 1.0, "border_U": 0.0, "border_D": 1.0}
+def _fake_court_result(case: runner.CaseData) -> CourtEvidenceResult:
     inputs = CourtInputs(
-        court_info=info,
-
-        net_band=(100.0, 110.0),
         resolution=(1280.0, 720.0),
         homography_rows=pd.DataFrame([{
             "video_id": case.fixture.video_id, "start_frame": 0, "end_frame": 2,
             "upleft_x": 0.0, "upleft_y": 0.0, "upright_x": 1.0, "upright_y": 0.0,
             "downleft_x": 0.0, "downleft_y": 1.0, "downright_x": 1.0, "downright_y": 1.0,
         }]),
-        landing_error_band_m=0.1,
-        active_corners_refpx=np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
     )
     record = CourtSceneRecord(
-        case.fixture.video_id, case.fixed.case_id, parent, 0, 0, 2, SceneStatus.COURT, None,
+        case.fixture.video_id, 0, 0, 2, SceneStatus.COURT, None,
         np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), None, None, None,
         2, 1.0, True,
     )
     return CourtEvidenceResult(inputs, (record,), np.ones(2, dtype=bool), np.ones(2, dtype=bool))
+
+
+def _empty_video_annotation(
+    track, bboxes, scores, kps, ndet, *, base, fps, resolution, court_present, homography_rows,
+    inpaint_codes, keep_working_data, **_kwargs,
+) -> VideoAnnotation:
+    assert keep_working_data
+    # No people or rallies are needed to exercise the runner's saving and scoring.
+    evidence = prepare_contact_inference(
+        track, bboxes, scores, kps, np.zeros_like(ndet),
+        video_config=runner.scale_config_to_fps(base, fps), resolution=resolution,
+        court_present=court_present, homography_rows=homography_rows, inpaint_codes=inpaint_codes,
+        raw_exclusion_mask=np.zeros(len(track), dtype=bool), spans=[],
+    )
+    return VideoAnnotation(
+        AnnotatorResult((), {}, {}, {}, (), [], ()), evidence.raw_exclusion_mask, evidence.exclusion_mask,
+        AnnotationWorkingData(evidence, None),
+    )
 
 
 def _install_synthetic_runner(
@@ -512,29 +528,27 @@ def _install_synthetic_runner(
     monkeypatch.setattr(
         runner,
         "build_static_court_evidence",
-        lambda case_id, parent, *_args, **_kwargs: _fake_court_result(
-            next(case for case in synthetic_cases if case.fixed.case_id == case_id), parent
+        lambda video_id, *_args, **_kwargs: _fake_court_result(
+            next(case for case in synthetic_cases if case.fixture.video_id == video_id)
         ),
     )
     monkeypatch.setattr(
         runner,
         "detect_case_courts",
-        lambda case, settings, *_args: _fake_court_result(case, DETECTED_PARENT),
+        lambda case, settings, *_args: _fake_court_result(case),
     )
     monkeypatch.setattr(runner, "verify_eligible_gt_files", dict)
 
     inference_fail_seen = False
 
-    def fake_run_video(*_args, capture: runner.AnnotationWorkingData, video_id: int, **_kwargs) -> AnnotatorResult:
+    def fake_run_video(*args, **kwargs) -> VideoAnnotation:
         nonlocal inference_fail_seen
         events["inference"] += 1
+        video_id = kwargs["homography_rows"]["video_id"].iloc[0]
         if inference_failure_video_id == video_id and not inference_fail_seen:
             inference_fail_seen = True
             raise ValueError("inference")
-        capture.evidence = SimpleNamespace(
-            raw_exclusion_mask=np.zeros(2, dtype=bool), exclusion_mask=np.zeros(2, dtype=bool),
-        )
-        return AnnotatorResult((), {}, {}, {}, (), [], ())
+        return _empty_video_annotation(*args, **kwargs)
 
     monkeypatch.setattr(runner, "annotate_video", fake_run_video)
     monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
@@ -600,14 +614,14 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     monkeypatch.setattr(
         runner,
         "build_static_court_evidence",
-        lambda case_id, parent, *_args, **_kwargs: _fake_court_result(
-            next(case for case in synthetic_cases if case.fixed.case_id == case_id), parent
+        lambda video_id, *_args, **_kwargs: _fake_court_result(
+            next(case for case in synthetic_cases if case.fixture.video_id == video_id)
         ),
     )
     monkeypatch.setattr(
         runner,
         "detect_case_courts",
-        lambda case, settings, *_args: _fake_court_result(case, DETECTED_PARENT),
+        lambda case, settings, *_args: _fake_court_result(case),
     )
     gt_verified = False
 
@@ -634,20 +648,19 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     monkeypatch.setattr(runner, "verify_eligible_gt_files", fake_verify_gt_files)
 
     def fake_run_video(
-        *_args, capture: runner.AnnotationWorkingData, base, models, inpaint_codes, landing_options, **_kwargs,
-    ) -> AnnotatorResult:
+        *args, base, models, inpaint_codes, landing_options, **kwargs,
+    ) -> VideoAnnotation:
         nonlocal inference_calls
         inference_calls += 1
         assert not gt_verified
         assert models is FAKE_MODELS
         assert base is FAKE_MODELS.preprocessing
         np.testing.assert_array_equal(inpaint_codes, np.array([0, 4], dtype=np.uint8))
-        assert len(inpaint_codes) == len(_args[0])
+        assert len(inpaint_codes) == len(args[0])
         assert landing_options is runner.LANDING_OPTIONS
-        capture.evidence = SimpleNamespace(
-            raw_exclusion_mask=np.zeros(2, dtype=bool), exclusion_mask=np.zeros(2, dtype=bool),
+        return _empty_video_annotation(
+            *args, base=base, inpaint_codes=inpaint_codes, **kwargs,
         )
-        return AnnotatorResult((), {}, {}, {}, (), [], ())
 
     monkeypatch.setattr(runner, "annotate_video", fake_run_video)
     monkeypatch.setattr(runner, "compare_landing_searches", lambda *_args: [])
@@ -811,7 +824,6 @@ def test_detected_parent_runs_the_detector_on_scaled_poses_and_shared_scenes(
     assert [record.status for record in result.scene_records] == [
         SceneStatus.COURT, SceneStatus.SCENE_TOO_SHORT_FOR_FEET,
     ]
-    assert all(record.parent == DETECTED_PARENT for record in result.scene_records)
     assert result.court_present.tolist() == [True, False]
 
 
@@ -829,11 +841,11 @@ def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
         resolved_device="cpu", court_settings=COURT_SETTINGS,
     )
     state = runner.ConfigurationState(
-        fixed, DETECTED_PARENT, fixture, case, output_root / DETECTED_PARENT / fixed.case_id, [], "now", 0.0,
+        fixed, runner.DETECTED_PARENT, fixture, case, output_root / runner.DETECTED_PARENT / fixed.case_id, [], "now", 0.0,
     )
 
     def no_court(case, *_args):
-        result = _fake_court_result(case, DETECTED_PARENT)
+        result = _fake_court_result(case)
         record = replace(
             result.scene_records[0], status=SceneStatus.NO_COURT, corners_native_px=None,
             no_court_reason="no_candidates", analysed_frame=1, scene_valid=False,

@@ -32,7 +32,7 @@ def load_heuristic_settings(path: Path) -> CandidateSpec:
 def run_item(
     task: tuple[dict[str, Any], dict[str, Any], str, Path], heuristic_spec: CandidateSpec | None = None,
 ) -> None:
-    from annotator.annotate_video import AnnotationWorkingData, annotate_video
+    from annotator.annotate_video import annotate_video
     from annotator.models import load_models
     from annotator.rally_results.landing_and_winner import (
         SHIPPED_LANDING_FILTER_OPTIONS,
@@ -76,20 +76,20 @@ def run_item(
 
         record.update(candidate_id=candidate_id(heuristic_spec), heuristic_settings=serialise_spec(heuristic_spec))
     started = time.perf_counter()
-    capture = AnnotationWorkingData()
     try:
-        result = annotate_video(
+        annotation = annotate_video(
             track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
-            resolution=court.resolution, video_id=item['item_id'],
+            resolution=court.resolution,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
-
             inpaint_codes=guards, court_invalid_is_excluded=True,
-            spans=spans, capture=capture,
+            spans=spans, keep_working_data=True,
         )
+        result = annotation.result
         if heuristic_spec is None:
-            prediction = capture.learned_model_prediction
+            assert annotation.working_data is not None
+            prediction = annotation.working_data.learned_model_prediction
             if prediction is None:
                 raise ValueError('Annotator did not return its final contact stream')
             record['stream'] = stream_payload(prediction.refined.sequences, prediction.refined.events)

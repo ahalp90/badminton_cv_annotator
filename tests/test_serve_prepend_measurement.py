@@ -180,11 +180,11 @@ def test_contact_injection_copies_accepted_contacts_and_keeps_spans(monkeypatch)
 
     def fake_run_video(*_args, **kwargs):
         seen.update(kwargs)
-        return SimpleNamespace(rallies=(FinishedRally(
+        return SimpleNamespace(result=SimpleNamespace(rallies=(FinishedRally(
             ContactSequence(0, 10, 25, (
                 ContactEvent(8, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
             )), CourtHalf.BOT,
-        ),))
+        ),)))
 
     monkeypatch.setattr(measurement.candidate_measurement, "annotate_video", fake_run_video)
     natural = SimpleNamespace(rallies=(FinishedRally(

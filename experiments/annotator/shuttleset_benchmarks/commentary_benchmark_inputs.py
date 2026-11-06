@@ -296,7 +296,7 @@ def _issue103_inputs(
         "issue #103 run manifest", run_manifest_path, ISSUE103_RUN_MANIFEST_SHA256
     )
     collection = load_json_gz(rally_records_path)
-    if collection.get("schema") != "rally-record-collection/0.4":
+    if collection.get("schema") != "rally-record-collection/0.5":
         raise ValueError("issue #103 rally-record schema differs")
     rallies: dict[str, list[tuple[int, int, int]]] = {
         video_id: [] for video_id in EXPECTED_SHUTTLESET_IDS

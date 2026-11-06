@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPOSITORY / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.annotate_video import AnnotationWorkingData, annotate_video
+from annotator.annotate_video import annotate_video
 from annotator.models import AnnotatorModels, fitted_trees, load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
@@ -46,13 +46,13 @@ def evaluate_video(
 ) -> tuple[dict[str, dict[str, int]], list[dict[str, Any]]]:
     """Annotate one video, then score contacts and review ranking with the same exclusions."""
     inputs = load_test_inputs(video, paths['inpaint_root'], paths['pose_root'], paths['test_courts'])
-    capture = AnnotationWorkingData()
     pose = inputs.pose
-    annotate_video(
+    annotation = annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        base=models.preprocessing, models=models, capture=capture, **run_video_kwargs(inputs),
+        base=models.preprocessing, models=models, keep_working_data=True, **run_video_kwargs(inputs),
     )
-    prediction = capture.learned_model_prediction
+    assert annotation.working_data is not None
+    prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video.identity}: fitted annotation did not return its contact stream')
     stream = stream_payload(prediction.refined.sequences, prediction.refined.events)

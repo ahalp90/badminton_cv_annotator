@@ -129,11 +129,10 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), players=None,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
         net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
-        source_codes=None, scene_courts=scenes,
+        scene_courts=scenes,
     )
     result = video_outcomes.build_outcomes(
         evidence, contact_data, landing_options=None,
-        rejection_diagnostics=None,
     )
 
     assert landing_call == {

@@ -10,7 +10,6 @@ from typing import Any
 import numpy as np
 import pytest
 
-from annotator.annotate_video import AnnotatorResult
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.training.sequences import LabelledRally
@@ -141,9 +140,9 @@ def test_run_configuration_discovers_boundaries_without_loading_models(monkeypat
     inputs = SimpleNamespace(track=object(), pose=SimpleNamespace(bboxes=1, scores=2, kps=3, ndet=4))
     recorded = {}
 
-    def run(*positional: Any, **keyword: Any) -> AnnotatorResult:
+    def run(*positional: Any, **keyword: Any) -> SimpleNamespace:
         recorded.update(keyword)
-        return empty_annotation([], [])
+        return SimpleNamespace(result=empty_annotation([], []))
 
     monkeypatch.setattr(search_data, 'annotate_video', run)
     monkeypatch.setattr(search_data, 'run_video_kwargs', lambda _inputs: {'fps': 30.0})

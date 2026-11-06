@@ -34,13 +34,13 @@ def returning_view_evidence() -> SimpleNamespace:
         pose_kps=np.empty((25, 0, 17, 2)),
         resolution=resolution,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), exclusion_mask=exclusions,
-        shuttle_hallucination_mask=np.zeros(25, dtype=bool), source_codes=None,
+        shuttle_hallucination_mask=np.zeros(25, dtype=bool),
         scene_courts=(SceneCourt(10, 16, court, (340.0, 380.0), 0.1),
                       SceneCourt(16, 25, court, (340.0, 380.0), 0.1)),
     )
 
 
-def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, search_trials=None, rejections=None):
+def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, search_trials=None):
     events = tuple(ContactEvent(frame, np.nan, CourtHalf.TOP) for frame in frames)
     rallies = [FinishedRally(ContactSequence(0, 0, rally_end, events), CourtHalf.TOP)]
     if next_server is not None:
@@ -50,7 +50,6 @@ def resolve_outcome(evidence, frames, *, rally_end=20, next_server=None, search_
     outcomes = build_outcomes(
         evidence, rallies,
         landing_options=LandingFilterOptions(3, 0.01, 1000, 3, 0.5),
-        rejection_diagnostics=rejections,
     )
     if search_trials is not None:
         search_trials.extend(compare_landing_searches(
@@ -88,11 +87,9 @@ def test_recovery_does_not_borrow_observations_beyond_this_rally(rally_end):
 def test_rejected_final_contact_does_not_borrow_an_earlier_players_flight():
     evidence = returning_view_evidence()
     evidence.shuttle_hallucination_mask[12] = True
-    rejections = []
-    outcome = resolve_outcome(evidence, [3, 12], next_server=CourtHalf.TOP, rejections=rejections)
+    outcome = resolve_outcome(evidence, [3, 12], next_server=CourtHalf.TOP)
     assert outcome[0].landing is None
     assert outcome[0].winner is CourtHalf.TOP
-    assert rejections[0]['rule'] == 'final_contact'
 
 
 def test_recovery_respects_masked_views_and_missing_scenes():

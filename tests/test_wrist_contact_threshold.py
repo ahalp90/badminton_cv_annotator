@@ -62,7 +62,8 @@ def test_scaled_wrist_distance_changes_contact_acceptance() -> None:
     assert [contact.contact_frame for contact in loose] == [40]
     assert strict[0].wrist_near is False
     assert loose[0].wrist_near is True
-    assert loose[0].suppressed is False
+    assert strict[0].temporal_proximity_suppressed is False
+    assert loose[0].temporal_proximity_suppressed is False
 
 
 def test_default_wrist_gate_keeps_existing_verdicts_and_contacts() -> None:

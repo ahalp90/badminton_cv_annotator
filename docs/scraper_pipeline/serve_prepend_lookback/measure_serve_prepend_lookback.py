@@ -39,7 +39,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from annotator.annotate_video import AnnotationWorkingData, annotate_video
+from annotator.annotate_video import annotate_video
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, scale_config_to_fps
 from annotator.excluded_frames.shuttle_hallucination import (
     DEGRADED,
@@ -305,14 +305,11 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     keyword = dict(inputs.keyword)
     if mask_mode == "no_replay":
         keyword["raw_exclusion_mask"] = np.zeros(len(track), dtype=bool)
-    capture = AnnotationWorkingData()
-    keyword["capture"] = capture
-    keyword["rejection_diagnostics"] = []
-    result = annotate_video(*inputs.positional, **keyword)
+    annotation = annotate_video(*inputs.positional, **keyword)
+    result = annotation.result
 
-    assert capture.evidence is not None
-    raw_mask = capture.evidence.raw_exclusion_mask
-    believed_mask = capture.evidence.exclusion_mask
+    raw_mask = annotation.raw_exclusion_mask
+    believed_mask = annotation.exclusion_mask
     codes = np.asarray(inputs.keyword["inpaint_codes"])
     court_present = np.asarray(inputs.keyword["court_present"])
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
@@ -467,10 +464,8 @@ def measure_candidate_fixture(
     metadata = VideoMetadata(fixture.name, fixture.fps, len(track))
     truth, interval_count = expand_truth(labels_path, metadata)
     keyword = dict(inputs.keyword)
-    capture = AnnotationWorkingData()
-    keyword["capture"] = capture
-    natural_result = annotate_video(*inputs.positional, **keyword)
-    assert capture.evidence is not None
+    annotation = annotate_video(*inputs.positional, **keyword)
+    natural_result = annotation.result
 
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     tolerance = canonical_tolerance(fixture.fps)
@@ -499,8 +494,8 @@ def measure_candidate_fixture(
             truth=truth,
             inpaint_codes=inpaint_codes,
             court_present=court_present,
-            raw_mask=capture.evidence.raw_exclusion_mask,
-            definitive_mask=capture.evidence.exclusion_mask,
+            raw_mask=annotation.raw_exclusion_mask,
+            definitive_mask=annotation.exclusion_mask,
             spans=spans,
             raw_by_span=raw_by_span,
             accepted_by_span=accepted_by_span,

@@ -519,8 +519,6 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "fps": fixture.fps,
         "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
         "resolution": fixture.resolution,
-        "video_id": fixture.video_id,
-
         "raw_exclusion_mask": committed_mask,
         "court_present": court_present,
         "homography_rows": homography_rows,
@@ -794,21 +792,17 @@ def render_table(scores: dict[str, dict[str, int | float | None]], references=RE
 
 
 def run_fixture(
-    fixture: Fixture, diagnostics_dir: Path | None = None, *, no_replay_mask: bool = False,
+    fixture: Fixture, *, no_replay_mask: bool = False,
 ) -> VideoScoring:
     log.info('config: no_replay_mask=%s', no_replay_mask)
     inputs = build_run_video_inputs(fixture)
-    rejection_rows: list[dict[str, object]] = []
     keyword = dict(inputs.keyword)
     if no_replay_mask:
         track = inputs.positional[0]
         if not isinstance(track, np.ndarray):
             raise TypeError('fixture track must be a numpy array')
         keyword['raw_exclusion_mask'] = np.zeros(len(track), dtype=bool)
-    keyword["rejection_diagnostics"] = rejection_rows
-    result = annotate_video(*inputs.positional, **keyword, heuristic_only=True)
-    if diagnostics_dir is not None:
-        write_guard_diagnostics(fixture, inputs, rejection_rows, diagnostics_dir)
+    result = annotate_video(*inputs.positional, **keyword, heuristic_only=True).result
     return score_video(fixture, result, inputs.master, inputs.courts, canonical_tolerance(fixture.fps))
 
 
@@ -827,25 +821,6 @@ def write_geometric_verdicts_csv(rows: Iterable[tuple[int, str, str, bool | None
             "rally_id", "geometric_verdict", "geometric_winner", "agreement",
             "search_shortened_by_exclusion",
         ))
-        writer.writerows(rows)
-
-
-def write_guard_diagnostics(
-    fixture: Fixture, inputs: RunVideoInputs, rows: Iterable[dict[str, object]], output_dir: Path,
-) -> None:
-    """Write shuttle-hallucination grades and event-rejection rows for one video."""
-    video_dir = output_dir / fixture.name
-    video_dir.mkdir(parents=True, exist_ok=True)
-    codes = inputs.keyword["inpaint_codes"]
-    if not isinstance(codes, np.ndarray):
-        raise TypeError("inpaint_codes are missing from fixture inputs")
-    np.save(video_dir / "codes.npy", codes, allow_pickle=False)
-    with (video_dir / "rejections.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=("rule", "rally_id", "start_frame", "end_frame", "first_rejected_frame", "rejection_grade"),
-        )
-        writer.writeheader()
         writer.writerows(rows)
 
 

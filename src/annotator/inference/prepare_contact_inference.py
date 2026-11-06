@@ -35,14 +35,12 @@ class AnnotationEvidence:
     court geometry.
     ``shuttle_hallucination_mask`` marks rejected shuttle grades, used when
     measuring speed evidence and interpreting final flights and landings.
-    ``source_codes`` retains those grades for rejection diagnostics.
 
     ``heuristic_contacts`` includes failed and unchecked candidates, not just
     accepted hits. ``bounds_supplied`` prevents learned refinement from moving
     supplied rally bounds.
     """
 
-    identity: str
     resolution: tuple[float, float]
     track: np.ndarray
     pose_kps: np.ndarray
@@ -57,7 +55,6 @@ class AnnotationEvidence:
     heuristic_spans: list[tuple[int, int]]
     heuristic_contacts: list[ContactCandidate]
     shuttle_hallucination_mask: np.ndarray
-    source_codes: np.ndarray | None
     bounds_supplied: bool = False
 
     @property
@@ -80,7 +77,6 @@ def prepare_contact_inference(
     *,
     video_config: FpsScaledAnnotatorConfig,
     resolution: tuple[float, float],
-    video_id: int | str,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
     ref_err_px: float = 3.5,
@@ -97,7 +93,7 @@ def prepare_contact_inference(
     """
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
-    shuttle_hallucination_mask, source_codes = build_shuttle_hallucination_mask(
+    shuttle_hallucination_mask = build_shuttle_hallucination_mask(
         len(track), video_config.rejected_grades, inpaint_codes,
     )
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
@@ -141,24 +137,24 @@ def prepare_contact_inference(
             sticky_distances=wrist_gaps.nearest, spans=spans,
         )
     return AnnotationEvidence(
-        identity=str(video_id), resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
+        resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
         players=players, wrist_gaps=wrist_gaps, tracker_intervals=segments, scene_courts=scene_courts,
         video_config=video_config, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=rally_spans, heuristic_contacts=raw_contacts,
-        shuttle_hallucination_mask=shuttle_hallucination_mask, source_codes=source_codes,
+        shuttle_hallucination_mask=shuttle_hallucination_mask,
         bounds_supplied=spans is not None,
     )
 
 
 def build_shuttle_hallucination_mask(
     n_frames: int, rejected_grades: frozenset[int], inpaint_codes: np.ndarray | None,
-) -> tuple[np.ndarray, np.ndarray | None]:
-    """Mark frames whose shuttle grade is rejected; also return the original codes."""
+) -> np.ndarray:
+    """Mark frames whose shuttle grade is rejected."""
     if inpaint_codes is None:
-        return np.zeros(n_frames, dtype=bool), None
+        return np.zeros(n_frames, dtype=bool)
     if inpaint_codes.ndim != 1 or len(inpaint_codes) != n_frames:
         raise ValueError('inpaint_codes must be a frame-aligned one-dimensional array')
-    return np.isin(inpaint_codes, tuple(rejected_grades)), inpaint_codes
+    return np.isin(inpaint_codes, tuple(rejected_grades))
 
 
 def build_player_evidence(

@@ -225,7 +225,6 @@ def pick_landing_to_end(
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
     constants: Thresholds,
     shuttle_hallucination_mask: np.ndarray,
-    rejected_intervals: list[tuple[int, int]] | None = None,
     *, infer_net_fault: bool = True,
 ) -> Landing | None:
     """Choose a descent, project its endpoint onto the court and check for a net fault.
@@ -233,13 +232,10 @@ def pick_landing_to_end(
     Search one camera view, incl final_contact, excl end_frame. ``opts`` must
     already use the video frame rate. Disable net-fault inference for a
     returning camera view: the unseen flight may already have crossed the net.
-
-    ``rejected_intervals`` is an optional output list for reports: append descent
-    ranges rejected because of shuttle grades, incl start, excl end.
     """
     landing = filtered_descending_landing(
         final_contact, end_frame, track, kin, opts,
-        constants.min_descend_samples, shuttle_hallucination_mask, rejected_intervals,
+        constants.min_descend_samples, shuttle_hallucination_mask,
     )
     if landing is None:
         return None
@@ -358,7 +354,6 @@ def filtered_descending_landing(
     final_contact: int, win_end: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
     shuttle_hallucination_mask: np.ndarray,
-    rejected_intervals: list[tuple[int, int]] | None = None,
 ) -> tuple[int, np.ndarray] | None:
     """Choose the last uncarried descent, or the last accepted descent as fallback.
 
@@ -370,9 +365,6 @@ def filtered_descending_landing(
     Prefer the last descent that does not look carried. If all accepted
     descents look carried, keep the last one. Return (frame, normalised xy),
     or None if no descent remains.
-
-    If supplied, append ranges rejected for shuttle grades to ``rejected_intervals``
-    for reporting (incl start, excl end).
     """
     cap = landing_settle_cap(final_contact, win_end, kin, opts)
     search_end = max(cap, final_contact + 1)
@@ -390,10 +382,7 @@ def filtered_descending_landing(
         if index - run_start >= min_descend_samples:
             start_frame = int(visible[run_start])
             terminal = int(visible[index - 1])
-            if shuttle_hallucination_mask[start_frame:terminal + 1].any():
-                if rejected_intervals is not None:
-                    rejected_intervals.append((start_frame, terminal + 1))
-            else:
+            if not shuttle_hallucination_mask[start_frame:terminal + 1].any():
                 last_terminal = terminal
                 if not carried_terminal(final_contact, terminal, kin, opts):
                     last_uncarried_terminal = terminal

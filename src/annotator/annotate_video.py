@@ -1,7 +1,6 @@
 """Annotate a video from saved shuttle, player-pose and court arrays."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
@@ -37,7 +36,6 @@ def annotate_video(
     fps: float,
     landing_options: landing_and_winner.LandingFilterOptions,
     resolution: tuple[float, float],
-    video_id: int | str,
     court_present: np.ndarray,
     homography_rows: pd.DataFrame | list[dict[str, object]],
     base: BaseAnnotatorConfig | None = None,
@@ -48,10 +46,9 @@ def annotate_video(
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     inpaint_codes: np.ndarray | None = None,
-    rejection_diagnostics: list[dict[str, object]] | None = None,
-    capture: AnnotationWorkingData | None = None,
+    keep_working_data: bool = False,
     court_invalid_is_excluded: bool = False,
-) -> AnnotatorResult:
+) -> VideoAnnotation:
     """Find rallies and contacts, assign hitters, then estimate landings and winners.
 
     Takes saved vision arrays with matching frame indices. The learned route
@@ -70,15 +67,10 @@ def annotate_video(
     court geometry are excluded. ``court_invalid_is_excluded`` also excludes
     frames where ``court_present`` is False.
 
-    Pass ``capture=AnnotationWorkingData()`` to keep masks, tracked players,
-    candidate contacts and model scores alongside the finished annotations.
-    ``rejection_diagnostics``, if supplied, collects rejection reasons for
-    evaluation reports. It does not affect the annotations.
+    Set ``keep_working_data=True`` to retain prepared inputs and model scores
+    for debugging or experiments. Exclusion masks are always returned for
+    dataset saving and commentary.
     """
-    if capture is not None:
-        # Clear the previous call's results before starting.
-        capture.evidence = None
-        capture.learned_model_prediction = None
     if heuristic_only and models is not None:
         raise ValueError('heuristic_only cannot be combined with fitted models')
     if not heuristic_only:
@@ -91,24 +83,20 @@ def annotate_video(
     report("finding rallies")
     evidence = prepare_contact_inference(
         track, bboxes, scores, kps, ndet,
-        video_config=scale_config_to_fps(base, fps), resolution=resolution, video_id=video_id,
+        video_config=scale_config_to_fps(base, fps), resolution=resolution,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask,
         spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
         court_invalid_is_excluded=court_invalid_is_excluded,
     )
-    # Save completed stages immediately so later failures leave them available.
-    if capture is not None:
-        capture.evidence = evidence
+    prediction = None
     contact_events = ()
     rally_confidence = ()
     if models is None:
-        rallies = select_heuristic_contacts(evidence, rejection_diagnostics)
+        rallies = select_heuristic_contacts(evidence)
         heuristic_candidates = evidence.heuristic_contacts
     else:
         prediction = predict_contacts(evidence, models)
-        if capture is not None:
-            capture.learned_model_prediction = prediction
         rallies = prediction.refined.rallies
         heuristic_candidates = []
         contact_events = prediction.refined.events
@@ -116,15 +104,16 @@ def annotate_video(
     report("resolving outcomes")
     outcomes = build_outcomes(
         evidence, rallies, landing_options=convert_landing_options(landing_options, evidence.fps),
-        rejection_diagnostics=rejection_diagnostics,
     )
     report("calculating hit heights")
     hit_heights, unavailable_hit_height_reasons = build_hit_heights(evidence, rallies)
-    return AnnotatorResult(
+    result = AnnotatorResult(
         rallies=rallies, outcomes=outcomes, hit_heights=hit_heights,
         unavailable_hit_height_reasons=unavailable_hit_height_reasons,
         contact_events=contact_events, heuristic_candidates=heuristic_candidates, rally_confidence=rally_confidence,
     )
+    working_data = AnnotationWorkingData(evidence, prediction) if keep_working_data else None
+    return VideoAnnotation(result, evidence.raw_exclusion_mask, evidence.exclusion_mask, working_data)
 
 
 class AnnotatorResult(NamedTuple):
@@ -150,13 +139,17 @@ class AnnotatorResult(NamedTuple):
     rally_confidence: tuple[float, ...]
 
 
-@dataclass
-class AnnotationWorkingData:
-    """Bookkeeping for debugging and dataset export.
+class VideoAnnotation(NamedTuple):
+    """Annotations and masks needed for saving; optionally retain intermediate data."""
 
-    Includes excluded-frame masks, tracked players, candidate contacts and
-    model scores.
-    """
+    result: AnnotatorResult
+    raw_exclusion_mask: np.ndarray
+    exclusion_mask: np.ndarray
+    working_data: AnnotationWorkingData | None
 
-    evidence: AnnotationEvidence | None = None
-    learned_model_prediction: LearnedModelPrediction | None = None
+
+class AnnotationWorkingData(NamedTuple):
+    """Prepared inputs and model scores for debugging and experiments."""
+
+    evidence: AnnotationEvidence
+    learned_model_prediction: LearnedModelPrediction | None

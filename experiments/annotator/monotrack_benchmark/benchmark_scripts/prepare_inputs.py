@@ -29,10 +29,7 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
         CourtInputs,
         CourtSceneRecord,
         SceneStatus,
-        build_net_band,
         build_scene_rows,
-        corner_error_band_from_corners,
-        detected_court_info,
     )
     from dataset_builder.vision import CourtVision, persist_court_vision
     from shared.court import HOMOGRAPHY_RESOLUTION
@@ -51,21 +48,17 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
             accepted_corners.append(corners * np.asarray(HOMOGRAPHY_RESOLUTION) / np.asarray(resolution))
             present[start:end] = True
         records.append(CourtSceneRecord(
-            video_id=item['item_id'], case_id=item['item_id'], parent='monotrack', scene_index=index,
+            video_id=item['item_id'], scene_index=index,
             start_frame=start, end_frame=end, status=SceneStatus.COURT if accepted else SceneStatus.NO_COURT,
             analysed_frame=(start + end) // 2, corners_native_px=corners,
             no_court_reason=None if accepted else scene['status'], reused_from=None, error=None,
             exactly_two_count=0, exactly_two_fraction=0.0, scene_valid=accepted,
         ))
-    representative = max(range(len(accepted_intervals)),
-                         key=lambda index: accepted_intervals[index][1] - accepted_intervals[index][0])
-    corners = accepted_corners[representative]
-    info = detected_court_info(corners)
+    if not accepted_intervals:
+        raise ValueError(f'{item["item_id"]}: no accepted court scene')
     inputs = CourtInputs(
-        court_info=info, net_band=build_net_band(info, resolution),
         resolution=resolution,
         homography_rows=build_scene_rows(item['item_id'], accepted_intervals, accepted_corners, resolution),
-        landing_error_band_m=corner_error_band_from_corners(corners, info, 3.5), active_corners_refpx=corners,
     )
     # Replay masking does not consume person-vote masks.
     # Zero means no vote was measured; scene_valid/present carry detector success.
