@@ -274,7 +274,7 @@ For callers that already hold the arrays in memory, the main function is `run_vi
 
 ```python
 from annotator.models import DEFAULT_MODEL_DIRECTORY, load_models
-from annotator.run_video import run_video
+from annotator.annotate_video import run_video
 
 models = load_models(DEFAULT_MODEL_DIRECTORY)
 result = run_video(
@@ -297,26 +297,13 @@ The direct call uses the model directory and settings as follows:
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 
-`prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py)
+`prepare_annotation()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
 accepts the same five arrays plus resolved settings and the court, mask and scene
 inputs. Training and rally-model experiments call it directly. Its
 `AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
 all heuristic contact rows, raw/final exclusion masks and event-rejection evidence.
 It does not calculate final contact order, landing, winner or hit height.
 
-For a shuttle track without player or court evidence, use:
-
-```python
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.rally_segmentation import segment_shuttle_track
-
-spans, contacts = segment_shuttle_track(
-    track,
-    resolve(BaseAnnotatorConfig(span_open=None), fps),
-    raw_exclusion_mask=dead_mask,
-)
-```
-
-The rally CLI uses `span_open=None` by default. This track-only operation applies
-the supplied dead-time mask after short-run filtering. Court-based exclusions
-belong to shared annotation preparation.
+The former shuttle-track-only batch command has been retired. Use the complete
+annotator with `heuristic_only=True` for the supported rule-based route. Its
+preparation includes player and court evidence as well as excluded-frame masks.

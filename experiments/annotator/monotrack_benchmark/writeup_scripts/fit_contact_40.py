@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.model import contact_feature_matrix
+from annotator.contacts.score_candidates import contact_feature_matrix
 from annotator.models import AnnotatorModels, fitted_trees, load_models, save_models
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from experiments.annotator import development as experiment

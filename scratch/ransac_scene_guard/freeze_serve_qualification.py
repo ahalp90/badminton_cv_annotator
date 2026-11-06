@@ -33,18 +33,17 @@ FIXTURE_SOURCE = "serve_prepend_lookback_189c5af_20260808/fixtures"
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from annotator.calc_helpers import compute_speed
+from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.evaluation.fixtures import FIXTURES, FilePin, Fixture, verify_file
+from annotator.masks.replay import _read_homography_rows
+from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.rally.serve import (
     ServeStartMode,
     ServeStartOptions,
     build_serve_setup_inputs,
     resolve_serve_gate,
 )
-
-from annotator.calc_helpers import compute_speed
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.evaluation.fixtures import FIXTURES, FilePin, Fixture, verify_file
-from annotator.masks.replay import _read_homography_rows
-from annotator.rally.evidence import build_sticky_result, tracker_segments
 from annotator.rally.spans import build_rest_mask, find_rally_spans, rally_regions
 from shared.court import load_all_court_info
 

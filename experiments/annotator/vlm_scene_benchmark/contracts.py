@@ -12,7 +12,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from annotator.review.broadcast_labels import SceneTruth
+from labelling.scene_labels import SceneTruth
 
 RUN_SCHEMA_VERSION = 2
 SUPPORTED_RUN_SCHEMA_VERSIONS = (1, RUN_SCHEMA_VERSION)

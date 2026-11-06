@@ -23,7 +23,7 @@ from annotator.evaluation.fixtures import (
     verify_run_video_fixture,
 )
 from annotator.evaluation.gt_scoring import build_run_video_inputs
-from annotator.masks.replay import perspective_shift_signal
+from annotator.excluded_frames.replay import perspective_shift_signal
 
 # The complete nine-file external pin set per fixture (track, five pose-role
 # arrays including kp_scores, dead mask, court-present mask, scene rows),

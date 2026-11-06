@@ -14,7 +14,7 @@ from annotator.models import (
     load_models,
     save_models,
 )
-from annotator.sequence.rally_model import RallySelector
+from annotator.rallies.refine_rallies import RallySelector
 
 
 def test_default_bundle_loads_and_predicts_with_all_three_models():

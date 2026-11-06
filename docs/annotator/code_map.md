@@ -1,145 +1,102 @@
 # Code map
 
-Start with [`run_video()`](../../src/annotator/run_video.py). It shows how one
-video becomes an annotation: prepare evidence and rough rallies, select contacts,
-then estimate outcomes. Follow its calls to inspect a particular rule.
-
-Read [How it works](how_it_works.md) alongside the code if the badminton terms or
-intermediate results are unfamiliar.
+Start with [`run_video()` in annotate_video.py](../../src/annotator/annotate_video.py).
+It prepares the inputs, runs heuristic or learned contact inference, and estimates
+rally results. The [source directory guide](../../src/annotator/README.md) gives
+one starting file for each task.
 
 ## Follow one video
 
-| Step | Read next | What it decides |
-| --- | --- | --- |
-| Prepare rough rallies | `prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py) | Build player evidence, exclude unusable footage, find spans and heuristic contacts |
-| Score and select contacts | [learned_model_inference.py](../../src/annotator/learned_model_inference.py) | Run the contact model, rally selector and review ranking |
-| Build contact evidence | [contacts/features.py](../../src/annotator/contacts/features.py) | Choose search regions and measure shuttle/player signals |
-| Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
-| Shortlist rally contacts | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Choose possible earlier serves and missed contacts |
-| Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Prepare contact evidence, combine additions/deletions, order alternatives and build their features |
-| Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
-| Fit player order | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) | Choose the alternating order from player guesses and wrist distances; retain the first and final striker |
-| Fit heuristic contact order | [heuristic_inference.py](../../src/annotator/heuristic_inference.py) | Filter heuristic contacts and use the same final player-alternation step as model inference |
-| Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
-
-Read `rally_options.py` from `build_rally_context()` to `build_rally_options()`:
-prepare the initial rallies and shortlisted contacts, then build the alternatives
-and their model rows. Both inference and training use these two steps.
-The shortlisting rules follow the two builders in the same file, then
-`toggle_proposals()` defines contact edits, duplicate removal and ordering.
-`shortlisted_by_span` contains possible additions to each rally. Unused-contact
-features consider that shortlist and every contact in any proposal, including stream contacts
-absorbed when an earlier serve extends a rally.
-The detailed feature calculations come afterwards in the same file, including
-contact probabilities, spacing, raw player-side agreement and unused candidates.
-
-In `rally_model.py`, `predict_rally_options()` chooses and finishes the rallies.
-The scoring and boundary helpers follow in the same file. Both inference routes
-use `fit_rally_sides()` in `sequence/contacts.py` for player order; the voting
-and tie-breaking rules follow it there. `build_review_features()` uses the
-selected proposal’s raw player guesses and final rally bounds, calling
-`sequence_summary()` for those values.
-
-All three trees use `positive_probabilities()` in
-[contacts/model.py](../../src/annotator/contacts/model.py). It reads the class-1
-probability from trees fitted on labels 0 and 1.
+1. **Prepare contact inference.**
+   [`prepare_contact_inference.py`](../../src/annotator/inference/prepare_contact_inference.py)
+   assembles court geometry, tracks players, measures shuttle-to-wrist distances,
+   excludes unusable frames and finds initial rallies and heuristic contacts.
+   Training uses the same preparation.
+2. **Detect contacts.** The learned route builds motion, wrist and visibility
+   measurements in [`build_features.py`](../../src/annotator/contacts/build_features.py).
+   [`score_candidates.py`](../../src/annotator/contacts/score_candidates.py) runs the
+   fitted contact model, applies its cutoff and removes competing nearby hits.
+   The heuristic route uses the rules in
+   [`heuristics.py`](../../src/annotator/contacts/heuristics.py).
+3. **Refine rallies.**
+   [`build_contact_proposals.py`](../../src/annotator/rallies/build_contact_proposals.py)
+   constructs alternative contact lists by adding plausible missed hits or removing
+   suspected false hits. [`refine_rallies.py`](../../src/annotator/rallies/refine_rallies.py)
+   scores those alternatives, selects one per rally and finishes its boundaries.
+   A separate review model scores which finished rallies need attention; its
+   score does not change the annotations.
+4. **Attribute players.**
+   [`player_attribution.py`](../../src/annotator/contacts/player_attribution.py)
+   measures wrist gaps and identifies individual hitters. Both inference routes
+   use its player-alternation rule for the final contact order.
+5. **Estimate rally results.**
+   [`estimate_results.py`](../../src/annotator/rally_results/estimate_results.py)
+   applies the landing and point-winner rules to each finished rally and measures
+   hit heights. These are predictions; evaluation compares them with labels.
 
 Preparation uses supplied rally bounds unchanged. With supplied contacts and no
 bounds, it finds bounds on the original track. With neither supplied, it finds
-bounds on the track after dead-time masking. Replay-mask estimation also uses
-original-track bounds when needed.
+bounds after excluding unusable footage. Player tracking uses the original
+track; the excluded-frame copy is only for rally/contact detection.
 
-`heuristic_only=True` uses the same preparation, then selects rule-based contacts
-and fits their player order before outcome estimation. Supplying `spans` lets
-callers compare contact detection within known rally bounds.
+## Courts and players
 
-Training and experiments call `prepare_annotation()` directly to obtain initial
-rallies and feature inputs without selecting final contacts or estimating outcomes.
-The rally CLI calls `segment_shuttle_track()` in
-[rally_segmentation.py](../../src/annotator/rally_segmentation.py) for tracks without
-player or court evidence.
+[`player_tracking.py`](../../src/annotator/player_tracking.py) follows the top and
+bottom players across frames. Wrist-distance measurement is a later operation
+in contact attribution; it does not decide which players are tracked.
 
-## Know which representation you are reading
+The three court modules answer different questions:
 
-- `AnnotationEvidence` contains original arrays, resolved settings, masks and initial rally/contact evidence.
-- `FinishedRally` pairs a selected contact sequence with its fitted final striker. Both inference routes pass it directly to outcomes.
-- `ContactFeatures` contains candidate rows ready for scoring and their search intervals.
-- `ScoredContacts` retains the scored feature matrix, candidate probabilities and selected row indices.
-- `ContactEvent` is a frame, contact probability and individual court-half guess.
-- `ContactSequence` is a rally's bounds and the contacts it owns.
-- `RallyContext`: initial rallies, the full contact stream, shortlisted contacts
-  by rally and physical feature rows by frame.
-- `RallyOptions` groups the ordered alternatives and model-feature rows.
-- `SequenceTrainingVideo` adds a video identity, training group and GT labels to that same context.
-- `RallyPrediction` retains the selected sequences, full contact stream and scores.
-- `AnnotatorResult` is the public result saved by the dataset builder.
+- [`prepare_courts.py`](../../src/annotator/courts/prepare_courts.py): build and
+  validate court inputs from supplied calibration or court-detector results.
+- [`frame_geometry.py`](../../src/annotator/courts/frame_geometry.py): find the
+  accepted geometry that applies to a particular frame.
+- [`match_recurring_views.py`](../../src/annotator/courts/match_recurring_views.py):
+  identify separate scenes filmed from the same camera view so calibration can
+  be shared.
 
-The full contact stream includes contacts outside every rally. A sequence's
-membership is explicit; final bounds alone do not define that membership.
-Use `RunCapture` to retain prepared evidence and model predictions
-beside the public result. Prepared evidence includes both exclusion masks.
+## Records and model inputs
 
-## Find a particular rule
+Shared contact/rally records are in [`types.py`](../../src/annotator/types.py):
+`ContactEvent` is one timed hit; `ContactSequence` is one rally interval with an
+explicit ordered contact list; `FinishedRally` adds the final striker.
+A rally's contact membership is explicit, rather than inferred from final bounds.
+Contacts outside rallies remain in the full contact stream.
 
-| Question | Source |
-| --- | --- |
-| Why does a rally start or end here? | [rally/spans.py](../../src/annotator/rally/spans.py) |
-| Which motion peaks become heuristic contacts? | [rally/contacts.py](../../src/annotator/rally/contacts.py) |
-| How are players followed across frames? | [rally/evidence.py](../../src/annotator/rally/evidence.py) |
-| Where are court halves and shared record types? | [types.py](../../src/annotator/types.py) |
-| How are image pixels projected onto the court? | [shared/court.py](../../src/shared/court.py) |
-| How is corner uncertainty estimated? | `corner_error_band_from_corners()` in [courts/evidence.py](../../src/annotator/courts/evidence.py) |
-| Which court geometry applies to this frame? | [courts/scenes.py](../../src/annotator/courts/scenes.py) |
-| Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
-| How does excluded footage read as rest? | `apply_replay_mask()` in [rally_segmentation.py](../../src/annotator/rally_segmentation.py) |
-| Where are the shared array calculations? | [calc_helpers.py](../../src/annotator/calc_helpers.py) |
-| Which earlier or missed contacts can be proposed? | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) |
-| Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
-| Which player hit in this camera scene? | [contacts/attribution.py](../../src/annotator/contacts/attribution.py) |
-| Why did the striker half change? | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) |
-| How is a winner or landing judged? | [outcomes/point_winner.py](../../src/annotator/outcomes/point_winner.py) |
-| How does a setting scale with frame rate? | [config.py](../../src/annotator/config.py) |
+`AnnotationEvidence` retains prepared arrays and initial detections.
+`ContactFeatures` contains measured candidate rows and their search intervals.
+`ScoredContacts` retains those rows, model probabilities and selected row indices.
+`RallyOptions` contains alternative contact lists and their model features.
+`RallyPrediction` retains the selected rallies and their scores.
+`AnnotatorResult` is the result used by the dataset builder; `RunCapture` optionally
+retains intermediate evidence and predictions for experiments.
 
-## Training and experiments
+[`models.py`](../../src/annotator/models.py) loads and saves the three-model bundle.
+Feature construction and scoring are separate functions so training can build
+inputs without running a fitted model. The heuristic-only route does not build
+the learned contact-feature matrix.
 
-[`training/workflow.py`](../../src/annotator/training/workflow.py) is the fitting
-entry point. It reads a manifest, calls shared preparation, fits contacts, then
-fits rally selection and review. The production proposal and feature builders
-are also used during fitting.
+## Training, scoring and tools
 
-[`training/contact.py`](../../src/annotator/training/contact.py) owns contact
-sampling and fitting. [`training/rally.py`](../../src/annotator/training/rally.py)
-owns grouped selector/review training. [`training/rally_targets.py`](../../src/annotator/training/rally_targets.py)
-judges candidate sequences. [`training/sequences.py`](../../src/annotator/training/sequences.py)
-holds labelled rally data, contact matching and rally correctness.
+[`training/workflow.py`](../../src/annotator/training/workflow.py) fits and evaluates
+the current learned models. [`training/sequences.py`](../../src/annotator/training/sequences.py)
+defines their contact matching and whole-rally correctness.
 
-Use the [refit guide](retuning.md) for configuration and result persistence.
-Heuristic searches live in `experiments/annotator/heuristic_only_tune`; the
-current fitted-model comparison lives in `experiments/annotator/tree_simplification`.
-Historical reports explain earlier choices without adding branches to inference.
+[`evaluation/`](../../src/annotator/evaluation/) retains the ground-truth scoring
+and fixture harness used by earlier experiments. Its greedy contact matching
+and the current model's chronological optimal matching are different metrics.
+Do not combine their results without identifying which metric was used.
+Pinned ShuttleSet and commentary benchmark runners are under
+[`experiments/annotator/shuttleset_benchmarks/`](../../experiments/annotator/shuttleset_benchmarks/).
+Production commentary loading is in
+[`dataset_builder/commentary_inputs.py`](../../src/dataset_builder/commentary_inputs.py).
 
-## Callers and saved results
+Manual scene and rally-start editors are in [`labelling/`](../../src/labelling/).
+They do not yet provide a general editor for rally start/stop, every contact and
+its top/bottom hitter. [`video_overlay/`](../../src/video_overlay/) renders saved
+shuttle predictions on source footage.
 
-[`cli.py`](../../src/annotator/cli.py) and
-[`dataset_builder/vision.py`](../../src/dataset_builder/vision.py) load saved
-extraction artefacts. The latter supplies the dataset builder's full annotation
-stage. [`artifact_io.py`](../../src/annotator/artifact_io.py) serialises the
-public result and masks.
-
-In [`dataset_builder/features.py`](../../src/dataset_builder/features.py),
-player tracking and position projection use the same prepared scene courts.
-
-MonoTrack uses
-[`benchmark_scripts/annotator_runner.py`](../../experiments/annotator/monotrack_benchmark/benchmark_scripts/annotator_runner.py)
-for supplied-boundary and discovery comparisons. Its five-seed orchestration
-lives in `writeup_scripts/annotator_runs.py`.
-
-[`models.py`](../../src/annotator/models.py) is the single place for the selected
-bundle location and model persistence checks. See [Inputs and outputs](inputs_outputs.md)
-for saved schemas and [Maintenance](maintaining.md) for change-sensitive invariants.
-
-Commentary evaluation writes `issue104-commentary-benchmark/5`. GT rally-view
-fields use `gt_contact` in their names, including `gt_contact_pairing`,
-`aligned_gt_contact_pairing` and `aligned_multi_gt_contact_pairing`. The input
-corpus and rally-record schemas are unchanged. Earlier benchmark reports retain
-the field names and schema versions used for those runs.
+The former track-only batch segmentation command and its overcount-based doubles
+filter have been retired. The full annotator still supports heuristic-only
+inference. Scraper title-based doubles screening and BST-X player-overcount
+outputs remain separate, active features.

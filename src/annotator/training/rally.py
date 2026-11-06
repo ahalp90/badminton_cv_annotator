@@ -10,15 +10,12 @@ from typing import Any
 
 import numpy as np
 
-from annotator.sequence.rally_model import (
+from annotator.rallies.build_contact_proposals import RallyOptions, build_rally_options
+from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallySelector,
     build_review_features,
     predict_rally_options,
-)
-from annotator.sequence.rally_options import (
-    RallyOptions,
-    build_rally_options,
 )
 from annotator.training.rally_targets import (
     option_targets_at_tolerances,

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig
-from annotator.sequence.rally_model import (
+from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallyReview,
     RallyReviewFeatures,

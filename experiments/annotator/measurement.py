@@ -30,15 +30,10 @@ import cv2
 import numpy as np
 
 import annotator.evaluation.gt_scoring as gt_scoring_module
-from annotator.artifact_io import (
-    atomic_gzip_text_writer,
-    load_npy,
-    save_npy_xz,
-    write_gzip_bytes,
-    write_json_object,
-)
+from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
 from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
-from annotator.courts.evidence import (
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.courts.prepare_courts import (
     DETECTED_PARENT,
     DETECTOR_RESOLUTION,
     PERSON_COURT_MARGIN,
@@ -51,7 +46,6 @@ from annotator.courts.evidence import (
     build_static_court_evidence,
     read_detector_scenes,
 )
-from annotator.courts.scenes import SceneCourt, build_scene_courts
 from annotator.evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
@@ -74,11 +68,16 @@ from annotator.evaluation.scoring import (
     wide_edge_contact_rows,
 )
 from annotator.models import AnnotatorModels, load_models, model_files
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Landing
-from annotator.run_video import (
-    AnnotatorResult,
-    RunCapture,
-    run_video,
+from annotator.rally_results.landing_and_winner import (
+    SHIPPED_LANDING_FILTER_OPTIONS,
+    Landing,
+)
+from experiments.annotator.artifact_io import (
+    atomic_gzip_text_writer,
+    load_npy,
+    save_npy_xz,
+    write_gzip_bytes,
+    write_json_object,
 )
 from experiments.annotator.landing_search import (
     LandingSearchComparison,
@@ -288,7 +287,7 @@ def _artifact_record(run_root: Path, path: Path) -> dict[str, Any]:
 
 def _json_ready(value: object, *, top_level: bool = False) -> object:
     """Convert the annotator's tuples, dataclasses and NumPy values to JSON values."""
-    from annotator.sequence.contacts import ContactEvent
+    from annotator.types import ContactEvent
 
     if isinstance(value, ContactEvent):
         probability = None if math.isnan(value.probability) else value.probability

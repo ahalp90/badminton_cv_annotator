@@ -11,9 +11,9 @@ from pathlib import Path
 
 from threadpoolctl import threadpool_limits
 
-from annotator.learned_model_inference import predict_contact_features
+from annotator.inference.learned import predict_contact_features
 from annotator.models import fitted_trees, load_models
-from annotator.sequence.contacts import stream_payload
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import load_prepared, progress
 from experiments.annotator.heuristic_only_tune.run import (
     read_json,

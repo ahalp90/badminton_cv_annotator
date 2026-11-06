@@ -10,17 +10,13 @@ from typing import Any
 import numpy as np
 import pytest
 
+from annotator.annotate_video import AnnotatorResult
 from annotator.config import BaseAnnotatorConfig
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    fit_rally_sides,
-    stream_payload,
-)
+from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.training.sequences import LabelledRally
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.vision import load_json_gz
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune import data as search_data
 from tests.annotator_result import empty_annotation
 

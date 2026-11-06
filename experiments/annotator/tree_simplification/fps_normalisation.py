@@ -21,12 +21,12 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BASE_FPS, BaseAnnotatorConfig, frames_at_fps, resolve
-from annotator.contacts.features import (
+from annotator.contacts.build_features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     shift_within_interval,
 )
-from annotator.rally.contacts import FLOOR_EPS, rolling_floor, span_impulses
+from annotator.contacts.heuristics import FLOOR_EPS, rolling_floor, span_impulses
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.types import SmoothingMode
 from experiments.annotator import development as experiment

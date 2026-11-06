@@ -17,10 +17,10 @@ sys.path.insert(0, str(REPO / 'src'))
 
 import numpy as np
 
-from annotator.sequence.contacts import stream_from_payload
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,

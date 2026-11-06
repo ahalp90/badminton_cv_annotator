@@ -7,17 +7,17 @@ import joblib
 import numpy as np
 import pytest
 
-import annotator.run_video as orchestration
+import annotator.annotate_video as orchestration
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.rally import evidence as rally_evidence
-from annotator.rally_segmentation import segment_shuttle_track
+from annotator.inference import prepare_contact_inference as player_evidence
+from annotator.inference.prepare_contact_inference import (
+    AnnotationEvidence,
+    prepare_annotation,
+)
 from annotator.types import ContactCandidate
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 from experiments.annotator.tree_simplification import prepare as experiment
-from tests.annotator_config import burst_config
-from tests.test_annotator_rally_segmentation import _build_rally_track
 from tests.test_annotator_run_video import _default_scene_inputs, _synthetic_inputs
 
 
@@ -57,7 +57,7 @@ def test_preparation_keeps_original_arrays_and_injected_contact_order(preparatio
 
 
 def test_injected_contacts_find_missing_spans_on_original_track(preparation_inputs, monkeypatch):
-    from annotator import preparation
+    from annotator.inference import prepare_contact_inference as preparation
 
     track = preparation_inputs['track']
     preparation_inputs['raw_exclusion_mask'][10:100] = True
@@ -69,6 +69,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
         return [(0, 200)]
 
     monkeypatch.setattr(preparation, 'find_rally_spans', find)
+    monkeypatch.setattr('annotator.rallies.find_rallies.find_rally_spans', find)
     evidence = prepare_annotation(**preparation_inputs, contacts={0: [20, 150]})
     assert evidence.heuristic_spans == [(0, 200)]
     assert evidence.raw_contact_frames == [20, 150]
@@ -85,7 +86,7 @@ def test_injected_contacts_find_missing_spans_on_original_track(preparation_inpu
 def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     preparation_inputs, monkeypatch, supplied_contacts, supplied_mask, supplied_spans, unmasked_count, masked_count,
 ):
-    from annotator import preparation
+    from annotator.inference import prepare_contact_inference as preparation
 
     preparation_inputs.pop('raw_exclusion_mask')
     track = preparation_inputs['track']
@@ -118,6 +119,7 @@ def test_preparation_uses_original_or_masked_spans_for_each_input_path(
     if supplied_mask:
         preparation_inputs['raw_exclusion_mask'] = raw_mask
     monkeypatch.setattr(preparation, 'find_rally_spans', find)
+    monkeypatch.setattr('annotator.rallies.find_rallies.find_rally_spans', find)
     monkeypatch.setattr(preparation, 'combine_mask', replay_mask)
     contacts = {0: [20, 150]} if supplied_contacts else None
     evidence = prepare_annotation(**preparation_inputs, contacts=contacts, spans=provided_spans)
@@ -150,7 +152,7 @@ def test_preparation_filters_short_runs_and_excludes_unusable_court_frames(prepa
 
 
 def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tmp_path, monkeypatch):
-    original = rally_evidence.build_sticky_result
+    original = player_evidence.build_sticky_result
     calls = []
 
     @wraps(original)
@@ -158,7 +160,7 @@ def test_direct_preparation_reuses_actual_sticky_producer(preparation_inputs, tm
         calls.append(args)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(rally_evidence, 'build_sticky_result', build)
+    monkeypatch.setattr(player_evidence, 'build_sticky_result', build)
     with cache_sticky_result(tmp_path, str(preparation_inputs['video_id'])):
         first = prepare_annotation(**preparation_inputs, spans=[], contacts={})
         second = prepare_annotation(**preparation_inputs, spans=[], contacts={})
@@ -193,26 +195,3 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
     assert prepared.evidence.resolved == inputs['resolved']
     assert len(prepared.features.rows) == record['feature_rows']
     np.testing.assert_array_equal(prepared.evidence.track, inputs['track'])
-
-
-def test_track_only_segmentation_retains_numeric_contacts_and_position_verdicts():
-    track, rally_start, rally_end, _truth = _build_rally_track()
-    positions = np.repeat(track[:, None, :2], 2, axis=1)
-    original = track.copy()
-    spans, contacts = segment_shuttle_track(track, burst_config(), positions=positions)
-    assert len(spans) == 1
-    assert abs(spans[0][0] - rally_start) <= 4
-    assert abs(spans[0][1] - rally_end) <= 4
-    assert [contact.contact_frame for contact in contacts] == [46, 50, 57, 64, 71]
-    assert all(contact.proximity_ok is True for contact in contacts)
-    assert all(contact.wrist_near is None and contact.suppressed is None for contact in contacts)
-    dead_mask = np.zeros(len(track), dtype=bool)
-    dead_mask[rally_start:rally_end] = True
-    assert segment_shuttle_track(track, burst_config(), positions=positions, raw_exclusion_mask=dead_mask) == ([], [])
-    np.testing.assert_array_equal(track, original)
-
-
-@pytest.mark.parametrize('mask', [np.zeros(2, dtype=bool), np.ones(20, dtype=bool)])
-def test_track_only_segmentation_rejects_invalid_masks(mask):
-    with pytest.raises(ValueError, match='mask length|mask is all True'):
-        segment_shuttle_track(np.zeros((20, 3)), resolve(BaseAnnotatorConfig(), 30.0), raw_exclusion_mask=mask)

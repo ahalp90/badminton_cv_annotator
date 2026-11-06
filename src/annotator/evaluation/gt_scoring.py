@@ -12,8 +12,9 @@ from typing import NamedTuple, Protocol
 import numpy as np
 import pandas as pd
 
+from annotator.annotate_video import AnnotatorResult, run_video
 from annotator.config import frames_at_fps
-from annotator.courts.scenes import SceneCourt, court_at_frame
+from annotator.courts.frame_geometry import SceneCourt, court_at_frame
 from annotator.evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
@@ -32,10 +33,9 @@ from annotator.evaluation.scoring import (
     safe_f1,
     score_boundaries,
 )
-from annotator.masks.inpaint import code_counts, grade_track
-from annotator.outcomes import point_winner
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.run_video import AnnotatorResult, run_video
+from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
+from annotator.rally_results import landing_and_winner as point_winner
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.types import CourtHalf
 from shared.court import (
     HOMOGRAPHY_RESOLUTION,

@@ -11,18 +11,13 @@ from typing import Any
 import numpy as np
 import pytest
 
+import annotator.annotate_video as video_module
 import annotator.models as model_module
-import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    FinishedRally,
-    stream_payload,
-)
-from annotator.types import CourtHalf
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
 from dataset_builder import vision
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json

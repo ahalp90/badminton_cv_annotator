@@ -8,12 +8,11 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_options import RallyContext
+from annotator.rallies.build_contact_proposals import RallyContext
 from annotator.training.rally import RallyFitConfig, prepare_training_pools
 from annotator.training.rally_targets import option_targets_at_tolerances
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import targets
 from experiments.annotator.tree_simplification.options import (

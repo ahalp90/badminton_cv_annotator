@@ -14,16 +14,13 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig
-from annotator.contacts.model import ContactModelConfig
-from annotator.learned_model_inference import predict_contact_features
+from annotator.contacts.score_candidates import ContactModelConfig
+from annotator.inference.learned import predict_contact_features
 from annotator.models import AnnotatorModels, fitted_trees
-from annotator.sequence.contacts import stream_payload
-from annotator.sequence.rally_model import (
-    RallySelector,
-    score_selector_review,
-)
+from annotator.rallies.refine_rallies import RallySelector, score_selector_review
 from annotator.training.sequences import whole_rally_correctness
 from experiments.annotator import development as experiment
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.data import score_stream
 from experiments.annotator.heuristic_only_tune.run import source_record

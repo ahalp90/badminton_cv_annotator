@@ -11,14 +11,14 @@ from typing import Any
 
 import numpy as np
 
-from annotator.masks.inpaint import code_counts, grade_track
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
 from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
     save_json_gz,
     save_npy_xz,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
 
 INPAINT_SIDECAR_SCHEMA = "inpaint_fill_mask/1"
 SHUTTLE_GUARD_SCHEMA = "shuttle-guard/0.1"

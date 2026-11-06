@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from annotator.review.broadcast_labels import (
+from labelling.scene_labels import (
     LabelInterval,
     SceneTruth,
     VideoMetadata,

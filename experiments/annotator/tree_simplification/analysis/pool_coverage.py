@@ -25,7 +25,7 @@ from typing import Any
 import joblib
 
 from annotator.config import frames_at_fps
-from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS
+from annotator.rallies.refine_rallies import BOUNDARY_PADDING_AT_30_FPS
 from annotator.training.sequences import judge_rally_boundaries, match_contacts
 from experiments.annotator.tree_simplification.analysis.common import (
     SHOTS_MASTER,

@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder import cli, tracknet_input
 from dataset_builder.tracknet_input import (
     TRACKNET_INPUT_HEIGHT,
@@ -26,6 +25,7 @@ from dataset_builder.tracknet_input import (
     tracknet_stream_producer_command,
 )
 from dataset_builder.vision import convert_tracknet_csv_stage, load_npy_xz
+from shared.video_metadata import VideoMetadata, probe_video_metadata
 
 
 def _metadata(tmp_path: Path, *, frame_count: int = 6) -> VideoMetadata:

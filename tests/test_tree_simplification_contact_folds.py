@@ -9,7 +9,7 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.contacts.features import contact_feature_dtype
+from annotator.contacts.build_features import contact_feature_dtype
 from annotator.training.contact import ContactFitConfig
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools

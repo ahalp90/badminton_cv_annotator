@@ -19,17 +19,18 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
-from annotator.contacts.features import ContactFeatures
-from annotator.contacts.model import ContactModelConfig, score_contact_features
-from annotator.learned_model_inference import (
-    features_from_evidence,
-    predict_contacts,
+from annotator.contacts.build_features import ContactFeatures
+from annotator.contacts.score_candidates import (
+    ContactModelConfig,
+    score_contact_features,
+)
+from annotator.inference.learned import features_from_evidence, predict_contacts
+from annotator.inference.prepare_contact_inference import (
+    AnnotationEvidence,
+    prepare_annotation,
 )
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_options import build_rally_context
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.rallies.build_contact_proposals import build_rally_context
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
@@ -47,8 +48,7 @@ from annotator.training.sequences import (
     whole_rally_correctness,
 )
 from annotator.training.trees import TreeFitConfig
-from annotator.types import CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     TRACK_FILENAME,
@@ -58,6 +58,8 @@ from dataset_builder.vision import (
     load_pose_arrays,
     save_json_gz,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
+from shared.video_metadata import VideoMetadata
 
 METADATA_FILENAME = 'video_metadata.json.gz'
 EVALUATION_TOLERANCE_AT_30_FPS = 10

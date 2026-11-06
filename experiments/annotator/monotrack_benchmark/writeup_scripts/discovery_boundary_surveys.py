@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO / 'src'))
 
 import pandas as pd
 
-from annotator.sequence.contacts import stream_from_payload
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,

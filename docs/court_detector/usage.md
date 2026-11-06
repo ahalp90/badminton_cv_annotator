@@ -311,7 +311,7 @@ scene coverage. A detector crash fails the stage with its stderr. Even a
 successful detector run can yield no court accepted by the annotator's separate
 player vote; that raises `NoAcceptedCourtError` and writes `court_failure.json.gz`.
 [vision.py](../../src/dataset_builder/vision.py) defines the process boundary;
-[court_evidence.py](../../src/annotator/courts/evidence.py) validates results.
+[court_evidence.py](../../src/annotator/courts/prepare_courts.py) validates results.
 
 ### Video result
 

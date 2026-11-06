@@ -191,3 +191,6 @@ testpaths = ["tests"]
 markers = [
     "slow: deliberately scheduled long-running tests, including full fixture or source-identity gates",
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["annotator"]

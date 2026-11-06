@@ -33,14 +33,16 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.calc_helpers import compute_speed, rolling_nanmedian
+from annotator.annotate_video import RunCapture, run_video
+from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import (
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
     frames_at_fps,
     resolve,
 )
-from annotator.courts.scenes import build_scene_courts
+from annotator.contacts.heuristics import impulse_cell_candidates
+from annotator.courts.frame_geometry import build_scene_courts
 from annotator.evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -54,24 +56,23 @@ from annotator.evaluation.scoring import (
     greedy_match,
     load_gt_rallies,
 )
-from annotator.masks.inpaint import CODE_NAMES, NO_FLAG
-from annotator.masks.replay import (
+from annotator.excluded_frames.replay import (
     court_absence_signal,
     filter_short_exclusion_runs,
     perspective_shift_signal,
     velocity_drop_signal,
 )
-from annotator.rally.contacts import impulse_cell_candidates
-from annotator.rally.evidence import build_sticky_result, tracker_segments
-from annotator.rally.spans import find_rally_spans
-from annotator.review.broadcast_labels import (
+from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.player_tracking import tracker_segments
+from annotator.rallies.find_rallies import find_rally_spans
+from labelling.scene_labels import (
     LabelInterval,
     SceneTruth,
     VideoMetadata,
     read_label_csv,
     validate_partition,
 )
-from annotator.run_video import RunCapture, run_video
 
 SERVE_LOOKBACK_AT_30_FPS = 25
 

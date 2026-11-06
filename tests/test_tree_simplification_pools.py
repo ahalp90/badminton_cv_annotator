@@ -6,12 +6,11 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_options import RallyContext
+from annotator.rallies.build_contact_proposals import RallyContext
 from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.tree_simplification import pools
 from experiments.annotator.tree_simplification.options import LabelledOptions
 

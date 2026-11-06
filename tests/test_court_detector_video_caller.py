@@ -776,8 +776,8 @@ def test_bad_compressed_inputs_fail_only_their_video(monkeypatch, tmp_path, faul
 
 
 def test_pose_prerun_uses_the_existing_sharded_producer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from annotator import video_metadata
     from dataset_builder import pose_sharding
+    from shared import video_metadata
 
     metadata = object()
     monkeypatch.setattr(video_metadata, 'probe_video_metadata', lambda video: metadata)
@@ -841,8 +841,8 @@ def test_single_video_prerun_failure_stops_before_court_detection(
 def test_prerun_process_failures_are_video_errors(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, failing_step: str,
 ) -> None:
-    from annotator import video_metadata
     from dataset_builder import pose_sharding
+    from shared import video_metadata
 
     def fail(*args, **kwargs):
         raise RuntimeError('child exited with status 1')

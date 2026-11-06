@@ -17,13 +17,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from annotator import player_tracking
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.courts.evidence import (
+from annotator.contacts.player_attribution import fit_alternation
+from annotator.courts.frame_geometry import build_scene_courts
+from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
     build_net_band,
     detected_court_info,
 )
-from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
@@ -32,8 +34,7 @@ from annotator.evaluation.fixtures import (
     verify_file,
 )
 from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
-from annotator.rally import evidence as rally_evidence
-from annotator.sequence.contacts import fit_alternation
+from annotator.inference import prepare_contact_inference as player_evidence
 from annotator.types import OTHER_HALF, WRIST_L, WRIST_R, CourtHalf, StickyResult
 from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
 
@@ -208,9 +209,9 @@ def load_sticky(
     court_info = load_active_court_info(paths.court_scenes)
     net_band = build_net_band(court_info, fixture.resolution)
     scene_courts = build_scene_courts(scene_rows.to_dict("records"), fixture.resolution)
-    segments = rally_evidence.tracker_segments(scene_courts, court_present, expected_frames)
+    segments = player_tracking.tracker_segments(scene_courts, court_present, expected_frames)
     constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
-    sticky = rally_evidence.build_sticky_result(
+    sticky = player_evidence.build_sticky_result(
         track,
         segments,
         bboxes,

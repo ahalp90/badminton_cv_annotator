@@ -746,7 +746,7 @@ video's `raw_replay_mask` and applied its own duration filter
 (`filter_short_exclusion_runs`) on top; it never unions that with
 `~court_present`. This exporter loads `definitive_exclusion_mask.npy.xz`,
 production's array, which already has `filter_short_exclusion_runs` applied
-and is unioned with `~court_present` (`src/annotator/run_video.py`,
+and is unioned with `~court_present` (`src/annotator/annotate_video.py`,
 `_finalize_exclusion_mask`). The two masks are built from different arrays,
 so `starts_on_masked_frame` and the manifest's masked-start count on a real
 export can differ from 1,890 of 2,892; that figure describes the benchmark's

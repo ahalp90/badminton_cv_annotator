@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from annotator.evaluation.scoring import GtRally
-from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
+from labelling.scene_labels import SceneTruth, VideoMetadata, make_interval
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]

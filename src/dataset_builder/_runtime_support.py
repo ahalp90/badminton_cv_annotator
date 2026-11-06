@@ -16,12 +16,20 @@ from pathlib import Path
 
 import numpy as np
 
+from annotator.annotate_video import AnnotatorResult
 from annotator.models import AnnotatorModels, load_models
-from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate, CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.rally_results.landing_and_winner import (
+    Landing,
+    RallyOutcome,
+    WinnerSource,
+)
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 from dataset_builder._commentary_status import (
     load_cleaning_statuses,
     save_cleaning_statuses,
@@ -81,6 +89,7 @@ from dataset_builder.vision import (
 from scraper import config as scraper_config
 from scraper._llm_provider import LLMSettings
 from scraper.commentary_pairing import CanonicalPairing
+from shared.video_metadata import VideoMetadata
 
 
 @dataclass

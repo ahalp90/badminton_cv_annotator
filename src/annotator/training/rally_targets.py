@@ -3,7 +3,7 @@
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.sequence.rally_options import RallyOptions
+from annotator.rallies.build_contact_proposals import RallyOptions
 from annotator.training.sequences import (
     SequenceTrainingVideo,
     whole_rally_correctness,

@@ -32,11 +32,11 @@ from statistics import mean
 from typing import Any
 
 from annotator.config import frames_at_fps
-from annotator.sequence.contacts import stream_from_payload
 from annotator.training.sequences import LabelledRally
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,

@@ -2,7 +2,7 @@
 
 The annotator turns saved shuttle tracks, player poses and court geometry into
 rallies, racket contacts and estimated outcomes. Start with
-[`run_video()`](../../src/annotator/run_video.py): it shows the order of the
+[`run_video()`](../../src/annotator/annotate_video.py): it shows the order of the
 work. The [quickstart](quickstart.md) explains how to supply a video's files.
 
 The main path has three parts:
@@ -65,13 +65,13 @@ See [Fixed heuristics](heuristics.md) for the individual rules and research cont
 
 The contact search includes impulse peaks, wrist-distance minima, visibility
 changes, rough rally starts, scene starts and a serve look-back window.
-[`contacts/features.py`](../../src/annotator/contacts/features.py) measures
+[`contacts/build_features.py`](../../src/annotator/contacts/build_features.py) measures
 85 values per candidate frame: 17 shuttle/player signals at five time offsets.
 It applies the search-region priors once and returns only candidate rows. Both
 training and inference use those rows directly. Time offsets still refer to the
 full video timeline, including frames outside the candidate set.
 
-[`contacts/model.py`](../../src/annotator/contacts/model.py) scores candidates
+[`contacts/score_candidates.py`](../../src/annotator/contacts/score_candidates.py) scores candidates
 with the contact classifier. Candidates compete by probability and temporal
 separation. The selected cutoff is 0.9. Lower-scoring candidates remain available
 for the next stage, which can recognise a useful contact from the rally as a whole.
@@ -186,7 +186,7 @@ using the enforced alternating sides would make that evidence misleading.
 ## Estimate outcomes and return the result
 
 Start with `build_outcomes()` in
-[`outcomes/video.py`](../../src/annotator/outcomes/video.py). For each rally,
+[`rally_results/estimate_results.py`](../../src/annotator/rally_results/estimate_results.py). For each rally,
 check the last contact, choose a camera view for the final flight, find its
 landing, then determine the winner. The next server takes precedence over the
 landing estimate. Insufficient evidence can leave an outcome unresolved while

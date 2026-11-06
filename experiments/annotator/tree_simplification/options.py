@@ -9,14 +9,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.sequence.contacts import ContactSequence
-from annotator.sequence.rally_options import (
+from annotator.rallies.build_contact_proposals import (
     FEATURE_NAMES,
     RallyOptions,
     build_rally_options,
 )
 from annotator.training.rally_targets import option_targets
 from annotator.training.sequences import SequenceTrainingVideo
+from annotator.types import ContactSequence
 
 __all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool']
 

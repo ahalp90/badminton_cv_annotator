@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from annotator.courts.scenes import SceneCourt, build_scene_courts
-from annotator.rally.evidence import build_sticky_result
-from annotator.rally_segmentation import segment_video
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.rallies.find_rallies import segment_video
 from annotator.types import WRIST_L, WRIST_R
 from tests.annotator_config import burst_config
 

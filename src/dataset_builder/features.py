@@ -20,8 +20,9 @@ from typing import NamedTuple
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.courts.scenes import SceneCourt, build_scene_courts
-from annotator.rally.evidence import build_sticky_result, tracker_segments
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.player_tracking import tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
 from shared.court import project_pixels_to_court
 from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M

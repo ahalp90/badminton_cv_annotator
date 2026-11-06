@@ -10,8 +10,8 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.rally.contacts import wrist_contact_near
-from annotator.rally_segmentation import segment_video
+from annotator.contacts.heuristics import wrist_contact_near
+from annotator.rallies.find_rallies import segment_video
 from experiments.annotator.heuristic_only_tune.run import load_candidates, write_json
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import (

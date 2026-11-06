@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from annotator.courts.scenes import (
+from annotator.courts.frame_geometry import (
     SceneCourt,
     build_scene_courts,
     court_at_frame,

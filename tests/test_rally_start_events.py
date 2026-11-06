@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-import annotator.review.rally_starts as events
-from annotator.review.broadcast_labels import VideoMetadata
+import labelling.rally_starts as events
+from labelling.scene_labels import VideoMetadata
 
 METADATA = VideoMetadata("sset_01", 25.0, 1_000)
 

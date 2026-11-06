@@ -1,3 +1,4 @@
+# Historical experiment: requires its original source revision; retired annotation APIs are not restored.
 """Build fresh court-dependent stages and contact features for one SS22 video."""
 
 from __future__ import annotations
@@ -14,10 +15,9 @@ import cv2
 import numpy as np
 from courtkeynet.court_corners import CourtQuad, FallbackDiagnostics
 
-from annotator.courts.evidence import SceneEvidence, build_detected_court_evidence
-from annotator.courts.views import HASH_SIZE, VIEW_RESOLUTION, CourtView
-from annotator.masks import replay as replay_mask
-from annotator.video_metadata import VideoMetadata, probe_video_fps
+from annotator.courts.match_recurring_views import HASH_SIZE, VIEW_RESOLUTION, CourtView
+from annotator.courts.prepare_courts import SceneEvidence, build_detected_court_evidence
+from annotator.excluded_frames import replay as replay_mask
 from dataset_builder.vision import (
     CourtVision,
     load_court_vision,
@@ -37,6 +37,7 @@ from scratch.contact_det_full_ds_fit.scripts.inpaint_shuttleset22_tracks import 
 from scratch.contact_det_full_ds_fit.scripts.prepare_shuttleset22_predictions import (
     fill_mask_from_sidecar,
 )
+from shared.video_metadata import VideoMetadata, probe_video_fps
 
 EVIDENCE_SCHEMA = 'scene-court-evidence/2'
 PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
@@ -243,8 +244,8 @@ def _global_tracker_mode(enabled: bool) -> Iterator[None]:
     if not enabled:
         yield
         return
-    scene_module = importlib.import_module("annotator.courts.scenes")
-    run_module = importlib.import_module("annotator.run_video")
+    scene_module = importlib.import_module("annotator.courts.frame_geometry")
+    run_module = importlib.import_module("annotator.annotate_video")
     original_scene = scene_module.build_scene_courts
     original_run = run_module.build_scene_courts
     scene_module.build_scene_courts = lambda *_args, **_kwargs: None

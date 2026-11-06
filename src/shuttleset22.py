@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from annotator.video_metadata import VideoMetadata
     from dataset_builder.vision import CourtDetectorSettings
+    from shared.video_metadata import VideoMetadata
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -250,7 +250,7 @@ def gzip_csv(path: Path) -> Path:
 
 def probe_source(path: Path) -> VideoMetadata:
     """Read the frame count and geometry needed by the existing extractors."""
-    from annotator.video_metadata import VideoMetadata
+    from shared.video_metadata import VideoMetadata
 
     source = Path(path).resolve(strict=True)
     completed = subprocess.run(

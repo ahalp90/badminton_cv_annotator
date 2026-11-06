@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from annotator.config import frames_at_fps
-from annotator.sequence.contacts import ContactEvent, stream_from_payload
 from annotator.training.sequences import LabelledRally, match_contacts
 from annotator.training.workflow import load_labels
+from annotator.types import ContactEvent
 from dataset_builder.vision import load_json_gz, save_json_gz
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.development import (
     COUNT_NAMES,
     TEST_VIDEO_IDS,

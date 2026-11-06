@@ -7,13 +7,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.contacts.features import (
+from annotator.contacts.build_features import (
     build_candidate_mask,
     build_contact_features,
     build_eligible_intervals,
     build_player_signals,
 )
-from annotator.contacts.model import CONTACT_FEATURE_NAMES
+from annotator.contacts.score_candidates import CONTACT_FEATURE_NAMES
 from annotator.types import StickyResult
 
 
@@ -104,7 +104,7 @@ def test_invisible_motion_and_window_edges() -> None:
 def test_sparse_candidates_read_offsets_from_video_frames(monkeypatch: pytest.MonkeyPatch) -> None:
     candidates = np.zeros(180, dtype=bool)
     candidates[[25, 60, 155]] = True
-    monkeypatch.setattr('annotator.contacts.features.build_candidate_mask', lambda *_args: candidates)
+    monkeypatch.setattr('annotator.contacts.build_features.build_candidate_mask', lambda *_args: candidates)
     rows = build_contact_features(**feature_inputs(), fps=30.0).rows
     np.testing.assert_array_equal(rows['frame'], [25, 60, 155])
     np.testing.assert_array_equal(rows['shuttle_visible_t+5'], [0, 1, np.nan])
@@ -113,7 +113,7 @@ def test_sparse_candidates_read_offsets_from_video_frames(monkeypatch: pytest.Mo
 def test_search_interval_ids_survive_an_interval_without_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
     candidates = np.zeros(180, dtype=bool)
     candidates[155] = True
-    monkeypatch.setattr('annotator.contacts.features.build_candidate_mask', lambda *_args: candidates)
+    monkeypatch.setattr('annotator.contacts.build_features.build_candidate_mask', lambda *_args: candidates)
     inputs = feature_inputs() | {'tracker_intervals': [(50, 75), (140, 160)]}
     features = build_contact_features(**inputs, fps=30.0)
     assert features.search_intervals == [(5, 75), (95, 160)]

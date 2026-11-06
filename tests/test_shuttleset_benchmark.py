@@ -7,14 +7,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.evaluation.shuttleset_benchmark as benchmark
+import experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark as benchmark
 from annotator.evaluation.gt_scoring import (
     ColumnAgg,
     RallyRow,
     _hit_height_gt_map,
     aggregate_rally_scores,
 )
-from annotator.evaluation.shuttleset_benchmark import (
+from annotator.rally_results.landing_and_winner import WinnerSource
+from annotator.types import CourtHalf
+from dataset_builder.vision import save_json_gz
+from experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
     _aggregate_contact_curves,
     _aggregate_feature_outputs,
@@ -25,9 +28,6 @@ from annotator.evaluation.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.outcomes.point_winner import WinnerSource
-from annotator.types import CourtHalf
-from dataset_builder.vision import save_json_gz
 
 
 def _record(rally_id: int = 0) -> dict[str, object]:

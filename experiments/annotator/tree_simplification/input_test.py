@@ -13,10 +13,10 @@ sys.path.insert(0, str(REPOSITORY / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
+from annotator.annotate_video import RunCapture, run_video
 from annotator.models import AnnotatorModels, fitted_trees, load_models
-from annotator.run_video import RunCapture, run_video
-from annotator.sequence.contacts import stream_payload
-from annotator.sequence.rally_model import score_selector_review
+from annotator.rallies.refine_rallies import score_selector_review
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_test_inputs,

@@ -168,7 +168,7 @@ explains which changes require refitting.
 
 | Setting | Current default | Where it lives | What it changes |
 | --- | ---: | --- | --- |
-| Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/model.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
+| Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/score_candidates.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
 | Rally/contact rules | `BaseAnnotatorConfig` | saved in the model directory | Rough rallies, masks and contact search regions seen by the fitted stages |
 | Shuttle/pose/court extraction | dataset-builder config | `configs/dataset_builder/*.toml` | Upstream evidence supplied to annotation |
 
@@ -186,7 +186,7 @@ model. Use the same prepared arrays and court/landing inputs:
 
 ```python
 from annotator.config import BaseAnnotatorConfig
-from annotator.run_video import run_video
+from annotator.annotate_video import run_video
 
 result = run_video(
     track, bboxes, scores, kps, ndet,
@@ -205,23 +205,24 @@ track without player or court evidence, use `segment_shuttle_track()`. The
 
 ## 7. Common failures
 
-**“Annotator model bundle is incomplete”**  
+**“Annotator model bundle is incomplete”**
 The `--models` directory is missing `models.joblib`, `metadata.json`, or both.
 
-**“persisted shuttle guard codes differ from the final track”**  
+**“persisted shuttle guard codes differ from the final track”**
 The saved shuttle track and guard codes disagree. The shuttle stage needs to
 be regenerated as a set.
 
-**Court evidence has no usable operational inputs**  
+**Court evidence has no usable operational inputs**
 The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.4` court inputs.
 
-**Output directory must be new or empty**  
+**Output directory must be new or empty**
 The standalone runner found existing files at the chosen output path.
 
 ## 8. Further detail
 
-`python -m annotator.rally_segmentation` is the older, rule-only segmentation
-command. `python -m annotator` runs the full fitted annotation chain.
+The old track-only batch segmentation command has been retired.
+`python -m annotator` runs the full annotation chain and supports heuristic-only
+inference with `--heuristic-only`.
 
 | Task | Document |
 |---|---|
@@ -233,3 +234,8 @@ command. `python -m annotator` runs the full fitted annotation chain.
 | Reproduce the completed comparison | [Current experiment commands](../../experiments/annotator/tree_simplification/README.md) |
 | Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
 | Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |
+
+The standalone replay-mask and commentary-pairing tools require an explicit
+`--rally-spans` CSV when processing rallies. Replay masking's `--no-replay-mask`
+mode writes an all-False mask and needs no rally CSV. The dataset builder passes
+rally information in memory and does not use the retired batch command.

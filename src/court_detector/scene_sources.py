@@ -104,7 +104,7 @@ class PySceneDetectSource:
             BaseAnnotatorConfig,
             resolve,
         )
-        from annotator.masks.composition import detect_cuts
+        from shared.camera_cuts import detect_cuts
 
         min_scene_len = resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
         # detect_cuts raises unless both frame counts equal expected_frames. Each cut

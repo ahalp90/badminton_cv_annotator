@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from annotator.review.broadcast_labels import read_label_csv
+from labelling.scene_labels import read_label_csv
 
 from .contracts import read_run_record
 from .scoring import score_run_record, write_score_summary

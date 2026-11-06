@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
-from annotator.courts import evidence
-from annotator.courts.evidence import corner_error_band_from_corners
+from annotator.courts import prepare_courts as evidence
+from annotator.courts.prepare_courts import corner_error_band_from_corners
 from annotator.evaluation.fixtures import FIXTURES
 from shared.court import project_pixels_to_court
 

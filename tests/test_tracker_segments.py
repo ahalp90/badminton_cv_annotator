@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from annotator.courts.scenes import SceneCourt
-from annotator.heuristic_inference import scoring_filter
-from annotator.rally.contacts import wrist_contact_near
-from annotator.rally.evidence import tracker_segments
+from annotator.contacts.heuristics import wrist_contact_near
+from annotator.courts.frame_geometry import SceneCourt
+from annotator.inference.heuristic import scoring_filter
+from annotator.player_tracking import tracker_segments
 from annotator.types import ContactCandidate
 
 

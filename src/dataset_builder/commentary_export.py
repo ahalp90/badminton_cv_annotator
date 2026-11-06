@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.commentary_benchmark_inputs import (
+from dataset_builder.commentary_inputs import (
     RETIMED_RELATIVE_DIR,
     load_retimed_chunks_for_video,
 )

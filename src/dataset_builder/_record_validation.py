@@ -7,9 +7,9 @@ from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.manifest import redact_configuration
 from dataset_builder.models import RunManifest, StageOutcome
+from shared.video_metadata import VideoMetadata
 
 RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.3"
 RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.3"

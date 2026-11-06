@@ -1,6 +1,7 @@
 """Shared court halves, annotator settings and player/contact records."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import NamedTuple
 
@@ -71,9 +72,7 @@ class Slot(IntEnum):
     BOTTOM = 1
 
 
-# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Rally segmentation
-# (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution
-# and landing kinematics.
+# COCO wrist/ankle indices shared by player tracking and contact measurements.
 WRIST_L, WRIST_R = 9, 10
 ANKLE_L, ANKLE_R = 15, 16
 
@@ -110,3 +109,38 @@ class StickyResult(NamedTuple):
     distances_per_slot: np.ndarray
     wrist_dist_px: np.ndarray
     analysed: np.ndarray
+
+
+@dataclass(frozen=True)
+class ContactEvent:
+    """A contact frame, model probability (NaN for heuristics) and player side."""
+
+    frame: int
+    probability: float
+    side: CourtHalf | None
+    wrist_distances: tuple[float, float] | None = None  # TOP/BOT gaps in body heights.
+
+
+@dataclass(frozen=True)
+class ContactSequence:
+    """One half-open rally interval and its contacts in chronological order."""
+
+    span_id: int
+    start_frame: int
+    end_frame: int
+    events: tuple[ContactEvent, ...]
+
+
+@dataclass(frozen=True)
+class FinishedRally:
+    """A selected sequence and its final striker, unknown if no player was identified."""
+
+    sequence: ContactSequence
+    final_half: CourtHalf | None
+
+    @property
+    def first_half(self) -> CourtHalf | None:
+        """Derive the first striker from the fitted final striker."""
+        if self.final_half is None:
+            return None
+        return self.final_half if len(self.sequence.events) % 2 else OTHER_HALF[self.final_half]

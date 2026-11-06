@@ -8,20 +8,19 @@ import pytest
 from sklearn.dummy import DummyClassifier
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.features import CONTACT_FEATURE_NAMES
+from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_model import (
+from annotator.rallies.build_contact_proposals import (
+    FEATURE_NAMES,
+    RallyContext,
+    build_rally_options,
+)
+from annotator.rallies.refine_rallies import (
     REVIEW_FEATURE_NAMES,
     RallySelector,
     build_review_features,
     predict_rally_options,
     score_rally_review,
-)
-from annotator.sequence.rally_options import (
-    FEATURE_NAMES,
-    RallyContext,
-    build_rally_options,
 )
 from annotator.training.rally import (
     RallyFitConfig,
@@ -33,7 +32,7 @@ from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
 from annotator.training.trees import TreeFitConfig
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 
 
 def training_video(identity: str, group: str, correct: bool) -> SequenceTrainingVideo:

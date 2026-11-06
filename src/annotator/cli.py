@@ -7,10 +7,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from annotator.masks.inpaint import grade_track
+from annotator.excluded_frames.shuttle_hallucination import grade_track
 from annotator.models import load_models
-from annotator.shuttle_track import validate_shuttle_track
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.shuttle_evidence import (
     GUARD_CODES_FILENAME,
     inpaint_mask_from_record,
@@ -24,6 +22,8 @@ from dataset_builder.vision import (
     load_pose_arrays,
     run_full_annotation_stage,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
+from shared.video_metadata import VideoMetadata
 
 
 def annotate_saved_video(run_dir: Path, video_id: str, model_dir: Path, output_dir: Path) -> AnnotationOutput:

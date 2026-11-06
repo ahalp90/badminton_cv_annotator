@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.artifact_io import (
+from experiments.annotator.artifact_io import (
     atomic_gzip_text_writer,
     load_npy,
     open_text_artifact,

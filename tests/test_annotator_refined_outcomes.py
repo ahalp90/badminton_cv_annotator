@@ -1,12 +1,7 @@
 """Carry the selected rally sides through to outcome preparation."""
 
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    FinishedRally,
-    fit_rally_sides,
-)
-from annotator.types import CourtHalf
+from annotator.contacts.player_attribution import fit_rally_sides
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
 
 
 def test_refined_contacts_keep_sequence_membership_and_player_order():
@@ -32,7 +27,7 @@ def test_tied_sequences_keep_the_resolved_player_order_without_refitting(monkeyp
     def unexpected_fit(_guesses):
         raise AssertionError('unexpected second fit')
 
-    monkeypatch.setattr('annotator.sequence.contacts.fit_alternation', unexpected_fit)
+    monkeypatch.setattr('annotator.contacts.player_attribution.fit_alternation', unexpected_fit)
     assert [rally.final_half for rally in finished] == [CourtHalf.BOT, None]
     assert [rally.first_half for rally in finished] == [CourtHalf.TOP, None]
     assert [len(rally.sequence.events) for rally in finished] == [2, 0]

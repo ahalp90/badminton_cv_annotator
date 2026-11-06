@@ -2,10 +2,10 @@
 
 **NOTE: This is just an LLM WebUI assessment to a series of questions I had regarding possible oversights in our hallucination guard implementation, off-the-shelf alternatives, and whether I'd mucked up anything obvious in the RANSAC assessment of possible uncaught detector blips.<br><br>As of 02-08-2026 I have not had the time to fact-check it, nor sanity-check what's reasonable or necessary.<br><br>Committing because it might have something useful to follow-up.**
 
-**Repository:** `ahalp90/badminton_cv_annotator`  
-**Repository snapshot reviewed:** `781a589b13a2a3ec986c0562e8d5bf9f6614cef0`  
-**Review date:** 2026-08-01  
-**Production scope assumed:** TrackNet stride 8, InpaintNet sequence length 16, non-overlap inference  
+**Repository:** `ahalp90/badminton_cv_annotator`
+**Repository snapshot reviewed:** `781a589b13a2a3ec986c0562e8d5bf9f6614cef0`
+**Review date:** 2026-08-01
+**Production scope assumed:** TrackNet stride 8, InpaintNet sequence length 16, non-overlap inference
 **Repository changes made:** none
 
 ## Executive verdict
@@ -674,114 +674,114 @@ All repository links below are pinned to commit `781a589b13a2a3ec986c0562e8d5bf9
 
 ### Tier 1 and principal repository sources
 
-- **[R1] Issue #31 — visual challenge-set task**  
+- **[R1] Issue #31 — visual challenge-set task**
   `https://github.com/ahalp90/badminton_cv_annotator/issues/31`
 
-- **[R2] Workset index**  
-  `docs/scraper_pipeline/inpaint_hallucination_fix/README.md`  
+- **[R2] Workset index**
+  `docs/scraper_pipeline/inpaint_hallucination_fix/README.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/scraper_pipeline/inpaint_hallucination_fix/README.md`
 
-- **[R3] Closed mechanism investigation**  
-  `docs/tracknet/evidence/inpaint_fabrications_20260722/inpaint_fabrications_investigation.md`  
+- **[R3] Closed mechanism investigation**
+  `docs/tracknet/evidence/inpaint_fabrications_20260722/inpaint_fabrications_investigation.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/tracknet/evidence/inpaint_fabrications_20260722/inpaint_fabrications_investigation.md`
 
-- **[R4] Historical detector decision sheet**  
-  `docs/tracknet/evidence/inpaint_fabrications_20260722/detector_options.md`  
+- **[R4] Historical detector decision sheet**
+  `docs/tracknet/evidence/inpaint_fabrications_20260722/detector_options.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/tracknet/evidence/inpaint_fabrications_20260722/detector_options.md`
 
-- **[R6] Live recurrence guard**  
-  `src/annotator/inpaint_guard.py`  
+- **[R6] Live recurrence guard**
+  `src/annotator/inpaint_guard.py`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/src/annotator/inpaint_guard.py`
 
-- **[R7] Current audit report**  
-  `docs/scraper_pipeline/inpaint_hallucination_fix/ongoing_shuttle_hallucination_issues_20260731-094523.md`  
+- **[R7] Current audit report**
+  `docs/scraper_pipeline/inpaint_hallucination_fix/ongoing_shuttle_hallucination_issues_20260731-094523.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/scraper_pipeline/inpaint_hallucination_fix/ongoing_shuttle_hallucination_issues_20260731-094523.md`
 
 ### Tier 2 implementation and audit sources
 
-- **[R8] RANSAC audit implementation**  
-  `docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_tracks.py`  
+- **[R8] RANSAC audit implementation**
+  `docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_tracks.py`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/scraper_pipeline/inpaint_hallucination_fix/analysis/audit_tracks.py`
 
-- **[R9] Sidecar coverage follow-up and implementation**  
-  `docs/scraper_pipeline/inpaint_hallucination_fix/inpaint_provenance_coverage_followup_20260731-192654.md`  
+- **[R9] Sidecar coverage follow-up and implementation**
+  `docs/scraper_pipeline/inpaint_hallucination_fix/inpaint_provenance_coverage_followup_20260731-192654.md`
   `docs/scraper_pipeline/inpaint_hallucination_fix/analysis/measure_inpaint_coverage.py`
 
-- **[R10] Sidecar producer contract**  
-  `docs/tracknet/inpaint_sidecar.md`  
+- **[R10] Sidecar producer contract**
+  `docs/tracknet/inpaint_sidecar.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/tracknet/inpaint_sidecar.md`
 
-- **[R11] Sidecar consumer state**  
-  `docs/tracknet/inpaint_sidecar_consumption.md`  
+- **[R11] Sidecar consumer state**
+  `docs/tracknet/inpaint_sidecar_consumption.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/docs/tracknet/inpaint_sidecar_consumption.md`
 
-- **[R12] TrackNetV3 inference path**  
-  `src/bst_x/TrackNetV3/predict.py`  
+- **[R12] TrackNetV3 inference path**
+  `src/bst_x/TrackNetV3/predict.py`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/src/bst_x/TrackNetV3/predict.py`
 
-- **[R13] Inference dataset windowing and coordinate inputs**  
-  `src/bst_x/TrackNetV3/dataset.py`  
+- **[R13] Inference dataset windowing and coordinate inputs**
+  `src/bst_x/TrackNetV3/dataset.py`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/src/bst_x/TrackNetV3/dataset.py`
 
-- **[R14] Mask generation, heatmap coordinate extraction, Inpaint model, and sidecar writer**  
-  `src/bst_x/TrackNetV3/inference_utils.py`  
-  `src/bst_x/TrackNetV3/model.py`  
+- **[R14] Mask generation, heatmap coordinate extraction, Inpaint model, and sidecar writer**
+  `src/bst_x/TrackNetV3/inference_utils.py`
+  `src/bst_x/TrackNetV3/model.py`
   `src/bst_x/TrackNetV3/write_inpaint_metadata.py`
 
-- **[R15] Current grade policy**  
-  `src/annotator/config.py`  
+- **[R15] Current grade policy**
+  `src/annotator/config.py`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/src/annotator/config.py`
 
-- **[R16] Runtime integration and source trace**  
-  `src/annotator/run_video.py`  
+- **[R16] Runtime integration and source trace**
+  `src/annotator/annotate_video.py`
   `docs/scraper_pipeline/inpaint_hallucination_fix/inpaint_hallucination_trace.md`
 
-- **[R17] Calibration caller**  
+- **[R17] Calibration caller**
   `src/annotator/calibration/gt_scoring.py`
 
-- **[R18] Current stride comparison**  
-  `experiments/annotator/runs/20260730-041328/measurement_verification.md`  
+- **[R18] Current stride comparison**
+  `experiments/annotator/runs/20260730-041328/measurement_verification.md`
   `https://github.com/ahalp90/badminton_cv_annotator/blob/781a589b13a2a3ec986c0562e8d5bf9f6614cef0/experiments/annotator/runs/20260730-041328/measurement_verification.md`
 
-- **[R19] Sequence and location plotting**  
+- **[R19] Sequence and location plotting**
   `docs/scraper_pipeline/inpaint_hallucination_fix/analysis/plot_recurrence_grids.py`
 
-- **[R20] Measurement history**  
+- **[R20] Measurement history**
   `docs/scraper_pipeline/annotator_measurement_history.md`
 
-- **[R21] Synthetic guard tests**  
+- **[R21] Synthetic guard tests**
   `tests/test_inpaint_guard.py`
 
-- **[R22] Historical independent split-half script**  
+- **[R22] Historical independent split-half script**
   `docs/tracknet/evidence/inpaint_fabrications_20260722/stride1_retrack/rule_recurrence_v3.py`
 
 ### External primary sources
 
-- **[E1] Upstream TrackNetV3 issue #22**  
+- **[E1] Upstream TrackNetV3 issue #22**
   `https://github.com/qaz812345/TrackNetV3/issues/22`
 
-- **[E2] Upstream TrackNetV3 README, InpaintNet training command**  
+- **[E2] Upstream TrackNetV3 README, InpaintNet training command**
   `https://github.com/qaz812345/TrackNetV3/blob/77c123ad4dd449b7d275f16cc43f316ba5b54042/README.md`
 
-- **[E3] Upstream TrackNetV3 training code**  
+- **[E3] Upstream TrackNetV3 training code**
   `https://github.com/qaz812345/TrackNetV3/blob/77c123ad4dd449b7d275f16cc43f316ba5b54042/train.py`
 
-- **[E4] Scikit-learn novelty and outlier detection overview, version 1.9**  
+- **[E4] Scikit-learn novelty and outlier detection overview, version 1.9**
   `https://scikit-learn.org/stable/modules/outlier_detection.html`
 
-- **[E5] Scikit-learn IsolationForest, version 1.9**  
+- **[E5] Scikit-learn IsolationForest, version 1.9**
   `https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.IsolationForest.html`
 
-- **[E6] Scikit-learn LocalOutlierFactor, version 1.9**  
+- **[E6] Scikit-learn LocalOutlierFactor, version 1.9**
   `https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.LocalOutlierFactor.html`
 
-- **[E7] Scikit-learn OneClassSVM, version 1.9**  
+- **[E7] Scikit-learn OneClassSVM, version 1.9**
   `https://scikit-learn.org/stable/modules/generated/sklearn.svm.OneClassSVM.html`
 
-- **[E8] Scikit-learn EllipticEnvelope, version 1.9**  
+- **[E8] Scikit-learn EllipticEnvelope, version 1.9**
   `https://scikit-learn.org/stable/modules/generated/sklearn.covariance.EllipticEnvelope.html`
 
-- **[E9] Scikit-learn RANSACRegressor, version 1.9**  
+- **[E9] Scikit-learn RANSACRegressor, version 1.9**
   `https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RANSACRegressor.html`
 
 ---
@@ -798,10 +798,10 @@ The three fixtures are professional broadcast videos. They do not establish beha
 
 Two exact pieces of untracked material would resolve specific remaining claims:
 
-1. **`records/commit12_default_pick.md` and its per-arm outputs.**  
+1. **`records/commit12_default_pick.md` and its per-arm outputs.**
    This is needed to audit why `{1,2,3}` became the default, which downstream metrics moved, and whether the comparison tested late masking only.
 
-2. **The exact visually confirmed uncaught frame ranges or completed issue-31 CSVs/overlay labels.**  
+2. **The exact visually confirmed uncaught frame ranges or completed issue-31 CSVs/overlay labels.**
    These are needed to answer whether Isolation Forest or motion residuals rank more genuinely false blips and chunks, and whether the errors are Inpaint-supplied or base-TrackNet-supplied.
 
 Raw TrackNet heatmaps or confidence exports are not required for the first guard decision. They become useful only if the completed challenge set shows that sidecar-negative base-TrackNet errors are a material residual source.

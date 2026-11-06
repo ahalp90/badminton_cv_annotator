@@ -11,13 +11,13 @@ from types import SimpleNamespace
 import numpy as np
 
 import shuttleset22
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.vision import (
     CourtDetectorSettings,
     load_npy_xz,
     pose_artifact_paths,
     save_npy_xz,
 )
+from shared.video_metadata import VideoMetadata
 
 
 def test_real_source_list_records_downloads_overlaps_and_missing_sources() -> None:

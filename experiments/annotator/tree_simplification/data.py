@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from annotator.contacts.features import ContactFeatures
-from annotator.preparation import AnnotationEvidence
+from annotator.contacts.build_features import ContactFeatures
+from annotator.inference.prepare_contact_inference import AnnotationEvidence
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 
 

@@ -24,7 +24,7 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
     """Accept every successful MonoTrack fit without applying our detector's person vote."""
     import numpy as np
 
-    from annotator.courts.evidence import (
+    from annotator.courts.prepare_courts import (
         CourtEvidenceResult,
         CourtInputs,
         CourtSceneRecord,

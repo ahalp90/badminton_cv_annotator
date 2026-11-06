@@ -10,7 +10,7 @@ import pytest
 from threadpoolctl import threadpool_limits
 from xgboost import XGBClassifier
 
-from annotator.contacts.model import (
+from annotator.contacts.score_candidates import (
     CONTACT_FEATURE_NAMES,
     contact_feature_matrix,
     score_contact_features,

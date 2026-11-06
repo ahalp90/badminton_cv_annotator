@@ -5,15 +5,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.learned_model_inference import LearnedModelPrediction
+from annotator.inference.learned import LearnedModelPrediction
 from annotator.models import AnnotatorModels
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_model import (
+from annotator.rallies.refine_rallies import (
     RallyReview,
     RallyReviewFeatures,
     RallySelector,
 )
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     annotator_batch_runs as batch,
 )

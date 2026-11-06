@@ -8,14 +8,10 @@ from typing import Any
 
 import pandas as pd
 
+from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import (
-    SHIPPED_LANDING_FILTER_OPTIONS,
-)
-from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import stream_payload
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.training.sequences import (
     LabelledRally,
 )
@@ -30,6 +26,7 @@ from dataset_builder.vision import (
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
@@ -40,6 +37,7 @@ from experiments.annotator.old_court_regression.old_inputs import (
     OldVideoInputs,
     development_label_rows,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 TRACKED_SPLIT = (

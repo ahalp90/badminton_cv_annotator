@@ -23,7 +23,7 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.rally import evidence as rally_evidence
+from annotator.inference import prepare_contact_inference as player_evidence
 from annotator.types import StickyResult
 
 
@@ -88,7 +88,7 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
     :param cache_dir: Cache directory beneath the validated, immutable run output.
     :param video_id: The fixed video being evaluated in this context.
     """
-    original = rally_evidence.build_sticky_result
+    original = player_evidence.build_sticky_result
     signature = inspect.signature(original)
 
     @wraps(original)
@@ -105,5 +105,5 @@ def cache_sticky_result(cache_dir: Path, video_id: str) -> Iterator[None]:
             _write_result(path, result)
             return result
 
-    with patch.object(rally_evidence, 'build_sticky_result', cached):
+    with patch.object(player_evidence, 'build_sticky_result', cached):
         yield

@@ -8,10 +8,10 @@ from itertools import pairwise
 
 import numpy as np
 
-from annotator.outcomes import point_winner
-from annotator.outcomes.video import final_flight_range
-from annotator.preparation import AnnotationEvidence
-from annotator.sequence.contacts import FinishedRally
+from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.rally_results import landing_and_winner as point_winner
+from annotator.rally_results.estimate_results import final_flight_range
+from annotator.types import FinishedRally
 
 
 @dataclass(frozen=True)

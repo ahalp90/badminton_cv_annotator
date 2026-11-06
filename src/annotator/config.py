@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-from .types import ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 
 # ---------------------------------------------------------------------------
 # Scrape-output paths
@@ -36,16 +36,6 @@ SLOWMO_SPEED_FRAC = 0.15
 # Scene-based exclusion uses camera cuts and the fraction of court-view frames.
 COMPOSITION_CONTENT_THRESHOLD = 27.0  # PySceneDetect ContentDetector default
 COMPOSITION_KEEP_VOTE = 0.5  # a cut segment is live when >= this fraction of its frames vote court-view
-
-# ---------------------------------------------------------------------------
-# Doubles guard windowing
-# ---------------------------------------------------------------------------
-# A clip- or segment-level doubles flag fires only when the per-frame
-# over-count (>2 in-court candidates) holds across more than half the frames
-# of a rally span. A short consecutive run could instead count a coach or
-# ball-kid crossing the court as a doubles player.
-DOUBLES_SPAN_FRACTION = 0.5
-
 
 BASE_FPS = 30.0
 REST_SPEED_BASE30 = 0.002

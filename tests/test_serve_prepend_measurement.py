@@ -11,14 +11,13 @@ import numpy as np
 
 from annotator.evaluation.fixtures import SSET_01
 from annotator.evaluation.scoring import GtRally
-from annotator.review.broadcast_labels import (
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
+from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,
     write_label_csv,
 )
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import CourtHalf
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]

@@ -9,9 +9,12 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.attribution import contact_player_evidence
-from annotator.courts.scenes import SceneCourt
-from annotator.outcomes.point_winner import (
+from annotator.contacts.player_attribution import (
+    contact_player_evidence,
+    fit_alternation,
+)
+from annotator.courts.frame_geometry import SceneCourt
+from annotator.rally_results.landing_and_winner import (
     Landing,
     LandingFilterOptions,
     LandingKinematics,
@@ -27,7 +30,6 @@ from annotator.outcomes.point_winner import (
     pick_landing_to_end,
     resolve_rally_outcome,
 )
-from annotator.sequence.contacts import fit_alternation
 from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtHalf, StickyResult
 
 COURT_WIDTH_M = 6.10

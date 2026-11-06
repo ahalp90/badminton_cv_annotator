@@ -24,6 +24,7 @@ from uuid import uuid4
 
 import numpy as np
 
+from annotator.annotate_video import run_video
 from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
 from annotator.evaluation.gt_scoring import (
     RunVideoInputs,
@@ -33,7 +34,6 @@ from annotator.evaluation.gt_scoring import (
     score_video,
 )
 from annotator.evaluation.scoring import load_gt_rallies, safe_f1
-from annotator.run_video import run_video
 from experiments.annotator.heuristic_tuning import selection, sweep
 
 RUN_SCHEMA = "annotator-corpus-sweep/1"
@@ -156,7 +156,9 @@ def load_pinned_replay_fixtures(
     annotator path contract is bound during module import.
     """
     from annotator.config import BaseAnnotatorConfig
-    from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
+    from annotator.rally_results.landing_and_winner import (
+        SHIPPED_LANDING_FILTER_OPTIONS,
+    )
     from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
     from dataset_builder.artifact_index import artifact_index_path
     from dataset_builder.cli import SCRAPER_WORKSPACE_NAME, load_builder_config

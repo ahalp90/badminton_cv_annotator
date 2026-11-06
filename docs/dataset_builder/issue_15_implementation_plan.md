@@ -32,7 +32,7 @@ work.
   search-to-dataset orchestrator is still being integrated.
 - The general [rally CLI](../../src/annotator/rally/cli.py) calls `run_video`
   with `stop_after_segmentation=True`.
-- The full [run_video](../../src/annotator/run_video.py) contract already
+- The full [run_video](../../src/annotator/annotate_video.py) contract already
   accepts prepared shuttle, pose, timing, and court evidence.
 - The [rally dataset contract](../rally_dataset_contract.md) assigns the
   assembler to section 2.3. It defers the physical format and final engineered
@@ -40,7 +40,7 @@ work.
 - Commentary pairing currently has a separate OpenCV FPS probe in
   [commentary_pairing.py](../../src/scraper/commentary_pairing.py).
 - The validation overlay has the strictest current ffprobe implementation in
-  [decode.py](../../src/annotator/validation_overlay/core/decode.py).
+  [decode.py](../../src/video_overlay/decode.py).
 - The current shuttle CSV converter in
   [shuttle_extractor.py](../../src/bst_x/pipeline/shuttle_extractor.py) follows
   ShuttleSet clip naming and metadata assumptions.
@@ -64,7 +64,7 @@ Draft commit: `Add dataset-builder run contracts and video metadata`
 
 - Add `src/dataset_builder/models.py`.
 - Add `src/dataset_builder/manifest.py`.
-- Add `src/annotator/video_metadata.py`.
+- Add `src/shared/video_metadata.py`.
 - Add `tests/test_dataset_builder_manifest.py`.
 - Update the current FPS and validation-overlay metadata tests.
 

@@ -23,6 +23,7 @@ from typing import Any
 
 import numpy as np
 
+from annotator.annotate_video import run_video
 from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
@@ -46,7 +47,6 @@ from annotator.evaluation.scoring import (
     score_boundaries,
     score_contacts,
 )
-from annotator.run_video import run_video
 from annotator.types import SpanOpen
 from experiments.annotator.heuristic_tuning import selection
 from experiments.annotator.heuristic_tuning.schemas import (

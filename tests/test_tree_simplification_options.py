@@ -4,11 +4,14 @@ from dataclasses import replace
 
 import numpy as np
 
-from annotator.contacts.features import CONTACT_FEATURE_NAMES
-from annotator.sequence.contacts import ContactEvent, initial_sequences
-from annotator.sequence.rally_options import RallyContext, build_rally_options
+from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
+from annotator.rallies.build_contact_proposals import (
+    RallyContext,
+    build_rally_options,
+    initial_sequences,
+)
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, CourtHalf
 from experiments.annotator.tree_simplification.options import (
     FEATURE_NAMES,
     expand_pool,

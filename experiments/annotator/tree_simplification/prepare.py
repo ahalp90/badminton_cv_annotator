@@ -29,8 +29,8 @@ import joblib
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.learned_model_inference import features_from_evidence
-from annotator.preparation import prepare_annotation
+from annotator.inference.learned import features_from_evidence
+from annotator.inference.prepare_contact_inference import prepare_annotation
 from annotator.types import ReentryGuardVariant, SmoothingMode, SpanOpen
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result

@@ -10,11 +10,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate, CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.annotate_video import AnnotatorResult
+from annotator.rally_results.landing_and_winner import (
+    Landing,
+    RallyOutcome,
+    WinnerSource,
+)
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 from dataset_builder.manifest import (
     artifact_integrity,
     run_manifest_sha256,
@@ -45,6 +53,7 @@ from dataset_builder.records import (
 )
 from dataset_builder.vision import load_json_gz, save_json_gz
 from scraper.commentary_pairing import CanonicalPairing, pair_video_with_metadata
+from shared.video_metadata import VideoMetadata
 
 CODE_VERSION = "a" * 40
 FPS = Fraction(25, 1)
@@ -289,7 +298,7 @@ def _write(
 
 
 def test_final_contact_sides_and_review_scores_reach_rally_records(tmp_path: Path) -> None:
-    from annotator.sequence import ContactEvent
+    from annotator.types import ContactEvent
 
     original = _annotation()
     annotation = original._replace(

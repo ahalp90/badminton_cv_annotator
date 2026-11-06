@@ -9,11 +9,13 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent
-from annotator.types import ContactCandidate, CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.annotate_video import AnnotatorResult
+from annotator.rally_results.landing_and_winner import (
+    Landing,
+    RallyOutcome,
+    WinnerSource,
+)
+from annotator.types import ContactCandidate, ContactEvent, CourtHalf
 from dataset_builder._record_validation import (
     RALLY_RECORD_COLLECTION_SCHEMA,
     RALLY_RECORD_PROJECTION_SCHEMA,
@@ -35,6 +37,7 @@ from dataset_builder.models import RunManifest, StageOutcome
 from dataset_builder.vision import load_json_gz, save_json_gz
 from scraper.commentary_pairing import CanonicalPairing
 from shared.progress import progress_iter
+from shared.video_metadata import VideoMetadata
 
 
 @dataclass(frozen=True)

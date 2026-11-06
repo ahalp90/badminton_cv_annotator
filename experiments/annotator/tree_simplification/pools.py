@@ -24,10 +24,10 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.model import ContactModelConfig
-from annotator.sequence.contacts import ContactSequence
+from annotator.contacts.score_candidates import ContactModelConfig
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.workflow import TrainingSettings
+from annotator.types import ContactSequence
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
     expand_pool,

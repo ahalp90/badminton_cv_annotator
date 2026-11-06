@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from annotator.review.broadcast_labels import (
+from labelling.scene_labels import (
     LABEL_CSV_HEADER,
     LabelInterval,
     SceneTruth,
@@ -122,7 +122,7 @@ def test_failed_temporary_validation_preserves_existing_destination(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import annotator.review.broadcast_labels as labels_module
+    import labelling.scene_labels as labels_module
 
     path = tmp_path / "labels.csv"
     write_label_csv(path, _partition(), METADATA)

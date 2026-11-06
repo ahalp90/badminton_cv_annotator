@@ -11,8 +11,13 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.evaluation import commentary_benchmark
-from annotator.evaluation.commentary_benchmark import (
+from annotator.excluded_frames.replay import filter_short_exclusion_runs
+from dataset_builder.commentary_inputs import (
+    RETIMED_RELATIVE_DIR,
+    load_retimed_chunks_for_video,
+)
+from experiments.annotator.shuttleset_benchmarks import commentary_benchmark
+from experiments.annotator.shuttleset_benchmarks.commentary_benchmark import (
     LAG_SWEEP_SECONDS,
     _cleaning_aggregate,
     _dataset_aggregate,
@@ -23,19 +28,16 @@ from annotator.evaluation.commentary_benchmark import (
     _pairing_aggregate,
     evaluate_video,
 )
-from annotator.evaluation.commentary_benchmark_inputs import (
+from experiments.annotator.shuttleset_benchmarks.commentary_benchmark_inputs import (
     EXPECTED_SHUTTLESET22_IDS,
     EXPECTED_SHUTTLESET_IDS,
-    RETIMED_RELATIVE_DIR,
     VideoInputs,
     _load_cleaned_chunks_for_video,
     _validate_rallies,
     _validate_repair_metadata,
     _validate_timed_rows,
     _validate_unique_chunk_starts,
-    load_retimed_chunks_for_video,
 )
-from annotator.masks.replay import filter_short_exclusion_runs
 
 
 def _chunk(

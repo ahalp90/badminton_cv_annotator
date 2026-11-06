@@ -6,24 +6,24 @@ from types import SimpleNamespace
 import numpy as np
 from sklearn.dummy import DummyClassifier
 
-from annotator import learned_model_inference
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.features import ContactFeatures, contact_feature_dtype
-from annotator.contacts.model import (
+from annotator.contacts.build_features import ContactFeatures, contact_feature_dtype
+from annotator.contacts.score_candidates import (
     CONTACT_FEATURE_NAMES,
     ContactModelConfig,
     ScoredContacts,
     contact_feature_matrix,
 )
-from annotator.courts.scenes import SceneCourt
-from annotator.heuristic_inference import select_heuristic_contacts
-from annotator.preparation import AnnotationEvidence
-from annotator.sequence.rally_model import (
+from annotator.courts.frame_geometry import SceneCourt
+from annotator.inference import learned as learned_model_inference
+from annotator.inference.heuristic import select_heuristic_contacts
+from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.rallies.build_contact_proposals import FEATURE_NAMES, build_rally_context
+from annotator.rallies.refine_rallies import (
     REVIEW_FEATURE_NAMES,
     RallyPrediction,
     RallySelector,
 )
-from annotator.sequence.rally_options import FEATURE_NAMES, build_rally_context
 from annotator.training.workflow import sequence_training_video
 from annotator.types import ContactCandidate, CourtHalf, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool

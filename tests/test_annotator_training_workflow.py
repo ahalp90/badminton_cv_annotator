@@ -11,13 +11,12 @@ from typing import Any
 import numpy as np
 import pytest
 
-from annotator.contacts.features import ContactFeatures
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.contacts.build_features import ContactFeatures
 from annotator.training import workflow
 from annotator.training.sequences import LabelledRally
-from annotator.types import CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.vision import load_json_gz
+from shared.video_metadata import VideoMetadata
 
 
 def label_file(directory: Path, name: str) -> Path:

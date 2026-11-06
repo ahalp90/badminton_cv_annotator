@@ -18,7 +18,7 @@ WORKSET = Path(__file__).resolve().parents[1]
 ANALYSIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO / "src"))
 
-from annotator.masks import inpaint as inpaint_guard  # noqa: E402
+from annotator.excluded_frames import shuttle_hallucination as inpaint_guard  # noqa: E402
 
 FIXTURES = {"sset_01": 1, "sset_15": 15, "sset_21": 21}
 

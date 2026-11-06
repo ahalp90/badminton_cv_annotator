@@ -9,7 +9,7 @@ import joblib
 import numpy as np
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-from annotator.sequence.rally_model import RallySelector, predict_rally_options
+from annotator.rallies.refine_rallies import RallySelector, predict_rally_options
 from annotator.training.rally import fit_rally_review_model
 from annotator.training.trees import TreeFitConfig
 from dataset_builder.vision import load_npy_xz

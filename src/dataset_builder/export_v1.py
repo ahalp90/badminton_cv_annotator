@@ -22,8 +22,6 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.shuttle_track import validate_shuttle_track
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.commentary_export import (
     CommentaryTables,
     commentary_tables,
@@ -93,6 +91,8 @@ from dataset_builder.vision import (
     save_json_gz,
     save_npy_xz,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
+from shared.video_metadata import VideoMetadata
 
 STAGES_DIRECTORY = "stages"
 PRIMITIVE_STAGE_BASES = ("shuttle", "pose", "court", "annotation")

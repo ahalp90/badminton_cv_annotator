@@ -3,18 +3,15 @@
 import numpy as np
 import pytest
 
-from annotator.contacts.features import contact_feature_dtype
-from annotator.contacts.model import ScoredContacts, contact_feature_matrix
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
+from annotator.contacts.build_features import contact_feature_dtype
+from annotator.contacts.score_candidates import ScoredContacts, contact_feature_matrix
+from annotator.rallies.build_contact_proposals import (
     initial_sequences,
-)
-from annotator.sequence.rally_options import (
     shortlist_later_rows,
     shortlist_serve_rows,
     toggle_proposals,
 )
+from annotator.types import ContactEvent, ContactSequence
 
 
 def _scores(rows: list[tuple[int, int, float, bool]]) -> ScoredContacts:

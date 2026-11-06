@@ -41,13 +41,13 @@ The purpose is to keep replay, slow motion, prolonged non-court footage and unus
 
 A camera angle change alone does not establish replay. The code can measure perspective shift, but the current replay mask does not reject a frame only because the court is viewed from a different angle.
 
-Relevant code: `masks/replay.py`, `preparation.py`.
+Relevant code: `excluded_frames/replay.py`, `prepare_contact_inference.py`.
 
 ### Shuttle guard grades
 
 Shuttle guard grades apply to the shuttle track itself rather than to the whole frame.
 
-`masks/inpaint.py` looks for exact coordinate sequences that recur far more often than ordinary shuttle motion should. The default pattern width is 16 frames. Repeated moving patterns are strong evidence that an inpainting or tracking stage has fallen into a fabricated loop. Repeated flat positions are suspicious but less conclusive because a real shuttle can remain still.
+`excluded_frames/shuttle_hallucination.py` looks for exact coordinate sequences that recur far more often than ordinary shuttle motion should. The default pattern width is 16 frames. Repeated moving patterns are strong evidence that an inpainting or tracking stage has fallen into a fabricated loop. Repeated flat positions are suspicious but less conclusive because a real shuttle can remain still.
 
 The current codes are:
 
@@ -75,7 +75,7 @@ A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark 
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 
-Relevant code: `masks/inpaint.py`, `preparation.py::build_shuttle_hallucination_mask()`, `outcomes/video.py`, `dataset_builder/shuttle_evidence.py`.
+Relevant code: `excluded_frames/shuttle_hallucination.py`, `prepare_contact_inference.py::build_shuttle_hallucination_mask()`, `rally_results/estimate_results.py`, `dataset_builder/shuttle_evidence.py`.
 
 ## Frame-rate scaling
 
@@ -115,7 +115,7 @@ Within accepted court intervals it keeps one usable pose detection for the far c
 
 This information later feeds contact features, serve-repair features and the initial `Top`/`Bot` guess for each contact.
 
-Relevant code: `rally/evidence.py`, `types.py::StickyResult`.
+Relevant code: `player_tracking.py`, `types.py::StickyResult`.
 
 ## Rough rally spans
 
@@ -134,7 +134,7 @@ At the current defaults:
 
 This gives deliberately broad rally spans. The fitted sequence stage later has room to repair the first contact, and final bounds can move again after contacts are selected.
 
-Relevant code: `rally/spans.py`, `rally/trajectory.py`, `config.py`.
+Relevant code: `rallies/find_rallies.py`, `rally/trajectory.py`, `config.py`.
 
 ## The impulse contact heuristic
 
@@ -158,7 +158,7 @@ The heuristic chain then checks whether a tracked wrist is within 1.4 player-box
 
 Those heuristic survivors are useful evidence, but the fitted contact model is not limited to them.
 
-Relevant code: `rally/contacts.py`.
+Relevant code: `contacts/heuristics.py`.
 
 ## Contact search regions
 
@@ -181,7 +181,7 @@ Each seed adds a short interval of nearby frames to the search. The contact
 tree scores every frame in those intervals, including the seed frame itself,
 so a seed can open a search region without becoming a selected hit.
 
-Relevant code: `contacts/features.py`.
+Relevant code: `contacts/build_features.py`.
 
 ## What reaches the contact tree
 
@@ -209,9 +209,9 @@ The next layer is described in [How the trees work together](tree_stack.md).
 | --- | --- |
 | Thresholds resolved for a video's frame rate | `config.py` |
 | assembled preprocessing settings | `config.py::resolve()` |
-| replay / off-rally exclusion | `masks/replay.py` |
-| shuttle recurrence guard | `masks/inpaint.py` |
-| sticky player picks | `rally/evidence.py` |
-| rally boundaries | `rally/spans.py` |
-| impulse contacts and wrist gate | `rally/contacts.py` |
-| broader contact search regions | `contacts/features.py` |
+| replay / off-rally exclusion | `excluded_frames/replay.py` |
+| shuttle recurrence guard | `excluded_frames/shuttle_hallucination.py` |
+| sticky player picks | `player_tracking.py` |
+| rally boundaries | `rallies/find_rallies.py` |
+| impulse contacts and wrist gate | `contacts/heuristics.py` |
+| broader contact search regions | `contacts/build_features.py` |

@@ -16,20 +16,20 @@ from annotator.config import (
     resolve,
     speed_at_fps,
 )
-from annotator.contacts.attribution import contact_player_evidence
-from annotator.courts.scenes import SceneCourt
-from annotator.masks.replay import combine_mask, court_absence_signal
-from annotator.outcomes.point_winner import (
+from annotator.contacts.player_attribution import contact_player_evidence
+from annotator.courts.frame_geometry import SceneCourt
+from annotator.excluded_frames.replay import combine_mask, court_absence_signal
+from annotator.inference.prepare_contact_inference import build_sticky_result
+from annotator.rallies.find_rallies import segment_video
+from annotator.rally_results.landing_and_winner import (
     LandingFilterOptions,
     LandingKinematics,
     convert_landing_options,
     landing_window,
     pick_landing_to_end,
 )
-from annotator.rally.evidence import build_sticky_result
-from annotator.rally_segmentation import segment_video
 from annotator.types import CourtHalf
-from annotator.video_metadata import probe_fps
+from shared.video_metadata import probe_fps
 from tests.annotator_config import burst_config
 
 

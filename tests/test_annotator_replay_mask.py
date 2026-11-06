@@ -11,15 +11,14 @@ import warnings
 import numpy as np
 import pytest
 
-import annotator.masks.replay as replay_mask_module
+import annotator.excluded_frames.replay as replay_mask_module
 from annotator.config import (
     PERSPECTIVE_SHIFT_THRESHOLD,
     SLOWMO_SPEED_FRAC,
     BaseAnnotatorConfig,
     resolve,
 )
-from annotator.masks.inpaint import FABRICATED, code_counts, grade_track
-from annotator.masks.replay import (
+from annotator.excluded_frames.replay import (
     HOMOGRAPHY_CORNER_COLS,
     _cli_non_evidence,
     combine_mask,
@@ -27,6 +26,11 @@ from annotator.masks.replay import (
     filter_short_exclusion_runs,
     perspective_shift_signal,
     velocity_drop_signal,
+)
+from annotator.excluded_frames.shuttle_hallucination import (
+    FABRICATED,
+    code_counts,
+    grade_track,
 )
 
 # Reference court corners (interleaved [corner, xy]); bbox diagonal 500.
@@ -308,7 +312,7 @@ def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     n_frames = 30
     track = _speed_track(0.1, n_frames) if case == 'all-excluded' else np.zeros((n_frames, 3))
     baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else None
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
+    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
@@ -465,7 +469,7 @@ def _cli_fabricated_track() -> np.ndarray:
 def test_cli_non_evidence_grades_rejected_frames_and_logs_counts(caplog):
     track = _cli_fabricated_track()
     codes, _info = grade_track(track)
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
+    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
 
     result = _cli_non_evidence(track)
 
@@ -509,12 +513,13 @@ def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
 ):
     court_path = tmp_path / 'court.npy'
     out_dir = tmp_path / 'masks'
+    (tmp_path / 'spans.csv').write_text('video_id,start_frame,end_frame\n')
     np.save(court_path, np.zeros(40, dtype=bool))
     raw = np.zeros(40, dtype=bool)
     raw[:14] = True
     raw[20:] = True
     monkeypatch.setattr(replay_mask_module, 'combine_mask', lambda *args, **kwargs: raw.copy())
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
+    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
 
     monkeypatch.setattr(sys, 'argv', [
         'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
@@ -531,8 +536,26 @@ def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
     )
     monkeypatch.setattr(sys, 'argv', [
         'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
-        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30', '--no-replay-mask',
+        '--fps', '30', '--no-replay-mask',
     ])
     replay_mask_module.main()
     assert not np.load(out_dir / 'v_replay.npy').any()
     assert 'config: no_replay_mask=True' in caplog.text
+
+
+def test_replay_cli_requires_existing_rally_input(monkeypatch, tmp_path):
+    import sys
+
+    from annotator.excluded_frames import replay
+
+    court_path = tmp_path / 'court.npy'
+    np.save(court_path, np.ones(40, dtype=bool))
+    args = ['replay', '--video-id', 'v', '--court-mask', str(court_path), '--fps', '30']
+    monkeypatch.setattr(sys, 'argv', args)
+    with pytest.raises(SystemExit) as failure:
+        replay.main()
+    assert failure.value.code == 2
+
+    monkeypatch.setattr(sys, 'argv', [*args, '--rally-spans', str(tmp_path / 'missing.csv')])
+    with pytest.raises(FileNotFoundError):
+        replay.main()

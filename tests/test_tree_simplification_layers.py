@@ -8,14 +8,13 @@ import numpy as np
 import pytest
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.model import positive_probabilities
-from annotator.sequence import rally_model
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_options import RallyContext
+from annotator.contacts.score_candidates import positive_probabilities
+from annotator.rallies import refine_rallies as rally_model
+from annotator.rallies.build_contact_proposals import RallyContext
 from annotator.training import rally as rally_training
 from annotator.training.sequences import SequenceTrainingVideo
 from annotator.training.trees import TreeFitConfig
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.tree_simplification import margins
 from experiments.annotator.tree_simplification.options import LabelledOptions
 

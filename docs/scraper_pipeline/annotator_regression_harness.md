@@ -246,7 +246,7 @@ downstream scoring, and this measurement cannot separate those causes.
 
 The existing `run_video()` signature already accepts optional half-open spans
 and rally-indexed contacts
-([`run_video.py` lines 199-231](../../src/annotator/run_video.py#L199-L231)).
+([`run_video.py` lines 199-231](../../src/annotator/annotate_video.py#L199-L231)).
 The capability exists, but the current serve-lookback measurement does not use
 it for GT control.
 
@@ -357,7 +357,7 @@ Relevant execution seams:
 - `src/annotator/evaluation/gt_scoring.py:401-448` for pinned fixture input assembly
 - `src/annotator/evaluation/gt_scoring.py:527-645` for existing calibration scoring
 - `src/annotator/evaluation/gt_scoring.py:690-702` for the current automatic floors
-- `src/annotator/run_video.py:199-231,349-465` for ordinary and injected input paths
+- `src/annotator/annotate_video.py:199-231,349-465` for ordinary and injected input paths
 - `src/annotator/evaluation/scoring.py:34-77` for GT rally extents
 
 The recorded summary was generated at Git SHA

@@ -6,6 +6,7 @@ import argparse
 import csv
 import gzip
 import itertools
+import sys
 from bisect import bisect_left
 from pathlib import Path
 
@@ -13,15 +14,17 @@ import numpy as np
 import pandas as pd
 from scenedetect import open_video
 
-from annotator.artifact_io import load_npy
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
 from annotator.config import COMPOSITION_KEEP_VOTE, BaseAnnotatorConfig, resolve
 from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
-from annotator.masks.composition import (
+from experiments.annotator.artifact_io import load_npy
+from experiments.annotator.scene_cut_mask import (
     CompositionSegment,
     build_composition_mask,
-    detect_cuts,
 )
-from annotator.video_metadata import probe_fps
+from shared.camera_cuts import detect_cuts
+from shared.video_metadata import probe_fps
 
 VIDEO_IDS = (1, 15, 21)
 THRESHOLDS = (22, 27)

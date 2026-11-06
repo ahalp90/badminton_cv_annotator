@@ -1,8 +1,7 @@
 """Small annotation results for callers that do not inspect outcome calculations."""
 
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.annotate_video import AnnotatorResult
+from annotator.types import ContactCandidate, ContactSequence, FinishedRally
 
 
 def empty_annotation(spans: list[tuple[int, int]], contacts: list[ContactCandidate]) -> AnnotatorResult:

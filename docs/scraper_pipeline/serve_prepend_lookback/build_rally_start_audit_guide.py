@@ -24,15 +24,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
-from annotator.review.broadcast_labels import (
-    LabelInterval,
-    SceneTruth,
-    VideoMetadata,
-    interval_index_at,
-    read_label_csv,
-    validate_partition,
-)
-from annotator.review.rally_starts import (
+from labelling.rally_starts import (
     CONTRACT_PATH,
     DECISION_VALUE_COLUMNS,
     TARGET_COLUMNS,
@@ -48,6 +40,14 @@ from annotator.review.rally_starts import (
     target_from_row,
     validate_decision,
     write_decision_csv,
+)
+from labelling.scene_labels import (
+    LabelInterval,
+    SceneTruth,
+    VideoMetadata,
+    interval_index_at,
+    read_label_csv,
+    validate_partition,
 )
 
 SCRIPT_PATH = Path(__file__).resolve()

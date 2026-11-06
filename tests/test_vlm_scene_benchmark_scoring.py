@@ -8,12 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from annotator.review.broadcast_labels import (
-    SceneTruth,
-    VideoMetadata,
-    make_interval,
-    write_label_csv,
-)
 from experiments.annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
@@ -33,6 +27,12 @@ from experiments.annotator.vlm_scene_benchmark.score_cli import main as score_ma
 from experiments.annotator.vlm_scene_benchmark.scoring import (
     boundary_metrics,
     score_run_record,
+)
+from labelling.scene_labels import (
+    SceneTruth,
+    VideoMetadata,
+    make_interval,
+    write_label_csv,
 )
 
 SHA256 = "a" * 64

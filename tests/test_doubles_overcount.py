@@ -5,7 +5,7 @@ The head count is the D26 semantics: standing detections within
 is a separate signal from the two-player pick, which still keys on the eps-0.01
 in-court count (detect path) or the anchor picks (sticky_anchor).
 
-Two producers feed the windowed ``scraper.doubles_flag`` rule:
+Two producers retain per-frame counts of extra in-court players:
 
 - ``_order_two_on_court`` (the live rtmlib path) returns the head count beside its
   ordered-pair result, so a doubles frame (>2 counted) is distinguishable from an

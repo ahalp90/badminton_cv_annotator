@@ -18,15 +18,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.courts.evidence import CourtInputs
+from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
+from annotator.courts.prepare_courts import CourtInputs
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.training.sequences import LabelledRally
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
@@ -40,6 +38,7 @@ from dataset_builder.vision import (
     load_npy_xz,
     load_pose_arrays,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
 
 OLD_COURT_SCHEMA = 'court-evidence/0.1'
 TEST_TRACK_FILENAME = 'shuttle_track_inpainted.npy.xz'

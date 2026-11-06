@@ -19,7 +19,6 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder._pose_process import (
     POSE_CHILD_STEM,
     load_raw_pose_mapping,
@@ -31,17 +30,18 @@ from dataset_builder.shuttle_quality import (
     summarize_shuttle_quality,
 )
 from shared.progress import report
+from shared.shuttle_track_validation import validate_shuttle_track
 
 if TYPE_CHECKING:
     import pandas as pd
 
+    from annotator.annotate_video import AnnotatorResult
     from annotator.config import BaseAnnotatorConfig
-    from annotator.courts.evidence import CourtEvidenceResult, CourtInputs
+    from annotator.courts.prepare_courts import CourtEvidenceResult, CourtInputs
     from annotator.models import AnnotatorModels
-    from annotator.outcomes.point_winner import LandingFilterOptions
-    from annotator.run_video import AnnotatorResult
-    from annotator.video_metadata import VideoMetadata
+    from annotator.rally_results.landing_and_winner import LandingFilterOptions
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
+    from shared.video_metadata import VideoMetadata
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.5"
@@ -487,7 +487,7 @@ def build_detected_court_stage(
 
     :param pose_dir: where ``pose`` is saved; the detector reads those native-pixel arrays.
     """
-    from annotator.courts.evidence import (
+    from annotator.courts.prepare_courts import (
         NoAcceptedCourtError,
         build_court_detector_evidence,
         read_detector_scenes,
@@ -572,7 +572,7 @@ def load_court_vision(
     resolution: tuple[float, float],
 ) -> CourtVision:
     """Restore validated operational court evidence from compressed artefacts."""
-    from annotator.courts.evidence import CourtEvidenceResult
+    from annotator.courts.prepare_courts import CourtEvidenceResult
     from dataset_builder._court_codec import load_court_provenance
 
     root = Path(output_dir)
@@ -629,7 +629,7 @@ def _court_inputs_payload(inputs: CourtInputs) -> dict[str, object]:
 
 
 def _court_inputs_from_payload(payload: object) -> CourtInputs:
-    from annotator.courts.evidence import CourtInputs
+    from annotator.courts.prepare_courts import CourtInputs
 
     record = _object_payload(payload, "court inputs")
     expected = {
@@ -761,9 +761,11 @@ def run_full_annotation_stage(
     ref_err_px: float = 3.5,
 ) -> AnnotationOutput:
     """Run the full annotator with replay masking and persist all primitives."""
+    from annotator.annotate_video import RunCapture, run_video
     from annotator.config import BaseAnnotatorConfig
-    from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-    from annotator.run_video import RunCapture, run_video
+    from annotator.rally_results.landing_and_winner import (
+        SHIPPED_LANDING_FILTER_OPTIONS,
+    )
 
 
     effective_base = models.preprocessing if models is not None else BaseAnnotatorConfig()
@@ -872,7 +874,7 @@ def persist_annotation_run(
 
 def annotation_result_payload(video_id: str, result: AnnotatorResult) -> dict[str, object]:
     """Return a versioned payload containing every ``AnnotatorResult`` field."""
-    from annotator.run_video import AnnotatorResult
+    from annotator.annotate_video import AnnotatorResult
 
     if not isinstance(video_id, str) or not video_id:
         raise ValueError("annotation video_id must be a non-empty string")
@@ -934,7 +936,7 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def _json_ready(value: object) -> object:
-    from annotator.sequence.contacts import ContactEvent
+    from annotator.types import ContactEvent
 
     if isinstance(value, ContactEvent):
         probability = None if math.isnan(value.probability) else value.probability

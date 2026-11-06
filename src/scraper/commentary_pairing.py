@@ -10,7 +10,8 @@ chunk sidecar's native unit). Each field keeps its producer's unit so nothing is
 silently converted; downstream assembly derives seconds from frames via the
 per-video fps when it wants both on one clock.
 
-Run as `python -m scraper.commentary_pairing` with PYTHONPATH=src.
+Run as `python -m scraper.commentary_pairing --rally-spans <csv>` with
+PYTHONPATH=src. The CSV is an explicit input; no legacy batch producer is assumed.
 
 See ``docs/scraper_pipeline/scraper_architecture.md`` for the stage and file
 contracts.
@@ -31,15 +32,14 @@ import numpy as np
 from frozendict import frozendict
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.masks.replay import filter_short_exclusion_runs
-from annotator.video_metadata import VideoMetadata
+from annotator.excluded_frames.replay import filter_short_exclusion_runs
+from shared.video_metadata import VideoMetadata
 
 from .config import (
     CHUNKS_DIR,
     MASKS_DIR,
     PAIR_WINDOW_S,
     PAIRS_CSV,
-    RALLY_SPANS_CSV,
     SCRAPE_DIR,
     SOURCES_MANIFEST_NAME,
     VIDEO_EXTENSIONS,
@@ -403,7 +403,7 @@ def _manifest_pairing_index(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Pair rallies to commentary chunks.')
-    parser.add_argument('--rally-spans', type=Path, default=RALLY_SPANS_CSV)
+    parser.add_argument('--rally-spans', type=Path, required=True)
     parser.add_argument('--chunks-dir', type=Path, default=CHUNKS_DIR)
     parser.add_argument('--masks-dir', type=Path, default=MASKS_DIR)
     parser.add_argument('--fps-csv', type=Path, default=VIDEO_FPS_CSV)

@@ -15,8 +15,7 @@ from typing import Any
 
 import joblib
 
-from annotator.contacts.features import contact_feature_dtype
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.contacts.build_features import contact_feature_dtype
 from annotator.training.sequences import (
     LabelledRally,
     SequenceTrainingVideo,
@@ -29,6 +28,7 @@ from annotator.training.workflow import (
     evaluation_counts,
     sequence_training_video,
 )
+from annotator.types import ContactEvent, ContactSequence
 from experiments.annotator.heuristic_only_tune.data import (
     COUNT_FIELDS,
     SearchVideo,

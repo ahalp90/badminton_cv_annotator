@@ -31,16 +31,19 @@ sys.path.insert(0, str(REPO / 'src'))
 from threadpoolctl import threadpool_limits
 
 from annotator.config import resolve
-from annotator.contacts.features import ContactFeatures
-from annotator.learned_model_inference import (
+from annotator.contacts.build_features import ContactFeatures
+from annotator.inference.learned import (
     LearnedModelPrediction,
     features_from_evidence,
     predict_contact_features,
 )
+from annotator.inference.prepare_contact_inference import (
+    AnnotationEvidence,
+    prepare_annotation,
+)
 from annotator.models import AnnotatorModels, load_models
-from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.contacts import stream_from_payload, stream_payload
-from annotator.sequence.rally_model import predict_rally_options, score_rally_review
+from annotator.rallies.refine_rallies import predict_rally_options, score_rally_review
+from experiments.annotator.contact_records import stream_from_payload, stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune import data
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json

@@ -11,9 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactSequence, FinishedRally
-from annotator.video_metadata import VideoMetadata
+from annotator.annotate_video import AnnotatorResult
+from annotator.types import ContactSequence, FinishedRally
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.artifact_index import (
     VIDEO_ARTIFACT_INDEX_SCHEMA,
@@ -43,6 +42,7 @@ from dataset_builder.selection import (
 from dataset_builder.shuttle_quality import summarize_shuttle_quality
 from scraper import commentary_cleaning, download_scraped_videos
 from scraper._llm_provider import LLMSettings
+from shared.video_metadata import VideoMetadata
 
 ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
 
@@ -631,7 +631,7 @@ class _ConcreteRuntimeFixture:
         from sklearn.dummy import DummyClassifier
 
         from annotator.models import AnnotatorModels, save_models
-        from annotator.sequence.rally_model import RallySelector
+        from annotator.rallies.refine_rallies import RallySelector
 
         tree = DummyClassifier(strategy='prior').fit([[0], [1]], [0, 1])
         self.annotator_model_dir = tmp_path / 'annotator-models'

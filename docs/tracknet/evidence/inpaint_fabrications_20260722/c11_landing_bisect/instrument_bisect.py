@@ -1,3 +1,4 @@
+# Historical experiment: requires its original source revision; retired annotation APIs are not restored.
 """Landing-regression bisect: pool vs sticky build_landing_kinematics on the pilot fixture.
 
 Runs the pilot video through run_video twice, identical but for build_landing_kinematics:
@@ -8,7 +9,7 @@ Everything upstream (contacts, spans, strikers, window_end) is identical by cons
 only moving part is the per-frame carry_ratio/ankle_ratio the settle cap and carry filter read.
 
 Traces pick_landing / window_end / landing_settle_cap / filtered_descending_landing by monkeypatching
-them on the annotator.outcomes.point_winner module (bare-name internal calls resolve through the module
+them on the annotator.rally_results.landing_and_winner module (bare-name internal calls resolve through the module
 globals, so wrapping the module attribute catches the nested calls too). Then recomputes the
 settle-cap arithmetic offline from the two captured kin objects to attribute the mechanism.
 """
@@ -19,10 +20,11 @@ from pathlib import Path
 
 import numpy as np
 
-import annotator.outcomes.point_winner as pw
+import annotator.rally_results.landing_and_winner as pw
+from annotator.annotate_video import run_video
 from annotator.evaluation.fixtures import PILOT
 from annotator.evaluation.gt_scoring import build_run_video_inputs
-from annotator.outcomes.point_winner import LandingKinematics
+from annotator.rally_results.landing_and_winner import LandingKinematics
 from annotator.rally_segmentation import (
     ANKLE_L,
     ANKLE_R,
@@ -32,14 +34,13 @@ from annotator.rally_segmentation import (
     court_scale_boxes,
     rolling_nanmedian,
 )
-from annotator.run_video import run_video
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 
 
 # ---------------------------------------------------------------------------
 # Pool (d04a789) build_landing_kinematics, copied verbatim from
-# git show d04a789:src/annotator/outcomes/point_winner.py (lines ~417-452).
+# git show d04a789:src/annotator/rally_results/landing_and_winner.py (lines ~417-452).
 # ---------------------------------------------------------------------------
 def build_landing_kinematics_pool(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,

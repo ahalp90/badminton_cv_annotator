@@ -36,6 +36,7 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
+from annotator.annotate_video import RunCapture, run_video
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
 from annotator.evaluation.fixtures import (
     FIXTURES,
@@ -52,12 +53,16 @@ from annotator.evaluation.scoring import (
     greedy_match,
     load_gt_rallies,
 )
-from annotator.masks.inpaint import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
-from annotator.review.broadcast_labels import VideoMetadata
-from annotator.run_video import RunCapture, run_video
+from annotator.excluded_frames.shuttle_hallucination import (
+    DEGRADED,
+    FABRICATED,
+    NO_FLAG,
+    SUSPECT_FLAT,
+)
 from experiments.annotator.heuristic_tuning import (
     serve_prepend_measurement as candidate_measurement,
 )
+from labelling.scene_labels import VideoMetadata
 
 WINDOW_SECONDS = 1.0
 CLEAN_RUN_BASE30_FRAMES = 5

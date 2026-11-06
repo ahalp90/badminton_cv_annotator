@@ -12,19 +12,17 @@ import cv2
 import numpy as np
 import pytest
 
-import annotator.video_metadata as video_metadata_module
-from annotator.validation_overlay.core.cli import make_render_plan, render
-from annotator.validation_overlay.core.decode import (
-    iter_span_frames,
-)
-from annotator.validation_overlay.core.timeline import (
+import shared.video_metadata as video_metadata_module
+from shared.video_metadata import VideoMetadata, probe_video_metadata
+from video_overlay.decode import iter_span_frames
+from video_overlay.render import make_render_plan, render
+from video_overlay.timeline import (
     Segment,
     SegmentPlan,
     SpacerPlan,
     SpanState,
     build_timeline,
 )
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 
 SOURCE_FPS = Fraction(25)
 SOURCE_WIDTH = 64

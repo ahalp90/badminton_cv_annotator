@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.rally.spans import gap_state_rest_mask
+from annotator.rallies.find_rallies import gap_state_rest_mask
 from annotator.types import ReentryGuardVariant, SmoothingMode
 from tests.annotator_config import burst_config
 
@@ -122,7 +122,7 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
 
 
 def test_impulse_cell_candidates_consumes_threshold_multiple() -> None:
-    from annotator.rally.contacts import impulse_cell_candidates
+    from annotator.contacts.heuristics import impulse_cell_candidates
 
     apex = np.array([0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0], dtype=float) * 0.05
     track = np.column_stack([np.full(len(apex), 0.5), apex, np.ones(len(apex))])

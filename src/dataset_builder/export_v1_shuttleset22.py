@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.export_v1 import (
     DatasetIdentity,
     VideoInputs,
@@ -46,6 +45,7 @@ from dataset_builder.vision import (
     TRACK_FILENAME,
     load_json_gz,
 )
+from shared.video_metadata import VideoMetadata
 from shuttleset22 import (
     DEFAULT_SOURCES,
     Source,

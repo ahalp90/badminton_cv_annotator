@@ -6,13 +6,13 @@ import numpy as np
 import pytest
 
 from annotator.config import BASE_FPS
-from annotator.contacts.features import (
+from annotator.contacts.build_features import (
     BASE_MISSINGNESS_SIGNALS,
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     build_contact_features,
 )
-from annotator.rally.contacts import FLOOR_EPS
+from annotator.contacts.heuristics import FLOOR_EPS
 from annotator.types import StickyResult
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import input_stages

@@ -7,9 +7,20 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.courts.evidence import detected_court_info
-from annotator.courts.scenes import build_scene_courts
-from annotator.evaluation.shuttleset_features import (
+from annotator.courts.frame_geometry import build_scene_courts
+from annotator.courts.prepare_courts import detected_court_info
+from dataset_builder.features import (
+    InterpolationType,
+    interpolate_internal_gaps,
+    median_absolute_deviation,
+    movement_inefficiency,
+    posture_signal,
+    project_positions_by_scene,
+    rally_timestamps,
+    recovery_at_opponent_contacts,
+    select_sticky_keypoints,
+)
+from experiments.annotator.shuttleset_benchmarks.shuttleset_features import (
     ShuttleFeatureInputs,
     coordinate_error_summary,
     court_corner_error_rows,
@@ -21,17 +32,6 @@ from annotator.evaluation.shuttleset_features import (
     score_contact_coordinates,
     serve_speed_proxy,
     tanh_degradation,
-)
-from dataset_builder.features import (
-    InterpolationType,
-    interpolate_internal_gaps,
-    median_absolute_deviation,
-    movement_inefficiency,
-    posture_signal,
-    project_positions_by_scene,
-    rally_timestamps,
-    recovery_at_opponent_contacts,
-    select_sticky_keypoints,
 )
 
 

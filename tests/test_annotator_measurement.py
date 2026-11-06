@@ -15,13 +15,8 @@ import pandas as pd
 import pytest
 
 import experiments.annotator.measurement as runner
-from annotator.artifact_io import (
-    load_npy,
-    open_text_artifact,
-    read_json_object,
-    write_json_object,
-)
-from annotator.courts.evidence import (
+from annotator.annotate_video import AnnotatorResult
+from annotator.courts.prepare_courts import (
     DETECTED_PARENT,
     DETECTOR_RESULT_SCHEMA,
     PERSON_COURT_MARGIN,
@@ -31,9 +26,14 @@ from annotator.courts.evidence import (
     CourtSceneRecord,
     SceneStatus,
 )
-from annotator.run_video import AnnotatorResult
 from dataset_builder import vision
 from dataset_builder.vision import CourtDetectorSettings
+from experiments.annotator.artifact_io import (
+    load_npy,
+    open_text_artifact,
+    read_json_object,
+    write_json_object,
+)
 
 FAKE_MODELS = SimpleNamespace(preprocessing=runner.BaseAnnotatorConfig())
 

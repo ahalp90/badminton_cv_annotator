@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.courts.scenes import SceneCourt
+from annotator.annotate_video import AnnotatorResult
+from annotator.courts.frame_geometry import SceneCourt
 from annotator.evaluation import gt_scoring
 from annotator.evaluation.fixtures import FIXTURES
 from annotator.evaluation.gt_scoring import (
@@ -22,15 +23,19 @@ from annotator.evaluation.scoring import (
     strict_contact_rows,
     wide_edge_contact_rows,
 )
-from annotator.outcomes.point_winner import (
+from annotator.rally_results.landing_and_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
     Landing,
     LandingFilterOptions,
     RallyOutcome,
 )
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate, CourtHalf
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
 # raised from the drafted 0.5).

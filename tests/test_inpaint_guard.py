@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from annotator.masks.inpaint import (
+from annotator.excluded_frames.shuttle_hallucination import (
     DEFAULT_HALO_FRAMES,
     DEGRADED,
     FABRICATED,

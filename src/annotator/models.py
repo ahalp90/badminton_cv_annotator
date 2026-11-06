@@ -10,12 +10,12 @@ import joblib
 import sklearn
 
 from annotator.config import BaseAnnotatorConfig
-from annotator.contacts.model import CONTACT_FEATURE_NAMES, ContactModelConfig
-from annotator.sequence.rally_model import (
-    REVIEW_FEATURE_NAMES,
-    RallySelector,
+from annotator.contacts.score_candidates import (
+    CONTACT_FEATURE_NAMES,
+    ContactModelConfig,
 )
-from annotator.sequence.rally_options import FEATURE_NAMES
+from annotator.rallies.build_contact_proposals import FEATURE_NAMES
+from annotator.rallies.refine_rallies import REVIEW_FEATURE_NAMES, RallySelector
 
 MODEL_SCHEMA = 'annotator-three-models/2'
 MODEL_FILENAME = 'models.joblib'

@@ -14,10 +14,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.courts.evidence as court_evidence_module
-import annotator.run_video as run_video_module
+import annotator.annotate_video as run_video_module
+import annotator.courts.prepare_courts as court_evidence_module
+from annotator.annotate_video import AnnotatorResult, RunCapture, run_video
 from annotator.cli import main as annotation_main
-from annotator.courts.evidence import (
+from annotator.courts.prepare_courts import (
     DETECTOR_RESULT_SCHEMA,
     CourtEvidenceResult,
     CourtInputs,
@@ -27,14 +28,20 @@ from annotator.courts.evidence import (
     SceneStatus,
     build_court_detector_evidence,
 )
-from annotator.masks.inpaint import grade_track
+from annotator.excluded_frames.shuttle_hallucination import grade_track
 from annotator.models import AnnotatorModels, save_models
-from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
-from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence import ContactEvent
-from annotator.sequence.contacts import ContactSequence, FinishedRally
-from annotator.types import ContactCandidate, CourtHalf
-from annotator.video_metadata import VideoMetadata
+from annotator.rally_results.landing_and_winner import (
+    Landing,
+    RallyOutcome,
+    WinnerSource,
+)
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 from dataset_builder import vision
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.shuttle_quality import (
@@ -42,6 +49,7 @@ from dataset_builder.shuttle_quality import (
     summarize_shuttle_quality,
 )
 from scraper.commentary_pairing import pair_video
+from shared.video_metadata import VideoMetadata
 
 
 def _metadata(tmp_path: Path, *, frame_count: int = 6, fps: int = 25) -> VideoMetadata:
@@ -191,7 +199,7 @@ def _direct_annotation(
         pose.ndet,
         fps=float(metadata.fps),
         models=models,
-        landing_options=run_video_module.point_winner.SHIPPED_LANDING_FILTER_OPTIONS,
+        landing_options=run_video_module.landing_and_winner.SHIPPED_LANDING_FILTER_OPTIONS,
         resolution=inputs.resolution,
         video_id=video_id,
 

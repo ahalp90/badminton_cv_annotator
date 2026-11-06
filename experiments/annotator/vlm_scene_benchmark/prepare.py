@@ -15,7 +15,7 @@ from typing import Any
 import cv2
 
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig, resolve
-from annotator.masks.composition import detect_cuts
+from shared.camera_cuts import detect_cuts
 
 from .contracts import ShardSpec
 from .runtime import sha256_file

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from annotator.artifact_io import read_json_object, write_json_object
 from experiments.annotator import records
+from experiments.annotator.artifact_io import read_json_object, write_json_object
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

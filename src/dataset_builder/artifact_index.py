@@ -6,7 +6,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.fixed_sources import FixedSourceManifest, ResolvedFixedSource
 from dataset_builder.manifest import artifact_integrity, run_manifest_sha256
 from dataset_builder.models import (
@@ -17,6 +16,7 @@ from dataset_builder.models import (
 )
 from dataset_builder.records import SourceReference
 from dataset_builder.vision import load_json_gz, save_json_gz
+from shared.video_metadata import VideoMetadata
 
 VIDEO_ARTIFACT_INDEX_SCHEMA = "dataset-builder-video-artifact-index/1"
 VIDEO_ARTIFACT_INDEX_DIRECTORY = "artifact_index"

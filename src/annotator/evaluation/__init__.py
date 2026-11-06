@@ -1,1 +1,1 @@
-"""Calibration components for the annotator migration."""
+"""Ground-truth scoring and fixtures used by annotator experiments."""

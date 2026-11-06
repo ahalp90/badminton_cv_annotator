@@ -8,19 +8,19 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
+from annotator.annotate_video import run_video
 from annotator.config import BaseAnnotatorConfig, frames_at_fps, resolve
+from annotator.contacts.heuristics import impulse_cell_candidates
 from annotator.evaluation.fixtures import Fixture
 from annotator.evaluation.gt_scoring import canonical_tolerance
 from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
-from annotator.masks.inpaint import CODE_NAMES, NO_FLAG
-from annotator.rally.contacts import impulse_cell_candidates
-from annotator.review.broadcast_labels import (
+from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES, NO_FLAG
+from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
     read_label_csv,
     validate_partition,
 )
-from annotator.run_video import run_video
 
 POSE_BANDS = {
     "middle-half": 0.5,

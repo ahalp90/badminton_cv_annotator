@@ -10,20 +10,18 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.calc_helpers import _nan_rolling_mean, _rolling_mean, compute_speed
+from annotator.array_calc_helpers import _nan_rolling_mean, _rolling_mean, compute_speed
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.rally import contacts as contact_detection
-from annotator.rally.contacts import (
+from annotator.contacts import heuristics as contact_detection
+from annotator.contacts.heuristics import (
     contact_proximity_ok,
     impulse_cell_candidates,
     span_impulses,
     suppress_contact_flags,
     wrist_contact_near,
 )
-from annotator.rally.spans import (
-    active_region_rally_spans,
-)
-from annotator.rally_segmentation import apply_replay_mask, segment_video
+from annotator.excluded_frames.replay import apply_replay_mask
+from annotator.rallies.find_rallies import active_region_rally_spans, segment_video
 from annotator.types import SmoothingMode, SpanOpen
 from tests.annotator_config import burst_config
 

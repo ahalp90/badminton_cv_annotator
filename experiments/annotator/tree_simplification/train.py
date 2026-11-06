@@ -25,12 +25,12 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.sequence.contacts import stream_payload
-from annotator.sequence.rally_model import RallySelector, predict_rally_options
+from annotator.rallies.refine_rallies import RallySelector, predict_rally_options
 from annotator.training import rally as rally_training
 from annotator.training.rally import RallyFitConfig
 from annotator.training.trees import TreeFitConfig
 from dataset_builder.vision import load_npy_xz, save_npy_xz
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import dump_atomically, pooled_scores, progress
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,

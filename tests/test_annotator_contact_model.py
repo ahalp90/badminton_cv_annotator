@@ -5,11 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.contacts.features import (
-    ContactFeatures,
-    build_contact_features,
-)
-from annotator.contacts.model import (
+from annotator.contacts.build_features import ContactFeatures, build_contact_features
+from annotator.contacts.score_candidates import (
     CONTACT_FEATURE_NAMES,
     ContactModelConfig,
     contact_feature_matrix,

@@ -93,9 +93,9 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     """Find rallies in one whole video and keep each found rally's review score."""
     from threadpoolctl import threadpool_limits
 
+    from annotator.annotate_video import RunCapture, run_video
     from annotator.models import load_models
-    from annotator.run_video import RunCapture, run_video
-    from annotator.sequence.contacts import stream_payload
+    from experiments.annotator.contact_records import stream_payload
     from experiments.annotator.heuristic_only_tune import data
     from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 

@@ -339,7 +339,7 @@ real coverage trade-off rather than a theoretical edge case.
 
 The links below are relative to this document.
 
-- [run_video.py](../../../src/annotator/run_video.py): `run_video`,
+- [run_video.py](../../../src/annotator/annotate_video.py): `run_video`,
   `build_serve_options`, mask filtering, processing order, contact injection and
   point-winner calls
 - [rally_segmentation.py](../../../src/annotator/rally_segmentation.py):

@@ -6,15 +6,25 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.features import contact_feature_dtype
-from annotator.contacts.model import ScoredContacts, contact_feature_matrix
-from annotator.courts.scenes import SceneCourt
-from annotator.heuristic_inference import select_heuristic_contacts
-from annotator.outcomes import video as video_outcomes
-from annotator.outcomes.point_winner import Landing, LandingKinematics, RallyOutcome
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.sequence.rally_options import build_rally_context
-from annotator.types import ContactCandidate, CourtHalf, StickyResult
+from annotator.contacts.build_features import contact_feature_dtype
+from annotator.contacts.score_candidates import ScoredContacts, contact_feature_matrix
+from annotator.courts.frame_geometry import SceneCourt
+from annotator.inference.heuristic import select_heuristic_contacts
+from annotator.rallies.build_contact_proposals import build_rally_context
+from annotator.rally_results import estimate_results as video_outcomes
+from annotator.rally_results.landing_and_winner import (
+    Landing,
+    LandingKinematics,
+    RallyOutcome,
+)
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+    StickyResult,
+)
 
 
 def _scene(
@@ -71,7 +81,7 @@ def test_hit_height_uses_net_band_at_contact_scene(monkeypatch):
         return 1
 
     monkeypatch.setattr(
-        video_outcomes.point_winner, 'hit_height', fake_hit_height,
+        video_outcomes.landing_and_winner, 'hit_height', fake_hit_height,
     )
     evidence = SimpleNamespace(track=np.zeros((10, 3)), resolution=(1280.0, 720.0), scene_courts=scenes)
     contacts = (FinishedRally(ContactSequence(0, 0, 10, (ContactEvent(7, np.nan, CourtHalf.TOP),)), CourtHalf.TOP),)
@@ -112,9 +122,9 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
         error_bands.append(band_m)
         return RallyOutcome(None, None, landing_arg, None, False, False, None, False)
 
-    monkeypatch.setattr(video_outcomes.point_winner, 'build_landing_kinematics', fake_kinematics)
-    monkeypatch.setattr(video_outcomes.point_winner, 'pick_landing_to_end', fake_pick)
-    monkeypatch.setattr(video_outcomes.point_winner, 'resolve_rally_outcome', fake_verdict)
+    monkeypatch.setattr(video_outcomes.landing_and_winner, 'build_landing_kinematics', fake_kinematics)
+    monkeypatch.setattr(video_outcomes.landing_and_winner, 'pick_landing_to_end', fake_pick)
+    monkeypatch.setattr(video_outcomes.landing_and_winner, 'resolve_rally_outcome', fake_verdict)
 
     contact_data = (FinishedRally(ContactSequence(0, 0, 12, (ContactEvent(7, np.nan, CourtHalf.TOP),)), CourtHalf.TOP),)
     evidence = SimpleNamespace(

@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.features import InterpolationType, PlayerFeatureInputs
+from shared.video_metadata import VideoMetadata
 
 
 def test_summary_counts_finite_provenance_and_metric_coverage(monkeypatch: pytest.MonkeyPatch) -> None:

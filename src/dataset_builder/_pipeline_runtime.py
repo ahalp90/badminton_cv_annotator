@@ -11,8 +11,7 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 
 from annotator.models import model_files
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.video_metadata import probe_video_metadata
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
@@ -91,6 +90,7 @@ from scraper import (
 )
 from scraper import config as scraper_config
 from scraper.commentary_pairing import pair_video_with_metadata
+from shared.video_metadata import probe_video_metadata
 
 METADATA_FILENAME = "video_metadata.json.gz"
 PAIRING_FILENAME = "commentary_pairing.json.gz"
@@ -1059,7 +1059,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 self._video_stage("pose", video_id),
                 self._video_stage("court", video_id),
             ),
-            command=(self._current().path, "-m", "annotator.run_video", video_id),
+            command=(self._current().path, "-m", "annotator.annotate_video", video_id),
             configuration=_annotation_configuration(),
             model_weights=model_files(self.config.annotator_model_dir),
             inputs=inputs,

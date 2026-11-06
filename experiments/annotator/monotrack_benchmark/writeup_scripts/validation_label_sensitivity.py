@@ -15,7 +15,7 @@ from annotator.config import frames_at_fps
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import stream_from_payload
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,

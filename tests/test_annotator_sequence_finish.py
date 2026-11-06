@@ -6,20 +6,15 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    FinishedRally,
+from annotator.contacts.player_attribution import fit_rally_sides
+from annotator.rallies.build_contact_proposals import (
+    RallyContext,
+    RallyOptions,
     events_between,
-    fit_rally_sides,
     initial_sequences,
 )
-from annotator.sequence.rally_model import (
-    extend_boundaries,
-    finish_rallies,
-)
-from annotator.sequence.rally_options import RallyContext, RallyOptions
-from annotator.types import CourtHalf
+from annotator.rallies.refine_rallies import extend_boundaries, finish_rallies
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
 
 TOP = CourtHalf.TOP
 BOT = CourtHalf.BOT
