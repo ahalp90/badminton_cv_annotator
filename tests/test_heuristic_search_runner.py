@@ -12,8 +12,8 @@ from typing import Any, cast
 
 import pytest
 
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.heuristic_only_tune import run as search
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec
 

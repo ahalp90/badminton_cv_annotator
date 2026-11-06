@@ -20,7 +20,6 @@ from annotator.contacts.attribution import contact_player_evidence
 from annotator.courts.scenes import SceneCourt
 from annotator.masks.replay import combine_mask, court_absence_signal
 from annotator.outcomes.point_winner import (
-    CourtHalf,
     LandingFilterOptions,
     LandingKinematics,
     convert_landing_options,
@@ -29,6 +28,7 @@ from annotator.outcomes.point_winner import (
 )
 from annotator.rally.evidence import build_sticky_result
 from annotator.rally_segmentation import segment_video
+from annotator.types import CourtHalf
 from annotator.video_metadata import probe_fps
 from tests.annotator_config import burst_config
 

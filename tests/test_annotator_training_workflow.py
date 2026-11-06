@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from annotator.contacts.features import ContactFeatures
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.training import workflow
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.vision import load_json_gz
 

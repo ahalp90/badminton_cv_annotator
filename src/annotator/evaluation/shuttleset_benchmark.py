@@ -38,23 +38,21 @@ from annotator.evaluation.shuttleset_features import (
     feature_population,
     score_contact_coordinates,
 )
-from annotator.outcomes import point_winner
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    Landing,
-    RallyOutcome,
-    WinnerSource,
-)
+from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import OTHER_HALF, ContactCandidate, CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.features import (
     derive_player_feature_inputs,
 )
 from dataset_builder.records import load_rally_records
 from dataset_builder.vision import load_json_gz, save_json_gz
-from shared.court import load_all_court_info
+from shared.court import (
+    HOMOGRAPHY_RESOLUTION,
+    load_all_court_info,
+    project_pixels_to_court,
+)
 
 BENCHMARK_SCHEMA = "shuttleset-production-benchmark/1"
 EXPECTED_RUN_ID = "a5d37677def443469f6b83d8ee838e7b"
@@ -138,7 +136,7 @@ def projection_to_annotator_result(
         relative_winner = verdict["value"]
         winner = None
         if relative_winner is not None:
-            winner = striker if relative_winner == "won" else point_winner.OTHER_HALF[striker]
+            winner = striker if relative_winner == "won" else OTHER_HALF[striker]
         source = verdict["source"]
         outcomes[rally_id] = RallyOutcome(
             winner, None if source is None else WinnerSource(source),
@@ -621,9 +619,9 @@ def _landing_coordinate_rows(
     ):
         gt_position = None
         if winner.landing_px is not None:
-            projected = point_winner.project_pixels_to_court(
+            projected = project_pixels_to_court(
                 np.asarray(winner.landing_px, dtype=float).reshape(2, 1),
-                point_winner.HOMOGRAPHY_RESOLUTION,
+                HOMOGRAPHY_RESOLUTION,
                 court_info,
             )
             gt_position = (float(projected[0, 0]), float(projected[1, 0]))

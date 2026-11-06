@@ -119,6 +119,25 @@ def normalize_position(arr: np.ndarray, court_info: dict) -> np.ndarray:
     return np.stack((x_normalized, y_normalized))
 
 
+def project_pixels_to_court(
+    px_xy: np.ndarray, resolution: tuple[float, float], court_info: dict,
+) -> np.ndarray:
+    """(2, N) pixels at `resolution` -> (2, N) normalised court coords (doubles outline = unit sq).
+
+    Pixel positions are scaled from the supplied image resolution to the
+    homography's reference resolution before projection through `court_info['H']`.
+    Passing `shared.court.HOMOGRAPHY_RESOLUTION` leaves pixel coordinates unchanged.
+
+    :param px_xy: (2, N) pixel coordinates at `resolution`.
+    :param resolution: (width, height) `px_xy` is expressed in.
+    :param court_info: dict carrying `'H'` plus the court boundary keys `normalize_position` reads.
+    :return: (2, N) normalised court coordinates.
+    """
+    scaled = scale_pos_by_resolution(px_xy, width=resolution[0], height=resolution[1])
+    court = project(court_info['H'], convert_homogeneous(scaled))
+    return normalize_position(court, court_info)
+
+
 def check_pos_in_court(
     keypoints: np.ndarray,
     vid: int,

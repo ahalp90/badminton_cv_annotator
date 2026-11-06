@@ -26,7 +26,6 @@ from annotator.learned_model_inference import (
     predict_contacts,
 )
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence, prepare_annotation
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_options import build_rally_context
@@ -48,6 +47,7 @@ from annotator.training.sequences import (
     whole_rally_correctness,
 )
 from annotator.training.trees import TreeFitConfig
+from annotator.types import CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (

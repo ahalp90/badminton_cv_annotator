@@ -7,11 +7,9 @@ import pytest
 
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD
 from annotator.courts import evidence
+from annotator.courts.evidence import corner_error_band_from_corners
 from annotator.evaluation.fixtures import FIXTURES
-from annotator.outcomes.point_winner import (
-    corner_error_band_from_corners,
-    project_pixels_to_court,
-)
+from shared.court import project_pixels_to_court
 
 
 def _identity_info() -> dict[str, object]:

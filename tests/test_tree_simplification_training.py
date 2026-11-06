@@ -8,7 +8,6 @@ import pytest
 from threadpoolctl import threadpool_limits
 
 from annotator.contacts.model import positive_probabilities
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_options import RallyContext
 from annotator.training import rally as production_training
@@ -16,6 +15,7 @@ from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
 from annotator.training.trees import TreeFitConfig
+from annotator.types import CourtHalf
 from experiments.annotator.tree_simplification import train
 from experiments.annotator.tree_simplification.options import LabelledOptions
 

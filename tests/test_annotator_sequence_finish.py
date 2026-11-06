@@ -6,7 +6,6 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -20,6 +19,7 @@ from annotator.sequence.rally_model import (
     finish_rallies,
 )
 from annotator.sequence.rally_options import RallyContext, RallyOptions
+from annotator.types import CourtHalf
 
 TOP = CourtHalf.TOP
 BOT = CourtHalf.BOT

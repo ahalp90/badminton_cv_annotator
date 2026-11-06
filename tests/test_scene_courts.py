@@ -9,7 +9,7 @@ from annotator.courts.scenes import (
     court_at_frame,
     scene_ref_corners,
 )
-from annotator.outcomes.point_winner import project_pixels_to_court
+from shared.court import project_pixels_to_court
 
 
 def _empty_scene(start_frame: int, end_frame: int) -> SceneCourt:

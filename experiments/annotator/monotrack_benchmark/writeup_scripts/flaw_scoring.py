@@ -35,9 +35,9 @@ from annotator.config import frames_at_fps
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import stream_from_payload
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )

@@ -31,9 +31,9 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
         SceneStatus,
         build_net_band,
         build_scene_rows,
+        corner_error_band_from_corners,
         detected_court_info,
     )
-    from annotator.outcomes.point_winner import corner_error_band_from_corners
     from dataset_builder.vision import CourtVision, persist_court_vision
     from shared.court import HOMOGRAPHY_RESOLUTION
 

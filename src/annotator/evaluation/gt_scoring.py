@@ -34,12 +34,14 @@ from annotator.evaluation.scoring import (
 )
 from annotator.masks.inpaint import code_counts, grade_track
 from annotator.outcomes import point_winner
-from annotator.outcomes.point_winner import (
-    SHIPPED_LANDING_FILTER_OPTIONS,
-    CourtHalf,
-)
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.run_video import AnnotatorResult, run_video
-from shared.court import load_all_court_info
+from annotator.types import CourtHalf
+from shared.court import (
+    HOMOGRAPHY_RESOLUTION,
+    load_all_court_info,
+    project_pixels_to_court,
+)
 
 log = logging.getLogger(__name__)
 
@@ -691,9 +693,9 @@ def score_video(
             detected_landing = (None if outcome is None else outcome.landing) if covered else None
             pred_landing = detected_landing.half if detected_landing is not None else None
             if landing_court is not None:
-                projected = point_winner.project_pixels_to_court(
+                projected = project_pixels_to_court(
                     np.array([[gt_landing[0]], [gt_landing[1]]]),
-                    point_winner.HOMOGRAPHY_RESOLUTION,
+                    HOMOGRAPHY_RESOLUTION,
                     landing_court,
                 )
                 landing_half = CourtHalf.TOP if float(projected[1, 0]) < point_winner.NET_COURT_Y else CourtHalf.BOT

@@ -12,7 +12,6 @@ from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.contacts.attribution import contact_player_evidence
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes.point_winner import (
-    CourtHalf,
     Landing,
     LandingFilterOptions,
     LandingKinematics,
@@ -29,7 +28,7 @@ from annotator.outcomes.point_winner import (
     resolve_rally_outcome,
 )
 from annotator.sequence.contacts import fit_alternation
-from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
+from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, CourtHalf, StickyResult
 
 COURT_WIDTH_M = 6.10
 COURT_LENGTH_M = 13.40

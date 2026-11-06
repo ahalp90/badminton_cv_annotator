@@ -10,7 +10,6 @@ from threadpoolctl import threadpool_limits
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -34,6 +33,7 @@ from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
 from annotator.training.trees import TreeFitConfig
+from annotator.types import CourtHalf
 
 
 def training_video(identity: str, group: str, correct: bool) -> SequenceTrainingVideo:

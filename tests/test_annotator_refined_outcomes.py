@@ -1,12 +1,12 @@
 """Carry the selected rally sides through to outcome preparation."""
 
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     FinishedRally,
     fit_rally_sides,
 )
+from annotator.types import CourtHalf
 
 
 def test_refined_contacts_keep_sequence_membership_and_player_order():

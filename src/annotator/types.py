@@ -1,10 +1,20 @@
-"""Shared annotator settings, contact records and tracked-player declarations."""
+"""Shared court halves, annotator settings and player/contact records."""
 from __future__ import annotations
 
 from enum import IntEnum, StrEnum
 from typing import NamedTuple
 
 import numpy as np
+
+
+class CourtHalf(StrEnum):
+    """Camera-relative court half of a player or landing: far (Top) or near (Bot)."""
+
+    TOP = 'Top'
+    BOT = 'Bot'
+
+
+OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 
 
 class SmoothingMode(StrEnum):

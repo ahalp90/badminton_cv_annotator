@@ -13,7 +13,6 @@ from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.gt_scoring import write_geometric_verdicts_csv
 from annotator.heuristic_inference import scoring_filter
 from annotator.outcomes.point_winner import (
-    CourtHalf,
     Landing,
     LandingFilterOptions,
     convert_landing_options,
@@ -26,7 +25,7 @@ from annotator.run_video import (
 )
 from annotator.sequence import ContactEvent, ContactSequence
 from annotator.sequence.contacts import FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, CourtHalf
 from experiments.annotator.landing_search import (
     compare_landing_searches,
     validate_search_limits,

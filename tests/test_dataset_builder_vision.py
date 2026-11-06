@@ -29,16 +29,11 @@ from annotator.courts.evidence import (
 )
 from annotator.masks.inpaint import grade_track
 from annotator.models import AnnotatorModels, save_models
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    Landing,
-    RallyOutcome,
-    WinnerSource,
-)
+from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence import ContactEvent
 from annotator.sequence.contacts import ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME

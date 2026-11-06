@@ -9,8 +9,8 @@ from itertools import pairwise
 import numpy as np
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactSequence
+from annotator.types import CourtHalf
 
 SUMMARY_FEATURE_NAMES = (
     "predicted_event_count",

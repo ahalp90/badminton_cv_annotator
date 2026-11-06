@@ -11,15 +11,10 @@ from annotator.contacts.model import ScoredContacts
 from annotator.courts.scenes import SceneCourt
 from annotator.heuristic_inference import select_heuristic_contacts
 from annotator.outcomes import video as video_outcomes
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    Landing,
-    LandingKinematics,
-    RallyOutcome,
-)
+from annotator.outcomes.point_winner import Landing, LandingKinematics, RallyOutcome
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
 from annotator.sequence.rally_options import build_rally_context
-from annotator.types import ContactCandidate, StickyResult
+from annotator.types import ContactCandidate, CourtHalf, StickyResult
 
 
 def _scene(

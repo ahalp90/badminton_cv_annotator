@@ -25,7 +25,8 @@ from annotator.evaluation.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.outcomes.point_winner import CourtHalf, WinnerSource
+from annotator.outcomes.point_winner import WinnerSource
+from annotator.types import CourtHalf
 from dataset_builder.vision import save_json_gz
 
 

@@ -16,7 +16,6 @@ from annotator.contacts.model import (
 )
 from annotator.courts.scenes import SceneCourt
 from annotator.heuristic_inference import select_heuristic_contacts
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -25,7 +24,7 @@ from annotator.sequence.rally_model import (
 )
 from annotator.sequence.rally_options import FEATURE_NAMES, build_rally_context
 from annotator.training.workflow import sequence_training_video
-from annotator.types import ContactCandidate, StickyResult
+from annotator.types import ContactCandidate, CourtHalf, StickyResult
 from experiments.annotator.tree_simplification.options import expand_pool
 
 

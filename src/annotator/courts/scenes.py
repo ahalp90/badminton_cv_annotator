@@ -7,8 +7,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.courts.evidence import build_net_band, detected_court_info
-from annotator.outcomes.point_winner import corner_error_band_from_corners
+from annotator.courts.evidence import (
+    build_net_band,
+    corner_error_band_from_corners,
+    detected_court_info,
+)
 from shared.court import HOMOGRAPHY_RESOLUTION
 
 

@@ -2,8 +2,8 @@
 
 import pytest
 
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.good_court_refit.compare import (
     compare_video,
     expected_videos,

@@ -16,7 +16,6 @@ import numpy as np
 import pandas as pd
 
 from annotator.config import BASE_FPS, frames_at_fps
-from annotator.outcomes.point_winner import project_pixels_to_court
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (
     InterpolationType,
@@ -29,7 +28,7 @@ from dataset_builder.features import (
     validate_fps,
     validate_frame_range,
 )
-from shared.court import HOMOGRAPHY_RESOLUTION
+from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
 
 
 class ShuttleFeatureInputs(NamedTuple):

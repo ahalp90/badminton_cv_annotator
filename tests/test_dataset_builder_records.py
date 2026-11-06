@@ -10,15 +10,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    Landing,
-    RallyOutcome,
-    WinnerSource,
-)
+from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder.manifest import (
     artifact_integrity,

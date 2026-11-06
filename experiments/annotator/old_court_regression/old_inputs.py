@@ -20,12 +20,13 @@ import pandas as pd
 
 from annotator.courts.evidence import CourtInputs
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, CourtHalf
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.run_video import AnnotatorResult, RunCapture, run_video
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.shuttle_track import validate_shuttle_track
 from annotator.training.sequences import LabelledRally
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
+from annotator.types import CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,

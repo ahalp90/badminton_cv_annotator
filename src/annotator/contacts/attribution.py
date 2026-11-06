@@ -5,8 +5,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from annotator.courts.scenes import SceneCourt, court_at_frame
-from annotator.outcomes.point_winner import CourtHalf
-from annotator.types import StickyResult
+from annotator.types import CourtHalf, StickyResult
 
 
 def contact_player_evidence(

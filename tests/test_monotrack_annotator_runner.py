@@ -14,13 +14,14 @@ import pytest
 import annotator.models as model_module
 import annotator.run_video as video_module
 from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, CourtHalf
+from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     FinishedRally,
     stream_payload,
 )
+from annotator.types import CourtHalf
 from dataset_builder import vision
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec

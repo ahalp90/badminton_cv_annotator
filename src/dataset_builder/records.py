@@ -9,15 +9,10 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    Landing,
-    RallyOutcome,
-    WinnerSource,
-)
+from annotator.outcomes.point_winner import Landing, RallyOutcome, WinnerSource
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, CourtHalf
 from annotator.video_metadata import VideoMetadata
 from dataset_builder._record_validation import (
     RALLY_RECORD_COLLECTION_SCHEMA,

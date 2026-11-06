@@ -6,9 +6,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactSequence, fit_rally_sides
 from annotator.sequence.rally_options import RallyContext
+from annotator.types import CourtHalf
 
 
 @dataclass(frozen=True)

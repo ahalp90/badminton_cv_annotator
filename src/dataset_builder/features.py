@@ -23,13 +23,10 @@ import pandas as pd
 from annotator.config import frames_at_fps
 from annotator.courts.evidence import detected_court_info
 from annotator.courts.scenes import build_scene_courts, scene_ref_corners
-from annotator.outcomes.point_winner import (
-    COURT_LENGTH_M,
-    COURT_WIDTH_M,
-    project_pixels_to_court,
-)
 from annotator.rally.evidence import build_sticky_result, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
+from shared.court import project_pixels_to_court
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
 
 EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)

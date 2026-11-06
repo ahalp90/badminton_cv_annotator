@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
-from annotator.outcomes.point_winner import OTHER_HALF, CourtHalf
+from annotator.types import OTHER_HALF, CourtHalf
 
 
 @dataclass(frozen=True)

@@ -75,6 +75,9 @@ beside the public result. Prepared evidence includes both exclusion masks.
 | Why does a rally start or end here? | [rally/spans.py](../../src/annotator/rally/spans.py) |
 | Which motion peaks become heuristic contacts? | [rally/contacts.py](../../src/annotator/rally/contacts.py) |
 | How are players followed across frames? | [rally/evidence.py](../../src/annotator/rally/evidence.py) |
+| Where are court halves and shared record types? | [types.py](../../src/annotator/types.py) |
+| How are image pixels projected onto the court? | [shared/court.py](../../src/shared/court.py) |
+| How is corner uncertainty estimated? | `corner_error_band_from_corners()` in [courts/evidence.py](../../src/annotator/courts/evidence.py) |
 | Which court geometry applies to this frame? | [courts/scenes.py](../../src/annotator/courts/scenes.py) |
 | Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
 | How does excluded footage read as rest? | `apply_replay_mask()` in [rally_segmentation.py](../../src/annotator/rally_segmentation.py) |

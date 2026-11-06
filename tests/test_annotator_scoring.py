@@ -24,14 +24,13 @@ from annotator.evaluation.scoring import (
 )
 from annotator.outcomes.point_winner import (
     SHIPPED_LANDING_FILTER_OPTIONS,
-    CourtHalf,
     Landing,
     LandingFilterOptions,
     RallyOutcome,
 )
 from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.types import ContactCandidate
+from annotator.types import ContactCandidate, CourtHalf
 
 # Below 0.75x reference reads as a miswired chain, not tuning debt (ruled 2026-07-18,
 # raised from the drafted 0.5).
@@ -89,7 +88,7 @@ def test_score_video_uses_final_stroke_scene_for_gt_landing(monkeypatch: pytest.
         projected_courts.append(court["name"])
         return np.array([[0.5], [0.75 if court["name"] == "late" else 0.25]])
 
-    monkeypatch.setattr(gt_scoring.point_winner, "project_pixels_to_court", project)
+    monkeypatch.setattr(gt_scoring, "project_pixels_to_court", project)
     scored = gt_scoring.score_video(fixture, result, master, {1: {"name": "global"}}, 5, scenes)
 
     assert projected_courts == ["late"]

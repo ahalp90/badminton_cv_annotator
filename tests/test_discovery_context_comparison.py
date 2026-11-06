@@ -5,9 +5,9 @@ from dataclasses import replace
 import pytest
 
 from annotator.config import frames_at_fps
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     write_json,

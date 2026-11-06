@@ -18,24 +18,17 @@ import numpy as np
 
 from annotator.calc_helpers import compute_speed, rolling_nanmedian, true_runs
 from annotator.config import Thresholds, frames_at_fps, speed_at_fps
-from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
-from shared.court import (
-    HOMOGRAPHY_RESOLUTION,
-    convert_homogeneous,
-    normalize_position,
-    project,
-    scale_pos_by_resolution,
+from annotator.types import (
+    ANKLE_L,
+    ANKLE_R,
+    OTHER_HALF,
+    WRIST_L,
+    WRIST_R,
+    CourtHalf,
+    StickyResult,
 )
-
-
-class CourtHalf(StrEnum):
-    """Camera-relative court half of a player or landing: far (Top) or near (Bot)."""
-
-    TOP = 'Top'
-    BOT = 'Bot'
-
-
-OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
+from shared.court import project_pixels_to_court
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M, SINGLES_INSET_M
 
 
 class WinnerSource(StrEnum):
@@ -49,9 +42,6 @@ class WinnerSource(StrEnum):
 # Singles-court geometry in the normalised court space (doubles outline -> unit square, x = court
 # WIDTH 6.10 m, y = court LENGTH 13.40 m). Singles sidelines sit inset (6.10-5.18)/2 = 0.46 m each
 # side; baselines are the unit-square y edges; net at y=0.5.
-COURT_WIDTH_M = 6.10
-COURT_LENGTH_M = 13.40
-SINGLES_INSET_M = 0.46
 SINGLES_X_LO = SINGLES_INSET_M / COURT_WIDTH_M          # ~0.07541
 SINGLES_X_HI = 1.0 - SINGLES_INSET_M / COURT_WIDTH_M    # ~0.92459
 NET_COURT_Y = 0.5
@@ -59,28 +49,6 @@ NET_COURT_Y = 0.5
 # top leaves its last visible sample this close to y=0). Also the terminal-at-border threshold
 # (2% of any edge).
 TOP_EDGE_FRAC = 0.02
-
-# ---------------------------------------------------------------------------
-# Court projection
-# ---------------------------------------------------------------------------
-def project_pixels_to_court(
-    px_xy: np.ndarray, resolution: tuple[float, float], court_info: dict,
-) -> np.ndarray:
-    """(2, N) pixels at `resolution` -> (2, N) normalised court coords (doubles outline = unit sq).
-
-    Pixel positions are scaled from the supplied image resolution to the
-    homography's reference resolution before projection through `court_info['H']`.
-    Passing `shared.court.HOMOGRAPHY_RESOLUTION` leaves pixel coordinates unchanged.
-
-    :param px_xy: (2, N) pixel coordinates at `resolution`.
-    :param resolution: (width, height) `px_xy` is expressed in.
-    :param court_info: dict carrying `'H'` plus the court boundary keys `normalize_position` reads.
-    :return: (2, N) normalised court coordinates.
-    """
-    scaled = scale_pos_by_resolution(px_xy, width=resolution[0], height=resolution[1])
-    court = project(court_info['H'], convert_homogeneous(scaled))
-    return normalize_position(court, court_info)
-
 
 # ---------------------------------------------------------------------------
 # Landing search window
@@ -440,30 +408,6 @@ def landing_margins(landing_norm: tuple[float, float], receiver_half: CourtHalf)
         out_y = max(0.0, y_lo - y, y - y_hi) * COURT_LENGTH_M
         margin_m = -float(np.hypot(out_x, out_y))
     return LandingMargins(margin_m=margin_m, net_clear_m=net_clear_m, line_clear_m=line_clear_m)
-
-
-def corner_error_band_from_corners(
-    corners_refpx: np.ndarray, court_info: dict, err_px: float,
-) -> float:
-    """Return the median metre displacement from sixteen corner perturbations.
-
-    ``corners_refpx`` uses the TL, TR, BR, BL order at
-    :data:`HOMOGRAPHY_RESOLUTION`. The supplied ``court_info`` owns the active
-    parent homography and court boundaries, so this helper is independent of
-    ShuttleSet's homography table.
-    """
-    corners_refpx = np.asarray(corners_refpx, dtype=float)
-    base = project_pixels_to_court(corners_refpx.T, HOMOGRAPHY_RESOLUTION, court_info)
-    displacements: list[float] = []
-    for corner in range(4):
-        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
-            shifted = corners_refpx.copy()
-            shifted[corner, 0] += dx
-            shifted[corner, 1] += dy
-            projected = project_pixels_to_court(shifted.T, HOMOGRAPHY_RESOLUTION, court_info)
-            move = projected[:, corner] - base[:, corner]
-            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
-    return float(np.median(displacements))
 
 
 class Landing(NamedTuple):

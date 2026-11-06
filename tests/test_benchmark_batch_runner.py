@@ -7,13 +7,13 @@ import pytest
 
 from annotator.learned_model_inference import LearnedModelPrediction
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
     RallyReview,
     RallyReviewFeatures,
     RallySelector,
 )
+from annotator.types import CourtHalf
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     annotator_batch_runs as batch,
 )

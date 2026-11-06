@@ -8,13 +8,10 @@ import pytest
 from annotator.config import BaseAnnotatorConfig, resolve
 from annotator.courts.scenes import SceneCourt
 from annotator.outcomes import point_winner
-from annotator.outcomes.point_winner import (
-    CourtHalf,
-    LandingFilterOptions,
-    WinnerSource,
-)
+from annotator.outcomes.point_winner import LandingFilterOptions, WinnerSource
 from annotator.outcomes.video import build_outcomes
 from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
+from annotator.types import CourtHalf
 from experiments.annotator.landing_search import compare_landing_searches
 
 

@@ -21,12 +21,13 @@ import pandas as pd
 
 from annotator.config import COMPOSITION_CONTENT_THRESHOLD, BaseAnnotatorConfig, resolve
 from annotator.masks.composition import detect_cuts
-from annotator.outcomes.point_winner import (
-    COURT_LENGTH_M,
-    corner_error_band_from_corners,
+from shared.court import (
+    HOMOGRAPHY_RESOLUTION,
+    get_corner_camera,
+    get_court_info,
     project_pixels_to_court,
 )
-from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
 
 # ShuttleSet TL, TR, BL, BR corners become the detector's TL, TR, BR, BL order.
 SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
@@ -413,6 +414,30 @@ def build_court_present(
     for scene_index, (start_frame, end_frame) in enumerate(scene_intervals):
         court_present[start_frame:end_frame] = bool(scene_valid[scene_index])
     return court_present
+
+
+def corner_error_band_from_corners(
+    corners_refpx: np.ndarray, court_info: dict, err_px: float,
+) -> float:
+    """Return the median metre displacement from sixteen corner perturbations.
+
+    ``corners_refpx`` uses the TL, TR, BR, BL order at
+    :data:`HOMOGRAPHY_RESOLUTION`. The supplied ``court_info`` owns the active
+    parent homography and court boundaries, so this helper is independent of
+    ShuttleSet's homography table.
+    """
+    corners_refpx = np.asarray(corners_refpx, dtype=float)
+    base = project_pixels_to_court(corners_refpx.T, HOMOGRAPHY_RESOLUTION, court_info)
+    displacements: list[float] = []
+    for corner in range(4):
+        for dx, dy in ((err_px, 0.0), (-err_px, 0.0), (0.0, err_px), (0.0, -err_px)):
+            shifted = corners_refpx.copy()
+            shifted[corner, 0] += dx
+            shifted[corner, 1] += dy
+            projected = project_pixels_to_court(shifted.T, HOMOGRAPHY_RESOLUTION, court_info)
+            move = projected[:, corner] - base[:, corner]
+            displacements.append(float(np.hypot(move[0] * COURT_WIDTH_M, move[1] * COURT_LENGTH_M)))
+    return float(np.median(displacements))
 
 
 def build_static_court_inputs(

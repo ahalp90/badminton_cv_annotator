@@ -32,11 +32,10 @@ from annotator.evaluation.fixtures import (
     verify_file,
 )
 from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
-from annotator.outcomes import point_winner
 from annotator.rally import evidence as rally_evidence
 from annotator.sequence.contacts import fit_alternation
-from annotator.types import WRIST_L, WRIST_R, StickyResult
-from shared.court import HOMOGRAPHY_RESOLUTION
+from annotator.types import OTHER_HALF, WRIST_L, WRIST_R, CourtHalf, StickyResult
+from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
 
 REFERENCE_TAG = "shuttleset-annotator-heuristic-reference-v1"
 REFERENCE_RUN = "measurement/current_annotator_8config_288p"
@@ -231,7 +230,7 @@ def half_from_distances(
     sticky: StickyResult,
     bboxes: np.ndarray,
     net_band: tuple[float, float],
-) -> point_winner.CourtHalf | None:
+) -> CourtHalf | None:
     """Select the nearest slot and retain production's foot-versus-net half check."""
     if track[frame, 2] != 1:
         return None
@@ -245,9 +244,9 @@ def half_from_distances(
     if not np.isfinite(foot_y):
         return None
     if foot_y < net_band[0]:
-        return point_winner.CourtHalf.TOP
+        return CourtHalf.TOP
     if foot_y > net_band[1]:
-        return point_winner.CourtHalf.BOT
+        return CourtHalf.BOT
     return None
 
 
@@ -262,7 +261,7 @@ def court_distances(
     """Measure wrist-to-shuttle distance after a floor-plane homography projection."""
     distances = np.full(2, np.nan, dtype=float)
     shuttle_px = np.asarray(track[frame, :2], dtype=float) * np.asarray(resolution, dtype=float)
-    shuttle_court = point_winner.project_pixels_to_court(
+    shuttle_court = project_pixels_to_court(
         shuttle_px[:, None], resolution, court_info
     )[:, 0]
     if not np.isfinite(shuttle_court).all():
@@ -274,7 +273,7 @@ def court_distances(
         wrists = np.asarray(kps[frame, pose_index, (WRIST_L, WRIST_R), :], dtype=float)
         if not np.isfinite(wrists).all():
             continue
-        projected = point_winner.project_pixels_to_court(wrists.T, resolution, court_info).T
+        projected = project_pixels_to_court(wrists.T, resolution, court_info).T
         if np.isfinite(projected).all():
             distances[slot_index] = float(np.linalg.norm(projected - shuttle_court, axis=1).min())
     return distances
@@ -308,7 +307,7 @@ def predictions_for_frame(
     resolution: tuple[float, float],
     court_info: dict[str, object],
     net_band: tuple[float, float],
-) -> tuple[dict[str, point_winner.CourtHalf | None], dict[str, np.ndarray]]:
+) -> tuple[dict[str, CourtHalf | None], dict[str, np.ndarray]]:
     """Return all three predictions and their two-slot distance vectors."""
     body = np.asarray(sticky.distances_per_slot[frame], dtype=float)
     image = image_distances(frame, track, sticky, kps, resolution)
@@ -325,26 +324,26 @@ def predictions_for_frame(
     return predictions, distances
 
 
-def fitted_first(final: point_winner.CourtHalf | None, n_strokes: int) -> point_winner.CourtHalf | None:
+def fitted_first(final: CourtHalf | None, n_strokes: int) -> CourtHalf | None:
     """Return the first alternating half implied by one final half and count."""
     if final is None or n_strokes == 0:
         return None
-    return final if n_strokes % 2 == 1 else point_winner.OTHER_HALF[final]
+    return final if n_strokes % 2 == 1 else OTHER_HALF[final]
 
 
 def per_span_predictions(
     method: str,
     annotations: dict[str, Any],
-    prediction_cache: dict[int, dict[str, point_winner.CourtHalf | None]],
-) -> tuple[list[point_winner.CourtHalf | None], list[point_winner.CourtHalf | None]]:
+    prediction_cache: dict[int, dict[str, CourtHalf | None]],
+) -> tuple[list[CourtHalf | None], list[CourtHalf | None]]:
     """Fit alternating player phases for the published detected contacts."""
     n_spans = len(annotations["spans"])
     contacts = {
         int(rally_id): [int(frame) for frame in frames]
         for rally_id, frames in annotations["filtered_by_rally"].items()
     }
-    final_halves: list[point_winner.CourtHalf | None] = []
-    first_halves: list[point_winner.CourtHalf | None] = []
+    final_halves: list[CourtHalf | None] = []
+    first_halves: list[CourtHalf | None] = []
     for rally_id in range(n_spans):
         frames = contacts.get(rally_id, [])
         guesses = [prediction_cache[frame][method] for frame in frames]
@@ -358,15 +357,15 @@ def end_to_end_counts(
     fixture: Fixture,
     master: pd.DataFrame,
     spans: list[tuple[int, int]],
-    final_halves: list[point_winner.CourtHalf | None],
-    first_halves: list[point_winner.CourtHalf | None],
+    final_halves: list[CourtHalf | None],
+    first_halves: list[CourtHalf | None],
 ) -> dict[str, dict[str, int]]:
     """Score rally-final player and server predictions under fixed boundaries and contacts."""
     rallies = load_gt_rallies(master, fixture.video_id)
     classifications = classify_all(spans, rallies)
     video_gt = master.loc[master["vid"] == fixture.video_id, ["frame_num", "player_side"]]
     frame_side = {
-        int(frame): point_winner.CourtHalf.TOP if str(side) == "Top" else point_winner.CourtHalf.BOT
+        int(frame): CourtHalf.TOP if str(side) == "Top" else CourtHalf.BOT
         for frame, side in video_gt.itertuples(index=False, name=None)
     }
     counts = {
@@ -517,7 +516,7 @@ def main() -> None:
         gt = master.loc[master["vid"] == fixture.video_id, ["frame_num", "player_side"]]
         gt_frames = {int(frame) for frame in gt["frame_num"]}
         needed_frames = sorted(gt_frames | filtered_frames)
-        prediction_cache: dict[int, dict[str, point_winner.CourtHalf | None]] = {}
+        prediction_cache: dict[int, dict[str, CourtHalf | None]] = {}
         distance_cache: dict[int, dict[str, np.ndarray]] = {}
         for frame in needed_frames:
             predictions, distances = predictions_for_frame(
@@ -556,11 +555,11 @@ def main() -> None:
             "body_height", annotations, prediction_cache
         )
         stored_final = [
-            point_winner.CourtHalf(value) if value is not None else None
+            CourtHalf(value) if value is not None else None
             for value in annotations["striker_halves"]
         ]
         stored_first = [
-            point_winner.CourtHalf(value) if value is not None else None
+            CourtHalf(value) if value is not None else None
             for value in annotations["fitted_first_all"]
         ]
         if body_final != stored_final or body_first != stored_first:
