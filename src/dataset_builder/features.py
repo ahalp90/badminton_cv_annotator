@@ -18,11 +18,9 @@ from fractions import Fraction
 from typing import NamedTuple
 
 import numpy as np
-import pandas as pd
 
 from annotator.config import frames_at_fps
-from annotator.courts.evidence import detected_court_info
-from annotator.courts.scenes import build_scene_courts, scene_ref_corners
+from annotator.courts.scenes import SceneCourt, build_scene_courts
 from annotator.rally.evidence import build_sticky_result, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
 from shared.court import project_pixels_to_court
@@ -109,7 +107,7 @@ def derive_player_feature_inputs(
     image_positions = sticky.ankle_pos * np.asarray(inputs.resolution, dtype=float)
     court_positions = project_positions_by_scene(
         image_positions,
-        inputs.homography_rows,
+        scene_courts,
         inputs.resolution,
     )
     interpolated, position_interpolation = interpolate_internal_gaps(
@@ -296,29 +294,18 @@ def movement_inefficiency(
 
 def project_positions_by_scene(
     image_positions: np.ndarray,
-    homography_rows: pd.DataFrame,
+    scene_courts: Sequence[SceneCourt],
     resolution: tuple[float, float],
 ) -> np.ndarray:
-    """Project frame-aligned player positions through each production scene row."""
+    """Project frame-aligned positions using the prepared, disjoint scene courts."""
     positions = np.asarray(image_positions, dtype=float)
     if positions.ndim != 3 or positions.shape[2] != 2:
         raise ValueError("image_positions must have shape (frames, slots, 2)")
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-
     projected = np.full_like(positions, np.nan, dtype=float)
-    occupied = np.zeros(len(positions), dtype=bool)
-    for row in homography_rows.to_dict("records"):
-        start = int(row["start_frame"])
-        end = int(row["end_frame"])
+    for scene in scene_courts:
+        start, end = scene.start_frame, scene.end_frame
         if not 0 <= start <= end <= len(positions):
-            raise ValueError("homography row is outside the frame population")
-        if occupied[start:end].any():
-            raise ValueError("homography rows overlap")
-        occupied[start:end] = True
-        ref_corners = scene_ref_corners(row, (width, height))
-        court_info = detected_court_info(ref_corners)
+            raise ValueError("court scene is outside the frame population")
         for slot in range(positions.shape[1]):
             points = positions[start:end, slot]
             valid = np.isfinite(points).all(axis=1)
@@ -326,7 +313,7 @@ def project_positions_by_scene(
                 continue
             frames = np.flatnonzero(valid) + start
             projected[frames, slot] = project_pixels_to_court(
-                points[valid].T, (width, height), court_info
+                points[valid].T, resolution, scene.court_info
             ).T
     return projected
 

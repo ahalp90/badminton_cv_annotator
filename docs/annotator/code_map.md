@@ -56,7 +56,7 @@ player or court evidence.
 - `AnnotationEvidence` contains original arrays, resolved settings, masks and initial rally/contact evidence.
 - `FinishedRally` pairs a selected contact sequence with its fitted final striker. Both inference routes pass it directly to outcomes.
 - `ContactFeatures` contains candidate rows ready for scoring and their search intervals.
-- `ScoredContacts` adds candidate probabilities and selected row indices.
+- `ScoredContacts` retains the scored feature matrix, candidate probabilities and selected row indices.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.
 - `ContactSequence` is a rally's bounds and the contacts it owns.
 - `RallyContext`: initial rallies, the full contact stream, shortlisted contacts
@@ -117,6 +117,9 @@ Historical reports explain earlier choices without adding branches to inference.
 extraction artefacts. The latter supplies the dataset builder's full annotation
 stage. [`artifact_io.py`](../../src/annotator/artifact_io.py) serialises the
 public result and masks.
+
+In [`dataset_builder/features.py`](../../src/dataset_builder/features.py),
+player tracking and position projection use the same prepared scene courts.
 
 MonoTrack uses
 [`benchmark_scripts/annotator_runner.py`](../../experiments/annotator/monotrack_benchmark/benchmark_scripts/annotator_runner.py)

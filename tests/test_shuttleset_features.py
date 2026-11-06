@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from annotator.courts.evidence import detected_court_info
+from annotator.courts.scenes import build_scene_courts
 from annotator.evaluation.shuttleset_features import (
     ShuttleFeatureInputs,
     coordinate_error_summary,
@@ -70,14 +71,23 @@ def test_scene_projection_uses_scene_quad_without_clipping() -> None:
         [
             [[50.0, 12.5], [50.0, 37.5]],
             [[-10.0, 12.5], [110.0, 37.5]],
+            [[50.0, 25.0], [50.0, 25.0]],  # Gap between camera scenes.
+            [[150.0, 25.0], [np.nan, np.nan]],
         ]
     )
-
-    projected = project_positions_by_scene(positions, rows, (100.0, 50.0))
+    scene_rows = rows.to_dict("records")
+    second_scene = dict(scene_rows[0], start_frame=3, end_frame=4)
+    for field in ("upleft_x", "upright_x", "downleft_x", "downright_x"):
+        second_scene[field] += 100.0
+    scenes = build_scene_courts([*scene_rows, second_scene], (100.0, 50.0))
+    projected = project_positions_by_scene(positions, scenes, (100.0, 50.0))
 
     np.testing.assert_allclose(projected[0], [[0.5, 0.25], [0.5, 0.75]])
     assert projected[1, 0, 0] < 0.0
     assert projected[1, 1, 0] > 1.0
+    assert np.isnan(projected[2]).all()
+    np.testing.assert_allclose(projected[3, 0], [0.5, 0.5])
+    assert np.isnan(projected[3, 1]).all()
 
     corner_rows = court_corner_error_rows(
         rows,

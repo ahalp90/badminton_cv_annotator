@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from annotator.config import BASE_FPS, frames_at_fps
+from annotator.courts.scenes import build_scene_courts, scene_ref_corners
 from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder.features import (
     InterpolationType,
@@ -24,7 +25,6 @@ from dataset_builder.features import (
     project_positions_by_scene,
     rally_timestamps,
     recovery_at_opponent_contacts,
-    scene_ref_corners,
     validate_fps,
     validate_frame_range,
 )
@@ -60,8 +60,9 @@ def derive_shuttle_feature_inputs(
     image_positions = track[:, :2, np.newaxis].transpose(0, 2, 1).astype(float)
     image_positions *= np.asarray(resolution, dtype=float)
     image_positions[invisible | guard_rejected, 0] = np.nan
+    scene_courts = build_scene_courts(homography_rows.to_dict("records"), resolution)
     projected = project_positions_by_scene(
-        image_positions, homography_rows, resolution
+        image_positions, scene_courts, resolution
     )[:, 0]
     return ShuttleFeatureInputs(projected, invisible, guard_rejected)
 
