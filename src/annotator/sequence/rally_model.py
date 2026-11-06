@@ -18,14 +18,12 @@ from annotator.sequence.contacts import (
     events_between,
     fit_rally_sides,
 )
-from annotator.sequence.features import (
-    SIDE_FEATURE_NAMES,
-    SUMMARY_FEATURE_NAMES,
-    sequence_summary,
-)
 from annotator.sequence.rally_options import (
     FEATURE_NAMES,
+    SIDE_FEATURE_NAMES,
+    SUMMARY_FEATURE_NAMES,
     RallyOptions,
+    sequence_summary,
 )
 
 BOUNDARY_PADDING_AT_30_FPS = 10

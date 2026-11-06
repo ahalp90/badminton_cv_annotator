@@ -27,12 +27,15 @@ prepare the initial rallies and shortlisted contacts, then build the alternative
 and their model rows. Both inference and training use these two steps.
 The shortlisting rules follow the two builders in the same file, then
 `toggle_proposals()` defines contact edits, duplicate removal and ordering.
-The detailed feature calculations come afterwards.
+The detailed feature calculations come afterwards in the same file, including
+contact probabilities, spacing, raw player-side agreement and unused candidates.
 
 In `rally_model.py`, `predict_rally_options()` chooses and finishes the rallies.
 The scoring and boundary helpers follow in the same file. Both inference routes
 use `fit_rally_sides()` in `sequence/contacts.py` for player order; the voting
-and tie-breaking rules follow it there.
+and tie-breaking rules follow it there. `build_review_features()` uses the
+selected proposal’s raw player guesses and final rally bounds, calling
+`sequence_summary()` for those values.
 
 All three trees use `positive_probabilities()` in
 [contacts/model.py](../../src/annotator/contacts/model.py). It reads the class-1
