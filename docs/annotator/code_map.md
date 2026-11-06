@@ -34,6 +34,10 @@ The scoring and boundary helpers follow in the same file. Both inference routes
 use `fit_rally_sides()` in `sequence/contacts.py` for player order; the voting
 and tie-breaking rules follow it there.
 
+All three trees use `positive_probabilities()` in
+[contacts/model.py](../../src/annotator/contacts/model.py). It reads the class-1
+probability from trees fitted on labels 0 and 1.
+
 `heuristic_only=True` uses the same preparation, then selects rule-based contacts
 and fits their player order before outcome estimation. Supplying `spans` lets
 callers compare contact detection within known rally bounds.

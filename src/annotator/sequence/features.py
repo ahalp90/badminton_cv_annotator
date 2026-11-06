@@ -5,7 +5,6 @@ Feature names, column order and NaN placement are part of saved model bundles.
 
 from collections.abc import Mapping
 from itertools import pairwise
-from typing import Any
 
 import numpy as np
 
@@ -33,19 +32,6 @@ SIDE_FEATURE_NAMES = (
     "fraction_known_starting_bot",
     "fraction_adjacent_known_same_side",
 )
-
-
-def positive_probabilities(model: Any, matrix: np.ndarray) -> np.ndarray:
-    """Return a binary classifier's positive-class probability for each row."""
-    if not len(matrix):
-        return np.empty(0, dtype=np.float64)
-    positive = np.flatnonzero(np.asarray(model.classes_) == 1)
-    if len(positive) != 1:
-        raise ValueError("model must have exactly one positive class")
-    probabilities = np.asarray(model.predict_proba(matrix))[:, int(positive[0])]
-    if not np.isfinite(probabilities).all() or np.any((probabilities < 0.0) | (probabilities > 1.0)):
-        raise ValueError("model probabilities must be finite and between zero and one")
-    return probabilities
 
 
 def physical_or_nan(physical: Mapping[int, np.ndarray], frame: int | None) -> np.ndarray:

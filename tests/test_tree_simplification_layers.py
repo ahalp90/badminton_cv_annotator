@@ -8,10 +8,10 @@ import numpy as np
 import pytest
 from threadpoolctl import threadpool_limits
 
+from annotator.contacts.model import positive_probabilities
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence import rally_model
 from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.features import positive_probabilities
 from annotator.sequence.rally_options import RallyContext
 from annotator.training import rally as rally_training
 from annotator.training.sequences import SequenceTrainingVideo

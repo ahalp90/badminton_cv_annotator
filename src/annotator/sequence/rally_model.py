@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from annotator.config import frames_at_fps
+from annotator.contacts.model import positive_probabilities
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -20,7 +21,6 @@ from annotator.sequence.contacts import (
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
     SUMMARY_FEATURE_NAMES,
-    positive_probabilities,
     sequence_summary,
 )
 from annotator.sequence.rally_options import (

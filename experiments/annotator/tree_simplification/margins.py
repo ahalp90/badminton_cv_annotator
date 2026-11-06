@@ -18,8 +18,8 @@ import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
+from annotator.contacts.model import positive_probabilities
 from annotator.sequence.contacts import stream_payload
-from annotator.sequence.features import positive_probabilities
 from annotator.sequence.rally_model import choose_rows, finish_rallies
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.data import (

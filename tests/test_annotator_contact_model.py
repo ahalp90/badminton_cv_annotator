@@ -13,9 +13,11 @@ from annotator.contacts.model import (
     CONTACT_FEATURE_NAMES,
     ContactModelConfig,
     contact_feature_matrix,
+    positive_probabilities,
     remove_nearby_contacts,
     score_contact_features,
 )
+from annotator.training.trees import TreeFitConfig, fit_binary_tree
 from annotator.types import StickyResult
 
 
@@ -53,7 +55,7 @@ def test_candidate_cutoff_and_fps_scaling(fps: float, expected: list[int]) -> No
     def predict(matrix: np.ndarray) -> np.ndarray:
         observed.append(matrix)
         return np.tile([0.1, 0.9], (len(matrix), 1))
-    model = SimpleNamespace(predict_proba=predict, feature_names_in_=CONTACT_FEATURE_NAMES, n_features_in_=85)
+    model = SimpleNamespace(predict_proba=predict)
     result = score_contact_features(_rows()[:3], model, fps)
     np.testing.assert_array_equal(result.frames, expected)
     assert len(result.probabilities) == 3
@@ -68,9 +70,38 @@ def test_invalid_probabilities_fail(probability: float) -> None:
         score_contact_features(_rows(), model, 30.0)
 
 
-def test_model_schema_and_empty_candidates() -> None:
-    with pytest.raises(ValueError, match='feature names'):
-        score_contact_features(_rows(), SimpleNamespace(feature_names_in_=CONTACT_FEATURE_NAMES[::-1]), 30.0)
+def test_binary_tree_scoring_keeps_model_precision() -> None:
+    predictions = np.array([[0.1, 0.9], [0.4, 0.6]], dtype=np.float32)
+    model = SimpleNamespace(predict_proba=lambda _matrix: predictions)
+
+    probabilities = positive_probabilities(model, np.zeros((2, 85), dtype=np.float32))
+
+    assert probabilities.dtype == np.float32
+    np.testing.assert_allclose(probabilities, [0.9, 0.6])
+
+
+def test_contact_cutoff_compares_model_values_in_float64() -> None:
+    predictions = np.array([[0.1, 0.9], [0.05, 0.95]], dtype=np.float32)
+    model = SimpleNamespace(predict_proba=lambda _matrix: predictions)
+
+    result = score_contact_features(_rows()[[0, 2]], model, 30.0)
+
+    # The float32 representation of 0.9 is below the configured float64 cutoff.
+    assert result.probabilities.dtype == np.float64
+    assert result.probabilities[0] < 0.9
+    np.testing.assert_array_equal(result.frames, [23])
+
+
+def test_wrong_model_input_count_fails_during_prediction() -> None:
+    model = fit_binary_tree(
+        np.array([[0.0], [1.0]], dtype=np.float32), np.array([0, 1]),
+        TreeFitConfig(max_iter=1, min_child_weight=0), balanced=False,
+    )
+    with pytest.raises(ValueError, match='shape mismatch'):
+        score_contact_features(_rows(), model, 30.0)
+
+
+def test_empty_candidates_skip_prediction() -> None:
     rows = _rows()[:0]
     result = score_contact_features(rows, SimpleNamespace(), 30.0, ContactModelConfig())
     assert len(result.frames) == 0

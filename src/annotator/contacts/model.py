@@ -1,4 +1,4 @@
-"""Score the contact tree's fixed feature set and suppress nearby detections."""
+"""Score binary trees and select contacts from the contact model's predictions."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -42,6 +42,18 @@ def contact_feature_matrix(
     if rows.dtype.names is None or any(name not in rows.dtype.names for name in names):
         raise ValueError("contact feature rows lack a model input field")
     return np.column_stack([rows[name].astype(np.float32, copy=False) for name in names])
+
+
+def positive_probabilities(model: Any, matrix: np.ndarray) -> np.ndarray:
+    """Score an annotator tree trained on labels 0 and 1, keeping its dtype."""
+    if not len(matrix):
+        return np.empty(0, dtype=np.float64)
+    probabilities = np.asarray(model.predict_proba(matrix))[:, 1]
+    if probabilities.shape != (len(matrix),) or not np.isfinite(probabilities).all():
+        raise ValueError("model probabilities are incomplete or non-finite")
+    if np.any((probabilities < 0.0) | (probabilities > 1.0)):
+        raise ValueError("model probabilities lie outside zero and one")
+    return probabilities
 
 
 def remove_nearby_contacts(
@@ -91,24 +103,14 @@ def score_contact_features(
     """Score candidate-region rows for one video and select contact frames.
 
     :param rows: All rows returned by ``build_contact_features`` for one video.
-    :param model: Fitted binary classifier with ``predict_proba``.
+    :param model: Fitted annotator tree with class-0/class-1 probability columns.
     :param fps: Source frame rate, used to scale nearby-contact suppression.
     :param config: Contact score cutoff.
     :return: Candidate rows, probabilities and accepted candidate indices.
     """
-    model_names = getattr(model, "feature_names_in_", None)
-    if model_names is not None and tuple(model_names) != CONTACT_FEATURE_NAMES:
-        raise ValueError("model feature names do not match the contact feature order")
-    feature_count = getattr(model, "n_features_in_", None)
-    if feature_count is not None and feature_count != len(CONTACT_FEATURE_NAMES):
-        raise ValueError("model input count does not match the contact feature order")
-    if not len(rows):
-        return ScoredContacts(rows, np.empty(0, dtype=np.float64), np.empty(0, dtype=np.int32))
-    probabilities = np.asarray(model.predict_proba(contact_feature_matrix(rows))[:, 1], dtype=np.float64)
-    if probabilities.shape != (len(rows),) or not np.isfinite(probabilities).all():
-        raise ValueError("contact probabilities are incomplete or non-finite")
-    if np.any((probabilities < 0.0) | (probabilities > 1.0)):
-        raise ValueError("contact probabilities lie outside zero and one")
+    matrix = contact_feature_matrix(rows)
+    # Float32 comparison would round the cutoff and can accept scores just below it.
+    probabilities = positive_probabilities(model, matrix).astype(np.float64, copy=False)
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     kept = remove_nearby_contacts(
         rows["frame"], rows["interval_id"], probabilities, config.score_cutoff, distance,
