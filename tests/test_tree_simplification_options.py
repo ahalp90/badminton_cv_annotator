@@ -6,9 +6,6 @@ import numpy as np
 
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.outcomes.point_winner import CourtHalf
-from annotator.sequence.candidates import (
-    RallyCandidates,
-)
 from annotator.sequence.contacts import ContactEvent, initial_sequences
 from annotator.sequence.rally_options import RallyContext, build_rally_options
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
@@ -29,10 +26,12 @@ def example_video() -> SequenceTrainingVideo:
     physical = {event.frame: np.full(len(CONTACT_FEATURE_NAMES), event.frame, dtype=float)
                 for event in (*events, *serve, *later)}
     candidates = {1: tuple(sorted((*serve, *later), key=lambda event: event.frame))}
-    pool = RallyCandidates(candidates, physical)
     rallies = tuple(LabelledRally(str(sequence.span_id), tuple(event.frame for event in sequence.events),
                                  tuple(event.side for event in sequence.events)) for sequence in initial)
-    return SequenceTrainingVideo('fixture', 'group', RallyContext(30.0, initial, events, pool, 430), rallies)
+    context = RallyContext(
+        30.0, initial, events, candidates, physical, frame_count=430,
+    )
+    return SequenceTrainingVideo('fixture', 'group', context, rallies)
 
 
 def test_toggle_proposals_cover_multiple_edits_and_keep_no_edit() -> None:

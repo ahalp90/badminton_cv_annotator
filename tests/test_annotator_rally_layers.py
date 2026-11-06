@@ -11,7 +11,6 @@ from threadpoolctl import threadpool_limits
 from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.outcomes.point_winner import CourtHalf
-from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_model import (
     REVIEW_FEATURE_NAMES,
@@ -40,12 +39,12 @@ from annotator.training.trees import TreeFitConfig
 def training_video(identity: str, group: str, correct: bool) -> SequenceTrainingVideo:
     event = ContactEvent(40, .9, CourtHalf.TOP)
     sequence = ContactSequence(7, 10, 80, (event,))
-    pool = RallyCandidates(
-        {},
-        {40: np.zeros(len(CONTACT_FEATURE_NAMES))},
-    )
+    physical = {40: np.zeros(len(CONTACT_FEATURE_NAMES))}
     label = LabelledRally('rally', (40 if correct else 60,), (CourtHalf.TOP,))
-    return SequenceTrainingVideo(identity, group, RallyContext(30.0, (sequence,), (event,), pool, 100), (label,))
+    context = RallyContext(
+        30.0, (sequence,), (event,), {}, physical, frame_count=100,
+    )
+    return SequenceTrainingVideo(identity, group, context, (label,))
 
 
 def runtime_options():

@@ -3,7 +3,7 @@
 Feature names, column order and NaN placement are part of saved model bundles.
 """
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from itertools import pairwise
 from typing import Any
 
@@ -46,28 +46,6 @@ def positive_probabilities(model: Any, matrix: np.ndarray) -> np.ndarray:
     if not np.isfinite(probabilities).all() or np.any((probabilities < 0.0) | (probabilities > 1.0)):
         raise ValueError("model probabilities must be finite and between zero and one")
     return probabilities
-
-
-def physical_rows(contact_features: np.ndarray, frames: Iterable[int]) -> dict[int, np.ndarray]:
-    """Index the physical contact features of each requested frame.
-
-    :param contact_features: Structured feature rows for the video's candidate frames.
-    :param frames: Frames whose physical evidence the rally model uses.
-    :return: One float64 row per frame, in CONTACT_FEATURE_NAMES order, NaNs kept.
-    """
-    requested = sorted(set(frames))
-    feature_frames = contact_features["frame"]
-    if len(np.unique(feature_frames)) != len(feature_frames):
-        raise ValueError("contact feature frames repeat")
-    selected = contact_features[np.isin(feature_frames, requested)]
-    values = np.column_stack([selected[name].astype(np.float64) for name in CONTACT_FEATURE_NAMES])
-    if np.isinf(values).any():
-        raise ValueError("physical contact features contain infinity")
-    rows = {int(frame): values[index] for index, frame in enumerate(selected["frame"])}
-    missing = [frame for frame in requested if frame not in rows]
-    if missing:
-        raise ValueError(f"contact features are missing frames {missing[:5]}")
-    return rows
 
 
 def physical_or_nan(physical: Mapping[int, np.ndarray], frame: int | None) -> np.ndarray:

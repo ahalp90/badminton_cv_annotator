@@ -8,7 +8,6 @@ import pytest
 from threadpoolctl import threadpool_limits
 
 from annotator.outcomes.point_winner import CourtHalf
-from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import positive_probabilities
 from annotator.sequence.rally_options import RallyContext
@@ -25,8 +24,10 @@ def make_pool(identity: str, group: str) -> LabelledOptions:
     event = ContactEvent(10, 0.8, CourtHalf.TOP)
     initial = ContactSequence(0, 0, 20, (event,))
     deleted = ContactSequence(0, 0, 20, ())
-    original_pool = RallyCandidates({}, {})
-    original = SequenceTrainingVideo(identity, group, RallyContext(30.0, (initial,), (event,), original_pool, 30), ())
+    context = RallyContext(
+        30.0, (initial,), (event,), {}, {}, frame_count=30,
+    )
+    original = SequenceTrainingVideo(identity, group, context, ())
     return LabelledOptions(
         (initial, deleted), np.asarray([[0, 1], [1, 0]], dtype=np.float32),
         np.asarray([0, 1], dtype=np.int8), {0: np.asarray([0, 1])}, original,

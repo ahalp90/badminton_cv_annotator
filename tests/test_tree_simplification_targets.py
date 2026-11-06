@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import CourtHalf
-from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.rally_options import RallyContext
 from annotator.training.rally import RallyFitConfig, prepare_training_pools
@@ -36,9 +35,11 @@ def make_pool(
         0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)),
     )
     events = initial.events
-    option_pool = RallyCandidates({}, {})
     rally = LabelledRally('rally', (20, 60), (CourtHalf.TOP, CourtHalf.BOT))
-    video = SequenceTrainingVideo('video', 'group', RallyContext(fps, (initial,), events, option_pool, 210), (rally,))
+    context = RallyContext(
+        fps, (initial,), events, {}, {}, frame_count=210,
+    )
+    video = SequenceTrainingVideo('video', 'group', context, (rally,))
     return LabelledOptions(
         sequences,
         np.zeros((len(sequences), 1), dtype=np.float32),
@@ -143,14 +144,16 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
         ContactSequence(1, 100, 180, (ContactEvent(116, 0.9, CourtHalf.TOP), ContactEvent(136, 0.9, CourtHalf.BOT))),
     )
     events = (*first.events, *second.events)
-    option_pool = RallyCandidates({}, {})
     rallies = (
         LabelledRally('first', (10, 30), (CourtHalf.TOP, CourtHalf.BOT)),
         LabelledRally('boundary', (97,), (None,)),
         LabelledRally('second', (110, 130), (CourtHalf.TOP, CourtHalf.BOT)),
         LabelledRally('remote', (500,), (None,)),
     )
-    video = SequenceTrainingVideo('video', 'group', RallyContext(30.0, (first, second), events, option_pool, 220), rallies)
+    context = RallyContext(
+        30.0, (first, second), events, {}, {}, frame_count=220,
+    )
+    video = SequenceTrainingVideo('video', 'group', context, rallies)
     pool = LabelledOptions(
         sequences,
         np.zeros((4, 1), dtype=np.float32),

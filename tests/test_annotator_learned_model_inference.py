@@ -76,7 +76,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     selected = {event.frame: event for event in context.events}
     assert selected[220].side is not None
     assert selected[220].wrist_distances == (0.5, 0.8)
-    earlier = {event.frame: event for event in context.candidates.by_span[0]}
+    earlier = {event.frame: event for event in context.candidates_by_span[0]}
     assert earlier[160].side is None
     assert earlier[170].side is None
     assert earlier[160].wrist_distances is None
@@ -131,10 +131,15 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
     assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
     assert list(inference.contacts.frames) == [10, 80]
-    for pool in (training.context.candidates, inference.refined.pool.context.candidates):
-        candidate_frames = [event.frame for event in pool.by_span[0]]
+    for context in (training.context, inference.refined.pool.context):
+        candidate_frames = [event.frame for event in context.candidates_by_span[0]]
         assert candidate_frames == [1, 40, 60]
-        assert 1 in pool.physical
+        assert set(context.physical_by_frame) == {1, 10, 40, 60, 80}
+        # Frame numbers differ from row indices; keep each contact's own feature values.
+        np.testing.assert_allclose(
+            [context.physical_by_frame[frame][probability_column] for frame in [1, 10, 40, 60, 80]],
+            [.8, .99, .8, .7, .95],
+        )
 
     selector = DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES))), [0, 1])
     review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])

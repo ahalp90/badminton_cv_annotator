@@ -1,7 +1,5 @@
 """Shortlist possible serves and missed contacts from detector scores."""
 
-from dataclasses import dataclass
-
 import numpy as np
 
 from annotator.config import frames_at_fps
@@ -10,16 +8,7 @@ from annotator.contacts.model import (
     ScoredContacts,
     strongest_spaced_rows,
 )
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-
-
-@dataclass(frozen=True)
-class RallyCandidates:
-    """Shortlisted contacts by rally and their shared physical evidence."""
-
-    by_span: dict[int, tuple[ContactEvent, ...]]
-    physical: dict[int, np.ndarray]
-
+from annotator.sequence.contacts import ContactSequence
 
 EARLIER_SERVE_CANDIDATES = 2
 

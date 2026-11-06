@@ -51,8 +51,8 @@ player or court evidence.
 - `ScoredContacts` adds candidate probabilities and selected row indices.
 - `ContactEvent` is a frame, contact probability and individual court-half guess.
 - `ContactSequence` is a rally's bounds and the contacts it owns.
-- `RallyCandidates`: shortlisted contacts by rally and their physical evidence.
-- `RallyContext` groups the initial rallies, full contact stream and shortlisted evidence.
+- `RallyContext`: initial rallies, the full contact stream, shortlisted contacts
+  by rally and physical feature rows by frame.
 - `RallyOptions` groups the ordered alternatives and model-feature rows.
 - `SequenceTrainingVideo` adds a video identity, training group and GT labels to that same context.
 - `RallyPrediction` retains the selected sequences, full contact stream and scores.

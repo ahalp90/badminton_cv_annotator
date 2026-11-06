@@ -10,7 +10,6 @@ from threadpoolctl import threadpool_limits
 
 from annotator.outcomes.point_winner import CourtHalf
 from annotator.sequence import rally_model
-from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import ContactEvent, ContactSequence
 from annotator.sequence.features import positive_probabilities
 from annotator.sequence.rally_options import RallyContext
@@ -32,8 +31,10 @@ def example_pool() -> LabelledOptions:
         initial[0], replace(initial[0], events=(first, added, last)),
         replace(initial[0], events=(last,)), initial[1],
     )
-    original_pool = RallyCandidates({}, {})
-    original = SequenceTrainingVideo('fixture', 'group', RallyContext(30.0, initial, (first, last, neighbour, outside), original_pool, 110), ())
+    context = RallyContext(
+        30.0, initial, (first, last, neighbour, outside), {}, {}, frame_count=110,
+    )
+    original = SequenceTrainingVideo('fixture', 'group', context, ())
     return LabelledOptions(
         sequences, np.asarray([[0, 1], [1, 1], [0, 0], [2, 1]], dtype=np.float32),
         np.asarray([0, 1, -1, 0], dtype=np.int8), {0: np.asarray([0, 1, 2]), 1: np.asarray([3])}, original,

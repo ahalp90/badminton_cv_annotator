@@ -12,7 +12,6 @@ from annotator.contacts.features import CONTACT_FEATURE_NAMES
 from annotator.contacts.model import NEARBY_CONTACT_DISTANCE_AT_30_FPS, ScoredContacts
 from annotator.preparation import AnnotationEvidence
 from annotator.sequence.candidates import (
-    RallyCandidates,
     shortlist_later_rows,
     shortlist_serve_rows,
 )
@@ -21,7 +20,6 @@ from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
     SUMMARY_FEATURE_NAMES,
     physical_or_nan,
-    physical_rows,
     sequence_summary,
     side_agreement,
 )
@@ -52,7 +50,8 @@ class RallyContext:
     fps: float
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
-    candidates: RallyCandidates
+    candidates_by_span: dict[int, tuple[ContactEvent, ...]]
+    physical_by_frame: dict[int, np.ndarray]
     frame_count: int | None = None
     bounds_supplied: bool = False
 
@@ -81,11 +80,13 @@ def build_rally_context(
     events = tuple(event_for_row(int(row)) for row in contacts.kept_indices)
     initial = initial_sequences(evidence.heuristic_spans, events)
     contacts_by_frame = {event.frame: event for event in events}
+    used_rows = set(contacts.kept_indices)
     candidates_by_span = {}
     previous_end = -1
     for before in initial:
         serve_rows = shortlist_serve_rows(before, contacts, evidence.fps, previous_end=previous_end)
         rows = [*serve_rows, *shortlist_later_rows(before, contacts, evidence.fps)]
+        used_rows.update(rows)
         frames = set()
         for row in rows:
             frame = int(contacts.candidates['frame'][row])
@@ -95,9 +96,14 @@ def build_rally_context(
                 contacts_by_frame[frame] = event_for_row(row)
         candidates_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
         previous_end = before.end_frame
-    physical = physical_rows(contacts.candidates, contacts_by_frame)
-    candidates = RallyCandidates(candidates_by_span, physical)
-    return RallyContext(evidence.fps, initial, events, candidates, len(evidence.track), evidence.bounds_supplied)
+    # Feature rows are unique by frame; keep evidence for retained and shortlisted contacts.
+    feature_rows = contacts.candidates[sorted(used_rows)]
+    feature_matrix = np.column_stack([feature_rows[name].astype(np.float64) for name in CONTACT_FEATURE_NAMES])
+    physical_by_frame = {int(frame): feature_matrix[row] for row, frame in enumerate(feature_rows['frame'])}
+    return RallyContext(
+        evidence.fps, initial, events, candidates_by_span, physical_by_frame,
+        frame_count=len(evidence.track), bounds_supplied=evidence.bounds_supplied,
+    )
 
 
 def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_candidates: int = 6) -> RallyOptions:
@@ -111,7 +117,7 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, context.fps)
     previous_end = -1
     for before in context.initial:
-        candidates = context.candidates.by_span.get(before.span_id, ())
+        candidates = context.candidates_by_span.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in candidates)))
         first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
         earliest_start = before.start_frame if context.bounds_supplied else previous_end
@@ -195,9 +201,9 @@ def option_features(
         (len(added), len(deleted)),
         probability_summary(added),
         probability_summary(deleted),
-        *(physical_or_nan(context.candidates.physical, frame) for frame in physical_frames),
+        *(physical_or_nan(context.physical_by_frame, frame) for frame in physical_frames),
         unused_features,
-        physical_or_nan(context.candidates.physical, unused_frame),
+        physical_or_nan(context.physical_by_frame, unused_frame),
     ))
 
 

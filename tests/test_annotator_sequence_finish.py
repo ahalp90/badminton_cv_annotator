@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 
 from annotator.outcomes.point_winner import CourtHalf
-from annotator.sequence.candidates import RallyCandidates
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
@@ -52,7 +51,7 @@ def _finish_selected(
     choices: dict[int, ContactSequence], fps: float, *, bounds_supplied: bool = False,
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
     context = RallyContext(
-        fps, tuple(initial), tuple(events), RallyCandidates({}, {}), bounds_supplied=bounds_supplied,
+        fps, tuple(initial), tuple(events), {}, {}, bounds_supplied=bounds_supplied,
     )
     rows = {span_id: index for index, span_id in enumerate(choices)}
     pool = RallyOptions(
