@@ -29,8 +29,7 @@ from annotator.config import frames_at_fps
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import stream_from_payload
-from annotator.sequence.rally_model import fit_rally_sides
+from annotator.sequence.contacts import fit_rally_sides, stream_from_payload
 from annotator.training.sequences import (
     judge_rally_boundaries,
     match_contacts,

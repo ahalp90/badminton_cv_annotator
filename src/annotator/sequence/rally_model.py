@@ -10,15 +10,12 @@ from typing import Any
 import numpy as np
 
 from annotator.config import frames_at_fps
-from annotator.outcomes.point_winner import (
-    alternating_player_sides,
-    fit_alternation,
-)
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     FinishedRally,
     events_between,
+    fit_rally_sides,
 )
 from annotator.sequence.features import (
     SIDE_FEATURE_NAMES,
@@ -184,21 +181,6 @@ def extend_boundaries(
         else:
             extended.append(sequence)
     return tuple(extended)
-
-
-def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally, ...]:
-    """Fit each rally once and keep its resolved final side with its sequence."""
-    rallies = []
-    for sequence in sequences:
-        final_half = fit_alternation(
-            [event.side for event in sequence.events], [event.wrist_distances for event in sequence.events],
-        )
-        if final_half is not None:
-            fitted = alternating_player_sides(final_half, len(sequence.events))
-            events = tuple(replace(event, side=side) for event, side in zip(sequence.events, fitted, strict=True))
-            sequence = replace(sequence, events=events)
-        rallies.append(FinishedRally(sequence, final_half))
-    return tuple(rallies)
 
 
 def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:

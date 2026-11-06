@@ -16,9 +16,9 @@ from annotator.run_video import AnnotatorResult
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
+    fit_rally_sides,
     stream_payload,
 )
-from annotator.sequence.rally_model import fit_rally_sides
 from annotator.training.sequences import LabelledRally
 from dataset_builder.vision import load_json_gz
 from experiments.annotator.heuristic_only_tune import data as search_data

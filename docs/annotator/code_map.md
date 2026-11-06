@@ -18,6 +18,7 @@ intermediate results are unfamiliar.
 | Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Choose possible earlier serves and missed contacts |
 | Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Prepare contact evidence, combine additions/deletions, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
+| Fit player order | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) | Choose the alternating order from player guesses and wrist distances; retain the first and final striker |
 | Fit heuristic contact order | [heuristic_inference.py](../../src/annotator/heuristic_inference.py) | Filter heuristic contacts and use the same final player-alternation step as model inference |
 | Estimate outcomes | [outcomes/video.py](../../src/annotator/outcomes/video.py) | Derive server, winner, landing and hit height |
 
@@ -28,7 +29,9 @@ and their model rows. Both inference and training use these two steps.
 ordering. The detailed feature calculations come afterwards.
 
 In `rally_model.py`, `predict_rally_options()` chooses and finishes the rallies.
-The scoring and finalisation helpers follow in the same file.
+The scoring and boundary helpers follow in the same file. Both inference routes
+use `fit_rally_sides()` in `sequence/contacts.py` for player order; the voting
+and tie-breaking rules follow it there.
 
 `heuristic_only=True` uses the same preparation, then selects rule-based contacts
 and fits their player order before outcome estimation. Supplying `spans` lets
@@ -74,7 +77,7 @@ beside the public result. Prepared evidence includes both exclusion masks.
 | Which earlier or missed contacts can be proposed? | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) |
 | Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
 | Which player hit in this camera scene? | [contacts/attribution.py](../../src/annotator/contacts/attribution.py) |
-| Why did the striker half change? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
+| Why did the striker half change? | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) |
 | How is a winner or landing judged? | [outcomes/point_winner.py](../../src/annotator/outcomes/point_winner.py) |
 | How does a setting scale with frame rate? | [config.py](../../src/annotator/config.py) |
 

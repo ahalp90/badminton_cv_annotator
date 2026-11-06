@@ -1,10 +1,10 @@
-"""Contact events, rally contact sequences and the candidate scores behind them."""
+"""Contact events, rally sequences and their fitted alternating player order."""
 
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from annotator.outcomes.point_winner import OTHER_HALF, CourtHalf
@@ -43,6 +43,67 @@ class FinishedRally:
         if self.final_half is None:
             return None
         return self.final_half if len(self.sequence.events) % 2 else OTHER_HALF[self.final_half]
+
+
+def fit_rally_sides(sequences: Sequence[ContactSequence]) -> tuple[FinishedRally, ...]:
+    """Fit each rally once and keep its resolved final side with its sequence."""
+    rallies = []
+    for sequence in sequences:
+        final_half = fit_alternation(
+            [event.side for event in sequence.events], [event.wrist_distances for event in sequence.events],
+        )
+        if final_half is not None:
+            fitted = alternating_player_sides(final_half, len(sequence.events))
+            events = tuple(replace(event, side=side) for event, side in zip(sequence.events, fitted, strict=True))
+            sequence = replace(sequence, events=events)
+        rallies.append(FinishedRally(sequence, final_half))
+    return tuple(rallies)
+
+
+def fit_alternation(
+    guesses: list[CourtHalf | None], wrist_distances: Sequence[tuple[float, float] | None] = (),
+) -> CourtHalf | None:
+    """Choose the alternating order that agrees with the most player guesses.
+
+    Each known guess votes for the final striker implied by its position.
+    Break equal votes with the lower summed wrist distance when available, then
+    the first known guess. Return None if no player guess is known.
+    """
+    final_guesses = []
+    for index, guess in enumerate(guesses):
+        if guess is not None:
+            remaining = len(guesses) - index - 1
+            final_guesses.append(guess if remaining % 2 == 0 else OTHER_HALF[guess])
+    if not final_guesses:
+        return None
+    top_votes = final_guesses.count(CourtHalf.TOP)
+    bot_votes = final_guesses.count(CourtHalf.BOT)
+    if top_votes == bot_votes:
+        top_final_cost = bot_final_cost = 0.0
+        for index, distances in enumerate(wrist_distances):
+            if distances is None:
+                continue
+            top_final_distance, bot_final_distance = distances
+            # An odd number of strokes before a TOP finish, BOT is hitting.
+            if (len(guesses) - index - 1) % 2:
+                top_final_distance, bot_final_distance = bot_final_distance, top_final_distance
+            top_final_cost += top_final_distance
+            bot_final_cost += bot_final_distance
+        if top_final_cost != bot_final_cost:
+            return CourtHalf.TOP if top_final_cost < bot_final_cost else CourtHalf.BOT
+        return final_guesses[0]
+    return CourtHalf.TOP if top_votes > bot_votes else CourtHalf.BOT
+
+
+def alternating_player_sides(final_half: CourtHalf, n_strokes: int) -> list[CourtHalf]:
+    """Alternating half per stroke for a rally whose LAST stroke is `final_half`.
+
+    Stroke i counts back from the last (index n-1 = final_half); each step back flips halves.
+    The two possible phases (final_half Top vs Bot) are exact complements of each other.
+    """
+    last = n_strokes - 1
+    return [final_half if (last - i) % 2 == 0 else OTHER_HALF[final_half]
+            for i in range(n_strokes)]
 
 
 def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: int) -> tuple[ContactEvent, ...]:

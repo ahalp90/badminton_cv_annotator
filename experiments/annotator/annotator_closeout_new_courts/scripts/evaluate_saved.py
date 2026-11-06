@@ -14,8 +14,11 @@ from pathlib import Path
 import pandas as pd
 
 from annotator.config import frames_at_fps
-from annotator.sequence.contacts import ContactSequence, stream_from_payload
-from annotator.sequence.rally_model import fit_rally_sides
+from annotator.sequence.contacts import (
+    ContactSequence,
+    fit_rally_sides,
+    stream_from_payload,
+)
 from annotator.training.sequences import (
     LabelledRally,
     judge_rally_boundaries,

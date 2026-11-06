@@ -13,12 +13,12 @@ from annotator.sequence.contacts import (
     ContactSequence,
     FinishedRally,
     events_between,
+    fit_rally_sides,
     initial_sequences,
 )
 from annotator.sequence.rally_model import (
     extend_boundaries,
     finish_rallies,
-    fit_rally_sides,
 )
 from annotator.sequence.rally_options import RallyContext, RallyOptions
 

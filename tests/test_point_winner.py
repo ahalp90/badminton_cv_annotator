@@ -21,7 +21,6 @@ from annotator.outcomes.point_winner import (
     build_landing_kinematics,
     carried_terminal,
     filtered_descending_landing,
-    fit_alternation,
     hit_height,
     is_net_ender,
     landing_margins,
@@ -29,6 +28,7 @@ from annotator.outcomes.point_winner import (
     pick_landing_to_end,
     resolve_rally_outcome,
 )
+from annotator.sequence.contacts import fit_alternation
 from annotator.types import ANKLE_L, ANKLE_R, WRIST_L, WRIST_R, StickyResult
 
 COURT_WIDTH_M = 6.10

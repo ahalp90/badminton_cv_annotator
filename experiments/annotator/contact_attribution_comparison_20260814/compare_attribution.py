@@ -34,6 +34,7 @@ from annotator.evaluation.fixtures import (
 from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
 from annotator.outcomes import point_winner
 from annotator.rally import evidence as rally_evidence
+from annotator.sequence.contacts import fit_alternation
 from annotator.types import WRIST_L, WRIST_R, StickyResult
 from shared.court import HOMOGRAPHY_RESOLUTION
 
@@ -347,7 +348,7 @@ def per_span_predictions(
     for rally_id in range(n_spans):
         frames = contacts.get(rally_id, [])
         guesses = [prediction_cache[frame][method] for frame in frames]
-        final = point_winner.fit_alternation(guesses)
+        final = fit_alternation(guesses)
         final_halves.append(final)
         first_halves.append(fitted_first(final, len(frames)))
     return final_halves, first_halves

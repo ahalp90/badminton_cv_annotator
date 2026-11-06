@@ -4,8 +4,12 @@ import math
 
 from annotator.contacts.attribution import contact_player_evidence
 from annotator.preparation import AnnotationEvidence
-from annotator.sequence.contacts import ContactEvent, ContactSequence, FinishedRally
-from annotator.sequence.rally_model import fit_rally_sides
+from annotator.sequence.contacts import (
+    ContactEvent,
+    ContactSequence,
+    FinishedRally,
+    fit_rally_sides,
+)
 from annotator.types import ContactCandidate
 
 
