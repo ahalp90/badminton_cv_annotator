@@ -5,16 +5,16 @@ import pytest
 
 from annotator.contacts.features import contact_feature_dtype
 from annotator.contacts.model import ScoredContacts
-from annotator.sequence.candidates import (
-    shortlist_later_rows,
-    shortlist_serve_rows,
-)
 from annotator.sequence.contacts import (
     ContactEvent,
     ContactSequence,
     initial_sequences,
 )
-from annotator.sequence.rally_options import toggle_proposals
+from annotator.sequence.rally_options import (
+    shortlist_later_rows,
+    shortlist_serve_rows,
+    toggle_proposals,
+)
 
 
 def _scores(rows: list[tuple[int, int, float, bool]]) -> ScoredContacts:

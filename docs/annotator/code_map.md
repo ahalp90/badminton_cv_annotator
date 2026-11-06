@@ -15,7 +15,7 @@ intermediate results are unfamiliar.
 | Score and select contacts | [learned_model_inference.py](../../src/annotator/learned_model_inference.py) | Run the contact model, rally selector and review ranking |
 | Build contact evidence | [contacts/features.py](../../src/annotator/contacts/features.py) | Choose search regions and measure shuttle/player signals |
 | Select initial contacts | [contacts/model.py](../../src/annotator/contacts/model.py) | Score candidates, apply temporal separation and the cutoff |
-| Shortlist rally contacts | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) | Choose possible earlier serves and missed contacts |
+| Shortlist rally contacts | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Choose possible earlier serves and missed contacts |
 | Propose rally sequences | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) | Prepare contact evidence, combine additions/deletions, order alternatives and build their features |
 | Choose and finish rallies | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) | Score proposals, select one per rally, finish bounds and sides, then build review evidence |
 | Fit player order | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) | Choose the alternating order from player guesses and wrist distances; retain the first and final striker |
@@ -25,8 +25,9 @@ intermediate results are unfamiliar.
 Read `rally_options.py` from `build_rally_context()` to `build_rally_options()`:
 prepare the initial rallies and shortlisted contacts, then build the alternatives
 and their model rows. Both inference and training use these two steps.
-`toggle_proposals()` follows with the contact-edit rules, duplicate removal and
-ordering. The detailed feature calculations come afterwards.
+The shortlisting rules follow the two builders in the same file, then
+`toggle_proposals()` defines contact edits, duplicate removal and ordering.
+The detailed feature calculations come afterwards.
 
 In `rally_model.py`, `predict_rally_options()` chooses and finishes the rallies.
 The scoring and boundary helpers follow in the same file. Both inference routes
@@ -74,7 +75,7 @@ beside the public result. Prepared evidence includes both exclusion masks.
 | Why is footage excluded? | [masks/replay.py](../../src/annotator/masks/replay.py) |
 | How does excluded footage read as rest? | `apply_replay_mask()` in [rally_segmentation.py](../../src/annotator/rally_segmentation.py) |
 | Where are the shared array calculations? | [calc_helpers.py](../../src/annotator/calc_helpers.py) |
-| Which earlier or missed contacts can be proposed? | [sequence/candidates.py](../../src/annotator/sequence/candidates.py) |
+| Which earlier or missed contacts can be proposed? | [sequence/rally_options.py](../../src/annotator/sequence/rally_options.py) |
 | Why did final rally bounds move? | [sequence/rally_model.py](../../src/annotator/sequence/rally_model.py) |
 | Which player hit in this camera scene? | [contacts/attribution.py](../../src/annotator/contacts/attribution.py) |
 | Why did the striker half change? | [sequence/contacts.py](../../src/annotator/sequence/contacts.py) |
