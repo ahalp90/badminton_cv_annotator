@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.types import REJECTABLE_SHUTTLE_GRADES, ShuttleGrade
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 
 SHUTTLE_QUALITY_SCHEMA = "shuttle-quality/0.2"
 
@@ -51,7 +51,7 @@ class ShuttleQualitySummary:
             raise ValueError("visible filled frames cannot exceed all filled frames")
         if self.rejected_grades != tuple(sorted(set(self.rejected_grades))):
             raise ValueError("rejected grades must be sorted and unique")
-        if any(grade not in REJECTABLE_SHUTTLE_GRADES for grade in self.rejected_grades):
+        if not set(self.rejected_grades) <= ShuttleGrade.rejectable():
             raise ValueError("rejected grades must be recognised non-zero shuttle grades")
         expected_rejected = sum(self.guard_counts_per_code[grade] for grade in self.rejected_grades)
         if self.guard_rejected_frames != expected_rejected:

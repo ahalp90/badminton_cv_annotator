@@ -11,8 +11,11 @@ from typing import Any
 
 import numpy as np
 
-from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
-from annotator.types import ShuttleGrade
+from annotator.excluded_frames.shuttle_hallucination import (
+    ShuttleGrade,
+    code_counts,
+    grade_track,
+)
 from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,

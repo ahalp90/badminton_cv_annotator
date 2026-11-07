@@ -7,7 +7,8 @@ fitted models must use the settings they were trained with.
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 
-from annotator.types import REJECTABLE_SHUTTLE_GRADES, SmoothingMode
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
+from annotator.types import SmoothingMode
 from shared.frame_timing import frames_at_fps, speed_at_fps
 
 REST_SPEED_BASE30 = 0.002
@@ -72,16 +73,7 @@ class BaseAnnotatorConfig:
     max_high_shot_gap_frames: float = 75.0
     reentry_guard_buffer: float = 0.05
     # Shuttle grades to exclude when estimating speed and final flights.
-    rejected_grades: frozenset[int] = REJECTABLE_SHUTTLE_GRADES
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.rejected_grades, frozenset):
-            raise ValueError('rejected_grades must be a frozenset')  # noqa: TRY004 -- invalid configuration value
-        if any(
-            isinstance(code, bool) or not isinstance(code, int) or code not in REJECTABLE_SHUTTLE_GRADES
-            for code in self.rejected_grades
-        ):
-            raise ValueError(f'rejected_grades must be a subset of {sorted(REJECTABLE_SHUTTLE_GRADES)}')
+    rejected_grades: frozenset[int] = ShuttleGrade.rejectable()
 
 
 @dataclass(frozen=True)

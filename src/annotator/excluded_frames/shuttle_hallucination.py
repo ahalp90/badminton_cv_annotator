@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any
+from enum import IntEnum
+from typing import Any, Self
 
 import numpy as np
-
-from annotator.types import ShuttleGrade
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +21,31 @@ DEFAULT_HALO_FRAMES = 3
 MIN_OCCURRENCES_TO_COMPARE = 2
 MIN_OCCURRENCES_TO_FLAG = 30
 MIN_OCCURRENCE_COUNT_RATIO = 10.0
+
+
+class ShuttleGrade(IntEnum):
+    """Quality of a shuttle position, stored as one integer per video frame."""
+
+    UNFLAGGED = 0, 'unflagged'
+    REPEATED_MOVING_PATTERN = 1, 'repeated moving pattern'
+    REPEATED_STATIONARY_POSITION = 2, 'repeated stationary position'
+    REPEATED_PATTERN_HALO = 3, 'halo around repeated pattern'
+    MATCHES_ANY_PATTERN_POS = 4, 'matches any position in a repeated pattern'
+
+    label: str
+
+    def __new__(cls, code: int, label: str) -> Self:
+        grade = int.__new__(cls, code)
+        grade._value_ = code
+        grade.label = label
+        return grade
+
+    def __str__(self) -> str:
+        return self.label
+
+    @classmethod
+    def rejectable(cls) -> frozenset[ShuttleGrade]:
+        return frozenset(grade for grade in cls if grade is not cls.UNFLAGGED)
 
 
 def grade_track(
@@ -194,18 +218,9 @@ def require_patterns_in_both_halves(
 # Reporting
 # -----------------------------------------------------------------------------
 
-CODE_NAMES = {
-    ShuttleGrade.UNFLAGGED: "unflagged",
-    ShuttleGrade.REPEATED_MOVING_PATTERN: "repeated moving pattern",
-    ShuttleGrade.REPEATED_STATIONARY_POSITION: "repeated stationary position",
-    ShuttleGrade.REPEATED_PATTERN_HALO: "halo around repeated pattern",
-    ShuttleGrade.MATCHES_ANY_PATTERN_POS: "matches any position in a repeated pattern",
-}
-
-
 def code_counts(codes: np.ndarray) -> dict[int, int]:
     """Count frames in each shuttle grade."""
-    return {grade: int(np.count_nonzero(codes == grade)) for grade in ShuttleGrade}
+    return {int(grade): int(np.count_nonzero(codes == grade)) for grade in ShuttleGrade}
 
 
 # Detection report when no patterns could be accepted

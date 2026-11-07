@@ -43,17 +43,9 @@ def test_removed_direction_change_override_fails_loudly() -> None:
         scale_config_to_fps(BaseAnnotatorConfig(overrides_base30={'min_dir_change_deg': 30.0}), 30.0)
 
 
-def test_rejected_grades_are_validated_and_copied_to_scaled_config() -> None:
+def test_rejected_grades_are_copied_to_scaled_config() -> None:
     base = BaseAnnotatorConfig(rejected_grades=frozenset({1, 3}))
     assert scale_config_to_fps(base, 30.0).rejected_grades == frozenset({1, 3})
-    with pytest.raises(ValueError, match='subset of'):
-        BaseAnnotatorConfig(rejected_grades=frozenset({0}))
-    with pytest.raises(ValueError, match='subset of'):
-        BaseAnnotatorConfig(rejected_grades=frozenset({True}))
-    with pytest.raises(ValueError, match='subset of'):
-        BaseAnnotatorConfig(rejected_grades=frozenset({1, False}))
-    with pytest.raises(ValueError, match='frozenset'):
-        BaseAnnotatorConfig(rejected_grades={1})
 
 
 @pytest.mark.parametrize(('last_before', 'first_after', 'last_after', 'held_open'), [

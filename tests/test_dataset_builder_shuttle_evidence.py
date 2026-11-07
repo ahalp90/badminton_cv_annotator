@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.types import REJECTABLE_SHUTTLE_GRADES, ShuttleGrade
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 from dataset_builder import shuttle_evidence
 from dataset_builder.shuttle_evidence import (
     load_inpaint_fill_mask,
@@ -237,7 +237,7 @@ def test_shuttle_quality_counts_nearby_and_matching_positions_separately() -> No
     grades = np.asarray(tuple(ShuttleGrade), dtype=np.uint8)
     track = np.tile([.2, .3, 1.], (len(grades), 1))
     fill_mask = np.array([False, False, True, True, True])
-    quality = summarize_shuttle_quality(track, fill_mask, grades, REJECTABLE_SHUTTLE_GRADES)
+    quality = summarize_shuttle_quality(track, fill_mask, grades, ShuttleGrade.rejectable())
     assert quality.guard_counts_per_code == (1, 1, 1, 1, 1)
     assert quality.filled_counts_per_code == (0, 0, 1, 1, 1)
     assert quality.rejected_grades == (1, 2, 3, 4)

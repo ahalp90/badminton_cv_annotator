@@ -11,8 +11,7 @@ import numpy as np
 from annotator.annotate_video import annotate_video
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.heuristics import impulse_cell_candidates
-from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES
-from annotator.types import ShuttleGrade
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 from experiments.annotator.legacy_evaluation.fixtures import Fixture
 from experiments.annotator.legacy_evaluation.gt_scoring import canonical_tolerance
 from experiments.annotator.legacy_evaluation.scoring import (
@@ -372,7 +371,7 @@ def _build_candidate_row(
         "impulse": impulse,
         "manual_truth": str(truth[frame]),
         "inpaint_code": code,
-        "inpaint_name": CODE_NAMES[code],
+        "inpaint_name": str(ShuttleGrade(code)),
         "track_visible": visible,
         "court_present": not court_absent,
         "court_absent": court_absent,

@@ -129,22 +129,6 @@ class FinishedRally:
 # Rally and contact detection choices
 
 
-class ShuttleGrade(IntEnum):
-    """Quality of a shuttle position, stored as one integer per video frame."""
-
-    UNFLAGGED = 0
-    REPEATED_MOVING_PATTERN = 1
-    REPEATED_STATIONARY_POSITION = 2
-    REPEATED_PATTERN_HALO = 3
-    MATCHES_ANY_PATTERN_POS = 4
-
-
-REJECTABLE_SHUTTLE_GRADES = frozenset({
-    ShuttleGrade.REPEATED_MOVING_PATTERN, ShuttleGrade.REPEATED_STATIONARY_POSITION,
-    ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_ANY_PATTERN_POS,
-})
-
-
 class SmoothingMode(StrEnum):
     """Whether to include invisible shuttle coordinates when smoothing the track."""
 

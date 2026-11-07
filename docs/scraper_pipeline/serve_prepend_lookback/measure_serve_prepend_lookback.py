@@ -41,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from annotator.annotate_video import annotate_video
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.types import ShuttleGrade
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 from experiments.annotator.heuristic_tuning import (
     serve_prepend_measurement as candidate_measurement,
 )

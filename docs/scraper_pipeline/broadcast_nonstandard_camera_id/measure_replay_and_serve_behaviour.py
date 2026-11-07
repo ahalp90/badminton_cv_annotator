@@ -47,11 +47,11 @@ from annotator.excluded_frames.replay import (
     filter_short_exclusion_runs,
     velocity_drop_signal,
 )
-from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 from annotator.inference.prepare_annotation_inputs import build_player_evidence
 from annotator.player_tracking import tracker_segments
 from annotator.rallies.find_rallies import find_rally_spans
-from annotator.types import ShuttleGrade, TrackedPlayers, WristGaps
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator.legacy_evaluation.fixtures import (
     SSET_01,
     Fixture,
@@ -318,7 +318,7 @@ def slow_motion_rows(
     """Stratify the unchanged slow-motion signal by truth and inpaint grade."""
     rows: list[dict[str, Any]] = []
     for scene_truth in TRUTH_ORDER:
-        for code, name in sorted(CODE_NAMES.items()):
+        for code in ShuttleGrade:
             selected = (truth == scene_truth.value) & (shuttle_grades == code)
             frames = int(selected.sum())
             visible = int(np.count_nonzero(selected & (track[:, 2] == 1)))
@@ -327,8 +327,8 @@ def slow_motion_rows(
             rolling_values = details.rolling_speed[selected & np.isfinite(details.rolling_speed)]
             rows.append({
                 "truth": scene_truth.value,
-                "inpaint_code": code,
-                "inpaint_name": name,
+                "inpaint_code": int(code),
+                "inpaint_name": str(code),
                 "frames": frames,
                 "visible_frames": visible,
                 "measured_speed_frames": measured_speed,
@@ -459,8 +459,8 @@ def evaluate_serve_candidates(
                 "candidate_frame": frame,
                 "impulse": impulse,
                 "manual_truth": str(truth[frame]),
-                "inpaint_code": code,
-                "inpaint_name": CODE_NAMES[code],
+                "inpaint_code": int(code),
+                "inpaint_name": str(ShuttleGrade(code)),
                 "track_visible": visible,
                 "sticky_distance_bh": sticky_distance if np.isfinite(sticky_distance) else None,
                 "sticky_top_pick": int(players.detection_indices[frame, 0]),

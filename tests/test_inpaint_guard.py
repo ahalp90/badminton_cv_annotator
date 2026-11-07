@@ -1,14 +1,40 @@
 """Synthetic tests for the inpaint fabrication grade detector."""
 from __future__ import annotations
 
+import json
+import pickle
+
 import numpy as np
 import pytest
 
 from annotator.excluded_frames.shuttle_hallucination import (
     DEFAULT_HALO_FRAMES,
+    ShuttleGrade,
+    code_counts,
     grade_track,
 )
-from annotator.types import ShuttleGrade
+
+
+@pytest.mark.parametrize(('code', 'label'), [
+    (0, 'unflagged'),
+    (1, 'repeated moving pattern'),
+    (2, 'repeated stationary position'),
+    (3, 'halo around repeated pattern'),
+    (4, 'matches any position in a repeated pattern'),
+])
+def test_shuttle_grade_preserves_codes_labels_and_pickle_roundtrip(code: int, label: str) -> None:
+    grade = ShuttleGrade(code)
+    assert int(grade) == code
+    assert str(grade) == label
+    assert pickle.loads(pickle.dumps(grade)) is grade
+
+
+def test_shuttle_grades_preserve_array_storage_and_numeric_report_keys() -> None:
+    codes = np.asarray(tuple(ShuttleGrade), dtype=np.uint8)
+    np.testing.assert_array_equal(codes, np.arange(5, dtype=np.uint8))
+    assert ShuttleGrade.rejectable() == frozenset({1, 2, 3, 4})
+    assert json.loads(json.dumps(code_counts(codes))) == {str(code): 1 for code in range(5)}
+    assert [str(code) for code in code_counts(codes)] == ['0', '1', '2', '3', '4']
 
 
 def _track_with_recurrence(

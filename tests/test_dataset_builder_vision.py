@@ -33,7 +33,7 @@ from annotator.courts.prepare_courts import (
     SceneStatus,
     build_court_detector_evidence,
 )
-from annotator.excluded_frames.shuttle_hallucination import grade_track
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade, grade_track
 from annotator.models import AnnotatorModels, save_models
 from annotator.rally_results.landing_and_winner import (
     Landing,
@@ -43,7 +43,6 @@ from annotator.rally_results.landing_and_winner import (
 from annotator.saved_inputs import load_saved_video_inputs
 from annotator.training.workflow import prepare_saved_video_inputs
 from annotator.types import (
-    REJECTABLE_SHUTTLE_GRADES,
     ContactCandidate,
     ContactEvent,
     ContactSequence,
@@ -200,7 +199,7 @@ def _quality(
     frame_count = len(track)
     fill = np.zeros(frame_count, dtype=bool) if fill_mask is None else fill_mask
     codes = np.zeros(frame_count, dtype=np.uint8) if shuttle_grades is None else shuttle_grades
-    return summarize_shuttle_quality(track, fill, codes, REJECTABLE_SHUTTLE_GRADES)
+    return summarize_shuttle_quality(track, fill, codes, ShuttleGrade.rejectable())
 
 
 def test_whole_video_tracknet_conversion_reindexes_and_preserves_string_id(
