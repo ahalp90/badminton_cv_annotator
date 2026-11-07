@@ -122,6 +122,17 @@ submissions bounded too.
 
 ## Implementation
 
+Check a run from the repository root:
+
+```bash
+python -m experiments.annotator.tree_simplification.hp_search_status --output RUN
+```
+
+The command shows the current stage, completed combinations and fits, elapsed
+time and any failure. A detached launcher can write its PID to `RUN/process.pid`
+and its exit status to `RUN/exit-code`; the status command uses these to identify
+an exited process even if its last saved progress still says it was running.
+
 Add a small runner under `experiments/annotator/tree_simplification/`, with a
 worker helper only if that makes the runner easier to read. Production `src/`
 changes are not needed for the current design.
