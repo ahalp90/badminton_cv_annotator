@@ -255,7 +255,7 @@ def prepare_saved_video_inputs(run_dir: Path, video_id: str, preprocessing: Base
         video_config=scale_config_to_fps(preprocessing, float(saved.metadata.fps)),
         resolution=court_inputs.resolution,
         court_present=saved.court.evidence.court_present, homography_rows=court_inputs.homography_rows,
-        shuttle_grades=saved.shuttle_grades, court_invalid_is_excluded=True,
+        shuttle_grades=saved.shuttle_grades,
     )
 
 

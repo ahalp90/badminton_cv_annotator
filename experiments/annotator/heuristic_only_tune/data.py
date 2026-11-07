@@ -160,7 +160,6 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
         'shuttle_grades': inputs.shuttle_grades,
-        'court_invalid_is_excluded': True,
     }
 
 

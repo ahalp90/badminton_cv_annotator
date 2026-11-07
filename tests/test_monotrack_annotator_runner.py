@@ -118,7 +118,6 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert video_config.thresholds.wrist_distance_body_heights == 1.8
         assert video_config.thresholds.smooth_window == 5
         assert kwargs['landing_options'] is SHIPPED_LANDING_FILTER_OPTIONS
-        assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['shuttle_grades'] is inputs.guards
         assert kwargs['court_present'] is inputs.vision.evidence.court_present
         assert kwargs['homography_rows'] is inputs.court.homography_rows

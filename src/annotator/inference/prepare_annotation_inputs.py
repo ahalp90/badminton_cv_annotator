@@ -32,7 +32,7 @@ class PreparedAnnotationInputs:
 
     ``raw_exclusion_mask`` flags footage before short-run filtering.
     ``exclusion_mask`` keeps sustained exclusions and adds frames without usable
-    court geometry.
+    court geometry or court presence.
     ``rejected_shuttle_frames`` marks rejected shuttle grades, used when
     measuring speed evidence and interpreting final flights and landings.
 
@@ -84,7 +84,6 @@ def prepare_annotation_inputs(
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
     shuttle_grades: np.ndarray | None = None,
-    court_invalid_is_excluded: bool = False,
 ) -> PreparedAnnotationInputs:
     """Prepare courts, players, masks and initial rallies for inference or training.
 
@@ -119,9 +118,7 @@ def prepare_annotation_inputs(
         start = max(0, scene.start_frame)
         end = max(0, min(len(track), scene.end_frame))
         usable_court_frames[start:end] = True
-    if court_invalid_is_excluded:
-        usable_court_frames = usable_court_frames & court_present
-    exclusion_mask = exclusion_mask | ~usable_court_frames
+    exclusion_mask = exclusion_mask | ~usable_court_frames | ~court_present
     if exclusion_mask.all():
         raise ValueError('mask is all True: no live frame to anchor a frozen position to')
     if contacts is not None:

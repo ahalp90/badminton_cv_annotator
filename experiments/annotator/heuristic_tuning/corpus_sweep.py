@@ -231,7 +231,6 @@ def load_pinned_replay_fixtures(
             "court_present": court.evidence.court_present,
             "homography_rows": court_inputs.homography_rows,
             "shuttle_grades": shuttle.shuttle_grades,
-            "court_invalid_is_excluded": True,
         }
         inputs = RunVideoInputs(
             (shuttle.track, pose.bboxes, pose.scores, pose.kps, pose.ndet),

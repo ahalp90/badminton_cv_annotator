@@ -759,7 +759,6 @@ def run_full_annotation_stage(
         court_present=court.evidence.court_present,
         homography_rows=court_inputs.homography_rows,
         shuttle_grades=shuttle_grades,
-        court_invalid_is_excluded=True,
     )
     result = annotation.result
     raw_mask = _validated_mask(

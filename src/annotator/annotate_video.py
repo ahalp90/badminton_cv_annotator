@@ -50,7 +50,6 @@ def annotate_video(
     contacts: dict[int, list[int]] | None = None,
     shuttle_grades: np.ndarray | None = None,
     keep_working_data: bool = False,
-    court_invalid_is_excluded: bool = False,
 ) -> VideoAnnotation:
     """Find rallies and contacts, assign hitters, then estimate landings and winners.
 
@@ -67,8 +66,7 @@ def annotate_video(
     ``spans`` and ``contacts`` can supply initial bounds and contact frames.
     ``raw_exclusion_mask`` supplies footage flags before short-run filtering;
     ``shuttle_grades`` supplies shuttle-quality grades. Frames without accepted
-    court geometry are excluded. ``court_invalid_is_excluded`` also excludes
-    frames where ``court_present`` is False.
+    court geometry or court presence are excluded.
 
     Set ``keep_working_data=True`` to retain prepared inputs and model scores
     for debugging or experiments. Exclusion masks are always returned for
@@ -90,7 +88,6 @@ def annotate_video(
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask,
         spans=spans, contacts=contacts, shuttle_grades=shuttle_grades,
-        court_invalid_is_excluded=court_invalid_is_excluded,
     )
     prediction = None
     contact_events = ()

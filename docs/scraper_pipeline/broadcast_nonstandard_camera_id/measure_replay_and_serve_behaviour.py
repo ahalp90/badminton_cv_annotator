@@ -771,7 +771,6 @@ def run_measurement(
     e2e_definitive = duration_filtered | ~court_present
 
     keyword["raw_exclusion_mask"] = raw_union
-    keyword["court_invalid_is_excluded"] = True
     annotation = annotate_video(*inputs.positional, **keyword)
     result = annotation.result
     if not np.array_equal(annotation.raw_exclusion_mask, raw_union):

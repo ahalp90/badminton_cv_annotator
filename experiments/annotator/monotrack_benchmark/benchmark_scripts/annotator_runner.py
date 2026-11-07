@@ -84,7 +84,7 @@ def run_item(
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
             resolution=court.resolution,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
-            shuttle_grades=guards, court_invalid_is_excluded=True,
+            shuttle_grades=guards,
             spans=spans, keep_working_data=True,
         )
         result = annotation.result

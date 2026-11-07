@@ -269,7 +269,6 @@ def test_saved_inputs_pass_to_preparation(tmp_path: Path, monkeypatch: pytest.Mo
         assert track is saved.track and bboxes is pose.bboxes and scores is pose.scores
         assert kps is pose.kps and ndet is pose.ndet
         assert kwargs['video_config'] == workflow.scale_config_to_fps(preprocessing, 30.0)
-        assert kwargs['court_invalid_is_excluded'] is True
         assert kwargs['shuttle_grades'] is saved.shuttle_grades
         assert kwargs['homography_rows'] is court_inputs.homography_rows
         return captured

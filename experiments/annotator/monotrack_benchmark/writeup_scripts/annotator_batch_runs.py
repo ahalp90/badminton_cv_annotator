@@ -214,7 +214,7 @@ def prepare_inputs(
         video_config=scale_config_to_fps(models.preprocessing, inputs.fps), resolution=court.resolution,
         court_present=inputs.court_present,
         homography_rows=court.homography_rows,
-        shuttle_grades=inputs.shuttle_grades, court_invalid_is_excluded=True, spans=spans,
+        shuttle_grades=inputs.shuttle_grades, spans=spans,
     )
 
 

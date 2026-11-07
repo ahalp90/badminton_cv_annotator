@@ -116,7 +116,7 @@ def prepare_video(
                 video_config=scale_config_to_fps(base, inputs.fps),
                 resolution=inputs.court.resolution,
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
-                shuttle_grades=inputs.shuttle_grades, court_invalid_is_excluded=True,
+                shuttle_grades=inputs.shuttle_grades,
             )
         features = contact_features_from_inputs(evidence)
         prepared = PreparedVideo(video, group, evidence, features)

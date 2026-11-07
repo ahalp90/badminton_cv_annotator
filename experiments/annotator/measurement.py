@@ -670,7 +670,6 @@ def _configuration_values() -> dict[str, object]:
         "injected_positions": False,
         "injected_spans": False,
         "injected_contacts": False,
-        "court_invalid_is_excluded": True,
         "person_margin": PERSON_COURT_MARGIN,
         "scene_threshold": SCENE_VALID_MIN_FRACTION,
         "landing_search_seconds": list(LANDING_SEARCH_SECONDS),
@@ -1029,7 +1028,6 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
             homography_rows=input_values.homography_rows,
-            court_invalid_is_excluded=True,
             keep_working_data=True,
         )
         result = annotation.result

@@ -538,7 +538,7 @@ def test_landing_trials_record_landing_and_winner_changes(monkeypatch):
     assert tied.search_stop_reasons == ('time_limit', 'video_end')
 
 
-def test_run_video_can_exclude_frames_without_court_presence() -> None:
+def test_run_video_excludes_frames_without_court_presence() -> None:
     inputs = _synthetic_inputs()
     court_present = np.ones(len(inputs['track']), dtype=bool)
     court_present[10] = False
@@ -549,16 +549,15 @@ def test_run_video_can_exclude_frames_without_court_presence() -> None:
         **inputs,
         **scene_inputs,
         keep_working_data=True,
-        court_invalid_is_excluded=True, heuristic_only=True,
+        heuristic_only=True,
     )
     assert annotation.working_data.prepared_inputs.exclusion_mask[10]
     assert annotation.working_data.prepared_inputs.exclusion_mask[~court_present].all()
 
 
 @pytest.mark.parametrize('gap', [(0, 10), (150, 160), (290, 300)])
-@pytest.mark.parametrize('exclude_invalid', [False, True])
 def test_run_video_excludes_scene_gaps(
-    gap: tuple[int, int], exclude_invalid: bool,
+    gap: tuple[int, int],
 ) -> None:
     inputs = _synthetic_inputs()
     n_frames = len(inputs['track'])
@@ -579,7 +578,6 @@ def test_run_video_excludes_scene_gaps(
     annotation = annotate_video(
         **inputs, **scene_inputs,
         spans=[(0, n_frames)], contacts={0: contact_frames}, keep_working_data=True,
-        court_invalid_is_excluded=exclude_invalid,
         heuristic_only=True,
     )
     result = annotation.result
@@ -588,10 +586,9 @@ def test_run_video_excludes_scene_gaps(
     assert [contact.contact_frame for contact in result.heuristic_candidates] == contact_frames
     expected_mask = np.zeros(n_frames, dtype=bool)
     expected_mask[gap_start:gap_end] = True
-    expected_mask[120] = exclude_invalid
+    expected_mask[120] = True
     np.testing.assert_array_equal(annotation.working_data.prepared_inputs.exclusion_mask, expected_mask)
-    expected_contacts = [180] if exclude_invalid else [120, 180]
-    assert [event.frame for rally in result.rallies for event in rally.sequence.events] == expected_contacts
+    assert [event.frame for rally in result.rallies for event in rally.sequence.events] == [180]
 
 
 def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
@@ -603,7 +600,7 @@ def test_run_video_fails_after_hard_court_union_becomes_all_true() -> None:
             **inputs,
             **scene_inputs,
             keep_working_data=True,
-            court_invalid_is_excluded=True, heuristic_only=True,
+            heuristic_only=True,
         )
 
 

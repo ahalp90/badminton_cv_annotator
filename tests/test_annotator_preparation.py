@@ -141,7 +141,7 @@ def test_preparation_filters_short_runs_and_excludes_unusable_court_frames(prepa
     row = preparation_inputs['homography_rows'][0]
     preparation_inputs['homography_rows'] = [dict(row, end_frame=150), dict(row, start_frame=160)]
     preparation_inputs['court_present'][200] = False
-    evidence = prepare_annotation_inputs(**preparation_inputs, spans=[], contacts={}, court_invalid_is_excluded=True)
+    evidence = prepare_annotation_inputs(**preparation_inputs, spans=[], contacts={})
     expected = np.zeros(len(raw_mask), dtype=bool)
     expected[40:120] = True
     expected[150:160] = True
