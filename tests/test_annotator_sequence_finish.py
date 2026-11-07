@@ -46,7 +46,7 @@ def _finish_selected(
     choices: dict[int, ContactSequence], fps: float, *, bounds_supplied: bool = False,
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...]]:
     context = RallyContext(
-        fps, tuple(initial), tuple(events), {}, {}, bounds_supplied=bounds_supplied,
+        fps, tuple(initial), tuple(events), {}, {}, frame_count=3000, bounds_supplied=bounds_supplied,
     )
     rows = {span_id: index for index, span_id in enumerate(choices)}
     pool = RallyOptions(
@@ -61,14 +61,14 @@ def test_boundaries_pad_around_first_and_last_contact_without_moving_inward():
     already_wide = _sequence(1, 300, 400, [350])
     near_video_start = _sequence(2, 3, 50, [5])
     for sequence, expected in ((padded, (95, 201)), (already_wide, (300, 400)), (near_video_start, (0, 50))):
-        assert _bounds(extend_boundaries([sequence], sequence.events, fps=30.0)) == [expected]
-    assert _bounds(extend_boundaries([padded], padded.events, fps=60.0)) == [(85, 211)]
+        assert _bounds(extend_boundaries([sequence], sequence.events, fps=30.0, frame_count=500)) == [expected]
+    assert _bounds(extend_boundaries([padded], padded.events, fps=60.0, frame_count=500)) == [(85, 211)]
 
 
 def test_boundaries_stop_at_neighbours_and_split_a_shared_gap_at_its_midpoint():
     left = _sequence(0, 0, 50, [10, 45])
     right = _sequence(1, 52, 100, [55, 90])
-    extended = extend_boundaries([left, right], _all_events(left, right), fps=30.0)
+    extended = extend_boundaries([left, right], _all_events(left, right), fps=30.0, frame_count=500)
     assert _bounds(extended) == [(0, 51), (51, 101)]
     assert [sequence.events for sequence in extended] == [left.events, right.events]
 
@@ -76,13 +76,13 @@ def test_boundaries_stop_at_neighbours_and_split_a_shared_gap_at_its_midpoint():
 def test_boundaries_stay_put_when_padding_would_take_in_another_contact():
     sequence = _sequence(0, 100, 200, [105, 150])
     stray = ContactEvent(97, .6, None)
-    assert _bounds(extend_boundaries([sequence], [stray, *sequence.events], fps=30.0)) == [(100, 200)]
+    assert _bounds(extend_boundaries([sequence], [stray, *sequence.events], fps=30.0, frame_count=500)) == [(100, 200)]
 
 
 def test_boundaries_leave_a_contact_less_sequence_unchanged():
     left = _sequence(0, 0, 50, [])
     right = _sequence(1, 55, 100, [58])
-    assert _bounds(extend_boundaries([left, right], _all_events(left, right), fps=30.0)) == [(0, 50), (50, 100)]
+    assert _bounds(extend_boundaries([left, right], _all_events(left, right), fps=30.0, frame_count=500)) == [(0, 50), (50, 100)]
 
 
 def _sided(span_id: int, frames: list[int], sides: list[CourtHalf | None]) -> ContactSequence:

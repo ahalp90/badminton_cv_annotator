@@ -12,7 +12,7 @@ import pytest
 from annotator.config import BaseAnnotatorConfig, Thresholds, scale_config_to_fps
 from annotator.contacts.player_attribution import contact_player_evidence
 from annotator.courts.frame_geometry import SceneCourt
-from annotator.excluded_frames.replay import combine_mask, court_absence_signal
+from annotator.excluded_frames.replay import court_absence_signal
 from annotator.inference.prepare_annotation_inputs import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.rally_results.landing_and_winner import (
@@ -227,7 +227,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     present = np.ones(500, dtype=bool)
     present[10:39] = False
     present[60:100] = False
-    replay = combine_mask(present,  None, None, len(present), video_config.fps)
+    replay = court_absence_signal(present, len(present), video_config.fps)
     assert not replay[10:39].any()
     assert replay[60:100].all()
 
@@ -247,7 +247,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     track = np.column_stack([np.full(n_frames, 0.5), y, np.ones(n_frames)])
     present = np.ones(n_frames, dtype=bool)
     present[45:75] = False
-    replay = combine_mask(present,  None, None, n_frames, video_config.fps)
+    replay = court_absence_signal(present, n_frames, video_config.fps)
     plain_spans, _ = segment_video(track, video_config=replace(trajectory_config(), thresholds=video_config.thresholds))
     masked_spans, _ = segment_video(
         track, exclusion_mask=replay, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)

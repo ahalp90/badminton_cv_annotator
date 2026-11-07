@@ -141,7 +141,7 @@ def test_contact_gap_features_exclude_rally_boundary_gaps(fps: float) -> None:
     events = (ContactEvent(20, .9, None), ContactEvent(60, .7, None))
     sequence = ContactSequence(0, 10, 200, events)
     contact_features = {event.frame: np.zeros(len(CONTACT_FEATURE_NAMES)) for event in events}
-    context = RallyContext(fps, (sequence,), events, {}, contact_features)
+    context = RallyContext(fps, (sequence,), events, {}, contact_features, frame_count=200)
 
     pool = build_rally_options(context, max_edits=0)
     features = dict(zip(FEATURE_NAMES, pool.matrix[0], strict=True))

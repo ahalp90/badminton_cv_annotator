@@ -134,7 +134,7 @@ def finish_rallies(
 
 def extend_boundaries(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent], fps: float,
-    *, frame_count: int | None = None,
+    *, frame_count: int,
 ) -> tuple[ContactSequence, ...]:
     """Add space before the first hit and after the last, keeping the same contacts.
 
@@ -146,14 +146,13 @@ def extend_boundaries(
     :param sequences: Non-overlapping rallies in time order.
     :param events: Full contact list in frame order, including hits outside rallies.
     :param fps: Video frame rate.
-    :param frame_count: Optional video length; bounds exclude this endpoint.
+    :param frame_count: Video length; bounds exclude this endpoint.
     :return: Same rallies and contacts, with permitted extensions.
     """
     padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, fps)
     bounds = [proposed_bounds(sequence, padding) for sequence in sequences]
     for position in range(len(sequences)):
-        if frame_count is not None:
-            bounds[position][1] = min(bounds[position][1], frame_count)
+        bounds[position][1] = min(bounds[position][1], frame_count)
         if position:
             bounds[position][0] = max(bounds[position][0], sequences[position - 1].end_frame)
         if position + 1 < len(sequences):

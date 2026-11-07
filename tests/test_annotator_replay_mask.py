@@ -1,4 +1,4 @@
-"""Replay-mask tests for isolated signals, their union, and missing inputs.
+"""Replay-mask tests for court absence, slow motion and their combined exclusions.
 
 Synthetic inputs are shaped so each signal has one obvious firing region and one
 obvious quiet region.
@@ -79,7 +79,11 @@ def test_velocity_drop_fires_on_slow_span_not_normal_play():
     track[40:80, 1] = 0.4 + slow_step * (np.arange(40, 80) % 2)  # slow replay span
     rally_spans = [(0, 31)]                                       # normal play defines the norm
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    mask = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     # slow_step (0.012) < SLOWMO_SPEED_FRAC * normal_step (0.015); normal play stays above.
     assert slow_step < SLOWMO_SPEED_FRAC * normal_step
     assert mask[45:78].all()
@@ -97,7 +101,11 @@ def test_velocity_drop_ignores_genuine_rest():
     track[40:80, 1] = 0.4                                 # shuttle at rest: zero speed, visible
     rally_spans = [(0, 31)]
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    mask = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     assert not mask[45:78].any()
     assert not mask[3:28].any()
 
@@ -109,18 +117,24 @@ def test_union_combines_signals():
     track = _speed_track(0.1, n_frames)
     rally_spans = [(30, 200)]
 
-    mask = combine_mask(court_present,  track, rally_spans, n_frames, 25.0)
+    mask = combine_mask(
+        court_present, track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
     assert mask[15:25].all()                             # court absence
     assert not mask[205:215].any()                       # a different view can be live play
 
 
-def test_missing_inputs_contribute_all_false():
+def test_no_rallies_skips_slow_motion_but_still_excludes_court_absence():
     n_frames = 50
-    assert not court_absence_signal(None, n_frames, 25.0).any()
-    assert not perspective_shift_signal(None, n_frames).any()
-    assert not velocity_drop_signal(None, [(0, 10)], n_frames, 25.0).any()
-    assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames, 25.0).any()
-    assert not combine_mask(None,  None, None, n_frames, 25.0).any()
+    track = _speed_track(0.1, n_frames)
+    court_present = np.ones(n_frames, dtype=bool)
+    court_present[10:30] = False
+    mask = combine_mask(
+        court_present, track, [], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
+    np.testing.assert_array_equal(mask, ~court_present)
 
 
 def test_filter_short_exclusion_runs_preserves_whole_runs_and_is_idempotent():
@@ -168,14 +182,18 @@ def test_non_evidence_measures_steps_not_output_frames():
     long_graded = np.zeros(n_frames, dtype=bool)
     long_graded[50:70] = True
     long_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=long_graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=long_graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert not long_mask[60:65].any()
 
     short_graded = np.zeros(n_frames, dtype=bool)
     short_graded[55:57] = True
     short_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=short_graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=short_graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert short_mask[53]
     assert short_mask[58]
@@ -196,7 +214,11 @@ def test_non_evidence_marks_a_step_when_only_its_earlier_endpoint_is_graded(monk
         return np.full(len(values), np.nan)
 
     monkeypatch.setattr(replay_mask_module, 'rolling_nanmedian', capture_speed)
-    velocity_drop_signal(track, [(0, len(track))], len(track), 25.0, rejected_shuttle_frames=rejected_shuttle_frames)
+    velocity_drop_signal(
+        track, [(0, len(track))], len(track), 25.0,
+        rejected_shuttle_frames=rejected_shuttle_frames,
+        baseline_exclude=np.zeros(len(track), dtype=bool),
+    )
 
     assert rejected_shuttle_frames[4]
     assert not rejected_shuttle_frames[5]
@@ -222,9 +244,15 @@ def test_non_evidence_removes_graded_fast_frames_from_the_baseline():
     assert 0.005 >= SLOWMO_SPEED_FRAC * hand_computed_median
     assert 0.005 < SLOWMO_SPEED_FRAC * 0.1
 
-    contaminated = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    contaminated = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     decontaminated = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert contaminated[50:65].all()
     assert not decontaminated[50:65].any()
@@ -244,9 +272,15 @@ def test_baseline_exclude_removes_flagged_frames_and_leaves_firing_untouched():
     assert hand_computed_median == pytest.approx(0.015)
     assert 0.005 >= SLOWMO_SPEED_FRAC * hand_computed_median
     assert 0.005 < SLOWMO_SPEED_FRAC * 0.1
-    contaminated = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    contaminated = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     decontaminated = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, baseline_exclude=flagged,
+        track, rally_spans, n_frames, 25.0,
+        baseline_exclude=flagged,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert contaminated[50:65].all()
     assert not decontaminated[50:65].any()
@@ -255,16 +289,21 @@ def test_baseline_exclude_removes_flagged_frames_and_leaves_firing_untouched():
     unchanged_track[40:55, 1] = 0.4 + 0.005 * (np.arange(40, 55) % 2)
     one_flagged_frame = np.zeros(n_frames, dtype=bool)
     one_flagged_frame[45] = True
-    before = velocity_drop_signal(unchanged_track, [(0, 60)], n_frames, 25.0)
+    before = velocity_drop_signal(
+        unchanged_track, [(0, 60)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     after = velocity_drop_signal(
         unchanged_track, [(0, 60)], n_frames, 25.0,
         baseline_exclude=one_flagged_frame,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert before[45]
     assert after[45]
 
 
-def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
+def test_velocity_drop_matches_expected_slow_motion_frames():
     n_frames = 90
     track = np.column_stack([
         np.full(n_frames, 0.5),
@@ -287,15 +326,11 @@ def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
     ]
 
     np.testing.assert_array_equal(
-        velocity_drop_signal(track, [(0, 30)], n_frames, 25.0), expected,
-    )
-    false_mask = np.zeros(n_frames, dtype=bool)
-    np.testing.assert_array_equal(
         velocity_drop_signal(
             track, [(0, 30)], n_frames, 25.0,
-            rejected_shuttle_frames=false_mask, baseline_exclude=false_mask,
-        ),
-        expected,
+            rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+            baseline_exclude=np.zeros(n_frames, dtype=bool),
+        ), expected,
     )
 
 
@@ -303,13 +338,15 @@ def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
 def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     n_frames = 30
     track = _speed_track(0.1, n_frames) if case == 'all-excluded' else np.zeros((n_frames, 3))
-    baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else None
+    baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else np.zeros(n_frames, dtype=bool)
     caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
         mask = velocity_drop_signal(
-            track, [(0, n_frames)], n_frames, 25.0, baseline_exclude=baseline_exclude,
+            track, [(0, n_frames)], n_frames, 25.0,
+            baseline_exclude=baseline_exclude,
+            rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
         )
 
     assert not mask.any()
@@ -328,7 +365,7 @@ def test_combine_mask_threads_non_evidence_to_velocity():
     rejected_shuttle_frames[45:60] = True
 
     combined = combine_mask(
-        None,  track, [(0, 30)], n_frames, 25.0, rejected_shuttle_frames=rejected_shuttle_frames,
+        np.ones(n_frames, dtype=bool), track, [(0, 30)], n_frames, 25.0, rejected_shuttle_frames=rejected_shuttle_frames,
     )
     expected = velocity_drop_signal(
         track, [(0, 30)], n_frames, 25.0,
@@ -343,10 +380,18 @@ def test_combine_mask_excludes_court_producer_from_baseline():
     court_present = np.ones(n_frames, dtype=bool)
     court_present[5:35] = False
     court = court_absence_signal(court_present, n_frames, 25.0)
-    result = combine_mask(court_present,  track, [(0, 40)], n_frames, 25.0)
-    without_court = combine_mask(np.ones(n_frames, dtype=bool),  track, [(0, 40)], n_frames, 25.0)
+    result = combine_mask(
+        court_present, track, [(0, 40)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
+    without_court = combine_mask(
+        np.ones(n_frames, dtype=bool), track, [(0, 40)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
     expected = court | velocity_drop_signal(
-        track, [(0, 40)], n_frames, 25.0, baseline_exclude=court,
+        track, [(0, 40)], n_frames, 25.0,
+        baseline_exclude=court,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
 
     assert court[5:35].all()
@@ -365,8 +410,8 @@ def test_valid_camera_change_does_not_mask_the_rest_of_the_video():
     ]
     assert perspective_shift_signal(rows, n_frames)[200:].all()
     mask = combine_mask(
-        np.ones(n_frames, dtype=bool),  _speed_track(0.01, n_frames),
-        [(0, n_frames)], n_frames, 25.0,
+        np.ones(n_frames, dtype=bool), _speed_track(0.01, n_frames), [(0, n_frames)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert not mask.any()
 

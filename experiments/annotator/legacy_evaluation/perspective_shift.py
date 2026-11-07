@@ -32,7 +32,7 @@ def _weighted_median(values: np.ndarray, weights: np.ndarray) -> float:
 
 
 
-def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) -> np.ndarray:
+def perspective_shift_signal(homography_rows: list[dict], n_frames: int) -> np.ndarray:
     """Fire on segments whose court corners deviate from the dominant view.
 
     The dominant broadcast view is the duration-weighted median of each corner
@@ -44,7 +44,7 @@ def perspective_shift_signal(homography_rows: list[dict] | None, n_frames: int) 
     The normalisation uses the reference court's diagonal, so no frame resolution
     is needed.
 
-    :param homography_rows: per-segment dict rows for this video, or None/empty.
+    :param homography_rows: per-segment dict rows for this video; may be empty.
     :param n_frames: video frame count (the mask length).
     :return: `(n_frames,)` bool signal.
     """

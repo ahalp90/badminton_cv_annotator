@@ -1,7 +1,6 @@
 """Exclude sustained court absence and slow-motion footage from rally detection.
 
-Missing inputs contribute an all-False component. Camera changes alone do not
-distinguish live alternate coverage from replays.
+Camera changes alone do not distinguish live alternate coverage from replays.
 """
 
 import logging
@@ -22,12 +21,12 @@ SLOWMO_SPEED_FRAC = 0.15
 
 
 def combine_mask(
-    court_present: np.ndarray | None,
-    track: np.ndarray | None,
-    rally_spans: list[tuple[int, int]] | None,
+    court_present: np.ndarray,
+    track: np.ndarray,
+    rally_spans: list[tuple[int, int]],
     n_frames: int,
     fps: float,
-    *, rejected_shuttle_frames: np.ndarray | None = None,
+    *, rejected_shuttle_frames: np.ndarray,
 ) -> np.ndarray:
     """Combine sustained court absence and slow-motion flags, before short-run filtering."""
     court = court_absence_signal(court_present, n_frames, fps)
@@ -88,16 +87,12 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
 # Court absence and slow motion
 
-def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float) -> np.ndarray:
+def court_absence_signal(court_present: np.ndarray, n_frames: int, fps: float) -> np.ndarray:
     """Exclude whole court-absent runs that reach the minimum duration.
 
     Scale the duration to video fps. Short gaps in court detection stay unmasked.
-    A missing court-present array gives an all-False mask.
     """
     mask = np.zeros(n_frames, dtype=bool)
-    if court_present is None:
-        log.info('court-present mask missing; court-absence signal all-False')
-        return mask
     if len(court_present) != n_frames:
         raise ValueError(f'court-present length {len(court_present)} != n_frames {n_frames}')
     absent = ~court_present.astype(bool)
@@ -109,8 +104,8 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
 
 
 def velocity_drop_signal(
-    track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float,
-    *, rejected_shuttle_frames: np.ndarray | None = None, baseline_exclude: np.ndarray | None = None,
+    track: np.ndarray, rally_spans: list[tuple[int, int]], n_frames: int, fps: float,
+    *, rejected_shuttle_frames: np.ndarray, baseline_exclude: np.ndarray,
 ) -> np.ndarray:
     """Flag visible shuttle movement much slower than the video's usual rally speed.
 
@@ -127,21 +122,19 @@ def velocity_drop_signal(
     :return: One boolean per video frame; True means possible slow motion.
     """
     mask = np.zeros(n_frames, dtype=bool)
-    if track is None or not rally_spans:
-        log.info('shuttle track or rally spans missing; velocity-drop signal all-False')
+    if not rally_spans:
+        log.info('no rallies for estimating usual shuttle speed; velocity-drop signal all-False')
         return mask
     if len(track) != n_frames:
         raise ValueError(f'shuttle track length {len(track)} != n_frames {n_frames}')
 
     speed = compute_speed(track)
-    if rejected_shuttle_frames is not None:
-        unmeasured_steps = rejected_shuttle_frames[1:] | rejected_shuttle_frames[:-1]
-        speed[1:][unmeasured_steps] = np.nan
+    unmeasured_steps = rejected_shuttle_frames[1:] | rejected_shuttle_frames[:-1]
+    speed[1:][unmeasured_steps] = np.nan
     in_rally = np.zeros(len(track), dtype=bool)
     for start, end in rally_spans:
         in_rally[start:end] = True
-    if baseline_exclude is not None:
-        in_rally &= ~baseline_exclude
+    in_rally = in_rally & ~baseline_exclude
 
     rally_speed = speed[in_rally]
     if not np.any(~np.isnan(rally_speed)):

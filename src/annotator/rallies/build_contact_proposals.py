@@ -43,7 +43,7 @@ class RallyContext:
     events: tuple[ContactEvent, ...]
     shortlisted_by_span: dict[int, tuple[ContactEvent, ...]]
     contact_features_by_frame: dict[int, np.ndarray]
-    frame_count: int | None = None
+    frame_count: int
     bounds_supplied: bool = False
 
 
