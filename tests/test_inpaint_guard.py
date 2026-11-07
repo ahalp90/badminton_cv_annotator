@@ -1,8 +1,6 @@
 """Synthetic tests for the inpaint fabrication grade detector."""
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pytest
 
@@ -138,12 +136,6 @@ def test_halo_width_changes_nearby_frame_grades() -> None:
     assert narrow_codes[18] == ShuttleGrade.UNFLAGGED
     assert broad_codes[18] == ShuttleGrade.REPEATED_PATTERN_HALO
 
-
-
-@pytest.mark.parametrize("halo_frames", [-1, 1.5, True])
-def test_grade_track_rejects_invalid_halo_frames(halo_frames: Any) -> None:
-    with pytest.raises(ValueError, match="halo_frames"):
-        grade_track(_track_with_recurrence(), halo_frames=halo_frames)
 
 
 def test_grade_track_refuses_a_weak_threshold() -> None:

@@ -230,3 +230,22 @@ def test_schema_csv_writer_is_deterministic_for_empty_rows(tmp_path: Path) -> No
     measurement._write_schema_csv_gz([], ("a", "b"), second)
 
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_window_reports_total_unreliable_fraction_and_each_grade() -> None:
+    track = np.tile([.5, .5, 1.], (5, 1))
+    track[0, 2] = 0
+    grades = np.arange(5, dtype=np.uint8)
+    mask = np.zeros(5, dtype=bool)
+    stats = measurement._segment_stats(track, grades, mask, mask, ~mask, 0, 5)
+
+    assert stats['unreliable_fraction'] == .8
+    assert stats['clean_fraction'] == 0  # The unflagged frame is invisible.
+    grade_fields = (
+        'unflagged_fraction', 'repeated_moving_pattern_fraction',
+        'repeated_stationary_position_fraction', 'repeated_pattern_halo_fraction',
+        'matches_repeated_position_fraction',
+    )
+    assert [stats[field] for field in grade_fields] == [.2] * 5
+    empty = measurement._segment_stats(track, grades, mask, mask, ~mask, 5, 5)
+    assert all(empty[field] == 0 for field in (*grade_fields, 'unreliable_fraction'))

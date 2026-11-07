@@ -170,9 +170,9 @@ def split_recurrence_components(
         global_hit |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
 
     coordinate_valid = ~np.all(track[:, :2] == 0, axis=1)
-    degraded = (halo | global_hit) & ~core & coordinate_valid
+    halo_or_position_match = (halo | global_hit) & ~core & coordinate_valid
     additional_flags = np.isin(codes, (ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_REPEATED_POSITION))
-    if not np.array_equal(degraded, additional_flags):
+    if not np.array_equal(halo_or_position_match, additional_flags):
         raise ValueError("reproduced halo and position matches disagree with grade_track")
     return {
         "recurrence_grade1_core": codes == ShuttleGrade.REPEATED_MOVING_PATTERN,

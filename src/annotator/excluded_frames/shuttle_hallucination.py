@@ -37,12 +37,9 @@ def grade_track(
     detection was unavailable. (0, 0) positions remain UNFLAGGED.
 
     :param track: Full video track; the first two columns are exact x and y values.
-    :param window: Number of consecutive positions in a repeated pattern.
-    :param halo_frames: Extra frames flagged before and after repeated runs.
+    :param window: Positive number of consecutive positions in a repeated pattern.
+    :param halo_frames: Non-negative number of extra frames flagged around repeated runs.
     """
-    validate_grading_inputs(track, window, halo_frames)
-    window = int(window)
-    halo_frames = int(halo_frames)
     if len(track) < window:
         reason = f"track length {len(track)} is shorter than window {window}"
         log.warning("repeated-pattern detection unavailable: %s", reason)
@@ -194,7 +191,7 @@ def require_patterns_in_both_halves(
 
 
 # -----------------------------------------------------------------------------
-# Input checks and reporting
+# Reporting
 # -----------------------------------------------------------------------------
 
 CODE_NAMES = {
@@ -209,26 +206,6 @@ CODE_NAMES = {
 def code_counts(codes: np.ndarray) -> dict[int, int]:
     """Count frames in each shuttle grade."""
     return {grade: int(np.count_nonzero(codes == grade)) for grade in ShuttleGrade}
-
-
-def validate_grading_inputs(track: np.ndarray, window: int, halo_frames: int) -> None:
-    """Check the caller's array and pattern settings once, before detection."""
-    if not isinstance(track, np.ndarray):
-        raise TypeError("track must be a numpy array")
-    if track.ndim != 2 or track.shape[1] < 2:
-        raise ValueError("track must have shape (n_frames, at least 2)")
-    if (np.issubdtype(track.dtype, np.bool_) or
-            not np.issubdtype(track.dtype, np.number) or
-            np.issubdtype(track.dtype, np.complexfloating)):
-        raise ValueError("track must have a real numeric dtype")
-    if isinstance(window, bool) or not isinstance(window, (int, np.integer)) or window <= 0:
-        raise ValueError("window must be a positive integer")
-    if (
-        isinstance(halo_frames, bool)
-        or not isinstance(halo_frames, (int, np.integer))
-        or halo_frames < 0
-    ):
-        raise ValueError("halo_frames must be a non-negative integer")
 
 
 # Detection report when no patterns could be accepted
