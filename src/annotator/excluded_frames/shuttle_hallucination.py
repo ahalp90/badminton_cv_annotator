@@ -70,13 +70,13 @@ def grade_track(
     for key in (*moving_patterns, *stationary_patterns):
         for point in np.frombuffer(key, dtype=track.dtype).reshape(window, 2):
             positions.add((point[0], point[1]))
-    matches_repeated_position = np.zeros(len(track), dtype=bool)
+    matches_any_pattern_pos = np.zeros(len(track), dtype=bool)
     for pos_x, pos_y in positions:
-        matches_repeated_position |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
+        matches_any_pattern_pos |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
 
     # Exact matches take precedence over the halo; repeated runs keep their own grades.
     codes[repeated_pattern_halo & ~repeated_frames] = ShuttleGrade.REPEATED_PATTERN_HALO
-    codes[matches_repeated_position & ~repeated_frames] = ShuttleGrade.MATCHES_REPEATED_POSITION
+    codes[matches_any_pattern_pos & ~repeated_frames] = ShuttleGrade.MATCHES_ANY_PATTERN_POS
     codes[repeated_stationary_frames] = ShuttleGrade.REPEATED_STATIONARY_POSITION
     codes[repeated_moving_frames] = ShuttleGrade.REPEATED_MOVING_PATTERN
     codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = ShuttleGrade.UNFLAGGED
@@ -199,7 +199,7 @@ CODE_NAMES = {
     ShuttleGrade.REPEATED_MOVING_PATTERN: "repeated moving pattern",
     ShuttleGrade.REPEATED_STATIONARY_POSITION: "repeated stationary position",
     ShuttleGrade.REPEATED_PATTERN_HALO: "halo around repeated pattern",
-    ShuttleGrade.MATCHES_REPEATED_POSITION: "matches repeated position",
+    ShuttleGrade.MATCHES_ANY_PATTERN_POS: "matches any position in a repeated pattern",
 }
 
 

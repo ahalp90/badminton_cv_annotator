@@ -244,7 +244,7 @@ def test_window_reports_total_unreliable_fraction_and_each_grade() -> None:
     grade_fields = (
         'unflagged_fraction', 'repeated_moving_pattern_fraction',
         'repeated_stationary_position_fraction', 'repeated_pattern_halo_fraction',
-        'matches_repeated_position_fraction',
+        'matches_any_pattern_pos_fraction',
     )
     assert [stats[field] for field in grade_fields] == [.2] * 5
     empty = measurement._segment_stats(track, grades, mask, mask, ~mask, 5, 5)

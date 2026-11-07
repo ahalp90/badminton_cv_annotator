@@ -57,7 +57,7 @@ The current codes are:
 | `1` (`REPEATED_MOVING_PATTERN`) | repeated moving pattern | flagged as unreliable |
 | `2` (`REPEATED_STATIONARY_POSITION`) | repeated stationary position | flagged as unreliable |
 | `3` (`REPEATED_PATTERN_HALO`) | frame in the surrounding halo | flagged as unreliable |
-| `4` (`MATCHES_REPEATED_POSITION`) | exact position match elsewhere | flagged as unreliable |
+| `4` (`MATCHES_ANY_PATTERN_POS`) | exact position match elsewhere | flagged as unreliable |
 
 The halo extends three frames before and after repeated runs by default. A position
 match needs only one matching `(x, y)`, not the whole repeated sequence. Outside

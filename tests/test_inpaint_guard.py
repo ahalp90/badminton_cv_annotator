@@ -105,7 +105,7 @@ def test_grade_track_marks_distant_exact_position_matches() -> None:
 
     codes, _info = grade_track(track)
 
-    assert codes[60] == ShuttleGrade.MATCHES_REPEATED_POSITION
+    assert codes[60] == ShuttleGrade.MATCHES_ANY_PATTERN_POS
 
 
 def test_position_matches_take_precedence_over_halo_for_both_pattern_kinds() -> None:
@@ -118,7 +118,7 @@ def test_position_matches_take_precedence_over_halo_for_both_pattern_kinds() -> 
     codes, _info = grade_track(track)
 
     for frame in (19, 5499, 60, 65):
-        assert codes[frame] == ShuttleGrade.MATCHES_REPEATED_POSITION
+        assert codes[frame] == ShuttleGrade.MATCHES_ANY_PATTERN_POS
     assert codes[18] == ShuttleGrade.REPEATED_PATTERN_HALO
     assert codes[5498] == ShuttleGrade.REPEATED_PATTERN_HALO
     assert codes[20] == ShuttleGrade.REPEATED_MOVING_PATTERN
