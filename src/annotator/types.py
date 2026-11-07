@@ -132,16 +132,16 @@ class FinishedRally:
 class ShuttleGrade(IntEnum):
     """Quality of a shuttle position, stored as one integer per video frame."""
 
-    NO_FLAG = 0
-    FABRICATED = 1
-    SUSPECT_FLAT = 2
-    NEAR_REPEATED_PATTERN = 3
+    UNFLAGGED = 0
+    REPEATED_MOVING_PATTERN = 1
+    REPEATED_STATIONARY_POSITION = 2
+    REPEATED_PATTERN_HALO = 3
     MATCHES_REPEATED_POSITION = 4
 
 
 REJECTABLE_SHUTTLE_GRADES = frozenset({
-    ShuttleGrade.FABRICATED, ShuttleGrade.SUSPECT_FLAT,
-    ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION,
+    ShuttleGrade.REPEATED_MOVING_PATTERN, ShuttleGrade.REPEATED_STATIONARY_POSITION,
+    ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_REPEATED_POSITION,
 })
 
 

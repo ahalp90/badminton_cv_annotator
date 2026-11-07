@@ -224,16 +224,18 @@ def _segment_stats(
     believed_slice = believed_mask[start:end]
     court_slice = court_present[start:end]
     visible = track_slice[:, 2] == 1
-    clean_visible = visible & (code_slice == ShuttleGrade.NO_FLAG)
+    clean_visible = visible & (code_slice == ShuttleGrade.UNFLAGGED)
     return {
         "frame_count": end - start,
         "visible_frames": int(visible.sum()),
         "clean_visible_frames": int(clean_visible.sum()),
         "visible_fraction": _fraction(visible),
         "clean_fraction": _fraction(clean_visible),
-        "fabricated_fraction": _fraction(code_slice == ShuttleGrade.FABRICATED),
-        "suspect_flat_fraction": _fraction(code_slice == ShuttleGrade.SUSPECT_FLAT),
-        "degraded_fraction": _fraction(np.isin(code_slice, (ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION))),
+        "fabricated_fraction": _fraction(code_slice == ShuttleGrade.REPEATED_MOVING_PATTERN),
+        "suspect_flat_fraction": _fraction(code_slice == ShuttleGrade.REPEATED_STATIONARY_POSITION),
+        "degraded_fraction": _fraction(
+            np.isin(code_slice, (ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_REPEATED_POSITION)),
+        ),
         "longest_clean_run": _longest_true_run(clean_visible),
         "raw_mask_fraction": _fraction(raw_slice),
         "believed_mask_fraction": _fraction(believed_slice),

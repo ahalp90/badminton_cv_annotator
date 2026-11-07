@@ -190,7 +190,7 @@ def _candidate_reasons(
     reasons = []
     if not visible:
         reasons.append("track-not-visible")
-    if inpaint_code != ShuttleGrade.NO_FLAG:
+    if inpaint_code != ShuttleGrade.UNFLAGGED:
         reasons.append(f"inpaint-code-{inpaint_code}")
     if not court_absent:
         reasons.append("court-present")
@@ -284,7 +284,7 @@ def _target_outcomes(
             outcome = "selected_match"
         elif not near:
             outcome = "no_raw_candidate_within_tolerance"
-        elif not any(row["track_visible"] and row["inpaint_code"] == ShuttleGrade.NO_FLAG for row in near):
+        elif not any(row["track_visible"] and row["inpaint_code"] == ShuttleGrade.UNFLAGGED for row in near):
             outcome = "no_clean_shuttle_evidence"
         elif not any(row["court_absent"] for row in near):
             outcome = "court_present_not_prototype_target"
@@ -345,7 +345,7 @@ def _build_candidate_row(
         and np.isfinite(pose.wrist_distance_bh)
         and pose.wrist_distance_bh <= wrist_distance_body_heights
     )
-    evidence_pass = visible and code == ShuttleGrade.NO_FLAG and court_absent and wrist_pass
+    evidence_pass = visible and code == ShuttleGrade.UNFLAGGED and court_absent and wrist_pass
     anchor_distance = anchor - frame
     anchor_suppression_pass = bool(
         anchor_source != "first-accepted-contact"

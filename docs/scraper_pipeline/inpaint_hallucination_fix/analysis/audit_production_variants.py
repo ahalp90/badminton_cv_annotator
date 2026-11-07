@@ -145,11 +145,11 @@ def split_recurrence_components(
     halo_frames = inpaint_guard.DEFAULT_HALO_FRAMES
     # Grade 3 does not expose its two components. This analysis-only
     # reconstruction follows the current internals and asserts exact agreement.
-    varying, flat, _ = inpaint_guard.candidate_attractors(
+    varying, flat, _ = inpaint_guard.select_repeated_patterns(
         track, window, halo_frames
     )
-    proven = inpaint_guard._cover(len(track), varying, window)
-    suspect = inpaint_guard._cover(len(track), flat, window)
+    proven = inpaint_guard.mark_pattern_frames(len(track), varying, window)
+    suspect = inpaint_guard.mark_pattern_frames(len(track), flat, window)
     core = proven | suspect
 
     halo = np.zeros(len(track), dtype=bool)
@@ -171,13 +171,14 @@ def split_recurrence_components(
 
     coordinate_valid = ~np.all(track[:, :2] == 0, axis=1)
     degraded = (halo | global_hit) & ~core & coordinate_valid
-    if not np.array_equal(degraded, np.isin(codes, (ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION))):
+    additional_flags = np.isin(codes, (ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_REPEATED_POSITION))
+    if not np.array_equal(degraded, additional_flags):
         raise ValueError("reproduced halo and position matches disagree with grade_track")
     return {
-        "recurrence_grade1_core": codes == ShuttleGrade.FABRICATED,
+        "recurrence_grade1_core": codes == ShuttleGrade.REPEATED_MOVING_PATTERN,
         "recurrence_core_plus_halo": (core | halo) & coordinate_valid,
         "recurrence_core_plus_global_hit": (core | global_hit) & coordinate_valid,
-        "recurrence_current_all_nonzero": codes != ShuttleGrade.NO_FLAG,
+        "recurrence_current_all_nonzero": codes != ShuttleGrade.UNFLAGGED,
     }
 
 
@@ -280,7 +281,7 @@ def main() -> None:
         ).astype(bool)
         valid = ~np.all(track[:, :2] == 0, axis=1)
         codes, info = inpaint_guard.grade_track(track)
-        if info["detector_version"] != 4 or info["halo_frames"] != 3:
+        if info["halo_frames"] != 3:
             raise ValueError(f"{fixture}: current recurrence baseline changed")
         fields = load_frame_fields(fixture)
         if not np.array_equal(
@@ -293,7 +294,7 @@ def main() -> None:
         contacts = contacts_by_video[video_id]
         finals = finals_by_video[video_id]
         spans = load_visual_spans(fixture)
-        guard_clean = candidate & (codes == ShuttleGrade.NO_FLAG)
+        guard_clean = candidate & (codes == ShuttleGrade.UNFLAGGED)
         long_sidecar_runs = retain_runs(sidecar & valid, 15)
         selected_blocks = fully_selected_blocks(sidecar, valid)
 
@@ -314,7 +315,7 @@ def main() -> None:
         for fraction in (0.75, 1.0):
             suffix = str(fraction).replace(".", "_")
             ransac_masks[f"guard_clean_vote_fraction_ge_{suffix}"] = (
-                (codes == ShuttleGrade.NO_FLAG)
+                (codes == ShuttleGrade.UNFLAGGED)
                 & valid
                 & (fields["eligible"] > 0)
                 & (fields["fraction"] >= fraction)

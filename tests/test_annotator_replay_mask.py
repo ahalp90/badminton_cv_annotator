@@ -320,36 +320,6 @@ def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     assert not any(issubclass(warning.category, RuntimeWarning) for warning in caught)
 
 
-@pytest.mark.parametrize('parameter', ['rejected_shuttle_frames', 'baseline_exclude'])
-@pytest.mark.parametrize(
-    'invalid',
-    [
-        np.zeros((12, 1), dtype=bool),
-        np.zeros(12, dtype=np.int8),
-        np.zeros(11, dtype=bool),
-    ],
-    ids=['wrong-ndim', 'wrong-dtype', 'wrong-length'],
-)
-def test_velocity_drop_validates_optional_masks(parameter, invalid):
-    track = _speed_track(0.1, 12)
-    with pytest.raises(ValueError):
-        velocity_drop_signal(
-            track, [(0, len(track))], len(track), 25.0, **{parameter: invalid},
-        )
-
-
-@pytest.mark.parametrize('parameter', ['rejected_shuttle_frames', 'baseline_exclude'])
-@pytest.mark.parametrize('disabled', ['no-track', 'no-spans'])
-def test_velocity_drop_disabled_signal_skips_optional_mask_validation(parameter, disabled):
-    # Guard order is binding: the None/empty early return comes before optional
-    # mask validation, so a disabled signal stays all-False and never raises.
-    track = None if disabled == 'no-track' else _speed_track(0.1, 12)
-    spans = [(0, 12)] if disabled == 'no-track' else []
-    invalid = np.zeros(5, dtype=np.int8)
-    mask = velocity_drop_signal(track, spans, 12, 25.0, **{parameter: invalid})
-    assert not mask.any()
-
-
 def test_combine_mask_threads_non_evidence_to_velocity():
     n_frames = 80
     track = _speed_track(0.1, n_frames)

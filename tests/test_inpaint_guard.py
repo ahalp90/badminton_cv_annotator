@@ -8,7 +8,6 @@ import pytest
 
 from annotator.excluded_frames.shuttle_hallucination import (
     DEFAULT_HALO_FRAMES,
-    clear_cache,
     grade_track,
 )
 from annotator.types import ShuttleGrade
@@ -48,12 +47,12 @@ def test_grade_track_marks_moving_stationary_and_nearby_frames() -> None:
     assert codes.dtype == np.uint8
     assert len(codes) == len(track)
     assert info["threshold"] == 50
-    assert info["margin"] == pytest.approx(50 / 3)
-    assert info["n_varying"] == 1
-    assert info["n_flat"] == 1
-    assert np.count_nonzero(codes == ShuttleGrade.FABRICATED) > 0
-    assert np.count_nonzero(codes == ShuttleGrade.SUSPECT_FLAT) > 0
-    assert np.count_nonzero(codes == ShuttleGrade.NEAR_REPEATED_PATTERN) > 0
+    assert info["count_ratio"] == pytest.approx(50 / 3)
+    assert info["moving_pattern_count"] == 1
+    assert info["stationary_pattern_count"] == 1
+    assert np.count_nonzero(codes == ShuttleGrade.REPEATED_MOVING_PATTERN) > 0
+    assert np.count_nonzero(codes == ShuttleGrade.REPEATED_STATIONARY_POSITION) > 0
+    assert np.count_nonzero(codes == ShuttleGrade.REPEATED_PATTERN_HALO) > 0
 
 
 def test_grade_track_uses_three_absolute_halo_frames() -> None:
@@ -63,11 +62,11 @@ def test_grade_track_uses_three_absolute_halo_frames() -> None:
 
     assert DEFAULT_HALO_FRAMES == 3
     assert info["halo_frames"] == DEFAULT_HALO_FRAMES
-    np.testing.assert_array_equal(codes[17:20], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[20:36], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[36:39], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
-    assert codes[16] == ShuttleGrade.NO_FLAG
-    assert codes[39] == ShuttleGrade.NO_FLAG
+    np.testing.assert_array_equal(codes[17:20], np.full(3, ShuttleGrade.REPEATED_PATTERN_HALO, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[20:36], np.full(16, ShuttleGrade.REPEATED_MOVING_PATTERN, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[36:39], np.full(3, ShuttleGrade.REPEATED_PATTERN_HALO, dtype=np.uint8))
+    assert codes[16] == ShuttleGrade.UNFLAGGED
+    assert codes[39] == ShuttleGrade.UNFLAGGED
 
 
 def test_grade_track_clips_halo_at_track_start() -> None:
@@ -81,9 +80,9 @@ def test_grade_track_clips_halo_at_track_start() -> None:
 
     codes, _info = grade_track(track)
 
-    np.testing.assert_array_equal(codes[:16], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[16:19], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
-    assert codes[19] == ShuttleGrade.NO_FLAG
+    np.testing.assert_array_equal(codes[:16], np.full(16, ShuttleGrade.REPEATED_MOVING_PATTERN, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[16:19], np.full(3, ShuttleGrade.REPEATED_PATTERN_HALO, dtype=np.uint8))
+    assert codes[19] == ShuttleGrade.UNFLAGGED
 
 
 def test_grade_track_clips_halo_at_track_end() -> None:
@@ -97,9 +96,9 @@ def test_grade_track_clips_halo_at_track_end() -> None:
 
     codes, _info = grade_track(track)
 
-    np.testing.assert_array_equal(codes[-16:], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[-19:-16], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
-    assert codes[-20] == ShuttleGrade.NO_FLAG
+    np.testing.assert_array_equal(codes[-16:], np.full(16, ShuttleGrade.REPEATED_MOVING_PATTERN, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[-19:-16], np.full(3, ShuttleGrade.REPEATED_PATTERN_HALO, dtype=np.uint8))
+    assert codes[-20] == ShuttleGrade.UNFLAGGED
 
 
 def test_grade_track_marks_distant_exact_position_matches() -> None:
@@ -122,13 +121,13 @@ def test_position_matches_take_precedence_over_halo_for_both_pattern_kinds() -> 
 
     for frame in (19, 5499, 60, 65):
         assert codes[frame] == ShuttleGrade.MATCHES_REPEATED_POSITION
-    assert codes[18] == ShuttleGrade.NEAR_REPEATED_PATTERN
-    assert codes[5498] == ShuttleGrade.NEAR_REPEATED_PATTERN
-    assert codes[20] == ShuttleGrade.FABRICATED
-    assert codes[5500] == ShuttleGrade.SUSPECT_FLAT
+    assert codes[18] == ShuttleGrade.REPEATED_PATTERN_HALO
+    assert codes[5498] == ShuttleGrade.REPEATED_PATTERN_HALO
+    assert codes[20] == ShuttleGrade.REPEATED_MOVING_PATTERN
+    assert codes[5500] == ShuttleGrade.REPEATED_STATIONARY_POSITION
 
 
-def test_grade_track_halo_is_part_of_cache_and_diagnostics_identity() -> None:
+def test_halo_width_changes_nearby_frame_grades() -> None:
     track = _track_with_recurrence()
 
     narrow_codes, narrow_info = grade_track(track, halo_frames=1)
@@ -136,23 +135,9 @@ def test_grade_track_halo_is_part_of_cache_and_diagnostics_identity() -> None:
 
     assert narrow_info["halo_frames"] == 1
     assert broad_info["halo_frames"] == 4
-    assert narrow_codes[18] == ShuttleGrade.NO_FLAG
-    assert broad_codes[18] == ShuttleGrade.NEAR_REPEATED_PATTERN
+    assert narrow_codes[18] == ShuttleGrade.UNFLAGGED
+    assert broad_codes[18] == ShuttleGrade.REPEATED_PATTERN_HALO
 
-
-def test_grade_track_cached_diagnostics_are_independent() -> None:
-    clear_cache()
-    track = _track_with_recurrence()
-    _codes, info = grade_track(track)
-    counts = info["counts_per_code"]
-    assert isinstance(counts, dict)
-    counts[ShuttleGrade.NO_FLAG] = -1
-
-    _cached_codes, cached_info = grade_track(track)
-
-    cached_counts = cached_info["counts_per_code"]
-    assert isinstance(cached_counts, dict)
-    assert cached_counts[ShuttleGrade.NO_FLAG] >= 0
 
 
 @pytest.mark.parametrize("halo_frames", [-1, 1.5, True])
@@ -165,21 +150,21 @@ def test_grade_track_refuses_a_weak_threshold() -> None:
     track = _track_with_recurrence(varying_episodes=20)
     codes, info = grade_track(track)
 
-    assert np.all(codes == ShuttleGrade.NO_FLAG)
-    assert "below 30 episodes" in info["unavailable_reason"]
+    assert np.all(codes == ShuttleGrade.UNFLAGGED)
+    assert "below 30 occurrences" in info["unavailable_reason"]
 
 
-def test_grade_track_refuses_a_weak_margin_even_when_threshold_is_high() -> None:
+def test_grade_track_refuses_similar_occurrence_counts() -> None:
     track = _track_with_recurrence(
         varying_episodes=50,
         flat_starts=(5500, 6000, 6500, 7000, 7500, 8000),
     )
     codes, info = grade_track(track)
 
-    assert np.all(codes == ShuttleGrade.NO_FLAG)
+    assert np.all(codes == ShuttleGrade.UNFLAGGED)
     assert info["threshold"] >= 30
-    assert info["margin"] < 10.0
-    assert "margin" in info["unavailable_reason"]
+    assert info["count_ratio"] < 10.0
+    assert "count ratio" in info["unavailable_reason"]
 
 
 def test_grade_track_refuses_fewer_than_two_distinct_candidate_counts() -> None:
@@ -192,15 +177,15 @@ def test_grade_track_refuses_fewer_than_two_distinct_candidate_counts() -> None:
 
     codes, info = grade_track(track)
 
-    assert np.all(codes == ShuttleGrade.NO_FLAG)
+    assert np.all(codes == ShuttleGrade.UNFLAGGED)
     assert "fewer than 2 distinct candidate counts" in info["unavailable_reason"]
 
 
-def test_grade_track_presence_validation_raises() -> None:
+def test_pattern_missing_from_half_raises() -> None:
     track = _track_with_recurrence(
         varying_episodes=35, varying_step=40, flat_starts=(2000, 2500), length=3000,
     )
-    with pytest.raises(ValueError, match="validation half"):
+    with pytest.raises(ValueError, match="both halves"):
         grade_track(track)
 
 
@@ -218,5 +203,5 @@ def test_grade_track_preserves_stored_zero_frames_as_code_zero() -> None:
     track_before = track.tobytes()
     codes, _info = grade_track(track)
 
-    assert np.all(codes[18:20] == ShuttleGrade.NO_FLAG)
+    assert np.all(codes[18:20] == ShuttleGrade.UNFLAGGED)
     assert track.tobytes() == track_before

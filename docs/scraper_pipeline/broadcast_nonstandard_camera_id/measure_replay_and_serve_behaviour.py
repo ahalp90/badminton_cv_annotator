@@ -439,12 +439,12 @@ def evaluate_serve_candidates(
                 np.isfinite(sticky_distance)
                 and sticky_distance <= video_config.thresholds.wrist_distance_body_heights
             )
-            evidence_pass = visible and code == ShuttleGrade.NO_FLAG and wrist_pass
+            evidence_pass = visible and code == ShuttleGrade.UNFLAGGED and wrist_pass
             policy_pass = evidence_pass and not bool(definitive_mask[frame])
             reasons = []
             if not visible:
                 reasons.append("track-not-visible")
-            if code != ShuttleGrade.NO_FLAG:
+            if code != ShuttleGrade.UNFLAGGED:
                 reasons.append(f"inpaint-code-{code}")
             if not wrist_pass:
                 reasons.append("sticky-wrist-gate")
@@ -523,7 +523,7 @@ def evaluate_serve_candidates(
             "gt_serve_tolerance_frames": tolerance,
             "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,
-            "requires_inpaint_code": ShuttleGrade.NO_FLAG,
+            "requires_inpaint_code": ShuttleGrade.UNFLAGGED,
             "definitive_mask_policy": "blocked",
             "selection": "largest impulse, then earliest frame",
         },

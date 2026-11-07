@@ -53,11 +53,11 @@ The current codes are:
 
 | Code | Meaning | Current treatment |
 | ---: | --- | --- |
-| `0` | no flag | usable |
-| `1` | repeated moving pattern; treated as fabricated | flagged as unreliable |
-| `2` | repeated flat pattern; suspicious | flagged as unreliable |
-| `3` | frame in the halo around a repeated pattern | flagged as unreliable |
-| `4` | exact position match elsewhere in the video | flagged as unreliable |
+| `0` (`UNFLAGGED`) | no repeat detected | usable |
+| `1` (`REPEATED_MOVING_PATTERN`) | repeated moving pattern | flagged as unreliable |
+| `2` (`REPEATED_STATIONARY_POSITION`) | repeated stationary position | flagged as unreliable |
+| `3` (`REPEATED_PATTERN_HALO`) | frame in the surrounding halo | flagged as unreliable |
+| `4` (`MATCHES_REPEATED_POSITION`) | exact position match elsewhere | flagged as unreliable |
 
 The halo extends three frames before and after repeated runs by default. A position
 match needs only one matching `(x, y)`, not the whole repeated sequence. Outside

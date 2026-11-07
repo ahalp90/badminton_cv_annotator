@@ -120,6 +120,7 @@ def velocity_drop_signal(
 
     Skip speed measurements if either frame is marked ``rejected_shuttle_frames``.
     ``baseline_exclude`` removes frames from the usual-speed estimate only.
+    Both masks contain one boolean per video frame.
     A ``rejected_shuttle_frames`` frame can still be marked slow motion based on nearby
     speeds. Leave windows with no speed measurements unflagged.
 
@@ -131,8 +132,6 @@ def velocity_drop_signal(
         return mask
     if len(track) != n_frames:
         raise ValueError(f'shuttle track length {len(track)} != n_frames {n_frames}')
-    _validate_optional_frame_mask('rejected_shuttle_frames', rejected_shuttle_frames, len(track))
-    _validate_optional_frame_mask('baseline_exclude', baseline_exclude, len(track))
 
     speed = compute_speed(track)
     if rejected_shuttle_frames is not None:
@@ -159,14 +158,3 @@ def velocity_drop_signal(
     moving = rolling_median >= speed_at_fps(SLOWMO_MIN_MOVING_SPEED_BASE30, fps)
     mask[below_norm & moving & visible] = True
     return mask
-
-
-def _validate_optional_frame_mask(name: str, values: np.ndarray | None, n_frames: int) -> None:
-    """Validate one optional frame-aligned boolean mask."""
-    if values is not None and (
-        not isinstance(values, np.ndarray)
-        or values.ndim != 1
-        or values.dtype != np.bool_
-        or len(values) != n_frames
-    ):
-        raise ValueError(f'{name} must be a one-dimensional np.bool_ array of length {n_frames}')

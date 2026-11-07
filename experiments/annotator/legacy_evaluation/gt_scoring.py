@@ -492,12 +492,11 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     shuttle_grades, guard_info = grade_track(track)
     counts = code_counts(shuttle_grades)
     log.info(
-        "inpaint guard video=%s length=%d threshold=%s margin=%s presence=%s counts=%s",
+        "inpaint guard video=%s length=%d threshold=%s count_ratio=%s counts=%s",
         fixture.video_id,
         len(track),
         guard_info["threshold"],
-        guard_info["margin"],
-        guard_info["presence_validation"],
+        guard_info["count_ratio"],
         counts,
     )
     root = fixtures_root()
