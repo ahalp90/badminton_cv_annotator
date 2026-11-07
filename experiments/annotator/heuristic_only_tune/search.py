@@ -27,7 +27,7 @@ AXES: dict[str, tuple[float, ...]] = {
     'contact_suppression_radius_frames': (3, 5, 7, 9, 12),
     'body_unit_half_window': (6, 12, 24),
     'replay_mask_min_frames': (5, 15, 30),
-    'blip_max_frames': (6, 12, 24),
+    'max_unexplained_shuttle_gap_frames': (6, 12, 24),
     'max_high_shot_gap_frames': (30, 75, 150),
 }
 COUPLED_AXES = (
@@ -52,7 +52,7 @@ def seed_specs() -> list[CandidateSpec]:
         'impulse_floor_half_window_frames': 12, 'contact_impulse_multiple': 4,
         'contact_dedup_radius_frames': 3, 'contact_suppression_radius_frames': 9,
         'body_unit_half_window': 12, 'replay_mask_min_frames': 15,
-        'blip_max_frames': 12, 'max_high_shot_gap_frames': 75,
+        'max_unexplained_shuttle_gap_frames': 12, 'max_high_shot_gap_frames': 75,
     }
     earlier = {
         **fixed, 'rest_speed': 0.01, 'rest_window': 15, 'start_speed': 0.03,

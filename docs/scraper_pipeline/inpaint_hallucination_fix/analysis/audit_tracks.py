@@ -38,7 +38,7 @@ from annotator.config import (  # noqa: E402
     FpsScaledAnnotatorConfig,
     scale_config_to_fps,
 )
-from annotator.contacts.heuristics import impulse_cell_candidates  # noqa: E402
+from annotator.contacts.heuristics import impulse_contact_candidates  # noqa: E402
 from annotator.excluded_frames.replay import filter_exclusion_mask  # noqa: E402
 from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track  # noqa: E402
 from annotator.rallies.find_rallies import segment_video  # noqa: E402
@@ -465,7 +465,7 @@ def build_event_outputs(
     impulse_rows: list[dict[str, object]] = []
     flagged_pairs: list[tuple[int, int]] = []
     for rally_id, (start, end) in enumerate(spans):
-        flags = impulse_cell_candidates(
+        flags = impulse_contact_candidates(
             track,
             start,
             end,

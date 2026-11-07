@@ -21,11 +21,7 @@ OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 
 
 class PlayerRow(IntEnum):
-    """Top/bottom row indices in the tracked-player arrays.
-
-    The tracker chooses the bottom player first; these values specify storage
-    order, not pick order.
-    """
+    """Index the player axis of tracked arrays: top = 0, bottom = 1."""
 
     TOP = 0
     BOTTOM = 1

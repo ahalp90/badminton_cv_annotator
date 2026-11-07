@@ -22,7 +22,7 @@ def assemble_contacts(
     contacts = []
     near_wrist_candidates = []
     for rally_id, (start, end) in enumerate(spans):
-        candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
+        candidates = impulse_contact_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
         for frame, impulse in candidates:
             near_wrist = wrist_contact_near(nearest_wrist_distances, frame, thresholds.wrist_distance_body_heights)
             contacts.append(ContactCandidate(rally_id, frame, near_wrist, None))
@@ -33,14 +33,14 @@ def assemble_contacts(
 
     # This spacing check also compares contacts across rally boundaries.
     radius = thresholds.contact_suppression_radius_frames
-    accepted = {frame for frame, _ in suppress_contact_flags(near_wrist_candidates, radius=radius)}
+    accepted = {frame for frame, _ in keep_strongest_spaced_contacts(near_wrist_candidates, radius=radius)}
     return [
         contact._replace(temporal_proximity_suppressed=contact.wrist_near and contact.contact_frame not in accepted)
         for contact in contacts
     ]
 
 
-def impulse_cell_candidates(
+def impulse_contact_candidates(
     track: np.ndarray, start: int, end: int, thresholds: Thresholds, *,
     smoothing_mode: SmoothingMode,
 ) -> list[tuple[int, float]]:
@@ -60,8 +60,10 @@ def impulse_cell_candidates(
     impulse_pass = ratios > thresholds.contact_impulse_multiple
     is_contact = impulse_pass & around_visible
 
-    candidates = [(start + int(junction) + 1, float(impulses[junction])) for junction in np.flatnonzero(is_contact)]
-    return suppress_contact_flags(candidates, radius=thresholds.contact_dedup_radius_frames)
+    candidates = [
+        (start + int(impulse_index) + 1, float(impulses[impulse_index])) for impulse_index in np.flatnonzero(is_contact)
+    ]
+    return keep_strongest_spaced_contacts(candidates, radius=thresholds.contact_dedup_radius_frames)
 
 
 def span_impulses(
@@ -111,16 +113,16 @@ def rolling_floor(
     """
     visible_values = np.where(around_visible, values, np.nan)
     floor = np.full(len(values), np.nan)
-    for junction_index in range(len(values)):
-        window_start = max(junction_index - half_window, 0)
-        window_end = min(junction_index + half_window + 1, len(values))
+    for impulse_index in range(len(values)):
+        window_start = max(impulse_index - half_window, 0)
+        window_end = min(impulse_index + half_window + 1, len(values))
         window = visible_values[window_start:window_end]
         if np.isfinite(window).any():
-            floor[junction_index] = np.nanmedian(window)
+            floor[impulse_index] = np.nanmedian(window)
     return floor
 
 
-def suppress_contact_flags(
+def keep_strongest_spaced_contacts(
     flags: list[tuple[int, float]],
     radius: int,
 ) -> list[tuple[int, float]]:

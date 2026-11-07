@@ -10,7 +10,7 @@ import numpy as np
 
 from annotator.annotate_video import annotate_video
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.contacts.heuristics import impulse_cell_candidates
+from annotator.contacts.heuristics import impulse_contact_candidates
 from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
 from experiments.annotator.legacy_evaluation.fixtures import Fixture
 from experiments.annotator.legacy_evaluation.gt_scoring import canonical_tolerance
@@ -448,7 +448,7 @@ def evaluate_serve_candidates(
         anchor = min(accepted) if accepted else span[0]
         anchor_source = "first-accepted-contact" if accepted else "span-start-fallback"
         lookback_start = max(0, anchor - lookback_frames)
-        flags = impulse_cell_candidates(
+        flags = impulse_contact_candidates(
             arrays[0],
             lookback_start,
             anchor,

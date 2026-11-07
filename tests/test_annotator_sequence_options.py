@@ -13,9 +13,9 @@ from annotator.rallies.build_contact_proposals import (
     RallyContext,
     build_rally_options,
     initial_sequences,
+    propose_contact_additions_and_removals,
     shortlist_later_rows,
     shortlist_serve_rows,
-    toggle_proposals,
 )
 from annotator.types import ContactEvent, ContactSequence
 
@@ -104,32 +104,32 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
     assert shortlist_later_rows(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
 
 
-def test_toggle_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:
+def test_contact_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:
     before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
     candidates = tuple(ContactEvent(frame, .7, None) for frame in (125, 140, 250))
-    options = toggle_proposals(before, candidates, before.events, -1, 6, 2, 2)
+    options = propose_contact_additions_and_removals(before, candidates, before.events, -1, 6, 2, 2)
     frames = [_frames(sequence) for sequence in options]
     assert [125, 160] in frames
     assert not any(120 in selected and 125 in selected for selected in frames)
     assert not any(250 in selected for selected in frames)
 
 
-def test_toggle_earlier_start_absorbs_stream_and_respects_previous_rally() -> None:
+def test_earlier_serve_includes_selected_contacts_and_respects_previous_rally() -> None:
     before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
     gap = ContactEvent(100, .7, None)
     candidates = tuple(ContactEvent(frame, .6, None) for frame in (80, 90))
-    options = toggle_proposals(before, candidates, (gap, *before.events), 85, 6, 1, 0)
+    options = propose_contact_additions_and_removals(before, candidates, (gap, *before.events), 85, 6, 1, 0)
     assert not any(80 in _frames(sequence) for sequence in options)
     expanded = next(sequence for sequence in options if _frames(sequence) == [90, 100, 120, 160])
     assert expanded.start_frame == 90 and expanded.events[1] is gap
 
 
-def test_toggle_proposals_deduplicate_absorbed_contacts_and_prefer_fewer_edits() -> None:
+def test_propose_contact_additions_and_removals_deduplicate_absorbed_contacts_and_prefer_fewer_edits() -> None:
     before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
     earlier = ContactEvent(80, .6, None)
     gap = ContactEvent(90, .7, None)
     # Adding 80 absorbs 90, so explicitly adding both gives the same sequence.
-    options = toggle_proposals(before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0)
+    options = propose_contact_additions_and_removals(before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0)
     assert options[0] is before
     assert [_frames(sequence) for sequence in options] == [
         [120, 160], [90, 120, 160], [80, 90, 120, 160],

@@ -91,7 +91,7 @@ def apply_replay_mask(track: np.ndarray, mask: np.ndarray) -> np.ndarray:
 def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: float) -> np.ndarray:
     """Exclude whole court-absent runs that reach the minimum duration.
 
-    Scale the duration to video fps. Short detector blips stay unmasked.
+    Scale the duration to video fps. Short gaps in court detection stay unmasked.
     A missing court-present array gives an all-False mask.
     """
     mask = np.zeros(n_frames, dtype=bool)

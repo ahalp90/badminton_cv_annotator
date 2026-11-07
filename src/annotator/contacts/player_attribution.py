@@ -51,12 +51,12 @@ def contact_player_evidence(
     # Comparing Top/Bot hitter distances needs one player on each half.
     if not finite_distances.all():
         return side, None
-    first_foot, second_foot = bboxes[frame, players.detection_indices[frame], 3]
-    first_distance, second_distance = map(float, distances)
-    if first_foot < band_lo and second_foot > band_hi:
-        return side, (first_distance, second_distance)
-    if second_foot < band_lo and first_foot > band_hi:
-        return side, (second_distance, first_distance)
+    top_row_foot_y, bottom_row_foot_y = bboxes[frame, players.detection_indices[frame], 3]
+    top_row_distance, bottom_row_distance = map(float, distances)
+    if top_row_foot_y < band_lo and bottom_row_foot_y > band_hi:
+        return side, (top_row_distance, bottom_row_distance)
+    if bottom_row_foot_y < band_lo and top_row_foot_y > band_hi:
+        return side, (bottom_row_distance, top_row_distance)
     return side, None
 
 

@@ -14,9 +14,9 @@ from annotator.array_calc_helpers import compute_speed, rolling_mean, rolling_na
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts import heuristics as contact_detection
 from annotator.contacts.heuristics import (
-    impulse_cell_candidates,
+    impulse_contact_candidates,
+    keep_strongest_spaced_contacts,
     span_impulses,
-    suppress_contact_flags,
     wrist_contact_near,
 )
 from annotator.excluded_frames.replay import apply_replay_mask
@@ -165,7 +165,7 @@ def test_contact_detected_on_fast_reversal():
     track = _triangle_track(RALLY_STEP)
     contacts = [
         frame
-        for frame, _impulse in impulse_cell_candidates(
+        for frame, _impulse in impulse_contact_candidates(
             track, 0, len(track), thresholds=trajectory_config().thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE
         )
     ]
@@ -177,8 +177,8 @@ def test_contact_suppression_ranks_impulse_then_frame():
     # scales with the fps table (8 at the 25 fps surface under base-30, where this fixture
     # would suppress nothing).
     flags = [(27, 2.0), (19, 2.0), (10, 1.0), (18, 2.0)]
-    assert suppress_contact_flags(flags, radius=9) == [(18, 2.0), (27, 2.0)]
-    assert impulse_cell_candidates(
+    assert keep_strongest_spaced_contacts(flags, radius=9) == [(18, 2.0), (27, 2.0)]
+    assert impulse_contact_candidates(
         _triangle_track(RALLY_STEP), 0, 15, thresholds=trajectory_config().thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE
     )
 
@@ -189,7 +189,7 @@ def test_contact_assembly_keeps_gate_verdicts_and_suppresses_across_rallies(monk
     thresholds = replace(trajectory_config().thresholds, contact_suppression_radius_frames=9)
     candidates = {0: [(18, 2.0)], 20: [(22, 1.0), (26, 10.0)]}
     monkeypatch.setattr(
-        contact_detection, 'impulse_cell_candidates',
+        contact_detection, 'impulse_contact_candidates',
         lambda _track, start, *_args, **_kwargs: candidates[start],
     )
     distances = None

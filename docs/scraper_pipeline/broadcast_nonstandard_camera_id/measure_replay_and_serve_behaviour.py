@@ -39,7 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from annotator.annotate_video import annotate_video
 from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.contacts.heuristics import impulse_cell_candidates
+from annotator.contacts.heuristics import impulse_contact_candidates
 from annotator.courts.frame_geometry import build_scene_courts
 from annotator.excluded_frames.replay import (
     SLOWMO_SPEED_FRAC,
@@ -418,7 +418,7 @@ def evaluate_serve_candidates(
             continue
         anchor = accepted[0]
         lookback_start = max(0, anchor - lookback_frames)
-        flags = impulse_cell_candidates(
+        flags = impulse_contact_candidates(
             track,
             lookback_start,
             anchor,

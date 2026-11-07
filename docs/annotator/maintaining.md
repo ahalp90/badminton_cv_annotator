@@ -70,7 +70,7 @@ presence and shuttle speed; court composition remains a separate preparation too
 Frame counts use `frames_at_fps()` with half-up rounding, and per-frame speeds use
 `speed_at_fps()` with inverse FPS scaling.
 
-Newly fitted model bundles use `annotator-three-models/2`. Saved preprocessing has
+Newly fitted model bundles use `annotator-three-models/5`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `scale_config_to_fps()` in
 `config.py` converts it into one `Thresholds` value for the video's frame rate.
 The loader checks feature order and proposal settings. Player attribution uses

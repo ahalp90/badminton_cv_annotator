@@ -69,23 +69,24 @@ def build_rest_mask(
 
     A likely high shot may stay in play for max_high_shot_gap_frames missing
     frames. It must leave and return near the image top, moving down on return.
-    Other gaps count as rest when longer than blip_max_frames.
+    Other gaps count entirely as rest when they exceed
+    max_unexplained_shuttle_gap_frames.
     """
     speed_median = rolling_nanmedian(speed, thresholds.rest_window)
     slow = speed_median < thresholds.rest_speed
     high_shot_oob = np.zeros(len(track), dtype=bool)
     dead = np.zeros(len(track), dtype=bool)
     for gap_start, gap_end in true_runs(track[:, 2] != 1):
-        holds_open = gap_is_high_shot_outside_frame(track, gap_start, thresholds)
-        if holds_open:
-            holds_open = gap_passes_reentry_guard(
+        likely_high_shot = gap_is_high_shot_outside_frame(track, gap_start, thresholds)
+        if likely_high_shot:
+            likely_high_shot = gap_passes_reentry_guard(
                 track, gap_start, gap_end, reentry_guard_buffer, thresholds,
             )
-        if holds_open:
-            demotion_frame = min(gap_start + max_high_shot_gap_frames, gap_end)
-            high_shot_oob[gap_start:demotion_frame] = True
-            dead[demotion_frame:gap_end] = True
-        elif gap_end - gap_start > thresholds.blip_max_frames:
+        if likely_high_shot:
+            in_play_until = min(gap_start + max_high_shot_gap_frames, gap_end)
+            high_shot_oob[gap_start:in_play_until] = True
+            dead[in_play_until:gap_end] = True
+        elif gap_end - gap_start > thresholds.max_unexplained_shuttle_gap_frames:
             dead[gap_start:gap_end] = True
     return dead | (slow & ~high_shot_oob)
 

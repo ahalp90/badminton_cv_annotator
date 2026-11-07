@@ -37,7 +37,7 @@ def example_video() -> SequenceTrainingVideo:
     return SequenceTrainingVideo('fixture', 'group', context, rallies)
 
 
-def test_toggle_proposals_cover_multiple_edits_and_keep_no_edit() -> None:
+def test_propose_contact_additions_and_removals_cover_multiple_edits_and_keep_no_edit() -> None:
     video = example_video()
     options = expand_pool(video)
     middle = [options.sequences[row] for row in options.span_rows[1]]

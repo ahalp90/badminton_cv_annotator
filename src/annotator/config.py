@@ -37,7 +37,8 @@ class Thresholds:
     sustained_loss_frames: int
     min_descend_samples: int
     body_unit_half_window: int
-    blip_max_frames: int
+    # Longer missing-shuttle gaps count as rest unless explained by a high shot.
+    max_unexplained_shuttle_gap_frames: int
     high_shot_oob_lookback_frames: int
     high_shot_oob_min_visible_frames: int
     high_shot_oob_extrap_frames: int
@@ -138,7 +139,7 @@ def _scale_thresholds_to_fps(fps: float, overrides_base30: Mapping[str, float] |
         sustained_loss_frames=frame_count('sustained_loss_frames', 10.0),
         min_descend_samples=frame_count('min_descend_samples', 3.0),
         body_unit_half_window=frame_count('body_unit_half_window', 12.0),
-        blip_max_frames=frame_count('blip_max_frames', 12.0),
+        max_unexplained_shuttle_gap_frames=frame_count('max_unexplained_shuttle_gap_frames', 12.0),
         high_shot_oob_lookback_frames=frame_count('high_shot_oob_lookback_frames', 6.0),
         # Speed calculations divide by sample count minus one; need at least two frames.
         high_shot_oob_min_visible_frames=max(2, frame_count('high_shot_oob_min_visible_frames', 2.4)),

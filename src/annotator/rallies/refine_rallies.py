@@ -13,12 +13,12 @@ import numpy as np
 from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.contacts.score_candidates import positive_probabilities
 from annotator.rallies.build_contact_proposals import (
+    CONTACT_SEQUENCE_FEATURE_NAMES,
     FEATURE_NAMES,
-    SIDE_FEATURE_NAMES,
-    SUMMARY_FEATURE_NAMES,
+    HITTER_ALTERNATION_FEATURE_NAMES,
     RallyOptions,
+    contact_sequence_features,
     events_between,
-    sequence_summary,
 )
 from annotator.types import ContactEvent, ContactSequence, FinishedRally
 from shared.frame_timing import frames_at_fps
@@ -26,7 +26,7 @@ from shared.frame_timing import frames_at_fps
 BOUNDARY_PADDING_AT_30_FPS = 10
 
 REVIEW_OPTION_NAMES = (
-    'added_count', 'deleted_count', *(f'after__{name}' for name in SIDE_FEATURE_NAMES),
+    'added_count', 'deleted_count', *(f'after__{name}' for name in HITTER_ALTERNATION_FEATURE_NAMES),
     'unused_candidate_count', 'usable_candidate_count', 'positive_gap_count',
     'gaps_without_candidates', 'longest_gap_seconds', 'last_gap_has_candidate',
     'gap_probability_max', 'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
@@ -35,7 +35,7 @@ REVIEW_OPTION_COLUMNS = tuple(FEATURE_NAMES.index(name) for name in REVIEW_OPTIO
 REVIEW_FEATURE_NAMES = (
     *REVIEW_OPTION_NAMES,
     'option_score', 'top_margin',
-    *(f'final__{name}' for name in SUMMARY_FEATURE_NAMES),
+    *(f'final__{name}' for name in CONTACT_SEQUENCE_FEATURE_NAMES),
 )
 
 
@@ -218,8 +218,8 @@ def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
             'option_score': float(prediction.scores[row]),
             'top_margin': float(best.max() - best.min()),
         })
-        summary = sequence_summary(proposal_with_final_bounds, pool.context.fps)
-        features.update((f'final__{name}', value) for name, value in summary.items())
+        sequence_features = contact_sequence_features(proposal_with_final_bounds, pool.context.fps)
+        features.update((f'final__{name}', value) for name, value in sequence_features.items())
         rows.append([features[name] for name in REVIEW_FEATURE_NAMES])
     matrix = np.asarray(rows, dtype=np.float64).reshape(len(span_ids), len(REVIEW_FEATURE_NAMES))
     return RallyReviewFeatures(span_ids, matrix)

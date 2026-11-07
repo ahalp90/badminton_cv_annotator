@@ -83,7 +83,7 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
     values25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds
     values30 = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     fields = (
-        'blip_max_frames', 'high_shot_oob_lookback_frames',
+        'max_unexplained_shuttle_gap_frames', 'high_shot_oob_lookback_frames',
         'high_shot_oob_min_visible_frames', 'high_shot_oob_extrap_frames',
         'reentry_lookahead_frames', 'reentry_min_visible_frames',
     )
@@ -91,13 +91,13 @@ def test_gap_fps_rows_match_frozen_25fps_and_base30_values() -> None:
     assert tuple(getattr(values30, field) for field in fields) == (12, 6, 2, 12, 6, 2)
 
 
-def test_impulse_cell_candidates_consumes_threshold_multiple() -> None:
-    from annotator.contacts.heuristics import impulse_cell_candidates
+def test_impulse_contact_candidates_consumes_threshold_multiple() -> None:
+    from annotator.contacts.heuristics import impulse_contact_candidates
 
     apex = np.array([0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1, 0], dtype=float) * 0.05
     track = np.column_stack([np.full(len(apex), 0.5), apex, np.ones(len(apex))])
-    assert impulse_cell_candidates(
+    assert impulse_contact_candidates(
         track, 0, len(track), trajectory_config().thresholds, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE
     )
     strict = replace(trajectory_config().thresholds, contact_impulse_multiple=1000000000000.0)
-    assert impulse_cell_candidates(track, 0, len(track), strict, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE) == []
+    assert impulse_contact_candidates(track, 0, len(track), strict, smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE) == []
