@@ -87,10 +87,8 @@ can also use GPU inference. In Python, use `load_models(path, device='cpu')` for
 CPU inference. For a CPU-only command-line run, prefix the command with
 `CUDA_VISIBLE_DEVICES=''`.
 
-Use an XGBoost build that supports the GPU. A visible GPU with unsupported CUDA
-kernels can fail instead of falling back to CPU. On a V100, use a compatible
-CUDA 12 build. NumPy features work with GPU prediction through XGBoost's own
-data transfer; small batches may be faster on CPU.
+NumPy features work with GPU prediction through XGBoost's own data transfer;
+small batches may be faster on CPU.
 
 Player-half guesses always use each contact's scene geometry. To use one
 homography for an entire video, supply it for every scene.
@@ -99,6 +97,21 @@ The command reads only training videos and their labels. It fits the final
 contact model, held-group contact models, the rally selectors and the review
 model. The saved bundle contains the models used for inference; temporary
 held-group fits supply downstream training examples.
+
+### V100 setup
+
+The normal `uv sync` installation supports L40 and CPU execution. For a V100,
+install the project dependencies first, then build the pinned XGBoost version
+with V100 kernels using a complete CUDA 12.9 toolkit and a C++ compiler:
+
+```bash
+bash scripts/install-xgboost-v100.sh /path/to/cuda-12.9
+```
+
+Keep separate V100 and L40 environments. For a shared checkout, pass the V100
+environment's Python executable as the second argument.
+The installer replaces XGBoost in that environment. Use `uv run --no-sync`
+with the custom build; repeat the installer after replacing or upgrading XGBoost.
 
 ## Python fit settings
 

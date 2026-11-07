@@ -39,6 +39,8 @@ uv sync
 
 The project needs Python 3.12 or newer and uses the versions pinned in `uv.lock`. The annotator dependencies are part of the base project environment. No experiment extra is needed for a normal annotation run.
 
+For GPU fitting or annotation on a V100, also complete the [V100 setup](retuning.md#v100-setup).
+
 The commands on this page use `uv run`. Inside an already-activated project environment, plain `python` works the same way.
 
 Learned annotation needs a fitted model directory containing:
