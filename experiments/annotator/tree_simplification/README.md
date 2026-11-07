@@ -8,6 +8,9 @@ checking. The [report](../reports/tree_simplification.md) gives the results and
 the reasons behind each choice. This guide says what the repository keeps and
 how to run each step again.
 
+The [joint settings search plan](hp_search.md) proposes a bounded search over
+preprocessing, contact-tree settings, contact cutoffs and rally-selector settings.
+
 All models fit on 32 ShuttleSet training videos. Eight other videos serve as
 validation: 668 labelled rallies and 5,696 contacts. Validation chose every
 setting. The 46-video ShuttleSet22 test set was used only after those choices
