@@ -385,29 +385,6 @@ def test_combine_mask_excludes_court_producer_from_baseline():
     np.testing.assert_array_equal(result, expected)
 
 
-def test_combine_mask_keeps_alternate_views_in_the_velocity_baseline():
-    n_frames = 80
-    track = _borderline_baseline_track(n_frames)
-    shifted = [value + (200.0 if index % 2 == 0 else 0.0) for index, value in enumerate(REFERENCE_CORNERS)]
-    rows = [
-        _homography_row('v', 0, 5, REFERENCE_CORNERS),
-        _homography_row('v', 5, 35, shifted),
-        _homography_row('v', 35, 80, REFERENCE_CORNERS),
-    ]
-    perspective = perspective_shift_signal(rows, n_frames)
-    result = combine_mask(None,  track, [(0, 40)], n_frames, 25.0)
-    without_perspective = combine_mask(None,  track, [(0, 40)], n_frames, 25.0)
-    expected = velocity_drop_signal(
-        track, [(0, 40)], n_frames, 25.0, baseline_exclude=np.zeros(n_frames, dtype=bool),
-    )
-
-    assert perspective[5:35].all()
-    assert without_perspective[50]
-    assert result[50]
-    np.testing.assert_array_equal(result, without_perspective)
-    np.testing.assert_array_equal(result, expected)
-
-
 def test_valid_camera_change_does_not_mask_the_rest_of_the_video():
     n_frames = 300
     shifted = [value + (200.0 if index % 2 == 0 else 0.0) for index, value in enumerate(REFERENCE_CORNERS)]

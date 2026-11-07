@@ -22,7 +22,7 @@ def segment_video(
     track: np.ndarray, *,
     video_config: FpsScaledAnnotatorConfig,
     exclusion_mask: np.ndarray | None = None,
-    sticky_distances: np.ndarray | None = None,
+    nearest_wrist_distances: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
 ) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
     """Mask excluded footage, find rallies, then check their contact candidates.
@@ -30,18 +30,18 @@ def segment_video(
     :param track: (frames, 3) normalised shuttle xy and visibility.
     :param video_config: Settings already scaled for this video's frame rate.
     :param exclusion_mask: Optional footage mask; excluded positions are frozen.
-    :param sticky_distances: Optional nearest-wrist distances in body heights.
+    :param nearest_wrist_distances: Optional nearest-wrist distances in body heights.
     :param spans: Supplied ranges skip rally detection; incl start, excl end.
     :return: Rally ranges and all candidates, including wrist/spacing failures.
     """
-    if sticky_distances is not None and sticky_distances.shape != (len(track),):
-        raise ValueError('sticky_distances must have shape (len(track),)')
+    if nearest_wrist_distances is not None and nearest_wrist_distances.shape != (len(track),):
+        raise ValueError('nearest_wrist_distances must have shape (len(track),)')
     if exclusion_mask is not None:
         track = apply_replay_mask(track, exclusion_mask)
     if spans is None:
         spans = find_rally_spans(track, video_config)
     return spans, assemble_contacts(
-        track, spans, video_config.thresholds, sticky_distances,
+        track, spans, video_config.thresholds, nearest_wrist_distances,
         smoothing_mode=video_config.smoothing_mode,
     )
 

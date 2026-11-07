@@ -296,11 +296,11 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     base_radius_thresholds = replace(video_config.thresholds, contact_suppression_radius_frames=9)
     base_radius_contacts = segment_video(
         track,
-        sticky_distances=short_gaps.nearest,
+        nearest_wrist_distances=short_gaps.nearest,
         video_config=replace(trajectory_config(), thresholds=base_radius_thresholds),
     )[1]
     scaled_contacts = segment_video(
-        track, sticky_distances=short_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
+        track, nearest_wrist_distances=short_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
     )[1]
     assert {
         contact.contact_frame for contact in base_radius_contacts
@@ -314,7 +314,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     short_window_contacts = base_radius_contacts
     full_contacts = segment_video(
         track,
-        sticky_distances=full_gaps.nearest,
+        nearest_wrist_distances=full_gaps.nearest,
         video_config=replace(trajectory_config(), thresholds=base_radius_thresholds),
     )[1]
     short_contact = next(contact for contact in short_window_contacts if contact.contact_frame == 82)
@@ -325,7 +325,7 @@ def test_scaled_60fps_config_drives_replay_segmentation_attribution_and_landing(
     # The final contact with scaled settings uses the same track, sticky cache, and scaled constants for
     # attribution and landing.
     scaled_full_contacts = segment_video(
-        track, sticky_distances=full_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
+        track, nearest_wrist_distances=full_gaps.nearest, video_config=replace(trajectory_config(), thresholds=video_config.thresholds)
     )[1]
     final_contact = [
         contact.contact_frame for contact in scaled_full_contacts

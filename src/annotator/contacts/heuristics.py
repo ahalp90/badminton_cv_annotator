@@ -15,7 +15,7 @@ FLOOR_EPS = 1e-4
 
 def assemble_contacts(
     track: np.ndarray, spans: list[tuple[int, int]],
-    thresholds: Thresholds, sticky_distances: np.ndarray | None,
+    thresholds: Thresholds, nearest_wrist_distances: np.ndarray | None,
     *, smoothing_mode: SmoothingMode,
 ) -> list[ContactCandidate]:
     """Find contacts within rally ranges and record the wrist and spacing checks."""
@@ -24,11 +24,11 @@ def assemble_contacts(
     for rally_id, (start, end) in enumerate(spans):
         candidates = impulse_cell_candidates(track, start, end, thresholds, smoothing_mode=smoothing_mode)
         for frame, impulse in candidates:
-            near_wrist = wrist_contact_near(sticky_distances, frame, thresholds.wrist_distance_body_heights)
+            near_wrist = wrist_contact_near(nearest_wrist_distances, frame, thresholds.wrist_distance_body_heights)
             contacts.append(ContactCandidate(rally_id, frame, near_wrist, None))
             if near_wrist:
                 near_wrist_candidates.append((frame, impulse))
-    if sticky_distances is None:
+    if nearest_wrist_distances is None:
         return contacts
 
     # This spacing check also compares contacts across rally boundaries.
@@ -138,14 +138,14 @@ def suppress_contact_flags(
 
 
 def wrist_contact_near(
-    sticky_distances: np.ndarray | None, contact_frame: int, threshold: float,
+    nearest_wrist_distances: np.ndarray | None, contact_frame: int, threshold: float,
 ) -> bool | None:
     """Check wrist-to-shuttle distance at a contact, measured in player body heights.
 
     Return None when no distance array was supplied. With an array, a finite
     distance within the threshold passes; a missing or excessive distance fails.
     """
-    if sticky_distances is None:
+    if nearest_wrist_distances is None:
         return None
-    distance = sticky_distances[contact_frame]
+    distance = nearest_wrist_distances[contact_frame]
     return bool(np.isfinite(distance) and distance <= threshold)

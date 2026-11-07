@@ -53,7 +53,7 @@ def test_scaled_wrist_distance_changes_contact_acceptance() -> None:
         _spans, contacts = segment_video(
             track,
             spans=[(0, len(track))],
-            sticky_distances=distances,
+            nearest_wrist_distances=distances,
             video_config=scale_config_to_fps(base, 30.0),
         )
         candidates.append(contacts)
@@ -75,7 +75,7 @@ def test_default_wrist_gate_keeps_existing_verdicts_and_contacts() -> None:
     assert wrist_contact_near(distances, 3, threshold=2.0) is False
 
     track = _turning_track()
-    kwargs = {'spans': [(0, len(track))], 'sticky_distances': np.full(len(track), 1.4)}
+    kwargs = {'spans': [(0, len(track))], 'nearest_wrist_distances': np.full(len(track), 1.4)}
     _, contacts = segment_video(track, video_config=trajectory_config(), **kwargs)
     assert [contact.contact_frame for contact in contacts] == [1, 40, 78]
 

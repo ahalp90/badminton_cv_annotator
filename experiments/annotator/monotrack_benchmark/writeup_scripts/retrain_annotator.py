@@ -37,7 +37,7 @@ def write_json(path: Path, value: object) -> None:
 
 
 def run_job(job: Job) -> None:
-    """Let each stage validate its own resumable outputs; retain failure logs."""
+    """Run a stage unless the same command already completed; retain its log."""
     job.output.mkdir(parents=True, exist_ok=True)
     completed = job.output / 'completed-command.json.gz'
     command = list(job.command)

@@ -22,9 +22,7 @@ THUMBNAIL_SIZE = (64, 36)
 # In-shot samples of the 20 court views differ from their anchor by at most 5.1 grey levels;
 # the dissolve in control frame 1 and the passer-by at the lens in am3 frame 0 exceed 9.
 SAME_SHOT_GREY_LEVELS = 8.0
-# The seated-person rule from bst_x preparing_data.heuristics.base (sticky_anchor's rule).
-# Copied because importing it loads pandas and BST-X's pipeline config;
-# tests/test_court_detector_feet.py checks the copy agrees with the original.
+# tests/test_court_detector_feet.py checks this rule against shared.player_tracking.
 SITTING_THRESHOLD = -0.3
 SHOULDER_L, SHOULDER_R = 5, 6
 HIP_L, HIP_R = 11, 12

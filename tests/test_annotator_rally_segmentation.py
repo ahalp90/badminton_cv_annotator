@@ -214,11 +214,11 @@ def test_contact_assembly_keeps_gate_verdicts_and_suppresses_across_rallies(monk
 
 def test_wrist_contact_near_verdicts():
     assert wrist_contact_near(None, 0, threshold=1.4) is None
-    sticky_distances = np.array([1.39, 1.4, 1.41, np.nan])
-    assert wrist_contact_near(sticky_distances, 0, threshold=1.4) is True
-    assert wrist_contact_near(sticky_distances, 1, threshold=1.4) is True
-    assert wrist_contact_near(sticky_distances, 2, threshold=1.4) is False
-    assert wrist_contact_near(sticky_distances, 3, threshold=1.4) is False
+    nearest_wrist_distances = np.array([1.39, 1.4, 1.41, np.nan])
+    assert wrist_contact_near(nearest_wrist_distances, 0, threshold=1.4) is True
+    assert wrist_contact_near(nearest_wrist_distances, 1, threshold=1.4) is True
+    assert wrist_contact_near(nearest_wrist_distances, 2, threshold=1.4) is False
+    assert wrist_contact_near(nearest_wrist_distances, 3, threshold=1.4) is False
 
 
 def test_segment_video_wrist_near_paths():
@@ -237,7 +237,7 @@ def test_segment_video_wrist_near_paths():
     # A wrist on the shuttle at every frame (distance 0): every candidate passes the gate, and
     # suppression records only its losers.
     near = np.zeros(len(track))
-    _, contacts_near = segment_video(track, sticky_distances=near, video_config=trajectory_config())
+    _, contacts_near = segment_video(track, nearest_wrist_distances=near, video_config=trajectory_config())
     assert [contact.wrist_near for contact in contacts_near] == [True] * len(contacts_near)
     assert [contact.temporal_proximity_suppressed for contact in contacts_near] == [True, False, True, False, True]
     filtered = [
@@ -250,7 +250,7 @@ def test_segment_video_wrist_near_paths():
 
     # A wrist far from the shuttle everywhere: every contact drops (False).
     far = np.full(len(track), 2.0)
-    _, contacts_far = segment_video(track, sticky_distances=far, video_config=trajectory_config())
+    _, contacts_far = segment_video(track, nearest_wrist_distances=far, video_config=trajectory_config())
     assert all(contact.wrist_near is False and contact.temporal_proximity_suppressed is False for contact in contacts_far)
 
 
@@ -262,7 +262,7 @@ def test_sticky_gate_failure_rows_fail_closed(failure_distance):
     monkeypatch: the caller supplies the full-length series directly.
     """
     track, _, _, _ = _build_rally_track()
-    _, contacts = segment_video(track, sticky_distances=np.full(len(track), failure_distance), video_config=trajectory_config())
+    _, contacts = segment_video(track, nearest_wrist_distances=np.full(len(track), failure_distance), video_config=trajectory_config())
     assert contacts
     assert all(contact.wrist_near is False and contact.temporal_proximity_suppressed is False for contact in contacts)
 

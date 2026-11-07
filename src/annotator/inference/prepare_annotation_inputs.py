@@ -134,7 +134,7 @@ def prepare_annotation_inputs(
     else:
         rally_spans, raw_contacts = segment_video(
             track, video_config=video_config, exclusion_mask=exclusion_mask,
-            sticky_distances=wrist_gaps.nearest, spans=spans,
+            nearest_wrist_distances=wrist_gaps.nearest, spans=spans,
         )
     return PreparedAnnotationInputs(
         resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
