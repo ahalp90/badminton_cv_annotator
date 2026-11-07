@@ -13,6 +13,7 @@ def test_running_search_shows_current_progress(tmp_path):
             'status': 'running', 'stage': 'screen', 'completed': 6, 'total': 192,
             'fits_completed': 24, 'fits_total': 768,
             'started_at': 1000, 'updated_at': 4600, 'active': ['body-12'],
+            'best_label': 'body-12', 'best_player_f1': 0.85,
         }, handle)
     (tmp_path / 'process.pid').write_text(str(os.getpid()))
     lines = status_lines(tmp_path, now=4660)
@@ -21,6 +22,7 @@ def test_running_search_shows_current_progress(tmp_path):
     assert 'Fits: 24 / 768' in lines
     assert 'Elapsed: 01:01:00' in lines
     assert 'Last update: 00:01:00 ago' in lines
+    assert 'Best so far: body-12, player F1 85.00%' in lines
 
 
 def test_failed_process_overrides_stale_running_progress(tmp_path):

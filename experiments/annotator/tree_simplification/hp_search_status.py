@@ -71,7 +71,7 @@ def status_lines(output: Path, *, now: float | None = None) -> list[str]:
         if 'best_rallies' in progress:
             best += f' — {progress["best_rallies"]} fully correct rallies'
         if 'best_player_f1' in progress:
-            best += f', player F1 {progress["best_player_f1"]:.2f}%'
+            best += f', player F1 {100 * progress["best_player_f1"]:.2f}%'
         lines.append(best)
     if progress.get('message'):
         lines.append(str(progress['message']))
