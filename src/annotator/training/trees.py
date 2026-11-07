@@ -22,7 +22,7 @@ class TreeFitConfig:
     learning_rate: float = 0.05
     l2_regularization: float = 1.0
     random_seed: int = 20260905
-    device: str = 'cpu'
+    device: str = 'cuda'
     min_child_weight: float = 5.0
 
 
@@ -83,6 +83,4 @@ def fit_binary_tree(
         training_matrix, training_labels, sample_weight=training_weights,
         eval_set=validation, sample_weight_eval_set=validation_weights, verbose=False,
     )
-    # Annotation passes NumPy arrays and also runs on machines without CUDA.
-    xgb_model.set_params(device='cpu')
     return xgb_model

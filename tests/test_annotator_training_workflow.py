@@ -227,13 +227,15 @@ def test_cli_dispatches_settings_and_paths(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(workflow, 'evaluate_manifest', lambda *args: evaluated.append(args))
     assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle']) == 0
     assert fitted[0][1:] == (Path('bundle'), workflow.DEFAULT_TRAINING_SETTINGS)
+    defaults = fitted[0][-1]
+    assert defaults.contact.device == defaults.confidence.device == defaults.rally.tree.device == 'cuda'
     assert workflow.main([
-        'fit', '--manifest', str(path), '--output', 'layer-bundle', '--device', 'cuda',
+        'fit', '--manifest', str(path), '--output', 'layer-bundle', '--device', 'cpu',
     ]) == 0
     settings = fitted[1][-1]
     assert settings.rally.tree.max_iter == 400
     assert settings.rally.tree.max_leaf_nodes == 31
-    assert settings.contact.device == settings.confidence.device == settings.rally.tree.device == 'cuda'
+    assert settings.contact.device == settings.confidence.device == settings.rally.tree.device == 'cpu'
     assert workflow.main(['evaluate', '--manifest', str(path), '--models', 'bundle', '--split', 'validation',
                           '--output', 'report.json.gz']) == 0
     assert evaluated[0][1:] == (model, workflow.Split.VALIDATION, Path('report.json.gz'))

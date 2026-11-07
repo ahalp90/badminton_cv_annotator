@@ -78,16 +78,19 @@ def test_xgb_weights_and_internal_stopping_split(
     np.testing.assert_array_equal(seen[0], seen[1])
     np.testing.assert_array_equal(model.predict_proba(matrix), repeated.predict_proba(matrix))
     assert model.get_params()['early_stopping_rounds'] == (10 if stopping else None)
+    assert model.get_params()['device'] == FIT_SETTINGS.device
     assert np.mean(model.predict_proba(matrix)[labels == 1, 1]) > np.mean(model.predict_proba(matrix)[labels == 0, 1])
 
 
-def test_xgb_stops_when_internal_holdout_loss_cannot_improve() -> None:
+@pytest.mark.parametrize('device', ['cuda', 'cpu'])
+def test_xgb_stops_when_internal_holdout_loss_cannot_improve(device: str) -> None:
     pytest.importorskip('xgboost')
     matrix = np.zeros((200, 3), dtype=np.float32)
     labels = np.tile([0, 1], 100)
     model = fit_binary_tree(
-        matrix, labels, replace(FIT_SETTINGS, max_iter=40), balanced=True, early_stopping=True,
+        matrix, labels, replace(FIT_SETTINGS, max_iter=40, device=device), balanced=True, early_stopping=True,
     )
+    assert model.get_params()['device'] == device
     assert model.best_iteration == 0
     assert model.get_booster().num_boosted_rounds() == 11
     np.testing.assert_allclose(model.predict_proba(matrix), 0.5)

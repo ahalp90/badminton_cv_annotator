@@ -46,7 +46,7 @@ class ContactFitConfig:
     l2_regularization: float = 1.0
     random_seed: int = 20260824
     early_stopping: bool | Literal["auto"] = "auto"
-    device: str = 'cpu'
+    device: str = 'cuda'
     min_child_weight: float = 5.0
     positive_radius_at_30_fps: int = POSITIVE_RADIUS_AT_30_FPS
     ignored_radius_at_30_fps: int = IGNORED_RADIUS_AT_30_FPS

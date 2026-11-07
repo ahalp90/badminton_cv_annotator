@@ -79,9 +79,18 @@ PYTHONPATH=src uv run python -m annotator.training fit \
   --output models/experiment-a
 ```
 
-To fit on a CUDA GPU, add `--device cuda`. Saved models use CPU inference so they
-can be loaded on machines without a GPU. `--threads` controls fitting thread
-limits.
+Fitting and inference default to CUDA. XGBoost uses CPU when no GPU is visible.
+Add `--device cpu` to fit on CPU. `--threads` controls fitting thread limits.
+
+The runtime device is selected again when loading a bundle, so CPU-trained trees
+can also use GPU inference. In Python, use `load_models(path, device='cpu')` for
+CPU inference. For a CPU-only command-line run, prefix the command with
+`CUDA_VISIBLE_DEVICES=''`.
+
+Use an XGBoost build that supports the GPU. A visible GPU with unsupported CUDA
+kernels can fail instead of falling back to CPU. On a V100, use a compatible
+CUDA 12 build. NumPy features work with GPU prediction through XGBoost's own
+data transfer; small batches may be faster on CPU.
 
 Player-half guesses always use each contact's scene geometry. To use one
 homography for an entire video, supply it for every scene.

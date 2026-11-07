@@ -405,7 +405,7 @@ def argument_parser() -> argparse.ArgumentParser:
     fit = commands.add_parser('fit', help='Fit a fresh complete bundle from the train split')
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
-    fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
+    fit.add_argument('--device', choices=('cpu', 'cuda'), default='cuda', help='XGBoost fitting device')
     fit.add_argument('--threads', type=int, default=2)
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
     evaluate.add_argument('--manifest', required=True, type=Path)

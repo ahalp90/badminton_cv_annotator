@@ -81,8 +81,14 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
     (directory / METADATA_FILENAME).write_text(json.dumps(metadata, indent=2) + '\n')
 
 
-def load_models(directory: Path) -> AnnotatorModels:
-    """Load all three models and check the saved feature order and proposal settings."""
+def load_models(directory: Path, *, device: str = 'cuda') -> AnnotatorModels:
+    """Load and validate the bundle, selecting the runtime device for its XGBoost trees.
+
+    XGBoost falls back to CPU when no GPU is visible. Pass device='cpu' to keep
+    annotation on CPU even when other pipeline stages use a GPU.
+    """
+    from xgboost import XGBModel
+
     missing = [path.name for path in model_files(directory).values() if not path.is_file()]
     if missing:
         raise FileNotFoundError(
@@ -103,4 +109,7 @@ def load_models(directory: Path) -> AnnotatorModels:
         raise ValueError('Selector features or proposal settings differ; refit the bundle')
     if models.review_model is None:
         raise ValueError('Model bundle requires a fitted review model')
+    for tree in fitted_trees(models):
+        if isinstance(tree, XGBModel):
+            tree.set_params(device=device)
     return models

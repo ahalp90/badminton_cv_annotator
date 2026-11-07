@@ -17,12 +17,24 @@ from annotator.models import (
 from annotator.rallies.refine_rallies import RallySelector
 
 
-def test_default_bundle_loads_and_predicts_with_all_three_models():
-    models = load_models(DEFAULT_MODEL_DIRECTORY)
+@pytest.mark.parametrize('device', ['cuda', 'cpu'])
+def test_default_bundle_loads_and_predicts_with_all_three_models(device):
+    models = load_models(DEFAULT_MODEL_DIRECTORY, device=device)
     for estimator in fitted_trees(models):
+        assert estimator.get_params()['device'] == device
         probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
         assert probabilities.shape == (1, 2)
         assert np.isfinite(probabilities).all()
+
+
+def test_loading_uses_runtime_device_instead_of_saved_device(tmp_path):
+    models = load_models(DEFAULT_MODEL_DIRECTORY, device='cpu')
+    save_models(models, tmp_path)
+    restored = load_models(tmp_path)
+    for original, loaded in zip(fitted_trees(models), fitted_trees(restored), strict=True):
+        assert loaded.get_params()['device'] == 'cuda'
+        matrix = np.zeros((3, loaded.n_features_in_), dtype=np.float32)
+        np.testing.assert_allclose(loaded.predict_proba(matrix), original.predict_proba(matrix), rtol=1e-6)
 
 
 def test_previous_schema_requires_matching_historical_checkout():
