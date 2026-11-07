@@ -22,7 +22,7 @@ normalised `(x, y, visibility)` row per frame. Pose arrays contain detected play
 boxes and keypoints. Court records identify usable scenes and provide the
 image-to-court transform, called a homography.
 
-Rally bounds are half-open: `[start, end)` includes `start` and excludes `end`.
+Rally bounds include `start` and exclude `end`: `[start, end)`.
 The frame rate scales timing and movement thresholds. A frame is never renumbered
 when a replay or tracking gap is excluded.
 

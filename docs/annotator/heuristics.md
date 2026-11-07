@@ -217,5 +217,5 @@ The next layer is described in [How the trees work together](tree_stack.md).
 | shuttle recurrence guard | `excluded_frames/shuttle_hallucination.py` |
 | sticky player picks | `player_tracking.py` |
 | rally boundaries | `rallies/find_rallies.py` |
-| impulse contacts and wrist gate | `contacts/heuristics.py` |
+| impulse contacts and wrist-distance check | `contacts/heuristics.py` |
 | broader contact search regions | `contacts/build_features.py` |

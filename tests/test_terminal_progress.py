@@ -6,19 +6,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from dataset_builder.progress import Counter, RunProgress, StageProgress
 from shared.progress import PROGRESS_ENV, progress_iter, report
-
-
-def config(**overrides):
-    return SimpleNamespace(
-        **{"fixed_sources": None, "commentary_enabled": True, "pose_shards": 8}
-        | overrides
-    )
 
 
 def test_iterator_disabled_does_not_probe_length(monkeypatch):
@@ -136,7 +128,7 @@ def test_invalid_events_do_not_corrupt_counter(event):
 def test_auto_non_terminal_has_no_output_or_channel(tmp_path, monkeypatch):
     monkeypatch.delenv(PROGRESS_ENV, raising=False)
     stream = io.StringIO()
-    owner = RunProgress(config(), ("pose",), stream=stream)
+    owner = RunProgress(("pose",), stream=stream)
     with owner.stage("pose:video") as stage:
         assert stage is None
         assert PROGRESS_ENV not in os.environ
@@ -146,7 +138,7 @@ def test_auto_non_terminal_has_no_output_or_channel(tmp_path, monkeypatch):
 def test_eta_appears_only_after_counter_and_rate_are_available(tmp_path):
     channel = tmp_path / "events"
     channel.touch()
-    owner = RunProgress(config(), ("pose",), mode="on", stream=io.StringIO())
+    owner = RunProgress(("pose",), mode="on", stream=io.StringIO(), pose_shards=8)
     stage = StageProgress(owner, channel, "Pose extraction", "")
     stage.start()
     try:
@@ -209,7 +201,7 @@ def test_cleanup_failure_and_preserved_diagnostics(tmp_path, monkeypatch):
     monkeypatch.setenv(PROGRESS_ENV, "previous-channel")
     stream = io.StringIO()
     owner = RunProgress(
-        config(), ("pose",), mode="on", stream=stream, log_dir=tmp_path / "logs"
+        ("pose",), mode="on", stream=stream, log_dir=tmp_path / "logs"
     )
     with (
         pytest.raises(RuntimeError, match="failure"),
@@ -228,52 +220,30 @@ def test_cleanup_failure_and_preserved_diagnostics(tmp_path, monkeypatch):
 def test_configured_skips_are_once_at_top_and_failures_still_visible():
     stream = io.StringIO()
     owner = RunProgress(
-        config(fixed_sources=object(), commentary_enabled=False),
         ("search", "download", "pose", "commentary_pairing"),
-        mode="on",
+        fixed_sources=True, commentary_enabled=False, pose_shards=8, mode="on",
         stream=stream,
     )
-    from dataset_builder.models import StageOutcome
-
     for name in ("commentary_pairing:a", "commentary_pairing:b"):
         with owner.stage(name) as stage:
             assert stage is None
-        owner.finish(
-            name,
-            SimpleNamespace(
-                outcome=StageOutcome.UNAVAILABLE, reused=False, reason="disabled"
-            ),
-            SimpleNamespace(counts=()),
-            stage,
-        )
+        owner.finish(name, stage, outcome="unavailable", reason="disabled")
     assert stream.getvalue().count("Commentary pairing") == 1
-    owner.finish(
-        "download",
-        SimpleNamespace(
-            outcome=StageOutcome.FAILED, reused=False, reason="missing source"
-        ),
-        SimpleNamespace(counts=()),
-        None,
-    )
+    owner.finish("download", None, outcome="failed", reason="missing source")
     assert "✗ Download" in stream.getvalue()
     assert "missing source" in stream.getvalue()
 
 
 def test_completed_reused_and_failed_are_distinct():
-    from dataset_builder.models import StageOutcome
-
     stream = io.StringIO()
-    owner = RunProgress(config(), (), mode="on", stream=stream)
+    owner = RunProgress((), mode="on", stream=stream)
     for outcome, reused, reason in [
-        (StageOutcome.PROCESSED, False, None),
-        (StageOutcome.PROCESSED, True, None),
-        (StageOutcome.FAILED, False, "broken input"),
+        ("processed", False, None),
+        ("processed", True, None),
+        ("failed", False, "broken input"),
     ]:
         owner.finish(
-            "annotation:video",
-            SimpleNamespace(outcome=outcome, reused=reused, reason=reason),
-            SimpleNamespace(counts=(("rallies", 24),)),
-            None,
+            "annotation:video", None, outcome=outcome, reused=reused, reason=reason, counts=(("rallies", 24),),
         )
     assert "24 rallies" in stream.getvalue()
     assert "reused" in stream.getvalue()
@@ -292,7 +262,7 @@ def test_setup_failure_runs_processing_once(tmp_path, monkeypatch, failure):
 
     monkeypatch.setenv(PROGRESS_ENV, "prior-events")
     monkeypatch.setenv(LOG_ENV, "prior-log")
-    owner = RunProgress(config(), ("pose",), "on", io.StringIO(), tmp_path / "logs")
+    owner = RunProgress(("pose",), "on", io.StringIO(), tmp_path / "logs")
 
     def broken(*args, **kwargs):
         raise OSError("display unavailable")
@@ -325,7 +295,7 @@ def test_broken_terminal_cannot_fail_processing(operation):
         raise OSError("terminal closed")
 
     setattr(Broken, operation, broken)
-    owner = RunProgress(config(), ("pose",), "on", Broken())
+    owner = RunProgress(("pose",), "on", Broken())
     with owner.stage("pose:video"):
         assert list(progress_iter([1, 2], "pose")) == [1, 2]
     assert not owner.enabled
@@ -340,7 +310,7 @@ def test_cleanup_preserves_processing_error(tmp_path, monkeypatch, processing_er
 
     monkeypatch.delenv(PROGRESS_ENV, raising=False)
     monkeypatch.delenv(LOG_ENV, raising=False)
-    owner = RunProgress(config(), ("pose",), "on", io.StringIO(), tmp_path / "logs")
+    owner = RunProgress(("pose",), "on", io.StringIO(), tmp_path / "logs")
     original_close = StageProgress.close
     original_cleanup = display.tempfile.TemporaryDirectory.cleanup
 
@@ -398,7 +368,7 @@ def test_renderer_thread_failure_disables_display(tmp_path, monkeypatch):
     import threading
 
     called = threading.Event()
-    owner = RunProgress(config(), ("pose",), "on", io.StringIO())
+    owner = RunProgress(("pose",), "on", io.StringIO())
 
     def broken_watch(self):
         called.set()
@@ -428,7 +398,7 @@ def test_bad_counter_serialization_and_length_are_nonfatal(tmp_path, monkeypatch
 
 def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path, monkeypatch):
     monkeypatch.delenv("PYTHONPATH", raising=False)
-    owner = RunProgress(config(), ("shuttle",), "on", io.StringIO(), tmp_path / "logs")
+    owner = RunProgress(("shuttle",), "on", io.StringIO(), tmp_path / "logs")
     with owner.stage("shuttle:video") as stage:
         child = subprocess.run(
             [
@@ -455,7 +425,7 @@ def test_child_diagnostics_go_to_log_and_keep_exit_status(tmp_path, monkeypatch)
 def test_zero_width_terminal_does_not_show_unknown_eta(tmp_path):
     channel = tmp_path / "events"
     channel.touch()
-    owner = RunProgress(config(), ("pose",), "on", io.StringIO())
+    owner = RunProgress(("pose",), "on", io.StringIO())
     stage = StageProgress(owner, channel, "Pose extraction", "")
     stage.start()
     try:

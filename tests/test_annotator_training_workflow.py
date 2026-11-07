@@ -9,13 +9,16 @@ from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from annotator.contacts.build_features import ContactFeatures
+from annotator.courts.prepare_courts import CourtEvidenceResult, CourtInputs
+from annotator.saved_inputs import SavedVideoInputs
 from annotator.training import workflow
 from annotator.training.sequences import LabelledRally
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
-from dataset_builder.vision import load_json_gz
+from dataset_builder.vision import CourtVision, PoseArrays, load_json_gz
 from shared.video_metadata import VideoMetadata
 
 
@@ -144,7 +147,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
             assert predictions[video.video_id].video_id == video.video_id
         return review_model
 
-    monkeypatch.setattr(workflow, 'load_contact_evidence', evidence)
+    monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', evidence)
     monkeypatch.setattr(workflow, 'contact_features_from_inputs', features)
     monkeypatch.setattr(workflow, 'fit_contact_model', contact_fit)
     monkeypatch.setattr(workflow, 'sequence_training_video', sequence_input)
@@ -177,7 +180,7 @@ def test_too_few_training_groups_fail_before_loading(tmp_path: Path, monkeypatch
     def forbidden_load(*_args: Any) -> Any:
         pytest.fail('group validation must happen before loading video artefacts')
 
-    monkeypatch.setattr(workflow, 'load_contact_evidence', forbidden_load)
+    monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', forbidden_load)
     with pytest.raises(ValueError, match='three distinct training groups'):
         workflow.fit_from_manifest(manifest, tmp_path / 'bundle')
 
@@ -196,7 +199,7 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
     sequences = final_sequences()
     events = tuple(event for span in sequences for event in span.events)
     prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=sequences, events=events))
-    monkeypatch.setattr(workflow, 'load_contact_evidence', evidence)
+    monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', evidence)
     monkeypatch.setattr(workflow, 'predict_rallies_and_contacts', lambda *_args: prediction)
     for name in ('fit_contact_model', 'fit_rally_models', 'fit_rally_review_model'):
         monkeypatch.setattr(workflow, name, forbidden_fit)
@@ -239,48 +242,39 @@ def test_cli_dispatches_settings_and_paths(tmp_path: Path, monkeypatch: pytest.M
     assert failure.value.code == 2
 
 
-def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_saved_inputs_pass_to_preparation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     metadata = VideoMetadata(tmp_path / 'source.mp4', Fraction(30), 2, 1920, 1080)
-    paths = []
-    captured = object()
-    inputs = SimpleNamespace(net_band=(.4, .5), resolution=(1920, 1080), court_info={},
-                              homography_rows=[], landing_error_band_m=0.1)
-    court = SimpleNamespace(raw_cuts=((0, 2),), evidence=SimpleNamespace(inputs=inputs, court_present=np.ones(2, bool),
-                                                                     keep_vote=np.ones(2, bool)))
-    pose = SimpleNamespace(
-        bboxes=np.zeros((2, 1, 4)), scores=np.ones((2, 1)), kps=np.zeros((2, 1, 17, 2)), ndet=np.ones(2),
+    pose = PoseArrays(
+        kps=np.zeros((2, 1, 17, 2)), bboxes=np.zeros((2, 1, 4)), scores=np.ones((2, 1)),
+        kp_scores=np.ones((2, 1, 17)), ndet=np.ones(2, dtype=int),
     )
+    court_inputs = CourtInputs((1920, 1080), pd.DataFrame())
+    court = CourtVision(((0, 2),), CourtEvidenceResult(
+        court_inputs, (), np.ones(2, bool), np.ones(2, bool),
+    ))
+    saved = SavedVideoInputs(
+        metadata, np.array([[.2, .3, 1], [.3, .4, 1]]), np.zeros(2, dtype=np.uint8), pose, court,
+    )
+    captured = object()
+    preprocessing = workflow.TrainingSettings().preprocessing
 
-    def load_array(path: Path) -> np.ndarray:
-        paths.append(path)
-        if path.name == 'shuttle_track.npy.xz':
-            return np.array([[.2, .3, 1], [.3, .4, 1]])
-        return np.zeros(2, dtype=np.uint8)
+    def load(run_dir: Path, video_id: str) -> SavedVideoInputs:
+        assert (run_dir, video_id) == (tmp_path, 'video')
+        return saved
 
     def prepare(track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
                 ndet: np.ndarray, **kwargs: Any) -> object:
-        assert kwargs['video_config'].fps == 30.0
+        assert track is saved.track and bboxes is pose.bboxes and scores is pose.scores
+        assert kps is pose.kps and ndet is pose.ndet
+        assert kwargs['video_config'] == workflow.scale_config_to_fps(preprocessing, 30.0)
         assert kwargs['court_invalid_is_excluded'] is True
-        assert kwargs['shuttle_grades'].dtype == np.uint8
-        assert 'capture' not in kwargs
-        assert 'landing_options' not in kwargs
+        assert kwargs['shuttle_grades'] is saved.shuttle_grades
+        assert kwargs['homography_rows'] is court_inputs.homography_rows
         return captured
 
-    monkeypatch.setattr(workflow, 'load_json_gz', lambda path: paths.append(path) or metadata.to_dict())
-    monkeypatch.setattr(workflow, 'load_npy_xz', load_array)
-    monkeypatch.setattr(workflow, 'load_pose_arrays', lambda path, _count: paths.append(path) or pose)
-    monkeypatch.setattr(workflow, 'load_court_vision', lambda path, **_kwargs: paths.append(path) or court)
+    monkeypatch.setattr(workflow, 'load_saved_video_inputs', load)
     monkeypatch.setattr(workflow, 'prepare_annotation_inputs', prepare)
-    assert workflow.load_contact_evidence(tmp_path, 'video', workflow.TrainingSettings().preprocessing) is captured
-    assert tmp_path / 'stages/metadata/video/video_metadata.json.gz' in paths
-    assert tmp_path / 'stages/shuttle/video/shuttle_guard_codes.npy.xz' in paths
-    assert tmp_path / 'stages/pose/video' in paths
-    assert tmp_path / 'stages/court/video' in paths
-    inputs_before = court.evidence.inputs
-    court.evidence.inputs = None
-    with pytest.raises(ValueError, match='no usable operational court'):
-        workflow.load_contact_evidence(tmp_path, 'video', workflow.TrainingSettings().preprocessing)
-    court.evidence.inputs = inputs_before
+    assert workflow.prepare_saved_video_inputs(tmp_path, 'video', preprocessing) is captured
 
 
 @pytest.mark.parametrize(('frames', 'sides', 'expected'), [

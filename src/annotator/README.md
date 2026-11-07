@@ -6,8 +6,9 @@ contact times, top/bottom hitters, landings and estimated winners.
 
 | To change or inspect… | Open… |
 | --- | --- |
+| Saved inputs shared by annotation and training | [`saved_inputs.py`](saved_inputs.py) |
 | The complete annotation flow | [`annotate_video.py`](annotate_video.py) |
-| Inputs prepared for contact inference | [`inference/prepare_annotation_inputs.py`](inference/prepare_annotation_inputs.py) |
+| Prepared courts, players, masks and initial rallies | [`inference/prepare_annotation_inputs.py`](inference/prepare_annotation_inputs.py) |
 | Rule-based hit detection | [`contacts/heuristics.py`](contacts/heuristics.py) |
 | Measurements supplied to the contact model | [`contacts/build_features.py`](contacts/build_features.py) |
 | Contact probabilities and competing nearby hits | [`contacts/score_candidates.py`](contacts/score_candidates.py) |
@@ -21,7 +22,8 @@ contact times, top/bottom hitters, landings and estimated winners.
 | Landings, point winners and contact heights | [`rally_results/`](rally_results/) |
 | Fitting and evaluating the current learned models | [`training/`](training/) |
 
-`python -m annotator` runs the full annotator. `python -m annotator.training`
+`python -m annotator` runs either mode: choose `--models PATH` or
+`--heuristic-only`. `python -m annotator.training`
 fits or evaluates the three learned models. See the
 [quickstart](../../docs/annotator/quickstart.md) for input paths and commands.
 

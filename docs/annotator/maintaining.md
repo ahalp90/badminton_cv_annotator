@@ -7,8 +7,8 @@ The [algorithm guide](how_it_works.md) explains why the stages exist.
 
 ## Invariants that matter
 
-All arrays use the source-video timeline. Rally bounds are half-open and
-frame-rate-dependent settings scale before annotation. Player evidence must
+All arrays use the source-video timeline. Rally bounds include the start
+frame and exclude the end. Frame-rate-dependent settings scale before annotation. Player evidence must
 see the original shuttle track before replay masking.
 
 Candidate and proposal order affects equal-score choices. Feature columns,

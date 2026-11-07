@@ -706,6 +706,7 @@ def run_full_annotation_stage(
     output_dir: Path,
     base: BaseAnnotatorConfig | None = None,
     models: AnnotatorModels | None = None,
+    heuristic_only: bool = False,
     landing_options: LandingFilterOptions | None = None,
     ref_err_px: float = 3.5,
 ) -> AnnotationOutput:
@@ -750,6 +751,7 @@ def run_full_annotation_stage(
         fps=float(metadata.fps),
         base=effective_base,
         models=models,
+        heuristic_only=heuristic_only,
         landing_options=effective_landing,
         resolution=court_inputs.resolution,
         ref_err_px=ref_err_px,

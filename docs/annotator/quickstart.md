@@ -41,7 +41,7 @@ The project needs Python 3.12 or newer and uses the versions pinned in `uv.lock`
 
 The commands on this page use `uv run`. Inside an already-activated project environment, plain `python` works the same way.
 
-Annotation also needs a fitted model directory containing:
+Learned annotation needs a fitted model directory containing:
 
 ```text
 models.joblib
@@ -49,8 +49,8 @@ metadata.json
 ```
 
 The two files form one model bundle. Before annotation starts, the loader
-checks the model format (its schema), the order of the contact measurements
-(its feature order) and the exact scikit-learn and XGBoost versions used for fitting.
+checks the model format, feature order and rally-proposal settings. Library
+versions are recorded for reference.
 
 The model needs shuttle, pose and court data consistent with the data used
 during training. A substantial detector change can require a new fit
@@ -124,7 +124,7 @@ shuttle_quality.json.gz
 
 ### Main result fields
 
-- Rally spans use half-open bounds: `[start, end)` includes the start frame and excludes the end frame.
+- Rally spans include the start frame and exclude the end frame: `[start, end)`.
 - `rallies[rally_id].sequence.events` contains the final contacts belonging to a rally.
 - `contact_events` contains the full final contact stream, including contacts that fall outside all rally spans.
 - `Top` and `Bot` refer to physical halves of the visible court: `Top` is the far half and `Bot` is the near half. They are not player names; the labels stay with the court halves when players change ends.
@@ -181,8 +181,21 @@ Separate model and output directories make side-by-side comparisons easy to trac
 
 ## Heuristic-only annotation
 
-The Python API also runs the complete rule-based annotator without loading a
-model. Use the same prepared arrays and court/landing inputs:
+Use `--heuristic-only` to run the benchmark mode from saved inputs:
+
+```bash
+PYTHONPATH=src uv run python -m annotator \
+  --run-dir data/dataset-run \
+  --video-id match-name \
+  --heuristic-only \
+  --output-dir data/annotations/match-name-heuristic
+```
+
+Choose one mode: `--models PATH` or `--heuristic-only`. The heuristic mode uses
+current default settings and writes the same output files. For configured
+heuristic benchmarks, use the [benchmark runner](../../experiments/annotator/monotrack_benchmark/benchmark_scripts/README.md).
+
+The Python API accepts the prepared arrays and court/landing inputs:
 
 ```python
 from annotator.config import BaseAnnotatorConfig
@@ -220,7 +233,6 @@ The standalone runner found existing files at the chosen output path.
 
 ## 8. Further detail
 
-The old track-only batch segmentation command has been retired.
 `python -m annotator` runs the full annotation chain and supports heuristic-only
 inference with `--heuristic-only`.
 

@@ -43,7 +43,9 @@ data/dataset-run/
             └── court_present.npy.xz
 ```
 
-The shuttle directory must contain exactly one `*_inpaint_mask.json.gz` file.
+The annotation command needs exactly one `*_inpaint_mask.json.gz` file in the
+shuttle directory. Training uses the other saved inputs and does not need this
+fill-mask sidecar.
 
 ## Video metadata
 
@@ -205,8 +207,7 @@ stops the landing search before any other boundary would stop it.
 In Python, `CourtHalf.TOP` and `CourtHalf.BOT` identify the camera-relative court
 halves; `WinnerSource` identifies the observation or rule used to choose the
 winner. Their saved values remain `Top`/`Bot` and `next_server`,
-`landing_geometry` or `net_rule`. Rally-record exports still derive the relative
-`won`/`lost` columns for the final striker and retain their legacy field names.
+`landing_geometry` or `net_rule`. Rally-record exports give `won`/`lost` relative to the final striker.
 
 ### `raw_replay_mask.npy.xz`
 
@@ -234,7 +235,7 @@ these objects.
 | `hit_heights` | Contact frame -> ShuttleSet hit-height code | Contact export and features |
 | `unavailable_hit_height_reasons` | Contact frame -> reason its height could not be measured | Missing-evidence diagnostics |
 | `contact_events` | Full learned contact stream, including events outside rallies | Model diagnostics |
-| `heuristic_candidates` | Raw heuristic candidates and their gate flags; empty in learned mode | Heuristic rejection analysis |
+| `heuristic_candidates` | Raw heuristic candidates with wrist-distance and proximity-suppression flags; empty in learned mode | Heuristic rejection analysis |
 | `rally_confidence` | One review-ordering score per rally; empty in heuristic mode | Review prioritisation |
 
 ### Contact membership
@@ -250,10 +251,10 @@ rally bounds can give different membership.
 The dataset builder derives stroke counts, fitted servers and next servers from
 these rallies. It writes the existing rally-record columns, including accepted
 contact sides. During learned inference the `raw_candidates` record field contains the
-selected contact frames with empty heuristic gate flags. Reconstructing a result
+selected contact frames with unset heuristic flags. Reconstructing a result
 from saved rally records retains their raw candidate rows for scoring; those
 records do not identify which inference mode produced them. In heuristic mode it
-retains all raw candidates, including those rejected by gates or masks.
+retains all raw candidates, including those rejected by wrist distance, proximity suppression or excluded footage.
 
 ### `Top` and `Bot`
 

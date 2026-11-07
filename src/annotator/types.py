@@ -63,7 +63,7 @@ class WristGaps(NamedTuple):
 
 
 class ContactCandidate(NamedTuple):
-    """Heuristic contact, including candidates rejected by wrist distance or timing.
+    """Raw heuristic contact, kept for inspection even if rejected.
 
     ``rally_id`` indexes the initial rally ranges. Supplied contacts and
     candidates found without wrist measurements have both checks unset.

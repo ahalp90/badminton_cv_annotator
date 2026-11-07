@@ -34,6 +34,7 @@ from annotator.inference.prepare_annotation_inputs import (
 )
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.rallies.build_contact_proposals import build_rally_context
+from annotator.saved_inputs import load_saved_video_inputs
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
@@ -52,20 +53,9 @@ from annotator.training.sequences import (
 )
 from annotator.training.trees import TreeFitConfig
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
-from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
-from dataset_builder.vision import (
-    TRACK_FILENAME,
-    load_court_vision,
-    load_json_gz,
-    load_npy_xz,
-    load_pose_arrays,
-    save_json_gz,
-)
+from dataset_builder.vision import save_json_gz
 from shared.frame_timing import frames_at_fps
-from shared.shuttle_track_validation import validate_shuttle_track
-from shared.video_metadata import VideoMetadata
 
-METADATA_FILENAME = 'video_metadata.json.gz'
 EVALUATION_TOLERANCE_AT_30_FPS = 10
 
 
@@ -157,7 +147,7 @@ def fit_from_manifest(
         raise ValueError('sequence training needs at least three distinct training groups')
     loaded = []
     for entry in entries:
-        evidence = load_contact_evidence(manifest.run_dir, entry.video_id, settings.preprocessing)
+        evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, settings.preprocessing)
         features = contact_features_from_inputs(evidence)
         rallies = load_labels(entry.labels, len(evidence.track))
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
@@ -212,7 +202,7 @@ def evaluate_manifest(
                    'whole_rally_judged', 'whole_rally_correct', 'whole_rally_unjudgeable')
     totals: dict[str, int | float] = dict.fromkeys(count_names, 0)
     for entry in videos_for_split(manifest, split):
-        evidence = load_contact_evidence(manifest.run_dir, entry.video_id, models.preprocessing)
+        evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, models.preprocessing)
         rallies = load_labels(entry.labels, len(evidence.track))
         prediction = predict_rallies_and_contacts(evidence, models)
         counts = evaluation_counts(prediction.rally_prediction.events, prediction.rally_prediction.sequences, rallies, evidence.fps)
@@ -251,30 +241,21 @@ def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[Contac
 
 # Prepare saved inputs and labels
 
-def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnotatorConfig) -> PreparedAnnotationInputs:
+def prepare_saved_video_inputs(run_dir: Path, video_id: str, preprocessing: BaseAnnotatorConfig) -> PreparedAnnotationInputs:
     """Load saved metadata, pose, court and shuttle arrays, then prepare annotation inputs."""
-    stages = run_dir / 'stages'
     try:
-        metadata = VideoMetadata.from_dict(load_json_gz(stages / 'metadata' / video_id / METADATA_FILENAME))
-        track = load_npy_xz(stages / 'shuttle' / video_id / TRACK_FILENAME)
-        validate_shuttle_track(track, metadata.frame_count)
-        shuttle_grades = load_npy_xz(stages / 'shuttle' / video_id / GUARD_CODES_FILENAME)
-        pose = load_pose_arrays(stages / 'pose' / video_id, metadata.frame_count)
-        court = load_court_vision(
-            stages / 'court' / video_id, video_id=video_id, frame_count=metadata.frame_count,
-            resolution=(float(metadata.width), float(metadata.height)),
-        )
+        saved = load_saved_video_inputs(run_dir, video_id)
     except (FileNotFoundError, TypeError, ValueError) as error:
         raise ValueError(f'{video_id}: cannot load current metadata/pose/court/shuttle artefacts: {error}') from error
-    inputs = court.evidence.inputs
-    if inputs is None:
-        raise ValueError(f'{video_id}: court extraction has no usable operational court inputs')
+    court_inputs = saved.court.evidence.inputs
+    assert court_inputs is not None
+    pose = saved.pose
     return prepare_annotation_inputs(
-        track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        video_config=scale_config_to_fps(preprocessing, float(metadata.fps)),
-        resolution=inputs.resolution,
-        court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
-        shuttle_grades=shuttle_grades, court_invalid_is_excluded=True,
+        saved.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
+        video_config=scale_config_to_fps(preprocessing, float(saved.metadata.fps)),
+        resolution=court_inputs.resolution,
+        court_present=saved.court.evidence.court_present, homography_rows=court_inputs.homography_rows,
+        shuttle_grades=saved.shuttle_grades, court_invalid_is_excluded=True,
     )
 
 

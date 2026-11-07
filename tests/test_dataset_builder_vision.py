@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 import annotator.annotate_video as run_video_module
+import annotator.cli as annotation_cli
 import annotator.courts.prepare_courts as court_evidence_module
 from annotator.annotate_video import (
     AnnotatorResult,
@@ -21,6 +22,7 @@ from annotator.annotate_video import (
     annotate_video,
 )
 from annotator.cli import main as annotation_main
+from annotator.config import BaseAnnotatorConfig
 from annotator.courts.prepare_courts import (
     DETECTOR_RESULT_SCHEMA,
     CourtEvidenceResult,
@@ -38,6 +40,8 @@ from annotator.rally_results.landing_and_winner import (
     RallyOutcome,
     WinnerSource,
 )
+from annotator.saved_inputs import load_saved_video_inputs
+from annotator.training.workflow import prepare_saved_video_inputs
 from annotator.types import (
     ContactCandidate,
     ContactEvent,
@@ -897,6 +901,62 @@ def test_annotation_cli_runs_saved_inputs_without_source_video_or_builder_manife
     )
     quality = vision.load_json_gz(output / vision.SHUTTLE_QUALITY_FILENAME)
     assert quality["inpaint_filled_frames"] == 3
+
+
+@pytest.mark.parametrize('mode', ['missing', 'both'])
+def test_annotation_cli_requires_exactly_one_mode(tmp_path: Path, mode: str) -> None:
+    arguments = ['--run-dir', str(tmp_path), '--video-id', 'video', '--output-dir', str(tmp_path / 'output')]
+    if mode == 'both':
+        arguments.extend(['--models', str(tmp_path / 'models'), '--heuristic-only'])
+    with pytest.raises(SystemExit) as error:
+        annotation_main(arguments)
+    assert error.value.code == 2
+    assert not (tmp_path / 'output').exists()
+
+
+def test_annotation_cli_runs_heuristics_without_loading_models(
+    tmp_path: Path, saved_cli_inputs: list[str], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / 'models/models.joblib').unlink()
+    arguments = saved_cli_inputs.copy()
+    model_option = arguments.index('--models')
+    arguments[model_option:model_option + 2] = ['--heuristic-only']
+
+    def forbidden_load(*_args):
+        pytest.fail('heuristic-only annotation must not load a model bundle')
+
+    monkeypatch.setattr(annotation_cli, 'load_models', forbidden_load)
+    monkeypatch.setattr(run_video_module, 'load_models', forbidden_load)
+    assert annotation_main([*arguments, '--progress', 'off']) == 0
+    output = tmp_path / 'annotation'
+    result = vision.load_json_gz(output / vision.ANNOTATOR_RESULT_FILENAME)
+    assert result['schema'] == vision.ANNOTATOR_RESULT_SCHEMA
+    np.testing.assert_array_equal(vision.load_npy_xz(output / vision.RAW_REPLAY_MASK_FILENAME), np.zeros(60, bool))
+    assert vision.load_json_gz(output / vision.SHUTTLE_QUALITY_FILENAME)['inpaint_filled_frames'] == 3
+
+
+def test_training_loads_saved_inputs_without_an_inpaint_sidecar(
+    tmp_path: Path, saved_cli_inputs: list[str],
+) -> None:
+    run_dir = tmp_path / 'extracted'
+    shuttle_dir = run_dir / 'stages/shuttle/match-alpha'
+    (shuttle_dir / 'source_stride8_inpaint_mask.json.gz').unlink()
+    saved = load_saved_video_inputs(run_dir, 'match-alpha')
+    prepared = prepare_saved_video_inputs(run_dir, 'match-alpha', BaseAnnotatorConfig())
+    assert saved.metadata.frame_count == 60
+    np.testing.assert_array_equal(prepared.track, saved.track)
+    np.testing.assert_array_equal(prepared.pose_kps, saved.pose.kps)
+    assert saved.court.evidence.inputs is not None
+    assert prepared.resolution == saved.court.evidence.inputs.resolution
+
+
+def test_training_names_the_video_when_required_inputs_are_missing(
+    tmp_path: Path, saved_cli_inputs: list[str],
+) -> None:
+    run_dir = tmp_path / 'extracted'
+    (run_dir / 'stages/shuttle/match-alpha' / GUARD_CODES_FILENAME).unlink()
+    with pytest.raises(ValueError, match='match-alpha: cannot load current metadata/pose/court/shuttle artefacts'):
+        prepare_saved_video_inputs(run_dir, 'match-alpha', BaseAnnotatorConfig())
 
 
 @pytest.mark.parametrize(("failure", "expected_error"), [
