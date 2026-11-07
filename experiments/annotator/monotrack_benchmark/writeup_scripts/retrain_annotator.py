@@ -156,7 +156,6 @@ def main() -> None:
         args.reuse_training_root = args.reuse_training_root.resolve()
     if not args.plan_only:
         record = {
-            'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip(),
             'paths': str(args.paths), 'candidates': args.candidates,
             'seeds': args.seeds, 'device': args.device,
             'reuse_training_root': str(args.reuse_training_root) if args.reuse_training_root is not None else None,
@@ -166,7 +165,7 @@ def main() -> None:
         if receipt.exists():
             with gzip.open(receipt, 'rt') as handle:
                 if json.load(handle) != record:
-                    raise ValueError('Training inputs or source changed; use a fresh output directory')
+                    raise ValueError('Training inputs or settings changed; use a fresh output directory')
         write_json(receipt, record)
         prepare_candidates(args)
     for stage in args.stages:

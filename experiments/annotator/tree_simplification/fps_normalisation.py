@@ -32,7 +32,7 @@ from annotator.types import SmoothingMode
 from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
-from experiments.annotator.heuristic_only_tune.run import source_record
+from experiments.annotator.heuristic_only_tune.run import runtime_versions
 from shared.frame_timing import BASE_FPS, frames_at_fps
 
 SCHEMA = 'contact-motion-base30/1'
@@ -153,7 +153,7 @@ def prepare(source: Path, output: Path, workers: int, only: str | None = None, *
         raise ValueError('Source is already transformed')
     manifest = {
         **original, 'motion_units': VELOCITY_SCHEMA if velocity_only else SCHEMA,
-        'raw_prepared': str(source), 'transform_source': source_record(),
+        'raw_prepared': str(source), 'transform_source': runtime_versions(),
         'transform_md5': file_md5(Path(__file__)),
     }
     output.mkdir(parents=True, exist_ok=True)

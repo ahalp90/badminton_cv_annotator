@@ -26,7 +26,7 @@ from annotator.inference.learned import predict_from_contact_features
 from annotator.models import load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import load_prepared
-from experiments.annotator.heuristic_only_tune.run import source_record
+from experiments.annotator.heuristic_only_tune.run import runtime_versions
 from experiments.annotator.tree_simplification.analysis.common import (
     REPOSITORY,
     RESULTS,
@@ -73,7 +73,7 @@ def main() -> None:
     ]
     rows.sort(key=lambda row: row['cumulative_s'], reverse=True)
     write_json_gz(args.output, {
-        'complete': True, 'source': source_record(), 'stream_matches': True, 'video': prepared.video.identity,
+        'complete': True, 'source': runtime_versions(), 'stream_matches': True, 'video': prepared.video.identity,
         'frames': len(prepared.evidence.track), 'fps': prepared.video.fps, 'threads': THREADS, 'profile': rows,
     })
     print(f'Profile written to {args.output}; the predictions match {saved_stream.name}', flush=True)

@@ -19,7 +19,7 @@ from experiments.annotator.heuristic_only_tune.run import (
     load_candidates,
     load_paths,
     read_json,
-    source_record,
+    runtime_versions,
     write_json,
 )
 
@@ -155,7 +155,7 @@ def main() -> None:
     identity = json.loads(json.dumps(identity, default=sorted))
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = args.output / 'preparation.json.gz'
-    manifest_record = {'inputs': identity, 'source': source_record()}
+    manifest_record = {'inputs': identity, 'source': runtime_versions()}
     if candidate is not None:
         manifest_record['candidate'] = candidate
     if manifest.exists():

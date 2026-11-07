@@ -23,7 +23,7 @@ from experiments.annotator import development as experiment
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.data import score_stream
-from experiments.annotator.heuristic_only_tune.run import source_record
+from experiments.annotator.heuristic_only_tune.run import runtime_versions
 from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.fps_normalisation import (
     preparation_receipt,
@@ -103,7 +103,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
             )
     experiment.write_json(output / 'review-rows.json.gz', rows)
     experiment.write_json(output / 'result.json.gz', {
-        'complete': True, 'source': source_record(), 'motion_units': units['schema'],
+        'complete': True, 'source': runtime_versions(), 'motion_units': units['schema'],
         'per_video': per_video, 'totals': pooled_scores(per_video), 'review_per_video': rankings, 'review': pooled,
     })
     experiment.progress(output, 'complete', totals=pooled_scores(per_video))

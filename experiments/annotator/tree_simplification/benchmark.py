@@ -17,7 +17,7 @@ from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import load_prepared, progress
 from experiments.annotator.heuristic_only_tune.run import (
     read_json,
-    source_record,
+    runtime_versions,
     write_json,
 )
 
@@ -69,7 +69,7 @@ def main() -> None:
             for repetition in (0, 1)
         ]
     write_json(args.output / 'result.json.gz', {
-        'complete': True, 'source': source_record(), 'threads': 2, 'rows': rows, 'total_wall_s': totals,
+        'complete': True, 'source': runtime_versions(), 'threads': 2, 'rows': rows, 'total_wall_s': totals,
         'inputs': {name: str(value.resolve()) for name, value in vars(args).items()},
         'scope': __doc__, 'streams_match': True,
     })

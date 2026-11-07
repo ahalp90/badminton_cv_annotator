@@ -15,7 +15,7 @@ sys.path.insert(0, str(REPOSITORY / 'src'))
 
 from experiments.annotator.heuristic_only_tune.run import (
     read_json,
-    source_record,
+    runtime_versions,
     write_json,
 )
 
@@ -138,7 +138,7 @@ def main() -> None:
         if target_manifest['pools'] != str(args.pools.resolve()) or target_manifest['pools_manifest'] != manifest:
             raise ValueError('Five-frame targets were prepared from different option pools')
     args.output.mkdir(parents=True, exist_ok=True)
-    source = source_record()
+    source = runtime_versions()
     started = time.perf_counter()
     prepared = read_json(Path(manifest['prepared']) / 'preparation.json.gz')['inputs']
     videos = {video.identity: video for video in load_original_videos(Path(prepared['paths']['shots_master']))}

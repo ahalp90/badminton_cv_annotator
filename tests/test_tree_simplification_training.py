@@ -153,7 +153,7 @@ def test_cli_fits_training_pools_and_evaluates_validation_only(tmp_path, monkeyp
     monkeypatch.setattr(train, 'read_json', read)
     monkeypatch.setattr(train.joblib, 'load', load)
     monkeypatch.setattr(train, 'load_original_videos', lambda _path: videos)
-    monkeypatch.setattr(train, 'source_record', lambda: {'revision': 'fixture'})
+    monkeypatch.setattr(train, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.0'}})
     monkeypatch.setattr(train.rally_training, 'fit_selector', fit)
     monkeypatch.setattr(train, 'evaluate', evaluate)
     monkeypatch.setattr(train, 'progress', lambda *_args, **_kwargs: None)
