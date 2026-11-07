@@ -23,8 +23,8 @@ OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 class PlayerRow(IntEnum):
     """Top/bottom row indices in the tracked-player arrays.
 
-    Matches sticky_anchor: top row 0, bottom row 1. The tracker chooses the
-    bottom player first; these values specify storage order, not pick order.
+    The tracker chooses the bottom player first; these values specify storage
+    order, not pick order.
     """
 
     TOP = 0
@@ -135,11 +135,13 @@ class ShuttleGrade(IntEnum):
     NO_FLAG = 0
     FABRICATED = 1
     SUSPECT_FLAT = 2
-    DEGRADED = 3
+    NEAR_REPEATED_PATTERN = 3
+    MATCHES_REPEATED_POSITION = 4
 
 
 REJECTABLE_SHUTTLE_GRADES = frozenset({
-    ShuttleGrade.FABRICATED, ShuttleGrade.SUSPECT_FLAT, ShuttleGrade.DEGRADED,
+    ShuttleGrade.FABRICATED, ShuttleGrade.SUSPECT_FLAT,
+    ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION,
 })
 
 

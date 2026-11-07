@@ -56,11 +56,16 @@ The current codes are:
 | `0` | no flag | usable |
 | `1` | repeated moving pattern; treated as fabricated | flagged as unreliable |
 | `2` | repeated flat pattern; suspicious | flagged as unreliable |
-| `3` | degraded frame near one of those recurrent patterns | flagged as unreliable |
+| `3` | frame in the halo around a repeated pattern | flagged as unreliable |
+| `4` | exact position match elsewhere in the video | flagged as unreliable |
 
-`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3}`.
+The halo extends three frames before and after repeated runs by default. A position
+match needs only one matching `(x, y)`, not the whole repeated sequence. Outside
+the repeated runs, an exact position match takes precedence over the halo.
+
+`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3, 4}`.
 `annotate_video()` marks positions with those grades in a boolean frame mask, which
-the code calls the shuttle hallucination mask. Each stage uses that mask
+the code calls `rejected_shuttle_frames`. Each stage uses that mask
 differently, as described below.
 
 The guard matters because fabricated shuttle coordinates can create convincing but false movement. A repeated or inpainted track can produce a sharp change in velocity, an apparent contact, or a plausible landing even when the shuttle was not really observed there.
@@ -71,7 +76,7 @@ Flagged shuttle positions affect three stages:
 - **Outcome rules.** Landing estimates do not use flagged positions. If the last contact of a rally sits on a flagged frame, the landing is left empty rather than measured from an earlier hit.
 - **Contact candidates.** The contact tree scores flagged frames by default. The optional rule below removes some of those candidates before scoring.
 
-A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark suspicious or degraded tracking; they do not prove that no hit happened.
+A contact can therefore be selected on a flagged frame. Grades `2`, `3` and `4` mark suspicious tracking; they do not prove that no hit happened.
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 

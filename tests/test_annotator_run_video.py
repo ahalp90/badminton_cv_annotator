@@ -677,12 +677,12 @@ def test_run_video_threads_event_mask_to_dead_mask_builder(
     np.testing.assert_array_equal(received[0], expected_mask)
 
 
-@pytest.mark.parametrize('rejected_grades', [frozenset({1, 2, 3}), frozenset({3})])
+@pytest.mark.parametrize('rejected_grades', [frozenset({1, 2, 3, 4}), frozenset({3}), frozenset({4})])
 def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, annotator_models, rejected_grades):
     inputs = _synthetic_inputs()
     frame_count = len(inputs['track'])
     codes = np.zeros(frame_count, dtype=np.uint8)
-    codes[10:14] = [0, 1, 2, 3]
+    codes[10:15] = [0, 1, 2, 3, 4]
     mask_calls = []
     original = preparation.build_rejected_shuttle_mask
 

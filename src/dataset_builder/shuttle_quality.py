@@ -6,7 +6,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-SHUTTLE_QUALITY_SCHEMA = "shuttle-quality/0.1"
+from annotator.types import REJECTABLE_SHUTTLE_GRADES, ShuttleGrade
+
+SHUTTLE_QUALITY_SCHEMA = "shuttle-quality/0.2"
 
 
 @dataclass(frozen=True)
@@ -16,8 +18,8 @@ class ShuttleQualitySummary:
     frame_count: int
     inpaint_filled_frames: int
     inpaint_visible_filled_frames: int
-    guard_counts_per_code: tuple[int, int, int, int]
-    filled_counts_per_code: tuple[int, int, int, int]
+    guard_counts_per_code: tuple[int, ...]
+    filled_counts_per_code: tuple[int, ...]
     rejected_grades: tuple[int, ...]
     guard_rejected_frames: int
     filled_guard_rejected_frames: int
@@ -49,8 +51,8 @@ class ShuttleQualitySummary:
             raise ValueError("visible filled frames cannot exceed all filled frames")
         if self.rejected_grades != tuple(sorted(set(self.rejected_grades))):
             raise ValueError("rejected grades must be sorted and unique")
-        if any(grade not in {1, 2, 3} for grade in self.rejected_grades):
-            raise ValueError("rejected grades must be a subset of {1, 2, 3}")
+        if any(grade not in REJECTABLE_SHUTTLE_GRADES for grade in self.rejected_grades):
+            raise ValueError("rejected grades must be recognised non-zero shuttle grades")
         expected_rejected = sum(self.guard_counts_per_code[grade] for grade in self.rejected_grades)
         if self.guard_rejected_frames != expected_rejected:
             raise ValueError("guard_rejected_frames differs from rejected grades")
@@ -144,14 +146,14 @@ def summarize_shuttle_quality(
         raise ValueError("inpaint fill mask must be frame-aligned and boolean")
     if code_values.shape != (frame_count,) or code_values.dtype != np.dtype(np.uint8):
         raise ValueError("guard codes must be frame-aligned uint8 values")
-    if not np.isin(code_values, (0, 1, 2, 3)).all():
-        raise ValueError("guard codes must be in {0, 1, 2, 3}")
+    if not np.isin(code_values, tuple(ShuttleGrade)).all():
+        raise ValueError(f"guard codes must be in {tuple(int(grade) for grade in ShuttleGrade)}")
     rejected = tuple(sorted(rejected_grades))
     guard_counts = tuple(
-        int(np.count_nonzero(code_values == code)) for code in range(4)
+        int(np.count_nonzero(code_values == code)) for code in ShuttleGrade
     )
     filled_counts = tuple(
-        int(np.count_nonzero(fill_values & (code_values == code))) for code in range(4)
+        int(np.count_nonzero(fill_values & (code_values == code))) for code in ShuttleGrade
     )
     return ShuttleQualitySummary(
         frame_count=frame_count,
@@ -168,22 +170,17 @@ def summarize_shuttle_quality(
 
 
 def _validate_code_counts(values: tuple[int, ...], name: str) -> None:
-    if len(values) != 4:
-        raise ValueError(f"{name} must contain four code counts")
+    if len(values) != len(ShuttleGrade):
+        raise ValueError(f"{name} must contain {len(ShuttleGrade)} code counts")
     if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
         raise ValueError(f"{name} must contain non-negative integers")
 
 
-def _code_counts(payload: object, name: str) -> tuple[int, int, int, int]:
+def _code_counts(payload: object, name: str) -> tuple[int, ...]:
     values = _list(payload, name)
-    if len(values) != 4:
-        raise ValueError(f"{name} must contain four values")
-    return (
-        _integer(values[0], name),
-        _integer(values[1], name),
-        _integer(values[2], name),
-        _integer(values[3], name),
-    )
+    if len(values) != len(ShuttleGrade):
+        raise ValueError(f"{name} must contain {len(ShuttleGrade)} values")
+    return tuple(_integer(value, name) for value in values)
 
 
 def _list(payload: object, name: str) -> list[object]:

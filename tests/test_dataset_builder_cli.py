@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from annotator.annotate_video import AnnotatorResult
-from annotator.types import ContactSequence, FinishedRally
+from annotator.types import REJECTABLE_SHUTTLE_GRADES, ContactSequence, FinishedRally
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.artifact_index import (
     VIDEO_ARTIFACT_INDEX_SCHEMA,
@@ -989,7 +989,7 @@ annotation_directory = "set/match-one"
                 kwargs["track"],
                 kwargs["inpaint_fill_mask"],
                 kwargs["shuttle_grades"],
-                frozenset({1, 2, 3}),
+                REJECTABLE_SHUTTLE_GRADES,
             ),
         )
         output = vision.AnnotationOutput(

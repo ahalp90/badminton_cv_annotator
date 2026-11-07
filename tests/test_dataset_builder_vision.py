@@ -43,6 +43,7 @@ from annotator.rally_results.landing_and_winner import (
 from annotator.saved_inputs import load_saved_video_inputs
 from annotator.training.workflow import prepare_saved_video_inputs
 from annotator.types import (
+    REJECTABLE_SHUTTLE_GRADES,
     ContactCandidate,
     ContactEvent,
     ContactSequence,
@@ -199,7 +200,7 @@ def _quality(
     frame_count = len(track)
     fill = np.zeros(frame_count, dtype=bool) if fill_mask is None else fill_mask
     codes = np.zeros(frame_count, dtype=np.uint8) if shuttle_grades is None else shuttle_grades
-    return summarize_shuttle_quality(track, fill, codes, frozenset({1, 2, 3}))
+    return summarize_shuttle_quality(track, fill, codes, REJECTABLE_SHUTTLE_GRADES)
 
 
 def test_whole_video_tracknet_conversion_reindexes_and_preserves_string_id(
@@ -996,15 +997,15 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     track = np.zeros((metadata.frame_count, 3), dtype=float)
     track[:, 2] = 1.0
     fill_mask = np.ones(metadata.frame_count, dtype=bool)
-    shuttle_grades = np.zeros(metadata.frame_count, dtype=np.uint8)
-    shuttle_grades[[2, 5, 8]] = [1, 2, 3]
+    expected_grades = np.zeros(metadata.frame_count, dtype=np.uint8)
+    expected_grades[[2, 5, 8, 9]] = [1, 2, 3, 4]
 
     def fake_run_video(
         *_args: object,
         shuttle_grades: np.ndarray,
         **_kwargs: object,
     ) -> VideoAnnotation:
-        np.testing.assert_array_equal(shuttle_grades, shuttle_grades)
+        np.testing.assert_array_equal(shuttle_grades, expected_grades)
         assert 'rejected_shuttle_frames' not in _kwargs
         return VideoAnnotation(
             AnnotatorResult((), {}, {}, {}, (), [], ()),
@@ -1017,7 +1018,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         metadata=metadata,
         track=track,
         inpaint_fill_mask=fill_mask,
-        shuttle_grades=shuttle_grades,
+        shuttle_grades=expected_grades,
         pose=_pose_arrays(metadata.frame_count),
         court=_court_vision("video", metadata.frame_count),
         output_dir=tmp_path / "annotation",
@@ -1026,10 +1027,10 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     quality = output.run.shuttle_quality
     assert quality.inpaint_filled_frames == metadata.frame_count
     assert quality.inpaint_visible_filled_frames == metadata.frame_count
-    assert quality.guard_counts_per_code == (7, 1, 1, 1)
-    assert quality.filled_counts_per_code == (7, 1, 1, 1)
-    assert quality.guard_rejected_frames == 3
-    assert quality.filled_guard_rejected_frames == 3
+    assert quality.guard_counts_per_code == (6, 1, 1, 1, 1)
+    assert quality.filled_counts_per_code == (6, 1, 1, 1, 1)
+    assert quality.guard_rejected_frames == 4
+    assert quality.filled_guard_rejected_frames == 4
 
 
 @pytest.mark.parametrize(

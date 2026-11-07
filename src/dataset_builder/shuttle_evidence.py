@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 
 from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track
+from annotator.types import ShuttleGrade
 from dataset_builder.vision import (
     load_json_gz,
     load_npy_xz,
@@ -21,7 +22,7 @@ from dataset_builder.vision import (
 from shared.shuttle_track_validation import validate_shuttle_track
 
 INPAINT_SIDECAR_SCHEMA = "inpaint_fill_mask/1"
-SHUTTLE_GUARD_SCHEMA = "shuttle-guard/0.1"
+SHUTTLE_GUARD_SCHEMA = "shuttle-guard/0.2"
 GUARD_CODES_FILENAME = "shuttle_guard_codes.npy.xz"
 GUARD_DIAGNOSTICS_FILENAME = "shuttle_guard_diagnostics.json.gz"
 
@@ -288,8 +289,8 @@ def _validate_guard_codes(codes: np.ndarray, frame_count: int) -> None:
         raise ValueError(
             f"shuttle guard codes must have shape {(frame_count,)} and uint8 dtype"
         )
-    if not np.isin(values, (0, 1, 2, 3)).all():
-        raise ValueError("shuttle guard codes must be in {0, 1, 2, 3}")
+    if not np.isin(values, tuple(ShuttleGrade)).all():
+        raise ValueError(f"shuttle guard codes must be in {tuple(int(grade) for grade in ShuttleGrade)}")
 
 
 def _guard_payload(

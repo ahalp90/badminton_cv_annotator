@@ -37,6 +37,7 @@ def run_item(
     from annotator.rally_results.landing_and_winner import (
         SHIPPED_LANDING_FILTER_OPTIONS,
     )
+    from annotator.types import REJECTABLE_SHUTTLE_GRADES
     from dataset_builder.vision import load_court_vision, load_pose_arrays
     from experiments.annotator.contact_records import stream_payload
     from shared.shuttle_track_validation import validate_shuttle_track
@@ -46,7 +47,7 @@ def run_item(
     if heuristic_spec is None:
         models = load_models(paths['bundle'])
         base = models.preprocessing
-        if base.rejected_grades != frozenset({1, 2, 3}) or models.contact_settings.score_cutoff != 0.9:
+        if base.rejected_grades != REJECTABLE_SHUTTLE_GRADES or models.contact_settings.score_cutoff != 0.9:
             raise ValueError('Model bundle settings differ from the selected annotator')
     else:
         from experiments.annotator.heuristic_tuning.sweep import base_config

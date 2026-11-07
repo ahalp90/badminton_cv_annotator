@@ -26,7 +26,8 @@ CODE_NAMES = {
     ShuttleGrade.NO_FLAG: "no flag",
     ShuttleGrade.FABRICATED: "fabricated (proof)",
     ShuttleGrade.SUSPECT_FLAT: "suspect flat",
-    ShuttleGrade.DEGRADED: "degraded",
+    ShuttleGrade.NEAR_REPEATED_PATTERN: "near repeated pattern",
+    ShuttleGrade.MATCHES_REPEATED_POSITION: "matches repeated position",
 }
 
 _MIN_CANDIDATE_EPISODES = 2
@@ -73,8 +74,9 @@ def build_mask(
     """Assign shuttle-quality grades from unusually frequent position patterns.
 
     Output: one uint8 code per original video frame. Moving repeats are
-    FABRICATED, flat repeats SUSPECT_FLAT. Adjacent frames and other matches
-    to their positions are DEGRADED. (0, 0) positions remain NO_FLAG.
+    FABRICATED, flat repeats SUSPECT_FLAT. Adjacent frames are NEAR_REPEATED_PATTERN;
+    exact position matches elsewhere are MATCHES_REPEATED_POSITION.
+    (0, 0) positions remain NO_FLAG.
     Return (codes, info). ``info`` reports pattern counts, thresholds and any
     reason detection was unavailable. The dataset builder saves it with the grades.
     """
@@ -106,23 +108,25 @@ def build_mask(
     suspect = _cover(len(track), flat, window)
 
     core = proven | suspect
-    halo = np.zeros(len(track), dtype=bool)
+    near_repeated_pattern = np.zeros(len(track), dtype=bool)
     edges = np.diff(np.concatenate(([False], core, [False])).astype(np.int8))
     for start in np.flatnonzero(edges == 1):
-        halo[max(0, int(start) - halo_frames):int(start)] = True
+        near_repeated_pattern[max(0, int(start) - halo_frames):int(start)] = True
     for stop in np.flatnonzero(edges == -1):
         stop = int(stop)
-        halo[stop:min(len(track), stop + halo_frames)] = True
+        near_repeated_pattern[stop:min(len(track), stop + halo_frames)] = True
 
     positions: set[tuple[Any, Any]] = set()
     for key in (*varying, *flat):
         for point in np.frombuffer(key, dtype=track.dtype).reshape(window, 2):
             positions.add((point[0], point[1]))
-    on_attractor = np.zeros(len(track), dtype=bool)
+    matches_repeated_position = np.zeros(len(track), dtype=bool)
     for pos_x, pos_y in positions:
-        on_attractor |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
+        matches_repeated_position |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
 
-    codes[(halo | on_attractor) & ~core] = ShuttleGrade.DEGRADED
+    # Exact matches take precedence over the halo; repeated runs keep their own grades.
+    codes[near_repeated_pattern & ~core] = ShuttleGrade.NEAR_REPEATED_PATTERN
+    codes[matches_repeated_position & ~core] = ShuttleGrade.MATCHES_REPEATED_POSITION
     codes[suspect] = ShuttleGrade.SUSPECT_FLAT
     codes[proven] = ShuttleGrade.FABRICATED
     codes[(track[:, 0] == 0) & (track[:, 1] == 0)] = ShuttleGrade.NO_FLAG
@@ -174,7 +178,7 @@ def candidate_attractors(
         "n_flat": len(flat),
         "presence_validation": "pending",
         "unavailable_reason": None,
-        "counts_per_code": {code: 0 for code in range(4)},
+        "counts_per_code": {grade: 0 for grade in ShuttleGrade},
     }
     return varying, flat, info
 
@@ -279,10 +283,10 @@ def _cover(track_length: int, groups: dict[bytes, list[int]], window: int) -> np
 
 
 def code_counts(codes: np.ndarray) -> dict[int, int]:
-    """Return counts for all four grade codes."""
+    """Count frames in each shuttle grade."""
     if codes.ndim != 1 or codes.dtype != np.uint8:
         raise ValueError("codes must be a one-dimensional uint8 array")
-    return {code: int(np.count_nonzero(codes == code)) for code in range(4)}
+    return {grade: int(np.count_nonzero(codes == grade)) for grade in ShuttleGrade}
 
 
 # Input checks
@@ -328,7 +332,7 @@ def _empty_info(
         "n_flat": 0,
         "presence_validation": f"unavailable: {reason}",
         "unavailable_reason": reason,
-        "counts_per_code": {code: 0 for code in range(4)},
+        "counts_per_code": {grade: 0 for grade in ShuttleGrade},
     }
 
 

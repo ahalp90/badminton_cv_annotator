@@ -233,7 +233,7 @@ def _segment_stats(
         "clean_fraction": _fraction(clean_visible),
         "fabricated_fraction": _fraction(code_slice == ShuttleGrade.FABRICATED),
         "suspect_flat_fraction": _fraction(code_slice == ShuttleGrade.SUSPECT_FLAT),
-        "degraded_fraction": _fraction(code_slice == ShuttleGrade.DEGRADED),
+        "degraded_fraction": _fraction(np.isin(code_slice, (ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION))),
         "longest_clean_run": _longest_true_run(clean_visible),
         "raw_mask_fraction": _fraction(raw_slice),
         "believed_mask_fraction": _fraction(believed_slice),

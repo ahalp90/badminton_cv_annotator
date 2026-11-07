@@ -171,8 +171,8 @@ def split_recurrence_components(
 
     coordinate_valid = ~np.all(track[:, :2] == 0, axis=1)
     degraded = (halo | global_hit) & ~core & coordinate_valid
-    if not np.array_equal(degraded, codes == ShuttleGrade.DEGRADED):
-        raise ValueError("reproduced grade-3 components disagree with grade_track")
+    if not np.array_equal(degraded, np.isin(codes, (ShuttleGrade.NEAR_REPEATED_PATTERN, ShuttleGrade.MATCHES_REPEATED_POSITION))):
+        raise ValueError("reproduced halo and position matches disagree with grade_track")
     return {
         "recurrence_grade1_core": codes == ShuttleGrade.FABRICATED,
         "recurrence_core_plus_halo": (core | halo) & coordinate_valid,

@@ -41,7 +41,7 @@ def _track_with_recurrence(
     return np.column_stack((track, np.ones(length)))
 
 
-def test_grade_track_marks_varying_flat_and_degraded_frames() -> None:
+def test_grade_track_marks_moving_stationary_and_nearby_frames() -> None:
     track = _track_with_recurrence()
     codes, info = grade_track(track)
 
@@ -53,7 +53,7 @@ def test_grade_track_marks_varying_flat_and_degraded_frames() -> None:
     assert info["n_flat"] == 1
     assert np.count_nonzero(codes == ShuttleGrade.FABRICATED) > 0
     assert np.count_nonzero(codes == ShuttleGrade.SUSPECT_FLAT) > 0
-    assert np.count_nonzero(codes == ShuttleGrade.DEGRADED) > 0
+    assert np.count_nonzero(codes == ShuttleGrade.NEAR_REPEATED_PATTERN) > 0
 
 
 def test_grade_track_uses_three_absolute_halo_frames() -> None:
@@ -63,9 +63,9 @@ def test_grade_track_uses_three_absolute_halo_frames() -> None:
 
     assert DEFAULT_HALO_FRAMES == 3
     assert info["halo_frames"] == DEFAULT_HALO_FRAMES
-    np.testing.assert_array_equal(codes[17:20], np.full(3, ShuttleGrade.DEGRADED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[17:20], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
     np.testing.assert_array_equal(codes[20:36], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[36:39], np.full(3, ShuttleGrade.DEGRADED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[36:39], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
     assert codes[16] == ShuttleGrade.NO_FLAG
     assert codes[39] == ShuttleGrade.NO_FLAG
 
@@ -82,7 +82,7 @@ def test_grade_track_clips_halo_at_track_start() -> None:
     codes, _info = grade_track(track)
 
     np.testing.assert_array_equal(codes[:16], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[16:19], np.full(3, ShuttleGrade.DEGRADED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[16:19], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
     assert codes[19] == ShuttleGrade.NO_FLAG
 
 
@@ -98,17 +98,34 @@ def test_grade_track_clips_halo_at_track_end() -> None:
     codes, _info = grade_track(track)
 
     np.testing.assert_array_equal(codes[-16:], np.full(16, ShuttleGrade.FABRICATED, dtype=np.uint8))
-    np.testing.assert_array_equal(codes[-19:-16], np.full(3, ShuttleGrade.DEGRADED, dtype=np.uint8))
+    np.testing.assert_array_equal(codes[-19:-16], np.full(3, ShuttleGrade.NEAR_REPEATED_PATTERN, dtype=np.uint8))
     assert codes[-20] == ShuttleGrade.NO_FLAG
 
 
-def test_grade_track_keeps_distant_exact_attractor_hits_degraded() -> None:
+def test_grade_track_marks_distant_exact_position_matches() -> None:
     track = _track_with_recurrence()
     track[60, :2] = track[20, :2]
 
     codes, _info = grade_track(track)
 
-    assert codes[60] == ShuttleGrade.DEGRADED
+    assert codes[60] == ShuttleGrade.MATCHES_REPEATED_POSITION
+
+
+def test_position_matches_take_precedence_over_halo_for_both_pattern_kinds() -> None:
+    track = _track_with_recurrence()
+    track[19, :2] = track[5500, :2]
+    track[5499, :2] = track[20, :2]
+    track[60, :2] = track[20, :2]
+    track[65, :2] = track[5500, :2]
+
+    codes, _info = grade_track(track)
+
+    for frame in (19, 5499, 60, 65):
+        assert codes[frame] == ShuttleGrade.MATCHES_REPEATED_POSITION
+    assert codes[18] == ShuttleGrade.NEAR_REPEATED_PATTERN
+    assert codes[5498] == ShuttleGrade.NEAR_REPEATED_PATTERN
+    assert codes[20] == ShuttleGrade.FABRICATED
+    assert codes[5500] == ShuttleGrade.SUSPECT_FLAT
 
 
 def test_grade_track_halo_is_part_of_cache_and_diagnostics_identity() -> None:
@@ -120,7 +137,7 @@ def test_grade_track_halo_is_part_of_cache_and_diagnostics_identity() -> None:
     assert narrow_info["halo_frames"] == 1
     assert broad_info["halo_frames"] == 4
     assert narrow_codes[18] == ShuttleGrade.NO_FLAG
-    assert broad_codes[18] == ShuttleGrade.DEGRADED
+    assert broad_codes[18] == ShuttleGrade.NEAR_REPEATED_PATTERN
 
 
 def test_grade_track_cached_diagnostics_are_independent() -> None:

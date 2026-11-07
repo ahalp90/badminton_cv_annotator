@@ -81,7 +81,7 @@ class BaseAnnotatorConfig:
             isinstance(code, bool) or not isinstance(code, int) or code not in REJECTABLE_SHUTTLE_GRADES
             for code in self.rejected_grades
         ):
-            raise ValueError('rejected_grades must be a subset of {1, 2, 3}')
+            raise ValueError(f'rejected_grades must be a subset of {sorted(REJECTABLE_SHUTTLE_GRADES)}')
 
 
 @dataclass(frozen=True)
