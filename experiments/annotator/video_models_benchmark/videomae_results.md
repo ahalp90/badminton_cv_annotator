@@ -25,14 +25,14 @@ counts in the scores. X3D-M also uses stride 3, offset 0; our annotator and Mono
 
 **VideoMAE (base) gets 39.50% of test rallies fully correct on average at ±10
 frames** (42.26% and 36.73% for the two seeds). X3D-M gets 55.95%, MonoTrack
-47.83% and our annotator 60.34%. VideoMAE's better seed scores below the weaker
+47.83% and our annotator 60.18%. VideoMAE's better seed scores below the weaker
 seed of both X3D-M and MonoTrack.
 
 **VideoMAE finds hits nearly as well as the other systems, but names the hitter
 less reliably.** Its test contact F1 of 95.35% is 0.7–1.6 points below the
 others. It misses slightly more hits than X3D-M (recall 96.89% against 97.44%)
 and adds slightly more extras (precision 93.86% against 96.37%). Its
-correct-player F1 is 85.17%, against 89.95% for X3D-M, 94.75% for our annotator
+correct-player F1 is 85.17%, against 89.95% for X3D-M, 94.63% for our annotator
 and 95.84% for MonoTrack.
 
 **Predicting at every third frame made 6.6–11.2 points more validation rallies
@@ -153,11 +153,11 @@ variation, not confidence intervals.
 |---|---|---|---:|---:|---:|
 | ±10 frames | VideoMAE (base), LR 1e-4 | Stride 3, offset 0 | 95.35 (95.00–95.70) | 85.17 (84.15–86.19) | 39.50 (36.73–42.26) |
 | ±10 frames | X3D-M, selected configuration | Stride 3, offset 0 | 96.90 (96.52–97.28) | 89.95 (88.36–91.54) | 55.95 (52.42–59.48) |
-| ±10 frames | Our annotator, our courts | Dense | 96.75 (96.67–96.88) | 94.75 (94.48–95.02) | 60.34 (59.30–61.29) |
+| ±10 frames | Our annotator, our courts | Dense | 96.85 (96.75–96.92) | 94.63 (94.32–94.78) | 60.18 (59.06–60.96) |
 | ±10 frames | MonoTrack, its own courts | Dense | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
 | ±5 frames | VideoMAE (base), LR 1e-4 | Stride 3, offset 0 | 93.97 (93.61–94.33) | 84.01 (83.00–85.01) | 33.81 (31.71–35.92) |
 | ±5 frames | X3D-M, selected configuration | Stride 3, offset 0 | 95.72 (95.19–96.26) | 88.96 (87.27–90.65) | 49.46 (45.60–53.32) |
-| ±5 frames | Our annotator, our courts | Dense | 95.01 (94.81–95.21) | 93.16 (92.99–93.30) | 50.08 (49.05–51.73) |
+| ±5 frames | Our annotator, our courts | Dense | 95.59 (95.51–95.64) | 93.50 (93.19–93.63) | 52.47 (51.67–52.90) |
 | ±5 frames | MonoTrack, its own courts | Dense | 94.86 (94.75–95.06) | 94.75 (94.59–94.97) | 40.26 (38.71–41.93) |
 
 ![Test contact F1, correct-player F1 and fully correct rallies for VideoMAE (base) at stride 3, offset 0, and for X3D-M, our annotator and MonoTrack, with seed ranges](writeup_figures/test_comparison.png)
@@ -325,6 +325,7 @@ PYTHONPATH=src:. python experiments/annotator/video_models_benchmark/writeup_scr
   --runs /path/to/videomae-runs \
   --validation-index /path/to/rgb256-cache/index.json.gz
 PYTHONPATH=src:. python experiments/annotator/video_models_benchmark/writeup_scripts/make_videomae_figures.py \
+  --monotrack-summary experiments/annotator/monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz \
   > experiments/annotator/video_models_benchmark/results/videomae_stride3/tables.md
 ```
 

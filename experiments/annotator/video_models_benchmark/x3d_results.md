@@ -9,7 +9,7 @@ on 46 videos: 3,327 rallies holding 37,184 labelled hits.
 ## Outcome
 
 **X3D-M gets 55.95% of test rallies fully correct at stride 3, offset 0 and ±10-frame tolerance,**
-compared with 60.34% for our annotator and 47.83% for MonoTrack. Its correct-player
+compared with 60.18% for our annotator and 47.83% for MonoTrack. Its correct-player
 F1 is 89.95%, below both systems. The two X3D seeds span 52.42–59.48% fully
 correct rallies; the comparison systems each use five seeds.
 
@@ -64,7 +64,7 @@ row only, because the positive windows label different frames as contacts.
 All three systems receive the same rally bounds. Our annotator and MonoTrack
 each use their own court estimates, corresponding to `annotator_our_courts`
 and `monotrack_own_courts` in the
-[comparison scores](../monotrack_benchmark/benchmark_results/discovery_context/primary/contact_summary.json.gz).
+[comparison scores](../monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz).
 X3D uses RGB clips sampled at stride 3, offset 0. Timing tolerances are ±5 and ±10 frames at 30 fps, scaled
 to each video's frame rate.
 
@@ -75,10 +75,10 @@ variation. X3D uses stride 3, offset 0 and enforced alternation.
 | Tolerance | System | Contact F1 (%) | Correct-player F1 (%) | Fully correct rallies (%) |
 |---|---|---:|---:|---:|
 | ±10 frames | X3D-M | 96.90 (96.52–97.28) | 89.95 (88.36–91.54) | 55.95 (52.42–59.48) |
-| ±10 frames | Our annotator, our courts | 96.75 (96.67–96.88) | 94.75 (94.48–95.02) | 60.34 (59.30–61.29) |
+| ±10 frames | Our annotator, our courts | 96.85 (96.75–96.92) | 94.63 (94.32–94.78) | 60.18 (59.06–60.96) |
 | ±10 frames | MonoTrack, its own courts | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
 | ±5 frames | X3D-M | 95.72 (95.19–96.26) | 88.96 (87.27–90.65) | 49.46 (45.60–53.32) |
-| ±5 frames | Our annotator, our courts | 95.01 (94.81–95.21) | 93.16 (92.99–93.30) | 50.08 (49.05–51.73) |
+| ±5 frames | Our annotator, our courts | 95.59 (95.51–95.64) | 93.50 (93.19–93.63) | 52.47 (51.67–52.90) |
 | ±5 frames | MonoTrack, its own courts | 94.86 (94.75–95.06) | 94.75 (94.59–94.97) | 40.26 (38.71–41.93) |
 
 ![Test contact F1, correct-player F1 and fully correct rallies for VideoMAE, X3D-M, our annotator and MonoTrack](writeup_figures/test_comparison.png)

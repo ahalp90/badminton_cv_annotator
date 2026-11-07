@@ -67,7 +67,7 @@ from experiments.annotator.video_models_benchmark.writeup_scripts.make_x3d_figur
 BENCHMARK = Path(__file__).resolve().parents[1]
 RESULTS = BENCHMARK / 'results'
 FIGURES = BENCHMARK / 'writeup_figures'
-MONOTRACK_SUMMARY = (BENCHMARK.parent / 'monotrack_benchmark/benchmark_results/discovery_context/primary'
+MONOTRACK_SUMMARY = (BENCHMARK.parent / 'monotrack_benchmark/benchmark_results/hp_search/primary'
                      / 'contact_summary.json.gz')
 VIDEOMAE_COLOUR = '#138a8a'
 # Indigo stays distinct from LR 1e-4's orange under protanopia; the two share one figure.
