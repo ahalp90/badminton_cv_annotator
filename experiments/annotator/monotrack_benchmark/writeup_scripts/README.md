@@ -36,16 +36,16 @@ Run every command from the repository root.
 - Our annotator with trees on: fresh runs made by `annotator_runs.py` or
   `annotator_batch_runs.py`. Test runs sit in `test/<condition>/<models>/seed-<N>/`
   and validation runs in `validation/32_videos/seed-<N>/`. Current compact results
-  are in [`../benchmark_results/discovery_context/`](../benchmark_results/discovery_context/).
+  are in [`../benchmark_results/hp_search/`](../benchmark_results/hp_search/).
 - The selected test bundles:
-  `../../tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-<N>/`
-  and `body_window_36-seed-<N>/`. The contact-size comparison bundles are under
-  `no_max/models_40/seed-<N>/` in the same refit directory.
+  `../../tree_simplification/results/hp_search/models/seed-<N>/`.
+  The contact-size comparison bundles are under
+  `../../tree_simplification/results/hp_search/models_40/seed-<N>/`.
 - Our annotator with trees off: `../../heuristic_only_tune/results/`.
 - ShuttleSet22 labels and reference corners: `data/shuttleset22/set/`.
 - Original ShuttleSet labels: `training/data/shuttleset/annotations/shots_master.csv`.
 
-## Fit and run the baseline
+## Fit and run the earlier baseline
 
 Training and normal discovery use no maximum context limit. The driver fits
 both preprocessing configurations across five seeds and shares preparation
@@ -102,7 +102,7 @@ missing predictions are written atomically. When a batch extends existing
 results, it checks that the recomputed streams and confidence scores agree.
 Keep input and model locations unchanged when resuming.
 
-## Score the baseline
+## Score saved runs
 
 Normal discovery judges the first and last accepted contacts with no maximum
 outward context. It allows inward shortening by the contact tolerance: ±10
@@ -116,7 +116,7 @@ contact and player errors do not affect this measure. The survey also reports
 2/3-second viewing context around the accepted contacts.
 
 ```bash
-$PY $W/metrics.py --annotator-runs $RUNS --out $OUT
+$PY $W/metrics.py --annotator-runs $RUNS --out $OUT --skip-body-window
 $PY $W/discovery_boundary_surveys.py --run no_max $RUNS --out SURVEYS --workers 8
 $PY $W/court_metrics.py --out $OUT
 $PY $W/make_figures.py --data $OUT --confidence-data SURVEYS/no_max/2_3 --out figures

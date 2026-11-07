@@ -41,9 +41,9 @@ needed here. Run every command from the repository root.
 
 ## Tracked models and prediction files
 
-The current default uses the [no-max model](results/discovery_context/README.md),
+The current default uses the [selected model](results/hp_search/fit-settings.json.gz),
 with no maximum context limit in training or discovery. Its ten bundles are
-under `results/discovery_context/no_max/`. The tree-simplification evidence below
+under `results/hp_search/`. The tree-simplification evidence below
 retains the models used in that experiment.
 
 Everything behind the report's numbers sits in [results/](results/). The

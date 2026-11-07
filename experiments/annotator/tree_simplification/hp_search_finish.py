@@ -232,6 +232,10 @@ def evaluate_test(
     if settings_path.exists() and read_json(settings_path) != settings:
         raise ValueError('Test bundles or input paths changed; use a fresh output directory')
     write_json(settings_path, settings)
+    for record in bundles:
+        directory = output / record['label'] / f"seed-{record['seed']}"
+        (directory / 'streams').mkdir(parents=True, exist_ok=True)
+        (directory / 'videos').mkdir(parents=True, exist_ok=True)
     completed = 0
     executor = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context('spawn'))
     try:

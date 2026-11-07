@@ -70,7 +70,9 @@ def annotator_run(condition: str, models: str, seed: int, root: Path) -> Path:
     return root / 'test' / condition / models / f'seed-{seed}'
 
 
-def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[Path]]:
+def supplied_runs(
+    annotator_root: Path, monotrack_root: Path, *, include_body_window: bool = True,
+) -> dict[str, list[Path]]:
     runs = {
         'monotrack_own_courts': [monotrack_root / 'test/monotrack' / f'seed-{seed}' for seed in SEEDS],
         'monotrack_our_courts': [monotrack_root / 'test/ours' / f'seed-{seed}' for seed in SEEDS],
@@ -82,9 +84,12 @@ def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[
         ('annotator_monotrack_courts', 'monotrack_courts', '32_videos'),
         ('annotator40_our_courts', 'our_courts', '40_videos'),
         ('annotator40_monotrack_courts', 'monotrack_courts', '40_videos'),
-        ('annotator_body_window_36_our_courts', 'our_courts', 'body_window_36'),
     ):
         runs[name] = [annotator_run(condition, family, seed, annotator_root) for seed in SEEDS]
+    if include_body_window:
+        runs['annotator_body_window_36_our_courts'] = [
+            annotator_run('our_courts', 'body_window_36', seed, annotator_root) for seed in SEEDS
+        ]
     return runs
 
 
@@ -454,6 +459,7 @@ def main() -> None:
     parser.add_argument('--annotator-runs', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
+    parser.add_argument('--skip-body-window', action='store_true', help='omit the historical body-window ablation')
     parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
                         help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
@@ -464,7 +470,7 @@ def main() -> None:
 
     conditions = {}
     pool = ProcessPoolExecutor(max_workers=args.workers)
-    supplied = supplied_runs(args.annotator_runs, args.monotrack_runs)
+    supplied = supplied_runs(args.annotator_runs, args.monotrack_runs, include_body_window=not args.skip_body_window)
     selected = read_json(args.monotrack_runs / 'selected.json.gz')
     if selected['selection_split'] != 'validation' or selected['seeds'] != list(SEEDS):
         raise ValueError('MonoTrack results must use all five validation-selected seeds')

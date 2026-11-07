@@ -7,18 +7,18 @@ review model ranks the chosen rallies for inspection.
 
 The original eight-model architecture is retired. Its results remain in the
 [development history](../../experiments/annotator/development.md). The current
-baseline is documented in the [rally-model report](../../experiments/annotator/reports/tree_simplification.md).
+baseline is documented in the [selected fit settings](../../experiments/annotator/tree_simplification/results/hp_search/fit-settings.json.gz).
 
 ## The selected model
 
-These settings describe the [retrained `raw_baseline-seed-0` bundle](../../experiments/annotator/tree_simplification/results/three_models/README.md).
+These settings describe the [selected seed-0 bundle](../../experiments/annotator/tree_simplification/results/hp_search/models/seed-0/).
 The baseline has no maximum outward context limit in training or discovery.
 The five benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Contact | Is this frame a racket contact? | 85 | 180 | 31 | 0.06 | 20260824 |
-| Rally selector | Does this proposed contact sequence match a complete rally? | 478 | 400 | 31 | 0.05 | 20260905 |
+| Contact | Is this frame a racket contact? | 85 | 360 | 63 | 0.06 | 20260824 |
+| Rally selector | Does this proposed contact sequence match a complete rally? | 478 | 400 | 63 | 0.05 | 20260905 |
 | Review | How likely is the chosen rally to be correct? | 27 | 100 | 7 | 0.05 | 20260905 |
 
 All three use minimum child weight 5 and L2 regularisation 1.

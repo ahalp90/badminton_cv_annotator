@@ -11,14 +11,14 @@ There are two common cases:
 - **Metadata, shuttle, pose and court outputs already exist** — `python -m annotator` runs annotation for one video.
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
-The selected model is the XGBoost `raw_baseline` bundle from the current rally-model
+The selected model is the XGBoost `w36-c63-r360-p090-s63-r400` bundle from the current rally-model
 benchmark. It contains the contact classifier, one rally selector and a review
 model. The commands below use the tracked seed-0 bundle in
-[`experiments/annotator/tree_simplification/results/three_models/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/three_models/models/raw_baseline-seed-0/).
+[`experiments/annotator/tree_simplification/results/hp_search/models/seed-0`](../../experiments/annotator/tree_simplification/results/hp_search/models/seed-0/).
 The tested runtime uses scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
-rule is off. See the [refit results](../../experiments/annotator/tree_simplification/results/three_models/README.md)
-for validation scores and CPU export, and the earlier
-[comparison report](../../experiments/annotator/reports/tree_simplification.md)
+rule is off. See the [validation results](../../experiments/annotator/monotrack_benchmark/benchmark_results/hp_search/validation.json.gz)
+for validation scores and the
+[fit settings](../../experiments/annotator/tree_simplification/results/hp_search/fit-settings.json.gz)
 for tree settings.
 
 **Contents**
@@ -99,7 +99,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models experiments/annotator/tree_simplification/results/three_models/models/raw_baseline-seed-0 \
+  --models experiments/annotator/tree_simplification/results/hp_search/models/seed-0 \
   --output-dir data/annotations/match-name
 ```
 
@@ -141,7 +141,7 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "experiments/annotator/tree_simplification/results/three_models/models/raw_baseline-seed-0"
+annotator = "experiments/annotator/tree_simplification/results/hp_search/models/seed-0"
 ```
 
 The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.

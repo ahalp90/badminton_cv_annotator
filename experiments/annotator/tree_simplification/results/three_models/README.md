@@ -1,6 +1,6 @@
-# Three-model annotator
+# Earlier three-model annotator
 
-The default bundle uses a contact classifier, one rally selector and a separate
+The earlier bundle uses a contact classifier, one rally selector and a separate
 review model. Player attribution uses the court for the current camera scene.
 Both heuristic and fitted annotation resolve tied alternating player orders
 using summed wrist-to-shuttle distance, normalised by player height.
@@ -85,7 +85,7 @@ incorrect; another 138 predictions could not be judged.
 ## Runtime and rebuilding
 
 Use scikit-learn 1.9.1 and the published XGBoost 3.4.1 package to load
-[the default seed 0 bundle](models/raw_baseline-seed-0/). Fitting used XGBoost
+[the seed 0 bundle](models/raw_baseline-seed-0/). Fitting used XGBoost
 3.4.2 on a V100. The trees were exported through XGBoost's native UBJSON format,
 loaded in 3.4.1, and saved as the deployment bundle in that runtime. The project
 dependency pins remain unchanged.

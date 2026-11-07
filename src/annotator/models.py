@@ -22,7 +22,7 @@ MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (
     Path(__file__).resolve().parents[2]
-    / 'experiments/annotator/tree_simplification/results/three_models/models/raw_baseline-seed-0'
+    / 'experiments/annotator/tree_simplification/results/hp_search/models/seed-0'
 )
 
 

@@ -31,6 +31,9 @@ from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import dump_atomically, pooled_scores
 from experiments.annotator.heuristic_only_tune.data import SearchVideo, score_stream
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
+from experiments.annotator.monotrack_benchmark.writeup_scripts.metrics import (
+    contact_endpoint_stream,
+)
 from experiments.annotator.tree_simplification.data import PreparedVideo
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
@@ -209,7 +212,7 @@ def score_fold(
         prediction = predict_rally_options(RallySelector(model), pool.runtime)
         stream = stream_payload(prediction.sequences, prediction.events)
         write_json(output / 'streams' / f'{video.identity}.json.gz', stream)
-        per_video[video.identity] = score_stream(video, stream)
+        per_video[video.identity] = score_stream(video, contact_endpoint_stream(stream))
         before[video.identity] = read_json(pool_path.with_suffix('.json.gz'))['before']
     result = {'per_video': per_video, 'totals': pooled_scores(per_video), 'before': pooled_scores(before)}
     write_json(result_path, result)

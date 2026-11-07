@@ -59,6 +59,7 @@ from experiments.annotator.tree_simplification.prepare import preprocessing_from
 
 SEEDS = (0, 100, 200, 300, 400)
 BASELINE = Candidate()
+SCORING_RULE = 'monotrack-discovery-contact-endpoints-v1'
 
 
 def grid(selector_rounds: tuple[int, ...] = (200, 400)) -> list[Candidate]:
@@ -473,7 +474,7 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
     settings = {'paths': {name: str(path) for name, path in load_paths(args.paths).items()},
                 'candidates': [asdict(candidate) for candidate in grid(tuple(args.selector_rounds))],
-                'device': args.device, 'hours': args.hours}
+                'device': args.device, 'hours': args.hours, 'scoring_rule': SCORING_RULE}
     started = time.time()
     if not args.smoke:
         record_path = args.output / 'run.json.gz'
