@@ -350,7 +350,7 @@ def benchmark_features(
         )
         shuttle_inputs = derive_shuttle_feature_inputs(
             shuttle.track,
-            shuttle.guard_codes,
+            shuttle.shuttle_grades,
             base.rejected_grades,
             court_inputs.homography_rows,
             court_inputs.resolution,
@@ -641,7 +641,7 @@ def _landing_coordinate_rows(
             if mapping_eligible and scored.mapped_span is not None
             else None
         )
-        predicted_position = None if prediction is None else prediction.norm
+        predicted_position = None if prediction is None else prediction.court_xy
         error = (
             None
             if gt_position is None or predicted_position is None

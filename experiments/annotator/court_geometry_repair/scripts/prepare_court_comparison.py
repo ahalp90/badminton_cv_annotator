@@ -194,10 +194,10 @@ def _load_shuttle(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     paths = output_paths(inpaint, inpaint.name)
     track = load_npy_xz(paths.track_path)
-    guard_codes = load_npy_xz(paths.guard_codes_path)
+    shuttle_grades = load_npy_xz(paths.guard_codes_path)
     sidecar = load_json_gz(paths.sidecar_path)
     fill_mask = fill_mask_from_sidecar(sidecar, frame_count)
-    return track, fill_mask, guard_codes
+    return track, fill_mask, shuttle_grades
 
 
 def _baseline_combine_mask(
@@ -208,7 +208,7 @@ def _baseline_combine_mask(
     n_frames: int,
     fps: float,
     *,
-    non_evidence: np.ndarray | None = None,
+    rejected_shuttle_frames: np.ndarray | None = None,
 ) -> np.ndarray:
     """Reproduce the a111181 replay-mask composition for baseline runs."""
     court = replay_mask.court_absence_signal(court_present, n_frames, fps)
@@ -218,7 +218,7 @@ def _baseline_combine_mask(
         rally_spans,
         n_frames,
         fps,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=court | perspective,
     )
     return court | perspective | velocity
@@ -286,7 +286,7 @@ def prepare(arguments: argparse.Namespace) -> None:
     output.mkdir(parents=True, exist_ok=False)
     _link_raw_stages(output, fixture, prepared, inpaint)
     pose = load_pose_arrays(prepared, frame_count)
-    track, fill_mask, guard_codes = _load_shuttle(inpaint, frame_count)
+    track, fill_mask, shuttle_grades = _load_shuttle(inpaint, frame_count)
     court_dir = output / "stages" / "court" / fixture.name
     court_dir.mkdir(parents=True)
     original = load_court_vision(
@@ -326,7 +326,7 @@ def prepare(arguments: argparse.Namespace) -> None:
             metadata=metadata,
             track=track,
             inpaint_fill_mask=fill_mask,
-            guard_codes=guard_codes,
+            shuttle_grades=shuttle_grades,
             pose=pose,
             court=court,
             output_dir=annotation_dir,

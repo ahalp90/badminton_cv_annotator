@@ -68,7 +68,7 @@ def test_pool_compatibility_accepts_distinct_selectors_but_rejects_contact_chang
     batch.require_shared_pool((first, other))
     with pytest.raises(ValueError, match='same fitted contact tree'):
         batch.require_shared_pool((first, models(b'different-seed')))
-    changed_budget = replace(other, sequences=replace(other.sequences, max_edits=1))
+    changed_budget = replace(other, rally_selector=replace(other.rally_selector, max_edits=1))
     with pytest.raises(ValueError, match='proposal budgets'):
         batch.require_shared_pool((first, changed_budget))
     changed_cutoff = replace(other, contact_settings=replace(other.contact_settings, score_cutoff=0.8))
@@ -96,15 +96,15 @@ def test_shared_prediction_runs_contact_pipeline_once_and_each_own_selector_revi
         calls.append(('review', model))
         return model
 
-    monkeypatch.setattr(batch, 'predict_contact_features', contact_pipeline)
+    monkeypatch.setattr(batch, 'predict_from_contact_features', contact_pipeline)
     monkeypatch.setattr(batch, 'predict_rally_options', selector)
     monkeypatch.setattr(batch, 'score_rally_review', review)
     predictions = batch.predict_shared_pool(None, None, fitted)
     assert predictions[0] is first
     assert [kind for kind, _value in calls] == ['contact', 'selector', 'review', 'selector', 'review']
-    assert predictions[1].confidence == fitted[1].confidence
-    assert predictions[2].confidence == fitted[2].confidence
-    assert predictions[1].features is first.features
+    assert predictions[1].rally_review == fitted[1].review_model
+    assert predictions[2].rally_review == fitted[2].review_model
+    assert predictions[1].contact_features is first.contact_features
 
 
 @pytest.mark.parametrize('condition', ['discovery', 'our_courts'])

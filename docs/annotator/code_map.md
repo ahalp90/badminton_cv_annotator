@@ -8,7 +8,7 @@ one starting file for each task.
 ## Follow one video
 
 1. **Prepare contact inference.**
-   [`prepare_contact_inference.py`](../../src/annotator/inference/prepare_contact_inference.py)
+   [`prepare_annotation_inputs.py`](../../src/annotator/inference/prepare_annotation_inputs.py)
    assembles court geometry, tracks players, measures shuttle-to-wrist distances,
    excludes unusable frames and finds initial rallies and heuristic contacts.
    Training uses the same preparation.
@@ -67,7 +67,7 @@ explicit ordered contact list; `FinishedRally` adds the final striker.
 A rally's contact membership is explicit, rather than inferred from final bounds.
 Contacts outside rallies remain in the full contact stream.
 
-`AnnotationEvidence` retains prepared arrays and initial detections.
+`PreparedAnnotationInputs` retains prepared arrays and initial detections.
 `ContactFeatures` contains measured candidate rows and their search intervals.
 `ScoredContacts` retains those rows, model probabilities and selected row indices.
 `RallyOptions` contains alternative contact lists and their model features.

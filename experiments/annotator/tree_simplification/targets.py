@@ -102,7 +102,7 @@ def _target_job(job: TargetJob) -> dict[str, Any] | None:
     with threadpool_limits(limits=1):
         started = time.perf_counter()
         pool: LabelledOptions = joblib.load(job.pool_path)
-        if pool.video.identity != job.identity or pool.video.group != job.group:
+        if pool.video.video_id != job.identity or pool.video.group != job.group:
             raise ValueError(f'{job.identity}: option pool identity or group differs from its record')
         targets = raw_five_targets(pool)
         if targets.shape != pool.targets.shape:

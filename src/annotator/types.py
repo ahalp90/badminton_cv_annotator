@@ -20,7 +20,7 @@ class CourtHalf(StrEnum):
 OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 
 
-class Slot(IntEnum):
+class PlayerRow(IntEnum):
     """Top/bottom row indices in the tracked-player arrays.
 
     Matches sticky_anchor: top row 0, bottom row 1. The tracker chooses the

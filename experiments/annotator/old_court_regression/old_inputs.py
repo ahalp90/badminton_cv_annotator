@@ -54,7 +54,7 @@ class OldVideoInputs:
     identity: str
     fps: float
     track: np.ndarray
-    guard_codes: np.ndarray
+    shuttle_grades: np.ndarray
     pose: PoseArrays
     raw_cuts: tuple[tuple[int, int], ...]
     court: CourtInputs
@@ -77,9 +77,9 @@ def load_old_inputs(
     track = load_npy_xz(track_path)
     frame_count = len(track)
     validate_shuttle_track(track, frame_count)
-    guard_codes = load_npy_xz(guard_codes_path)
-    if guard_codes.shape != (frame_count,):
-        raise ValueError(f'{identity}: guard codes cover {guard_codes.shape}, track has {frame_count} frames')
+    shuttle_grades = load_npy_xz(guard_codes_path)
+    if shuttle_grades.shape != (frame_count,):
+        raise ValueError(f'{identity}: guard codes cover {shuttle_grades.shape}, track has {frame_count} frames')
     pose = load_pose_arrays(pose_dir, frame_count)
     payload = load_json_gz(court_dir / COURT_EVIDENCE_FILENAME)
     if payload.get('schema') != OLD_COURT_SCHEMA:
@@ -94,7 +94,7 @@ def load_old_inputs(
         raise ValueError(f'{identity}: raw court cuts do not tile the {frame_count}-frame video')
     court = _court_inputs_from_payload(payload['inputs'])
     return OldVideoInputs(
-        identity=identity, fps=fps, track=track, guard_codes=guard_codes, pose=pose, raw_cuts=raw_cuts,
+        identity=identity, fps=fps, track=track, shuttle_grades=shuttle_grades, pose=pose, raw_cuts=raw_cuts,
         court=court, keep_vote=frame_mask(court_dir / COURT_KEEP_VOTE_FILENAME, frame_count),
         court_present=frame_mask(court_dir / COURT_PRESENT_FILENAME, frame_count),
     )
@@ -213,10 +213,10 @@ def all_source_rallies(
                     f'{path.stem}:{int(rally_number)}',
                     tuple(frame for frame, _side in contacts), tuple(side for _frame, side in contacts),
                 ))
-        by_id = {rally.identity: rally for rally in rallies}
+        by_id = {rally.rally_id: rally for rally in rallies}
         for rally in trusted[video_id]:
-            if by_id[rally.identity] != rally:
-                raise ValueError(f'{video_id}/{rally.identity}: all-source rally differs from its trusted copy')
+            if by_id[rally.rally_id] != rally:
+                raise ValueError(f'{video_id}/{rally.rally_id}: all-source rally differs from its trusted copy')
         by_video[video_id] = tuple(rallies)
     rally_count = sum(map(len, by_video.values()))
     contact_count = sum(len(rally.frames) for rallies in by_video.values() for rally in rallies)

@@ -168,27 +168,27 @@ def test_non_evidence_measures_steps_not_output_frames():
     long_graded = np.zeros(n_frames, dtype=bool)
     long_graded[50:70] = True
     long_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=long_graded,
+        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=long_graded,
     )
     assert not long_mask[60:65].any()
 
     short_graded = np.zeros(n_frames, dtype=bool)
     short_graded[55:57] = True
     short_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=short_graded,
+        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=short_graded,
     )
     assert short_mask[53]
     assert short_mask[58]
     # The graded frames themselves still fire on neighbouring measured evidence:
-    # non_evidence is a measurement rule, not an output gate over the mask.
+    # rejected_shuttle_frames is a measurement rule, not an output gate over the mask.
     assert short_mask[55]
     assert short_mask[56]
 
 
 def test_non_evidence_marks_a_step_when_only_its_earlier_endpoint_is_graded(monkeypatch):
     track = _speed_track(0.1, 40)
-    non_evidence = np.zeros(len(track), dtype=bool)
-    non_evidence[4] = True
+    rejected_shuttle_frames = np.zeros(len(track), dtype=bool)
+    rejected_shuttle_frames[4] = True
     captured = []
 
     def capture_speed(values, _window):
@@ -196,10 +196,10 @@ def test_non_evidence_marks_a_step_when_only_its_earlier_endpoint_is_graded(monk
         return np.full(len(values), np.nan)
 
     monkeypatch.setattr(replay_mask_module, 'rolling_nanmedian', capture_speed)
-    velocity_drop_signal(track, [(0, len(track))], len(track), 25.0, non_evidence=non_evidence)
+    velocity_drop_signal(track, [(0, len(track))], len(track), 25.0, rejected_shuttle_frames=rejected_shuttle_frames)
 
-    assert non_evidence[4]
-    assert not non_evidence[5]
+    assert rejected_shuttle_frames[4]
+    assert not rejected_shuttle_frames[5]
     # Both steps touching frame 4 are unmeasured: step 4 (frame 4 as its
     # current endpoint) and step 5 (frame 4 as its earlier endpoint).
     assert np.isnan(captured[0][4])
@@ -224,7 +224,7 @@ def test_non_evidence_removes_graded_fast_frames_from_the_baseline():
 
     contaminated = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
     decontaminated = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=graded,
+        track, rally_spans, n_frames, 25.0, rejected_shuttle_frames=graded,
     )
     assert contaminated[50:65].all()
     assert not decontaminated[50:65].any()
@@ -293,7 +293,7 @@ def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
     np.testing.assert_array_equal(
         velocity_drop_signal(
             track, [(0, 30)], n_frames, 25.0,
-            non_evidence=false_mask, baseline_exclude=false_mask,
+            rejected_shuttle_frames=false_mask, baseline_exclude=false_mask,
         ),
         expected,
     )
@@ -320,7 +320,7 @@ def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     assert not any(issubclass(warning.category, RuntimeWarning) for warning in caught)
 
 
-@pytest.mark.parametrize('parameter', ['non_evidence', 'baseline_exclude'])
+@pytest.mark.parametrize('parameter', ['rejected_shuttle_frames', 'baseline_exclude'])
 @pytest.mark.parametrize(
     'invalid',
     [
@@ -338,7 +338,7 @@ def test_velocity_drop_validates_optional_masks(parameter, invalid):
         )
 
 
-@pytest.mark.parametrize('parameter', ['non_evidence', 'baseline_exclude'])
+@pytest.mark.parametrize('parameter', ['rejected_shuttle_frames', 'baseline_exclude'])
 @pytest.mark.parametrize('disabled', ['no-track', 'no-spans'])
 def test_velocity_drop_disabled_signal_skips_optional_mask_validation(parameter, disabled):
     # Guard order is binding: the None/empty early return comes before optional
@@ -354,15 +354,15 @@ def test_combine_mask_threads_non_evidence_to_velocity():
     n_frames = 80
     track = _speed_track(0.1, n_frames)
     track[35:65, 1] = 0.4 + 0.015 * (np.arange(35, 65) % 2)
-    non_evidence = np.zeros(n_frames, dtype=bool)
-    non_evidence[45:60] = True
+    rejected_shuttle_frames = np.zeros(n_frames, dtype=bool)
+    rejected_shuttle_frames[45:60] = True
 
     combined = combine_mask(
-        None,  track, [(0, 30)], n_frames, 25.0, non_evidence=non_evidence,
+        None,  track, [(0, 30)], n_frames, 25.0, rejected_shuttle_frames=rejected_shuttle_frames,
     )
     expected = velocity_drop_signal(
         track, [(0, 30)], n_frames, 25.0,
-        non_evidence=non_evidence, baseline_exclude=np.zeros(n_frames, dtype=bool),
+        rejected_shuttle_frames=rejected_shuttle_frames, baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     np.testing.assert_array_equal(combined, expected)
 

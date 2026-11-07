@@ -31,7 +31,7 @@ def label_coverage(events: Sequence[ContactEvent], rallies: Sequence[LabelledRal
     labels = []
     for rally in rallies:
         for frame, side in zip(rally.frames, rally.sides, strict=True):
-            labels.append((frame, rally.identity, side))
+            labels.append((frame, rally.rally_id, side))
     labels.sort(key=lambda row: row[0])
     matches = match_contacts([row[0] for row in labels], [event.frame for event in events], frames_at_fps(10, fps))
     timing, sides = set(), set()

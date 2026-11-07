@@ -49,7 +49,7 @@ class ShuttleEvidenceArtifacts:
     tracknet_csv: Path
     inpaint_sidecar: Path
     shuttle_track: Path
-    guard_codes: Path
+    shuttle_grades: Path
     guard_diagnostics: Path
 
     def as_mapping(self) -> dict[str, Path]:
@@ -58,7 +58,7 @@ class ShuttleEvidenceArtifacts:
             "tracknet_csv": self.tracknet_csv,
             "inpaint_sidecar": self.inpaint_sidecar,
             "shuttle_track": self.shuttle_track,
-            "shuttle_guard_codes": self.guard_codes,
+            "shuttle_guard_codes": self.shuttle_grades,
             "shuttle_guard_diagnostics": self.guard_diagnostics,
         }
 
@@ -69,7 +69,7 @@ class ShuttleEvidence:
 
     track: np.ndarray
     inpaint_fill_mask: np.ndarray
-    guard_codes: np.ndarray
+    shuttle_grades: np.ndarray
     guard_diagnostics: Mapping[str, object]
     artifacts: ShuttleEvidenceArtifacts
 
@@ -77,14 +77,14 @@ class ShuttleEvidence:
         frame_count = len(self.track)
         validate_shuttle_track(self.track, frame_count)
         _validate_fill_mask(self.inpaint_fill_mask, frame_count)
-        _validate_guard_codes(self.guard_codes, frame_count)
+        _validate_guard_codes(self.shuttle_grades, frame_count)
         object.__setattr__(self, "track", np.ascontiguousarray(self.track).copy())
         object.__setattr__(
             self,
             "inpaint_fill_mask",
             np.ascontiguousarray(self.inpaint_fill_mask).copy(),
         )
-        object.__setattr__(self, "guard_codes", np.ascontiguousarray(self.guard_codes).copy())
+        object.__setattr__(self, "shuttle_grades", np.ascontiguousarray(self.shuttle_grades).copy())
         object.__setattr__(self, "guard_diagnostics", dict(self.guard_diagnostics))
 
 
@@ -101,7 +101,7 @@ def shuttle_evidence_artifacts(
         tracknet_csv=root / f"{input_video.stem}_ball.csv",
         inpaint_sidecar=sidecar,
         shuttle_track=root / "shuttle_track.npy.xz",
-        guard_codes=root / GUARD_CODES_FILENAME,
+        shuttle_grades=root / GUARD_CODES_FILENAME,
         guard_diagnostics=root / GUARD_DIAGNOSTICS_FILENAME,
     )
 
@@ -128,11 +128,11 @@ def persist_shuttle_evidence(
         tracknet_model=tracknet_model,
         inpaint_model=inpaint_model,
     )
-    guard_codes, guard_info = grade_track(track)
-    guard_payload = _guard_payload(frame_count, guard_codes, guard_info)
-    save_npy_xz(artifacts.guard_codes, guard_codes)
+    shuttle_grades, guard_info = grade_track(track)
+    guard_payload = _guard_payload(frame_count, shuttle_grades, guard_info)
+    save_npy_xz(artifacts.shuttle_grades, shuttle_grades)
     save_json_gz(artifacts.guard_diagnostics, guard_payload)
-    return ShuttleEvidence(track, fill_mask, guard_codes, guard_payload, artifacts)
+    return ShuttleEvidence(track, fill_mask, shuttle_grades, guard_payload, artifacts)
 
 
 def load_shuttle_evidence(
@@ -157,16 +157,16 @@ def load_shuttle_evidence(
         tracknet_model=tracknet_model,
         inpaint_model=inpaint_model,
     )
-    guard_codes = load_npy_xz(artifacts.guard_codes)
-    _validate_guard_codes(guard_codes, frame_count)
+    shuttle_grades = load_npy_xz(artifacts.shuttle_grades)
+    _validate_guard_codes(shuttle_grades, frame_count)
     expected_codes, guard_info = grade_track(track)
-    if not np.array_equal(guard_codes, expected_codes):
+    if not np.array_equal(shuttle_grades, expected_codes):
         raise ValueError("persisted shuttle guard codes differ from the final track")
     expected_payload = _guard_payload(frame_count, expected_codes, guard_info)
     guard_payload = load_json_gz(artifacts.guard_diagnostics)
     if guard_payload != expected_payload:
         raise ValueError("persisted shuttle guard diagnostics differ from the final track")
-    return ShuttleEvidence(track, fill_mask, guard_codes, guard_payload, artifacts)
+    return ShuttleEvidence(track, fill_mask, shuttle_grades, guard_payload, artifacts)
 
 
 def load_inpaint_fill_mask(
@@ -294,14 +294,14 @@ def _validate_guard_codes(codes: np.ndarray, frame_count: int) -> None:
 
 def _guard_payload(
     frame_count: int,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     guard_info: Mapping[str, Any],
 ) -> dict[str, object]:
     return {
         "schema": SHUTTLE_GUARD_SCHEMA,
         "frame_count": frame_count,
         "counts_per_code": {
-            str(code): count for code, count in code_counts(guard_codes).items()
+            str(code): count for code, count in code_counts(shuttle_grades).items()
         },
         "detector": _json_ready(guard_info),
     }

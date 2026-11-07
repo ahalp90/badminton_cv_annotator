@@ -56,7 +56,7 @@ class RallyTrainingPool:
     ``targets`` aligns with option rows: 1 correct, 0 wrong, -1 unjudgeable.
     ``group`` identifies videos to withhold together during review training.
     """
-    identity: str
+    video_id: str
     group: str
     options: RallyOptions
     targets: np.ndarray
@@ -83,7 +83,7 @@ def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitCo
     groups = tuple(sorted({video.group for video in videos}))
     if len(groups) < 2:
         raise ValueError('rally training needs at least two groups for held-group review predictions')
-    if len({video.identity for video in videos}) != len(videos):
+    if len({video.video_id for video in videos}) != len(videos):
         raise ValueError('rally training video identities must be unique')
     pools = prepare_training_pools(videos, config)
 
@@ -98,9 +98,9 @@ def fit_rally_models(videos: Sequence[SequenceTrainingVideo], config: RallyFitCo
     held_group_predictions = {}
     for held_group in groups:
         held_model = fit([pool for pool in pools.values() if pool.group != held_group])
-        for identity, pool in pools.items():
+        for video_id, pool in pools.items():
             if pool.group == held_group:
-                held_group_predictions[identity] = predict_rally_options(held_model, pool.options)
+                held_group_predictions[video_id] = predict_rally_options(held_model, pool.options)
     return RallyModelFit(selector, held_group_predictions)
 
 
@@ -115,7 +115,7 @@ def fit_rally_review_model(
     """
     matrices, correctness = [], []
     for video in videos:
-        prediction = predictions[video.identity]
+        prediction = predictions[video.video_id]
         features = build_review_features(prediction)
         matrices.append(features.matrix)
         sequences = {sequence.span_id: sequence for sequence in prediction.sequences}
@@ -137,7 +137,7 @@ def prepare_training_pools(
             video, pool, (config.fallback_tolerance_at_30_fps, config.preferred_tolerance_at_30_fps),
         )
         targets = preferred_targets(pool, wide, preferred)
-        pools[video.identity] = RallyTrainingPool(video.identity, video.group, pool, targets)
+        pools[video.video_id] = RallyTrainingPool(video.video_id, video.group, pool, targets)
     return pools
 
 

@@ -105,7 +105,7 @@ def test_video_scoring_and_review_use_the_same_excluded_window_judgements(tmp_pa
     models = SimpleNamespace(preprocessing=object())
     fitted = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.8, .9, .2]))
     selector = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.7, .8, .1]))
-    prediction = SimpleNamespace(refined=SimpleNamespace(sequences=(), events=()), confidence=fitted)
+    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=(), events=()), rally_review=fitted)
     stream = {'events': [], 'sequences': []}
     windows = [(10, 20)]
     seen = []

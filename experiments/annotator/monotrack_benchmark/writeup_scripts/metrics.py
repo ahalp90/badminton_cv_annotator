@@ -203,7 +203,7 @@ def judge_found_rallies(
         boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
         rally = boundary.rally
         if rally is not None:
-            record['rally_id'] = rally.identity
+            record['rally_id'] = rally.rally_id
         if boundary.outcome != 'boundaries_right':
             judged.append(record | {'outcome': boundary.outcome})
             continue
@@ -239,7 +239,7 @@ def judge_found_rallies(
 
 def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
     """Count labelled rallies reaching each rung through any one found rally."""
-    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies}
+    best: dict[str, set[str]] = {rally.rally_id: set() for rally in rallies}
     for record in judged:
         if record['rally_id'] is not None:
             best[record['rally_id']].add(record['outcome'])

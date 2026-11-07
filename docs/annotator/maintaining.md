@@ -80,8 +80,8 @@ Joblib records Python class paths, so moving saved classes can require rebuildin
 their artefacts. Use the corresponding historical checkout for older bundles and
 settings.
 
-Training and inference share `prepare_contact_inference()` in
-[prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py). Rebuild prepared inputs in a
+Training and inference share `prepare_annotation_inputs()` in
+[prepare_annotation_inputs.py](../../src/annotator/inference/prepare_annotation_inputs.py). Rebuild prepared inputs in a
 fresh directory when their feature layout changes. The prepared-input loader
 checks the current candidate-row columns before training or scoring.
 

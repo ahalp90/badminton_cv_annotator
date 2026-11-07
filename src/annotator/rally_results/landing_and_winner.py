@@ -58,7 +58,7 @@ class Landing(NamedTuple):
     """Selected landing, projected court position and uncertainty flags.
 
     :param frame: Original video frame index.
-    :param norm: Court xy; doubles outline mapped to the unit square.
+    :param court_xy: Court xy; doubles outline mapped to the unit square.
     :param half: Top/Bot from court y versus 0.5. This does not establish in/out.
     :param at_border: Position within 2% of an image edge; it may be an exit
         from view before the shuttle reaches the floor.
@@ -67,7 +67,7 @@ class Landing(NamedTuple):
     """
 
     frame: int
-    norm: tuple[float, float]
+    court_xy: tuple[float, float]
     half: CourtHalf
     at_border: bool
     net_ender: bool
@@ -115,12 +115,12 @@ def resolve_rally_outcome(
     within_line = within_net = False
     if landing is not None:
         assert band_m is not None
-        margins = landing_margins(landing.norm, receiver)
+        margins = landing_margins(landing.court_xy, receiver)
         margin_m = margins.margin_m
         within_line = margins.line_clear_m < band_m
         within_net = margins.net_clear_m < band_m
         out_on_own_half = (
-            landing.half == striker_half and landing_margins(landing.norm, striker_half).margin_m < 0
+            landing.half == striker_half and landing_margins(landing.court_xy, striker_half).margin_m < 0
         )
         if landing.net_ender:
             landing_winner = conservative_landing_winner = receiver
@@ -201,19 +201,18 @@ class LandingWindow:
 
 
 class LandingKinematics(NamedTuple):
-    """Per-frame shuttle speed and distances used by the landing filters.
+    """Shuttle speed and nearest wrist/ankle distances, for landing filters.
 
-    :param carry_ratio: Nearest wrist distance in body heights. Divide each
-        selected player's distance by their current box height, then take the
-        minimum. NaN for an invisible shuttle or no usable selected player.
-    :param ankle_ratio: Nearest ankle distance, measured the same way. The
-        nearest wrist and ankle may belong to different players.
-    :param speed: Normalised image distance per frame. NaN if either end of
-        the step is invisible.
+    Divide each selected player's distance by their current box height, then
+    take the minimum. NaN for an invisible shuttle or no usable player. The
+    nearest wrist and ankle may belong to different players.
+
+    Speed is normalised image distance per frame; NaN if either end of the
+    step is invisible.
     """
 
-    carry_ratio: np.ndarray
-    ankle_ratio: np.ndarray
+    wrist_distance_body_heights: np.ndarray
+    ankle_distance_body_heights: np.ndarray
     speed: np.ndarray
 
 
@@ -221,75 +220,75 @@ class LandingKinematics(NamedTuple):
 
 
 def pick_landing_to_end(
-    final_contact: int, end_frame: int, track: np.ndarray,
+    search_start: int, end_frame: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, striker_half: CourtHalf,
     net_band: tuple[float, float], resolution: tuple[float, float], court_info: dict,
     constants: Thresholds,
-    shuttle_hallucination_mask: np.ndarray,
+    rejected_shuttle_frames: np.ndarray,
     *, infer_net_fault: bool = True,
 ) -> Landing | None:
     """Choose a descent, project its endpoint onto the court and check for a net fault.
 
-    Search one camera view, incl final_contact, excl end_frame. ``opts`` must
+    Search one camera view, incl search_start, excl end_frame. ``opts`` must
     already use the video frame rate. Disable net-fault inference for a
     returning camera view: the unseen flight may already have crossed the net.
     """
     landing = filtered_descending_landing(
-        final_contact, end_frame, track, kin, opts,
-        constants.min_descend_samples, shuttle_hallucination_mask,
+        search_start, end_frame, track, kin, opts,
+        constants.min_descend_samples, rejected_shuttle_frames,
     )
     if landing is None:
         return None
     landing_frame, landing_xy = landing
     px = np.array([[landing_xy[0] * resolution[0]], [landing_xy[1] * resolution[1]]])
     proj = project_pixels_to_court(px, resolution, court_info)
-    norm = (float(proj[0, 0]), float(proj[1, 0]))
-    half = CourtHalf.TOP if norm[1] < NET_COURT_Y else CourtHalf.BOT
+    court_xy = (float(proj[0, 0]), float(proj[1, 0]))
+    half = CourtHalf.TOP if court_xy[1] < NET_COURT_Y else CourtHalf.BOT
     return Landing(
-        frame=landing_frame, norm=norm, half=half,
+        frame=landing_frame, court_xy=court_xy, half=half,
         at_border=at_frame_border(landing_xy),
-        net_ender=infer_net_fault and is_net_ender(final_contact, end_frame, track, striker_half, net_band, resolution),
+        net_ender=infer_net_fault and is_net_ender(search_start, end_frame, track, striker_half, net_band, resolution),
     )
 
 
 def landing_window(
-    final_contact: int, next_start: int, track: np.ndarray, dead: np.ndarray,
-    sustained_loss_frames: int, shuttle_hallucination_mask: np.ndarray,
+    search_start: int, search_limit: int, track: np.ndarray, dead: np.ndarray,
+    sustained_loss_frames: int, rejected_shuttle_frames: np.ndarray,
 ) -> LandingWindow:
     """Find the landing search end, excluding the returned endpoint.
 
-    Start after ``final_contact``. Stop at the supplied limit, excluded footage
+    Start after ``search_start``. Stop at the supplied limit, excluded footage
     or sustained shuttle loss. For visibility, ignore rejected shuttle grades.
     A gap after a top-edge exit may be a high shot; continue looking for its
     return instead of stopping at that gap.
     """
     video_end = len(track)
     boundaries: dict[str, int] = {'video_end': video_end}
-    if next_start < video_end:
-        boundaries['next_rally'] = next_start
+    if search_limit < video_end:
+        boundaries['next_rally'] = search_limit
 
-    scan_start = final_contact + 1
-    scan_end = min(next_start, video_end)
+    scan_start = search_start + 1
+    scan_end = min(search_limit, video_end)
     seg_dead = dead[scan_start:scan_end]  # first masked frame after contact
     if seg_dead.any():
         boundaries['definitive_exclusion'] = scan_start + int(np.argmax(seg_dead))
-    effective_visibility = (track[:, 2] == 1) & ~shuttle_hallucination_mask
+    effective_visibility = (track[:, 2] == 1) & ~rejected_shuttle_frames
     invisible = ~effective_visibility[scan_start:scan_end]  # first sustained-loss run start
     for run_start, run_end in true_runs(invisible):
         if run_end - run_start >= sustained_loss_frames:
             if gap_after_top_exit(
-                final_contact, run_start, track, shuttle_hallucination_mask,
+                search_start, run_start, track, rejected_shuttle_frames,
             ):
                 continue  # lob left the frame top; wait for the shuttle to re-enter
             boundaries['sustained_loss'] = scan_start + run_start
             break
-    search_end = max(final_contact + 1, min(boundaries.values()))
+    search_end = max(search_start + 1, min(boundaries.values()))
     reason_order = ('next_rally', 'definitive_exclusion', 'sustained_loss', 'video_end')
     reasons = tuple(
         reason for reason in reason_order
         if boundaries.get(reason) == search_end
     )
-    end_without_exclusion = max(final_contact + 1, min(
+    end_without_exclusion = max(search_start + 1, min(
         end for reason, end in boundaries.items() if reason != 'definitive_exclusion'
     ))
     return LandingWindow(
@@ -299,17 +298,17 @@ def landing_window(
 
 
 def gap_after_top_exit(
-    final_contact: int, run_start: int, track: np.ndarray,
-    shuttle_hallucination_mask: np.ndarray,
+    search_start: int, run_start: int, track: np.ndarray,
+    rejected_shuttle_frames: np.ndarray,
 ) -> bool:
     """Was the last visible, accepted position before this gap near the image top?
 
-    The gap starts at final_contact + 1 + run_start. A top-edge exit allows
+    The gap starts at search_start + 1 + run_start. A top-edge exit allows
     a longer search for a returning high shot.
     """
-    last_vis = final_contact + run_start
+    last_vis = search_start + run_start
     visible = track[last_vis, 2] == 1
-    visible = visible and not shuttle_hallucination_mask[last_vis]
+    visible = visible and not rejected_shuttle_frames[last_vis]
     return bool(visible and track[last_vis, 1] < TOP_EDGE_FRAC)
 
 
@@ -325,36 +324,38 @@ def build_landing_kinematics(
     """
     width, height = resolution
     n_frames = len(track)
-    carry_ratio = np.full(n_frames, np.nan)
-    ankle_ratio = np.full(n_frames, np.nan)
+    wrist_distance_body_heights = np.full(n_frames, np.nan)
+    ankle_distance_body_heights = np.full(n_frames, np.nan)
     for frame in np.flatnonzero(track[:, 2] == 1):
         shuttle_x, shuttle_y = track[frame, 0] * width, track[frame, 1] * height
         wrist_ratios = []
         ankle_ratios = []
-        for half in range(2):
-            slot = players.detection_indices[frame, half]
-            box_height = players.box_heights_px[frame, half]
-            if slot < 0 or not np.isfinite(box_height):
+        for player_row in range(2):
+            detection_index = players.detection_indices[frame, player_row]
+            box_height = players.box_heights_px[frame, player_row]
+            if detection_index < 0 or not np.isfinite(box_height):
                 continue
-            wrists = kps[frame, slot, (WRIST_L, WRIST_R), :]
+            wrists = kps[frame, detection_index, (WRIST_L, WRIST_R), :]
             wrist_px = np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min()
             # A missing joint distance becomes zero (near the player) for the minimum.
             wrist_ratio = wrist_px / box_height
             wrist_ratios.append(0.0 if np.isnan(wrist_ratio) else wrist_ratio)
-            ankles = kps[frame, slot, (ANKLE_L, ANKLE_R), :]
+            ankles = kps[frame, detection_index, (ANKLE_L, ANKLE_R), :]
             ankle_px = np.hypot(ankles[:, 0] - shuttle_x, ankles[:, 1] - shuttle_y).min()
             ankle_ratio_val = ankle_px / box_height
             ankle_ratios.append(0.0 if np.isnan(ankle_ratio_val) else ankle_ratio_val)
         if wrist_ratios:
-            carry_ratio[frame] = float(min(wrist_ratios))
-            ankle_ratio[frame] = float(min(ankle_ratios))
-    return LandingKinematics(carry_ratio=carry_ratio, ankle_ratio=ankle_ratio, speed=compute_speed(track))
+            wrist_distance_body_heights[frame] = float(min(wrist_ratios))
+            ankle_distance_body_heights[frame] = float(min(ankle_ratios))
+    return LandingKinematics(
+        wrist_distance_body_heights, ankle_distance_body_heights, compute_speed(track),
+    )
 
 
 def filtered_descending_landing(
-    final_contact: int, win_end: int, track: np.ndarray,
+    search_start: int, search_limit: int, track: np.ndarray,
     kin: LandingKinematics, opts: LandingFilterOptions, min_descend_samples: int,
-    shuttle_hallucination_mask: np.ndarray,
+    rejected_shuttle_frames: np.ndarray,
 ) -> tuple[int, np.ndarray] | None:
     """Choose the last uncarried descent, or the last accepted descent as fallback.
 
@@ -367,9 +368,9 @@ def filtered_descending_landing(
     descents look carried, keep the last one. Return (frame, normalised xy),
     or None if no descent remains.
     """
-    cap = landing_settle_cap(final_contact, win_end, kin, opts)
-    search_end = max(cap, final_contact + 1)
-    frames = np.arange(final_contact, search_end)
+    cap = landing_settle_cap(search_start, search_limit, kin, opts)
+    search_end = max(cap, search_start + 1)
+    frames = np.arange(search_start, search_end)
     visible = frames[track[frames, 2] == 1]
     if len(visible) < min_descend_samples:
         return None
@@ -383,9 +384,9 @@ def filtered_descending_landing(
         if index - run_start >= min_descend_samples:
             start_frame = int(visible[run_start])
             terminal = int(visible[index - 1])
-            if not shuttle_hallucination_mask[start_frame:terminal + 1].any():
+            if not rejected_shuttle_frames[start_frame:terminal + 1].any():
                 last_terminal = terminal
-                if not carried_terminal(final_contact, terminal, kin, opts):
+                if not carried_terminal(search_start, terminal, kin, opts):
                     last_uncarried_terminal = terminal
         run_start = index
     # Keep the last observed descent if every accepted run looks carried.
@@ -395,34 +396,34 @@ def filtered_descending_landing(
     return landing_frame, track[landing_frame, :2].copy()
 
 
-def landing_settle_cap(final_contact: int, win_end: int, kin: LandingKinematics,
+def landing_settle_cap(search_start: int, search_limit: int, kin: LandingKinematics,
                 opts: LandingFilterOptions) -> int:
-    """First sustained ground-rest frame, or win_end if none is found.
+    """First sustained ground-rest frame, or search_limit if none is found.
 
     Require low rolling-median speed and a shuttle away from the wrists.
     A shuttle closer to an ankle than a wrist also counts as grounded.
     Stop at the start of the first run lasting settle_min frames.
     """
-    speed_seg = kin.speed[final_contact:win_end]
+    speed_seg = kin.speed[search_start:search_limit]
     # Missing speeds are skipped by the median. Nearby visible frames can still
     # establish rest; an entirely missing window cannot.
     static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
-    held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
+    held = np.nan_to_num(kin.wrist_distance_body_heights[search_start:search_limit], nan=np.inf) <= opts.carry_thr
     # A shuttle nearer an ankle than a wrist is grounded, even beside a player.
-    seg_carry = kin.carry_ratio[final_contact:win_end]
-    seg_ankle = kin.ankle_ratio[final_contact:win_end]
+    seg_carry = kin.wrist_distance_body_heights[search_start:search_limit]
+    seg_ankle = kin.ankle_distance_body_heights[search_start:search_limit]
     held = held & ~(seg_ankle < seg_carry)
     ground_static = static & ~held
     run = 0
     for offset, is_static in enumerate(ground_static):
         run = run + 1 if is_static else 0
         if run >= opts.settle_min:
-            return final_contact + offset - opts.settle_min + 1  # run onset
-    return win_end
+            return search_start + offset - opts.settle_min + 1  # run onset
+    return search_limit
 
 
 def carried_terminal(
-    final_contact: int, terminal: int, kin: LandingKinematics, opts: LandingFilterOptions,
+    search_start: int, terminal: int, kin: LandingKinematics, opts: LandingFilterOptions,
 ) -> bool:
     """Check whether a descent ends with the shuttle held near a wrist.
 
@@ -430,13 +431,13 @@ def carried_terminal(
     no earlier than the final contact. If the last position is closer to
     an ankle than a wrist, treat it as grounded instead.
     """
-    lo = max(final_contact, terminal - opts.carry_win + 1)
-    window = kin.carry_ratio[lo:terminal + 1]
+    lo = max(search_start, terminal - opts.carry_win + 1)
+    window = kin.wrist_distance_body_heights[lo:terminal + 1]
     finite = window[np.isfinite(window)]
     carried = len(finite) > 0 and bool(np.median(finite) <= opts.carry_thr)
     if carried:
-        ankle_r = kin.ankle_ratio[terminal]
-        wrist_r = kin.carry_ratio[terminal]
+        ankle_r = kin.ankle_distance_body_heights[terminal]
+        wrist_r = kin.wrist_distance_body_heights[terminal]
         if np.isfinite(ankle_r) and np.isfinite(wrist_r) and ankle_r < wrist_r:
             return False
     return carried
@@ -446,7 +447,7 @@ def carried_terminal(
 
 
 def is_net_ender(
-    final_contact: int, win_end: int, track: np.ndarray,
+    search_start: int, search_limit: int, track: np.ndarray,
     striker_half: CourtHalf, net_band: tuple[float, float], resolution: tuple[float, float],
 ) -> bool:
     """Check whether the flight stays on the hitter's side and ends in the net band.
@@ -455,7 +456,7 @@ def is_net_ender(
     band_hi. Bot hitter: y never falls below band_lo. The final visible
     position must be inside the band. True means the hitter lost at the net.
     """
-    frames = np.arange(final_contact, win_end)
+    frames = np.arange(search_start, search_limit)
     visible = frames[track[frames, 2] == 1]
     if len(visible) < 2:
         return False

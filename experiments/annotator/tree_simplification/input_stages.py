@@ -25,7 +25,7 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.contacts.score_candidates import ContactModelConfig
-from annotator.inference.learned import predict_contact_features
+from annotator.inference.learned import predict_from_contact_features
 from annotator.models import (
     AnnotatorModels,
     fitted_trees,
@@ -225,7 +225,7 @@ def _review_rows(
     identity: str,
     prediction: Any,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    rally_prediction = prediction.refined
+    rally_prediction = prediction.rally_prediction
     if not isinstance(rally_prediction, RallyPrediction):
         raise TypeError('Raw export requires a rally-layer prediction')
     selector = score_selector_review(rally_prediction)
@@ -233,7 +233,7 @@ def _review_rows(
     rows: list[dict[str, Any]] = []
     by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
     for tolerance in (5, 10):
-        for name, confidence in (('selector', selector), ('fitted', prediction.confidence)):
+        for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
             labels = np.asarray([
                 whole_rally_correctness(
                     by_span[span], video.rallies, video.fps, tolerance_at_30_fps=tolerance,
@@ -312,12 +312,12 @@ def export_run(
             video = prepared.video
             if video.split != 'validation' or prepared.group != inputs['groups'][identity]:
                 raise ValueError(f'{identity}: replay split or group differs from preparation')
-            prediction = predict_contact_features(prepared.evidence, prepared.features, models)
-            rally_prediction = prediction.refined
+            prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
+            rally_prediction = prediction.rally_prediction
             if not isinstance(rally_prediction, RallyPrediction):
                 raise TypeError('Raw export requires a rally-layer prediction')
             stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
-            confidence = dict(zip(prediction.confidence.features.span_ids, map(float, prediction.confidence.scores),
+            confidence = dict(zip(prediction.rally_review.features.span_ids, map(float, prediction.rally_review.scores),
                                   strict=True))
             write_json(output / 'streams' / f'{identity}.json.gz', stream | {
                 'confidence': {str(sequence.span_id): confidence[sequence.span_id]

@@ -73,7 +73,7 @@ class SelectorTrainer:
             )
             dump_atomically(model, destination)
             write_json(record_path, {
-                'groups': groups, 'training_videos': [pool.video.identity for pool in selected],
+                'groups': groups, 'training_videos': [pool.video.video_id for pool in selected],
                 'rows': sum(int((pool.targets >= 0).sum()) for pool in selected),
                 'span_weight': self.span_weight, 'fit_wall_s': time.perf_counter() - started,
             })

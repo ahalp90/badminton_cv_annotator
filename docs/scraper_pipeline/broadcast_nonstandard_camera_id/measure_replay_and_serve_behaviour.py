@@ -48,7 +48,7 @@ from annotator.excluded_frames.replay import (
     velocity_drop_signal,
 )
 from annotator.excluded_frames.shuttle_hallucination import CODE_NAMES
-from annotator.inference.prepare_contact_inference import build_player_evidence
+from annotator.inference.prepare_annotation_inputs import build_player_evidence
 from annotator.player_tracking import tracker_segments
 from annotator.rallies.find_rallies import find_rally_spans
 from annotator.types import ShuttleGrade, TrackedPlayers, WristGaps
@@ -281,12 +281,12 @@ def slow_motion_details(
     rally_spans: Sequence[tuple[int, int]],
     fps: float,
     *,
-    non_evidence: np.ndarray,
+    rejected_shuttle_frames: np.ndarray,
     baseline_exclude: np.ndarray,
 ) -> SlowMotionDetails:
     """Expose the current velocity-drop baseline without changing its rule."""
     speed = compute_speed(track)
-    unmeasured_steps = non_evidence[1:] | non_evidence[:-1]
+    unmeasured_steps = rejected_shuttle_frames[1:] | rejected_shuttle_frames[:-1]
     speed[1:][unmeasured_steps] = np.nan
     in_rally = np.zeros(len(track), dtype=bool)
     for start, end in rally_spans:
@@ -312,14 +312,14 @@ def slow_motion_details(
 def slow_motion_rows(
     details: SlowMotionDetails,
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     track: np.ndarray,
 ) -> list[dict[str, Any]]:
     """Stratify the unchanged slow-motion signal by truth and inpaint grade."""
     rows: list[dict[str, Any]] = []
     for scene_truth in TRUTH_ORDER:
         for code, name in sorted(CODE_NAMES.items()):
-            selected = (truth == scene_truth.value) & (inpaint_codes == code)
+            selected = (truth == scene_truth.value) & (shuttle_grades == code)
             frames = int(selected.sum())
             visible = int(np.count_nonzero(selected & (track[:, 2] == 1)))
             measured_speed = int(np.count_nonzero(selected & np.isfinite(details.speed)))
@@ -389,7 +389,7 @@ def evaluate_serve_candidates(
     *,
     track: np.ndarray,
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
     players: TrackedPlayers,
@@ -434,7 +434,7 @@ def evaluate_serve_candidates(
             nearest_delta = abs(gt_serve_frames[nearest_gt] - frame)
             sticky_distance = float(wrist_gaps.nearest[frame])
             visible = bool(track[frame, 2] == 1)
-            code = int(inpaint_codes[frame])
+            code = int(shuttle_grades[frame])
             wrist_pass = bool(
                 np.isfinite(sticky_distance)
                 and sticky_distance <= video_config.thresholds.wrist_distance_body_heights
@@ -745,12 +745,12 @@ def run_measurement(
     validate_partition(intervals, expected_metadata=metadata)
     truth = expand_truth(intervals, metadata)
 
-    inpaint_codes = np.asarray(keyword["inpaint_codes"])
+    shuttle_grades = np.asarray(keyword["shuttle_grades"])
     court_present = np.asarray(keyword["court_present"])
     homography_rows = keyword["homography_rows"]
     row_records = homography_rows.to_dict("records") if hasattr(homography_rows, "to_dict") else homography_rows
     bootstrap = bootstrap_spans(track, fixture.fps)
-    non_evidence = np.isin(inpaint_codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
+    rejected_shuttle_frames = np.isin(shuttle_grades, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
     court = court_absence_signal(court_present, len(track), fixture.fps)
     perspective = perspective_shift_signal(row_records, len(track))
     velocity = velocity_drop_signal(
@@ -758,7 +758,7 @@ def run_measurement(
         bootstrap,
         len(track),
         fixture.fps,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=court | perspective,
     )
     raw_union = court | perspective | velocity
@@ -783,7 +783,7 @@ def run_measurement(
         track,
         bootstrap,
         fixture.fps,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=court | perspective,
     )
     if not np.array_equal(details.signal, velocity):
@@ -798,7 +798,7 @@ def run_measurement(
         "e2e_definitive": e2e_definitive,
     }
     mask_rows = mask_metric_rows(detectors, truth)
-    slow_rows = slow_motion_rows(details, truth, inpaint_codes, track)
+    slow_rows = slow_motion_rows(details, truth, shuttle_grades, track)
 
     scene_courts = build_scene_courts(row_records, fixture.resolution)
     segments = tracker_segments(scene_courts, court_present, len(track))
@@ -828,7 +828,7 @@ def run_measurement(
     candidate_rows, opportunity_rows, serve_summary = evaluate_serve_candidates(
         track=track,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         raw_mask=raw_union,
         definitive_mask=e2e_definitive,
         players=players,

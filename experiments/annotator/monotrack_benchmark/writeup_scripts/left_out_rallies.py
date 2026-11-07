@@ -46,7 +46,7 @@ def validation_left_out(shots_master: Path) -> dict[str, list[dict]]:
         if video.split != 'validation':
             continue
         video_id = int(video.identity.removeprefix('sset_'))
-        held = {rally.identity for rally in video.rallies}
+        held = {rally.rally_id for rally in video.rallies}
         rallies = []
         for path in sorted((SHUTTLESET / 'set' / metadata.loc[video_id, 'video']).glob('set*.csv')):
             labels = pd.read_csv(path)

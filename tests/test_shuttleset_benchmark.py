@@ -94,7 +94,7 @@ def test_projection_to_annotator_result_restores_scored_fields() -> None:
     assert rally.first_half is CourtHalf.TOP
     assert result.outcomes[0].winner is CourtHalf.TOP
     assert result.outcomes[0].winner_source is WinnerSource.NEXT_SERVER
-    assert result.outcomes[0].landing.norm == (0.4, 0.8)
+    assert result.outcomes[0].landing.court_xy == (0.4, 0.8)
     assert result.outcomes[0].conservative_landing_winner is CourtHalf.TOP
 
 

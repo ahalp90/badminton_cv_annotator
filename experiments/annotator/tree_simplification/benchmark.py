@@ -11,7 +11,7 @@ from pathlib import Path
 
 from threadpoolctl import threadpool_limits
 
-from annotator.inference.learned import predict_contact_features
+from annotator.inference.learned import predict_from_contact_features
 from annotator.models import fitted_trees, load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import load_prepared, progress
@@ -51,9 +51,9 @@ def main() -> None:
             for repetition, order in enumerate((('old', 'new'), ('new', 'old'))):
                 for name in order:
                     started = time.perf_counter()
-                    prediction = predict_contact_features(prepared.evidence, prepared.features, bundles[name])
+                    prediction = predict_from_contact_features(prepared.evidence, prepared.features, bundles[name])
                     elapsed = time.perf_counter() - started
-                    actual = stream_payload(prediction.refined.sequences, prediction.refined.events)
+                    actual = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
                     if actual != expected[name]:
                         raise ValueError(f'{identity}/{name}: timing replay changed the saved annotation stream')
                     rows.append({'video': identity, 'model': name, 'repetition': repetition, 'wall_s': elapsed})

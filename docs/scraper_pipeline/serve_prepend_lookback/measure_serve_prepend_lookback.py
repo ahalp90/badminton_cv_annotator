@@ -306,7 +306,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
 
     raw_mask = annotation.raw_exclusion_mask
     believed_mask = annotation.exclusion_mask
-    codes = np.asarray(inputs.keyword["inpaint_codes"])
+    codes = np.asarray(inputs.keyword["shuttle_grades"])
     court_present = np.asarray(inputs.keyword["court_present"])
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
@@ -476,7 +476,7 @@ def measure_candidate_fixture(
         accepted_by_span,
         tolerance,
     )
-    inpaint_codes = np.asarray(inputs.keyword["inpaint_codes"])
+    shuttle_grades = np.asarray(inputs.keyword["shuttle_grades"])
     court_present = np.asarray(inputs.keyword["court_present"])
     all_candidates: list[dict[str, Any]] = []
     all_opportunities: list[dict[str, Any]] = []
@@ -488,7 +488,7 @@ def measure_candidate_fixture(
             band_fraction=fraction,
             arrays=inputs.positional,
             truth=truth,
-            inpaint_codes=inpaint_codes,
+            shuttle_grades=shuttle_grades,
             court_present=court_present,
             raw_mask=annotation.raw_exclusion_mask,
             definitive_mask=annotation.exclusion_mask,

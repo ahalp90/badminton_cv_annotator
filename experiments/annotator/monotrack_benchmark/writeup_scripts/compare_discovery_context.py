@@ -89,7 +89,7 @@ def score_validation(job: ValidationJob) -> dict:
     sequences, _events = stream_from_payload(stream)
     judged = judge_found_rallies(sequences, video.rallies, frames_at_fps(10, video.fps), fps=video.fps)
     correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
-    unflagged = {rally.identity for rally in video.rallies} - job.flagged
+    unflagged = {rally.rally_id for rally in video.rallies} - job.flagged
     counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
                'unflagged_rallies': len(unflagged), 'unflagged_fully_correct': len(correct & unflagged)}
     record = {'name': job.name, 'seed': job.seed, 'video': video.identity, 'protocol': PROTOCOL,

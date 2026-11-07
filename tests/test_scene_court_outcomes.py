@@ -128,7 +128,7 @@ def test_landing_uses_final_contact_scene_geometry_and_clamps_at_scene_end(monke
     evidence = SimpleNamespace(
         track=track, fps=25.0, exclusion_mask=np.zeros(n_frames, dtype=bool), players=None,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 25.0), pose_kps=None, resolution=(1280.0, 720.0),
-        net_band=(1.0, 2.0), shuttle_hallucination_mask=np.zeros(n_frames, dtype=bool),
+        net_band=(1.0, 2.0), rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
         scene_courts=scenes,
     )
     result = video_outcomes.build_outcomes(

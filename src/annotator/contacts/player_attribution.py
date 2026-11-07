@@ -13,7 +13,7 @@ from annotator.types import (
     ContactSequence,
     CourtHalf,
     FinishedRally,
-    Slot,
+    PlayerRow,
     TrackedPlayers,
     WristGaps,
 )
@@ -38,10 +38,10 @@ def contact_player_evidence(
         return None, None
     band_lo, band_hi = court_at_frame(scene_courts, frame).net_band
 
-    # Ignore missing distances; equal distances favour the top tracker slot.
-    nearest = int(np.nanargmin(distances))
-    slot = players.detection_indices[frame, nearest]
-    foot_y = float(bboxes[frame, slot, 3])
+    # Equal distances favour the top tracked player.
+    nearest_player_row = int(np.nanargmin(distances))
+    detection_index = players.detection_indices[frame, nearest_player_row]
+    foot_y = float(bboxes[frame, detection_index, 3])
     side = None
     if foot_y < band_lo:
         side = CourtHalf.TOP
@@ -142,27 +142,27 @@ def measure_wrist_distances(
         for frame in range(start, end):
             shuttle_x = track[frame, 0] * width
             shuttle_y = track[frame, 1] * height
-            for half in Slot:
-                pick = players.detection_indices[frame, half]
-                if pick < 0:
+            for player_row in PlayerRow:
+                detection_index = players.detection_indices[frame, player_row]
+                if detection_index < 0:
                     continue
-                wrists = pose_kps[frame, pick, (WRIST_L, WRIST_R), :]
+                wrists = pose_kps[frame, detection_index, (WRIST_L, WRIST_R), :]
                 numerator = float(np.hypot(wrists[:, 0] - shuttle_x, wrists[:, 1] - shuttle_y).min())
                 window = players.box_heights_px[
-                    max(start, frame - half_window):min(end, frame + half_window + 1), half
+                    max(start, frame - half_window):min(end, frame + half_window + 1), player_row
                 ]
                 if not np.isfinite(window).any():
                     raise ValueError(
-                        f'sticky body-unit distance: no accepted finite height for slot {half} '
+                        f'wrist distance: no accepted finite height for player row {player_row} '
                         f'at frame {frame}'
                     )
                 divisor = float(np.nanmean(window))
                 if not np.isfinite(divisor) or divisor <= 0.0:
                     raise ValueError(
-                        f'sticky body-unit distance: non-finite or non-positive body-scale '
-                        f'denominator for slot {half} at frame {frame}'
+                        f'wrist distance: non-finite or non-positive body-scale '
+                        f'denominator for player row {player_row} at frame {frame}'
                     )
-                gaps.per_player[frame, half] = numerator / divisor
+                gaps.per_player[frame, player_row] = numerator / divisor
 
         for frame in range(start, end):
             finite_distances = gaps.per_player[frame][np.isfinite(gaps.per_player[frame])]

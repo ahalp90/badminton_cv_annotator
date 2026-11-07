@@ -1,14 +1,10 @@
-"""Run contact detection, rally refinement and review scoring for one video.
-
-The contact model scores individual candidate frames. The rally selector scores
-alternative contact lists. The review model ranks the finished rallies.
-"""
+"""Score contact candidates, select rally contact lists, then rank rallies for review."""
 
 from dataclasses import dataclass
 
 from annotator.contacts.build_features import ContactFeatures, build_contact_features
 from annotator.contacts.score_candidates import ScoredContacts, score_contact_features
-from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.models import AnnotatorModels
 from annotator.rallies.build_contact_proposals import (
     build_rally_context,
@@ -25,55 +21,54 @@ from shared.progress import report
 
 @dataclass(frozen=True)
 class LearnedModelPrediction:
-    """Results of all three learned stages, with their measured inputs.
+    """Finished rallies and review scores, with inputs for inspection and training.
 
-    Contact features/scores support inspection and training. ``refined`` keeps
-    both the proposals and finished rallies; ``confidence`` ranks those rallies
-    for review.
+    ``rally_prediction`` keeps the proposals, chosen rallies and contact events.
+    ``rally_review`` scores those chosen rallies in the same order.
     """
 
-    features: ContactFeatures
-    contacts: ScoredContacts
-    refined: RallyPrediction
-    confidence: RallyReview
+    contact_features: ContactFeatures
+    scored_candidates: ScoredContacts
+    rally_prediction: RallyPrediction
+    rally_review: RallyReview
 
 
-def predict_contacts(evidence: AnnotationEvidence, models: AnnotatorModels) -> LearnedModelPrediction:
-    """Build features once, score contacts and refine their rally sequences."""
+def predict_rallies_and_contacts(inputs: PreparedAnnotationInputs, models: AnnotatorModels) -> LearnedModelPrediction:
+    """Build contact features, choose rally contacts, then score rallies for review."""
     report("building contact features")
-    features = features_from_evidence(evidence)
-    return predict_contact_features(evidence, features, models)
+    features = contact_features_from_inputs(inputs)
+    return predict_from_contact_features(inputs, features, models)
 
 
-def predict_contact_features(
-    evidence: AnnotationEvidence, features: ContactFeatures, models: AnnotatorModels,
+def predict_from_contact_features(
+    inputs: PreparedAnnotationInputs, features: ContactFeatures, models: AnnotatorModels,
 ) -> LearnedModelPrediction:
-    """Score precomputed features, choose rally contacts, then score rally confidence."""
+    """Reuse measured contact features when comparing fitted models."""
     report("scoring contact candidates")
-    contacts = score_contact_features(
-        features.rows, models.contact, evidence.fps, models.contact_settings,
+    scored_candidates = score_contact_features(
+        features.rows, models.contact_model, inputs.fps, models.contact_settings,
     )
-    report("refining rally sequences")
-    context = build_rally_context(evidence, contacts)
-    pool = build_rally_options(context, models.sequences.max_edits, models.sequences.deletion_candidates)
-    refined = predict_rally_options(models.sequences, pool)
-    report("scoring rally confidence")
-    confidence = score_rally_review(refined, models.confidence)
-    return LearnedModelPrediction(features, contacts, refined, confidence)
+    report("selecting rally contact lists")
+    context = build_rally_context(inputs, scored_candidates)
+    options = build_rally_options(context, models.rally_selector.max_edits, models.rally_selector.deletion_candidates)
+    rally_prediction = predict_rally_options(models.rally_selector, options)
+    report("scoring rallies for review")
+    rally_review = score_rally_review(rally_prediction, models.review_model)
+    return LearnedModelPrediction(features, scored_candidates, rally_prediction, rally_review)
 
 
-def features_from_evidence(evidence: AnnotationEvidence) -> ContactFeatures:
-    """Measure learned contact features from prepared shuttle, player and rally evidence."""
+def contact_features_from_inputs(inputs: PreparedAnnotationInputs) -> ContactFeatures:
+    """Measure contact features from the prepared shuttle, players and initial rallies."""
     return build_contact_features(
-        track=evidence.track,
-        pose_kps=evidence.pose_kps,
-        players=evidence.players,
-        wrist_gaps=evidence.wrist_gaps,
-        tracker_intervals=evidence.tracker_intervals,
-        exclusion_mask=evidence.exclusion_mask,
-        heuristic_spans=evidence.heuristic_spans,
-        raw_contact_frames=evidence.raw_contact_frames,
-        scene_spans=[(scene.start_frame, scene.end_frame) for scene in evidence.scene_courts],
-        fps=evidence.fps,
-        resolution=evidence.resolution,
+        track=inputs.track,
+        pose_kps=inputs.pose_kps,
+        players=inputs.players,
+        wrist_gaps=inputs.wrist_gaps,
+        tracker_intervals=inputs.tracker_intervals,
+        exclusion_mask=inputs.exclusion_mask,
+        heuristic_spans=inputs.heuristic_spans,
+        raw_contact_frames=inputs.raw_contact_frames,
+        scene_spans=[(scene.start_frame, scene.end_frame) for scene in inputs.scene_courts],
+        fps=inputs.fps,
+        resolution=inputs.resolution,
     )

@@ -8,10 +8,13 @@ import pandas as pd
 
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.inference.heuristic import select_heuristic_contacts
-from annotator.inference.learned import LearnedModelPrediction, predict_contacts
-from annotator.inference.prepare_contact_inference import (
-    AnnotationEvidence,
-    prepare_contact_inference,
+from annotator.inference.learned import (
+    LearnedModelPrediction,
+    predict_rallies_and_contacts,
+)
+from annotator.inference.prepare_annotation_inputs import (
+    PreparedAnnotationInputs,
+    prepare_annotation_inputs,
 )
 from annotator.models import DEFAULT_MODEL_DIRECTORY, AnnotatorModels, load_models
 from annotator.rally_results import landing_and_winner
@@ -45,7 +48,7 @@ def annotate_video(
     raw_exclusion_mask: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
-    inpaint_codes: np.ndarray | None = None,
+    shuttle_grades: np.ndarray | None = None,
     keep_working_data: bool = False,
     court_invalid_is_excluded: bool = False,
 ) -> VideoAnnotation:
@@ -63,7 +66,7 @@ def annotate_video(
 
     ``spans`` and ``contacts`` can supply initial bounds and contact frames.
     ``raw_exclusion_mask`` supplies footage flags before short-run filtering;
-    ``inpaint_codes`` supplies shuttle-quality grades. Frames without accepted
+    ``shuttle_grades`` supplies shuttle-quality grades. Frames without accepted
     court geometry are excluded. ``court_invalid_is_excluded`` also excludes
     frames where ``court_present`` is False.
 
@@ -81,39 +84,39 @@ def annotate_video(
     if base is None:
         base = DEFAULT_PREPROCESSING
     report("finding rallies")
-    evidence = prepare_contact_inference(
+    prepared_inputs = prepare_annotation_inputs(
         track, bboxes, scores, kps, ndet,
         video_config=scale_config_to_fps(base, fps), resolution=resolution,
         court_present=court_present, homography_rows=homography_rows, ref_err_px=ref_err_px,
         raw_exclusion_mask=raw_exclusion_mask,
-        spans=spans, contacts=contacts, inpaint_codes=inpaint_codes,
+        spans=spans, contacts=contacts, shuttle_grades=shuttle_grades,
         court_invalid_is_excluded=court_invalid_is_excluded,
     )
     prediction = None
     contact_events = ()
     rally_confidence = ()
     if models is None:
-        rallies = select_heuristic_contacts(evidence)
-        heuristic_candidates = evidence.heuristic_contacts
+        rallies = select_heuristic_contacts(prepared_inputs)
+        heuristic_candidates = prepared_inputs.heuristic_contacts
     else:
-        prediction = predict_contacts(evidence, models)
-        rallies = prediction.refined.rallies
+        prediction = predict_rallies_and_contacts(prepared_inputs, models)
+        rallies = prediction.rally_prediction.rallies
         heuristic_candidates = []
-        contact_events = prediction.refined.events
-        rally_confidence = tuple(float(score) for score in prediction.confidence.scores)
+        contact_events = prediction.rally_prediction.events
+        rally_confidence = tuple(float(score) for score in prediction.rally_review.scores)
     report("resolving outcomes")
     outcomes = build_outcomes(
-        evidence, rallies, landing_options=convert_landing_options(landing_options, evidence.fps),
+        prepared_inputs, rallies, landing_options=convert_landing_options(landing_options, prepared_inputs.fps),
     )
     report("calculating hit heights")
-    hit_heights, unavailable_hit_height_reasons = build_hit_heights(evidence, rallies)
+    hit_heights, unavailable_hit_height_reasons = build_hit_heights(prepared_inputs, rallies)
     result = AnnotatorResult(
         rallies=rallies, outcomes=outcomes, hit_heights=hit_heights,
         unavailable_hit_height_reasons=unavailable_hit_height_reasons,
         contact_events=contact_events, heuristic_candidates=heuristic_candidates, rally_confidence=rally_confidence,
     )
-    working_data = AnnotationWorkingData(evidence, prediction) if keep_working_data else None
-    return VideoAnnotation(result, evidence.raw_exclusion_mask, evidence.exclusion_mask, working_data)
+    working_data = AnnotationWorkingData(prepared_inputs, prediction) if keep_working_data else None
+    return VideoAnnotation(result, prepared_inputs.raw_exclusion_mask, prepared_inputs.exclusion_mask, working_data)
 
 
 class AnnotatorResult(NamedTuple):
@@ -151,5 +154,5 @@ class VideoAnnotation(NamedTuple):
 class AnnotationWorkingData(NamedTuple):
     """Prepared inputs and model scores for debugging and experiments."""
 
-    evidence: AnnotationEvidence
+    prepared_inputs: PreparedAnnotationInputs
     learned_model_prediction: LearnedModelPrediction | None

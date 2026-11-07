@@ -7,7 +7,7 @@ contact times, top/bottom hitters, landings and estimated winners.
 | To change or inspect… | Open… |
 | --- | --- |
 | The complete annotation flow | [`annotate_video.py`](annotate_video.py) |
-| Inputs prepared for contact inference | [`inference/prepare_contact_inference.py`](inference/prepare_contact_inference.py) |
+| Inputs prepared for contact inference | [`inference/prepare_annotation_inputs.py`](inference/prepare_annotation_inputs.py) |
 | Rule-based hit detection | [`contacts/heuristics.py`](contacts/heuristics.py) |
 | Measurements supplied to the contact model | [`contacts/build_features.py`](contacts/build_features.py) |
 | Contact probabilities and competing nearby hits | [`contacts/score_candidates.py`](contacts/score_candidates.py) |

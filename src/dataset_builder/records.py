@@ -561,9 +561,9 @@ def _validate_landing(landing: object, frame_count: int) -> None:
         or not 0 <= landing.frame < frame_count
     ):
         raise ValueError("landing frame must be an integer inside canonical frame bounds")
-    if not isinstance(landing.norm, tuple) or len(landing.norm) != 2:
+    if not isinstance(landing.court_xy, tuple) or len(landing.court_xy) != 2:
         raise ValueError("landing normalized court position must contain two coordinates")
-    for coordinate in landing.norm:
+    for coordinate in landing.court_xy:
         _finite_number(coordinate, "landing normalized court coordinate")
     if not isinstance(landing.half, CourtHalf):
         raise TypeError("landing half must be CourtHalf")
@@ -591,7 +591,7 @@ def _outcome_payload(annotation: AnnotatorResult, rally_id: int) -> dict[str, ob
         },
         "landing": None if landing is None else {
             "frame": landing.frame,
-            "normalized_court_position": list(landing.norm),
+            "normalized_court_position": list(landing.court_xy),
             "court_half": landing.half.value,
             "at_image_border": landing.at_border,
             "net_ender": landing.net_ender,

@@ -1,6 +1,6 @@
 """Profile the chosen model on one validation video and check that its predictions do not change.
 
-This made ``selected-profile.json.gz``. It runs ``predict_contact_features`` once under
+This made ``selected-profile.json.gz``. It runs ``predict_from_contact_features`` once under
 ``cProfile`` on two CPU threads, then compares the predicted stream with the saved one, so the
 profile describes the same predictions as the evidence. Profiling adds its own overhead, so the
 times are only good for comparing parts of one run.
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from threadpoolctl import threadpool_limits
 
-from annotator.inference.learned import predict_contact_features
+from annotator.inference.learned import predict_from_contact_features
 from annotator.models import load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import load_prepared
@@ -60,8 +60,8 @@ def main() -> None:
     saved_stream = args.saved_stream or SAVED_STREAMS / f'{prepared.video.identity}.json.gz'
     profiler = cProfile.Profile()
     with threadpool_limits(limits=THREADS):
-        prediction = profiler.runcall(predict_contact_features, prepared.evidence, prepared.features, models)
-    stream = stream_payload(prediction.refined.sequences, prediction.refined.events)
+        prediction = profiler.runcall(predict_from_contact_features, prepared.evidence, prepared.features, models)
+    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
     if stream != read_json(saved_stream):
         raise ValueError(f'The profiled run predicted a different stream from {saved_stream}')
 

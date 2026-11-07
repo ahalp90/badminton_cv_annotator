@@ -129,7 +129,7 @@ def test_contact_stage_fits_only_the_five_required_orders(tmp_path: Path, monkey
     calls = []
 
     def fit_contact(videos, _config, *, fit_video_order):
-        calls.append((tuple(video.identity for video in videos), tuple(fit_video_order)))
+        calls.append((tuple(video.video_id for video in videos), tuple(fit_video_order)))
         return SimpleNamespace(
             model=object(),
             selection=SimpleNamespace(labels=np.asarray([1, 0], dtype=np.int8)),
@@ -193,7 +193,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         events=(), pool=object(), scores=np.asarray([0.8]), chosen={4: 0},
     )
     confidence = RallyReview(RallyReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
-    prediction = SimpleNamespace(refined=layer_prediction, confidence=confidence)
+    prediction = SimpleNamespace(rally_prediction=layer_prediction, rally_review=confidence)
     monkeypatch.setattr(
         input_stages, '_export_inputs',
         lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root),
@@ -211,7 +211,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
 
     monkeypatch.setattr(input_stages.integrate, 'fit_review', fit_review)
     monkeypatch.setattr(input_stages, 'fitted_trees', lambda _models: ())
-    monkeypatch.setattr(input_stages, 'predict_contact_features', lambda *_args: prediction)
+    monkeypatch.setattr(input_stages, 'predict_from_contact_features', lambda *_args: prediction)
     monkeypatch.setattr(input_stages, 'score_selector_review', lambda *_args: confidence)
     monkeypatch.setattr(input_stages, 'whole_rally_correctness', lambda *_args, **_kwargs: -1)
     monkeypatch.setattr(input_stages, 'pooled_scores', lambda _scores: {})

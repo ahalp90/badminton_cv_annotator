@@ -223,7 +223,7 @@ def _shuttle_plan(runtime: VisionPlanRuntime, video_id: str) -> StagePlan:
             {
                 "frames": canonical.frame_count,
                 "inpaint_filled_frames": int(evidence.inpaint_fill_mask.sum()),
-                "guard_flagged_frames": int(np.count_nonzero(evidence.guard_codes)),
+                "guard_flagged_frames": int(np.count_nonzero(evidence.shuttle_grades)),
             },
         )
 

@@ -130,13 +130,13 @@ class ShuttleQualitySummary:
 def summarize_shuttle_quality(
     track: np.ndarray,
     inpaint_fill_mask: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     rejected_grades: frozenset[int],
 ) -> ShuttleQualitySummary:
     """Summarize source fill provenance without using it as rejection evidence."""
     track_values = np.asarray(track)
     fill_values = np.asarray(inpaint_fill_mask)
-    code_values = np.asarray(guard_codes)
+    code_values = np.asarray(shuttle_grades)
     if track_values.ndim != 2 or track_values.shape[1] != 3:
         raise ValueError("shuttle quality track must have shape (frames, 3)")
     frame_count = len(track_values)

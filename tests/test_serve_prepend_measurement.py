@@ -123,7 +123,7 @@ def test_candidate_rule_records_truth_mask_and_pose_verdicts(monkeypatch) -> Non
     arrays = _pose_arrays(30)
     truth = np.full(30, "live-non-standard", dtype="U18")
     truth[7] = "replay"
-    inpaint_codes = np.zeros(30, dtype=np.uint8)
+    shuttle_grades = np.zeros(30, dtype=np.uint8)
     court_present = np.zeros(30, dtype=bool)
     raw_mask = np.zeros(30, dtype=bool)
     definitive_mask = np.zeros(30, dtype=bool)
@@ -143,7 +143,7 @@ def test_candidate_rule_records_truth_mask_and_pose_verdicts(monkeypatch) -> Non
         band_fraction=0.5,
         arrays=arrays,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         court_present=court_present,
         raw_mask=raw_mask,
         definitive_mask=definitive_mask,

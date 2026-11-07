@@ -29,7 +29,7 @@ from annotator.courts.prepare_courts import (
     CourtSceneRecord,
     SceneStatus,
 )
-from annotator.inference.prepare_contact_inference import prepare_contact_inference
+from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
 from dataset_builder import vision
 from dataset_builder.vision import CourtDetectorSettings
 from experiments.annotator.artifact_io import (
@@ -116,7 +116,7 @@ def _manifest_payload() -> dict[str, object]:
         "track_overrides": {
             "sset_01/tracknet-stride-1": _pin("tracks/sset_01_stride1.npy"),
         },
-        "inpaint_codes": {case.case_id: _pin(f"guards/{case.case_id}.npy") for case in runner.CASES},
+        "shuttle_grades": {case.case_id: _pin(f"guards/{case.case_id}.npy") for case in runner.CASES},
         "deeplsd_weights": _pin("weights/deeplsd_md.tar"),
         "producers": producers,
     }
@@ -480,14 +480,14 @@ def _fake_court_result(case: runner.CaseData) -> CourtEvidenceResult:
 
 def _empty_video_annotation(
     track, bboxes, scores, kps, ndet, *, base, fps, resolution, court_present, homography_rows,
-    inpaint_codes, keep_working_data, **_kwargs,
+    shuttle_grades, keep_working_data, **_kwargs,
 ) -> VideoAnnotation:
     assert keep_working_data
     # No people or rallies are needed to exercise the runner's saving and scoring.
-    evidence = prepare_contact_inference(
+    evidence = prepare_annotation_inputs(
         track, bboxes, scores, kps, np.zeros_like(ndet),
         video_config=runner.scale_config_to_fps(base, fps), resolution=resolution,
-        court_present=court_present, homography_rows=homography_rows, inpaint_codes=inpaint_codes,
+        court_present=court_present, homography_rows=homography_rows, shuttle_grades=shuttle_grades,
         raw_exclusion_mask=np.zeros(len(track), dtype=bool), spans=[],
     )
     return VideoAnnotation(
@@ -648,18 +648,18 @@ def test_synthetic_successful_assembly_writes_exactly_eight_manifests(
     monkeypatch.setattr(runner, "verify_eligible_gt_files", fake_verify_gt_files)
 
     def fake_run_video(
-        *args, base, models, inpaint_codes, landing_options, **kwargs,
+        *args, base, models, shuttle_grades, landing_options, **kwargs,
     ) -> VideoAnnotation:
         nonlocal inference_calls
         inference_calls += 1
         assert not gt_verified
         assert models is FAKE_MODELS
         assert base is FAKE_MODELS.preprocessing
-        np.testing.assert_array_equal(inpaint_codes, np.array([0, 4], dtype=np.uint8))
-        assert len(inpaint_codes) == len(args[0])
+        np.testing.assert_array_equal(shuttle_grades, np.array([0, 4], dtype=np.uint8))
+        assert len(shuttle_grades) == len(args[0])
         assert landing_options is runner.LANDING_OPTIONS
         return _empty_video_annotation(
-            *args, base=base, inpaint_codes=inpaint_codes, **kwargs,
+            *args, base=base, shuttle_grades=shuttle_grades, **kwargs,
         )
 
     monkeypatch.setattr(runner, "annotate_video", fake_run_video)
@@ -891,11 +891,11 @@ def test_court_detector_setup_needs_the_launch_settings(tmp_path: Path, monkeypa
 
 def test_input_manifest_requires_guard_pins_for_every_case() -> None:
     payload = _manifest_payload()
-    del payload["inpaint_codes"]
-    with pytest.raises(ValueError, match="inpaint_codes"):
+    del payload["shuttle_grades"]
+    with pytest.raises(ValueError, match="shuttle_grades"):
         runner.parse_input_manifest(payload)
     payload = _manifest_payload()
-    payload["inpaint_codes"].pop(runner.CASES[0].case_id)
+    payload["shuttle_grades"].pop(runner.CASES[0].case_id)
     with pytest.raises(ValueError, match="each of the four fixed cases"):
         runner.parse_input_manifest(payload)
 
@@ -910,7 +910,7 @@ def test_load_case_verifies_and_loads_the_pinned_guard_codes(monkeypatch: pytest
     fixed = runner.CASES[0]
     fixture = runner._fixture_by_name()[fixed.fixture_name]
     manifest = runner.parse_input_manifest(_manifest_payload())
-    inpaint_pin = manifest.inpaint_codes[fixed.case_id]
+    inpaint_pin = manifest.shuttle_grades[fixed.case_id]
     guards = np.array([0, 4], dtype=np.uint8)
     checked = []
     monkeypatch.setattr(runner, "verify_selected_pins", checked.extend)
@@ -922,10 +922,10 @@ def test_load_case_verifies_and_loads_the_pinned_guard_codes(monkeypatch: pytest
     monkeypatch.setattr(runner, "build_raw_cut_intervals", lambda *_args: [(0, 2)])
     case = runner._load_case(fixed, manifest, fixture)
     assert inpaint_pin in checked
-    assert case.inpaint_codes is guards
+    assert case.shuttle_grades is guards
     assert case.inpaint_pin == inpaint_pin
     records = runner._input_records(case, manifest)
-    guard_record = next(record for record in records if record["role"] == "inpaint_codes")
+    guard_record = next(record for record in records if record["role"] == "shuttle_grades")
     assert guard_record["shape"] == [2]
 
 

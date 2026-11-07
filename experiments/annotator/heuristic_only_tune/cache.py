@@ -23,7 +23,7 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.inference import prepare_contact_inference as player_evidence
+from annotator.inference import prepare_annotation_inputs as player_evidence
 from annotator.types import TrackedPlayers, WristGaps
 
 

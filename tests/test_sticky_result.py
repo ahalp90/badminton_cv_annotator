@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
-from annotator.inference.prepare_contact_inference import build_player_evidence
+from annotator.inference.prepare_annotation_inputs import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.types import WRIST_L, WRIST_R
 from tests.annotator_config import trajectory_config

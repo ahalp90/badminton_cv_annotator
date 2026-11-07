@@ -130,7 +130,7 @@ def score(item: dict, stream: dict, labels: tuple) -> dict:
     sequences, _ = stream_from_payload(stream)
     judged = judge_found_rallies(sequences, labels, frames_at_fps(TOLERANCE, item['fps']), fps=item['fps'])
     ladder = rally_ladder(judged, labels)
-    left_out = {rally.identity for rally in labels if rally.identity.startswith('left_out:')}
+    left_out = {rally.rally_id for rally in labels if rally.rally_id.startswith('left_out:')}
     reached: dict[str, set[str]] = {}
     for record in judged:
         if record['rally_id'] is not None:

@@ -219,7 +219,7 @@ def load_pinned_replay_fixtures(
         quality = summarize_shuttle_quality(
             shuttle.track,
             shuttle.inpaint_fill_mask,
-            shuttle.guard_codes,
+            shuttle.shuttle_grades,
             base.rejected_grades,
         )
         keyword: dict[str, object] = {
@@ -230,7 +230,7 @@ def load_pinned_replay_fixtures(
             "raw_exclusion_mask": None,
             "court_present": court.evidence.court_present,
             "homography_rows": court_inputs.homography_rows,
-            "inpaint_codes": shuttle.guard_codes,
+            "shuttle_grades": shuttle.shuttle_grades,
             "court_invalid_is_excluded": True,
         }
         inputs = RunVideoInputs(
@@ -296,7 +296,7 @@ def run_production_candidate(
                     item.inputs.master,
                     item.inputs.courts,
                     canonical_tolerance(item.fixture.fps),
-                    scene_courts=annotation.working_data.evidence.scene_courts,
+                    scene_courts=annotation.working_data.prepared_inputs.scene_courts,
                 )
             )
             rows[item.fixture.name] = row

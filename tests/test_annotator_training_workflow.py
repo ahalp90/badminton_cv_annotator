@@ -101,11 +101,11 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     saved = []
     prepared_arrays = []
 
-    def evidence(_run: Path, identity: str, _settings: Any) -> Any:
-        seen.append(identity)
+    def evidence(_run: Path, video_id: str, _settings: Any) -> Any:
+        seen.append(video_id)
         track = np.zeros((400, 3))
         prepared_arrays.append(weakref.ref(track))
-        return SimpleNamespace(identity=identity, fps=30.0, track=track)
+        return SimpleNamespace(video_id=video_id, fps=30.0, track=track)
 
     def features(_evidence: Any) -> ContactFeatures:
         rows = np.zeros(1)
@@ -113,39 +113,39 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
         return ContactFeatures(rows, [], [])
 
     def contact_fit(videos: list, _settings: Any) -> Any:
-        identities = [video.identity for video in videos]
-        assert identities == [identity for identity in training_order if identity in identities]
+        identities = [video.video_id for video in videos]
+        assert identities == [video_id for video_id in training_order if video_id in identities]
         assert all(video.contact_frames.tolist() == [100, 300] for video in videos)
         model = contact_model if identities == training_order else object()
         contact_training_identities[model] = identities
         return SimpleNamespace(model=model)
 
-    def sequence_input(identity: str, group: str, captured: Any, _features: Any, rallies: Any,
+    def sequence_input(video_id: str, group: str, captured: Any, _features: Any, rallies: Any,
                        model: Any, _settings: Any) -> Any:
-        expected = [identity for identity in training_order if group_by_video[identity] != group]
+        expected = [video_id for video_id in training_order if group_by_video[video_id] != group]
         assert contact_training_identities[model] == expected
         assert model is not contact_model
-        pool_models[identity] = model
-        return SimpleNamespace(identity=identity, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
+        pool_models[video_id] = model
+        return SimpleNamespace(video_id=video_id, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
 
     def sequence_fit(videos: list, _settings: Any) -> Any:
         assert all(array() is None for array in prepared_arrays)
-        assert [video.identity for video in videos] == training_order
+        assert [video.video_id for video in videos] == training_order
         predictions = {
-            video.identity: SimpleNamespace(identity=video.identity, sequences=final_sequences()) for video in videos
+            video.video_id: SimpleNamespace(video_id=video.video_id, sequences=final_sequences()) for video in videos
         }
         return SimpleNamespace(selector=sequence_models, held_group_predictions=predictions)
 
     def review_fit(videos: list, predictions: dict, _settings: Any, *, tolerance_at_30_fps: int) -> Any:
-        assert [video.identity for video in videos] == training_order
+        assert [video.video_id for video in videos] == training_order
         assert tolerance_at_30_fps == 6
         assert set(predictions) == set(training_order)
         for video in videos:
-            assert predictions[video.identity].identity == video.identity
+            assert predictions[video.video_id].video_id == video.video_id
         return review_model
 
     monkeypatch.setattr(workflow, 'load_contact_evidence', evidence)
-    monkeypatch.setattr(workflow, 'features_from_evidence', features)
+    monkeypatch.setattr(workflow, 'contact_features_from_inputs', features)
     monkeypatch.setattr(workflow, 'fit_contact_model', contact_fit)
     monkeypatch.setattr(workflow, 'sequence_training_video', sequence_input)
     monkeypatch.setattr(workflow, 'fit_rally_models', sequence_fit)
@@ -162,7 +162,7 @@ def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
     assert list(contact_training_identities.values()) == [
         training_order, ['two', 'three'], ['one', 'four', 'three'], ['one', 'two', 'four'],
     ]
-    assert result.contact is contact_model and result.sequences is sequence_models
+    assert result.contact_model is contact_model and result.rally_selector is sequence_models
     assert saved == [(result, tmp_path / 'bundle')]
     fit_settings = load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')
     assert fit_settings['contact']['positive_radius_at_30_fps'] == 1
@@ -186,8 +186,8 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
     manifest = workflow.load_manifest(manifest_file(tmp_path))
     seen = []
 
-    def evidence(_run: Path, identity: str, _settings: Any) -> Any:
-        seen.append(identity)
+    def evidence(_run: Path, video_id: str, _settings: Any) -> Any:
+        seen.append(video_id)
         return SimpleNamespace(fps=30.0, track=np.zeros((400, 3)))
 
     def forbidden_fit(*_args: Any) -> None:
@@ -195,9 +195,9 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
 
     sequences = final_sequences()
     events = tuple(event for span in sequences for event in span.events)
-    prediction = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
+    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=sequences, events=events))
     monkeypatch.setattr(workflow, 'load_contact_evidence', evidence)
-    monkeypatch.setattr(workflow, 'predict_contacts', lambda *_args: prediction)
+    monkeypatch.setattr(workflow, 'predict_rallies_and_contacts', lambda *_args: prediction)
     for name in ('fit_contact_model', 'fit_rally_models', 'fit_rally_review_model'):
         monkeypatch.setattr(workflow, name, forbidden_fit)
     output = tmp_path / 'evaluation.json.gz'
@@ -261,7 +261,7 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
                 ndet: np.ndarray, **kwargs: Any) -> object:
         assert kwargs['video_config'].fps == 30.0
         assert kwargs['court_invalid_is_excluded'] is True
-        assert kwargs['inpaint_codes'].dtype == np.uint8
+        assert kwargs['shuttle_grades'].dtype == np.uint8
         assert 'capture' not in kwargs
         assert 'landing_options' not in kwargs
         return captured
@@ -270,7 +270,7 @@ def test_current_stage_loader_prepares_evidence_directly(tmp_path: Path, monkeyp
     monkeypatch.setattr(workflow, 'load_npy_xz', load_array)
     monkeypatch.setattr(workflow, 'load_pose_arrays', lambda path, _count: paths.append(path) or pose)
     monkeypatch.setattr(workflow, 'load_court_vision', lambda path, **_kwargs: paths.append(path) or court)
-    monkeypatch.setattr(workflow, 'prepare_contact_inference', prepare)
+    monkeypatch.setattr(workflow, 'prepare_annotation_inputs', prepare)
     assert workflow.load_contact_evidence(tmp_path, 'video', workflow.TrainingSettings().preprocessing) is captured
     assert tmp_path / 'stages/metadata/video/video_metadata.json.gz' in paths
     assert tmp_path / 'stages/shuttle/video/shuttle_guard_codes.npy.xz' in paths

@@ -29,8 +29,8 @@ import joblib
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.inference.learned import features_from_evidence
-from annotator.inference.prepare_contact_inference import prepare_contact_inference
+from annotator.inference.learned import contact_features_from_inputs
+from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
 from annotator.types import SmoothingMode
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
@@ -111,14 +111,14 @@ def prepare_video(
         inputs = load_original_inputs(video, paths['stages'], paths['development_courts'])
         pose = inputs.pose
         with cache_sticky_result(output / 'sticky', video.identity):
-            evidence = prepare_contact_inference(
+            evidence = prepare_annotation_inputs(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
                 video_config=scale_config_to_fps(base, inputs.fps),
                 resolution=inputs.court.resolution,
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
-                inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
+                shuttle_grades=inputs.shuttle_grades, court_invalid_is_excluded=True,
             )
-        features = features_from_evidence(evidence)
+        features = contact_features_from_inputs(evidence)
         prepared = PreparedVideo(video, group, evidence, features)
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = destination.with_suffix('.tmp')

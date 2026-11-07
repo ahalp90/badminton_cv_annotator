@@ -109,18 +109,18 @@ def refit(seed: int, prepared: Path, output: Path, tree_results: Path, device: s
                 time.perf_counter() - started)
 
     model_32, rows_32, positives_32, seconds_32 = fit('v_32')
-    expected, actual = predictions(models.contact, validation), predictions(model_32, validation)
+    expected, actual = predictions(models.contact_model, validation), predictions(model_32, validation)
     if not np.array_equal(expected, actual):
         raise ValueError(f'seed {seed}: refitted 32-video contact model differs from the bundle '
                          f'(max difference {np.abs(expected - actual).max():.3g})')
     model_40, rows_40, positives_40, seconds_40 = fit('final_40')
-    combined = replace(models, contact=model_40)
+    combined = replace(models, contact_model=model_40)
     for tree in fitted_trees(combined):
         if tree.get_params().get('device') != 'cpu':
             raise ValueError('bundle trees must predict on the CPU')
     save_models(combined, output / f'seed-{seed}')
     reloaded = load_models(output / f'seed-{seed}')
-    if not np.array_equal(predictions(reloaded.contact, validation), predictions(model_40, validation)):
+    if not np.array_equal(predictions(reloaded.contact_model, validation), predictions(model_40, validation)):
         raise ValueError(f'seed {seed}: saved 40-video bundle does not reload to the fitted model')
     record = {
         'seed_offset': seed, 'source_bundle': str(bundle_path(seed, tree_results)), 'device': device, 'threads': THREADS,

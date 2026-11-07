@@ -86,7 +86,7 @@ class VideoData:
     bboxes: np.ndarray
     sticky: StickyResult
     segments: list[tuple[int, int]]
-    guard_codes: np.ndarray
+    shuttle_grades: np.ndarray
     producer_inpaint: np.ndarray
     court_present: np.ndarray
     keep_vote: np.ndarray
@@ -364,7 +364,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
         fixture.resolution,
         constants.body_unit_half_window,
     )
-    guard_codes, _guard_info = grade_track(track)
+    shuttle_grades, _guard_info = grade_track(track)
     sidecar = (
         PRODUCER_EVIDENCE / fixture.name / "tracknet-stride-8"
         / f"{fixture.video_id}_stride8_inpaint_mask.json.gz"
@@ -394,7 +394,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
         bboxes=bboxes,
         sticky=sticky,
         segments=segments,
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         producer_inpaint=producer_inpaint,
         court_present=court_present,
         keep_vote=keep_vote,

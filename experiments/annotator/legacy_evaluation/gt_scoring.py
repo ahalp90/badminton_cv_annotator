@@ -489,8 +489,8 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
     arrays = load_fixture_arrays(fixture)
     master, _homo, courts, _resolution = load_gt_tables()
     track, bboxes, scores, kps, ndet, committed_mask = arrays
-    inpaint_codes, guard_info = grade_track(track)
-    counts = code_counts(inpaint_codes)
+    shuttle_grades, guard_info = grade_track(track)
+    counts = code_counts(shuttle_grades)
     log.info(
         "inpaint guard video=%s length=%d threshold=%s margin=%s presence=%s counts=%s",
         fixture.video_id,
@@ -523,7 +523,7 @@ def build_run_video_inputs(fixture: Fixture) -> RunVideoInputs:
         "court_present": court_present,
         "homography_rows": homography_rows,
     }
-    keyword["inpaint_codes"] = inpaint_codes
+    keyword["shuttle_grades"] = shuttle_grades
     return RunVideoInputs((track, bboxes, scores, kps, ndet), keyword, master, courts)
 
 

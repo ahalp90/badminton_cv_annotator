@@ -6,7 +6,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.types import Slot, SmoothingMode
+from annotator.types import PlayerRow, SmoothingMode
 from shared.frame_timing import frames_at_fps, speed_at_fps
 from shared.player_tracking import BOTTOM_ROW, TOP_ROW
 
@@ -44,11 +44,11 @@ def test_scaling_kind_rejects_invalid_fps(kind, fps: float) -> None:
 
 
 def test_slot_values_pin_sticky_storage_rows() -> None:
-    assert Slot.TOP == TOP_ROW
-    assert Slot.BOTTOM == BOTTOM_ROW
+    assert PlayerRow.TOP == TOP_ROW
+    assert PlayerRow.BOTTOM == BOTTOM_ROW
     rows = ['row 0', 'row 1']
-    assert rows[Slot.TOP] == 'row 0'
-    assert rows[Slot.BOTTOM] == 'row 1'
+    assert rows[PlayerRow.TOP] == 'row 0'
+    assert rows[PlayerRow.BOTTOM] == 'row 1'
 
 
 def test_scale_preserves_smoothing_mode_without_fps_scaling() -> None:

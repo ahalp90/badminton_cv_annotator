@@ -34,7 +34,7 @@ def returning_view_evidence() -> SimpleNamespace:
         pose_kps=np.empty((25, 0, 17, 2)),
         resolution=resolution,
         video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), exclusion_mask=exclusions,
-        shuttle_hallucination_mask=np.zeros(25, dtype=bool),
+        rejected_shuttle_frames=np.zeros(25, dtype=bool),
         scene_courts=(SceneCourt(10, 16, court, (340.0, 380.0), 0.1),
                       SceneCourt(16, 25, court, (340.0, 380.0), 0.1)),
     )
@@ -64,7 +64,7 @@ def test_returning_view_keeps_contact_time_and_bounds_the_landing_search():
     outcome = resolve_outcome(evidence, [3], search_trials=search_trials)
     assert outcome[0].landing is not None
     assert outcome[0].landing.frame == 13
-    assert outcome[0].landing.norm == pytest.approx((0.5, 0.5))
+    assert outcome[0].landing.court_xy == pytest.approx((0.5, 0.5))
     # The observed tail ends at the net, but the unseen flight may have crossed it.
     assert outcome[0].landing.net_ender is False
     short, long = search_trials
@@ -86,7 +86,7 @@ def test_recovery_does_not_borrow_observations_beyond_this_rally(rally_end):
 
 def test_rejected_final_contact_does_not_borrow_an_earlier_players_flight():
     evidence = returning_view_evidence()
-    evidence.shuttle_hallucination_mask[12] = True
+    evidence.rejected_shuttle_frames[12] = True
     outcome = resolve_outcome(evidence, [3, 12], next_server=CourtHalf.TOP)
     assert outcome[0].landing is None
     assert outcome[0].winner is CourtHalf.TOP

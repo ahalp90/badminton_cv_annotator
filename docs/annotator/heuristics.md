@@ -41,7 +41,7 @@ The purpose is to keep replay, slow motion, prolonged non-court footage and unus
 
 A camera angle change alone does not establish replay. The code can measure perspective shift, but the current replay mask does not reject a frame only because the court is viewed from a different angle.
 
-Relevant code: `excluded_frames/replay.py`, `prepare_contact_inference.py`.
+Relevant code: `excluded_frames/replay.py`, `prepare_annotation_inputs.py`.
 
 ### Shuttle guard grades
 
@@ -75,7 +75,7 @@ A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark 
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 
-Relevant code: `excluded_frames/shuttle_hallucination.py`, `prepare_contact_inference.py::build_shuttle_hallucination_mask()`, `rally_results/estimate_results.py`, `dataset_builder/shuttle_evidence.py`.
+Relevant code: `excluded_frames/shuttle_hallucination.py`, `prepare_annotation_inputs.py::build_rejected_shuttle_mask()`, `rally_results/estimate_results.py`, `dataset_builder/shuttle_evidence.py`.
 
 ## Frame-rate scaling
 

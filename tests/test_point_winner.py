@@ -238,7 +238,7 @@ def test_landing_window_stops_at_next_rally_before_mask_at_boundary():
     dead[5] = True
 
     window = landing_window(
-        0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+        0, 5, track, dead, sustained_loss_frames=10, rejected_shuttle_frames=np.zeros(len(track), dtype=bool),
     )
 
     assert window == LandingWindow(5, ('next_rally',), search_shortened_by_exclusion=False)
@@ -259,7 +259,7 @@ def test_landing_window_does_not_scan_loss_past_next_rally_boundary():
     dead = np.zeros(len(track), dtype=bool)
 
     window = landing_window(
-        0, 5, track, dead, sustained_loss_frames=10, shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+        0, 5, track, dead, sustained_loss_frames=10, rejected_shuttle_frames=np.zeros(len(track), dtype=bool),
     )
 
     assert window == LandingWindow(5, ('next_rally',), search_shortened_by_exclusion=False)
@@ -273,7 +273,7 @@ def test_landing_window_reports_sustained_loss_and_exclusion_tie():
 
     window = landing_window(
         0, len(track), track, dead, sustained_loss_frames=3,
-        shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+        rejected_shuttle_frames=np.zeros(len(track), dtype=bool),
     )
 
     assert window == LandingWindow(5, ('definitive_exclusion', 'sustained_loss'), search_shortened_by_exclusion=False)
@@ -286,7 +286,7 @@ def test_landing_window_keeps_one_frame_minimum_and_tied_boundary_reasons():
 
     window = landing_window(
         4, len(track), track, dead, sustained_loss_frames=10,
-        shuttle_hallucination_mask=np.zeros(len(track), dtype=bool),
+        rejected_shuttle_frames=np.zeros(len(track), dtype=bool),
     )
 
     assert window == LandingWindow(5, ('definitive_exclusion',), search_shortened_by_exclusion=True)
@@ -342,8 +342,8 @@ def test_ankle_rule_flips_a_carried_terminal_to_a_landing():
     # Wrist-proximate at every frame (reads as carried); ankle even nearer, so the ankle rule
     # overturns the carry read to a genuine landing.
     kin = LandingKinematics(
-        carry_ratio=np.array([0.3, 0.3, 0.3]),
-        ankle_ratio=np.array([0.1, 0.1, 0.1]),
+        wrist_distance_body_heights=np.array([0.3, 0.3, 0.3]),
+        ankle_distance_body_heights=np.array([0.1, 0.1, 0.1]),
         speed=np.zeros(3),
     )
     with_ankle = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3, carry_thr=0.5)
@@ -353,8 +353,8 @@ def test_ankle_rule_flips_a_carried_terminal_to_a_landing():
 
 def test_ankle_rule_does_not_overturn_when_the_wrist_is_nearer():
     kin = LandingKinematics(
-        carry_ratio=np.array([0.1, 0.1, 0.1]),
-        ankle_ratio=np.array([0.3, 0.3, 0.3]),  # ankle FARTHER than the wrist
+        wrist_distance_body_heights=np.array([0.1, 0.1, 0.1]),
+        ankle_distance_body_heights=np.array([0.3, 0.3, 0.3]),  # ankle FARTHER than the wrist
         speed=np.zeros(3),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=3, carry_thr=0.5)
@@ -365,8 +365,8 @@ def test_carried_terminal_does_not_read_before_final_contact():
     # Unclamped, the window [0:5] has median 0.1 and calls this carried; clamping
     # to final_contact=2 leaves [0.1, 0.9, 0.9], median 0.9, not carried.
     kin = LandingKinematics(
-        carry_ratio=np.array([0.1, 0.1, 0.1, 0.9, 0.9]),
-        ankle_ratio=np.full(5, np.nan),
+        wrist_distance_body_heights=np.array([0.1, 0.1, 0.1, 0.9, 0.9]),
+        ankle_distance_body_heights=np.full(5, np.nan),
         speed=np.zeros(5),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=2, carry_win=5, carry_thr=0.5)
@@ -386,8 +386,8 @@ def test_keep_last_drop_returns_the_last_run_when_every_run_is_carried():
         [0.5, 0.30, 1],
     ])
     kin = LandingKinematics(
-        carry_ratio=np.full(3, 0.1),   # well under carry_thr at every frame: reads carried
-        ankle_ratio=np.full(3, np.nan),  # ankle rule stays neutral (NaN never overturns)
+        wrist_distance_body_heights=np.full(3, 0.1),   # well under carry_thr at every frame: reads carried
+        ankle_distance_body_heights=np.full(3, np.nan),  # ankle rule stays neutral (NaN never overturns)
         speed=np.zeros(3),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
@@ -405,7 +405,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
         [0.5, 0.30, 1], [0.5, 0.20, 1], [0.5, 0.40, 1], [0.5, 0.60, 1],
     ])
     kin = LandingKinematics(
-        carry_ratio=np.full(7, np.nan), ankle_ratio=np.full(7, np.nan), speed=np.zeros(7),
+        wrist_distance_body_heights=np.full(7, np.nan), ankle_distance_body_heights=np.full(7, np.nan), speed=np.zeros(7),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     event_mask = np.zeros(7, dtype=bool)
@@ -413,7 +413,7 @@ def test_landing_discards_a_masked_original_coordinate_interval_and_uses_a_later
 
     landing = filtered_descending_landing(
         0, 7, track, kin, opts, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
-        shuttle_hallucination_mask=event_mask,
+        rejected_shuttle_frames=event_mask,
     )
 
     assert landing is not None
@@ -426,14 +426,14 @@ def test_landing_returns_none_when_every_candidate_interval_is_masked():
         [0.5, 0.40, 1], [0.5, 0.60, 1],
     ])
     kin = LandingKinematics(
-        carry_ratio=np.full(6, np.nan), ankle_ratio=np.full(6, np.nan), speed=np.zeros(6),
+        wrist_distance_body_heights=np.full(6, np.nan), ankle_distance_body_heights=np.full(6, np.nan), speed=np.zeros(6),
     )
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     event_mask = np.ones(len(track), dtype=bool)
 
     assert filtered_descending_landing(
         0, len(track), track, kin, opts, scale_config_to_fps(BaseAnnotatorConfig(), 25.0).thresholds.min_descend_samples,
-        shuttle_hallucination_mask=event_mask,
+        rejected_shuttle_frames=event_mask,
     ) is None
 
 
@@ -521,7 +521,7 @@ def test_hit_height_raises_when_shuttle_not_visible():
 # ---------------------------------------------------------------------------
 def _landing(norm, net_ender=False, at_border=False, frame=5):
     half = CourtHalf.TOP if norm[1] < 0.5 else CourtHalf.BOT
-    return Landing(frame=frame, norm=norm, half=half, at_border=at_border, net_ender=net_ender)
+    return Landing(frame=frame, court_xy=norm, half=half, at_border=at_border, net_ender=net_ender)
 
 
 def test_net_fault_loses_for_both_landing_rules():
@@ -596,7 +596,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
     track[3] = (0.5, 0.7, 1)
     track[4] = (0.5, 0.9, 1)  # a clean 3-sample descending run, frames 2-4
     dead = np.zeros(n_frames, dtype=bool)
-    kin = LandingKinematics(carry_ratio=np.full(n_frames, np.nan), ankle_ratio=np.full(n_frames, np.nan),
+    kin = LandingKinematics(wrist_distance_body_heights=np.full(n_frames, np.nan), ankle_distance_body_heights=np.full(n_frames, np.nan),
                             speed=np.zeros(n_frames))
     opts = LandingFilterOptions(settle_win=3, settle_thr=0.01, settle_min=10000, carry_win=3, carry_thr=0.5)
     resolution = (1280.0, 720.0)
@@ -615,7 +615,7 @@ def test_pick_landing_projects_the_filtered_terminal_and_flags_it():
 
     assert landing is not None
     assert landing.frame == 4
-    assert landing.norm == pytest.approx((0.5, 0.9))
+    assert landing.court_xy == pytest.approx((0.5, 0.9))
     assert landing.half == CourtHalf.BOT  # y=0.9 >= NET_COURT_Y(0.5)
     assert landing.at_border is False
     assert landing.net_ender is False
@@ -628,7 +628,7 @@ def test_landing_window_end_feeds_explicit_landing():
     track[2:5, 1] = (0.5, 0.7, 0.9)
     dead = np.zeros(n_frames, dtype=bool)
     kin = LandingKinematics(
-        carry_ratio=np.full(n_frames, np.nan), ankle_ratio=np.full(n_frames, np.nan),
+        wrist_distance_body_heights=np.full(n_frames, np.nan), ankle_distance_body_heights=np.full(n_frames, np.nan),
         speed=np.zeros(n_frames),
     )
     opts = LandingFilterOptions(7, 0.004, 10000, 7, 0.75)
@@ -658,8 +658,8 @@ def test_build_landing_kinematics_reads_nearer_wrist_and_ankle_in_body_heights()
 
     kin = build_landing_kinematics(track, players, kps, resolution)
 
-    assert kin.carry_ratio[0] == pytest.approx(0.0)  # wrist sits exactly on the shuttle
-    assert kin.ankle_ratio[0] == pytest.approx(0.5)  # ankle 50px away / 100px box height
+    assert kin.wrist_distance_body_heights[0] == pytest.approx(0.0)  # wrist sits exactly on the shuttle
+    assert kin.ankle_distance_body_heights[0] == pytest.approx(0.5)  # ankle 50px away / 100px box height
 
 
 def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
@@ -674,5 +674,5 @@ def test_tracker_failure_leaves_attribution_and_landing_unmeasured():
     scenes = (SceneCourt(0, len(track), {}, (400.0, 500.0), 0.1),)
     assert contact_player_evidence(0, track, players, wrist_gaps, bboxes, scenes) == (None, None)
     kin = build_landing_kinematics(track, players, kps, resolution)
-    assert np.isnan(kin.carry_ratio[0])
-    assert np.isnan(kin.ankle_ratio[0])
+    assert np.isnan(kin.wrist_distance_body_heights[0])
+    assert np.isnan(kin.ankle_distance_body_heights[0])

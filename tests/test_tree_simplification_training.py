@@ -51,7 +51,7 @@ def test_selector_fit_reuses_group_fit_and_keeps_weight(tmp_path: Path, monkeypa
 
     def fit(selected, targets, config, *, span_weight):
         videos = [by_matrix[id(pool.matrix)] for pool in selected]
-        calls.append(([video.identity for video in videos], span_weight))
+        calls.append(([video.video_id for video in videos], span_weight))
         return {'groups': sorted({video.group for video in videos})}
 
     monkeypatch.setattr(train.rally_training, 'fit_selector', fit)
@@ -138,7 +138,7 @@ def test_cli_fits_training_pools_and_evaluates_validation_only(tmp_path, monkeyp
             return pools[path.stem]
         return original_load(path, *args, **kwargs)
 
-    by_matrix = {id(pool.matrix): pool.video.identity for pool in pools.values()}
+    by_matrix = {id(pool.matrix): pool.video.video_id for pool in pools.values()}
 
     def fit(selected, targets, _config, *, span_weight):
         fitted.append(({by_matrix[id(pool.matrix)] for pool in selected}, span_weight))

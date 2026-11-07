@@ -562,7 +562,7 @@ class RuntimeSupport:
         expected_quality = summarize_shuttle_quality(
             shuttle.track,
             shuttle.inpaint_fill_mask,
-            shuttle.guard_codes,
+            shuttle.shuttle_grades,
             self.annotator_models.preprocessing.rejected_grades,
         )
         self.state.annotations[video_id] = _load_annotation(
@@ -965,12 +965,12 @@ def _landing(payload: object) -> Landing:
     row = _dict(payload)
     if set(row) != set(Landing._fields):
         raise ValueError("persisted landing fields differ")
-    norm = _list(row["norm"])
-    if len(norm) != 2:
-        raise ValueError("persisted landing norm must contain two values")
+    court_xy = _list(row["court_xy"])
+    if len(court_xy) != 2:
+        raise ValueError("persisted landing court_xy must contain two values")
     return Landing(
         _integer(row["frame"], "landing frame"),
-        (_finite_float(norm[0], "landing x"), _finite_float(norm[1], "landing y")),
+        (_finite_float(court_xy[0], "landing x"), _finite_float(court_xy[1], "landing y")),
         CourtHalf(_string(row["half"], "landing half")),
         _boolean(row["at_border"], "landing at_border"),
         _boolean(row["net_ender"], "landing net_ender"),

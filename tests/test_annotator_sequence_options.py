@@ -3,9 +3,15 @@
 import numpy as np
 import pytest
 
-from annotator.contacts.build_features import contact_feature_dtype
+from annotator.contacts.build_features import (
+    CONTACT_FEATURE_NAMES,
+    contact_feature_dtype,
+)
 from annotator.contacts.score_candidates import ScoredContacts, contact_feature_matrix
 from annotator.rallies.build_contact_proposals import (
+    FEATURE_NAMES,
+    RallyContext,
+    build_rally_options,
     initial_sequences,
     shortlist_later_rows,
     shortlist_serve_rows,
@@ -128,3 +134,20 @@ def test_toggle_proposals_deduplicate_absorbed_contacts_and_prefer_fewer_edits()
     assert [_frames(sequence) for sequence in options] == [
         [120, 160], [90, 120, 160], [80, 90, 120, 160],
     ]
+
+
+@pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
+def test_contact_gap_features_exclude_rally_boundary_gaps(fps: float) -> None:
+    events = (ContactEvent(20, .9, None), ContactEvent(60, .7, None))
+    sequence = ContactSequence(0, 10, 200, events)
+    contact_features = {event.frame: np.zeros(len(CONTACT_FEATURE_NAMES)) for event in events}
+    context = RallyContext(fps, (sequence,), events, {}, contact_features)
+
+    pool = build_rally_options(context, max_edits=0)
+    features = dict(zip(FEATURE_NAMES, pool.matrix[0], strict=True))
+
+    assert features['before__longest_gap_seconds'] == pytest.approx(40 / fps)
+    assert features['after__longest_gap_seconds'] == pytest.approx(40 / fps)
+    assert features['longest_gap_seconds'] == pytest.approx(140 / fps)
+    assert features['positive_gap_count'] == 3
+    assert pool.matrix.dtype == np.float32

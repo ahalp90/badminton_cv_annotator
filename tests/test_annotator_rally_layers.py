@@ -60,15 +60,15 @@ def test_layer_bundle_roundtrip_preserves_predictions_and_review(tmp_path) -> No
     review = DummyClassifier(strategy='prior').fit(np.zeros((3, len(REVIEW_FEATURE_NAMES))), [0, 1, 1])
     models = AnnotatorModels(dummy_layers().selector, dummy_layers(), review)
     pool = runtime_options()
-    before = predict_rally_options(models.sequences, pool)
+    before = predict_rally_options(models.rally_selector, pool)
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
-    assert isinstance(restored.sequences, RallySelector)
-    after = predict_rally_options(restored.sequences, pool)
+    assert isinstance(restored.rally_selector, RallySelector)
+    after = predict_rally_options(restored.rally_selector, pool)
     assert after.sequences == before.sequences
     assert after.events == before.events
     np.testing.assert_array_equal(after.scores, before.scores)
-    review = score_rally_review(after, restored.confidence)
+    review = score_rally_review(after, restored.review_model)
     assert review.features.span_ids == (7,)
     assert review.features.matrix.shape == (1, len(REVIEW_FEATURE_NAMES))
     np.testing.assert_allclose(review.scores, [2 / 3])
@@ -108,7 +108,7 @@ def test_real_layer_fit_and_review_use_one_prediction_per_training_video() -> No
     config = RallyFitConfig(tree=TreeFitConfig(max_iter=3, min_child_weight=0))
     with threadpool_limits(limits=1):
         result = fit_rally_models(videos, config)
-        assert set(result.held_group_predictions) == {video.identity for video in videos}
+        assert set(result.held_group_predictions) == {video.video_id for video in videos}
         assert result.selector.selector.n_features_in_ == len(FEATURE_NAMES)
         # The shared contact evidence cannot recover the deliberately absent label.
         ranker = fit_rally_review_model(

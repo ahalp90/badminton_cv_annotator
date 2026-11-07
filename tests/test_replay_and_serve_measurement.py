@@ -63,14 +63,14 @@ def test_nearest_replay_or_cutaway_distance_uses_both_classes() -> None:
 def test_slow_motion_details_reconstruct_current_signal() -> None:
     x = np.concatenate((np.arange(10) * 0.02, 0.2 + np.arange(10) * 0.003))
     track = np.column_stack((x, np.zeros(20), np.ones(20)))
-    non_evidence = np.zeros(20, dtype=bool)
+    rejected_shuttle_frames = np.zeros(20, dtype=bool)
     baseline_exclude = np.zeros(20, dtype=bool)
 
     details = measurement.slow_motion_details(
         track,
         [(0, 20)],
         25.0,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=baseline_exclude,
     )
     expected = measurement.velocity_drop_signal(
@@ -78,7 +78,7 @@ def test_slow_motion_details_reconstruct_current_signal() -> None:
         [(0, 20)],
         20,
         25.0,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=baseline_exclude,
     )
 
@@ -109,7 +109,7 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     track = np.column_stack((np.linspace(0, 1, 25), np.zeros(25), np.ones(25)))
     truth = np.full(25, "live", dtype="U18")
     truth[7:9] = "replay"
-    inpaint_codes = np.zeros(25, dtype=np.int8)
+    shuttle_grades = np.zeros(25, dtype=np.int8)
     raw_mask = np.zeros(25, dtype=bool)
     raw_mask[7:9] = True
     definitive = raw_mask.copy()
@@ -131,7 +131,7 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     candidates, opportunities, summary = measurement.evaluate_serve_candidates(
         track=track,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         raw_mask=raw_mask,
         definitive_mask=definitive,
         players=players,

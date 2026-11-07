@@ -15,7 +15,7 @@ from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig
 from annotator.contacts.score_candidates import ContactModelConfig
-from annotator.inference.learned import predict_contact_features
+from annotator.inference.learned import predict_from_contact_features
 from annotator.models import AnnotatorModels, fitted_trees
 from annotator.rallies.refine_rallies import RallySelector
 from annotator.training.sequences import whole_rally_correctness
@@ -71,8 +71,8 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         prepared = experiment.load_prepared(prepared_root, identity)
         if prepared.video.split != 'validation':
             raise ValueError('Replay video is not validation')
-        prediction = predict_contact_features(prepared.evidence, prepared.features, models)
-        rally_prediction = prediction.refined
+        prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
+        rally_prediction = prediction.rally_prediction
         stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
         experiment.write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(prepared.video, stream)
@@ -80,7 +80,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         rankings[identity] = {}
         by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
         for tolerance in (5, 10):
-            for name, confidence in (('selector', selector), ('fitted', prediction.confidence)):
+            for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
                 labels = np.asarray([
                     whole_rally_correctness(
                         by_span[span], prepared.video.rallies, prepared.video.fps, tolerance_at_30_fps=tolerance,

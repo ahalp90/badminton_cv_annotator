@@ -203,21 +203,23 @@ def build_review_features(prediction: RallyPrediction) -> RallyReviewFeatures:
     """
     pool = prediction.pool
     span_ids = tuple(prediction.chosen)
-    selected = np.asarray(list(prediction.chosen.values()), dtype=np.int64)
-    option_features = pool.matrix[np.ix_(selected, REVIEW_OPTION_COLUMNS)]
     final_by_span = {sequence.span_id: sequence for sequence in prediction.sequences}
-    summaries, scores = [], []
+    rows = []
     for span_id, row in prediction.chosen.items():
         proposed_sequence = pool.sequences[row]
         final_sequence = final_by_span[span_id]
         proposal_with_final_bounds = replace(
             proposed_sequence, start_frame=final_sequence.start_frame, end_frame=final_sequence.end_frame,
         )
-        summaries.append(sequence_summary(proposal_with_final_bounds, pool.context.fps))
         values = prediction.scores[pool.span_rows[span_id]]
         best = np.partition(values, -2)[-2:] if len(values) > 1 else values
-        margin = float(best.max() - best.min())
-        scores.append((float(prediction.scores[row]), margin))
-    sequence_summaries = np.asarray(summaries, dtype=np.float64).reshape(len(span_ids), len(SUMMARY_FEATURE_NAMES))
-    scores = np.asarray(scores, dtype=np.float64).reshape(len(span_ids), 2)
-    return RallyReviewFeatures(span_ids, np.column_stack((option_features, scores, sequence_summaries)))
+        features = dict(zip(REVIEW_OPTION_NAMES, pool.matrix[row, REVIEW_OPTION_COLUMNS], strict=True))
+        features.update({
+            'option_score': float(prediction.scores[row]),
+            'top_margin': float(best.max() - best.min()),
+        })
+        summary = sequence_summary(proposal_with_final_bounds, pool.context.fps)
+        features.update((f'final__{name}', value) for name, value in summary.items())
+        rows.append([features[name] for name in REVIEW_FEATURE_NAMES])
+    matrix = np.asarray(rows, dtype=np.float64).reshape(len(span_ids), len(REVIEW_FEATURE_NAMES))
+    return RallyReviewFeatures(span_ids, matrix)

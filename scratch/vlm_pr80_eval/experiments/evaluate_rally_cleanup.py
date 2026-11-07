@@ -69,7 +69,7 @@ def _build_artifact_inputs(
     stages = artifacts_root / "stages"
     video_id = fixture.name
     track = load_npy_xz(stages / "shuttle" / video_id / "shuttle_track.npy.xz")
-    guard_codes = load_npy_xz(
+    shuttle_grades = load_npy_xz(
         stages / "shuttle" / video_id / "shuttle_guard_codes.npy.xz"
     )
     pose = load_pose_arrays(stages / "pose" / video_id, len(track))
@@ -94,7 +94,7 @@ def _build_artifact_inputs(
         "homography_rows": court_inputs.homography_rows,
         "cut_frames": [end for _start, end in raw_cuts[:-1]],
         "keep_vote": keep_vote,
-        "inpaint_codes": guard_codes,
+        "shuttle_grades": shuttle_grades,
         "court_invalid_is_excluded": True,
     }
     return RunVideoInputs(

@@ -988,7 +988,7 @@ annotation_directory = "set/match-one"
             summarize_shuttle_quality(
                 kwargs["track"],
                 kwargs["inpaint_fill_mask"],
-                kwargs["guard_codes"],
+                kwargs["shuttle_grades"],
                 frozenset({1, 2, 3}),
             ),
         )

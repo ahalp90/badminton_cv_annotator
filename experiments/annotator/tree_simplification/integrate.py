@@ -50,8 +50,8 @@ def load_training(settings: dict, targets_root: Path) -> dict[str, LabelledOptio
         if read_json(path.with_suffix('.json.gz'))['split'] != 'train':
             continue
         pool = joblib.load(path)
-        five = load_npy_xz(targets_root / 'videos' / f'{pool.video.identity}.npy.xz')
-        pools[pool.video.identity] = replace(pool, targets=preferred_targets(pool, five))
+        five = load_npy_xz(targets_root / 'videos' / f'{pool.video.video_id}.npy.xz')
+        pools[pool.video.video_id] = replace(pool, targets=preferred_targets(pool, five))
     if len(pools) != 32:
         raise ValueError('Development export requires all 32 training videos')
     return pools

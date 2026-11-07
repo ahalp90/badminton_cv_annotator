@@ -63,7 +63,7 @@ def judge_section(
                        for label, prediction, _offset in matches)
     missing = len(rally.frames) - len(matches)
     extra = len(sequence.events) - len(matches)
-    record.update(rally_id=rally.identity, matched=len(matches), missing=missing, extra=extra,
+    record.update(rally_id=rally.rally_id, matched=len(matches), missing=missing, extra=extra,
                   wrong_player=wrong_player, boundary_error=not contained,
                   exact_sequence=contained and missing == 0 and extra == 0,
                   first_label_frame=rally.frames[0], last_label_frame=rally.frames[-1])
@@ -99,7 +99,7 @@ def score_video(
 
     # Full-video matching, ordered as in the refit comparison so correct-side counts agree.
     labels = sorted(
-        (frame, rally.identity, index, side, len(rally.frames))
+        (frame, rally.rally_id, index, side, len(rally.frames))
         for rally in rallies for index, (frame, side) in enumerate(zip(rally.frames, rally.sides, strict=True))
     )
     pairs = match_contacts([row[0] for row in labels], [event.frame for event in events], tolerance)
@@ -135,11 +135,11 @@ def score_video(
     reached = {contact["rally_id"] for contact in contacts if contact["matched"]}
     rally_rows = []
     for rally in rallies:
-        own = [row for row in proposals if row["rally_id"] == rally.identity]
+        own = [row for row in proposals if row["rally_id"] == rally.rally_id]
         touching = [sequence for sequence in sequences
                     if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)]
         rally_rows.append({
-            **common, "rally_id": rally.identity, "first_frame": rally.frames[0], "last_frame": rally.frames[-1],
+            **common, "rally_id": rally.rally_id, "first_frame": rally.frames[0], "last_frame": rally.frames[-1],
             "labelled_contacts": len(rally.frames),
             "fully_correct": any(row["outcome"] == "correct" for row in own),
             "selected_correct": any(row["outcome"] == "correct" and row["selected"] for row in own),
@@ -147,7 +147,7 @@ def score_video(
             "overlapping_proposals": len(touching),
             "contained": any(all(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
                              for sequence in touching),
-            "timing_reached": rally.identity in reached,
+            "timing_reached": rally.rally_id in reached,
         })
     return proposals, contacts, predictions, rally_rows
 

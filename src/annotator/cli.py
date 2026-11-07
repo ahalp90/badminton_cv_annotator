@@ -50,9 +50,9 @@ def annotate_saved_video(run_dir: Path, video_id: str, model_dir: Path, output_d
     )
     track = load_npy_xz(shuttle_dir / TRACK_FILENAME)
     validate_shuttle_track(track, metadata.frame_count)
-    guard_codes = load_npy_xz(shuttle_dir / GUARD_CODES_FILENAME)
+    shuttle_grades = load_npy_xz(shuttle_dir / GUARD_CODES_FILENAME)
     expected_codes, _ = grade_track(track)
-    if not np.array_equal(guard_codes, expected_codes):
+    if not np.array_equal(shuttle_grades, expected_codes):
         raise ValueError('persisted shuttle guard codes differ from the final track')
     pose = load_pose_arrays(stages / 'pose' / video_id, metadata.frame_count)
     court = load_court_vision(
@@ -66,7 +66,7 @@ def annotate_saved_video(run_dir: Path, video_id: str, model_dir: Path, output_d
         metadata=metadata,
         track=track,
         inpaint_fill_mask=fill_mask,
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         pose=pose,
         court=court,
         models=models,

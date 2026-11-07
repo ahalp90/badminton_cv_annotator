@@ -1,7 +1,7 @@
 """Prepare courts, players and initial contacts for either inference route.
 
 Track players and measure wrist distances before masking footage. Then find
-initial rallies and heuristic contacts. Training reuses the same evidence.
+initial rallies and heuristic contacts. Training reuses these prepared inputs.
 """
 
 from collections.abc import Sequence
@@ -23,7 +23,7 @@ from annotator.types import ContactCandidate, TrackedPlayers, WristGaps
 
 
 @dataclass(frozen=True)
-class AnnotationEvidence:
+class PreparedAnnotationInputs:
     """Prepared video inputs shared by contact inference and outcome estimation.
 
     Arrays use original video frame indices. ``track`` is unchanged; only
@@ -33,7 +33,7 @@ class AnnotationEvidence:
     ``raw_exclusion_mask`` flags footage before short-run filtering.
     ``exclusion_mask`` keeps sustained exclusions and adds frames without usable
     court geometry.
-    ``shuttle_hallucination_mask`` marks rejected shuttle grades, used when
+    ``rejected_shuttle_frames`` marks rejected shuttle grades, used when
     measuring speed evidence and interpreting final flights and landings.
 
     ``heuristic_contacts`` includes failed and unchecked candidates, not just
@@ -54,7 +54,7 @@ class AnnotationEvidence:
     exclusion_mask: np.ndarray
     heuristic_spans: list[tuple[int, int]]
     heuristic_contacts: list[ContactCandidate]
-    shuttle_hallucination_mask: np.ndarray
+    rejected_shuttle_frames: np.ndarray
     bounds_supplied: bool = False
 
     @property
@@ -68,7 +68,7 @@ class AnnotationEvidence:
         return [contact.contact_frame for contact in self.heuristic_contacts]
 
 
-def prepare_contact_inference(
+def prepare_annotation_inputs(
     track: np.ndarray,
     bboxes: np.ndarray,
     scores: np.ndarray,
@@ -83,9 +83,9 @@ def prepare_contact_inference(
     raw_exclusion_mask: np.ndarray | None = None,
     spans: list[tuple[int, int]] | None = None,
     contacts: dict[int, list[int]] | None = None,
-    inpaint_codes: np.ndarray | None = None,
+    shuttle_grades: np.ndarray | None = None,
     court_invalid_is_excluded: bool = False,
-) -> AnnotationEvidence:
+) -> PreparedAnnotationInputs:
     """Prepare courts, players, masks and initial rallies for inference or training.
 
     Supplied spans skip rally detection. Supplied contacts skip contact
@@ -93,8 +93,8 @@ def prepare_contact_inference(
     """
     if isinstance(homography_rows, pd.DataFrame):
         homography_rows = homography_rows.to_dict('records')
-    shuttle_hallucination_mask = build_shuttle_hallucination_mask(
-        len(track), video_config.rejected_grades, inpaint_codes,
+    rejected_shuttle_frames = build_rejected_shuttle_mask(
+        len(track), video_config.rejected_grades, shuttle_grades,
     )
     scene_courts = build_scene_courts(homography_rows, resolution, ref_err_px)
     # Player tracking needs the original track before dead-time masking.
@@ -111,7 +111,7 @@ def prepare_contact_inference(
             original_spans = find_rally_spans(track, video_config)
         raw_exclusion_mask = combine_mask(
             court_present, track, original_spans, len(track), video_config.fps,
-            non_evidence=shuttle_hallucination_mask,
+            rejected_shuttle_frames=rejected_shuttle_frames,
         )
     exclusion_mask = filter_exclusion_mask(raw_exclusion_mask, len(track), video_config.thresholds.replay_mask_min_frames)
     usable_court_frames = np.zeros(len(track), dtype=bool)
@@ -136,25 +136,25 @@ def prepare_contact_inference(
             track, video_config=video_config, exclusion_mask=exclusion_mask,
             sticky_distances=wrist_gaps.nearest, spans=spans,
         )
-    return AnnotationEvidence(
+    return PreparedAnnotationInputs(
         resolution=resolution, track=track, pose_kps=kps, bboxes=bboxes,
         players=players, wrist_gaps=wrist_gaps, tracker_intervals=segments, scene_courts=scene_courts,
         video_config=video_config, raw_exclusion_mask=raw_exclusion_mask, exclusion_mask=exclusion_mask,
         heuristic_spans=rally_spans, heuristic_contacts=raw_contacts,
-        shuttle_hallucination_mask=shuttle_hallucination_mask,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         bounds_supplied=spans is not None,
     )
 
 
-def build_shuttle_hallucination_mask(
-    n_frames: int, rejected_grades: frozenset[int], inpaint_codes: np.ndarray | None,
+def build_rejected_shuttle_mask(
+    n_frames: int, rejected_grades: frozenset[int], shuttle_grades: np.ndarray | None,
 ) -> np.ndarray:
     """Mark frames whose shuttle grade is rejected."""
-    if inpaint_codes is None:
+    if shuttle_grades is None:
         return np.zeros(n_frames, dtype=bool)
-    if inpaint_codes.ndim != 1 or len(inpaint_codes) != n_frames:
-        raise ValueError('inpaint_codes must be a frame-aligned one-dimensional array')
-    return np.isin(inpaint_codes, tuple(rejected_grades))
+    if shuttle_grades.ndim != 1 or len(shuttle_grades) != n_frames:
+        raise ValueError('shuttle_grades must be a frame-aligned one-dimensional array')
+    return np.isin(shuttle_grades, tuple(rejected_grades))
 
 
 def build_player_evidence(

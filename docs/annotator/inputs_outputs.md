@@ -153,7 +153,7 @@ experiments/annotator/tree_simplification/results/three_models/models/raw_baseli
 
 Loading checks:
 
-- schema `annotator-three-models/3`;
+- schema `annotator-three-models/4`;
 - exact contact, rally and review feature order;
 - rally proposal budgets and the fitted review model;
 - that `models.joblib` contains an `AnnotatorModels` object.
@@ -180,14 +180,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.7
+annotator-result/0.8
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.7",
+  "schema": "annotator-result/0.8",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -301,9 +301,9 @@ The direct call uses the model directory and settings as follows:
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 
-`prepare_contact_inference()` in [prepare_contact_inference.py](../../src/annotator/inference/prepare_contact_inference.py)
+`prepare_annotation_inputs()` in [prepare_annotation_inputs.py](../../src/annotator/inference/prepare_annotation_inputs.py)
 accepts the same five arrays plus settings scaled to the video frame rate and
 the court, mask and scene inputs. Training and rally-model experiments call it directly. Its
-`AnnotationEvidence` retains the original arrays, tracked players, wrist gaps, initial rallies,
+`PreparedAnnotationInputs` retains the original arrays, tracked players, wrist gaps, initial rallies,
 all heuristic contact rows, exclusion masks and rejected-shuttle-frame mask.
 It does not calculate final contact order, landing, winner or hit height.

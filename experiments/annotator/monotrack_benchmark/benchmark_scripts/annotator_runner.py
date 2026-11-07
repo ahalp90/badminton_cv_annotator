@@ -83,7 +83,7 @@ def run_item(
             landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
             resolution=court.resolution,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
-            inpaint_codes=guards, court_invalid_is_excluded=True,
+            shuttle_grades=guards, court_invalid_is_excluded=True,
             spans=spans, keep_working_data=True,
         )
         result = annotation.result
@@ -92,7 +92,7 @@ def run_item(
             prediction = annotation.working_data.learned_model_prediction
             if prediction is None:
                 raise ValueError('Annotator did not return its final contact stream')
-            record['stream'] = stream_payload(prediction.refined.sequences, prediction.refined.events)
+            record['stream'] = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
         else:
             from experiments.annotator.heuristic_only_tune.data import heuristic_stream
 

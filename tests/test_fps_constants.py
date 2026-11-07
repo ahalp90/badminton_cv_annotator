@@ -13,7 +13,7 @@ from annotator.config import BaseAnnotatorConfig, Thresholds, scale_config_to_fp
 from annotator.contacts.player_attribution import contact_player_evidence
 from annotator.courts.frame_geometry import SceneCourt
 from annotator.excluded_frames.replay import combine_mask, court_absence_signal
-from annotator.inference.prepare_contact_inference import build_player_evidence
+from annotator.inference.prepare_annotation_inputs import build_player_evidence
 from annotator.rallies.find_rallies import segment_video
 from annotator.rally_results.landing_and_winner import (
     LandingFilterOptions,

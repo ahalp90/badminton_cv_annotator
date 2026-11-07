@@ -111,7 +111,7 @@ def _load_inputs(
         raise ValueError(f'{video.identity}: track frame count differs from the frozen manifest')
     for rally in video.rallies:
         if any(not 0 <= frame < frame_count for frame in rally.frames):
-            raise ValueError(f'{video.identity}: rally {rally.identity} has a label outside the video')
+            raise ValueError(f'{video.identity}: rally {rally.rally_id} has a label outside the video')
     guards = load_npy_xz(guard_path)
     if guards.shape != (frame_count,):
         raise ValueError(f'{video.identity}: guard codes do not cover the video')
@@ -159,7 +159,7 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
         'resolution': court.resolution,
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
-        'inpaint_codes': inputs.guard_codes,
+        'shuttle_grades': inputs.shuttle_grades,
         'court_invalid_is_excluded': True,
     }
 
@@ -189,7 +189,7 @@ def run_configuration(
     prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{inputs.identity}: fitted annotation did not return its contact stream')
-    return stream_payload(prediction.refined.sequences, prediction.refined.events)
+    return stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
 
 
 def score_stream(

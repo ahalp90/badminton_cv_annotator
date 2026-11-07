@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from annotator.contacts.build_features import ContactFeatures
-from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 
 
@@ -13,5 +13,5 @@ class PreparedVideo:
 
     video: SearchVideo
     group: str
-    evidence: AnnotationEvidence
+    evidence: PreparedAnnotationInputs
     features: ContactFeatures

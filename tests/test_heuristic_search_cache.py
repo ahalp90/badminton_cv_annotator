@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from annotator.inference import prepare_contact_inference as player_evidence
+from annotator.inference import prepare_annotation_inputs as player_evidence
 from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator.heuristic_only_tune.cache import (
     StickyCacheError,

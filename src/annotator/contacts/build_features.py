@@ -234,16 +234,16 @@ def build_player_signals(
     scale = np.asarray([width, height], dtype=np.float64)
     wrist_xy = np.full((n_frames, 2, 2), np.nan, dtype=np.float64)
     visible = track[:, 2] == 1
-    for slot in range(2):
-        valid_frames = np.flatnonzero((players.detection_indices[:, slot] >= 0) & visible)
+    for player_row in range(2):
+        valid_frames = np.flatnonzero((players.detection_indices[:, player_row] >= 0) & visible)
         if not len(valid_frames):
             continue
-        raw_slots = players.detection_indices[valid_frames, slot].astype(int)
-        wrists = pose_kps[valid_frames, raw_slots][:, (WRIST_L, WRIST_R), :] / scale
+        detection_indices = players.detection_indices[valid_frames, player_row].astype(int)
+        wrists = pose_kps[valid_frames, detection_indices][:, (WRIST_L, WRIST_R), :] / scale
         shuttle_xy = track[valid_frames, :2]
         gaps = np.linalg.norm(wrists - shuttle_xy[:, None, :], axis=2)
         closest = np.argmin(gaps, axis=1)
-        wrist_xy[valid_frames, slot] = wrists[np.arange(len(valid_frames)), closest]
+        wrist_xy[valid_frames, player_row] = wrists[np.arange(len(valid_frames)), closest]
 
     slot_gaps = finite_to_fp32_inf_as_nan(np.asarray(wrist_gaps.per_player, dtype=np.float64))
     finite_gaps = np.isfinite(slot_gaps)

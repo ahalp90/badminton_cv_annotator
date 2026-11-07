@@ -17,7 +17,7 @@ from annotator.contacts.score_candidates import (
 from annotator.rallies.build_contact_proposals import FEATURE_NAMES
 from annotator.rallies.refine_rallies import REVIEW_FEATURE_NAMES, RallySelector
 
-MODEL_SCHEMA = 'annotator-three-models/3'
+MODEL_SCHEMA = 'annotator-three-models/4'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (
@@ -30,15 +30,15 @@ DEFAULT_MODEL_DIRECTORY = (
 class AnnotatorModels:
     """The three fitted classifiers and the settings needed to use them.
 
-    ``contact`` scores individual frames; ``sequences`` chooses rally contact
-    lists; ``confidence`` estimates whether each finished rally is correct.
+    ``contact_model`` scores individual frames; ``rally_selector`` chooses rally contact
+    lists; ``review_model`` estimates whether each finished rally is correct.
     Keep preprocessing and contact-selection settings with the trees so
     inference builds the same inputs as training.
     """
 
-    contact: Any
-    sequences: RallySelector
-    confidence: Any
+    contact_model: Any
+    rally_selector: RallySelector
+    review_model: Any
     contact_settings: ContactModelConfig = field(default_factory=ContactModelConfig)
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
 
@@ -53,7 +53,7 @@ def model_files(directory: Path) -> dict[str, Path]:
 
 def fitted_trees(models: AnnotatorModels) -> tuple[Any, ...]:
     """Contact, rally and review classifiers, in processing order."""
-    return (models.contact, models.sequences.selector, models.confidence)
+    return (models.contact_model, models.rally_selector.selector, models.review_model)
 
 
 def selector_contract(models: RallySelector) -> dict[str, Any]:
@@ -75,7 +75,7 @@ def save_models(models: AnnotatorModels, directory: Path) -> None:
         'scikit_learn': sklearn.__version__,
         'contact_features': list(CONTACT_FEATURE_NAMES),
     }
-    metadata['rally_selector'] = selector_contract(models.sequences)
+    metadata['rally_selector'] = selector_contract(models.rally_selector)
     if any(type(tree).__module__.startswith('xgboost') for tree in fitted_trees(models)):
         metadata['xgboost'] = version('xgboost')
     (directory / METADATA_FILENAME).write_text(json.dumps(metadata, indent=2) + '\n')
@@ -97,10 +97,10 @@ def load_models(directory: Path) -> AnnotatorModels:
     models = joblib.load(directory / MODEL_FILENAME)
     if not isinstance(models, AnnotatorModels):
         raise TypeError('Model bundle does not contain a complete AnnotatorModels value')
-    if not isinstance(models.sequences, RallySelector):
+    if not isinstance(models.rally_selector, RallySelector):
         raise TypeError('Rally metadata requires a fitted rally selector')
-    if metadata['rally_selector'] != selector_contract(models.sequences):
+    if metadata['rally_selector'] != selector_contract(models.rally_selector):
         raise ValueError('Selector features or proposal settings differ; refit the bundle')
-    if models.confidence is None:
+    if models.review_model is None:
         raise ValueError('Model bundle requires a fitted review model')
     return models

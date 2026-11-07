@@ -91,7 +91,7 @@ def test_orchestration_fits_28_only_and_reuses_completed_folds(
     fits, prepared = [], []
 
     def fit(videos: Any, config: Any, *, fit_video_order: Any) -> Any:
-        identities = tuple(video.identity for video in videos)
+        identities = tuple(video.video_id for video in videos)
         assert len(identities) == 28 and not set(identities) & set(VALIDATION)
         assert config == ContactFitConfig(**fixture.manifest['settings']['contact'])
         assert identities == tuple(identity for identity in context.videos(('A', 'B', 'C', 'D'))

@@ -47,7 +47,7 @@ def flaw_labels(
     for video in videos:
         video_id = int(video.identity.removeprefix('sset_'))
         folder = SHUTTLESET / 'set' / metadata.loc[video_id, 'video']
-        held = {rally.identity: set(rally.frames) for rally in video.rallies}
+        held = {rally.rally_id: set(rally.frames) for rally in video.rallies}
         flagged_rallies[video.identity] = set()
         windows[video.identity] = []
         raw_identities = set()
@@ -97,7 +97,7 @@ def main() -> None:
     flagged_rallies, windows, label_counts = flaw_labels(videos)
     clean_labels = {
         video.identity: tuple(rally for rally in video.rallies
-                              if rally.identity not in flagged_rallies[video.identity])
+                              if rally.rally_id not in flagged_rallies[video.identity])
         for video in videos
     }
     all_denominator = sum(len(video.rallies) for video in videos)

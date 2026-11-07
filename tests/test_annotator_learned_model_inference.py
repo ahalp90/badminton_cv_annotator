@@ -17,7 +17,7 @@ from annotator.contacts.score_candidates import (
 from annotator.courts.frame_geometry import SceneCourt
 from annotator.inference import learned as learned_model_inference
 from annotator.inference.heuristic import select_heuristic_contacts
-from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.rallies.build_contact_proposals import FEATURE_NAMES, build_rally_context
 from annotator.rallies.refine_rallies import (
     REVIEW_FEATURE_NAMES,
@@ -62,12 +62,12 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
         candidates, contact_feature_matrix(candidates), np.array([0.5, 0.4, 0.95, 0.6, 0.93]), np.array([2, 4]),
     )
 
-    evidence = AnnotationEvidence(
+    evidence = PreparedAnnotationInputs(
          video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0), track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)),
         bboxes=bboxes, players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, 100), (200, 400)],
         exclusion_mask=~in_scene, heuristic_spans=[(200, 300)],
         heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [220, 260]],
-        raw_exclusion_mask=~in_scene, shuttle_hallucination_mask=np.zeros(frame_count, dtype=bool),
+        raw_exclusion_mask=~in_scene, rejected_shuttle_frames=np.zeros(frame_count, dtype=bool),
         scene_courts=scenes,
     )
 
@@ -104,13 +104,13 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     wrist_gaps = WristGaps(np.full(frame_count, np.inf), np.full((frame_count, 2), np.inf))
     track = np.zeros((frame_count, 3))
     track[:, 2] = 1
-    evidence = AnnotationEvidence(
+    evidence = PreparedAnnotationInputs(
          video_config=scale_config_to_fps(BaseAnnotatorConfig(), 30.0), resolution=(1280.0, 720.0),
         track=track, pose_kps=np.zeros((frame_count, 2, 17, 2)), bboxes=np.zeros((frame_count, 2, 4)),
         players=players, wrist_gaps=wrist_gaps, tracker_intervals=[(0, frame_count)],
         exclusion_mask=np.zeros(frame_count, dtype=bool), raw_exclusion_mask=np.zeros(frame_count, dtype=bool),
         heuristic_spans=[(0, 90)], heuristic_contacts=[ContactCandidate(0, frame, None, None) for frame in [16, 80]],
-        scene_courts=(), shuttle_hallucination_mask=mask,
+        scene_courts=(), rejected_shuttle_frames=mask,
     )
     probability_column = CONTACT_FEATURE_NAMES.index('shuttle_speed_t+0')
     scored_matrices = []
@@ -121,38 +121,38 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         return np.column_stack((1.0 - probabilities, probabilities))
 
     config = ContactModelConfig()
-    models = replace(annotator_models, contact=SimpleNamespace(predict_proba=predict), contact_settings=config)
+    models = replace(annotator_models, contact_model=SimpleNamespace(predict_proba=predict), contact_settings=config)
     training = sequence_training_video(
         'masked', 'group', evidence, features, (),
-        models.contact, config,
+        models.contact_model, config,
     )
 
-    monkeypatch.setattr(learned_model_inference, 'features_from_evidence', lambda _evidence: features)
-    inference = learned_model_inference.predict_contacts(evidence, models)
+    monkeypatch.setattr(learned_model_inference, 'contact_features_from_inputs', lambda _evidence: features)
+    inference = learned_model_inference.predict_rallies_and_contacts(evidence, models)
     expected_candidates = [1, 10, 16, 40, 60, 80]
-    np.testing.assert_array_equal(inference.contacts.candidates['frame'], expected_candidates)
-    assert [event.frame for event in training.context.events] == list(inference.contacts.frames)
-    assert list(inference.contacts.frames) == [10, 80]
-    for context, matrix in zip((training.context, inference.refined.pool.context), scored_matrices, strict=True):
+    np.testing.assert_array_equal(inference.scored_candidates.candidates['frame'], expected_candidates)
+    assert [event.frame for event in training.context.events] == list(inference.scored_candidates.frames)
+    assert list(inference.scored_candidates.frames) == [10, 80]
+    for context, matrix in zip((training.context, inference.rally_prediction.pool.context), scored_matrices, strict=True):
         candidate_frames = [event.frame for event in context.shortlisted_by_span[0]]
         assert candidate_frames == [1, 40, 60]
-        assert set(context.physical_by_frame) == {1, 10, 40, 60, 80}
-        for physical in context.physical_by_frame.values():
+        assert set(context.contact_features_by_frame) == {1, 10, 40, 60, 80}
+        for physical in context.contact_features_by_frame.values():
             assert physical.dtype == np.float32
             assert not np.shares_memory(physical, matrix)
         # Frame numbers differ from row indices; keep each contact's own feature values.
         np.testing.assert_allclose(
-            [context.physical_by_frame[frame][probability_column] for frame in [1, 10, 40, 60, 80]],
+            [context.contact_features_by_frame[frame][probability_column] for frame in [1, 10, 40, 60, 80]],
             [.8, .99, .8, .7, .95],
         )
 
     selector = DummyClassifier(strategy='prior').fit(np.zeros((2, len(FEATURE_NAMES))), [0, 1])
     review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])
-    fitted_layers = replace(models, sequences=RallySelector(selector), confidence=review)
-    layer_prediction = learned_model_inference.predict_contact_features(evidence, features, fitted_layers)
-    assert isinstance(layer_prediction.refined, RallyPrediction)
+    fitted_layers = replace(models, rally_selector=RallySelector(selector), review_model=review)
+    layer_prediction = learned_model_inference.predict_from_contact_features(evidence, features, fitted_layers)
+    assert isinstance(layer_prediction.rally_prediction, RallyPrediction)
     expected_pool = expand_pool(training)
-    assert layer_prediction.refined.pool.sequences == expected_pool.sequences
-    np.testing.assert_array_equal(layer_prediction.refined.pool.matrix, expected_pool.matrix)
-    assert layer_prediction.confidence.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.refined.sequences)
-    assert len(layer_prediction.confidence.scores) == len(layer_prediction.refined.sequences)
+    assert layer_prediction.rally_prediction.pool.sequences == expected_pool.sequences
+    np.testing.assert_array_equal(layer_prediction.rally_prediction.pool.matrix, expected_pool.matrix)
+    assert layer_prediction.rally_review.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.rally_prediction.sequences)
+    assert len(layer_prediction.rally_review.scores) == len(layer_prediction.rally_prediction.sequences)

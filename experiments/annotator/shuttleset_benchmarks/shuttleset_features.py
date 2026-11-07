@@ -41,16 +41,16 @@ class ShuttleFeatureInputs(NamedTuple):
 
 def derive_shuttle_feature_inputs(
     track: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     rejected_grades: frozenset[int],
     homography_rows: pd.DataFrame,
     resolution: tuple[float, float],
 ) -> ShuttleFeatureInputs:
     """Mask production-ineligible shuttle frames before court projection."""
     validate_shuttle_track(track, len(track))
-    codes = np.asarray(guard_codes)
+    codes = np.asarray(shuttle_grades)
     if codes.shape != (len(track),) or not np.issubdtype(codes.dtype, np.integer):
-        raise ValueError("guard_codes must be an integer vector matching the track")
+        raise ValueError("shuttle_grades must be an integer vector matching the track")
     if not isinstance(rejected_grades, frozenset) or not rejected_grades.issubset(
         {1, 2, 3}
     ):

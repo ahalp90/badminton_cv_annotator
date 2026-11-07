@@ -1026,7 +1026,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 metadata=metadata,
                 track=shuttle.track,
                 inpaint_fill_mask=shuttle.inpaint_fill_mask,
-                guard_codes=shuttle.guard_codes,
+                shuttle_grades=shuttle.shuttle_grades,
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,

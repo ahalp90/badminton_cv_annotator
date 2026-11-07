@@ -163,7 +163,7 @@ def _direct_annotation(
     track: np.ndarray,
     pose: vision.PoseArrays,
     court: vision.CourtVision,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     models,
 ) -> VideoAnnotation:
     inputs = court.evidence.inputs
@@ -180,7 +180,7 @@ def _direct_annotation(
         resolution=inputs.resolution,
         court_present=court.evidence.court_present,
         homography_rows=inputs.homography_rows,
-        inpaint_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         court_invalid_is_excluded=True,
     )
     return annotation
@@ -190,11 +190,11 @@ def _quality(
     track: np.ndarray,
     *,
     fill_mask: np.ndarray | None = None,
-    guard_codes: np.ndarray | None = None,
+    shuttle_grades: np.ndarray | None = None,
 ) -> ShuttleQualitySummary:
     frame_count = len(track)
     fill = np.zeros(frame_count, dtype=bool) if fill_mask is None else fill_mask
-    codes = np.zeros(frame_count, dtype=np.uint8) if guard_codes is None else guard_codes
+    codes = np.zeros(frame_count, dtype=np.uint8) if shuttle_grades is None else shuttle_grades
     return summarize_shuttle_quality(track, fill, codes, frozenset({1, 2, 3}))
 
 
@@ -807,13 +807,13 @@ def test_full_annotation_matches_direct_result_and_both_masks(
     track = np.zeros((metadata.frame_count, 3), dtype=np.float64)
     pose = _pose_arrays(metadata.frame_count)
     court = _court_vision(video_id, metadata.frame_count)
-    guard_codes = np.zeros(metadata.frame_count, dtype=np.uint8)
+    shuttle_grades = np.zeros(metadata.frame_count, dtype=np.uint8)
     direct_annotation = _direct_annotation(
         metadata,
         track,
         pose,
         court,
-        guard_codes,
+        shuttle_grades,
         annotator_models,
     )
 
@@ -822,7 +822,7 @@ def test_full_annotation_matches_direct_result_and_both_masks(
         metadata=metadata,
         track=track,
         inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         pose=pose,
         court=court,
         output_dir=tmp_path / "annotation",
@@ -856,9 +856,9 @@ def saved_cli_inputs(tmp_path: Path, annotator_models: AnnotatorModels) -> list[
     )
     shuttle_dir = stages / "shuttle" / video_id
     track = np.zeros((metadata.frame_count, 3))
-    guard_codes, _ = grade_track(track)
+    shuttle_grades, _ = grade_track(track)
     vision.save_npy_xz(shuttle_dir / vision.TRACK_FILENAME, track)
-    vision.save_npy_xz(shuttle_dir / GUARD_CODES_FILENAME, guard_codes)
+    vision.save_npy_xz(shuttle_dir / GUARD_CODES_FILENAME, shuttle_grades)
     vision.save_json_gz(shuttle_dir / "source_stride8_inpaint_mask.json.gz", {
         "schema": "inpaint_fill_mask/1", "index_space": "frame", "n_rows": metadata.frame_count,
         "input_video": metadata.source_path.name, "inpaint_status": "applied", "inpaint_selected": [[2, 5]],
@@ -936,16 +936,16 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
     track = np.zeros((metadata.frame_count, 3), dtype=float)
     track[:, 2] = 1.0
     fill_mask = np.ones(metadata.frame_count, dtype=bool)
-    guard_codes = np.zeros(metadata.frame_count, dtype=np.uint8)
-    guard_codes[[2, 5, 8]] = [1, 2, 3]
+    shuttle_grades = np.zeros(metadata.frame_count, dtype=np.uint8)
+    shuttle_grades[[2, 5, 8]] = [1, 2, 3]
 
     def fake_run_video(
         *_args: object,
-        inpaint_codes: np.ndarray,
+        shuttle_grades: np.ndarray,
         **_kwargs: object,
     ) -> VideoAnnotation:
-        np.testing.assert_array_equal(inpaint_codes, guard_codes)
-        assert 'shuttle_hallucination_mask' not in _kwargs
+        np.testing.assert_array_equal(shuttle_grades, shuttle_grades)
+        assert 'rejected_shuttle_frames' not in _kwargs
         return VideoAnnotation(
             AnnotatorResult((), {}, {}, {}, (), [], ()),
             np.zeros(metadata.frame_count, dtype=bool), np.zeros(metadata.frame_count, dtype=bool), None,
@@ -957,7 +957,7 @@ def test_full_annotation_uses_guard_codes_and_keeps_fill_mask_as_measurement_onl
         metadata=metadata,
         track=track,
         inpaint_fill_mask=fill_mask,
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         pose=_pose_arrays(metadata.frame_count),
         court=_court_vision("video", metadata.frame_count),
         output_dir=tmp_path / "annotation",
@@ -1011,7 +1011,7 @@ def test_malformed_annotation_masks_raise_original_error(
             metadata=metadata,
             track=np.zeros((metadata.frame_count, 3), dtype=float),
             inpaint_fill_mask=np.zeros(metadata.frame_count, dtype=bool),
-            guard_codes=np.zeros(metadata.frame_count, dtype=np.uint8),
+            shuttle_grades=np.zeros(metadata.frame_count, dtype=np.uint8),
             pose=_pose_arrays(metadata.frame_count),
             court=_court_vision("video", metadata.frame_count),
             output_dir=output_dir,
@@ -1078,7 +1078,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     artifacts = vision.persist_annotation_run(tmp_path, run, frame_count=50)
     payload = vision.load_json_gz(artifacts.result)
 
-    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA == "annotator-result/0.7"
+    assert payload["schema"] == vision.ANNOTATOR_RESULT_SCHEMA == "annotator-result/0.8"
     assert payload["video_id"] == "match-alpha"
     primitives = payload["result"]
     assert isinstance(primitives, dict)
@@ -1100,7 +1100,7 @@ def test_annotation_persistence_round_trips_every_primitive_and_distinct_masks(
     assert primitives["outcomes"]["0"]["winner_source"] == "next_server"
     assert primitives["outcomes"]["0"]["conservative_landing_winner"] == "Top"
     assert primitives["outcomes"]["0"]["search_shortened_by_exclusion"] is False
-    assert primitives["outcomes"]["0"]["landing"]["norm"] == [0.4, 0.8]
+    assert primitives["outcomes"]["0"]["landing"]["court_xy"] == [0.4, 0.8]
     assert primitives["unavailable_hit_height_reasons"] == {"14": "unmeasured"}
     from dataset_builder._runtime_support import _annotation_result
 

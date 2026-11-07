@@ -57,8 +57,8 @@ def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
         for row in correct_rows:
             boundary = judge_rally_boundaries(pool.sequences[row], video.rallies, tolerance=tolerance)
             if boundary.rally is None:
-                raise ValueError(f'{video.identity}: a correct option has no labelled rally')
-            covered.add(boundary.rally.identity)
+                raise ValueError(f'{video.video_id}: a correct option has no labelled rally')
+            covered.add(boundary.rally.rally_id)
         options = [pool.sequences[row] for row in rows]
         earliest_start = max(previous_end, min(option.start_frame for option in options) - padding)
         latest_end = max(option.end_frame for option in options) + padding
@@ -73,14 +73,14 @@ def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
             len(match_contacts(rally.frames, frames, tolerance)) == len(rally.frames) for frames in containing
         )
         rallies.append({
-            'rally': rally.identity,
+            'rally': rally.rally_id,
             'all_sides_known': all(side is not None for side in rally.sides),
-            'correct_option': rally.identity in covered,
+            'correct_option': rally.rally_id in covered,
             'bounds_possible': bool(containing),
             'frame_union_possible': frame_union_possible,
         })
     return {
-        'video': video.identity,
+        'video': video.video_id,
         'labelled_rallies': len(video.rallies),
         'sections_with_correct_option': sections_with_correct_option,
         'with_correct_option': len(covered),
@@ -101,7 +101,7 @@ def main() -> None:
     results = []
     for identity, video in sorted(validation_videos(args.shots_master).items()):
         pool: LabelledOptions = joblib.load(args.pools / 'videos' / f'{identity}.joblib')
-        if pool.video.identity != identity or pool.video.rallies != video.rallies:
+        if pool.video.video_id != identity or pool.video.rallies != video.rallies:
             raise ValueError(f'{identity}: the option list was built from different labels')
         results.append(inspect_pool(pool))
     print(json.dumps({'per_video': results}, indent=2))

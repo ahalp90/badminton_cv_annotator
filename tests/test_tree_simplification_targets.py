@@ -164,7 +164,7 @@ def test_span_rally_pruning_matches_unpruned_targets_with_neighbour_labels(
     observed_rallies = []
 
     def observe(sequence, labels, fps, *, tolerance_at_30_fps):
-        observed_rallies.append(tuple(rally.identity for rally in labels))
+        observed_rallies.append(tuple(rally.rally_id for rally in labels))
         return original(
             sequence, labels, fps, tolerance_at_30_fps=tolerance_at_30_fps,
         )

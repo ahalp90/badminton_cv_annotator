@@ -506,7 +506,7 @@ def run_locked(args: argparse.Namespace) -> None:
             'identity': video.identity, 'dataset': video.dataset, 'split': video.split,
             'fps': video.fps, 'resolution': list(video.resolution),
             'directory': video.directory, 'frame_count': video.frame_count,
-            'rallies': [[rally.identity, list(rally.frames),
+            'rallies': [[rally.rally_id, list(rally.frames),
                          [None if side is None else side.value for side in rally.sides]] for rally in video.rallies],
         } for video in videos],
     }

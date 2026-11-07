@@ -314,7 +314,7 @@ def _build_candidate_row(
     impulse: float,
     arrays: tuple[np.ndarray, ...],
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     court_present: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
@@ -338,7 +338,7 @@ def _build_candidate_row(
         band_fraction=band_fraction,
     )
     visible = bool(track[frame, 2] == 1)
-    code = int(inpaint_codes[frame])
+    code = int(shuttle_grades[frame])
     court_absent = not bool(court_present[frame])
     wrist_pass = bool(
         pose.wrist_distance_bh is not None
@@ -421,7 +421,7 @@ def evaluate_serve_candidates(
     band_fraction: float,
     arrays: tuple[np.ndarray, ...],
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     court_present: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
@@ -470,7 +470,7 @@ def evaluate_serve_candidates(
                 impulse=impulse,
                 arrays=arrays,
                 truth=truth,
-                inpaint_codes=inpaint_codes,
+                shuttle_grades=shuttle_grades,
                 court_present=court_present,
                 raw_mask=raw_mask,
                 definitive_mask=definitive_mask,

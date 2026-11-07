@@ -26,7 +26,7 @@ from annotator.courts.prepare_courts import (
     build_net_band,
     detected_court_info,
 )
-from annotator.inference import prepare_contact_inference as player_evidence
+from annotator.inference import prepare_annotation_inputs as player_evidence
 from annotator.types import (
     OTHER_HALF,
     WRIST_L,

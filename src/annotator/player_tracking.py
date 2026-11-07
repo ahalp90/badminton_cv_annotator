@@ -9,7 +9,7 @@ import numpy as np
 
 from annotator.array_calc_helpers import true_runs
 from annotator.courts.frame_geometry import SceneCourt, court_at_frame
-from annotator.types import ANKLE_L, ANKLE_R, Slot, TrackedPlayers
+from annotator.types import ANKLE_L, ANKLE_R, PlayerRow, TrackedPlayers
 from shared.player_tracking import (
     StickyAnchorParams,
     compute_halfcourt_centres,
@@ -68,7 +68,7 @@ def track_sticky_players(
                 pose_bboxes[frame, :detection_count], pose_scores[frame, :detection_count],
                 pose_kps[frame, :detection_count], running_positions, halfcourt_centres, scene.court_info, resolution, params,
             )
-            for player_row in Slot:
+            for player_row in PlayerRow:
                 detection_index = int(frame_players.detection_indices[player_row])
                 if detection_index < 0:
                     continue

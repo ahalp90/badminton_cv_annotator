@@ -110,7 +110,7 @@ def score_stream(
     for sequence in sequences:
         correctness = whole_rally_correctness(sequence, rallies, fps)
         if correctness == 1:
-            correct_rallies.append(overlapping_rallies(sequence, rallies)[0].identity)
+            correct_rallies.append(overlapping_rallies(sequence, rallies)[0].rally_id)
         score = None if confidence is None else confidence[str(sequence.span_id)]
         sections.append([sequence.span_id, correctness, score])
     return {**counts, 'labelled_rallies': len(rallies), 'correct_rallies': correct_rallies, 'sections': sections}

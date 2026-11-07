@@ -18,7 +18,7 @@ from annotator.contacts.score_candidates import (
     ScoredContacts,
     strongest_spaced_rows,
 )
-from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from shared.frame_timing import frames_at_fps
 
@@ -45,21 +45,30 @@ SIDE_FEATURE_NAMES = (
     "fraction_adjacent_known_same_side",
 )
 
-FEATURE_NAMES = (
+COMPARISON_FEATURE_NAMES = (
     *(f'before__{name}' for name in SUMMARY_FEATURE_NAMES),
     *(f'after__{name}' for name in SUMMARY_FEATURE_NAMES),
     *(f'before__{name}' for name in SIDE_FEATURE_NAMES),
     *(f'after__{name}' for name in SIDE_FEATURE_NAMES),
     'added_count', 'deleted_count',
     *(f'{kind}_probability_{stat}' for kind in ('added', 'deleted') for stat in ('min', 'max', 'mean')),
-    *(f'{kind}__{name}' for kind in ('original_first', 'new_first', 'strongest_addition', 'weakest_deletion')
-      for name in CONTACT_FEATURE_NAMES),
+)
+
+CONTACT_FEATURE_GROUPS = ('original_first', 'new_first', 'strongest_addition', 'weakest_deletion')
+
+UNUSED_FEATURE_NAMES = (
     'unused_candidate_count', 'unused_probability_min', 'unused_probability_max', 'unused_probability_mean',
     'usable_candidate_count', 'excluded_candidate_count',
     'gaps_with_candidates', 'positive_gap_count', 'gaps_without_candidates', 'longest_gap_seconds',
     'last_gap_has_candidate',
     'gap_probability_max', 'gap_probability_second', 'gap_probability_mean', 'gap_probability_sum',
     'strongest_unused_left_gap_seconds', 'strongest_unused_right_gap_seconds',
+)
+
+FEATURE_NAMES = (
+    *COMPARISON_FEATURE_NAMES,
+    *(f'{kind}__{name}' for kind in CONTACT_FEATURE_GROUPS for name in CONTACT_FEATURE_NAMES),
+    *UNUSED_FEATURE_NAMES,
     *(f'strongest_unused__{name}' for name in CONTACT_FEATURE_NAMES),
 )
 
@@ -71,7 +80,7 @@ class RallyContext:
     ``initial`` groups the selected contacts into initial rally ranges.
     ``events`` also includes selected contacts outside those ranges.
     ``shortlisted_by_span`` supplies possible additions to each rally.
-    ``physical_by_frame`` keeps contact-feature rows for selected/shortlisted
+    ``contact_features_by_frame`` keeps contact-feature rows for selected/shortlisted
     frames, so proposal building can release the full video feature matrix.
     ``bounds_supplied`` prevents changes to supplied rally bounds.
     """
@@ -80,7 +89,7 @@ class RallyContext:
     initial: tuple[ContactSequence, ...]
     events: tuple[ContactEvent, ...]
     shortlisted_by_span: dict[int, tuple[ContactEvent, ...]]
-    physical_by_frame: dict[int, np.ndarray]
+    contact_features_by_frame: dict[int, np.ndarray]
     frame_count: int | None = None
     bounds_supplied: bool = False
 
@@ -101,7 +110,7 @@ class RallyOptions:
 
 
 def build_rally_context(
-    evidence: AnnotationEvidence, contacts: ScoredContacts,
+    inputs: PreparedAnnotationInputs, contacts: ScoredContacts,
 ) -> RallyContext:
     """Group selected contacts into rallies and shortlist possible missed hits.
 
@@ -111,19 +120,19 @@ def build_rally_context(
     def event_for_row(row: int) -> ContactEvent:
         frame = int(contacts.candidates['frame'][row])
         side, distances = contact_player_evidence(
-            frame, evidence.track, evidence.players, evidence.wrist_gaps, evidence.bboxes, evidence.scene_courts,
+            frame, inputs.track, inputs.players, inputs.wrist_gaps, inputs.bboxes, inputs.scene_courts,
         )
         return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)
 
     events = tuple(event_for_row(int(row)) for row in contacts.kept_indices)
-    initial = initial_sequences(evidence.heuristic_spans, events)
+    initial = initial_sequences(inputs.heuristic_spans, events)
     contacts_by_frame = {event.frame: event for event in events}
     used_rows = set(contacts.kept_indices)
     shortlisted_by_span = {}
     previous_end = -1
     for before in initial:
-        serve_rows = shortlist_serve_rows(before, contacts, evidence.fps, previous_end=previous_end)
-        rows = [*serve_rows, *shortlist_later_rows(before, contacts, evidence.fps)]
+        serve_rows = shortlist_serve_rows(before, contacts, inputs.fps, previous_end=previous_end)
+        rows = [*serve_rows, *shortlist_later_rows(before, contacts, inputs.fps)]
         used_rows.update(rows)
         frames = set()
         for row in rows:
@@ -139,10 +148,10 @@ def build_rally_context(
     # Each frame has one feature row. Copy the selection so training contexts
     # do not retain the full video matrix.
     feature_rows = contacts.feature_matrix[selected_rows]
-    physical_by_frame = {int(frame): features for frame, features in zip(selected_frames, feature_rows, strict=True)}
+    contact_features_by_frame = {int(frame): features for frame, features in zip(selected_frames, feature_rows, strict=True)}
     return RallyContext(
-        evidence.fps, initial, events, shortlisted_by_span, physical_by_frame,
-        frame_count=len(evidence.track), bounds_supplied=evidence.bounds_supplied,
+        inputs.fps, initial, events, shortlisted_by_span, contact_features_by_frame,
+        frame_count=len(inputs.track), bounds_supplied=inputs.bounds_supplied,
     )
 
 
@@ -294,7 +303,7 @@ def toggle_proposals(
 
 def option_features(
     before: ContactSequence, after: ContactSequence, considered_contacts: tuple[ContactEvent, ...],
-    context: RallyContext, before_summary: tuple[float, ...], before_sides: tuple[float, ...],
+    context: RallyContext, before_summary: Mapping[str, float], before_sides: Mapping[str, float],
 ) -> np.ndarray:
     """Measure a proposed contact sequence against the initial rally evidence."""
     before_frames = {event.frame for event in before.events}
@@ -303,27 +312,36 @@ def option_features(
     deleted = tuple(event for event in before.events if event.frame not in after_frames)
     strongest = min(added, key=lambda event: (-event.probability, event.frame)) if added else None
     weakest = min(deleted, key=lambda event: (event.probability, event.frame)) if deleted else None
-    feature_frames = (
-        before.events[0].frame if before.events else None,
-        after.events[0].frame if after.events else None,
-        None if strongest is None else strongest.frame, None if weakest is None else weakest.frame,
-    )
     unused_features, unused_frame = unused_evidence(after, considered_contacts, context.fps)
+    comparison_features = {
+        **{f'before__{name}': value for name, value in before_summary.items()},
+        **{f'after__{name}': value for name, value in sequence_summary(after, context.fps).items()},
+        **{f'before__{name}': value for name, value in before_sides.items()},
+        **{f'after__{name}': value for name, value in side_agreement(after).items()},
+        'added_count': float(len(added)),
+        'deleted_count': float(len(deleted)),
+        **{f'added_probability_{name}': value for name, value in probability_summary(added).items()},
+        **{f'deleted_probability_{name}': value for name, value in probability_summary(deleted).items()},
+    }
+    feature_frames = {
+        'original_first': before.events[0].frame if before.events else None,
+        'new_first': after.events[0].frame if after.events else None,
+        'strongest_addition': None if strongest is None else strongest.frame,
+        'weakest_deletion': None if weakest is None else weakest.frame,
+    }
+    contact_feature_blocks = [
+        contact_features_or_nan(context.contact_features_by_frame, feature_frames[kind])
+        for kind in CONTACT_FEATURE_GROUPS
+    ]
     return np.concatenate((
-        before_summary,
-        sequence_summary(after, context.fps),
-        before_sides,
-        side_agreement(after),
-        (len(added), len(deleted)),
-        probability_summary(added),
-        probability_summary(deleted),
-        *(contact_features_or_nan(context.physical_by_frame, frame) for frame in feature_frames),
-        unused_features,
-        contact_features_or_nan(context.physical_by_frame, unused_frame),
+        [comparison_features[name] for name in COMPARISON_FEATURE_NAMES],
+        *contact_feature_blocks,
+        [unused_features[name] for name in UNUSED_FEATURE_NAMES],
+        contact_features_or_nan(context.contact_features_by_frame, unused_frame),
     ))
 
 
-def sequence_summary(sequence: ContactSequence, fps: float) -> tuple[float, ...]:
+def sequence_summary(sequence: ContactSequence, fps: float) -> dict[str, float]:
     """Contact count, scores, timing and number of unknown hitters.
 
     No contacts: zero probability and contact-timing summaries, but keep the
@@ -342,26 +360,26 @@ def sequence_summary(sequence: ContactSequence, fps: float) -> tuple[float, ...]
         start_to_first = (events[0].frame - sequence.start_frame) / fps
         last_to_end = (sequence.end_frame - events[-1].frame) / fps
         unanswered_sides = sum(event.side is None for event in events)
-    shortest_gap = longest_gap = 0.0
+    shortest_contact_gap = longest_contact_gap = 0.0
     if event_count >= 2:
-        gaps = [(later.frame - earlier.frame) / fps for earlier, later in pairwise(events)]
-        shortest_gap = min(gaps)
-        longest_gap = max(gaps)
-    return (
-        float(event_count),
-        (sequence.end_frame - sequence.start_frame) / fps,
-        minimum,
-        median,
-        weakest_three,
-        shortest_gap,
-        longest_gap,
-        start_to_first,
-        last_to_end,
-        float(unanswered_sides),
-    )
+        contact_gaps = [(later.frame - earlier.frame) / fps for earlier, later in pairwise(events)]
+        shortest_contact_gap = min(contact_gaps)
+        longest_contact_gap = max(contact_gaps)
+    return {
+        'predicted_event_count': float(event_count),
+        'section_duration_seconds': (sequence.end_frame - sequence.start_frame) / fps,
+        'minimum_score': minimum,
+        'median_score': median,
+        'mean_weakest_three': weakest_three,
+        'shortest_gap_seconds': shortest_contact_gap,
+        'longest_gap_seconds': longest_contact_gap,
+        'start_to_first_seconds': start_to_first,
+        'last_to_end_seconds': last_to_end,
+        'unanswered_side_count': float(unanswered_sides),
+    }
 
 
-def side_agreement(sequence: ContactSequence) -> tuple[float, float, float, float]:
+def side_agreement(sequence: ContactSequence) -> dict[str, float]:
     """Compare individual hitter guesses with both alternating player orders.
 
     Return the known fraction, agreement when starting Top, agreement when
@@ -385,12 +403,17 @@ def side_agreement(sequence: ContactSequence) -> tuple[float, float, float, floa
         bot_agreement = bot_matches / known_count
     adjacent = [(first, second) for first, second in pairwise(guesses) if first is not None and second is not None]
     same_side = np.nan if not adjacent else sum(first == second for first, second in adjacent) / len(adjacent)
-    return (fraction_known, top_agreement, bot_agreement, same_side)
+    return {
+        'fraction_known': fraction_known,
+        'fraction_known_starting_top': top_agreement,
+        'fraction_known_starting_bot': bot_agreement,
+        'fraction_adjacent_known_same_side': same_side,
+    }
 
 
 def unused_evidence(
     after: ContactSequence, considered_contacts: tuple[ContactEvent, ...], fps: float,
-) -> tuple[tuple[float, ...], int | None]:
+) -> tuple[dict[str, float], int | None]:
     """Measure omitted candidates and gaps that could contain another contact.
 
     A usable candidate is inside the rally and far enough from selected hits.
@@ -400,8 +423,8 @@ def unused_evidence(
     frames = np.asarray([event.frame for event in after.events], dtype=np.int64)
     chosen = set(frames.tolist())
     unused = tuple(event for event in considered_contacts if event.frame not in chosen)
-    durations = np.diff([after.start_frame, *frames.tolist(), after.end_frame])
-    positive_gaps = set(np.flatnonzero(durations > 0).tolist())
+    gaps_including_boundaries = np.diff([after.start_frame, *frames.tolist(), after.end_frame])
+    positive_gaps = set(np.flatnonzero(gaps_including_boundaries > 0).tolist())
     distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
     probabilities_by_gap: dict[int, list[float]] = {}
     usable_count = 0
@@ -420,20 +443,20 @@ def unused_evidence(
         left = int(frames[position - 1]) if position else after.start_frame
         right = int(frames[position]) if position < len(frames) else after.end_frame
         left_gap, right_gap = (strongest.frame - left) / fps, (right - strongest.frame) / fps
-    values = (
-        float(len(unused)),
-        *probability_summary(unused),
-        float(usable_count),
-        float(len(unused) - usable_count),
-        float(len(gaps_with_candidates)),
-        float(len(positive_gaps)),
-        float(len(positive_gaps - gaps_with_candidates)),
-        float(max(durations) / fps),
-        float(len(durations) - 1 in gaps_with_candidates),
-        *summarise_gap_maxima(list(probabilities_by_gap.values())),
-        left_gap,
-        right_gap,
-    )
+    values = {
+        'unused_candidate_count': float(len(unused)),
+        **{f'unused_probability_{name}': value for name, value in probability_summary(unused).items()},
+        'usable_candidate_count': float(usable_count),
+        'excluded_candidate_count': float(len(unused) - usable_count),
+        'gaps_with_candidates': float(len(gaps_with_candidates)),
+        'positive_gap_count': float(len(positive_gaps)),
+        'gaps_without_candidates': float(len(positive_gaps - gaps_with_candidates)),
+        'longest_gap_seconds': float(max(gaps_including_boundaries) / fps),
+        'last_gap_has_candidate': float(len(gaps_including_boundaries) - 1 in gaps_with_candidates),
+        **summarise_gap_maxima(list(probabilities_by_gap.values())),
+        'strongest_unused_left_gap_seconds': left_gap,
+        'strongest_unused_right_gap_seconds': right_gap,
+    }
     return values, None if strongest is None else strongest.frame
 
 
@@ -444,22 +467,31 @@ def contact_features_or_nan(features_by_frame: Mapping[int, np.ndarray], frame: 
     return features_by_frame[frame]
 
 
-def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> tuple[float, ...]:
+def summarise_gap_maxima(values: Sequence[Sequence[float]]) -> dict[str, float]:
     """Summarise the strongest candidate in each gap with available evidence."""
-    if not values:
-        return (np.nan, np.nan, np.nan, np.nan)
-    maxima = np.asarray([max(group) for group in values], dtype=np.float64)
-    ordered = np.sort(maxima)[::-1]
-    return (float(ordered[0]), float(ordered[1]) if len(ordered) > 1 else np.nan,
-            float(np.mean(maxima)), float(np.sum(maxima)))
+    maximum = second = mean = total = np.nan
+    if values:
+        maxima = np.asarray([max(group) for group in values], dtype=np.float64)
+        ordered = np.sort(maxima)[::-1]
+        maximum = float(ordered[0])
+        second = float(ordered[1]) if len(ordered) > 1 else np.nan
+        mean, total = float(np.mean(maxima)), float(np.sum(maxima))
+    return {
+        'gap_probability_max': maximum,
+        'gap_probability_second': second,
+        'gap_probability_mean': mean,
+        'gap_probability_sum': total,
+    }
 
 
-def probability_summary(events: tuple[ContactEvent, ...]) -> tuple[float, float, float]:
+def probability_summary(events: tuple[ContactEvent, ...]) -> dict[str, float]:
     """Minimum, maximum and mean contact probability; all NaN for no contacts."""
-    if not events:
-        return np.nan, np.nan, np.nan
     values = [event.probability for event in events]
-    return min(values), max(values), float(np.mean(values))
+    return {
+        'min': min(values) if values else np.nan,
+        'max': max(values) if values else np.nan,
+        'mean': float(np.mean(values)) if values else np.nan,
+    }
 
 
 def events_between(events: Sequence[ContactEvent], start_frame: int, end_frame: int) -> tuple[ContactEvent, ...]:

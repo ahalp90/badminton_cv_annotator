@@ -84,7 +84,7 @@ def test_shuttle_evidence_round_trips_provenance_and_guard_grades(
         evidence.inpaint_fill_mask,
         np.array([False, False, True, True, True] + [False] * 35),
     )
-    assert evidence.guard_codes.dtype == np.uint8
+    assert evidence.shuttle_grades.dtype == np.uint8
     assert evidence.guard_diagnostics["schema"] == "shuttle-guard/0.1"
 
     restored = load_shuttle_evidence(
@@ -99,7 +99,7 @@ def test_shuttle_evidence_round_trips_provenance_and_guard_grades(
 
     np.testing.assert_array_equal(restored.track, evidence.track)
     np.testing.assert_array_equal(restored.inpaint_fill_mask, evidence.inpaint_fill_mask)
-    np.testing.assert_array_equal(restored.guard_codes, evidence.guard_codes)
+    np.testing.assert_array_equal(restored.shuttle_grades, evidence.shuttle_grades)
     assert restored.guard_diagnostics == evidence.guard_diagnostics
 
 
@@ -201,7 +201,7 @@ def test_disabled_inpaint_sidecar_requires_empty_spans(tmp_path: Path) -> None:
 def test_restore_rejects_guard_codes_from_a_different_track(tmp_path: Path) -> None:
     evidence, input_video, tracknet_model, inpaint_model = _persisted_fixture(tmp_path)
     wrong_codes = np.ones(40, dtype=np.uint8)
-    save_npy_xz(evidence.artifacts.guard_codes, wrong_codes)
+    save_npy_xz(evidence.artifacts.shuttle_grades, wrong_codes)
 
     with pytest.raises(ValueError, match="differ from the final track"):
         load_shuttle_evidence(

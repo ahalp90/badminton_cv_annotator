@@ -15,7 +15,7 @@ from shared.frame_timing import frames_at_fps
 class LabelledRally:
     """Sorted labelled contact frames and matching player sides; None means unknown side."""
 
-    identity: str
+    rally_id: str
     frames: tuple[int, ...]
     sides: tuple[CourtHalf | None, ...]
 
@@ -45,18 +45,83 @@ class SequenceTrainingVideo:
     sharing a group together.
     """
 
-    identity: str
+    video_id: str
     group: str
     context: RallyContext
     rallies: tuple[LabelledRally, ...]
 
 
+def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
+    """Labelled rallies with any contact inside the range, incl start, excl end."""
+    return tuple(
+        rally for rally in rallies
+        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
+    )
+
+
+def whole_rally_correctness(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance_at_30_fps: int = 10,
+) -> int:
+    """Return 1 for correct, 0 for wrong, -1 when the labels cannot decide.
+
+    Require one complete labelled rally, all contacts within tolerance, and
+    matching known player sides after fitting alternation. Missing/extra hits,
+    partial/merged rallies and wrong known sides count as wrong even if another
+    side is unlabelled. Otherwise, any unlabelled side leaves it unjudgeable.
+    """
+    tolerance = frames_at_fps(tolerance_at_30_fps, fps)
+    boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
+    if boundary.outcome == 'no_labelled_rally':
+        return -1
+    if boundary.outcome != 'boundaries_right':
+        return 0
+    rally = boundary.rally
+    assert rally is not None
+    if len(sequence.events) != len(rally.frames):
+        return 0
+    # A fully correct rally pairs every contact in chronological order.
+    for labelled_frame, event in zip(rally.frames, sequence.events, strict=True):
+        if abs(event.frame - labelled_frame) > tolerance:
+            return 0
+    revised = fit_rally_sides((sequence,))
+    for labelled_side, event in zip(rally.sides, revised[0].sequence.events, strict=True):
+        if labelled_side is not None and event.side != labelled_side:
+            return 0
+    if any(side is None for side in rally.sides):
+        return -1
+    return 1
+
+
+def judge_rally_boundaries(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], *, tolerance: int,
+) -> RallyBoundaryJudgement:
+    """Check a rally range against labelled contacts, incl start, excl end.
+
+    Allow small inward errors up to tolerance. Extra time before/after the
+    labelled rally is allowed, but including another labelled rally fails.
+    If no label lies inside the range, also check the tolerance-expanded range.
+    """
+    start = sequence.start_frame - tolerance
+    end = sequence.end_frame + tolerance
+    overlaps = overlapping_rallies(sequence, rallies)
+    if not overlaps:
+        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
+    if not overlaps:
+        return RallyBoundaryJudgement('no_labelled_rally', None, 0)
+    if len(overlaps) > 1:
+        return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
+    rally = overlaps[0]
+    first, last = rally.frames[0], rally.frames[-1]
+    if not start <= first or not last < end:
+        return RallyBoundaryJudgement('part_of_rally', rally, 1)
+    return RallyBoundaryJudgement('boundaries_right', rally, 1)
+
+
+# Contact matching
+
 MATCH_CONTACT = np.uint8(1)
-
-
 SKIP_PREDICTION = np.uint8(2)
-
-
 SKIP_LABEL = np.uint8(3)
 
 
@@ -158,70 +223,3 @@ def match_contacts(
 
     matches.reverse()
     return matches
-
-
-def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
-    """Labelled rallies with any contact inside the range, incl start, excl end."""
-    return tuple(
-        rally for rally in rallies
-        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
-    )
-
-
-def whole_rally_correctness(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance_at_30_fps: int = 10,
-) -> int:
-    """Return 1 for correct, 0 for wrong, -1 when the labels cannot decide.
-
-    Require one complete labelled rally, all contacts within tolerance, and
-    matching known player sides after fitting alternation. Missing/extra hits,
-    partial/merged rallies and wrong known sides count as wrong even if another
-    side is unlabelled. Otherwise, any unlabelled side leaves it unjudgeable.
-    """
-    tolerance = frames_at_fps(tolerance_at_30_fps, fps)
-    boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
-    if boundary.outcome == 'no_labelled_rally':
-        return -1
-    if boundary.outcome != 'boundaries_right':
-        return 0
-    rally = boundary.rally
-    assert rally is not None
-    if len(sequence.events) != len(rally.frames):
-        return 0
-    # A fully correct rally pairs every contact in chronological order.
-    for labelled_frame, event in zip(rally.frames, sequence.events, strict=True):
-        if abs(event.frame - labelled_frame) > tolerance:
-            return 0
-    revised = fit_rally_sides((sequence,))
-    for labelled_side, event in zip(rally.sides, revised[0].sequence.events, strict=True):
-        if labelled_side is not None and event.side != labelled_side:
-            return 0
-    if any(side is None for side in rally.sides):
-        return -1
-    return 1
-
-
-def judge_rally_boundaries(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], *, tolerance: int,
-) -> RallyBoundaryJudgement:
-    """Check a rally range against labelled contacts, incl start, excl end.
-
-    Allow small inward errors up to tolerance. Extra time before/after the
-    labelled rally is allowed, but including another labelled rally fails.
-    If no label lies inside the range, also check the tolerance-expanded range.
-    """
-    start = sequence.start_frame - tolerance
-    end = sequence.end_frame + tolerance
-    overlaps = overlapping_rallies(sequence, rallies)
-    if not overlaps:
-        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
-    if not overlaps:
-        return RallyBoundaryJudgement('no_labelled_rally', None, 0)
-    if len(overlaps) > 1:
-        return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
-    rally = overlaps[0]
-    first, last = rally.frames[0], rally.frames[-1]
-    if not start <= first or not last < end:
-        return RallyBoundaryJudgement('part_of_rally', rally, 1)
-    return RallyBoundaryJudgement('boundaries_right', rally, 1)

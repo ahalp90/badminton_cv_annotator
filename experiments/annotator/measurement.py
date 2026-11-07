@@ -175,7 +175,7 @@ class InputManifest:
     schema_version: int
     videos: dict[str, FilePin]
     track_overrides: dict[str, FilePin]
-    inpaint_codes: dict[str, FilePin]
+    shuttle_grades: dict[str, FilePin]
     deeplsd_weights: FilePin
     producers: dict[str, str]
 
@@ -210,7 +210,7 @@ class CaseData:
     ndet: np.ndarray
     raw_cuts: list[tuple[int, int]]
     inpaint_pin: FilePin
-    inpaint_codes: np.ndarray
+    shuttle_grades: np.ndarray
     raw_cuts_artifact: dict[str, Any] | None = None
     status: str = "not_run"
     failure_path: Path | None = None
@@ -406,7 +406,7 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
             raise ValueError("input manifest is not valid JSON") from error
     if not isinstance(payload, dict):
         raise TypeError("input manifest must be a JSON object")
-    expected = {"schema_version", "videos", "track_overrides", "inpaint_codes", "deeplsd_weights", "producers"}
+    expected = {"schema_version", "videos", "track_overrides", "shuttle_grades", "deeplsd_weights", "producers"}
     if set(payload) != expected:
         missing = sorted(expected.difference(payload))
         unknown = sorted(set(payload).difference(expected))
@@ -419,9 +419,9 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
     tracks_raw = payload["track_overrides"]
     if not isinstance(tracks_raw, dict) or set(tracks_raw) != {"sset_01/tracknet-stride-1"}:
         raise ValueError("track_overrides must contain exactly the stride-1 sset_01 case")
-    guards_raw = payload["inpaint_codes"]
+    guards_raw = payload["shuttle_grades"]
     if not isinstance(guards_raw, dict) or set(guards_raw) != {case.case_id for case in CASES}:
-        raise ValueError("inpaint_codes must pin guard codes for each of the four fixed cases")
+        raise ValueError("shuttle_grades must pin guard codes for each of the four fixed cases")
     producers_raw = payload["producers"]
     if not isinstance(producers_raw, dict) or set(producers_raw) != set(_PRODUCER_KEYS):
         raise ValueError("producers keys do not match the fixed consumed roles")
@@ -433,8 +433,8 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
         producers[key] = value.strip()
     videos = {key: _pin_from_json(value, f"videos.{key}") for key, value in videos_raw.items()}
     track_overrides = {key: _pin_from_json(value, f"track_overrides.{key}") for key, value in tracks_raw.items()}
-    inpaint_codes = {key: _pin_from_json(value, f"inpaint_codes.{key}") for key, value in guards_raw.items()}
-    if any(pin.root != "fixtures" for pin in inpaint_codes.values()):
+    shuttle_grades = {key: _pin_from_json(value, f"shuttle_grades.{key}") for key, value in guards_raw.items()}
+    if any(pin.root != "fixtures" for pin in shuttle_grades.values()):
         raise ValueError("inpaint code pins must use the fixtures root")
     if any(pin.root != "fixtures" for pin in videos.values()):
         raise ValueError("video pins must use the fixtures root")
@@ -443,7 +443,7 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
     deeplsd_weights = _pin_from_json(payload["deeplsd_weights"], "deeplsd_weights")
     if deeplsd_weights.root != "fixtures":
         raise ValueError("deeplsd_weights must use the fixtures root")
-    return InputManifest(3, videos, track_overrides, inpaint_codes, deeplsd_weights, producers)
+    return InputManifest(3, videos, track_overrides, shuttle_grades, deeplsd_weights, producers)
 
 
 def verify_selected_pins(pins: Sequence[FilePin]) -> None:
@@ -594,7 +594,7 @@ def _landing_fields(landing: Landing | None) -> list[object]:
     if landing is None:
         return [None] * 6
     return [
-        landing.frame, landing.norm[0], landing.norm[1], landing.half,
+        landing.frame, landing.court_xy[0], landing.court_xy[1], landing.half,
         landing.at_border, landing.net_ender,
     ]
 
@@ -776,8 +776,8 @@ def _input_records(case: CaseData, manifest: InputManifest) -> list[dict[str, An
         _array_pin_record("scores", case.scores_pin, producer[f"pose:{fixture.name}"], case.scores),
         _array_pin_record("kps", case.kps_pin, producer[f"pose:{fixture.name}"], case.kps),
         _array_pin_record("ndet", case.ndet_pin, producer[f"pose:{fixture.name}"], case.ndet),
-        _array_pin_record("inpaint_codes", case.inpaint_pin, producer[f"inpaint:{case.fixed.case_id}"],
-                          case.inpaint_codes),
+        _array_pin_record("shuttle_grades", case.inpaint_pin, producer[f"inpaint:{case.fixed.case_id}"],
+                          case.shuttle_grades),
     ]
     records.extend([
         _plain_pin_record("resolution_csv", SHARED_FILES[2], "repository calibration table"),
@@ -800,21 +800,21 @@ def _load_case(fixed: FixedCase, manifest: InputManifest, fixture: Fixture) -> C
     if fixed.tracknet_stride == 1:
         track_pin = manifest.track_overrides[fixed.case_id]
     bboxes_pin, scores_pin, kps_pin, ndet_pin = fixture.files[1], fixture.files[2], fixture.files[3], fixture.files[5]
-    inpaint_pin = manifest.inpaint_codes[fixed.case_id]
+    inpaint_pin = manifest.shuttle_grades[fixed.case_id]
     verify_selected_pins((video_pin, track_pin, bboxes_pin, scores_pin, kps_pin, ndet_pin, inpaint_pin))
     track, bboxes, scores, kps, ndet = (
         _load_array(track_pin), _load_array(bboxes_pin), _load_array(scores_pin),
         _load_array(kps_pin), _load_array(ndet_pin),
     )
-    inpaint_codes = _load_array(inpaint_pin)
-    validate_inpaint_codes(inpaint_codes, len(track), fixed.case_id)
+    shuttle_grades = _load_array(inpaint_pin)
+    validate_inpaint_codes(shuttle_grades, len(track), fixed.case_id)
     _validate_arrays(fixed, track, bboxes, scores, kps, ndet)
     video_path = _pin_path(video_pin)
     validate_video_metadata(fixed, probe_video(video_path))
     raw_cuts = build_raw_cut_intervals(video_path, fixed.n_frames, fixed.fps)
     return CaseData(
         fixed, fixture, video_pin, track_pin, bboxes_pin, scores_pin, kps_pin, ndet_pin,
-        video_path, track, bboxes, scores, kps, ndet, raw_cuts, inpaint_pin, inpaint_codes,
+        video_path, track, bboxes, scores, kps, ndet, raw_cuts, inpaint_pin, shuttle_grades,
     )
 
 
@@ -1022,7 +1022,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             fps=case.fixed.fps,
             models=driver.models,
             base=driver.models.preprocessing,
-            inpaint_codes=case.inpaint_codes,
+            shuttle_grades=case.shuttle_grades,
             landing_options=LANDING_OPTIONS,
             resolution=input_values.resolution,
             ref_err_px=REF_ERR_PX,
@@ -1035,7 +1035,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         result = annotation.result
         state.result = result
         assert annotation.working_data is not None
-        evidence = annotation.working_data.evidence
+        evidence = annotation.working_data.prepared_inputs
         state.exclusion_fraction = float(evidence.exclusion_mask.mean())
         state.landing_comparisons = compare_landing_searches(
             evidence, result.rallies, result.outcomes, LANDING_SEARCH_SECONDS, LANDING_OPTIONS,
@@ -1276,7 +1276,7 @@ def _setup(driver: RunDriver) -> None:
                 np.empty((0, 0, 17, 2)),
                 np.empty((0,), dtype=np.int64),
                 [],
-                manifest.inpaint_codes[fixed.case_id],
+                manifest.shuttle_grades[fixed.case_id],
                 np.empty(0, dtype=np.uint8),
                 status="failed",
             )

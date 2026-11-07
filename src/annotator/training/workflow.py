@@ -24,10 +24,13 @@ from annotator.contacts.score_candidates import (
     ContactModelConfig,
     score_contact_features,
 )
-from annotator.inference.learned import features_from_evidence, predict_contacts
-from annotator.inference.prepare_contact_inference import (
-    AnnotationEvidence,
-    prepare_contact_inference,
+from annotator.inference.learned import (
+    contact_features_from_inputs,
+    predict_rallies_and_contacts,
+)
+from annotator.inference.prepare_annotation_inputs import (
+    PreparedAnnotationInputs,
+    prepare_annotation_inputs,
 )
 from annotator.models import AnnotatorModels, load_models, save_models
 from annotator.rallies.build_contact_proposals import build_rally_context
@@ -118,7 +121,7 @@ class LoadedTrainingVideo:
     """
 
     entry: VideoInput
-    evidence: AnnotationEvidence
+    evidence: PreparedAnnotationInputs
     features: ContactFeatures
     rallies: tuple[LabelledRally, ...]
     contact_input: ContactTrainingVideo
@@ -155,7 +158,7 @@ def fit_from_manifest(
     loaded = []
     for entry in entries:
         evidence = load_contact_evidence(manifest.run_dir, entry.video_id, settings.preprocessing)
-        features = features_from_evidence(evidence)
+        features = contact_features_from_inputs(evidence)
         rallies = load_labels(entry.labels, len(evidence.track))
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
         contact_input = ContactTrainingVideo(entry.video_id, features.rows, frames, evidence.fps)
@@ -188,7 +191,7 @@ def fit_from_manifest(
         tolerance_at_30_fps=settings.rally.review_tolerance_at_30_fps,
     )
     models = AnnotatorModels(
-        contact=contact_model, sequences=rally_fit.selector, confidence=review_model,
+        contact_model=contact_model, rally_selector=rally_fit.selector, review_model=review_model,
         contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
     )
     save_models(models, output)
@@ -211,8 +214,8 @@ def evaluate_manifest(
     for entry in videos_for_split(manifest, split):
         evidence = load_contact_evidence(manifest.run_dir, entry.video_id, models.preprocessing)
         rallies = load_labels(entry.labels, len(evidence.track))
-        prediction = predict_contacts(evidence, models)
-        counts = evaluation_counts(prediction.refined.events, prediction.refined.sequences, rallies, evidence.fps)
+        prediction = predict_rallies_and_contacts(evidence, models)
+        counts = evaluation_counts(prediction.rally_prediction.events, prediction.rally_prediction.sequences, rallies, evidence.fps)
         rows.append({'id': entry.video_id, **counts})
         for name in count_names:
             totals[name] += int(counts[name])
@@ -248,14 +251,14 @@ def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[Contac
 
 # Prepare saved inputs and labels
 
-def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnotatorConfig) -> AnnotationEvidence:
+def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnotatorConfig) -> PreparedAnnotationInputs:
     """Load saved metadata, pose, court and shuttle arrays, then prepare annotation inputs."""
     stages = run_dir / 'stages'
     try:
         metadata = VideoMetadata.from_dict(load_json_gz(stages / 'metadata' / video_id / METADATA_FILENAME))
         track = load_npy_xz(stages / 'shuttle' / video_id / TRACK_FILENAME)
         validate_shuttle_track(track, metadata.frame_count)
-        guard_codes = load_npy_xz(stages / 'shuttle' / video_id / GUARD_CODES_FILENAME)
+        shuttle_grades = load_npy_xz(stages / 'shuttle' / video_id / GUARD_CODES_FILENAME)
         pose = load_pose_arrays(stages / 'pose' / video_id, metadata.frame_count)
         court = load_court_vision(
             stages / 'court' / video_id, video_id=video_id, frame_count=metadata.frame_count,
@@ -266,17 +269,17 @@ def load_contact_evidence(run_dir: Path, video_id: str, preprocessing: BaseAnnot
     inputs = court.evidence.inputs
     if inputs is None:
         raise ValueError(f'{video_id}: court extraction has no usable operational court inputs')
-    return prepare_contact_inference(
+    return prepare_annotation_inputs(
         track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
         video_config=scale_config_to_fps(preprocessing, float(metadata.fps)),
         resolution=inputs.resolution,
         court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
-        inpaint_codes=guard_codes, court_invalid_is_excluded=True,
+        shuttle_grades=shuttle_grades, court_invalid_is_excluded=True,
     )
 
 
 def sequence_training_video(
-    video_id: str, group: str, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
+    video_id: str, group: str, evidence: PreparedAnnotationInputs, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
     contact_model: Any, settings: ContactModelConfig,
 ) -> SequenceTrainingVideo:
     """Score contacts and prepare candidate sequences for rally fitting."""

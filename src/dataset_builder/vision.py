@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from shared.video_metadata import VideoMetadata
 
 
-ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.7"
+ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.8"
 COURT_EVIDENCE_SCHEMA = "court-evidence/0.5"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
@@ -700,7 +700,7 @@ def run_full_annotation_stage(
     metadata: VideoMetadata,
     track: np.ndarray,
     inpaint_fill_mask: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     pose: PoseArrays,
     court: CourtVision,
     output_dir: Path,
@@ -727,7 +727,7 @@ def run_full_annotation_stage(
     shuttle_quality = summarize_shuttle_quality(
         track,
         inpaint_fill_mask,
-        guard_codes,
+        shuttle_grades,
         effective_base.rejected_grades,
     )
     validate_pose_arrays(pose, metadata.frame_count)
@@ -756,7 +756,7 @@ def run_full_annotation_stage(
         raw_exclusion_mask=None,
         court_present=court.evidence.court_present,
         homography_rows=court_inputs.homography_rows,
-        inpaint_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         court_invalid_is_excluded=True,
     )
     result = annotation.result

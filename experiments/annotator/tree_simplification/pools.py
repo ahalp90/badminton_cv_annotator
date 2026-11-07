@@ -33,7 +33,7 @@ from experiments.annotator.tree_simplification.options import (
     expand_pool,
 )
 
-SCHEMA = 'tree-simplification-option-pools/3'
+SCHEMA = 'tree-simplification-option-pools/4'
 TARGET_VALUES = (-1, 0, 1)
 EDIT_KINDS = ('keep', 'add', 'delete', 'mixed')
 
@@ -78,7 +78,7 @@ def pool_summary(options: LabelledOptions, split: str) -> dict[str, object]:
         return sum(bool(np.any(pool.targets[rows] == 1)) for rows in pool.span_rows.values())
 
     return {
-        'video': options.video.identity,
+        'video': options.video.video_id,
         'group': options.video.group,
         'split': split,
         'options': len(options.sequences),
@@ -99,7 +99,7 @@ def _prepare_pool(job: PoolJob) -> dict[str, object]:
     with threadpool_limits(limits=1):
         if job.reuse_options is not None:
             saved: LabelledOptions = joblib.load(job.reuse_options)
-            if saved.video.identity != job.video or saved.video.group != job.group:
+            if saved.video.video_id != job.video or saved.video.group != job.group:
                 raise ValueError(f'{job.video}: reused proposal identity or group differs')
             options = saved
         else:

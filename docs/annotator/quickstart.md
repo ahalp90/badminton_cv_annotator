@@ -200,7 +200,7 @@ annotation = annotate_video(
 `annotation.result` contains heuristic contacts, player assignments and outcome
 estimates. The exclusion masks are returned alongside it.
 Change `base` for a heuristic experiment and save its configuration with the
-result. For feature inputs, call `prepare_contact_inference()` directly. See the
+result. For feature inputs, call `prepare_annotation_inputs()` directly. See the
 [input guide](inputs_outputs.md#direct-python-call) for the required arrays.
 
 ## 7. Common failures

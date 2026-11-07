@@ -42,7 +42,7 @@ def test_bundle_roundtrip_keeps_predictions_and_preprocessing(tmp_path):
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
     assert restored.preprocessing == models.preprocessing
-    np.testing.assert_array_equal(restored.contact.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
+    np.testing.assert_array_equal(restored.contact_model.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
 
 
 def test_missing_bundle_explains_retune_requirement(tmp_path):
@@ -60,7 +60,7 @@ def test_library_version_metadata_does_not_block_loading(tmp_path, annotator_mod
     assert load_models(tmp_path).preprocessing == annotator_models.preprocessing
 
 
-@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1', 'annotator-three-models/1', 'annotator-three-models/2'])
+@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1', 'annotator-three-models/1', 'annotator-three-models/2', 'annotator-three-models/3'])
 def test_retired_schema_is_rejected_before_unpickling(tmp_path, schema):
     (tmp_path / 'models.joblib').write_bytes(b'not loaded')
     (tmp_path / 'metadata.json').write_text(json.dumps({'schema': schema}))

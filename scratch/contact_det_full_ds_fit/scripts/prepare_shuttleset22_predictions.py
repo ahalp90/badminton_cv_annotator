@@ -741,8 +741,8 @@ def process_video(
     fill_mask = fill_mask_from_sidecar(sidecar, metadata.frame_count)
     if int(fill_mask.sum()) != receipt.get("selected_frame_count"):
         raise ValueError(f"video {video.source.video_id}: inpaint fill count differs")
-    guard_codes = load_npy_xz(video.directory / "shuttle_guard_codes_inpainted.npy.xz")
-    if guard_codes.shape != (metadata.frame_count,):
+    shuttle_grades = load_npy_xz(video.directory / "shuttle_guard_codes_inpainted.npy.xz")
+    if shuttle_grades.shape != (metadata.frame_count,):
         raise ValueError(
             f"video {video.source.video_id}: shuttle guard timeline differs"
         )
@@ -760,7 +760,7 @@ def process_video(
         metadata=metadata,
         track=track,
         inpaint_fill_mask=fill_mask,
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         pose=pose,
         court=court,
         output_dir=annotation_directory,

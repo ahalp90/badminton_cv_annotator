@@ -23,13 +23,13 @@ def combine_mask(
     rally_spans: list[tuple[int, int]] | None,
     n_frames: int,
     fps: float,
-    *, non_evidence: np.ndarray | None = None,
+    *, rejected_shuttle_frames: np.ndarray | None = None,
 ) -> np.ndarray:
     """Combine sustained court absence and slow-motion flags, before short-run filtering."""
     court = court_absence_signal(court_present, n_frames, fps)
     velocity = velocity_drop_signal(
         track, rally_spans, n_frames, fps,
-        non_evidence=non_evidence, baseline_exclude=court,
+        rejected_shuttle_frames=rejected_shuttle_frames, baseline_exclude=court,
     )
     return court | velocity
 
@@ -106,7 +106,7 @@ def court_absence_signal(court_present: np.ndarray | None, n_frames: int, fps: f
 
 def velocity_drop_signal(
     track: np.ndarray | None, rally_spans: list[tuple[int, int]] | None, n_frames: int, fps: float,
-    *, non_evidence: np.ndarray | None = None, baseline_exclude: np.ndarray | None = None,
+    *, rejected_shuttle_frames: np.ndarray | None = None, baseline_exclude: np.ndarray | None = None,
 ) -> np.ndarray:
     """Flag visible shuttle movement much slower than the video's usual rally speed.
 
@@ -114,9 +114,9 @@ def velocity_drop_signal(
     movement at least as fast as the rest threshold: ordinary pauses between
     rallies must remain available for commentary matching.
 
-    Skip speed measurements if either frame is marked ``non_evidence``.
+    Skip speed measurements if either frame is marked ``rejected_shuttle_frames``.
     ``baseline_exclude`` removes frames from the usual-speed estimate only.
-    A ``non_evidence`` frame can still be marked slow motion based on nearby
+    A ``rejected_shuttle_frames`` frame can still be marked slow motion based on nearby
     speeds. Leave windows with no speed measurements unflagged.
 
     :return: One boolean per video frame; True means possible slow motion.
@@ -127,12 +127,12 @@ def velocity_drop_signal(
         return mask
     if len(track) != n_frames:
         raise ValueError(f'shuttle track length {len(track)} != n_frames {n_frames}')
-    _validate_optional_frame_mask('non_evidence', non_evidence, len(track))
+    _validate_optional_frame_mask('rejected_shuttle_frames', rejected_shuttle_frames, len(track))
     _validate_optional_frame_mask('baseline_exclude', baseline_exclude, len(track))
 
     speed = compute_speed(track)
-    if non_evidence is not None:
-        unmeasured_steps = non_evidence[1:] | non_evidence[:-1]
+    if rejected_shuttle_frames is not None:
+        unmeasured_steps = rejected_shuttle_frames[1:] | rejected_shuttle_frames[:-1]
         speed[1:][unmeasured_steps] = np.nan
     in_rally = np.zeros(len(track), dtype=bool)
     for start, end in rally_spans:

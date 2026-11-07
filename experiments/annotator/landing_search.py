@@ -8,7 +8,7 @@ from itertools import pairwise
 
 import numpy as np
 
-from annotator.inference.prepare_contact_inference import AnnotationEvidence
+from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.rally_results import landing_and_winner as point_winner
 from annotator.rally_results.estimate_results import final_flight_range
 from annotator.types import FinishedRally
@@ -39,7 +39,7 @@ def validate_search_limits(search_seconds: tuple[float, ...]) -> None:
 
 
 def compare_landing_searches(
-    evidence: AnnotationEvidence,
+    evidence: PreparedAnnotationInputs,
     rallies: Sequence[FinishedRally],
     outcomes: dict[int, point_winner.RallyOutcome],
     search_seconds: tuple[float, ...],
@@ -57,7 +57,7 @@ def compare_landing_searches(
         if striker is None:
             continue
         final_contact = rally.sequence.events[-1].frame
-        if evidence.shuttle_hallucination_mask[final_contact]:
+        if evidence.rejected_shuttle_frames[final_contact]:
             continue
         next_rally = rallies[rally_id + 1] if rally_id + 1 < len(rallies) else None
         next_server = next_rally.first_half if next_rally is not None else None
@@ -74,7 +74,7 @@ def compare_landing_searches(
             kinematics = video_kinematics._replace(speed=speed)
         window = point_winner.landing_window(
             search_start, search_limit, evidence.track, evidence.exclusion_mask,
-            evidence.video_config.thresholds.sustained_loss_frames, evidence.shuttle_hallucination_mask,
+            evidence.video_config.thresholds.sustained_loss_frames, evidence.rejected_shuttle_frames,
         )
         normal = outcomes[rally_id]
         for seconds in search_seconds:
@@ -93,7 +93,7 @@ def compare_landing_searches(
                     landing = point_winner.pick_landing_to_end(
                         search_start, trial_end, evidence.track, kinematics, options,
                         striker, scene.net_band, evidence.resolution, scene.court_info,
-                        evidence.video_config.thresholds, evidence.shuttle_hallucination_mask,
+                        evidence.video_config.thresholds, evidence.rejected_shuttle_frames,
                         infer_net_fault=search_start == final_contact,
                     )
                 trial = point_winner.resolve_rally_outcome(

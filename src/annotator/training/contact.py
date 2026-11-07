@@ -25,7 +25,7 @@ MAXIMUM_NEGATIVES_PER_POSITIVE = 24
 class ContactTrainingVideo:
     """One video's candidate rows, sorted contact labels and frame rate."""
 
-    identity: str
+    video_id: str
     features: np.ndarray
     contact_frames: np.ndarray
     fps: float
@@ -107,13 +107,13 @@ def fit_contact_model(
         if tuple(fit_video_order) != tuple(selection.video_counts):
             slices = {}
             position = 0
-            for identity, counts in selection.video_counts.items():
-                slices[identity] = slice(position, position + counts.selected)
+            for video_id, counts in selection.video_counts.items():
+                slices[video_id] = slice(position, position + counts.selected)
                 position += counts.selected
             selection = ContactTrainingSelection(
-                np.concatenate([selection.rows[slices[identity]] for identity in fit_video_order]),
-                np.concatenate([selection.labels[slices[identity]] for identity in fit_video_order]),
-                {identity: selection.video_counts[identity] for identity in fit_video_order},
+                np.concatenate([selection.rows[slices[video_id]] for video_id in fit_video_order]),
+                np.concatenate([selection.labels[slices[video_id]] for video_id in fit_video_order]),
+                {video_id: selection.video_counts[video_id] for video_id in fit_video_order},
             )
     model = fit_binary_tree(
         contact_feature_matrix(selection.rows), selection.labels, config,
@@ -141,10 +141,10 @@ def select_contact_training_rows(
     label_chunks: list[np.ndarray] = []
     video_counts: dict[str, ContactTrainingCounts] = {}
     for video in training_videos:
-        if video.identity in video_counts:
-            raise ValueError(f"training video appears more than once: {video.identity}")
+        if video.video_id in video_counts:
+            raise ValueError(f"training video appears more than once: {video.video_id}")
         if video.contact_frames.ndim != 1 or np.any(np.diff(video.contact_frames) < 0):
-            raise ValueError(f"{video.identity}: contact frames must be a sorted one-dimensional array")
+            raise ValueError(f"{video.video_id}: contact frames must be a sorted one-dimensional array")
         rows = video.features
         distances = nearest_contact_distances(rows['frame'], video.contact_frames)
         positive = distances <= frames_at_fps(config.positive_radius_at_30_fps, video.fps)
@@ -166,7 +166,7 @@ def select_contact_training_rows(
         selected[other_positions] = True
         row_chunks.append(rows[selected])
         label_chunks.append(positive[selected].astype(np.uint8))
-        video_counts[video.identity] = ContactTrainingCounts(
+        video_counts[video.video_id] = ContactTrainingCounts(
             len(positive_positions), len(nearby_positions), len(other_positions), int(selected.sum()),
         )
     if not row_chunks:
