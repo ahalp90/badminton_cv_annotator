@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rally labeller</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <header class="top-bar">
+      <select id="video-picker" aria-label="Video"></select>
+      <span id="readout" class="readout"></span>
+      <span id="save-status" class="save-status"></span>
+      <span id="section-badge" class="section-badge" title="Mark Section start (under More) where you begin labelling" hidden>No section yet</span>
+      <button id="list-button" type="button" class="phone-only">List</button>
+      <button id="more-button" type="button" class="phone-only">More</button>
+      <button id="fullscreen-button" type="button" title="Full screen">⛶</button>
+      <button id="prepare-button" type="button" title="Make a browser copy of part of a video">Prepare…</button>
+      <button id="help-button" type="button" title="Keys and mouse">?</button>
+    </header>
+
+    <main class="layout">
+      <section class="player">
+        <div class="thumb thumb-left">
+          <button type="button" data-action="jumpBack"></button>
+          <button type="button" data-action="stepBack">−1</button>
+          <button type="button" data-action="playPause">Play</button>
+          <button type="button" data-action="stepForward">+1</button>
+          <button type="button" data-action="jumpForward"></button>
+        </div>
+        <div class="thumb thumb-right">
+          <button type="button" data-action="markTop" class="mark-top">▲ Top</button>
+          <button type="button" data-action="markBreak">Break</button>
+          <button type="button" data-action="undo">Undo</button>
+          <button type="button" data-action="markBottom" class="mark-bottom">▼ Bottom</button>
+        </div>
+        <div id="video-slot" class="video-slot"></div>
+        <canvas id="detail" class="detail" title="A few seconds either side of the playhead. Click to go to a frame, or click a mark to select it"></canvas>
+        <canvas id="overview" class="overview" title="The whole part. Click or drag to go to that point"></canvas>
+        <p id="section-warning" class="section-warning" hidden>
+          No labelled section yet. Press <em>Section start</em> where you begin labelling, and <em>Section end</em>
+          where you stop.
+        </p>
+
+        <div class="controls">
+          <div class="control-row">
+            <span class="group">
+              <button type="button" data-action="playPause" class="wide">Play</button>
+            </span>
+            <span class="group">
+              <span class="group-label">Frames:</span>
+              <button type="button" data-action="jumpBack"></button>
+              <button type="button" data-action="stepBack">−1</button>
+              <button type="button" data-action="stepForward">+1</button>
+              <button type="button" data-action="jumpForward"></button>
+            </span>
+            <span class="group go-to">
+              <span class="group-label">Go to marker:</span>
+              <button type="button" data-action="selectPrevious">◀ Previous</button>
+              <button type="button" data-action="selectNext">Next ▶</button>
+            </span>
+            <span class="row-spacer"></span>
+            <span class="group">
+              <span class="speed-presets" id="speed-presets"></span>
+              <button type="button" data-action="slower">Slower</button>
+              <button type="button" data-action="faster">Faster</button>
+              <label class="speed-box">
+                <input id="speed" type="number" min="0.0625" max="16" step="0.05" value="1" aria-label="Playback speed" />×
+              </label>
+            </span>
+          </div>
+          <div class="control-row">
+            <span class="group">
+              <span class="group-label">Mark:</span>
+              <button type="button" data-action="markTop" class="mark-top wide">▲ Top</button>
+              <button type="button" data-action="markBottom" class="mark-bottom wide">▼ Bottom</button>
+              <button type="button" data-action="markBreak">Break</button>
+              <button type="button" data-action="toggleUnsure">Unsure</button>
+            </span>
+            <span class="group">
+              <button type="button" data-action="markStart">Rally start</button>
+              <button type="button" data-action="markEnd">Rally end</button>
+              <button type="button" data-action="markSectionStart">Section start</button>
+              <button type="button" data-action="markSectionEnd">Section end</button>
+            </span>
+            <span class="row-spacer"></span>
+            <span class="group">
+              <button type="button" data-action="undo">Undo</button>
+              <button type="button" data-action="redo">Redo</button>
+              <button type="button" data-action="deleteSelected">Delete</button>
+              <details class="settings">
+                <summary>Settings</summary>
+                <div class="settings-panel">
+                <label>Frames per jump (⇧F / ⇧G) <input id="jump-frames" type="number" min="2" step="1" /></label>
+                <label>
+                New rally after a pause between contacts of (seconds)
+                <input id="rally-gap" type="number" min="0.5" step="0.5" />
+                </label>
+                <label>Upper strip shows ± <input id="detail-seconds" type="number" min="1" step="1" /> seconds around the current frame</label>
+                <label><input id="pause-after-mark" type="checkbox" /> Pause after each mark</label>
+                <label>Magnifier zoom <input id="loupe-zoom" type="number" min="1.5" max="8" step="0.5" />×</label>
+                <label>Magnifier size <input id="loupe-size" type="number" min="120" max="480" step="20" /> pixels</label>
+                <label><input id="loupe-sharpen" type="checkbox" /> Sharpen the magnifier</label>
+                </div>
+              </details>
+            </span>
+          </div>
+          <div class="control-row" id="suggestion-row" hidden>
+            <span class="group">
+              <span class="group-label">Go to suggested:</span>
+              <button type="button" data-action="previousSuggestedContact">◀ Contact</button>
+              <button type="button" data-action="nextSuggestedContact">Contact ▶</button>
+              <button type="button" data-action="previousSuggestedRally">◀ Rally</button>
+              <button type="button" data-action="nextSuggestedRally">Rally ▶</button>
+            </span>
+            <button type="button" data-action="toggleSuggestionDone">✓ Done</button>
+            <label><input id="show-suggestions" type="checkbox" /> Show suggestions</label>
+            <span id="suggestion-names" class="muted"></span>
+            <span class="suggestion-key muted">
+              <span class="swatch hatch"></span>suggested rally
+              <span class="swatch tick top"></span><span class="swatch tick bottom"></span>suggested contact
+            </span>
+          </div>
+
+        </div>
+      </section>
+
+      <aside class="mark-panel">
+        <section class="panel-half">
+          <h2 class="panel-title">Marks</h2>
+          <div id="mark-list" class="mark-list"></div>
+        </section>
+        <section class="panel-half" id="suggestion-panel" hidden>
+          <h2 class="panel-title">Suggested contacts <span id="suggestion-count" class="muted"></span></h2>
+          <div id="suggestion-list" class="mark-list"></div>
+        </section>
+      </aside>
+    </main>
+    <canvas id="loupe" class="loupe" hidden></canvas>
+
+    <div id="note" class="note" role="status" hidden></div>
+    <div class="rotate-prompt">Turn your phone sideways to label.</div>
+
+    <div id="prepare" class="help" hidden>
+      <div class="help-card prepare-card">
+        <h2>Prepare part of a video</h2>
+        <p class="muted">
+          Copy only the part you will label. Frame numbers follow the source video, so every part of one video shares
+          one label file. Leave a time blank to start at the beginning or run to the end.
+        </p>
+        <label>Source video <select id="prepare-source"></select></label>
+        <label>Start <input id="prepare-start" type="text" placeholder="e.g. 1:35" /></label>
+        <label>End <input id="prepare-end" type="text" placeholder="e.g. 11:35" /></label>
+        <p class="muted">Times as seconds (95), minutes and seconds (1:35) or hours too (1:01:35).</p>
+        <div class="control-row">
+          <button type="button" id="prepare-go">Prepare</button>
+          <button type="button" id="prepare-close">Close</button>
+        </div>
+        <pre id="prepare-log" class="prepare-log"></pre>
+      </div>
+    </div>
+
+    <div id="help" class="help" hidden>
+      <div class="help-card">
+        <h2>Keys</h2>
+        <table id="help-keys"></table>
+        <h2>Marks</h2>
+        <ul>
+          <li><b>▲ Top / ▼ Bottom</b>: a contact by the far / near player. Rallies are worked out from contacts.</li>
+          <li><b>‖ Break</b>: ends the rally at its last contact; the next contact starts a new rally.</li>
+          <li><b>⊢ Rally start / ⊣ Rally end</b>: optional exact boundaries.</li>
+          <li><b>[ Section start / ] Section end</b>: the stretch you have fully labelled. Frames outside every section count as unlabelled.</li>
+          <li><b>Tags</b>: <i>no effect</i> means the mark changes nothing (an end or break with no rally open, or an unpaired section mark). <i>outside sections</i> means the mark sits where nothing counts as labelled yet.</li>
+        </ul>
+        <h2>Mouse and touch</h2>
+        <ul>
+          <li>Click the video to play or pause.</li>
+          <li>The upper strip shows a few seconds either side of the playhead; the lower strip shows the whole part. Click either to go there. Click a mark on the upper strip, or in the list, to go to it.</li>
+          <li>Wrong side: go to the contact and press the other side's key. Wrong frame: delete it (X) and mark it again.</li>
+          <li>On a phone: double-tap the upper or lower half of the picture for a top or bottom contact; taps right on the middle don't count. Drag sideways on the video to step through frames.</li>
+        </ul>
+        <button type="button" id="help-close">Close</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
