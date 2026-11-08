@@ -9,7 +9,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from uuid import uuid4
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder._pose_process import (
     POSE_CHILD_STEM,
     load_raw_pose_mapping,
@@ -23,6 +22,7 @@ from dataset_builder.vision import (
     save_pose_arrays,
     validate_pose_arrays,
 )
+from shared.video_metadata import VideoMetadata
 
 POSE_SHARD_DECODE_MODE = "seek"
 _POSE_SHARD_CHILD_COMMAND = "_extract-sharded-rtmlib-pose"

@@ -15,8 +15,7 @@ from typing import Any
 
 import joblib
 
-from annotator.models import SideGeometry
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.contacts.build_features import contact_feature_dtype
 from annotator.training.sequences import (
     LabelledRally,
     SequenceTrainingVideo,
@@ -25,12 +24,11 @@ from annotator.training.sequences import (
 )
 from annotator.training.workflow import (
     DEFAULT_TRAINING_SETTINGS,
-    Split,
     TrainingSettings,
-    VideoInput,
     evaluation_counts,
     sequence_training_video,
 )
+from annotator.types import ContactEvent, ContactSequence
 from experiments.annotator.heuristic_only_tune.data import (
     COUNT_FIELDS,
     SearchVideo,
@@ -40,7 +38,7 @@ from experiments.annotator.heuristic_only_tune.run import (
     read_json,
     write_json,
 )
-from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, _base_and_serve
+from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, base_config
 from experiments.annotator.tree_simplification.data import PreparedVideo
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -112,7 +110,7 @@ def score_stream(
     for sequence in sequences:
         correctness = whole_rally_correctness(sequence, rallies, fps)
         if correctness == 1:
-            correct_rallies.append(overlapping_rallies(sequence, rallies)[0].identity)
+            correct_rallies.append(overlapping_rallies(sequence, rallies)[0].rally_id)
         score = None if confidence is None else confidence[str(sequence.span_id)]
         sections.append([sequence.span_id, correctness, score])
     return {**counts, 'labelled_rallies': len(rallies), 'correct_rallies': correct_rallies, 'sections': sections}
@@ -148,10 +146,7 @@ def development_for(videos: tuple[SearchVideo, ...], groups_file: Path = GROUPS_
 
 
 def preprocessing(spec: CandidateSpec) -> Any:
-    base, serve = _base_and_serve(spec)
-    if serve is not None:
-        raise ValueError('serve configurations cannot be preserved in the fitted bundle')
-    return base
+    return base_config(spec)
 
 
 def pooled_scores(per_video: dict[str, Any]) -> dict[str, Any]:
@@ -172,7 +167,10 @@ def progress(output: Path, stage: str, **details: Any) -> None:
 
 
 def load_prepared(directory: Path, identity: str) -> PreparedVideo:
-    return joblib.load(directory / 'videos' / f'{identity}.joblib')
+    prepared = joblib.load(directory / 'videos' / f'{identity}.joblib')
+    if prepared.features.rows.dtype.names != contact_feature_dtype().names:
+        raise ValueError(f'{identity}: prepared contact columns differ; rebuild the prepared inputs')
+    return prepared
 
 
 def require_raw_features(prepared_root: Path) -> None:
@@ -183,8 +181,8 @@ def require_raw_features(prepared_root: Path) -> None:
 def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSettings) -> SequenceTrainingVideo:
     video = prepared.video
     return sequence_training_video(
-        VideoInput(video.identity, prepared.group, Split(video.split), Path('unused-labels.csv')),
-        prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction, SideGeometry.VIDEO,
+        video.identity, prepared.group,
+        prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction,
     )
 
 
@@ -196,38 +194,10 @@ def settings_for(device: str, min_child_weight: float, *, seed_offset: int = 0) 
         base,
         contact=replace(base.contact, **options, random_seed=base.contact.random_seed + seed_offset),
         confidence=replace(base.confidence, **options, random_seed=base.confidence.random_seed + seed_offset),
-        rally_layers=replace(
-            base.rally_layers,
+        rally=replace(
+            base.rally,
             tree=replace(
-                base.rally_layers.tree, **options, random_seed=base.rally_layers.tree.random_seed + seed_offset,
+                base.rally.tree, **options, random_seed=base.rally.tree.random_seed + seed_offset,
             ),
         ),
     )
-
-
-def xgboost_settings(record: dict) -> dict:
-    """Read saved XGBoost settings from before the HGB implementation retired.
-
-    The old row-count minimum never affected XGBoost. All effective settings
-    remain available to the current fit and its provenance comparisons.
-    """
-    settings = dict(record)
-    backend = settings.pop('backend', 'xgboost')
-    if backend != 'xgboost':
-        raise ValueError('HGB fitting is retired; use an XGBoost experiment record')
-    settings.pop('min_samples_leaf', None)
-    return settings
-
-
-def contact_stage_settings(record: dict[str, Any]) -> dict[str, Any]:
-    """Compare effective contact/review settings across saved experiment formats.
-
-    Retired chooser settings and rally fit settings do not affect contact fitting.
-    Meaningful preprocessing, sampling, prediction and review settings remain.
-    """
-    settings = dict(record)
-    settings.pop('sequences', None)
-    settings.pop('rally_layers', None)
-    for section in ('contact', 'confidence'):
-        settings[section] = xgboost_settings(settings[section])
-    return settings

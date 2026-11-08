@@ -1,33 +1,29 @@
-"""Replay-mask tests for isolated signals, their union, and missing inputs.
+"""Replay-mask tests for court absence, slow motion and their combined exclusions.
 
 Synthetic inputs are shaped so each signal has one obvious firing region and one
 obvious quiet region.
 """
 
 import logging
-import sys
 import warnings
 
 import numpy as np
 import pytest
 
-import annotator.masks.replay as replay_mask_module
-from annotator.config import (
-    PERSPECTIVE_SHIFT_THRESHOLD,
+import annotator.excluded_frames.replay as replay_mask_module
+from annotator.excluded_frames.replay import (
     SLOWMO_SPEED_FRAC,
-    BaseAnnotatorConfig,
-    resolve,
-)
-from annotator.masks.inpaint import FABRICATED, code_counts, grade_track
-from annotator.masks.replay import (
-    HOMOGRAPHY_CORNER_COLS,
-    _cli_non_evidence,
     combine_mask,
     court_absence_signal,
     filter_short_exclusion_runs,
-    perspective_shift_signal,
     velocity_drop_signal,
 )
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    HOMOGRAPHY_CORNER_COLS,
+    PERSPECTIVE_SHIFT_THRESHOLD,
+    perspective_shift_signal,
+)
+from shared.frame_timing import frames_at_fps
 
 # Reference court corners (interleaved [corner, xy]); bbox diagonal 500.
 REFERENCE_CORNERS = [100.0, 100.0, 500.0, 100.0, 100.0, 400.0, 500.0, 400.0]
@@ -42,7 +38,7 @@ def _homography_row(video_id: str, start: int, end: int, corners: list[float]) -
 def test_court_absence_fires_on_sustained_gap_not_blips():
     n_frames = 60
     court_present = np.ones(n_frames, dtype=bool)
-    window = resolve(BaseAnnotatorConfig(), 25.0).thresholds.court_absent_window
+    window = frames_at_fps(15, 25.0)
     long_gap = slice(10, 10 + window + 5)   # sustained absence, fires
     short_blip = slice(45, 48)                            # 3 frames, below the window
     court_present[long_gap] = False
@@ -83,7 +79,11 @@ def test_velocity_drop_fires_on_slow_span_not_normal_play():
     track[40:80, 1] = 0.4 + slow_step * (np.arange(40, 80) % 2)  # slow replay span
     rally_spans = [(0, 31)]                                       # normal play defines the norm
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    mask = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     # slow_step (0.012) < SLOWMO_SPEED_FRAC * normal_step (0.015); normal play stays above.
     assert slow_step < SLOWMO_SPEED_FRAC * normal_step
     assert mask[45:78].all()
@@ -101,7 +101,11 @@ def test_velocity_drop_ignores_genuine_rest():
     track[40:80, 1] = 0.4                                 # shuttle at rest: zero speed, visible
     rally_spans = [(0, 31)]
 
-    mask = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    mask = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     assert not mask[45:78].any()
     assert not mask[3:28].any()
 
@@ -110,27 +114,27 @@ def test_union_combines_signals():
     n_frames = 220
     court_present = np.ones(n_frames, dtype=bool)
     court_present[10:30] = False                         # court-absence region
-    rows = [
-        _homography_row('v', 0, 200, REFERENCE_CORNERS),
-        _homography_row('v', 200, 220,
-                        [value + (200.0 if i % 2 == 0 else 0.0)
-                         for i, value in enumerate(REFERENCE_CORNERS)]),
-    ]
     track = _speed_track(0.1, n_frames)
     rally_spans = [(30, 200)]
 
-    mask = combine_mask(court_present, rows, track, rally_spans, n_frames, 25.0)
+    mask = combine_mask(
+        court_present, track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
     assert mask[15:25].all()                             # court absence
     assert not mask[205:215].any()                       # a different view can be live play
 
 
-def test_missing_inputs_contribute_all_false():
+def test_no_rallies_skips_slow_motion_but_still_excludes_court_absence():
     n_frames = 50
-    assert not court_absence_signal(None, n_frames, 25.0).any()
-    assert not perspective_shift_signal(None, n_frames).any()
-    assert not velocity_drop_signal(None, [(0, 10)], n_frames, 25.0).any()
-    assert not velocity_drop_signal(_speed_track(0.1, n_frames), None, n_frames, 25.0).any()
-    assert not combine_mask(None, None, None, None, n_frames, 25.0).any()
+    track = _speed_track(0.1, n_frames)
+    court_present = np.ones(n_frames, dtype=bool)
+    court_present[10:30] = False
+    mask = combine_mask(
+        court_present, track, [], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
+    np.testing.assert_array_equal(mask, ~court_present)
 
 
 def test_filter_short_exclusion_runs_preserves_whole_runs_and_is_idempotent():
@@ -178,27 +182,31 @@ def test_non_evidence_measures_steps_not_output_frames():
     long_graded = np.zeros(n_frames, dtype=bool)
     long_graded[50:70] = True
     long_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=long_graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=long_graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert not long_mask[60:65].any()
 
     short_graded = np.zeros(n_frames, dtype=bool)
     short_graded[55:57] = True
     short_mask = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=short_graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=short_graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert short_mask[53]
     assert short_mask[58]
     # The graded frames themselves still fire on neighbouring measured evidence:
-    # non_evidence is a measurement rule, not an output gate over the mask.
+    # rejected_shuttle_frames is a measurement rule, not an output gate over the mask.
     assert short_mask[55]
     assert short_mask[56]
 
 
 def test_non_evidence_marks_a_step_when_only_its_earlier_endpoint_is_graded(monkeypatch):
     track = _speed_track(0.1, 40)
-    non_evidence = np.zeros(len(track), dtype=bool)
-    non_evidence[4] = True
+    rejected_shuttle_frames = np.zeros(len(track), dtype=bool)
+    rejected_shuttle_frames[4] = True
     captured = []
 
     def capture_speed(values, _window):
@@ -206,10 +214,14 @@ def test_non_evidence_marks_a_step_when_only_its_earlier_endpoint_is_graded(monk
         return np.full(len(values), np.nan)
 
     monkeypatch.setattr(replay_mask_module, 'rolling_nanmedian', capture_speed)
-    velocity_drop_signal(track, [(0, len(track))], len(track), 25.0, non_evidence=non_evidence)
+    velocity_drop_signal(
+        track, [(0, len(track))], len(track), 25.0,
+        rejected_shuttle_frames=rejected_shuttle_frames,
+        baseline_exclude=np.zeros(len(track), dtype=bool),
+    )
 
-    assert non_evidence[4]
-    assert not non_evidence[5]
+    assert rejected_shuttle_frames[4]
+    assert not rejected_shuttle_frames[5]
     # Both steps touching frame 4 are unmeasured: step 4 (frame 4 as its
     # current endpoint) and step 5 (frame 4 as its earlier endpoint).
     assert np.isnan(captured[0][4])
@@ -232,9 +244,15 @@ def test_non_evidence_removes_graded_fast_frames_from_the_baseline():
     assert 0.005 >= SLOWMO_SPEED_FRAC * hand_computed_median
     assert 0.005 < SLOWMO_SPEED_FRAC * 0.1
 
-    contaminated = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    contaminated = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     decontaminated = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, non_evidence=graded,
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=graded,
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     assert contaminated[50:65].all()
     assert not decontaminated[50:65].any()
@@ -254,9 +272,15 @@ def test_baseline_exclude_removes_flagged_frames_and_leaves_firing_untouched():
     assert hand_computed_median == pytest.approx(0.015)
     assert 0.005 >= SLOWMO_SPEED_FRAC * hand_computed_median
     assert 0.005 < SLOWMO_SPEED_FRAC * 0.1
-    contaminated = velocity_drop_signal(track, rally_spans, n_frames, 25.0)
+    contaminated = velocity_drop_signal(
+        track, rally_spans, n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     decontaminated = velocity_drop_signal(
-        track, rally_spans, n_frames, 25.0, baseline_exclude=flagged,
+        track, rally_spans, n_frames, 25.0,
+        baseline_exclude=flagged,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert contaminated[50:65].all()
     assert not decontaminated[50:65].any()
@@ -265,16 +289,21 @@ def test_baseline_exclude_removes_flagged_frames_and_leaves_firing_untouched():
     unchanged_track[40:55, 1] = 0.4 + 0.005 * (np.arange(40, 55) % 2)
     one_flagged_frame = np.zeros(n_frames, dtype=bool)
     one_flagged_frame[45] = True
-    before = velocity_drop_signal(unchanged_track, [(0, 60)], n_frames, 25.0)
+    before = velocity_drop_signal(
+        unchanged_track, [(0, 60)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+        baseline_exclude=np.zeros(n_frames, dtype=bool),
+    )
     after = velocity_drop_signal(
         unchanged_track, [(0, 60)], n_frames, 25.0,
         baseline_exclude=one_flagged_frame,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert before[45]
     assert after[45]
 
 
-def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
+def test_velocity_drop_matches_expected_slow_motion_frames():
     n_frames = 90
     track = np.column_stack([
         np.full(n_frames, 0.5),
@@ -297,15 +326,11 @@ def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
     ]
 
     np.testing.assert_array_equal(
-        velocity_drop_signal(track, [(0, 30)], n_frames, 25.0), expected,
-    )
-    false_mask = np.zeros(n_frames, dtype=bool)
-    np.testing.assert_array_equal(
         velocity_drop_signal(
             track, [(0, 30)], n_frames, 25.0,
-            non_evidence=false_mask, baseline_exclude=false_mask,
-        ),
-        expected,
+            rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+            baseline_exclude=np.zeros(n_frames, dtype=bool),
+        ), expected,
     )
 
 
@@ -313,13 +338,15 @@ def test_velocity_drop_prechange_regression_with_explicit_noop_masks():
 def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     n_frames = 30
     track = _speed_track(0.1, n_frames) if case == 'all-excluded' else np.zeros((n_frames, 3))
-    baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else None
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
+    baseline_exclude = np.ones(n_frames, dtype=bool) if case == 'all-excluded' else np.zeros(n_frames, dtype=bool)
+    caplog.set_level(logging.INFO, logger='annotator.excluded_frames.replay')
 
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter('always')
         mask = velocity_drop_signal(
-            track, [(0, n_frames)], n_frames, 25.0, baseline_exclude=baseline_exclude,
+            track, [(0, n_frames)], n_frames, 25.0,
+            baseline_exclude=baseline_exclude,
+            rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
         )
 
     assert not mask.any()
@@ -330,49 +357,19 @@ def test_velocity_drop_empty_baseline_pool_is_quiet(case, caplog):
     assert not any(issubclass(warning.category, RuntimeWarning) for warning in caught)
 
 
-@pytest.mark.parametrize('parameter', ['non_evidence', 'baseline_exclude'])
-@pytest.mark.parametrize(
-    'invalid',
-    [
-        np.zeros((12, 1), dtype=bool),
-        np.zeros(12, dtype=np.int8),
-        np.zeros(11, dtype=bool),
-    ],
-    ids=['wrong-ndim', 'wrong-dtype', 'wrong-length'],
-)
-def test_velocity_drop_validates_optional_masks(parameter, invalid):
-    track = _speed_track(0.1, 12)
-    with pytest.raises(ValueError):
-        velocity_drop_signal(
-            track, [(0, len(track))], len(track), 25.0, **{parameter: invalid},
-        )
-
-
-@pytest.mark.parametrize('parameter', ['non_evidence', 'baseline_exclude'])
-@pytest.mark.parametrize('disabled', ['no-track', 'no-spans'])
-def test_velocity_drop_disabled_signal_skips_optional_mask_validation(parameter, disabled):
-    # Guard order is binding: the None/empty early return comes before optional
-    # mask validation, so a disabled signal stays all-False and never raises.
-    track = None if disabled == 'no-track' else _speed_track(0.1, 12)
-    spans = [(0, 12)] if disabled == 'no-track' else []
-    invalid = np.zeros(5, dtype=np.int8)
-    mask = velocity_drop_signal(track, spans, 12, 25.0, **{parameter: invalid})
-    assert not mask.any()
-
-
 def test_combine_mask_threads_non_evidence_to_velocity():
     n_frames = 80
     track = _speed_track(0.1, n_frames)
     track[35:65, 1] = 0.4 + 0.015 * (np.arange(35, 65) % 2)
-    non_evidence = np.zeros(n_frames, dtype=bool)
-    non_evidence[45:60] = True
+    rejected_shuttle_frames = np.zeros(n_frames, dtype=bool)
+    rejected_shuttle_frames[45:60] = True
 
     combined = combine_mask(
-        None, None, track, [(0, 30)], n_frames, 25.0, non_evidence=non_evidence,
+        np.ones(n_frames, dtype=bool), track, [(0, 30)], n_frames, 25.0, rejected_shuttle_frames=rejected_shuttle_frames,
     )
     expected = velocity_drop_signal(
         track, [(0, 30)], n_frames, 25.0,
-        non_evidence=non_evidence, baseline_exclude=np.zeros(n_frames, dtype=bool),
+        rejected_shuttle_frames=rejected_shuttle_frames, baseline_exclude=np.zeros(n_frames, dtype=bool),
     )
     np.testing.assert_array_equal(combined, expected)
 
@@ -383,38 +380,23 @@ def test_combine_mask_excludes_court_producer_from_baseline():
     court_present = np.ones(n_frames, dtype=bool)
     court_present[5:35] = False
     court = court_absence_signal(court_present, n_frames, 25.0)
-    result = combine_mask(court_present, None, track, [(0, 40)], n_frames, 25.0)
-    without_court = combine_mask(np.ones(n_frames, dtype=bool), None, track, [(0, 40)], n_frames, 25.0)
+    result = combine_mask(
+        court_present, track, [(0, 40)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
+    without_court = combine_mask(
+        np.ones(n_frames, dtype=bool), track, [(0, 40)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
+    )
     expected = court | velocity_drop_signal(
-        track, [(0, 40)], n_frames, 25.0, baseline_exclude=court,
+        track, [(0, 40)], n_frames, 25.0,
+        baseline_exclude=court,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
 
     assert court[5:35].all()
     assert without_court[50]
     assert not result[50]
-    np.testing.assert_array_equal(result, expected)
-
-
-def test_combine_mask_keeps_alternate_views_in_the_velocity_baseline():
-    n_frames = 80
-    track = _borderline_baseline_track(n_frames)
-    shifted = [value + (200.0 if index % 2 == 0 else 0.0) for index, value in enumerate(REFERENCE_CORNERS)]
-    rows = [
-        _homography_row('v', 0, 5, REFERENCE_CORNERS),
-        _homography_row('v', 5, 35, shifted),
-        _homography_row('v', 35, 80, REFERENCE_CORNERS),
-    ]
-    perspective = perspective_shift_signal(rows, n_frames)
-    result = combine_mask(None, rows, track, [(0, 40)], n_frames, 25.0)
-    without_perspective = combine_mask(None, None, track, [(0, 40)], n_frames, 25.0)
-    expected = velocity_drop_signal(
-        track, [(0, 40)], n_frames, 25.0, baseline_exclude=np.zeros(n_frames, dtype=bool),
-    )
-
-    assert perspective[5:35].all()
-    assert without_perspective[50]
-    assert result[50]
-    np.testing.assert_array_equal(result, without_perspective)
     np.testing.assert_array_equal(result, expected)
 
 
@@ -428,8 +410,8 @@ def test_valid_camera_change_does_not_mask_the_rest_of_the_video():
     ]
     assert perspective_shift_signal(rows, n_frames)[200:].all()
     mask = combine_mask(
-        np.ones(n_frames, dtype=bool), rows, _speed_track(0.01, n_frames),
-        [(0, n_frames)], n_frames, 25.0,
+        np.ones(n_frames, dtype=bool), _speed_track(0.01, n_frames), [(0, n_frames)], n_frames, 25.0,
+        rejected_shuttle_frames=np.zeros(n_frames, dtype=bool),
     )
     assert not mask.any()
 
@@ -442,103 +424,3 @@ def _borderline_baseline_track(n_frames: int) -> np.ndarray:
     borderline_frames = np.arange(45, 70)
     track[45:70, 1] = 0.4 + 0.005 * (borderline_frames % 2)
     return track
-
-
-def _cli_fabricated_track() -> np.ndarray:
-    """Track with the recurrence pattern used by the guard's fabricated-fill tests."""
-    length = 14000
-    track = np.column_stack((
-        np.arange(length, dtype=float),
-        np.arange(length, dtype=float) * 0.37 + 1.0,
-    ))
-    varying = np.column_stack((
-        np.arange(16, dtype=float) + 100.0,
-        np.arange(16, dtype=float) * 2.0 + 200.0,
-    ))
-    varying_starts = [20 + episode * 100 for episode in range(50)]
-    varying_starts += [7200 + (episode - 50) * 100 for episode in range(50, 100)]
-    for start in varying_starts:
-        track[start:start + 16] = varying
-    flat_starts = tuple([5500 + episode * 50 for episode in range(25)] +
-                        [12500 + episode * 50 for episode in range(25)])
-    for start in flat_starts:
-        track[start:start + 16] = (900.0, 901.0)
-    for start in (6800, 6840, 6880):
-        track[start:start + 16] = (1200.0, 1300.0)
-    return np.column_stack((track, np.ones(length)))
-
-
-def test_cli_non_evidence_grades_rejected_frames_and_logs_counts(caplog):
-    track = _cli_fabricated_track()
-    codes, _info = grade_track(track)
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
-
-    result = _cli_non_evidence(track)
-
-    expected = np.isin(codes, (1, 2, 3))
-    np.testing.assert_array_equal(result, expected)
-    assert np.all(codes[20:36] == FABRICATED)
-    assert len(caplog.records) == 1
-    assert str(code_counts(codes)) in caplog.records[0].message
-
-
-def test_cli_non_evidence_returns_none_for_missing_track():
-    assert _cli_non_evidence(None) is None
-
-
-def test_cli_non_evidence_uses_configured_rejected_grades(monkeypatch):
-    track = _cli_fabricated_track()
-    codes, _info = grade_track(track)
-
-    class ConfigDouble:
-        rejected_grades = frozenset({FABRICATED})
-
-    monkeypatch.setattr(replay_mask_module, 'BaseAnnotatorConfig', ConfigDouble)
-    result = _cli_non_evidence(track)
-
-    np.testing.assert_array_equal(result, codes == FABRICATED)
-
-
-def test_cli_non_evidence_propagates_grade_track_errors(monkeypatch):
-    track = np.ones((4, 3), dtype=float)
-
-    def fail(_track):
-        raise RuntimeError('grading failed')
-
-    monkeypatch.setattr(replay_mask_module, 'grade_track', fail)
-    with pytest.raises(RuntimeError, match='grading failed'):
-        _cli_non_evidence(track)
-
-
-def test_replay_mask_writer_trusts_detector_output_and_supports_maskless_mode(
-    monkeypatch, tmp_path, caplog,
-):
-    court_path = tmp_path / 'court.npy'
-    out_dir = tmp_path / 'masks'
-    np.save(court_path, np.zeros(40, dtype=bool))
-    raw = np.zeros(40, dtype=bool)
-    raw[:14] = True
-    raw[20:] = True
-    monkeypatch.setattr(replay_mask_module, 'combine_mask', lambda *args, **kwargs: raw.copy())
-    caplog.set_level(logging.INFO, logger='annotator.masks.replay')
-
-    monkeypatch.setattr(sys, 'argv', [
-        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
-        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30',
-    ])
-    replay_mask_module.main()
-    np.testing.assert_array_equal(
-        np.load(out_dir / 'v_replay.npy'), raw,
-    )
-
-    monkeypatch.setattr(
-        replay_mask_module, 'combine_mask',
-        lambda *args, **kwargs: pytest.fail('maskless mode must skip detector computation'),
-    )
-    monkeypatch.setattr(sys, 'argv', [
-        'replay', '--video-id', 'v', '--court-mask', str(court_path), '--out-dir', str(out_dir),
-        '--rally-spans', str(tmp_path / 'spans.csv'), '--fps', '30', '--no-replay-mask',
-    ])
-    replay_mask_module.main()
-    assert not np.load(out_dir / 'v_replay.npy').any()
-    assert 'config: no_replay_mask=True' in caplog.text

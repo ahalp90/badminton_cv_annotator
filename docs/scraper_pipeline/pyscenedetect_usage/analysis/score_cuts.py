@@ -9,7 +9,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
+from experiments.annotator.legacy_evaluation.scoring import (
+    _scale_base30_frames,
+    load_gt_rallies,
+)
 
 EXPECTED_RALLIES = {1: 113, 15: 104, 21: 75}
 METRICS = ("start_gap", "end_gap", "nearest_start_dist", "nearest_end_dist")

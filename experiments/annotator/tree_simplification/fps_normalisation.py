@@ -17,24 +17,23 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BASE_FPS, BaseAnnotatorConfig, ScalingKind, resolve
-from annotator.contacts.features import (
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.contacts.build_features import (
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     shift_within_interval,
 )
-from annotator.rally.contacts import FLOOR_EPS, rolling_floor, span_impulses
+from annotator.contacts.heuristics import FLOOR_EPS, rolling_floor, span_impulses
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.types import SmoothingMode
 from experiments.annotator import development as experiment
 from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
-from experiments.annotator.heuristic_only_tune.run import source_record
-from experiments.annotator.tree_simplification.data import PreparedVideo
+from experiments.annotator.heuristic_only_tune.run import runtime_versions
+from shared.frame_timing import BASE_FPS, frames_at_fps
 
 SCHEMA = 'contact-motion-base30/1'
 VELOCITY_SCHEMA = 'contact-velocity-base30/1'
@@ -75,7 +74,7 @@ def normalise_contact_features(
     The impulse ratio uses a floor in the same base-30 units. Its smoothing and
     missing-data policy remain those of the original contact feature builder.
     """
-    constants = resolve(BaseAnnotatorConfig(), fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
     if fps == BASE_FPS:
         return features
     factor = fps / BASE_FPS
@@ -90,12 +89,15 @@ def normalise_contact_features(
 
     ratio = np.full(len(track), np.nan, dtype=np.float64)
     for start, end in features.search_intervals:
-        impulse = span_impulses(track, start, end, constants, smoothing_mode=SmoothingMode.ZERO_FILL)
-        if impulse is None:
+        measured = span_impulses(
+            track, start, end, smooth_window=constants.smooth_window,
+            impulse_floor_half_window=constants.impulse_floor_half_window_frames,
+            smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE,
+        )
+        if measured is None:
             continue
+        impulse, _ratios, around_visible = measured
         impulse = impulse * factor ** 2
-        visible = track[start:end, 2] == 1
-        around_visible = visible[:-2] & visible[1:-1] & visible[2:]
         floor = rolling_floor(impulse, around_visible, constants.impulse_floor_half_window_frames)
         ratio[start + 1:start + 1 + len(impulse)] = impulse / np.maximum(floor, FLOOR_EPS)
     for interval_id, (start, end) in enumerate(features.search_intervals):
@@ -104,7 +106,7 @@ def normalise_contact_features(
         for base_offset in WINDOW_OFFSETS_BASE30:
             offset = 0
             if base_offset:
-                count = ScalingKind.FRAME_COUNT.scale(abs(base_offset), fps)
+                count = frames_at_fps(abs(base_offset), fps)
                 offset = int(math.copysign(count, base_offset))
             rows[f'shuttle_impulse_ratio_t{base_offset:+d}'][selected] = shift_within_interval(
                 ratio, frames, offset, start, end,
@@ -125,7 +127,7 @@ def _prepare_one(arguments: tuple[Path, Path, bool]) -> dict[str, Any]:
         return cached
     with threadpool_limits(limits=1):
         started = time.perf_counter()
-        prepared: PreparedVideo = joblib.load(source)
+        prepared = experiment.load_prepared(source.parent.parent, source.stem)
         if prepared.video.identity != record['video'] or prepared.group != record['group']:
             raise ValueError('Prepared identity differs from its sidecar')
         if prepared.video.fps != prepared.evidence.fps:
@@ -151,7 +153,7 @@ def prepare(source: Path, output: Path, workers: int, only: str | None = None, *
         raise ValueError('Source is already transformed')
     manifest = {
         **original, 'motion_units': VELOCITY_SCHEMA if velocity_only else SCHEMA,
-        'raw_prepared': str(source), 'transform_source': source_record(),
+        'raw_prepared': str(source), 'transform_source': runtime_versions(),
         'transform_md5': file_md5(Path(__file__)),
     }
     output.mkdir(parents=True, exist_ok=True)
@@ -179,7 +181,7 @@ def fit_contacts(prepared_root: Path, output: Path, seed_offset: int, threads: i
     preparation = units['preparation']
     settings = experiment.settings_for('cuda', 5.0, seed_offset=seed_offset)
     training_settings = asdict(settings)
-    training_settings.pop('rally_layers')
+    training_settings.pop('rally')
     config = json.loads(json.dumps({'settings': training_settings, 'prepared': str(prepared_root)}, default=sorted))
     output.mkdir(parents=True, exist_ok=True)
     receipt = output / 'settings.json.gz'

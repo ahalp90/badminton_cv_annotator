@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses point_winner.Half.
+# Use the matching historical checkout, or port this script before running it.
+
 """Typed input loading for the corrected contact and refit EDA."""
 
 from __future__ import annotations
@@ -12,7 +16,7 @@ from typing import Any, TypedDict
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.evaluation.fixtures import FIXTURES, Fixture
 from annotator.evaluation.gt_scoring import load_gt_tables
 from annotator.evaluation.scoring import (
@@ -82,7 +86,7 @@ class VideoData:
     bboxes: np.ndarray
     sticky: StickyResult
     segments: list[tuple[int, int]]
-    guard_codes: np.ndarray
+    shuttle_grades: np.ndarray
     producer_inpaint: np.ndarray
     court_present: np.ndarray
     keep_vote: np.ndarray
@@ -343,7 +347,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
     if not scene_rows:
         raise ValueError(f"{fixture.name}: scene rows are missing")
     segments = tracker_segments(scene_rows, court_present, n_frames)
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
     gate_courts = {str(video_id): court for video_id, court in courts.items()}
     gate_resolution = resolution_table.copy()
     gate_resolution.index = gate_resolution.index.astype(str)
@@ -360,7 +364,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
         fixture.resolution,
         constants.body_unit_half_window,
     )
-    guard_codes, _guard_info = grade_track(track)
+    shuttle_grades, _guard_info = grade_track(track)
     sidecar = (
         PRODUCER_EVIDENCE / fixture.name / "tracknet-stride-8"
         / f"{fixture.video_id}_stride8_inpaint_mask.json.gz"
@@ -390,7 +394,7 @@ def load_video_data(fixture: Fixture, gt_tables: GtTables | None = None) -> Vide
         bboxes=bboxes,
         sticky=sticky,
         segments=segments,
-        guard_codes=guard_codes,
+        shuttle_grades=shuttle_grades,
         producer_inpaint=producer_inpaint,
         court_present=court_present,
         keep_vote=keep_vote,

@@ -9,9 +9,10 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from annotator.evaluation.fixtures import SSET_01
-from annotator.evaluation.scoring import GtRally
-from annotator.review.broadcast_labels import (
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
+from experiments.annotator.legacy_evaluation.fixtures import SSET_01
+from experiments.annotator.legacy_evaluation.scoring import GtRally
+from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,
@@ -115,14 +116,14 @@ def test_central_pose_band_uses_largest_valid_detection() -> None:
 def test_candidate_rule_records_truth_mask_and_pose_verdicts(monkeypatch) -> None:
     monkeypatch.setattr(
         measurement.candidate_measurement,
-        "impulse_cell_candidates",
+        "impulse_contact_candidates",
         lambda *_args, **_kwargs: [(7, 5.0), (8, 4.0), (16, 9.0)],
     )
     fixture = replace(SSET_01, resolution=(100.0, 100.0))
     arrays = _pose_arrays(30)
     truth = np.full(30, "live-non-standard", dtype="U18")
     truth[7] = "replay"
-    inpaint_codes = np.zeros(30, dtype=np.uint8)
+    shuttle_grades = np.zeros(30, dtype=np.uint8)
     court_present = np.zeros(30, dtype=bool)
     raw_mask = np.zeros(30, dtype=bool)
     definitive_mask = np.zeros(30, dtype=bool)
@@ -142,7 +143,7 @@ def test_candidate_rule_records_truth_mask_and_pose_verdicts(monkeypatch) -> Non
         band_fraction=0.5,
         arrays=arrays,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         court_present=court_present,
         raw_mask=raw_mask,
         definitive_mask=definitive_mask,
@@ -179,25 +180,16 @@ def test_contact_injection_copies_accepted_contacts_and_keeps_spans(monkeypatch)
 
     def fake_run_video(*_args, **kwargs):
         seen.update(kwargs)
-        return SimpleNamespace(
-            spans=[(10, 25)],
-            filtered_contacts=[
-                SimpleNamespace(rally_id=0, contact_frame=8),
-                SimpleNamespace(rally_id=0, contact_frame=20),
-            ],
-            filtered_by_rally={0: [8, 20]},
-            n_strokes_list=[2],
-            next_servers=["top"],
-        )
+        return SimpleNamespace(result=SimpleNamespace(rallies=(FinishedRally(
+            ContactSequence(0, 10, 25, (
+                ContactEvent(8, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
+            )), CourtHalf.BOT,
+        ),)))
 
-    monkeypatch.setattr(measurement.candidate_measurement, "run_video", fake_run_video)
-    natural = SimpleNamespace(
-        spans=[(10, 25)],
-        filtered_contacts=[SimpleNamespace(rally_id=0, contact_frame=20)],
-        filtered_by_rally={0: [20]},
-        n_strokes_list=[1],
-        next_servers=["bottom"],
-    )
+    monkeypatch.setattr(measurement.candidate_measurement, "annotate_video", fake_run_video)
+    natural = SimpleNamespace(rallies=(FinishedRally(
+        ContactSequence(0, 10, 25, (ContactEvent(20, np.nan, CourtHalf.BOT),)), CourtHalf.BOT,
+    ),))
     statuses = [{
         "rally_index": 0,
         "serve_frame": 8,
@@ -238,3 +230,22 @@ def test_schema_csv_writer_is_deterministic_for_empty_rows(tmp_path: Path) -> No
     measurement._write_schema_csv_gz([], ("a", "b"), second)
 
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_window_reports_total_unreliable_fraction_and_each_grade() -> None:
+    track = np.tile([.5, .5, 1.], (5, 1))
+    track[0, 2] = 0
+    grades = np.arange(5, dtype=np.uint8)
+    mask = np.zeros(5, dtype=bool)
+    stats = measurement._segment_stats(track, grades, mask, mask, ~mask, 0, 5)
+
+    assert stats['unreliable_fraction'] == .8
+    assert stats['clean_fraction'] == 0  # The unflagged frame is invisible.
+    grade_fields = (
+        'unflagged_fraction', 'repeated_moving_pattern_fraction',
+        'repeated_stationary_position_fraction', 'repeated_pattern_halo_fraction',
+        'matches_any_pattern_pos_fraction',
+    )
+    assert [stats[field] for field in grade_fields] == [.2] * 5
+    empty = measurement._segment_stats(track, grades, mask, mask, ~mask, 5, 5)
+    assert all(empty[field] == 0 for field in (*grade_fields, 'unreliable_fraction'))

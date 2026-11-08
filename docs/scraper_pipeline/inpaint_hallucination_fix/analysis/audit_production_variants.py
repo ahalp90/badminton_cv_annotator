@@ -18,7 +18,8 @@ WORKSET = Path(__file__).resolve().parents[1]
 ANALYSIS = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO / "src"))
 
-from annotator.masks import inpaint as inpaint_guard  # noqa: E402
+from annotator.excluded_frames import shuttle_hallucination as inpaint_guard  # noqa: E402
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade  # noqa: E402
 
 FIXTURES = {"sset_01": 1, "sset_15": 15, "sset_21": 21}
 
@@ -144,11 +145,11 @@ def split_recurrence_components(
     halo_frames = inpaint_guard.DEFAULT_HALO_FRAMES
     # Grade 3 does not expose its two components. This analysis-only
     # reconstruction follows the current internals and asserts exact agreement.
-    _, _, varying, flat, _ = inpaint_guard.candidate_attractors(
+    varying, flat, _ = inpaint_guard.select_repeated_patterns(
         track, window, halo_frames
     )
-    proven = inpaint_guard._cover(len(track), varying, window)
-    suspect = inpaint_guard._cover(len(track), flat, window)
+    proven = inpaint_guard.mark_pattern_frames(len(track), varying, window)
+    suspect = inpaint_guard.mark_pattern_frames(len(track), flat, window)
     core = proven | suspect
 
     halo = np.zeros(len(track), dtype=bool)
@@ -169,14 +170,15 @@ def split_recurrence_components(
         global_hit |= (track[:, 0] == pos_x) & (track[:, 1] == pos_y)
 
     coordinate_valid = ~np.all(track[:, :2] == 0, axis=1)
-    degraded = (halo | global_hit) & ~core & coordinate_valid
-    if not np.array_equal(degraded, codes == inpaint_guard.DEGRADED):
-        raise ValueError("reproduced grade-3 components disagree with grade_track")
+    halo_or_position_match = (halo | global_hit) & ~core & coordinate_valid
+    additional_flags = np.isin(codes, (ShuttleGrade.REPEATED_PATTERN_HALO, ShuttleGrade.MATCHES_ANY_PATTERN_POS))
+    if not np.array_equal(halo_or_position_match, additional_flags):
+        raise ValueError("reproduced halo and position matches disagree with grade_track")
     return {
-        "recurrence_grade1_core": codes == inpaint_guard.FABRICATED,
+        "recurrence_grade1_core": codes == ShuttleGrade.REPEATED_MOVING_PATTERN,
         "recurrence_core_plus_halo": (core | halo) & coordinate_valid,
         "recurrence_core_plus_global_hit": (core | global_hit) & coordinate_valid,
-        "recurrence_current_all_nonzero": codes != inpaint_guard.NO_FLAG,
+        "recurrence_current_all_nonzero": codes != ShuttleGrade.UNFLAGGED,
     }
 
 
@@ -279,7 +281,7 @@ def main() -> None:
         ).astype(bool)
         valid = ~np.all(track[:, :2] == 0, axis=1)
         codes, info = inpaint_guard.grade_track(track)
-        if info["detector_version"] != 4 or info["halo_frames"] != 3:
+        if info["halo_frames"] != 3:
             raise ValueError(f"{fixture}: current recurrence baseline changed")
         fields = load_frame_fields(fixture)
         if not np.array_equal(
@@ -292,7 +294,7 @@ def main() -> None:
         contacts = contacts_by_video[video_id]
         finals = finals_by_video[video_id]
         spans = load_visual_spans(fixture)
-        guard_clean = candidate & (codes == inpaint_guard.NO_FLAG)
+        guard_clean = candidate & (codes == ShuttleGrade.UNFLAGGED)
         long_sidecar_runs = retain_runs(sidecar & valid, 15)
         selected_blocks = fully_selected_blocks(sidecar, valid)
 
@@ -313,7 +315,7 @@ def main() -> None:
         for fraction in (0.75, 1.0):
             suffix = str(fraction).replace(".", "_")
             ransac_masks[f"guard_clean_vote_fraction_ge_{suffix}"] = (
-                (codes == inpaint_guard.NO_FLAG)
+                (codes == ShuttleGrade.UNFLAGGED)
                 & valid
                 & (fields["eligible"] > 0)
                 & (fields["fraction"] >= fraction)

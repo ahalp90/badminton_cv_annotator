@@ -11,8 +11,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.run_video import AnnotatorResult
-from annotator.video_metadata import VideoMetadata
+from annotator.annotate_video import AnnotatorResult
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
+from annotator.types import ContactSequence, FinishedRally
 from dataset_builder import cli, tracknet_input, vision
 from dataset_builder.artifact_index import (
     VIDEO_ARTIFACT_INDEX_SCHEMA,
@@ -42,6 +43,7 @@ from dataset_builder.selection import (
 from dataset_builder.shuttle_quality import summarize_shuttle_quality
 from scraper import commentary_cleaning, download_scraped_videos
 from scraper._llm_provider import LLMSettings
+from shared.video_metadata import VideoMetadata
 
 ORIGINAL_RUN_CLEAN = commentary_cleaning.run_clean
 
@@ -630,12 +632,12 @@ class _ConcreteRuntimeFixture:
         from sklearn.dummy import DummyClassifier
 
         from annotator.models import AnnotatorModels, save_models
-        from annotator.sequence.rally_model import RallyLayerModels
+        from annotator.rallies.refine_rallies import RallySelector
 
         tree = DummyClassifier(strategy='prior').fit([[0], [1]], [0, 1])
         self.annotator_model_dir = tmp_path / 'annotator-models'
         save_models(
-            AnnotatorModels(tree, RallyLayerModels((tree,)), tree),
+            AnnotatorModels(tree, RallySelector(tree), tree),
             self.annotator_model_dir,
         )
         self._install(monkeypatch)
@@ -975,11 +977,9 @@ annotation_directory = "set/match-one"
     ) -> vision.AnnotationOutput:
         self.boundary_calls.append("annotation")
         result = (
-            AnnotatorResult(
-                [(0, 3)], [], [], {}, [None], [0], [None], [None], {}, {}, {}, {}, [],
-            )
+            AnnotatorResult((FinishedRally(ContactSequence(0, 0, 3, ()), None),), {}, {}, {}, (), [], ())
             if self.with_rally
-            else AnnotatorResult([], [], [], {}, [], [], [], [], {}, {}, {}, {}, [])
+            else AnnotatorResult((), {}, {}, {}, (), [], ())
         )
         run = vision.AnnotationRun(
             self.video_id,
@@ -989,8 +989,8 @@ annotation_directory = "set/match-one"
             summarize_shuttle_quality(
                 kwargs["track"],
                 kwargs["inpaint_fill_mask"],
-                kwargs["guard_codes"],
-                frozenset({1, 2, 3}),
+                kwargs["shuttle_grades"],
+                ShuttleGrade.rejectable(),
             ),
         )
         output = vision.AnnotationOutput(

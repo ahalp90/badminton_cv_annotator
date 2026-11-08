@@ -17,12 +17,12 @@ from typing import cast
 import numpy as np
 import pytest
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder import _pose_process as pose_process_module
 from dataset_builder import _vision_plans, cli, pose_sharding, vision
 from dataset_builder._pose_process import POSE_CHILD_STEM, run_isolated_pose_process
 from dataset_builder._runtime_support import RuntimeSupport
 from dataset_builder.models import InterpreterIdentity, StageOutcome
+from shared.video_metadata import VideoMetadata
 
 
 def _metadata(tmp_path: Path, *, frame_count: int = 4) -> VideoMetadata:

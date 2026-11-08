@@ -62,7 +62,7 @@ its directory in the extraction run.
 Keep related footage in the same group. A group may contain several videos but
 must belong to only one split. Downstream training holds groups out when making
 predictions for training examples. Each fitted subset must contain both target
-classes. More selector layers require more training groups.
+classes. Use at least two training groups for held-group selector predictions.
 
 Use validation to choose settings, then test the chosen model separately.
 Repeated decisions based on test errors turn that test set into development data.
@@ -76,22 +76,42 @@ The default is one rally selector with the selected XGBoost settings:
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
   --manifest retune/manifest.json \
-  --output models/experiment-a \
-  --side-geometry video
+  --output models/experiment-a
 ```
 
-To fit on a CUDA GPU, add `--device cuda`. Saved models use CPU inference so they
-can be loaded on machines without a GPU. `--threads` controls fitting thread
-limits. `--rally-layers 2` or `3` requests additional selector layers.
+Fitting and inference default to CUDA. XGBoost uses CPU when no GPU is visible.
+Add `--device cpu` to fit on CPU. `--threads` controls fitting thread limits.
 
-`--side-geometry video` uses one net band per video for player-half guesses.
-`--side-geometry scene` uses each scene's geometry. This setting is saved in the
-bundle because it changes model evidence.
+The runtime device is selected again when loading a bundle, so CPU-trained trees
+can also use GPU inference. In Python, use `load_models(path, device='cpu')` for
+CPU inference. For a CPU-only command-line run, prefix the command with
+`CUDA_VISIBLE_DEVICES=''`.
+
+NumPy features work with GPU prediction through XGBoost's own data transfer;
+small batches may be faster on CPU.
+
+Player-half guesses always use each contact's scene geometry. To use one
+homography for an entire video, supply it for every scene.
 
 The command reads only training videos and their labels. It fits the final
 contact model, held-group contact models, the rally selectors and the review
 model. The saved bundle contains the models used for inference; temporary
 held-group fits supply downstream training examples.
+
+### V100 setup
+
+The normal `uv sync` installation supports L40 and CPU execution. For a V100,
+install the project dependencies first, then build the pinned XGBoost version
+with V100 kernels using a complete CUDA 12.9 toolkit and a C++ compiler:
+
+```bash
+bash scripts/install-xgboost-v100.sh /path/to/cuda-12.9
+```
+
+Keep separate V100 and L40 environments. For a shared checkout, pass the V100
+environment's Python executable as the second argument.
+The installer replaces XGBoost in that environment. Use `uv run --no-sync`
+with the custom build; repeat the installer after replacing or upgrading XGBoost.
 
 ## Python fit settings
 
@@ -110,10 +130,10 @@ from annotator.training.workflow import (
 
 settings = TrainingSettings()
 rally = replace(
-    settings.rally_layers,
-    tree=replace(settings.rally_layers.tree, max_leaf_nodes=15, max_iter=200),
+    settings.rally,
+    tree=replace(settings.rally.tree, max_leaf_nodes=15, max_iter=200),
 )
-settings = replace(settings, rally_layers=rally)
+settings = replace(settings, rally=rally)
 
 fit_from_manifest(
     load_manifest(Path("retune/manifest.json")),
@@ -125,10 +145,13 @@ fit_from_manifest(
 The settings separate contact fitting, contact selection, rally fitting, review
 fitting and heuristic preprocessing. Tree controls include learning rate, rounds,
 maximum leaves, minimum child weight, regularisation, seed and CPU/CUDA device.
-Rally controls also include depth and the proposal budgets.
-`settings.contact_prediction` holds the contact probability cutoff and the optional
-`reject_masked_without_player` rule. Change it with `replace()` in the same way;
-the resulting setting is saved with the fitted bundle.
+Rally controls also include the proposal budgets and total weight per judged
+rally (`span_weight`, default 372).
+Contact fitting also exposes positive and ignored radii. Rally fitting exposes
+preferred, fallback and review correctness tolerances. These frame counts use
+30 fps as their reference and scale to each video's frame rate.
+`settings.contact_prediction` holds the contact probability cutoff. Change it
+with `replace()` in the same way; the setting is saved with the fitted bundle.
 
 For a five-seed comparison, keep the data, settings and order fixed and vary the
 seeds deliberately. The current benchmark uses offsets 0, 100, 200, 300 and 400
@@ -138,15 +161,16 @@ not five-fold cross-validation.
 ## Configuration and saved results
 
 `models.joblib` and `metadata.json` form one bundle. They retain preprocessing,
-contact selection, side geometry, proposal settings and fitted estimators.
+contact selection, proposal settings and fitted estimators.
 The metadata records runtime versions and feature order. Keep both files
-when moving a model.
+when moving a model. Training also saves the fit settings in
+`fit-settings.json.gz` beside the bundle.
 
 Record the manifest and full fit settings beside the model. Record input versions,
 seeds, sampling order and fit-row order when comparing runs. A seed alone does
 not reproduce a fit when rows or features change order.
 
-Heuristic experiments remain available through `run_video(...,
+Heuristic experiments remain available through `annotate_video(...,
 heuristic_only=True, base=config)` and the existing
 [`heuristic_only_tune`](../../experiments/annotator/heuristic_only_tune/) tools.
 Use separate result directories for each configuration. The same preprocessing
@@ -190,3 +214,6 @@ an exact reproduction; a new generic manifest run is a separate fit.
 Older eight-model results remain historical records. Their model bundles and
 training commands are no longer supported by the current annotator. Use the
 corresponding repository revision to reproduce that earlier architecture.
+
+Rebuild staged option pools and target sidecars created before direct proposal
+judgement. Their schema versions changed because the target policy changed.

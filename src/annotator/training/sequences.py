@@ -5,19 +5,19 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence, scale_frames
-from annotator.sequence.rally_model import alternate_sides
-from annotator.sequence.repairs import RallyRepairs
+from annotator.contacts.player_attribution import fit_rally_sides
+from annotator.rallies.build_contact_proposals import RallyContext
+from annotator.types import ContactSequence, CourtHalf
+from shared.frame_timing import frames_at_fps
 
 
 @dataclass(frozen=True)
 class LabelledRally:
-    """Human contact frames in chronological order and their aligned court halves."""
+    """Sorted labelled contact frames and matching player sides; None means unknown side."""
 
-    identity: str
+    rally_id: str
     frames: tuple[int, ...]
-    sides: tuple[Half | None, ...]
+    sides: tuple[CourtHalf | None, ...]
 
     def __post_init__(self) -> None:
         if len(self.frames) != len(self.sides) or tuple(sorted(self.frames)) != self.frames:
@@ -26,6 +26,12 @@ class LabelledRally:
 
 @dataclass(frozen=True)
 class RallyBoundaryJudgement:
+    """How a proposed interval overlaps labelled rallies.
+
+    ``outcome`` is no_labelled_rally, merged_rallies, part_of_rally or
+    boundaries_right. ``rally`` is set when exactly one rally overlaps;
+    ``overlapping_rallies`` counts the matches.
+    """
     outcome: str
     rally: LabelledRally | None
     overlapping_rallies: int
@@ -33,30 +39,94 @@ class RallyBoundaryJudgement:
 
 @dataclass(frozen=True)
 class SequenceTrainingVideo:
-    """One training video's detector proposals and human contact labels."""
+    """Contact predictions and labels for one video's rally-selector training.
 
-    identity: str
+    Build proposals from context; judge them against rallies. Withhold videos
+    sharing a group together.
+    """
+
+    video_id: str
     group: str
-    fps: float
-    initial: tuple[ContactSequence, ...]
-    events: tuple[ContactEvent, ...]
-    repairs: RallyRepairs
+    context: RallyContext
     rallies: tuple[LabelledRally, ...]
-    frame_count: int | None = None
-    bounds_supplied: bool = False
 
+
+def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
+    """Labelled rallies with any contact inside the range, incl start, excl end."""
+    return tuple(
+        rally for rally in rallies
+        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
+    )
+
+
+def whole_rally_correctness(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
+    *, tolerance_at_30_fps: int = 10,
+) -> int:
+    """Return 1 for correct, 0 for wrong, -1 when the labels cannot decide.
+
+    Require one complete labelled rally, all contacts within tolerance, and
+    matching known player sides after fitting alternation. Missing/extra hits,
+    partial/merged rallies and wrong known sides count as wrong even if another
+    side is unlabelled. Otherwise, any unlabelled side leaves it unjudgeable.
+    """
+    tolerance = frames_at_fps(tolerance_at_30_fps, fps)
+    boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
+    if boundary.outcome == 'no_labelled_rally':
+        return -1
+    if boundary.outcome != 'boundaries_right':
+        return 0
+    rally = boundary.rally
+    assert rally is not None
+    if len(sequence.events) != len(rally.frames):
+        return 0
+    # A fully correct rally pairs every contact in chronological order.
+    for labelled_frame, event in zip(rally.frames, sequence.events, strict=True):
+        if abs(event.frame - labelled_frame) > tolerance:
+            return 0
+    revised = fit_rally_sides((sequence,))
+    for labelled_side, event in zip(rally.sides, revised[0].sequence.events, strict=True):
+        if labelled_side is not None and event.side != labelled_side:
+            return 0
+    if any(side is None for side in rally.sides):
+        return -1
+    return 1
+
+
+def judge_rally_boundaries(
+    sequence: ContactSequence, rallies: Sequence[LabelledRally], *, tolerance: int,
+) -> RallyBoundaryJudgement:
+    """Check a rally range against labelled contacts, incl start, excl end.
+
+    Allow small inward errors up to tolerance. Extra time before/after the
+    labelled rally is allowed, but including another labelled rally fails.
+    If no label lies inside the range, also check the tolerance-expanded range.
+    """
+    start = sequence.start_frame - tolerance
+    end = sequence.end_frame + tolerance
+    overlaps = overlapping_rallies(sequence, rallies)
+    if not overlaps:
+        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
+    if not overlaps:
+        return RallyBoundaryJudgement('no_labelled_rally', None, 0)
+    if len(overlaps) > 1:
+        return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
+    rally = overlaps[0]
+    first, last = rally.frames[0], rally.frames[-1]
+    if not start <= first or not last < end:
+        return RallyBoundaryJudgement('part_of_rally', rally, 1)
+    return RallyBoundaryJudgement('boundaries_right', rally, 1)
+
+
+# Contact matching
 
 MATCH_CONTACT = np.uint8(1)
-
-
 SKIP_PREDICTION = np.uint8(2)
-
-
 SKIP_LABEL = np.uint8(3)
 
 
 def better_match_score(candidate: tuple[int, int], incumbent: tuple[int, int]) -> bool:
-    """Return whether a score has a larger count or a lower error at that count."""
+    """Prefer more matched contacts; break ties by lower total timing error."""
     return candidate[0] > incumbent[0] or (
         candidate[0] == incumbent[0] and candidate[1] < incumbent[1]
     )
@@ -67,21 +137,18 @@ def match_contacts(
     predicted_frames: Sequence[int],
     tolerance: int,
 ) -> list[tuple[int, int, int]]:
-    """Match ground-truth and predicted frames in time order.
+    """Pair labelled and predicted contacts in time order, within the frame tolerance.
 
-    A pair is valid when its absolute frame difference is at most ``tolerance``.
-    The result maximises the number of one-to-one valid pairs, then minimises the
-    sum of their absolute frame differences.  Inputs are stably sorted by
-    ``(frame, original index)`` for the chronological dynamic programme and
-    deterministic duplicate handling.  Equal-objective transitions prefer a
-    match, then skipping a prediction, then skipping a ground-truth frame.
+    Each contact can be used once. Maximise the number of pairs, then minimise
+    their total absolute timing error. Sort by frame and original index to
+    handle duplicates consistently. For an exact tie, prefer a match, then
+    skipping a prediction, then skipping a label.
 
-    :param gt_frames: Ground-truth frame numbers in their original input order.
-    :param predicted_frames: Predicted frame numbers in their original input order.
-    :param tolerance: Maximum allowed absolute frame difference, in source frames.
-    :return: Chronological ``(gt_index, prediction_index, prediction_minus_gt)``
-        triples using indices from the original input sequences.
-    :raises ValueError: If ``tolerance`` is negative.
+    :param gt_frames: Labelled video frames in their original input order.
+    :param predicted_frames: Predicted video frames in their original input order.
+    :param tolerance: Maximum frame difference, including equality.
+    :return: (label index, prediction index, prediction minus label frame), in
+        time order. Indices refer to the original input lists.
     """
     if tolerance < 0:
         raise ValueError(f"tolerance must be non-negative, got {tolerance}")
@@ -93,7 +160,8 @@ def match_contacts(
     ground_truth_count = len(sorted_gt)
     prediction_count = len(sorted_predictions)
 
-    # Score storage is linear in predictions; traceback uses one byte per prefix cell.
+    # Keep only the previous score row. Store one action per label/prediction
+    # pair so the chosen matches can be reconstructed afterwards.
     traceback = np.zeros(
         (ground_truth_count + 1, prediction_count + 1),
         dtype=np.uint8,
@@ -109,8 +177,7 @@ def match_contacts(
             sorted_predictions,
             start=1,
         ):
-            # Start with the match so the stated transition priority wins exact
-            # ties.  Invalid matches leave the two skip transitions to compare.
+            # Try matching first so it wins exact ties; then compare the two skips.
             distance = abs(prediction_frame - gt_frame)
             if distance <= tolerance:
                 best = (
@@ -156,68 +223,3 @@ def match_contacts(
 
     matches.reverse()
     return matches
-
-
-def overlapping_rallies(sequence: ContactSequence, rallies: Sequence[LabelledRally]) -> tuple[LabelledRally, ...]:
-    """Find labelled rallies with any contact inside a half-open sequence."""
-    return tuple(
-        rally for rally in rallies
-        if any(sequence.start_frame <= frame < sequence.end_frame for frame in rally.frames)
-    )
-
-
-def whole_rally_correctness(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], fps: float,
-    *, tolerance_at_30_fps: int = 10,
-) -> int:
-    """Return 1 correct, 0 known wrong, or -1 unjudgeable using retained labels.
-
-    Missing contacts, merged/partial rallies, extra events and known side
-    contradictions are wrong even when another human side label is unavailable.
-    """
-    boundary = judge_rally_boundaries(
-        sequence, rallies, tolerance=scale_frames(tolerance_at_30_fps, fps),
-    )
-    if boundary.outcome == 'no_labelled_rally':
-        return -1
-    if boundary.outcome != 'boundaries_right':
-        return 0
-    rally = boundary.rally
-    assert rally is not None
-    tolerance = scale_frames(tolerance_at_30_fps, fps)
-    matches = match_contacts(rally.frames, [event.frame for event in sequence.events], tolerance)
-    if len(matches) < len(rally.frames):
-        return 0
-    revised, _events = alternate_sides((sequence,), sequence.events)
-    if any(rally.sides[label] is not None and revised[0].events[prediction].side != rally.sides[label]
-           for label, prediction, _offset in matches):
-        return 0
-    if len(sequence.events) > len(rally.frames):
-        return 0
-    if any(side is None for side in rally.sides):
-        return -1
-    return 1
-
-
-def judge_rally_boundaries(
-    sequence: ContactSequence, rallies: Sequence[LabelledRally], *, tolerance: int,
-) -> RallyBoundaryJudgement:
-    """Judge one half-open span against contact labels using shared endpoint rules.
-
-    The timing allowance permits small inward errors. Outward context is unlimited.
-    A span touching contacts from two labelled rallies fails.
-    """
-    start = sequence.start_frame - tolerance
-    end = sequence.end_frame + tolerance
-    overlaps = overlapping_rallies(sequence, rallies)
-    if not overlaps:
-        overlaps = tuple(rally for rally in rallies if any(start <= frame < end for frame in rally.frames))
-    if not overlaps:
-        return RallyBoundaryJudgement('no_labelled_rally', None, 0)
-    if len(overlaps) > 1:
-        return RallyBoundaryJudgement('merged_rallies', None, len(overlaps))
-    rally = overlaps[0]
-    first, last = rally.frames[0], rally.frames[-1]
-    if not start <= first or not last < end:
-        return RallyBoundaryJudgement('part_of_rally', rally, 1)
-    return RallyBoundaryJudgement('boundaries_right', rally, 1)

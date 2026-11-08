@@ -9,18 +9,16 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from annotator.sequence.contacts import ContactSequence
-from annotator.sequence.rally_options import (
+from annotator.rallies.build_contact_proposals import (
     FEATURE_NAMES,
-    RallyContext,
     RallyOptions,
     build_rally_options,
-    sequence_key,
 )
-from annotator.training.rally_targets import finish_in_initial_context, option_targets
+from annotator.training.rally_targets import option_targets
 from annotator.training.sequences import SequenceTrainingVideo
+from annotator.types import ContactSequence
 
-__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool', 'finish_in_initial_context', 'sequence_key']
+__all__ = ['FEATURE_NAMES', 'LabelledOptions', 'expand_pool']
 
 
 @dataclass(frozen=True)
@@ -34,17 +32,13 @@ class LabelledOptions:
     @property
     def runtime(self) -> RallyOptions:
         """Share proposal arrays with the label-free inference path."""
-        return RallyOptions(self.sequences, self.matrix, self.span_rows, rally_context(self.video))
-
-
-def rally_context(video: SequenceTrainingVideo) -> RallyContext:
-    return RallyContext(video.fps, video.initial, video.events, video.repairs, video.frame_count, video.bounds_supplied)
+        return RallyOptions(self.sequences, self.matrix, self.span_rows, self.video.context)
 
 
 def expand_pool(
     video: SequenceTrainingVideo, max_edits: int = 3, deletion_candidates: int = 6,
 ) -> LabelledOptions:
-    """Build label-free options, then judge them with initial neighbouring spans."""
-    options = build_rally_options(rally_context(video), max_edits, deletion_candidates)
+    """Build label-free options, then judge their proposed contacts against labels."""
+    options = build_rally_options(video.context, max_edits, deletion_candidates)
     targets = option_targets(video, options)
     return LabelledOptions(options.sequences, options.matrix, targets, options.span_rows, video)

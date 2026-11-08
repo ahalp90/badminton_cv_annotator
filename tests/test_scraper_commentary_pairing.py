@@ -122,14 +122,14 @@ def test_duration_filtered_replay_only_disqualifies_a_rally_interior():
     duration_filtered_replay_mask[0:5] = True
     duration_filtered_replay_mask[6] = True
 
-    assert not commentary_pairing._believed_replay_in_rally_interior(
-        duration_filtered_replay_mask, 0, 5, grace=5,
+    assert not commentary_pairing.believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 5, minimum_run=5,
     )
-    assert commentary_pairing._believed_replay_in_rally_interior(
-        duration_filtered_replay_mask, 0, 20, grace=5,
+    assert commentary_pairing.believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 20, minimum_run=5,
     )
-    assert not commentary_pairing._believed_replay_in_rally_interior(
-        duration_filtered_replay_mask, 0, 10, grace=5,
+    assert not commentary_pairing.believed_replay_in_rally_interior(
+        duration_filtered_replay_mask, 0, 10, minimum_run=5,
     )
 
 

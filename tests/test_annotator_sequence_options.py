@@ -3,26 +3,30 @@
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.candidates import shortlist_later_frames, shortlist_serve_frames
-from annotator.sequence.contacts import (
-    CandidateScores,
-    ContactEvent,
-    ContactSequence,
-    apply_choices,
+from annotator.contacts.build_features import (
+    CONTACT_FEATURE_NAMES,
+    contact_feature_dtype,
+)
+from annotator.contacts.score_candidates import ScoredContacts, contact_feature_matrix
+from annotator.rallies.build_contact_proposals import (
+    FEATURE_NAMES,
+    RallyContext,
+    build_rally_options,
     initial_sequences,
+    propose_contact_additions_and_removals,
+    shortlist_later_rows,
+    shortlist_serve_rows,
 )
-from annotator.sequence.repairs import (
-    add_later_contacts,
-    check_events_match_kept_candidates,
-    serve_and_deletion_repairs,
-)
+from annotator.types import ContactEvent, ContactSequence
 
 
-def _scores(rows: list[tuple[int, int, float, bool]]) -> CandidateScores:
+def _scores(rows: list[tuple[int, int, float, bool]]) -> ScoredContacts:
     """Build candidate scores from (frame, interval ID, probability, kept) rows."""
     frames, interval_ids, probabilities, kept = zip(*rows, strict=True)
-    return CandidateScores(np.asarray(frames), np.asarray(interval_ids), np.asarray(probabilities), np.asarray(kept))
+    candidates = np.zeros(len(rows), dtype=contact_feature_dtype())
+    candidates['frame'] = frames
+    candidates['interval_id'] = interval_ids
+    return ScoredContacts(candidates, contact_feature_matrix(candidates), np.asarray(probabilities), np.flatnonzero(kept))
 
 
 def _frames(sequence: ContactSequence) -> list[int]:
@@ -57,9 +61,14 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
     ])
     events = [ContactEvent(40, .9, None), ContactEvent(180, .8, None)]
     sequences = initial_sequences([(20, 120), (150, 250), (260, 290)], events)
-    shortlists = shortlist_serve_frames(sequences, scores, [(0, 100), (100, 300)], fps=30.0)
-    frames_by_span = {span_id: scores.frames[rows].tolist() for span_id, rows in shortlists.items()}
-    assert frames_by_span == {0: [30, 5], 1: [130, 170]}
+    first = shortlist_serve_rows(sequences[0], scores, fps=30.0, previous_end=-1)
+    second = shortlist_serve_rows(sequences[1], scores, fps=30.0, previous_end=120)
+    assert scores.candidates['frame'][first].tolist() == [30, 5]
+    assert scores.candidates['frame'][second].tolist() == [130, 170]
+    assert shortlist_serve_rows(sequences[2], scores, fps=30.0, previous_end=250) == []
+    # Without a preceding rally, the search interval still excludes the early clip.
+    unclipped = shortlist_serve_rows(sequences[1], scores, fps=30.0, previous_end=0)
+    assert scores.candidates['frame'][unclipped].tolist() == [110, 130]
 
 
 @pytest.mark.parametrize(("rows", "expected"), [
@@ -69,7 +78,7 @@ def test_serve_shortlist_clips_to_previous_span_and_breaks_ties_by_earlier_frame
 def test_serve_shortlist_uses_available_candidates(rows, expected):
     scores = _scores(rows)
     sequences = initial_sequences([(0, 100)], [ContactEvent(40, .9, None)])
-    assert shortlist_serve_frames(sequences, scores, [(0, 100)], fps=30.0) == {0: expected}
+    assert shortlist_serve_rows(sequences[0], scores, fps=30.0, previous_end=-1) == expected
 
 
 def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
@@ -83,69 +92,62 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
         (120, 0, .1, False),
         (130, 0, .2, False),
         (140, 0, .3, False),
-        (150, 0, np.nan, False),
+        (150, 0, .01, False),
         (160, 0, .4, False),
         (170, 0, .5, False),
         (180, 0, .05, False),
         (200, 0, .8, False),
     ])
     sequence = ContactSequence(0, 0, 200, (ContactEvent(20, .9, None), ContactEvent(100, .7, None)))
-    assert shortlist_later_frames(sequence, scores, fps=30.0) == [50, 170, 160, 140, 130, 120]
-    assert shortlist_later_frames(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
+    rows = shortlist_later_rows(sequence, scores, fps=30.0)
+    assert scores.candidates['frame'][rows].tolist() == [50, 170, 160, 140, 130, 120]
+    assert shortlist_later_rows(ContactSequence(1, 0, 200, ()), scores, fps=30.0) == []
 
 
-def test_applied_choices_keep_out_of_span_contacts():
-    events = [ContactEvent(frame, .8, None) for frame in (20, 60, 120, 170, 200, 300)]
-    initial = initial_sequences([(0, 100), (150, 250)], events)
-    delete_second = ContactSequence(0, 0, 100, (events[0],))
-    absorb_gap = ContactSequence(1, 120, 250, (events[2], events[3], events[4]))
-    sequences, stream = apply_choices(initial, events, {0: delete_second, 1: absorb_gap})
-    assert [_frames(sequence) for sequence in sequences] == [[20], [120, 170, 200]]
-    assert [event.frame for event in stream] == [20, 120, 170, 200, 300]
+def test_contact_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:
+    before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    candidates = tuple(ContactEvent(frame, .7, None) for frame in (125, 140, 250))
+    options = propose_contact_additions_and_removals(before, candidates, before.events, -1, 6, 2, 2)
+    frames = [_frames(sequence) for sequence in options]
+    assert [125, 160] in frames
+    assert not any(120 in selected and 125 in selected for selected in frames)
+    assert not any(250 in selected for selected in frames)
 
 
-def test_applied_choices_remove_rejected_contact_inside_the_expanded_rally():
-    events = [ContactEvent(frame, .8, None) for frame in (20, 120, 170, 200)]
-    initial = initial_sequences([(0, 100), (150, 250)], events)
-    new_serve = ContactEvent(110, .6, None)
-    replaced = ContactSequence(1, 110, 250, (new_serve, events[2], events[3]))
-    _sequences, stream = apply_choices(initial, events, {0: initial[0], 1: replaced})
-    assert [event.frame for event in stream] == [20, 110, 170, 200]
+def test_earlier_serve_includes_selected_contacts_and_respects_previous_rally() -> None:
+    before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    gap = ContactEvent(100, .7, None)
+    candidates = tuple(ContactEvent(frame, .6, None) for frame in (80, 90))
+    options = propose_contact_additions_and_removals(before, candidates, (gap, *before.events), 85, 6, 1, 0)
+    assert not any(80 in _frames(sequence) for sequence in options)
+    expanded = next(sequence for sequence in options if _frames(sequence) == [90, 100, 120, 160])
+    assert expanded.start_frame == 90 and expanded.events[1] is gap
 
 
-def test_serve_and_deletion_repairs_keep_order_and_skip_redundant_combinations():
-    before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    earlier = [ContactEvent(frame, .5, None) for frame in (105, 110)]
-    seeds = serve_and_deletion_repairs(before, earlier, before.events, previous_end=-1)
-    assert [_frames(seed) for seed in seeds] == [
-        [120, 160], [105, 120, 160], [105, 160], [110, 120, 160], [110, 160],
-        [160], [120], [105, 120], [105], [110, 120], [110],
+def test_propose_contact_additions_and_removals_deduplicate_absorbed_contacts_and_prefer_fewer_edits() -> None:
+    before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
+    earlier = ContactEvent(80, .6, None)
+    gap = ContactEvent(90, .7, None)
+    # Adding 80 absorbs 90, so explicitly adding both gives the same sequence.
+    options = propose_contact_additions_and_removals(before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0)
+    assert options[0] is before
+    assert [_frames(sequence) for sequence in options] == [
+        [120, 160], [90, 120, 160], [80, 90, 120, 160],
     ]
-    assert seeds[1].start_frame == 100
 
 
-def test_earlier_serve_absorbs_gap_contacts_and_stops_at_previous_rally():
-    gap = ContactEvent(98, .7, Half.BOT)
-    before = ContactSequence(1, 100, 200, (ContactEvent(120, .9, Half.TOP), ContactEvent(160, .8, Half.BOT)))
-    earlier = [ContactEvent(frame, .5, None) for frame in (90, 97)]
-    seeds = serve_and_deletion_repairs(before, earlier, [gap, *before.events], previous_end=95)
-    assert not any(90 in _frames(seed) for seed in seeds)
-    added = next(seed for seed in seeds if _frames(seed) == [97, 98, 120, 160])
-    assert added.start_frame == 97 and added.events[1] is gap
+@pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
+def test_contact_gap_features_exclude_rally_boundary_gaps(fps: float) -> None:
+    events = (ContactEvent(20, .9, None), ContactEvent(60, .7, None))
+    sequence = ContactSequence(0, 10, 200, events)
+    contact_features = {event.frame: np.zeros(len(CONTACT_FEATURE_NAMES)) for event in events}
+    context = RallyContext(fps, (sequence,), events, {}, contact_features, frame_count=200)
 
+    pool = build_rally_options(context, max_edits=0)
+    features = dict(zip(FEATURE_NAMES, pool.matrix[0], strict=True))
 
-def test_initial_events_must_be_exactly_the_kept_candidates():
-    scores = _scores([(20, 0, .9, True), (40, 0, .8, False)])
-    check_events_match_kept_candidates((ContactEvent(20, .9, None),), scores)
-    with pytest.raises(ValueError, match='exactly the kept candidates'):
-        check_events_match_kept_candidates((ContactEvent(40, .8, None),), scores)
-
-
-def test_later_contacts_are_checked_against_each_repaired_sequence():
-    kept = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
-    deleted_first = ContactSequence(0, 100, 200, kept.events[1:])
-    candidates = [ContactEvent(125, .6, None), ContactEvent(140, .5, None), ContactEvent(250, .9, None)]
-    repaired = add_later_contacts((kept, deleted_first), candidates, distance=6)
-    assert [_frames(sequence) for sequence in repaired] == [
-        [120, 160], [120, 140, 160], [160], [125, 160], [140, 160],
-    ]
+    assert features['before__longest_gap_seconds'] == pytest.approx(40 / fps)
+    assert features['after__longest_gap_seconds'] == pytest.approx(40 / fps)
+    assert features['longest_gap_seconds'] == pytest.approx(140 / fps)
+    assert features['positive_gap_count'] == 3
+    assert pool.matrix.dtype == np.float32

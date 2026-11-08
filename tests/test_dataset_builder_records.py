@@ -10,17 +10,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
-    Half,
+from annotator.annotate_video import AnnotatorResult
+from annotator.rally_results.landing_and_winner import (
     Landing,
-    Verdict,
-    VerdictRow,
-    VerdictSource,
+    RallyOutcome,
+    WinnerSource,
 )
-from annotator.run_video import AnnotatorResult
-from annotator.types import ContactCandidate
-from annotator.video_metadata import VideoMetadata
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 from dataset_builder.manifest import (
     artifact_integrity,
     run_manifest_sha256,
@@ -51,6 +53,7 @@ from dataset_builder.records import (
 )
 from dataset_builder.vision import load_json_gz, save_json_gz
 from scraper.commentary_pairing import CanonicalPairing, pair_video_with_metadata
+from shared.video_metadata import VideoMetadata
 
 CODE_VERSION = "a" * 40
 FPS = Fraction(25, 1)
@@ -101,7 +104,7 @@ def _manifest() -> RunManifest:
     )
     annotation = _stage(
         "annotation",
-        configuration={"dead_mask_mode": "replay"},
+        configuration={},
         outputs=(
             _artifact("annotator_result", "annotation/annotator_result.json.gz", "2"),
             _artifact("raw_replay_mask", "annotation/raw_replay_mask.npy.xz", "3"),
@@ -146,36 +149,23 @@ def _metadata(
 
 
 def _annotation() -> AnnotatorResult:
-    rejected = ContactCandidate(0, 10, False, False, None)
-    first = ContactCandidate(0, 20, True, True, False)
-    second = ContactCandidate(0, 30, True, True, False)
-    unresolved = ContactCandidate(1, 70, None, None, False)
+    rejected = ContactCandidate(0, 10, False, None)
+    first = ContactCandidate(0, 20, True, False)
+    second = ContactCandidate(0, 30, True, False)
+    unresolved = ContactCandidate(1, 70, None, False)
     return AnnotatorResult(
-        spans=[(0, 50), (60, 100)],
-        contacts=[rejected, first, second, unresolved],
-        filtered_contacts=[first, second, unresolved],
-        filtered_by_rally={0: [20, 30], 1: [70]},
-        striker_halves=[Half.TOP, None],
-        n_strokes_list=[2, 1],
-        next_servers=[None, None],
-        fitted_first_all=[Half.BOT, None],
-        verdict_rows={
-            0: VerdictRow(
-                0,
-                Half.TOP,
-                Verdict.LOST,
-                VerdictSource.NET_RULE,
-                -0.2,
-                False,
-                True,
-            ),
-        },
-        landings={0: Landing(45, (0.4, 0.8), Half.BOT, False, True)},
-        geometric_verdict_rows={
-            0: GeometricVerdictRow(0, Verdict.LOST, Half.BOT, True, True),
-        },
-        hit_height_by_frame={20: 1, 70: 2},
-        hit_height_failures=[(0, 1, 30, "shuttle not visible")],
+        rallies=(
+            FinishedRally(ContactSequence(0, 0, 50, (
+                ContactEvent(20, np.nan, CourtHalf.BOT), ContactEvent(30, np.nan, CourtHalf.TOP),
+            )), CourtHalf.TOP),
+            FinishedRally(ContactSequence(1, 60, 100, (ContactEvent(70, np.nan, None),)), None),
+        ),
+        outcomes={0: RallyOutcome(
+            CourtHalf.BOT, WinnerSource.NET_RULE, Landing(45, (0.4, 0.8), CourtHalf.BOT, False, True),
+            -0.2, False, True, CourtHalf.BOT, True,
+        )},
+        hit_heights={20: 1, 70: 2}, unavailable_hit_height_reasons={30: "shuttle not visible"},
+        contact_events=(), heuristic_candidates=[rejected, first, second, unresolved], rally_confidence=(),
     )
 
 
@@ -308,11 +298,13 @@ def _write(
 
 
 def test_final_contact_sides_and_review_scores_reach_rally_records(tmp_path: Path) -> None:
-    from annotator.sequence import ContactEvent
+    from annotator.types import ContactEvent
 
-    annotation = _annotation()._replace(
-        contact_events=(ContactEvent(20, .95, Half.BOT), ContactEvent(30, .91, Half.TOP), ContactEvent(70, .8, Half.BOT)),
-        rally_confidence=(.9, .4),
+    original = _annotation()
+    annotation = original._replace(
+        rallies=(original.rallies[0], FinishedRally(
+            ContactSequence(1, 60, 100, (ContactEvent(70, .8, CourtHalf.BOT),)), None,
+        )), rally_confidence=(.9, .4),
     )
     records = _assemble(tmp_path, annotation=annotation).records
     assert [row['player_half'] for row in records[0]['contacts']['accepted']] == ['Bot', 'Top']
@@ -352,26 +344,23 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
                 "raw_candidates": [
                     {
                         "contact_frame": 10,
-                        "proximity_ok": False,
                         "wrist_near": False,
-                        "suppressed": None,
+                        "temporal_proximity_suppressed": None,
                     },
                     {
                         "contact_frame": 20,
-                        "proximity_ok": True,
                         "wrist_near": True,
-                        "suppressed": False,
+                        "temporal_proximity_suppressed": False,
                     },
                     {
                         "contact_frame": 30,
-                        "proximity_ok": True,
                         "wrist_near": True,
-                        "suppressed": False,
+                        "temporal_proximity_suppressed": False,
                     },
                 ],
                 "accepted": [
-                    {"stroke_idx": 0, "contact_frame": 20, "hit_height_code": 1, "player_half": None},
-                    {"stroke_idx": 1, "contact_frame": 30, "hit_height_code": None, "player_half": None},
+                    {"stroke_idx": 0, "contact_frame": 20, "hit_height_code": 1, "player_half": "Bot"},
+                    {"stroke_idx": 1, "contact_frame": 30, "hit_height_code": None, "player_half": "Top"},
                 ],
                 "stroke_count": 2,
                 "review_score": None,
@@ -438,9 +427,8 @@ def test_exact_record_fixture_covers_every_mapped_primitive(tmp_path: Path) -> N
             "contacts": {
                 "raw_candidates": [{
                     "contact_frame": 70,
-                    "proximity_ok": None,
                     "wrist_near": None,
-                    "suppressed": False,
+                    "temporal_proximity_suppressed": False,
                 }],
                 "accepted": [
                     {"stroke_idx": 0, "contact_frame": 70, "hit_height_code": 2, "player_half": None},
@@ -536,7 +524,12 @@ def test_invalid_half_open_spans_stop_assembly(
     tmp_path: Path,
     spans: list[tuple[int, int]],
 ) -> None:
-    annotation = _annotation()._replace(spans=spans)
+    original = _annotation()
+    annotation = original._replace(rallies=tuple(
+        FinishedRally(ContactSequence(index, start, end, original.rallies[index].sequence.events),
+                      original.rallies[index].final_half)
+        for index, (start, end) in enumerate(spans)
+    ))
 
     with pytest.raises(ValueError, match="span|overlapping"):
         _assemble(tmp_path, annotation=annotation)
@@ -544,9 +537,11 @@ def test_invalid_half_open_spans_stop_assembly(
 
 def test_duplicate_raw_contact_composite_key_stops_assembly(tmp_path: Path) -> None:
     annotation = _annotation()
-    duplicate = annotation._replace(contacts=[*annotation.contacts, annotation.contacts[0]])
+    duplicate = annotation._replace(
+        heuristic_candidates=[annotation.heuristic_candidates[0], *annotation.heuristic_candidates],
+    )
 
-    with pytest.raises(ValueError, match="raw contact composite key is duplicated"):
+    with pytest.raises(ValueError, match="raw contact frames must be unique"):
         _assemble(tmp_path, annotation=duplicate)
 
 
@@ -563,54 +558,26 @@ def test_duplicate_pair_composite_key_stops_assembly(tmp_path: Path) -> None:
         _assemble(tmp_path, metadata=metadata, pairing=duplicate)
 
 
-def test_filtered_contacts_and_stroke_counts_must_agree(tmp_path: Path) -> None:
-    annotation = _annotation()
-    mismatched_frames = annotation._replace(filtered_by_rally={0: [20], 1: [70]})
-    with pytest.raises(ValueError, match="do not agree exactly"):
-        _assemble(tmp_path, annotation=mismatched_frames)
-
-    mismatched_count = annotation._replace(n_strokes_list=[1, 1])
-    with pytest.raises(ValueError, match="accepted-contact count"):
-        _assemble(tmp_path, annotation=mismatched_count)
-
-
 def test_outcome_primitives_must_match_their_typed_producer_contracts(tmp_path: Path) -> None:
     annotation = _annotation()
-    verdict = annotation.verdict_rows[0]
     invalid_verdict = annotation._replace(
-        verdict_rows={0: verdict._replace(margin_m=float("nan"))},
+        outcomes={0: annotation.outcomes[0]._replace(landing_margin_m=float("nan"))},
     )
     with pytest.raises(ValueError, match="finite number"):
         _assemble(tmp_path, annotation=invalid_verdict)
 
-    landing = annotation.landings[0]
+    landing = annotation.outcomes[0].landing
     invalid_landing = annotation._replace(
-        landings={0: landing._replace(frame=100)},
+        outcomes={0: annotation.outcomes[0]._replace(landing=landing._replace(frame=100))},
     )
     with pytest.raises(ValueError, match="canonical frame bounds"):
         _assemble(tmp_path, annotation=invalid_landing)
 
-    geometric = annotation.geometric_verdict_rows[0]
     invalid_geometric = annotation._replace(
-        geometric_verdict_rows={0: geometric._replace(agreement=1)},
+        outcomes={0: annotation.outcomes[0]._replace(search_shortened_by_exclusion=1)},
     )
-    with pytest.raises(ValueError, match="agreement must be boolean"):
+    with pytest.raises(TypeError, match="flags must be boolean"):
         _assemble(tmp_path, annotation=invalid_geometric)
-
-
-def test_server_prediction_must_match_striker_resolution_and_parity(tmp_path: Path) -> None:
-    annotation = _annotation()
-    unresolved_server = annotation._replace(fitted_first_all=[Half.BOT, Half.TOP])
-    with pytest.raises(ValueError, match="unresolved rally 1 must be null"):
-        _assemble(tmp_path, annotation=unresolved_server)
-
-    wrong_parity = annotation._replace(fitted_first_all=[Half.TOP, None])
-    with pytest.raises(ValueError, match="conflicts with striker parity"):
-        _assemble(tmp_path, annotation=wrong_parity)
-
-    wrong_next_server = annotation._replace(next_servers=[Half.TOP, None])
-    with pytest.raises(ValueError, match="following rallies' server predictions"):
-        _assemble(tmp_path, annotation=wrong_next_server)
 
 
 def test_source_reference_must_match_canonical_metadata_basename(tmp_path: Path) -> None:
@@ -734,7 +701,7 @@ def test_unavailable_commentary_keeps_every_rally_with_null_values(tmp_path: Pat
         missing_reasons={},
     ).records
 
-    assert len(records) == len(_annotation().spans)
+    assert len(records) == len(_annotation().rallies)
     for record in records:
         commentary = record["commentary"]
         assert commentary["stage_outcome"] == "unavailable"

@@ -43,7 +43,9 @@ data/dataset-run/
             └── court_present.npy.xz
 ```
 
-The shuttle directory must contain exactly one `*_inpaint_mask.json.gz` file.
+The annotation command needs exactly one `*_inpaint_mask.json.gz` file in the
+shuttle directory. Training uses the other saved inputs and does not need this
+fill-mask sidecar.
 
 ## Video metadata
 
@@ -88,7 +90,7 @@ Shape:
 
 These codes mark shuttle positions considered unreliable because of repeated or fabricated-looking track patterns. The standalone command recomputes the codes from `shuttle_track.npy.xz` and requires an exact match with the saved file.
 
-The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. They are removed from contact candidates only when the model directory turns on the optional rule described in [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates).
+The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
 
 ### `*_inpaint_mask.json.gz`
 
@@ -118,7 +120,7 @@ Contact and side assignment mainly use boxes, keypoint coordinates, detection sc
 Current schema:
 
 ```text
-court-evidence/0.2
+court-evidence/0.5
 ```
 
 It contains:
@@ -127,9 +129,9 @@ It contains:
 - court geometry used by the annotator;
 - per-scene records.
 
-This geometry includes scene homographies (image-to-court transforms), net/court
-measurements and the information used to assign player poses to court halves
-and estimate landings.
+Save the accepted scenes’ court corners and video resolution. Annotation uses
+these to calculate each scene’s image-to-court transform, net position and
+landing error band.
 
 ### `court_keep_vote.npy.xz`
 
@@ -146,21 +148,22 @@ The court loader checks that scene intervals cover the full video timeline and t
 The `--models` argument points to a directory:
 
 ```text
-experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/
+experiments/annotator/tree_simplification/results/hp_search/models/seed-0/
 ├── models.joblib
 └── metadata.json
 ```
 
 Loading checks:
 
-- schema `annotator-rally-layers/2`;
-- exact scikit-learn and XGBoost versions;
+- schema `annotator-three-models/5`;
 - exact contact, rally and review feature order;
-- rally proposal budgets and review-ranking mode;
-- that `models.joblib` contains an `AnnotatorModels` object;
-- that the side-geometry mode in the object and metadata agree.
+- rally proposal budgets and the fitted review model;
+- that `models.joblib` contains an `AnnotatorModels` object.
 
-`models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact-selection settings used with the fitted trees: the score cutoff and the optional rule for guarded candidates.
+`models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact probability cutoff used with the fitted trees.
+
+Library versions are recorded in the metadata for reference. A version difference
+alone does not prevent loading.
 
 ## Output files
 
@@ -179,14 +182,14 @@ A full annotation run writes:
 Current schema:
 
 ```text
-annotator-result/0.2
+annotator-result/0.8
 ```
 
 Top-level shape:
 
 ```json
 {
-  "schema": "annotator-result/0.2",
+  "schema": "annotator-result/0.8",
   "video_id": "match-name",
   "result": {
     "...": "every AnnotatorResult field"
@@ -195,6 +198,16 @@ Top-level shape:
 ```
 
 The serialiser writes every field from `AnnotatorResult`, so the saved JSON and the Python result type stay in step when fields are added.
+
+Each rally outcome stores `winner`, `winner_source`, landing evidence and
+landing-margin flags. `conservative_landing_winner` withholds image-border and
+exact-line calls. `search_shortened_by_exclusion` is true when an excluded frame
+stops the landing search before any other boundary would stop it.
+
+In Python, `CourtHalf.TOP` and `CourtHalf.BOT` identify the camera-relative court
+halves; `WinnerSource` identifies the observation or rule used to choose the
+winner. Their saved values remain `Top`/`Bot` and `next_server`,
+`landing_geometry` or `net_rule`. Rally-record exports give `won`/`lost` relative to the final striker.
 
 ### `raw_replay_mask.npy.xz`
 
@@ -210,42 +223,38 @@ Counts and summary information for shuttle visibility, inpainting and guard code
 
 ## `AnnotatorResult` fields
 
-Both modes use the same contact-row format. Heuristic contacts retain wrist and
-suppression verdicts. Learned contacts set those verdicts to `None`, because the
-fitted models selected them; the common output format preserves existing readers.
+The result keeps the finished rally objects produced by contact selection. Rally IDs
+are their positions in `rallies`; each object contains its bounds, selected contact
+events and fitted final striker. The dataset builder derives export columns from
+these objects.
 
 | Field | Meaning | Common use |
 | --- | --- | --- |
-| `spans` | Final rally intervals as `(start, end)` | Rally timing |
-| `contacts` | Final contact rows | Compatibility with existing callers |
-| `filtered_contacts` | Final accepted contact rows | Contact-level processing |
-| `filtered_by_rally` | `rally_id -> [contact_frame, ...]` | Final contact membership for each rally |
-| `striker_halves` | Court half of the final contact in each rally | Side/outcome logic |
-| `n_strokes_list` | Number of final contacts in each rally | Downstream features |
-| `next_servers` | Predicted next-server court half for each rally | Winner logic |
-| `fitted_first_all` | Predicted first-contact/server half for each rally | Serve information |
-| `verdict_rows` | Combined point-outcome records for rallies with a resolved striker | Outcome export/inspection |
-| `landings` | Landing estimate or `None` for each eligible rally | Outcome analysis |
-| `geometric_verdict_rows` | Geometry-only point-outcome diagnostics | Debugging winner logic |
-| `hit_height_by_frame` | Contact frame -> hit-height code | Downstream export/features |
-| `hit_height_failures` | Explicit hit-height failures with rally/stroke/frame/error | Diagnostics |
-| `contact_events` | Full final contact stream, including events outside rally spans | Model diagnostics |
-| `rally_confidence` | One review-ordering score per rally | Review prioritisation |
+| `rallies` | Finished rallies, with bounds, contact events and fitted final striker | Rally timing, contact membership and server estimates |
+| `outcomes` | Rally ID -> winner estimate, landing and geometric comparison | Outcome export and inspection |
+| `hit_heights` | Contact frame -> ShuttleSet hit-height code | Contact export and features |
+| `unavailable_hit_height_reasons` | Contact frame -> reason its height could not be measured | Missing-evidence diagnostics |
+| `contact_events` | Full learned contact stream, including events outside rallies | Model diagnostics |
+| `heuristic_candidates` | Raw heuristic candidates with wrist-distance and proximity-suppression flags; empty in learned mode | Heuristic rejection analysis |
+| `rally_confidence` | One review-ordering score per rally; empty in heuristic mode | Review prioritisation |
 
 ### Contact membership
 
-`filtered_by_rally` contains the final contacts assigned to each rally.
-`contact_events` contains the complete final stream, including hits outside
-all rally spans. Filtering that stream by the clip boundaries can therefore
-give a different result from the saved membership.
+Use `result.rallies[rally_id].sequence.events` for the contacts assigned to a rally.
+Each event contains its frame, model probability and court-half assignment. When
+the alternating-side fit is tied, it uses summed wrist distance, then the first
+known guess if the distances cannot separate the orders. When no guess is known,
+all players stay unknown. Unknown probabilities are NaN in memory and JSON null when saved. `contact_events` also
+includes model contacts outside all rallies, so filtering that stream by the final
+rally bounds can give different membership.
 
-### Historical contact field names
-
-In the fitted-model path, `contacts` and `filtered_contacts` contain the same
-chosen rows. The dataset builder also saves those final contacts under the
-older name `raw_candidates`. Despite the name, that field contains the selected
-hits. This explains why older benchmark reports show identical raw and final
-contact metrics for these runs. The final metrics describe the selected hits.
+The dataset builder derives stroke counts, fitted servers and next servers from
+these rallies. It writes the existing rally-record columns, including accepted
+contact sides. During learned inference the `raw_candidates` record field contains the
+selected contact frames with unset heuristic flags. Reconstructing a result
+from saved rally records retains their raw candidate rows for scoring; those
+records do not identify which inference mode produced them. In heuristic mode it
+retains all raw candidates, including those rejected by wrist distance, proximity suppression or excluded footage.
 
 ### `Top` and `Bot`
 
@@ -258,18 +267,18 @@ They are not permanent player identities. When players change ends, the labels r
 
 ### Missing outcome values
 
-Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds a row to `hit_height_failures`.
+Some outcome fields can be unresolved even when the contact sequence is usable. For example, unreliable shuttle data at the last hit leaves the landing empty without invalidating the contact frame itself. An invisible shuttle or missing scene geometry at a contact frame leaves its hit height unresolved and adds its frame and reason to `unavailable_hit_height_reasons`.
 
 ## Direct Python call
 
-For callers that already hold the arrays in memory, the main function is `run_video()`:
+For callers that already hold the arrays in memory, the main function is `annotate_video()`:
 
 ```python
 from annotator.models import DEFAULT_MODEL_DIRECTORY, load_models
-from annotator.run_video import run_video
+from annotator.annotate_video import annotate_video
 
 models = load_models(DEFAULT_MODEL_DIRECTORY)
-result = run_video(
+annotation = annotate_video(
     track,
     bboxes,
     scores,
@@ -281,7 +290,11 @@ result = run_video(
 )
 ```
 
-The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `run_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
+`annotation.result` contains the finished annotations. Both exclusion masks
+are returned alongside it. Pass `keep_working_data=True` to also retain prepared
+inputs and model scores.
+
+The five positional arrays are the frame-aligned shuttle track and pose detections. The keyword mapping supplies the court geometry, the replay/court masks and the landing inputs. The `annotate_video()` docstring lists the full in-memory argument shapes. `dataset_builder.vision.run_full_annotation_stage()` shows how the saved stage files are assembled into those arguments.
 
 The direct call uses the model directory and settings as follows:
 
@@ -289,26 +302,9 @@ The direct call uses the model directory and settings as follows:
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 
-`prepare_annotation()` in [preparation.py](../../src/annotator/preparation.py)
-accepts the same five arrays plus resolved settings and the court, mask and scene
-inputs. Training and rally-model experiments call it directly. Its
-`AnnotationEvidence` retains the original arrays, sticky players, initial rallies,
-all heuristic contact rows, raw/final exclusion masks and event-rejection evidence.
+`prepare_annotation_inputs()` in [prepare_annotation_inputs.py](../../src/annotator/inference/prepare_annotation_inputs.py)
+accepts the same five arrays plus settings scaled to the video frame rate and
+the court, mask and scene inputs. Training and rally-model experiments call it directly. Its
+`PreparedAnnotationInputs` retains the original arrays, tracked players, wrist gaps, initial rallies,
+all heuristic contact rows, exclusion masks and rejected-shuttle-frame mask.
 It does not calculate final contact order, landing, winner or hit height.
-
-For a shuttle track without player or court evidence, use:
-
-```python
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.rally_segmentation import segment_shuttle_track
-
-spans, contacts = segment_shuttle_track(
-    track,
-    resolve(BaseAnnotatorConfig(span_open=None), fps),
-    raw_exclusion_mask=dead_mask,
-)
-```
-
-The rally CLI uses `span_open=None` by default. This track-only operation applies
-the supplied dead-time mask after short-run filtering. Court-based exclusions
-belong to shared annotation preparation.

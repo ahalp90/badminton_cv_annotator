@@ -8,8 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from annotator.review.broadcast_labels import SceneTruth
-from annotator.vlm_scene_benchmark.contracts import (
+from experiments.annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
     CameraView,
@@ -26,6 +25,7 @@ from annotator.vlm_scene_benchmark.contracts import (
     read_run_record,
     write_run_record,
 )
+from labelling.scene_labels import SceneTruth
 
 SHA256 = "a" * 64
 

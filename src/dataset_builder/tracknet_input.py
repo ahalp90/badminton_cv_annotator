@@ -9,8 +9,8 @@ from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder.vision import load_json_gz, save_json_gz
+from shared.video_metadata import VideoMetadata, probe_video_metadata
 
 TRACKNET_INPUT_WIDTH = 512
 TRACKNET_INPUT_HEIGHT = 288

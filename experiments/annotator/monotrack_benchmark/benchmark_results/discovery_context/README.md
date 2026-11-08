@@ -1,6 +1,6 @@
-# Discovery context comparison
+# Earlier discovery context comparison
 
-The baseline uses **no maximum outward context in training or discovery**.
+The earlier baseline uses **no maximum outward context in training or discovery**.
 It keeps the simpler rule; the validation difference from the capped
 configuration is small and does not establish statistical superiority.
 
@@ -150,4 +150,4 @@ python experiments/annotator/monotrack_benchmark/writeup_scripts/make_figures.py
 ```
 
 Court inputs and MonoTrack predictions are unchanged. A fresh annotator
-hyperparameter search and selector-depth experiments are separate follow-ups.
+hyperparameter search and selector-depth experiments were separate follow-ups.

@@ -4,7 +4,7 @@ Issue #22 defines the formulas. Issue #104 kept posture variability, rally
 timestamps, and linear-interpolation provenance. Issue #18 moved those parts
 here from the benchmark-only prototype so the dataset export and the ShuttleSet
 benchmark share one implementation. Issue #138 moved recovery_at_opponent_contacts
-and movement_inefficiency here too, once human ShuttleSet contacts made them
+and movement_inefficiency here too, once manually labelled ShuttleSet contacts made them
 reliable enough to export.
 """
 
@@ -18,25 +18,18 @@ from fractions import Fraction
 from typing import NamedTuple
 
 import numpy as np
-import pandas as pd
 
-from annotator.config import ScalingKind
-from annotator.courts.evidence import detected_court_info
-from annotator.courts.scenes import build_scene_courts, scene_ref_corners
-from annotator.outcomes.point_winner import (
-    COURT_LENGTH_M,
-    COURT_WIDTH_M,
-    project_pixels_to_court,
-)
-from annotator.rally.evidence import build_sticky_result, tracker_segments
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.player_tracking import track_sticky_players, tracker_segments
 from dataset_builder.vision import CourtVision, PoseArrays
+from shared.court import project_pixels_to_court
+from shared.court_model import COURT_LENGTH_M, COURT_WIDTH_M
+from shared.frame_timing import frames_at_fps
 
 EYE_INDICES = (1, 2)
 HIP_INDICES = (11, 12)
 ANKLE_INDICES = (15, 16)
 COURT_SIDES = ("top", "bottom")
-# Dataset features use a fixed window, independently of annotation frame-rate scaling.
-DATASET_BODY_UNIT_HALF_WINDOW = 12
 # Issue #32 fixed the clip offsets: 2 s of lead-in before the first contact and
 # 3 s of tail after the last, so a clip keeps the serve setup and the point ending.
 CLIP_LEAD_SECONDS = 2
@@ -84,7 +77,6 @@ def derive_player_feature_inputs(
     track: np.ndarray,
     pose: PoseArrays,
     court: CourtVision,
-    video_id: str,
 ) -> PlayerFeatureInputs:
     """Build issue #22 player signals through the production sticky-player path."""
     inputs = court.evidence.inputs
@@ -92,34 +84,27 @@ def derive_player_feature_inputs(
         raise ValueError("court evidence has no operational inputs")
     if len(track) != len(pose.kps) or len(track) != len(court.evidence.court_present):
         raise ValueError("shuttle, pose, and court frame populations differ")
-    segments = tracker_segments(
-        inputs.homography_rows.to_dict("records"),
-        court.evidence.court_present,
+    scene_courts = build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution)
+    segments = tracker_segments(scene_courts, court.evidence.court_present, len(track))
+    players = track_sticky_players(
         len(track),
-    )
-    sticky = build_sticky_result(
-        track,
         segments,
         pose.bboxes,
         pose.scores,
         pose.kps,
         pose.ndet,
-        video_id,
-        inputs.gate_court_info,
-        inputs.gate_resolution_table,
         inputs.resolution,
-        DATASET_BODY_UNIT_HALF_WINDOW,
-        scene_courts=build_scene_courts(inputs.homography_rows.to_dict("records"), inputs.resolution),
+        scene_courts=scene_courts,
     )
-    selected_keypoints = select_sticky_keypoints(pose.kps, sticky.picks)
+    selected_keypoints = select_sticky_keypoints(pose.kps, players.detection_indices)
     raw_posture = posture_signal(selected_keypoints)
     posture_values, posture_interpolation = interpolate_internal_gaps(
         raw_posture[:, :, np.newaxis], segments
     )
-    image_positions = sticky.ankle_pos * np.asarray(inputs.resolution, dtype=float)
+    image_positions = players.ankle_xy * np.asarray(inputs.resolution, dtype=float)
     court_positions = project_positions_by_scene(
         image_positions,
-        inputs.homography_rows,
+        scene_courts,
         inputs.resolution,
     )
     interpolated, position_interpolation = interpolate_internal_gaps(
@@ -198,9 +183,7 @@ def recovery_at_opponent_contacts(
         raise ValueError("court_positions must have shape (frames, 2, 2)")
     if len(contact_frames) != len(striker_slots):
         raise ValueError("contact_frames and striker_slots must have equal length")
-    half_window = int(
-        ScalingKind.FRAME_COUNT.scale(RECOVERY_HALF_WINDOW_BASE30, fps)
-    )
+    half_window = frames_at_fps(RECOVERY_HALF_WINDOW_BASE30, fps)
     range_start, range_end = (0, len(positions)) if frame_range is None else frame_range
     if not 0 <= range_start < range_end <= len(positions):
         raise ValueError("recovery frame range is invalid")
@@ -308,29 +291,18 @@ def movement_inefficiency(
 
 def project_positions_by_scene(
     image_positions: np.ndarray,
-    homography_rows: pd.DataFrame,
+    scene_courts: Sequence[SceneCourt],
     resolution: tuple[float, float],
 ) -> np.ndarray:
-    """Project frame-aligned player positions through each production scene row."""
+    """Project frame-aligned positions using the prepared, disjoint scene courts."""
     positions = np.asarray(image_positions, dtype=float)
     if positions.ndim != 3 or positions.shape[2] != 2:
         raise ValueError("image_positions must have shape (frames, slots, 2)")
-    width, height = map(float, resolution)
-    if not math.isfinite(width) or not math.isfinite(height) or min(width, height) <= 0:
-        raise ValueError("resolution must contain positive finite values")
-
     projected = np.full_like(positions, np.nan, dtype=float)
-    occupied = np.zeros(len(positions), dtype=bool)
-    for row in homography_rows.to_dict("records"):
-        start = int(row["start_frame"])
-        end = int(row["end_frame"])
+    for scene in scene_courts:
+        start, end = scene.start_frame, scene.end_frame
         if not 0 <= start <= end <= len(positions):
-            raise ValueError("homography row is outside the frame population")
-        if occupied[start:end].any():
-            raise ValueError("homography rows overlap")
-        occupied[start:end] = True
-        ref_corners = scene_ref_corners(row, (width, height))
-        court_info = detected_court_info(ref_corners)
+            raise ValueError("court scene is outside the frame population")
         for slot in range(positions.shape[1]):
             points = positions[start:end, slot]
             valid = np.isfinite(points).all(axis=1)
@@ -338,7 +310,7 @@ def project_positions_by_scene(
                 continue
             frames = np.flatnonzero(valid) + start
             projected[frames, slot] = project_pixels_to_court(
-                points[valid].T, (width, height), court_info
+                points[valid].T, resolution, scene.court_info
             ).T
     return projected
 

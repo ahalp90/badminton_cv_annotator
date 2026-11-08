@@ -5,7 +5,7 @@ The head count is the D26 semantics: standing detections within
 is a separate signal from the two-player pick, which still keys on the eps-0.01
 in-court count (detect path) or the anchor picks (sticky_anchor).
 
-Two producers feed the windowed ``scraper.doubles_flag`` rule:
+Two producers retain per-frame counts of extra in-court players:
 
 - ``_order_two_on_court`` (the live rtmlib path) returns the head count beside its
   ordered-pair result, so a doubles frame (>2 counted) is distinguishable from an
@@ -22,20 +22,18 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from preparing_data import prepare_train_on_shuttleset as prep
-from preparing_data.heuristics.base import (
+from preparing_data.heuristics.base import ClipContext, RawClip
+from preparing_data.heuristics.sticky_anchor import _run_clip
+from preparing_data.prepare_train_on_shuttleset import _order_two_on_court
+
+from shared.player_tracking import (
     DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
-    ClipContext,
-    RawClip,
+    StickyAnchorParams,
     count_standing_in_court,
     is_sitting,
+    track_frame_players,
 )
-from preparing_data.heuristics.sticky_anchor import (
-    StickyAnchorParams,
-    _run_clip,
-    pick_one_frame,
-)
-from preparing_data.prepare_train_on_shuttleset import _order_two_on_court
 
 J = 17  # COCO 17-joint skeleton
 
@@ -202,15 +200,15 @@ def test_sticky_anchor_overcount_flags_doubles_while_picking_two():
         (bot2, _standing_kps_for_bbox(bot2), 0.9),
     ])
 
-    # pick_one_frame reports the doubles head count as its 5th element.
-    res = pick_one_frame(raw, 0, ema, halfcourt_centre, ctx, params)
-    assert res is not None
-    picks, _court_base_pos, _kps_f, _bboxes_f, n_counted = res
-    assert n_counted == 4           # all four standing, inside the count margin
-    assert picks.count(-1) == 0     # both slots still fill: exactly two picks
+    players = track_frame_players(
+        raw.bboxes[0], raw.scores[0], raw.kps[0], ema, halfcourt_centre,
+        ctx.all_court_info[ctx.vid], (1280., 720.), params,
+    )
+    assert players.standing_count == 4
+    assert (players.detection_indices >= 0).all()
 
     # Via _run_clip the over-count lands in HeuristicOutput; the frame is not a failure.
-    output, _ema_history = _run_clip(raw, ctx, _identity_normalize_joints, params)
+    output = _run_clip(raw, ctx, _identity_normalize_joints, params)
     assert bool(output.overcount[0])
     assert not output.failed[0]
 
@@ -226,7 +224,7 @@ def test_sticky_anchor_two_players_no_overcount():
         (bot, _standing_kps_for_bbox(bot), 0.9),
     ])
 
-    output, _ema_history = _run_clip(raw, ctx, _identity_normalize_joints, params)
+    output = _run_clip(raw, ctx, _identity_normalize_joints, params)
     assert not output.overcount[0]
     assert not output.failed[0]
 
@@ -292,7 +290,7 @@ def test_sticky_anchor_seated_third_in_margin_not_counted():
         (third, _sitting_kps_for_bbox(third), 0.9),
     ])
 
-    output, _ema_history = _run_clip(raw, ctx, _identity_normalize_joints, params)
+    output = _run_clip(raw, ctx, _identity_normalize_joints, params)
     assert not output.overcount[0]
     assert not output.failed[0]
 
@@ -310,7 +308,7 @@ def test_sticky_anchor_standing_third_in_margin_counted():
         (third, _standing_kps_for_bbox(third), 0.9),
     ])
 
-    output, _ema_history = _run_clip(raw, ctx, _identity_normalize_joints, params)
+    output = _run_clip(raw, ctx, _identity_normalize_joints, params)
     assert output.overcount[0]
     assert not output.failed[0]
 
@@ -333,7 +331,7 @@ def test_sticky_anchor_standing_third_outside_count_margin_not_counted():
         (third, _standing_kps_for_bbox(third), 0.9),
     ])
 
-    output, _ema_history = _run_clip(raw, ctx, _identity_normalize_joints, params)
+    output = _run_clip(raw, ctx, _identity_normalize_joints, params)
     assert not output.overcount[0]
     assert not output.failed[0]
 

@@ -11,8 +11,7 @@ from dataclasses import replace
 from pathlib import Path, PurePosixPath
 
 from annotator.models import model_files
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-from annotator.video_metadata import probe_video_metadata
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from dataset_builder._runtime_support import (
     RuntimeSupport,
     _atomic_copy,
@@ -91,6 +90,7 @@ from scraper import (
 )
 from scraper import config as scraper_config
 from scraper.commentary_pairing import pair_video_with_metadata
+from shared.video_metadata import probe_video_metadata
 
 METADATA_FILENAME = "video_metadata.json.gz"
 PAIRING_FILENAME = "commentary_pairing.json.gz"
@@ -1026,7 +1026,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 metadata=metadata,
                 track=shuttle.track,
                 inpaint_fill_mask=shuttle.inpaint_fill_mask,
-                guard_codes=shuttle.guard_codes,
+                shuttle_grades=shuttle.shuttle_grades,
                 pose=self.state.poses[video_id],
                 court=self.state.courts[video_id],
                 output_dir=output_dir,
@@ -1037,7 +1037,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 StageOutcome.PROCESSED,
                 annotation.artifacts.as_mapping(),
                 {
-                    "rallies": len(annotation.run.result.spans),
+                    "rallies": len(annotation.run.result.rallies),
                     "guard_rejected_frames": (
                         annotation.run.shuttle_quality.guard_rejected_frames
                     ),
@@ -1059,7 +1059,7 @@ class DefaultPipelineRuntime(RuntimeSupport):
                 self._video_stage("pose", video_id),
                 self._video_stage("court", video_id),
             ),
-            command=(self._current().path, "-m", "annotator.run_video", video_id),
+            command=(self._current().path, "-m", "annotator.annotate_video", video_id),
             configuration=_annotation_configuration(),
             model_weights=model_files(self.config.annotator_model_dir),
             inputs=inputs,
@@ -1082,8 +1082,8 @@ class DefaultPipelineRuntime(RuntimeSupport):
         def execute() -> StageExecution:
             self._reset_stage_dir("commentary_pairing", video_id)
             spans = [
-                (rally_id, start, end)
-                for rally_id, (start, end) in enumerate(annotation.run.result.spans)
+                (rally_id, rally.sequence.start_frame, rally.sequence.end_frame)
+                for rally_id, rally in enumerate(annotation.run.result.rallies)
             ]
             pairing = pair_video_with_metadata(
                 video_id,

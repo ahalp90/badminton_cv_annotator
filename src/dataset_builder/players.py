@@ -61,7 +61,7 @@ class SidePhase(NamedTuple):
     """One stretch of a match played with a fixed court orientation.
 
     ``start_frame`` and ``end_frame`` are the half-open envelope of the phase's
-    valid human-contact frames, so they bound the phase but do not prove that
+    valid manually labelled contact frames, so they bound the phase but do not prove that
     every frame between them belongs to it.
     """
 

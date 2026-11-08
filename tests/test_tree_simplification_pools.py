@@ -6,22 +6,21 @@ import joblib
 import numpy as np
 import pytest
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.repairs import RallyRepairs
+from annotator.rallies.build_contact_proposals import RallyContext
 from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.tree_simplification import pools
 from experiments.annotator.tree_simplification.options import LabelledOptions
 
 
 def example_pool() -> LabelledOptions:
-    first = ContactEvent(10, 0.9, Half.TOP)
-    second = ContactEvent(20, 0.8, Half.BOT)
-    addition = ContactEvent(15, 0.7, Half.TOP)
-    other = ContactEvent(40, 0.85, Half.BOT)
-    other_addition = ContactEvent(35, 0.6, Half.TOP)
+    first = ContactEvent(10, 0.9, CourtHalf.TOP)
+    second = ContactEvent(20, 0.8, CourtHalf.BOT)
+    addition = ContactEvent(15, 0.7, CourtHalf.TOP)
+    other = ContactEvent(40, 0.85, CourtHalf.BOT)
+    other_addition = ContactEvent(35, 0.6, CourtHalf.TOP)
     initial = (
         ContactSequence(0, 5, 25, (first, second)),
         ContactSequence(1, 30, 45, (other,)),
@@ -34,10 +33,10 @@ def example_pool() -> LabelledOptions:
         initial[1],
         replace(initial[1], events=(other_addition, other)),
     )
-    original = SequenceTrainingVideo(
-        'fixture', 'A', 30.0, initial, (first, second, other),
-        RallyRepairs((sequences[1],), {}, {}), (), 50,
+    context = RallyContext(
+        30.0, initial, (first, second, other), {}, {}, frame_count=50,
     )
+    original = SequenceTrainingVideo('fixture', 'A', context, ())
     return LabelledOptions(
         sequences,
         np.arange(12, dtype=np.float32).reshape(6, 2),
@@ -47,17 +46,6 @@ def example_pool() -> LabelledOptions:
     )
 
 
-def test_original_options_keep_choices_and_row_alignment() -> None:
-    options = example_pool()
-
-    original = pools.original_options(options)
-
-    assert original.sequences == (options.sequences[0], options.sequences[1], options.sequences[4])
-    np.testing.assert_array_equal(original.matrix, options.matrix[[0, 1, 4]])
-    np.testing.assert_array_equal(original.targets, options.targets[[0, 1, 4]])
-    np.testing.assert_array_equal(original.span_rows[0], [0, 1])
-    np.testing.assert_array_equal(original.span_rows[1], [2])
-    assert original.video is options.video
 
 
 def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
@@ -71,8 +59,7 @@ def test_pool_summary_counts_targets_and_positive_span_coverage() -> None:
         'mixed': {'-1': 0, '0': 0, '1': 1},
     }
     assert summary['positive_target_span_coverage'] == {
-        'original_options': 1,
-        'all_options': 2,
+        'positive_spans': 2,
         'total_spans': 2,
     }
 

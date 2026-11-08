@@ -13,10 +13,10 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder import ffv1_stream
 from dataset_builder.ffv1_stream import TRACKNET_BGR_FRAME_BYTES, iter_exact_ffv1_frames
 from dataset_builder.tracknet_input import TrackNetInputMode, create_tracknet_input
+from shared.video_metadata import VideoMetadata, probe_video_metadata
 
 
 def _source(tmp_path: Path, frame_count: int = 2) -> VideoMetadata:

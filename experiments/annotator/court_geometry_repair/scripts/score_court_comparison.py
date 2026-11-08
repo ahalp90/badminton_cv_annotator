@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
 
-from annotator.courts.scenes import build_scene_courts, court_at_frame
-from annotator.outcomes.point_winner import attribute_half
+from annotator.contacts.player_attribution import contact_player_evidence
+from annotator.courts.frame_geometry import build_scene_courts
 from dataset_builder.vision import load_npy_xz, save_json_gz, save_npy_xz
 from experiments.annotator.court_geometry_repair.scripts.prepare_court_comparison import (
     _global_tracker_mode,
@@ -138,7 +139,9 @@ def _replay_sides(
         raise ValueError("court inputs are unavailable")
     resolution = tuple(float(value) for value in inputs.resolution)
     scenes = build_scene_courts(inputs.homography_rows.to_dict("records"), resolution)
-    global_band = tuple(float(value) for value in inputs.net_band)
+    if baseline:
+        global_band = tuple(float(value) for value in inputs.net_band)
+        scenes = tuple(replace(scene, net_band=global_band) for scene in scenes)
     present = np.asarray(court.evidence.court_present, dtype=bool)
     output: dict[int, str | None] = {}
     for frame in sorted({int(row["frame"]) for row in score_rows}):
@@ -147,8 +150,7 @@ def _replay_sides(
         if not present[frame]:
             output[frame] = None
             continue
-        band = global_band if baseline else court_at_frame(scenes, frame).net_band
-        value = attribute_half(frame, track, sticky, pose.bboxes, band)
+        value, _ = contact_player_evidence(frame, track, sticky, pose.bboxes, scenes)
         side = None if value is None else getattr(value, "value", value)
         if side not in {None, "Top", "Bot", "Bottom"}:
             raise ValueError(f"frame {frame}: unexpected player side {side!r}")

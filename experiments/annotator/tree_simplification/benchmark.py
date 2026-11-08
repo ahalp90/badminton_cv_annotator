@@ -9,16 +9,15 @@ import argparse
 import time
 from pathlib import Path
 
-import joblib
 from threadpoolctl import threadpool_limits
 
-from annotator.hybrid import predict_contact_features
+from annotator.inference.learned import predict_from_contact_features
 from annotator.models import fitted_trees, load_models
-from annotator.sequence.contacts import stream_payload
-from experiments.annotator.development import progress
+from experiments.annotator.contact_records import stream_payload
+from experiments.annotator.development import load_prepared, progress
 from experiments.annotator.heuristic_only_tune.run import (
     read_json,
-    source_record,
+    runtime_versions,
     write_json,
 )
 
@@ -45,16 +44,16 @@ def main() -> None:
         for path in sorted((args.prepared / 'videos').glob('*.joblib')):
             if read_json(path.with_suffix('.json.gz'))['split'] != 'validation':
                 continue
-            prepared = joblib.load(path)
+            prepared = load_prepared(args.prepared, path.stem)
             identity = prepared.video.identity
             videos.append(identity)
             expected = {name: read_json(folder / f'{identity}.json.gz') for name, folder in streams.items()}
             for repetition, order in enumerate((('old', 'new'), ('new', 'old'))):
                 for name in order:
                     started = time.perf_counter()
-                    prediction = predict_contact_features(prepared.evidence, prepared.features, bundles[name])
+                    prediction = predict_from_contact_features(prepared.evidence, prepared.features, bundles[name])
                     elapsed = time.perf_counter() - started
-                    actual = stream_payload(prediction.refined.sequences, prediction.refined.events)
+                    actual = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
                     if actual != expected[name]:
                         raise ValueError(f'{identity}/{name}: timing replay changed the saved annotation stream')
                     rows.append({'video': identity, 'model': name, 'repetition': repetition, 'wall_s': elapsed})
@@ -70,7 +69,7 @@ def main() -> None:
             for repetition in (0, 1)
         ]
     write_json(args.output / 'result.json.gz', {
-        'complete': True, 'source': source_record(), 'threads': 2, 'rows': rows, 'total_wall_s': totals,
+        'complete': True, 'source': runtime_versions(), 'threads': 2, 'rows': rows, 'total_wall_s': totals,
         'inputs': {name: str(value.resolve()) for name, value in vars(args).items()},
         'scope': __doc__, 'streams_match': True,
     })

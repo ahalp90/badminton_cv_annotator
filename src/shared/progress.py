@@ -1,10 +1,11 @@
-"""Optional progress events shared by the coordinator and its child processes.
+"""Optional progress reporting for annotation, extraction and their worker processes.
 
-The channel exists only while a terminal stage is running. Events are small
-append-only JSON records. Opt-in worker logging keeps diagnostics off the display.
+Workers append small JSON messages to the file selected by PROGRESS_ENV.
+The terminal display reads those messages. LOG_ENV can redirect worker
+prints to a log while the display is active.
 """
 
-# Display-only boundaries deliberately catch ordinary exceptions, never cancellation.
+# Display/log failures must not stop processing. Cancellation still propagates.
 # ruff: noqa: BLE001
 
 from __future__ import annotations
@@ -20,7 +21,10 @@ PROGRESS_ENV = "BADMINTON_PROGRESS_FILE"
 LOG_ENV = "BADMINTON_PROGRESS_LOG"
 
 
+# Progress messages for the terminal display
+
 def enabled() -> bool:
+    """Whether a progress output file has been configured."""
     return bool(os.environ.get(PROGRESS_ENV))
 
 
@@ -32,10 +36,10 @@ def report(
     *,
     worker: str = "main",
 ) -> None:
-    """Publish an absolute counter, or an activity without a known total.
+    """Report the completed count so far, or an activity with no known total.
 
-    A broken display channel must never fail extraction or annotation.
-    Worker IDs identify disjoint portions of the same activity.
+    Worker IDs separate independent portions of the same activity. Reporting
+    failures are ignored so a broken display cannot stop processing.
     """
     path = os.environ.get(PROGRESS_ENV)
     if not path:
@@ -60,7 +64,7 @@ def report(
         finally:
             os.close(fd)
     except Exception:
-        # Counters are optional, including serialization of unexpected values.
+        # Progress is optional, even if the message could not be serialised.
         return
 
 
@@ -72,9 +76,10 @@ def progress_iter[T](
     unit: str = "items",
     worker: str = "main",
 ) -> Iterator[T]:
-    """Count completed iterations, throttled to five events/second per worker.
+    """Yield items and report completed iterations, at most five updates per second.
 
-    Never claim completion if the consumer raises or stops iterating early.
+    Count an item when the caller asks for the next one. A break or exception
+    leaves the last yielded item uncounted.
     """
     if not enabled():
         yield from items
@@ -97,8 +102,14 @@ def progress_iter[T](
     report(activity, completed, total, unit, worker=worker)
 
 
+# Redirect worker stdout/stderr to a log
+
 class SafeOutput:
-    """Best-effort display/log writes; a failed log falls back to the terminal."""
+    """Write to a log, falling back to the terminal if writing fails.
+
+    After a failure, try the fallback once and call on_failure. Further output
+    is ignored if neither destination works.
+    """
 
     def __init__(self, target, fallback=None, on_failure=lambda: None):
         self.target, self.fallback, self.on_failure = target, fallback, on_failure
@@ -132,10 +143,10 @@ class SafeOutput:
 
 @contextmanager
 def capture_output(path=None, on_failure=lambda: None):
-    """Capture Python diagnostics without making log I/O part of processing.
+    """Send Python stdout/stderr to a log, keeping logging failures non-fatal.
 
-    Child entry points use LOG_ENV so their prints do not disturb the display.
-    Exceptions raised by processing always propagate unchanged.
+    Use LOG_ENV if no path is supplied. If the file cannot be opened, retain
+    normal output. Processing exceptions still propagate to the caller.
     """
     path = path if path is not None else os.environ.get(LOG_ENV)
     if not path:

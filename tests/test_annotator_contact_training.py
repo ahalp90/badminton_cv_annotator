@@ -10,8 +10,7 @@ import pytest
 from threadpoolctl import threadpool_limits
 from xgboost import XGBClassifier
 
-from annotator.contacts.features import REGION_FIELDS
-from annotator.contacts.model import (
+from annotator.contacts.score_candidates import (
     CONTACT_FEATURE_NAMES,
     contact_feature_matrix,
     score_contact_features,
@@ -26,17 +25,14 @@ from annotator.training.contact import (
 
 def training_video(identity: str, fps: float, contacts: tuple[int, ...] = (100, 400)) -> ContactTrainingVideo:
     dtype = [('fixture', 'S12'), ('frame', 'i4'), ('interval_id', 'i4')]
-    dtype.extend((name, 'u1') for name in REGION_FIELDS)
     dtype.extend((name, 'f4') for name in CONTACT_FEATURE_NAMES)
     rows = np.zeros(800, dtype=dtype)
     rows['fixture'] = identity.encode()
     rows['frame'] = np.arange(800)
-    rows['region_wrist'] = 1
-    rows['region_wrist'][::7] = 0
     for name in CONTACT_FEATURE_NAMES:
         rows[name] = np.sin(np.arange(800) / 10)
     rows[CONTACT_FEATURE_NAMES[0]][::11] = np.nan
-    return ContactTrainingVideo(identity, rows, np.array(contacts, dtype=np.int32), fps)
+    return ContactTrainingVideo(identity, rows[rows['frame'] % 7 != 0], np.array(contacts, dtype=np.int32), fps)
 
 
 REFERENCE_DIR = Path(__file__).parent / 'fixtures' / 'annotator_reference'
@@ -44,7 +40,7 @@ REFERENCE_DIR = Path(__file__).parent / 'fixtures' / 'annotator_reference'
 
 def test_sampling_matches_reference_for_multiple_fps_and_video_order() -> None:
     videos = [training_video('first', 25.0), training_video('second', 30.0), training_video('third', 60.0)]
-    candidates = np.concatenate([video.features[video.features['region_wrist'].astype(bool)] for video in videos])
+    candidates = np.concatenate([video.features for video in videos])
     with np.load(REFERENCE_DIR / 'contact_sampling.npz') as reference:
         expected_rows = candidates[reference['selected_indices']]
         expected_labels = reference['labels']
@@ -54,6 +50,30 @@ def test_sampling_matches_reference_for_multiple_fps_and_video_order() -> None:
     for name in candidates.dtype.names:
         np.testing.assert_array_equal(actual.rows[name], expected_rows[name], err_msg=name)
     assert {name: asdict(counts) for name, counts in actual.video_counts.items()} == expected_counts
+
+
+@pytest.mark.parametrize(('fps', 'offset', 'ignored_offset'), [(25.0, 2, 3), (30.0, 2, 3), (60.0, 4, 6)])
+def test_custom_positive_radius_changes_contact_labels_at_each_fps(
+    fps: float, offset: int, ignored_offset: int,
+) -> None:
+    video = training_video('custom', fps, (100,))
+    config = replace(ContactFitConfig(), positive_radius_at_30_fps=2, ignored_radius_at_30_fps=4)
+    selection = select_contact_training_rows([video], config)
+    labels = dict(zip(selection.rows['frame'], selection.labels, strict=True))
+    assert labels[100 + offset] == 1
+    assert 100 + ignored_offset in video.features['frame']
+    assert 100 + ignored_offset not in labels
+
+
+def test_custom_ignored_radius_removes_a_nearby_negative() -> None:
+    video = training_video('custom', 30.0, (100,))
+    default = select_contact_training_rows([video])
+    default_labels = dict(zip(default.rows['frame'], default.labels, strict=True))
+    assert default_labels[106] == 0
+
+    config = replace(ContactFitConfig(), ignored_radius_at_30_fps=6)
+    wider_ignore = select_contact_training_rows([video], config)
+    assert 106 not in wider_ignore.rows['frame']
 
 
 def test_small_fit_scores_only_supplied_training_video() -> None:
@@ -74,8 +94,9 @@ def test_small_fit_scores_only_supplied_training_video() -> None:
 def test_nearby_negatives_survive_without_positive_rows() -> None:
     main = training_video('main', 30.0)
     no_positive = training_video('nearby', 30.0, (100,))
-    no_positive.features['region_wrist'] = 0
-    no_positive.features['region_wrist'][105:116] = 1
+    nearby_rows = no_positive.features[:11].copy()
+    nearby_rows['frame'] = np.arange(105, 116)
+    no_positive = replace(no_positive, features=nearby_rows)
     selection = select_contact_training_rows([main, no_positive])
     counts = selection.video_counts['nearby']
     assert counts.positive == 0

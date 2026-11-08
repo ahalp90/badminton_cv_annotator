@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from annotator.sequence.contacts import scale_frames
 from annotator.training.sequences import match_contacts
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
@@ -25,6 +24,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     load_manifest,
     read_json,
 )
+from shared.frame_timing import frames_at_fps
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / 'results'
@@ -79,7 +79,7 @@ def window_rallies(run: Path) -> dict[tuple[str, str], WindowRally]:
     judged = {}
     for item in load_manifest(INPUTS)['items']:
         events = read_json(run / f'{item["item_id"]}.json.gz')['stream']['events']
-        tolerance = scale_frames(TOLERANCE_BASE30, item['fps'])
+        tolerance = frames_at_fps(TOLERANCE_BASE30, item['fps'])
         proposals, _contacts, _predictions, rally_rows = score_video(
             item['item_id'], 'test', fixed_stream(events, item['spans']), labels_for_item(item),
             item['fps'], TOLERANCE_BASE30,

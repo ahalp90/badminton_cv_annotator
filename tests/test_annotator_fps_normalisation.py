@@ -5,16 +5,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from annotator.config import BASE_FPS
-from annotator.contacts.features import (
+from annotator.contacts.build_features import (
     BASE_MISSINGNESS_SIGNALS,
-    REGION_FIELDS,
     WINDOW_OFFSETS_BASE30,
     ContactFeatures,
     build_contact_features,
 )
-from annotator.rally.contacts import FLOOR_EPS
-from annotator.types import StickyResult
+from annotator.contacts.heuristics import FLOOR_EPS
+from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import input_stages
 from experiments.annotator.tree_simplification.fps_normalisation import (
@@ -24,6 +22,7 @@ from experiments.annotator.tree_simplification.fps_normalisation import (
     normalise_contact_features,
     preparation_receipt,
 )
+from shared.frame_timing import BASE_FPS
 
 GEOMETRY_SIGNALS = (
     'wrist_gap_min',
@@ -76,16 +75,8 @@ def build_motion_features(
     distances = np.full(frame_count, np.nan, dtype=np.float64)
     finite_gaps = np.isfinite(gaps).any(axis=1)
     distances[finite_gaps] = np.nanmin(gaps[finite_gaps], axis=1)
-    sticky = StickyResult(
-        distances=distances,
-        picks=picks,
-        standing_count=np.full(frame_count, 2, dtype=np.int32),
-        ankle_pos=ankle_pos,
-        bbox_height=np.full((frame_count, 2), 100.0, dtype=np.float64),
-        distances_per_slot=gaps,
-        wrist_dist_px=gaps * 100.0,
-        analysed=np.ones(frame_count, dtype=bool),
-    )
+    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0, dtype=np.float64))
+    wrist_gaps = WristGaps(distances, gaps)
     pose_kps = np.full((frame_count, 2, 17, 2), 500.0, dtype=np.float64)
     exclusion_mask = np.zeros(frame_count, dtype=bool)
     first_end = 4 * int(fps)
@@ -93,7 +84,7 @@ def build_motion_features(
     features = build_contact_features(
         track=track,
         pose_kps=pose_kps,
-        sticky=sticky,
+        players=players, wrist_gaps=wrist_gaps,
         tracker_intervals=((0, first_end), (second_start, frame_count)),
         exclusion_mask=exclusion_mask,
         heuristic_spans=((0, first_end), (second_start, frame_count)),
@@ -174,7 +165,7 @@ def test_conversion_preserves_geometry_regions_missingness_and_boundaries(fps: f
     track, raw = build_motion_features(fps, include_missing_run=True)
     converted = normalise_contact_features(raw, track, fps)
 
-    for field in ('interval_id', 'frame', *REGION_FIELDS):
+    for field in ('interval_id', 'frame'):
         np.testing.assert_array_equal(converted.rows[field], raw.rows[field], err_msg=field)
 
     for signal in GEOMETRY_SIGNALS + BASE_MISSINGNESS_SIGNALS:
@@ -193,13 +184,13 @@ def test_conversion_preserves_geometry_regions_missingness_and_boundaries(fps: f
 
     for interval_id, (start, end) in enumerate(raw.search_intervals):
         interval_rows = raw.rows[raw.rows['interval_id'] == interval_id]
-        first = row_at_frame(converted, start)
-        last = row_at_frame(converted, end - 1)
+        first = row_at_frame(converted, int(interval_rows['frame'][0]))
+        last = row_at_frame(converted, int(interval_rows['frame'][-1]))
         assert np.isnan(first['shuttle_vx_t-10'])
         assert np.isnan(last['shuttle_vx_t+10'])
         assert np.isnan(first['ankle_speed_top_t-10'])
         assert np.isnan(last['ankle_speed_bot_t+10'])
-        assert len(interval_rows) == end - start
+        assert np.all((interval_rows['frame'] >= start) & (interval_rows['frame'] < end))
 
     missing_frame = int(2 * fps)
     missing_row = row_at_frame(converted, missing_frame)
@@ -255,7 +246,7 @@ def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path) -
     experiment.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
     experiment.write_json(run / 'result.json.gz', {'complete': True})
     experiment.write_json(run / 'settings.json.gz', {
-        'layers': 1, 'target_policy': {},
+        'target_policy': {},
         'pool_settings': {
             'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(tmp_path),
         },

@@ -11,15 +11,15 @@ There are two common cases:
 - **Metadata, shuttle, pose and court outputs already exist** — `python -m annotator` runs annotation for one video.
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
-The selected model is the XGBoost `raw_baseline` bundle from the current rally-model
+The selected model is the XGBoost `w36-c63-r360-p090-s63-r400` bundle from the current rally-model
 benchmark. It contains the contact classifier, one rally selector and a review
 model. The commands below use the tracked seed-0 bundle in
-[`experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0`](../../experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0/).
-It requires scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
-rule is off. The [refit record](../../experiments/annotator/tree_simplification/results/discovery_context/README.md)
-explains the boundary-policy selection; the earlier
-[comparison report](../../experiments/annotator/reports/tree_simplification.md)
-covers the tree settings.
+[`experiments/annotator/tree_simplification/results/hp_search/models/seed-0`](../../experiments/annotator/tree_simplification/results/hp_search/models/seed-0/).
+The tested runtime uses scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
+rule is off. See the [validation results](../../experiments/annotator/monotrack_benchmark/benchmark_results/hp_search/validation.json.gz)
+for validation scores and the
+[fit settings](../../experiments/annotator/tree_simplification/results/hp_search/fit-settings.json.gz)
+for tree settings.
 
 **Contents**
 
@@ -39,9 +39,11 @@ uv sync
 
 The project needs Python 3.12 or newer and uses the versions pinned in `uv.lock`. The annotator dependencies are part of the base project environment. No experiment extra is needed for a normal annotation run.
 
+For GPU fitting or annotation on a V100, also complete the [V100 setup](retuning.md#v100-setup).
+
 The commands on this page use `uv run`. Inside an already-activated project environment, plain `python` works the same way.
 
-Annotation also needs a fitted model directory containing:
+Learned annotation needs a fitted model directory containing:
 
 ```text
 models.joblib
@@ -49,8 +51,8 @@ metadata.json
 ```
 
 The two files form one model bundle. Before annotation starts, the loader
-checks the model format (its schema), the order of the contact measurements
-(its feature order) and the exact scikit-learn and XGBoost versions used for fitting.
+checks the model format, feature order and rally-proposal settings. Library
+versions are recorded for reference.
 
 The model needs shuttle, pose and court data consistent with the data used
 during training. A substantial detector change can require a new fit
@@ -97,7 +99,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0 \
+  --models experiments/annotator/tree_simplification/results/hp_search/models/seed-0 \
   --output-dir data/annotations/match-name
 ```
 
@@ -124,14 +126,14 @@ shuttle_quality.json.gz
 
 ### Main result fields
 
-- Rally spans use half-open bounds: `[start, end)` includes the start frame and excludes the end frame.
-- `filtered_by_rally` lists the final contact frames belonging to each rally.
+- Rally spans include the start frame and exclude the end frame: `[start, end)`.
+- `rallies[rally_id].sequence.events` contains the final contacts belonging to a rally.
 - `contact_events` contains the full final contact stream, including contacts that fall outside all rally spans.
 - `Top` and `Bot` refer to physical halves of the visible court: `Top` is the far half and `Bot` is the near half. They are not player names; the labels stay with the court halves when players change ends.
 - `rally_confidence` is a score for ordering rallies during review. It does not change the annotation or approve a rally automatically.
 - Server, winner, landing and hit-height fields are estimates made after the final contacts are known. They can be empty when the evidence is not good enough.
 
-`filtered_by_rally` is the field to use for contact membership. Filtering `contact_events` against the rally spans is not a substitute.
+Use the events in each finished rally for contact membership. Filtering `contact_events` against the rally spans is not a substitute.
 
 ## 5. Dataset-builder run
 
@@ -139,7 +141,7 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0"
+annotator = "experiments/annotator/tree_simplification/results/hp_search/models/seed-0"
 ```
 
 The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.
@@ -168,11 +170,12 @@ explains which changes require refitting.
 
 | Setting | Current default | Where it lives | What it changes |
 | --- | ---: | --- | --- |
-| Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/model.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
-| Rule for guarded candidates | off | `ContactModelConfig.reject_masked_without_player` | When on, drops candidate frames that have a shuttle guard grade flagged as unreliable and no picked player nearby in time; see [Fixed heuristics](heuristics.md#optional-rule-for-guarded-candidates) |
-| Side geometry | `video` | model directory / `--side-geometry` during fitting | Whether player halves use one net band per video or per-scene geometry |
+| Contact score cutoff | `0.9` | `ContactModelConfig` in `contacts/score_candidates.py` | Cutoff for the initial contact stream; lower-scoring candidates can still be reconsidered by sequence repair |
 | Rally/contact rules | `BaseAnnotatorConfig` | saved in the model directory | Rough rallies, masks and contact search regions seen by the fitted stages |
 | Shuttle/pose/court extraction | dataset-builder config | `configs/dataset_builder/*.toml` | Upstream evidence supplied to annotation |
+
+Player attribution always uses the current scene's court geometry. Reusing one
+homography for every scene gives video-wide geometry through the same path.
 
 The [refit guide](retuning.md#python-fit-settings) lists tree-training parameters and defaults.
 
@@ -180,14 +183,27 @@ Separate model and output directories make side-by-side comparisons easy to trac
 
 ## Heuristic-only annotation
 
-The Python API also runs the complete rule-based annotator without loading a
-model. Use the same prepared arrays and court/landing inputs:
+Use `--heuristic-only` to run the benchmark mode from saved inputs:
+
+```bash
+PYTHONPATH=src uv run python -m annotator \
+  --run-dir data/dataset-run \
+  --video-id match-name \
+  --heuristic-only \
+  --output-dir data/annotations/match-name-heuristic
+```
+
+Choose one mode: `--models PATH` or `--heuristic-only`. The heuristic mode uses
+current default settings and writes the same output files. For configured
+heuristic benchmarks, use the [benchmark runner](../../experiments/annotator/monotrack_benchmark/benchmark_scripts/README.md).
+
+The Python API accepts the prepared arrays and court/landing inputs:
 
 ```python
 from annotator.config import BaseAnnotatorConfig
-from annotator.run_video import run_video
+from annotator.annotate_video import annotate_video
 
-result = run_video(
+annotation = annotate_video(
     track, bboxes, scores, kps, ndet,
     fps=fps,
     heuristic_only=True,
@@ -196,35 +212,31 @@ result = run_video(
 )
 ```
 
-This returns heuristic contacts, player assignments and outcome estimates.
+`annotation.result` contains heuristic contacts, player assignments and outcome
+estimates. The exclusion masks are returned alongside it.
 Change `base` for a heuristic experiment and save its configuration with the
-result. For feature inputs, call `prepare_annotation()` directly. For a shuttle
-track without player or court evidence, use `segment_shuttle_track()`. The
-[input guide](inputs_outputs.md#direct-python-call) explains these calls.
+result. For feature inputs, call `prepare_annotation_inputs()` directly. See the
+[input guide](inputs_outputs.md#direct-python-call) for the required arrays.
 
 ## 7. Common failures
 
-**“Annotator model bundle is incomplete”**  
+**“Annotator model bundle is incomplete”**
 The `--models` directory is missing `models.joblib`, `metadata.json`, or both.
 
-**“models were fitted with scikit-learn X; this runtime has Y”**  
-The loader requires the same scikit-learn version used for fitting. Running
-annotation with a different version requires a model fitted with that version.
-
-**“persisted shuttle guard codes differ from the final track”**  
+**“persisted shuttle guard codes differ from the final track”**
 The saved shuttle track and guard codes disagree. The shuttle stage needs to
 be regenerated as a set.
 
-**Court evidence has no usable operational inputs**  
-The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.2` court inputs.
+**Court evidence has no usable operational inputs**
+The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.5` court inputs.
 
-**Output directory must be new or empty**  
+**Output directory must be new or empty**
 The standalone runner found existing files at the chosen output path.
 
 ## 8. Further detail
 
-`python -m annotator.rally_segmentation` is the older, rule-only segmentation
-command. `python -m annotator` runs the full fitted annotation chain.
+`python -m annotator` runs the full annotation chain and supports heuristic-only
+inference with `--heuristic-only`.
 
 | Task | Document |
 |---|---|
@@ -236,3 +248,7 @@ command. `python -m annotator` runs the full fitted annotation chain.
 | Reproduce the completed comparison | [Current experiment commands](../../experiments/annotator/tree_simplification/README.md) |
 | Check what has already been tried | [Development history](../../experiments/annotator/development.md) |
 | Find source files or assess a code change | [Code map](code_map.md) and [maintainer guide](maintaining.md) |
+
+The standalone commentary-pairing tool requires an explicit `--rally-spans` CSV.
+The dataset builder computes replay exclusion in memory. The standalone
+replay-mask writer and track-only batch segmentation command have been retired.

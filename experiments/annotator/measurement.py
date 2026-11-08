@@ -20,7 +20,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path, PurePosixPath
@@ -29,17 +29,18 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 import cv2
 import numpy as np
 
-import annotator.evaluation.gt_scoring as gt_scoring_module
-from annotator.artifact_io import (
-    atomic_gzip_text_writer,
-    load_npy,
-    save_npy_xz,
-    write_gzip_bytes,
-    write_json_object,
+import experiments.annotator.legacy_evaluation.gt_scoring as gt_scoring_module
+from annotator.annotate_video import (
+    AnnotatorResult,
+    annotate_video,
 )
-from annotator.config import BaseAnnotatorConfig, ResolvedAnnotatorConfig, resolve
-from annotator.courts.evidence import (
-    DETECTED_PARENT,
+from annotator.config import (
+    BaseAnnotatorConfig,
+    FpsScaledAnnotatorConfig,
+    scale_config_to_fps,
+)
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
     PERSON_COURT_MARGIN,
     SCENE_VALID_MIN_FRACTION,
@@ -47,12 +48,25 @@ from annotator.courts.evidence import (
     CourtSceneRecord,
     NoAcceptedCourtError,
     build_court_detector_evidence,
-    build_raw_cut_intervals,
-    build_static_court_evidence,
     read_detector_scenes,
 )
-from annotator.courts.scenes import SceneCourt, build_scene_courts
-from annotator.evaluation.fixtures import (
+from annotator.models import AnnotatorModels, load_models, model_files
+from annotator.rally_results.landing_and_winner import (
+    SHIPPED_LANDING_FILTER_OPTIONS,
+    Landing,
+)
+from experiments.annotator.artifact_io import (
+    atomic_gzip_text_writer,
+    load_npy,
+    save_npy_xz,
+    write_gzip_bytes,
+    write_json_object,
+)
+from experiments.annotator.landing_search import (
+    LandingSearchComparison,
+    compare_landing_searches,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
     SHARED_FILES,
@@ -61,27 +75,22 @@ from annotator.evaluation.fixtures import (
     fixtures_root,
     verify_file,
 )
-from annotator.evaluation.gt_scoring import (
+from experiments.annotator.legacy_evaluation.gt_scoring import (
     canonical_tolerance,
     flatten_metrics,
     load_gt_tables,
     score_video,
 )
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.scoring import (
     GtRally,
     safe_f1,
     strict_contact_rows,
     wide_edge_contact_rows,
 )
-from annotator.models import AnnotatorModels, load_models, model_files
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Landing
-from annotator.run_video import (
-    AnnotatorResult,
-    LandingHorizonRow,
-    RunCapture,
-    run_video,
+from experiments.annotator.legacy_evaluation.static_courts import (
+    build_raw_cut_intervals,
+    build_static_court_evidence,
 )
-from annotator.types import DeadMaskMode
 from experiments.annotator.records import (
     clean_run,
     human_bytes,
@@ -92,11 +101,13 @@ from experiments.annotator.records import (
 if TYPE_CHECKING:
     from dataset_builder.vision import CourtDetectorSettings
 
+DETECTED_PARENT = "court_detector"
+
 PARENTS = (
     "static_shuttleset_homography",
     DETECTED_PARENT,
 )
-LANDING_HORIZONS = (1.0, 2.0, 3.0)
+LANDING_SEARCH_SECONDS = (1.0, 2.0, 3.0)
 REF_ERR_PX = 3.5
 BASE_ANNOTATOR_CONFIG = BaseAnnotatorConfig()
 LANDING_OPTIONS = SHIPPED_LANDING_FILTER_OPTIONS
@@ -107,15 +118,14 @@ COURT_SCENES_COLUMNS = (
     "tl_x", "tl_y", "tr_x", "tr_y", "br_x", "br_y", "bl_x", "bl_y",
     "exactly_two_frame_count", "exactly_two_frame_fraction", "scene_valid",
 )
-LANDING_HORIZON_COLUMNS = (
-    "rally_id", "horizon_seconds", "horizon_frames", "final_contact_frame",
-    "requested_end_frame", "safe_end_frame", "effective_end_frame", "closure_reasons",
-    "strict_landing_frame", "strict_landing_x_norm", "strict_landing_y_norm",
-    "strict_landing_half", "strict_landing_at_border", "strict_landing_net_ender",
-    "capped_landing_frame", "capped_landing_x_norm", "capped_landing_y_norm",
-    "capped_landing_half", "capped_landing_at_border", "capped_landing_net_ender",
-    "strict_verdict", "strict_winner", "strict_verdict_source",
-    "capped_verdict", "capped_winner", "capped_verdict_source",
+LANDING_SEARCH_COLUMNS = (
+    "rally_id", "search_seconds", "search_frames", "final_contact_frame",
+    "time_limit_end_frame", "normal_end_frame", "trial_end_frame", "search_stop_reasons",
+    "normal_landing_frame", "normal_landing_x_norm", "normal_landing_y_norm",
+    "normal_landing_half", "normal_landing_at_border", "normal_landing_net_ender",
+    "trial_landing_frame", "trial_landing_x_norm", "trial_landing_y_norm",
+    "trial_landing_half", "trial_landing_at_border", "trial_landing_net_ender",
+    "normal_winner", "normal_winner_source", "trial_winner", "trial_winner_source",
     "landing_changed", "winner_changed",
 )
 STRICT_CONTACT_COLUMNS = (
@@ -165,7 +175,7 @@ class InputManifest:
     schema_version: int
     videos: dict[str, FilePin]
     track_overrides: dict[str, FilePin]
-    inpaint_codes: dict[str, FilePin]
+    shuttle_grades: dict[str, FilePin]
     deeplsd_weights: FilePin
     producers: dict[str, str]
 
@@ -200,7 +210,7 @@ class CaseData:
     ndet: np.ndarray
     raw_cuts: list[tuple[int, int]]
     inpaint_pin: FilePin
-    inpaint_codes: np.ndarray
+    shuttle_grades: np.ndarray
     raw_cuts_artifact: dict[str, Any] | None = None
     status: str = "not_run"
     failure_path: Path | None = None
@@ -220,8 +230,9 @@ class ConfigurationState:
     started_clock: float = 0.0
     result: AnnotatorResult | None = None
     court_result: CourtEvidenceResult | None = None
-    capture: RunCapture | None = None
-    resolved_config: ResolvedAnnotatorConfig | None = None
+    landing_comparisons: list[LandingSearchComparison] = field(default_factory=list)
+    exclusion_fraction: float | None = None
+    video_config: FpsScaledAnnotatorConfig | None = None
     status: str = "not_run"
     failure_path: Path | None = None
     manifest_path: Path | None = None
@@ -286,6 +297,13 @@ def _artifact_record(run_root: Path, path: Path) -> dict[str, Any]:
 
 def _json_ready(value: object, *, top_level: bool = False) -> object:
     """Convert the annotator's tuples, dataclasses and NumPy values to JSON values."""
+    from annotator.types import ContactEvent
+
+    if isinstance(value, ContactEvent):
+        probability = None if math.isnan(value.probability) else value.probability
+        return {
+            "frame": _json_ready(value.frame), "probability": _json_ready(probability), "side": _json_ready(value.side),
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, np.generic):
@@ -388,7 +406,7 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
             raise ValueError("input manifest is not valid JSON") from error
     if not isinstance(payload, dict):
         raise TypeError("input manifest must be a JSON object")
-    expected = {"schema_version", "videos", "track_overrides", "inpaint_codes", "deeplsd_weights", "producers"}
+    expected = {"schema_version", "videos", "track_overrides", "shuttle_grades", "deeplsd_weights", "producers"}
     if set(payload) != expected:
         missing = sorted(expected.difference(payload))
         unknown = sorted(set(payload).difference(expected))
@@ -401,9 +419,9 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
     tracks_raw = payload["track_overrides"]
     if not isinstance(tracks_raw, dict) or set(tracks_raw) != {"sset_01/tracknet-stride-1"}:
         raise ValueError("track_overrides must contain exactly the stride-1 sset_01 case")
-    guards_raw = payload["inpaint_codes"]
+    guards_raw = payload["shuttle_grades"]
     if not isinstance(guards_raw, dict) or set(guards_raw) != {case.case_id for case in CASES}:
-        raise ValueError("inpaint_codes must pin guard codes for each of the four fixed cases")
+        raise ValueError("shuttle_grades must pin guard codes for each of the four fixed cases")
     producers_raw = payload["producers"]
     if not isinstance(producers_raw, dict) or set(producers_raw) != set(_PRODUCER_KEYS):
         raise ValueError("producers keys do not match the fixed consumed roles")
@@ -415,8 +433,8 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
         producers[key] = value.strip()
     videos = {key: _pin_from_json(value, f"videos.{key}") for key, value in videos_raw.items()}
     track_overrides = {key: _pin_from_json(value, f"track_overrides.{key}") for key, value in tracks_raw.items()}
-    inpaint_codes = {key: _pin_from_json(value, f"inpaint_codes.{key}") for key, value in guards_raw.items()}
-    if any(pin.root != "fixtures" for pin in inpaint_codes.values()):
+    shuttle_grades = {key: _pin_from_json(value, f"shuttle_grades.{key}") for key, value in guards_raw.items()}
+    if any(pin.root != "fixtures" for pin in shuttle_grades.values()):
         raise ValueError("inpaint code pins must use the fixtures root")
     if any(pin.root != "fixtures" for pin in videos.values()):
         raise ValueError("video pins must use the fixtures root")
@@ -425,7 +443,7 @@ def parse_input_manifest(data: bytes | str | Mapping[str, object]) -> InputManif
     deeplsd_weights = _pin_from_json(payload["deeplsd_weights"], "deeplsd_weights")
     if deeplsd_weights.root != "fixtures":
         raise ValueError("deeplsd_weights must use the fixtures root")
-    return InputManifest(3, videos, track_overrides, inpaint_codes, deeplsd_weights, producers)
+    return InputManifest(3, videos, track_overrides, shuttle_grades, deeplsd_weights, producers)
 
 
 def verify_selected_pins(pins: Sequence[FilePin]) -> None:
@@ -559,11 +577,11 @@ def _corner_values(corners: np.ndarray | None) -> list[object]:
     return [float(value) for value in array.reshape(-1)]
 
 
-def _scene_row(record: CourtSceneRecord) -> dict[str, object]:
+def _scene_row(record: CourtSceneRecord, case_id: str, parent: str) -> dict[str, object]:
     return dict(zip(
         COURT_SCENES_COLUMNS,
         [
-            record.video_id, record.case_id, record.parent, record.scene_index, record.start_frame,
+            record.video_id, case_id, parent, record.scene_index, record.start_frame,
             record.end_frame, record.end_frame - record.start_frame,
             record.status, record.analysed_frame, record.no_court_reason, record.reused_from, record.error,
             *_corner_values(record.corners_native_px),
@@ -576,28 +594,23 @@ def _landing_fields(landing: Landing | None) -> list[object]:
     if landing is None:
         return [None] * 6
     return [
-        landing.frame, landing.norm[0], landing.norm[1], landing.half,
+        landing.frame, landing.court_xy[0], landing.court_xy[1], landing.half,
         landing.at_border, landing.net_ender,
     ]
 
 
-def _horizon_row(row: LandingHorizonRow) -> dict[str, object]:
-    strict_winner = row.strict_winner
-    capped_winner = row.capped_winner
-    strict_verdict = row.strict_verdict
-    capped_verdict = row.capped_verdict
-    strict_landing = _landing_fields(row.strict_landing)
-    capped_landing = _landing_fields(row.capped_landing)
+def _landing_search_row(row: LandingSearchComparison) -> dict[str, object]:
+    normal = row.normal_outcome
+    trial = row.trial_outcome
     return dict(zip(
-        LANDING_HORIZON_COLUMNS,
+        LANDING_SEARCH_COLUMNS,
         [
-            row.rally_id, row.horizon_seconds, row.horizon_frames, row.final_contact_frame,
-            row.requested_end_frame, row.safe_end_frame, row.effective_end_frame,
-            "+".join(row.closure_reasons),
-            *strict_landing, *capped_landing,
-            getattr(strict_verdict, "verdict", None), strict_winner, getattr(strict_verdict, "verdict_source", None),
-            getattr(capped_verdict, "verdict", None), capped_winner, getattr(capped_verdict, "verdict_source", None),
-            row.landing_changed, row.winner_changed,
+            row.rally_id, row.search_seconds, row.search_frames, row.final_contact_frame,
+            row.time_limit_end_frame, row.normal_end_frame, row.trial_end_frame,
+            "+".join(row.search_stop_reasons),
+            *_landing_fields(normal.landing), *_landing_fields(trial.landing),
+            normal.winner, normal.winner_source, trial.winner, trial.winner_source,
+            normal.landing != trial.landing, normal.winner != trial.winner,
         ],
     ))
 
@@ -630,23 +643,22 @@ def _strict_metrics(rows: Sequence[Mapping[str, object]], tolerance_base30: int,
     }
 
 
-def _landing_metrics(rows: Sequence[LandingHorizonRow]) -> dict[str, dict[str, int]]:
+def _landing_metrics(rows: Sequence[LandingSearchComparison]) -> dict[str, dict[str, int]]:
     result: dict[str, dict[str, int]] = {}
-    for horizon in LANDING_HORIZONS:
-        selected = [row for row in rows if row.horizon_seconds == horizon]
-        result[f"seconds_{int(horizon)}"] = {
+    for seconds in LANDING_SEARCH_SECONDS:
+        selected = [row for row in rows if row.search_seconds == seconds]
+        result[f"seconds_{int(seconds)}"] = {
             "eligible_rally_count": len(selected),
-            "horizon_bound_count": sum("horizon_cap" in row.closure_reasons for row in selected),
-            "landing_changed_count": sum(row.landing_changed for row in selected),
-            "winner_changed_count": sum(row.winner_changed for row in selected),
+            "time_limit_bound_count": sum("time_limit" in row.search_stop_reasons for row in selected),
+            "landing_changed_count": sum(row.normal_outcome.landing != row.trial_outcome.landing for row in selected),
+            "winner_changed_count": sum(row.normal_outcome.winner != row.trial_outcome.winner for row in selected),
         }
     return result
 
 
-def _configuration_values(dead_mask_mode: DeadMaskMode) -> dict[str, object]:
+def _configuration_values() -> dict[str, object]:
     return {
         "base_annotator_config": "annotator model bundle preprocessing",
-        "dead_mask_mode": dead_mask_mode.value,
         "landing_filter_options": {
             "settle_win": LANDING_OPTIONS.settle_win,
             "settle_thr": LANDING_OPTIONS.settle_thr,
@@ -658,11 +670,9 @@ def _configuration_values(dead_mask_mode: DeadMaskMode) -> dict[str, object]:
         "injected_positions": False,
         "injected_spans": False,
         "injected_contacts": False,
-        "serve_start": None,
-        "court_invalid_is_excluded": True,
         "person_margin": PERSON_COURT_MARGIN,
         "scene_threshold": SCENE_VALID_MIN_FRACTION,
-        "landing_horizons_s": list(LANDING_HORIZONS),
+        "landing_search_seconds": list(LANDING_SEARCH_SECONDS),
     }
 
 
@@ -765,8 +775,8 @@ def _input_records(case: CaseData, manifest: InputManifest) -> list[dict[str, An
         _array_pin_record("scores", case.scores_pin, producer[f"pose:{fixture.name}"], case.scores),
         _array_pin_record("kps", case.kps_pin, producer[f"pose:{fixture.name}"], case.kps),
         _array_pin_record("ndet", case.ndet_pin, producer[f"pose:{fixture.name}"], case.ndet),
-        _array_pin_record("inpaint_codes", case.inpaint_pin, producer[f"inpaint:{case.fixed.case_id}"],
-                          case.inpaint_codes),
+        _array_pin_record("shuttle_grades", case.inpaint_pin, producer[f"inpaint:{case.fixed.case_id}"],
+                          case.shuttle_grades),
     ]
     records.extend([
         _plain_pin_record("resolution_csv", SHARED_FILES[2], "repository calibration table"),
@@ -789,21 +799,21 @@ def _load_case(fixed: FixedCase, manifest: InputManifest, fixture: Fixture) -> C
     if fixed.tracknet_stride == 1:
         track_pin = manifest.track_overrides[fixed.case_id]
     bboxes_pin, scores_pin, kps_pin, ndet_pin = fixture.files[1], fixture.files[2], fixture.files[3], fixture.files[5]
-    inpaint_pin = manifest.inpaint_codes[fixed.case_id]
+    inpaint_pin = manifest.shuttle_grades[fixed.case_id]
     verify_selected_pins((video_pin, track_pin, bboxes_pin, scores_pin, kps_pin, ndet_pin, inpaint_pin))
     track, bboxes, scores, kps, ndet = (
         _load_array(track_pin), _load_array(bboxes_pin), _load_array(scores_pin),
         _load_array(kps_pin), _load_array(ndet_pin),
     )
-    inpaint_codes = _load_array(inpaint_pin)
-    validate_inpaint_codes(inpaint_codes, len(track), fixed.case_id)
+    shuttle_grades = _load_array(inpaint_pin)
+    validate_inpaint_codes(shuttle_grades, len(track), fixed.case_id)
     _validate_arrays(fixed, track, bboxes, scores, kps, ndet)
     video_path = _pin_path(video_pin)
     validate_video_metadata(fixed, probe_video(video_path))
     raw_cuts = build_raw_cut_intervals(video_path, fixed.n_frames, fixed.fps)
     return CaseData(
         fixed, fixture, video_pin, track_pin, bboxes_pin, scores_pin, kps_pin, ndet_pin,
-        video_path, track, bboxes, scores, kps, ndet, raw_cuts, inpaint_pin, inpaint_codes,
+        video_path, track, bboxes, scores, kps, ndet, raw_cuts, inpaint_pin, shuttle_grades,
     )
 
 
@@ -814,11 +824,11 @@ def _write_raw_cuts(case: CaseData, root: Path) -> None:
     case.status = "succeeded"
 
 
-def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult) -> None:
+def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult, case_id: str, parent: str) -> None:
     _write_rows(
         directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
-        (_scene_row(record) for record in court_result.scene_records),
+        (_scene_row(record, case_id, parent) for record in court_result.scene_records),
     )
     _write_rows(
         directory / "scene_rows.csv.gz",
@@ -834,12 +844,12 @@ def _write_annotations(directory: Path, result: AnnotatorResult) -> None:
     _write_json(directory / "annotations.json.gz", result)
 
 
-def _write_landing_horizons(directory: Path, rows: Sequence[LandingHorizonRow]) -> None:
-    ordered = sorted(rows, key=lambda row: (row.rally_id, row.horizon_seconds))
+def _write_landing_searches(directory: Path, rows: Sequence[LandingSearchComparison]) -> None:
+    ordered = sorted(rows, key=lambda row: (row.rally_id, row.search_seconds))
     _write_rows(
-        directory / "landing_horizons.csv.gz",
-        LANDING_HORIZON_COLUMNS,
-        (_horizon_row(row) for row in ordered),
+        directory / "landing_searches.csv.gz",
+        LANDING_SEARCH_COLUMNS,
+        (_landing_search_row(row) for row in ordered),
     )
 
 
@@ -848,18 +858,21 @@ def _write_scoring_outputs(
     fixture: Fixture,
     case: CaseData,
     result: AnnotatorResult,
-    capture: RunCapture,
+    exclusion_fraction: float,
+    landing_comparisons: Sequence[LandingSearchComparison],
     master: Any,
-    court_info: dict[str, object],
-    scene_courts: Sequence[SceneCourt] | None = None,
+    scene_courts: Sequence[SceneCourt],
 ) -> dict[str, object]:
     rallies = _gt_rallies_for_fixture(master, fixture)
-    strict_rows = strict_contact_rows(result.spans, result.filtered_contacts, rallies, case.fixed.fps)
-    wide_rows = wide_edge_contact_rows(rallies, result.filtered_contacts, case.fixed.fps, case.fixed.n_frames)
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    contacts = [(rally_id, event.frame, None, None)
+                for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
+    strict_rows = strict_contact_rows(spans, contacts, rallies, case.fixed.fps)
+    wide_rows = wide_edge_contact_rows(rallies, contacts, case.fixed.fps, case.fixed.n_frames)
     _write_rows(directory / "strict_contacts.csv.gz", STRICT_CONTACT_COLUMNS, strict_rows)
     _write_rows(directory / "wide_edge_contacts.csv.gz", WIDE_CONTACT_COLUMNS, wide_rows)
     scoring = score_video(
-        fixture, result, master, {fixture.video_id: court_info}, canonical_tolerance(case.fixed.fps),
+        fixture, result, master, {}, canonical_tolerance(case.fixed.fps),
         scene_courts,
     )
     metrics = {
@@ -871,8 +884,8 @@ def _write_scoring_outputs(
             "base30_10": _strict_metrics(strict_rows, 10, case.fixed.fps),
         },
         "court_valid_fraction": None,
-        "definitive_exclusion_fraction": float(np.asarray(capture.definitive_exclusion_mask, dtype=bool).mean()),
-        "landing_horizons": _landing_metrics(capture.landing_horizon_rows),
+        "definitive_exclusion_fraction": exclusion_fraction,
+        "landing_searches": _landing_metrics(landing_comparisons),
     }
     # The court-valid value comes from the parent evidence, not from the exclusion mask.
     court_present = load_npy(directory / "court_present.npy.xz")
@@ -882,7 +895,7 @@ def _write_scoring_outputs(
 
 
 def _gt_rallies_for_fixture(master: Any, fixture: Fixture) -> list[GtRally]:
-    from annotator.evaluation.scoring import load_gt_rallies
+    from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies
 
     return load_gt_rallies(master, fixture.video_id)
 
@@ -892,8 +905,8 @@ def _configuration_manifest(
     driver: RunDriver,
     failure_record: dict[str, Any] | None,
 ) -> dict[str, object]:
-    if state.resolved_config is None:
-        raise ValueError(f"{state.fixed.case_id}: resolved annotator configuration is missing")
+    if state.video_config is None:
+        raise ValueError(f"{state.fixed.case_id}: frame-rate-scaled annotator configuration is missing")
     finished = utc_now()
     artefacts = []
     for path in sorted(state.directory.rglob("*")):
@@ -936,8 +949,8 @@ def _configuration_manifest(
         "started_at_utc": state.started_at_utc,
         "finished_at_utc": finished,
         "elapsed_seconds": max(0.0, time.monotonic() - state.started_clock),
-        "configuration": _configuration_values(state.resolved_config.dead_mask_mode),
-        "resolved_annotator_config": state.resolved_config,
+        "configuration": _configuration_values(),
+        "resolved_annotator_config": state.video_config,
         "inputs": inputs,
         "shared_artifacts": [state.case.raw_cuts_artifact] if state.case.raw_cuts_artifact else [],
         "artifacts": artefacts,
@@ -957,7 +970,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     state.started_clock = time.monotonic()
     if driver.models is None:
         raise ValueError("annotator models were not loaded before inference")
-    state.resolved_config = resolve(driver.models.preprocessing, state.fixed.fps)
+    state.video_config = scale_config_to_fps(driver.models.preprocessing, state.fixed.fps)
     if state.case.status != "succeeded":
         state.status = "failed"
         state.failure_path = state.case.failure_path
@@ -973,19 +986,18 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if parent == "static_shuttleset_homography":
             court_result = build_static_court_evidence(
-                case.fixed.case_id, parent, case.fixture.video_id, driver.homo_df, case.fixture.resolution,
+                case.fixture.video_id, driver.homo_df, case.fixture.resolution,
                 case.raw_cuts, case.bboxes, case.scores, case.ndet,
-                gate_resolution_table=driver.resolution, ref_err_px=REF_ERR_PX,
             )
         else:
             if driver.court_settings is None:
                 raise ValueError("detected parent has no court detector settings")
-            court_result = detect_case_courts(case, driver.court_settings, state.directory, driver.resolution)
+            court_result = detect_case_courts(case, driver.court_settings, state.directory)
         state.court_result = court_result
-        _write_scene_evidence(state.directory, court_result)
+        _write_scene_evidence(state.directory, court_result, case.fixed.case_id, parent)
     except NoAcceptedCourtError as error:
         state.court_result = error.result
-        _write_scene_evidence_partial(state.directory, error.result)
+        _write_scene_evidence_partial(state.directory, error.result, case.fixed.case_id, parent)
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "court_acceptance", error)
         state.failure_path = failure_path
@@ -1003,43 +1015,33 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     try:
         if court_result.inputs is None:
             raise ValueError("court evidence has no operational inputs")
-        capture = RunCapture()
-        state.capture = capture
         input_values = court_result.inputs
-        gate_court_info = {str(case.fixture.video_id): input_values.court_info}
-        cut_frames = [end for _start, end in case.raw_cuts[:-1]]
-        result = run_video(
+        annotation = annotate_video(
             case.track, case.bboxes, case.scores, case.kps, case.ndet,
             fps=case.fixed.fps,
             models=driver.models,
             base=driver.models.preprocessing,
-            inpaint_codes=case.inpaint_codes,
+            shuttle_grades=case.shuttle_grades,
             landing_options=LANDING_OPTIONS,
-            net_band=input_values.net_band,
             resolution=input_values.resolution,
-            video_id=case.fixture.video_id,
-            court_info=input_values.court_info,
-            homo_df=driver.homo_df if parent == "static_shuttleset_homography" else None,
-            gate_court_info=gate_court_info,
-            gate_resolution_table=input_values.gate_resolution_table,
             ref_err_px=REF_ERR_PX,
             raw_exclusion_mask=None,
             court_present=court_result.court_present,
             homography_rows=input_values.homography_rows,
-            cut_frames=cut_frames,
-            keep_vote=court_result.keep_vote,
-            court_invalid_is_excluded=True,
-            landing_error_band_m=input_values.landing_error_band_m,
-            landing_horizons_s=LANDING_HORIZONS,
-            capture=capture,
+            keep_working_data=True,
         )
+        result = annotation.result
         state.result = result
-        if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-            raise ValueError("run_video did not capture both exclusion masks")
-        _save_mask(state.directory / "raw_replay_mask.npy.xz", capture.raw_exclusion_mask)
-        _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", capture.definitive_exclusion_mask)
+        assert annotation.working_data is not None
+        evidence = annotation.working_data.prepared_inputs
+        state.exclusion_fraction = float(evidence.exclusion_mask.mean())
+        state.landing_comparisons = compare_landing_searches(
+            evidence, result.rallies, result.outcomes, LANDING_SEARCH_SECONDS, LANDING_OPTIONS,
+        )
+        _save_mask(state.directory / "raw_replay_mask.npy.xz", evidence.raw_exclusion_mask)
+        _save_mask(state.directory / "definitive_exclusion_mask.npy.xz", evidence.exclusion_mask)
         _write_annotations(state.directory, result)
-        _write_landing_horizons(state.directory, capture.landing_horizon_rows)
+        _write_landing_searches(state.directory, state.landing_comparisons)
     except Exception as error:  # noqa: BLE001 - the failure is written to a failure record and the run continues
         failure_path = state.directory / "failure.json.gz"
         _write_failure(failure_path, "configuration", case.fixed.case_id, parent, "inference", error)
@@ -1050,11 +1052,11 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
     state.status = "inference_only"
 
 
-def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult) -> None:
+def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult, case_id: str, parent: str) -> None:
     _write_rows(
         directory / "court_scenes.csv.gz",
         COURT_SCENES_COLUMNS,
-        (_scene_row(record) for record in result.scene_records),
+        (_scene_row(record, case_id, parent) for record in result.scene_records),
     )
     _save_mask(directory / "keep_vote.npy.xz", result.keep_vote)
     _save_mask(directory / "court_present.npy.xz", result.court_present)
@@ -1114,20 +1116,6 @@ def _run_manifest(
     setup_failure: dict[str, Any] | None,
 ) -> dict[str, object]:
     states = driver.configurations or []
-    resolved_dead_mask_modes: set[DeadMaskMode] = set()
-    for state in states:
-        if state.resolved_config is not None:
-            resolved_dead_mask_modes.add(state.resolved_config.dead_mask_mode)
-    if not resolved_dead_mask_modes:
-        for case in CASES:
-            resolved_dead_mask_modes.add(
-                resolve(driver.models.preprocessing if driver.models is not None else BASE_ANNOTATOR_CONFIG,
-                        case.fps).dead_mask_mode
-            )
-    if len(resolved_dead_mask_modes) != 1:
-        values = ", ".join(sorted(mode.value for mode in resolved_dead_mask_modes))
-        raise ValueError(f"fixed cases resolved to multiple dead-mask modes: {values}")
-    dead_mask_mode = next(iter(resolved_dead_mask_modes))
     successful_inference = sum(state.status in {"inference_only", "succeeded"} for state in states)
     succeeded = sum(state.status == "succeeded" for state in states)
     if setup_failure is not None or successful_inference == 0:
@@ -1167,7 +1155,7 @@ def _run_manifest(
         "input_manifest": _artifact_record(driver.output_root, driver.input_manifest_output_path)
         if driver.input_manifest_output_path else None,
         "run_log": _artifact_record(driver.output_root, driver.run_log_path) if driver.run_log_path else None,
-        "configuration": _configuration_values(dead_mask_mode),
+        "configuration": _configuration_values(),
         "environment": _environment(driver),
         "cases": cases,
         "configurations": configurations,
@@ -1206,7 +1194,6 @@ def detect_case_courts(
     case: CaseData,
     settings: CourtDetectorSettings,
     directory: Path,
-    gate_resolution_table: Any,
 ) -> CourtEvidenceResult:
     """Run the court detector over one case's shared scenes and vote on its courts.
 
@@ -1235,9 +1222,8 @@ def detect_case_courts(
         )
     scenes = read_detector_scenes(detector_result, frame_count=case.fixed.n_frames, native_size=DETECTOR_RESOLUTION)
     return build_court_detector_evidence(
-        case.fixed.case_id, case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
+        case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
         case.bboxes, case.scores, case.ndet,
-        gate_resolution_table=gate_resolution_table, ref_err_px=REF_ERR_PX,
     )
 
 
@@ -1288,7 +1274,7 @@ def _setup(driver: RunDriver) -> None:
                 np.empty((0, 0, 17, 2)),
                 np.empty((0,), dtype=np.int64),
                 [],
-                manifest.inpaint_codes[fixed.case_id],
+                manifest.shuttle_grades[fixed.case_id],
                 np.empty(0, dtype=np.uint8),
                 status="failed",
             )
@@ -1326,7 +1312,7 @@ def _score_configurations(driver: RunDriver) -> None:
         if (
             state.status != "inference_only"
             or state.result is None
-            or state.capture is None
+            or state.exclusion_fraction is None
             or state.court_result is None
         ):
             continue
@@ -1339,8 +1325,9 @@ def _score_configurations(driver: RunDriver) -> None:
                 REF_ERR_PX,
             )
             _write_scoring_outputs(
-                state.directory, state.fixture, state.case, state.result, state.capture,
-                driver.master, state.court_result.inputs.court_info, scene_courts,
+                state.directory, state.fixture, state.case, state.result, state.exclusion_fraction,
+                state.landing_comparisons,
+                driver.master, scene_courts,
             )
             state.status = "succeeded"
             _write_terminal_configuration_manifest(state, driver)

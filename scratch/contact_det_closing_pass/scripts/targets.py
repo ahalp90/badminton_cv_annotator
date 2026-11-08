@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Multi-positive opening and whole-rally training answers from existing labels."""
 
 from __future__ import annotations

@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Small, explicit measurements for the corrected serve-trajectory EDA."""
 
 from __future__ import annotations
@@ -9,9 +13,9 @@ from typing import Literal, NamedTuple
 
 import numpy as np
 
+from annotator.calc_helpers import true_runs
 from annotator.config import ScalingKind
 from annotator.outcomes.point_winner import Half, alternating_player_sides
-from annotator.types import true_runs
 
 MIN_PATH_FRAMES = 5
 MIN_TOTAL_MOVEMENT_BH = 0.25

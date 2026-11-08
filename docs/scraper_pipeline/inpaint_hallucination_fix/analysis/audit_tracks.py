@@ -33,14 +33,36 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from annotator.config import BaseAnnotatorConfig, resolve  # noqa: E402
-from annotator.evaluation.scoring import load_gt_rallies  # noqa: E402
-from annotator.masks.inpaint import (  # noqa: E402
-    code_counts,
-    grade_track,
+from annotator.config import (  # noqa: E402
+    BaseAnnotatorConfig,
+    FpsScaledAnnotatorConfig,
+    scale_config_to_fps,
 )
-from annotator.rally.contacts import impulse_cell_candidates  # noqa: E402
-from annotator.rally_segmentation import segment_shuttle_track  # noqa: E402
+from annotator.contacts.heuristics import impulse_contact_candidates  # noqa: E402
+from annotator.excluded_frames.replay import filter_exclusion_mask  # noqa: E402
+from annotator.excluded_frames.shuttle_hallucination import code_counts, grade_track  # noqa: E402
+from annotator.rallies.find_rallies import segment_video  # noqa: E402
+from annotator.types import ContactCandidate  # noqa: E402
+from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies  # noqa: E402
+
+
+def segment_shuttle_track(
+    track: np.ndarray,
+    video_config: FpsScaledAnnotatorConfig,
+    *,
+    raw_exclusion_mask: np.ndarray | None = None,
+) -> tuple[list[tuple[int, int]], list[ContactCandidate]]:
+    """Segment a shuttle track without player tracking or court evidence.
+
+    Its optional mask excludes dead time without adding court-based exclusions.
+    """
+    if raw_exclusion_mask is None:
+        raw_exclusion_mask = np.zeros(len(track), dtype=bool)
+    exclusion_mask = filter_exclusion_mask(
+        raw_exclusion_mask, len(track), video_config.thresholds.replay_mask_min_frames,
+    )
+    return segment_video(track, video_config=video_config, exclusion_mask=exclusion_mask)
+
 
 FRAME_WIDTH = 512
 FRAME_HEIGHT = 288
@@ -433,9 +455,9 @@ def build_event_outputs(
     """Build source-labelled event masks from the existing detector composition."""
 
     base = BaseAnnotatorConfig()
-    resolved = resolve(base, spec.fps)
+    video_config = scale_config_to_fps(base, spec.fps)
     spans, contacts = segment_shuttle_track(
-        track, resolved,
+        track, video_config,
         raw_exclusion_mask=np.zeros(len(track), dtype=bool),
     )
     gt_rallies = load_gt_rallies(shots_master, spec.video_id)
@@ -443,12 +465,12 @@ def build_event_outputs(
     impulse_rows: list[dict[str, object]] = []
     flagged_pairs: list[tuple[int, int]] = []
     for rally_id, (start, end) in enumerate(spans):
-        flags = impulse_cell_candidates(
+        flags = impulse_contact_candidates(
             track,
             start,
             end,
-            resolved.thresholds,
-            smoothing_mode=resolved.smoothing_mode,
+            video_config.thresholds,
+            smoothing_mode=video_config.smoothing_mode,
         )
         for frame, impulse in flags:
             if not 0 <= frame < len(track):
@@ -557,19 +579,19 @@ def build_event_outputs(
         ),
         "resolved_default_path": {
             "composition": (
-                "segment_shuttle_track(track, resolve(BaseAnnotatorConfig(), fps), raw_exclusion_mask=zeros)"
+                "segment_shuttle_track(track, scale_config_to_fps(BaseAnnotatorConfig(), fps), raw_exclusion_mask=zeros)"
             ),
             "fps": spec.fps,
-            "smoothing_mode": str(resolved.smoothing_mode),
-            "span_open": str(resolved.span_open),
+            "smoothing_mode": str(video_config.smoothing_mode),
+            "require_fast_burst": video_config.require_fast_burst,
             "impulse_floor_half_window_frames": int(
-                resolved.thresholds.impulse_floor_half_window_frames
+                video_config.thresholds.impulse_floor_half_window_frames
             ),
             "contact_dedup_radius_frames": int(
-                resolved.thresholds.contact_dedup_radius_frames
+                video_config.thresholds.contact_dedup_radius_frames
             ),
             "contact_impulse_multiple": float(
-                resolved.thresholds.contact_impulse_multiple
+                video_config.thresholds.contact_impulse_multiple
             ),
         },
         "counts": {

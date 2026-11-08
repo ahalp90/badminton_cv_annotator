@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Census why unmatched development labels have no nearby detector contact."""
 
 # Direct execution needs the path setup before project imports.

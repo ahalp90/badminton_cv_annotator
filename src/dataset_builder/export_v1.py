@@ -3,7 +3,7 @@
 The export never reruns extraction or annotation. It reads the validated
 rally-record collection and the pinned shuttle, pose, and court artifacts,
 derives the kept issue #22 features, and writes the ``schema_v1`` tables plus
-a dataset manifest. ShuttleSet human contacts and commentary are optional
+a dataset manifest. ShuttleSet manually labelled contacts and commentary are optional
 inputs and produce source-scoped, auxiliary rows.
 
 ``build_video_tables`` and ``write_dataset`` are shared with the ShuttleSet22
@@ -22,8 +22,6 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 
-from annotator.shuttle_track import validate_shuttle_track
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.commentary_export import (
     CommentaryTables,
     commentary_tables,
@@ -93,6 +91,8 @@ from dataset_builder.vision import (
     save_json_gz,
     save_npy_xz,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
+from shared.video_metadata import VideoMetadata
 
 STAGES_DIRECTORY = "stages"
 PRIMITIVE_STAGE_BASES = ("shuttle", "pose", "court", "annotation")
@@ -508,7 +508,7 @@ def _source_contact_features(
     player_inputs: PlayerFeatureInputs,
     fps: float,
 ) -> SourceContactFeatures:
-    """Fill source_contacts' recovery and movement columns from human contact order.
+    """Fill source_contacts' recovery and movement columns from manually labelled contact order.
 
     Per rally, a contact's striker slot is its hitter matched against the
     rally's top and bottom player ids. A null or unmatched hitter leaves that
@@ -633,7 +633,7 @@ def derive_player_inputs(
         frame_count=metadata.frame_count,
         resolution=(float(metadata.width), float(metadata.height)),
     )
-    return derive_player_feature_inputs(track, pose, court, court_video_id)
+    return derive_player_feature_inputs(track, pose, court)
 
 
 def annotator_spans_by_video(

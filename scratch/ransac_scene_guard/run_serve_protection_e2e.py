@@ -152,7 +152,7 @@ def landing_signatures(result: AnnotatorResult) -> dict[str, Any]:
     for rally_id, landing in result.landings.items():
         signatures[str(rally_id)] = None if landing is None else {
             "frame": landing.frame,
-            "norm": list(landing.norm),
+            "norm": list(landing.court_xy),
             "half": landing.half.value,
             "at_border": landing.at_border,
             "net_ender": landing.net_ender,
@@ -224,8 +224,8 @@ def mask_pair(
 def run_arm(inputs: Any, mask: np.ndarray) -> tuple[AnnotatorResult, RunCapture, list[dict[str, object]]]:
     """Run one event-mask arm while keeping every upstream input fixed."""
     keyword = dict(inputs.keyword)
-    keyword.pop("inpaint_codes")
-    keyword["shuttle_hallucination_mask"] = mask
+    keyword.pop("shuttle_grades")
+    keyword["rejected_shuttle_frames"] = mask
     capture = RunCapture()
     rejection_rows: list[dict[str, object]] = []
     keyword["capture"] = capture

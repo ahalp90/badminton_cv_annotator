@@ -1,281 +1,155 @@
-"""Synthetic contracts for the ShuttleSet22 test evaluation."""
+"""The fixed test scorer uses current models, exclusions and review evidence."""
 
-from __future__ import annotations
-
-import json
-import os
-from contextlib import nullcontext
-from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
+import numpy as np
 import pytest
 
-from annotator.config import BaseAnnotatorConfig
-from annotator.models import SideGeometry, model_files
-from annotator.sequence.rally_model import RallyLayerModels
-from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
-from experiments.annotator.heuristic_only_tune.run import read_json, write_json
-from experiments.annotator.tree_simplification import input_stages, input_test
-from experiments.annotator.tree_simplification.prepare import preprocessing_record
+from experiments.annotator.heuristic_only_tune.run import read_json
+from experiments.annotator.tree_simplification import input_test
 
 
-def _write_chosen_export(root: Path, seed_offset: int = 0) -> tuple[dict, dict[str, str]]:
-    export = root / 'export'
-    bundle = export / 'bundle'
-    bundle.mkdir(parents=True)
-    for path in model_files(bundle).values():
-        path.write_bytes(path.name.encode())
-    hashes = {name: input_test._md5(path) for name, path in model_files(bundle).items()}
+def runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[list, list[str]]:
+    videos = [SimpleNamespace(identity=f'test-{index:02d}') for index in range(46)]
+    paths = {name: tmp_path / name for name in ('test_inputs', 'inpaint_root', 'pose_root', 'test_courts')}
+    models = SimpleNamespace(preprocessing=object())
+    calls = []
+    monkeypatch.setattr(input_test, 'load_models', lambda path: models)
+    monkeypatch.setattr(input_test, 'fitted_trees', lambda model: ())
+    monkeypatch.setattr(input_test, 'load_paths', lambda path: paths)
+    monkeypatch.setattr(input_test, 'load_test_videos', lambda path: videos)
+    monkeypatch.setattr(input_test, 'load_manifest', lambda path: {'items': [{'item_id': video.identity} for video in videos]})
+    monkeypatch.setattr(input_test.metrics, 'test_left_out', lambda: {
+        video.identity: [(0, 1)] * (524 if index == 0 else 0) for index, video in enumerate(videos)
+    })
+    monkeypatch.setattr(input_test.metrics, 'left_out_windows', lambda rallies: rallies)
+    monkeypatch.setattr(input_test.metrics, 'rates', lambda counts: {'fixture': True})
 
-    contact_root = root / 'contacts'
-    contact_root.mkdir()
-    settings = asdict(DEFAULT_TRAINING_SETTINGS)
-    settings.pop('rally_layers')
-    settings['contact']['random_seed'] = DEFAULT_TRAINING_SETTINGS.contact.random_seed + seed_offset
-    settings['confidence']['random_seed'] = DEFAULT_TRAINING_SETTINGS.confidence.random_seed + seed_offset
-    settings = json.loads(json.dumps(settings, default=sorted))
-    contact_settings = {
-        'prepared': str(root / 'prepared'),
-        'settings': settings,
+    def evaluate_video(video, item, windows, fitted, configured_paths, output):
+        assert fitted is models and configured_paths is paths
+        calls.append(video.identity)
+        counts = {'labelled_rallies': 3327 if video.identity == 'test-00' else 0,
+                  'labelled_contacts': 37184 if video.identity == 'test-00' else 0}
+        rows = []
+        for tolerance in (5, 10):
+            for ranking in ('selector', 'fitted'):
+                rows.append({'video': video.identity, 'span': 0, 'tolerance': tolerance, 'ranking': ranking,
+                             'correct': int(video.identity == 'test-00'), 'score': .8})
+        return {'5': counts, '10': counts}, rows
+
+    monkeypatch.setattr(input_test, 'evaluate_video', evaluate_video)
+    return videos, calls
+
+
+def test_current_bundle_runs_the_fixed_population_without_selection_records(tmp_path, monkeypatch):
+    videos, calls = runtime(monkeypatch, tmp_path)
+    models, paths, output = tmp_path / 'models', tmp_path / 'paths.toml', tmp_path / 'output'
+    result = input_test.evaluate(models, paths, output)
+    assert calls == [video.identity for video in videos]
+    assert result['complete'] is True and result['videos'] == 46
+    assert result['totals']['10']['labelled_rallies'] == 3327
+    assert result['totals']['10']['labelled_contacts'] == 37184
+    assert set(result['review']) == {'selector-5', 'selector-10', 'fitted-5', 'fitted-10'}
+    assert read_json(output / 'settings.json.gz') == {
+        'models': str(models.resolve()), 'paths': str(paths.resolve()), 'threads': 2,
     }
-    fits = {name: {'fit': name} for name in ('held_A', 'held_B', 'held_C', 'held_D', 'v_32')}
-    write_json(contact_root / 'contact-stage.json.gz', {
-        'schema': 'tree-simplification-contacts/1',
-        'seed_offset': seed_offset,
-        'fits': fits,
-        'settings': contact_settings,
-    })
-
-    preprocessing = preprocessing_record(BaseAnnotatorConfig())
-    export_settings = {
-        'schema': 'tree-simplification-raw-export/1',
-        'settings': {
-            'pool_settings': {
-                'contact_run': str(contact_root),
-                'prepared': str(root / 'prepared'),
-                'settings': contact_settings['settings'],
-            },
-            'tree': {
-                'random_seed': DEFAULT_TRAINING_SETTINGS.rally_layers.tree.random_seed + seed_offset,
-            },
-        },
-        'preprocessing': preprocessing,
-    }
-    write_json(export / 'settings.json.gz', export_settings)
-    write_json(export / 'result.json.gz', {
-        'complete': True,
-        'replay_streams_match': True,
-        'per_video': {f'development-{index}': {} for index in range(8)},
-    })
-    return export_settings, hashes
 
 
-def _write_selection(root: Path, seed_offset: int = 0) -> tuple[Path, dict, dict[str, str]]:
-    export_settings, hashes = _write_chosen_export(root, seed_offset)
-    export = str((root / 'export').resolve())
-    seeds = [
-        {
-            'offset': offset,
-            'export': export,
-            'bundle_md5': hashes,
-            'settings': export_settings,
-        }
-        for offset in input_test.SEED_OFFSETS
-    ]
-    document = {
-        'schema': input_test.SCHEMA,
-        'evaluation_source': {'revision': 'synthetic', 'dirty': False},
-        'fit_policy': 'contact-fit-32-videos',
-        'feature_units': 'raw',
-        'seed_offsets': list(input_test.SEED_OFFSETS),
-        'primary_tolerance': 10,
-        'finalists': [{'candidate': 'candidate-a', 'objectives': ['validation'], 'seeds': seeds}],
-    }
-    selection_path = root / 'selection.json.gz'
-    write_json(selection_path, document)
-    return selection_path, document, hashes
-
-
-def _runtime_patches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, fail_video: str | None = None):
-    identities = tuple(f'test-{index:02d}' for index in range(46))
-    videos = [
-        SimpleNamespace(
-            identity=identity, dataset='ShuttleSet22', split='test', fps=30.0,
-            resolution=(1920.0, 1080.0), frame_count=12, rallies=(), directory=identity,
-        )
-        for identity in identities
-    ]
-    models = SimpleNamespace(
-        sequences=RallyLayerModels((object(),)),
-        confidence=object(),
-        preprocessing=BaseAnnotatorConfig(),
-        side_geometry=SideGeometry.VIDEO,
-    )
-    load_calls = []
-
-    def load_model(_path):
-        load_calls.append(_path)
-        return models
-
-    monkeypatch.setattr(input_test, 'load_models', load_model)
-    monkeypatch.setattr(input_test, 'fitted_trees', lambda _models: ())
-    test_inputs = tmp_path / 'test-inputs'
-    test_inputs.mkdir()
-    test_manifest = test_inputs / 'manifest.json.gz'
-    write_json(test_manifest, {'items': [{'item_id': 'synthetic'}]})
-    monkeypatch.setattr(input_test, 'load_paths', lambda _path: {
-        'test_inputs': test_inputs,
-        'inpaint_root': tmp_path / 'inpaint',
-        'pose_root': tmp_path / 'pose',
-        'test_courts': tmp_path / 'courts',
-    })
-    monkeypatch.setattr(input_test, 'load_test_videos', lambda _path: videos)
-    monkeypatch.setattr(input_test, 'input_paths', lambda *_args, **_kwargs: {
-        'test_inputs/manifest.json.gz': test_manifest,
-    })
-    monkeypatch.setattr(input_test, 'source_record', lambda: {'revision': 'synthetic', 'dirty': False})
-    monkeypatch.setattr(input_test, 'load_test_inputs', lambda video, *_args: SimpleNamespace(
-        identity=video.identity,
-        track=object(),
-        pose=SimpleNamespace(bboxes=None, scores=None, kps=None, ndet=None),
-    ))
-    run_calls = []
-
-    def run_mock(*_args, **kwargs):
-        identity = kwargs['video_id']
-        run_calls.append(identity)
-        if identity == fail_video:
-            raise RuntimeError('synthetic inference failure')
-        kwargs['capture'].hybrid = SimpleNamespace(
-            refined=SimpleNamespace(sequences=(), events=()),
-        )
-
-    monkeypatch.setattr(input_test, 'run_video_kwargs', lambda inputs: {'video_id': inputs.identity})
-    monkeypatch.setattr(input_test, 'run_video', run_mock)
-    monkeypatch.setattr(input_test, 'cache_sticky_result', lambda *_args: nullcontext())
-    monkeypatch.setattr(input_test, 'stream_payload', lambda *_args: {'events': [], 'sequences': []})
-
-    def score_stream(_video: Any, _stream: dict) -> dict:
-        return {'5': {}, '10': {}}
-
-    def review_rows(
-        _video: Any, identity: str, _prediction: Any,
-    ) -> tuple[dict, list[dict]]:
-        rankings = {
-            f'{ranking}-{tolerance}': {'unjudgeable': 1}
-            for ranking in ('selector', 'fitted') for tolerance in (5, 10)
-        }
-        rows = [
-            {'video': identity, 'span': 0, 'tolerance': tolerance, 'ranking': ranking, 'correct': -1, 'score': 0.5}
-            for ranking in ('selector', 'fitted') for tolerance in (5, 10)
-        ]
-        return rankings, rows
-
-    monkeypatch.setattr(input_test, 'score_stream', score_stream)
-    monkeypatch.setattr(input_test, 'pooled_scores', lambda _scores: {'5': {}, '10': {}})
-    monkeypatch.setattr(input_stages, '_review_rows', review_rows)
-    return run_calls, videos, load_calls
-
-
-@pytest.mark.parametrize('mismatch', ('fit_policy', 'seed_offsets', 'bundle_hash', 'evaluation_source'))
-def test_rejects_wrong_policy_or_bundle_before_test_loading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mismatch: str,
-) -> None:
-    selection_path, document, _hashes = _write_selection(tmp_path)
-    monkeypatch.setattr(input_test, 'source_record', lambda: {'revision': 'synthetic', 'dirty': False})
-    if mismatch == 'fit_policy':
-        document['fit_policy'] = 'final40'
-    elif mismatch == 'seed_offsets':
-        document['seed_offsets'] = [0, 100, 200, 300]
-    elif mismatch == 'bundle_hash':
-        document['finalists'][0]['seeds'][0]['bundle_md5'] = {
-            name: '0' * input_test.MODEL_HASH_SIZE for name in document['finalists'][0]['seeds'][0]['bundle_md5']
-        }
+@pytest.mark.parametrize('population', ('missing', 'duplicate'))
+def test_wrong_video_population_fails_before_inference(tmp_path, monkeypatch, population):
+    videos, calls = runtime(monkeypatch, tmp_path)
+    if population == 'missing':
+        videos.pop()
     else:
-        document['evaluation_source'] = {'revision': 'older-evaluator'}
-    write_json(selection_path, document)
-    monkeypatch.setattr(input_test, 'load_test_videos', lambda *_args: pytest.fail('test manifest loaded too early'))
-
-    with pytest.raises(ValueError):
-        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+        videos[-1] = videos[0]
+    with pytest.raises(ValueError, match='46 distinct'):
+        input_test.evaluate(tmp_path / 'models', tmp_path / 'paths.toml', tmp_path / 'output')
+    assert not calls
 
 
-@pytest.mark.parametrize('dirty_source', ('current', 'selection'))
-def test_dirty_source_is_rejected_before_test_loading(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dirty_source: str,
-) -> None:
-    selection_path, document, _hashes = _write_selection(tmp_path)
-    monkeypatch.setattr(input_test, 'source_record', lambda: {
-        'revision': 'synthetic', 'dirty': dirty_source == 'current',
-    })
-    if dirty_source == 'selection':
-        document['evaluation_source']['dirty'] = True
-        write_json(selection_path, document)
-    monkeypatch.setattr(input_test, 'load_test_videos', lambda *_args: pytest.fail('test manifest loaded too early'))
-    monkeypatch.setattr(input_test, 'load_models', lambda *_args: pytest.fail('test model loaded too early'))
-
-    with pytest.raises(ValueError, match='clean'):
-        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+def test_changed_exclusion_population_fails_before_inference(tmp_path, monkeypatch):
+    _, calls = runtime(monkeypatch, tmp_path)
+    monkeypatch.setattr(input_test.metrics, 'test_left_out', lambda: {'test-00': [(0, 1)] * 523})
+    with pytest.raises(ValueError, match='524 excluded'):
+        input_test.evaluate(tmp_path / 'models', tmp_path / 'paths.toml', tmp_path / 'output')
+    assert not calls
 
 
-def test_accepted_chosen_bundle_runs_46_videos_without_refitting(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    selection_path, _document, _hashes = _write_selection(tmp_path)
-    run_calls, videos, load_calls = _runtime_patches(monkeypatch, tmp_path)
+def test_failed_video_cannot_leave_a_complete_result(tmp_path, monkeypatch):
+    runtime(monkeypatch, tmp_path)
 
-    result = input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
+    def fail(*args):
+        raise RuntimeError('inference failed')
 
-    rows = read_json(tmp_path / 'output' / 'review-rows.json.gz')
-    assert result['complete'] is True
-    assert set(result['per_video']) == {video.identity for video in videos}
-    assert len(run_calls) == 46
-    assert len(rows) == 46 * 4
-    assert all(row['correct'] == -1 for row in rows)
-    assert result['fit_policy'] == 'contact-fit-32-videos'
-    assert result['seed_offset'] == 0
-    assert len(load_calls) == 1
-
-    resumed = input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'output')
-    assert resumed['complete'] is True
-    assert len(run_calls) == 46
-    assert len(load_calls) == 2
-
-
-def test_changed_same_stat_test_manifest_rejects_resume(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    selection_path, _document, _hashes = _write_selection(tmp_path)
-    run_calls, _videos, _load_calls = _runtime_patches(monkeypatch, tmp_path)
+    monkeypatch.setattr(input_test, 'evaluate_video', fail)
     output = tmp_path / 'output'
-
-    input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
-    manifest_path = tmp_path / 'test-inputs' / 'manifest.json.gz'
-    saved_identity = read_json(output / 'settings.json.gz')
-    assert saved_identity['test_manifest_md5'] == input_test._md5(manifest_path)
-    prior_stat = manifest_path.stat()
-
-    write_json(manifest_path, {'items': [{'item_id': 'synthetix'}]})
-    changed_stat = manifest_path.stat()
-    assert changed_stat.st_size == prior_stat.st_size
-    os.utime(manifest_path, ns=(prior_stat.st_atime_ns, prior_stat.st_mtime_ns))
-    assert manifest_path.stat().st_mtime_ns == prior_stat.st_mtime_ns
-
-    with pytest.raises(ValueError, match='test inputs changed'):
-        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', output)
-    assert len(run_calls) == 46
+    with pytest.raises(RuntimeError, match='inference failed'):
+        input_test.evaluate(tmp_path / 'models', tmp_path / 'paths.toml', output)
+    assert not (output / 'result.json.gz').exists()
 
 
-def test_failed_partial_run_is_never_marked_complete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    selection_path, _document, _hashes = _write_selection(tmp_path)
-    _runtime_patches(monkeypatch, tmp_path, fail_video='test-02')
+def test_nonempty_output_is_not_reused(tmp_path, monkeypatch):
+    runtime(monkeypatch, tmp_path)
+    output = tmp_path / 'output'
+    output.mkdir()
+    (output / 'previous.txt').write_text('previous result')
+    with pytest.raises(FileExistsError, match='new or empty'):
+        input_test.evaluate(tmp_path / 'models', tmp_path / 'paths.toml', output)
 
-    with pytest.raises(RuntimeError, match='synthetic inference failure'):
-        input_test.evaluate(selection_path, 'candidate-a', 0, tmp_path / 'paths.toml', tmp_path / 'partial')
 
-    result = read_json(tmp_path / 'partial' / 'result.json.gz')
-    assert result['complete'] is False
+def test_video_scoring_and_review_use_the_same_excluded_window_judgements(tmp_path, monkeypatch):
+    video = SimpleNamespace(identity='fixture')
+    pose = SimpleNamespace(bboxes=None, scores=None, kps=None, ndet=None)
+    inputs = SimpleNamespace(track=None, pose=pose)
+    models = SimpleNamespace(preprocessing=object())
+    fitted = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.8, .9, .2]))
+    selector = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.7, .8, .1]))
+    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=(), events=()), rally_review=fitted)
+    stream = {'events': [], 'sequences': []}
+    windows = [(10, 20)]
+    seen = []
+    monkeypatch.setattr(input_test, 'load_test_inputs', lambda *args: inputs)
+    monkeypatch.setattr(input_test, 'run_video_kwargs', lambda value: {})
+    monkeypatch.setattr(input_test, 'stream_payload', lambda *args: stream)
+    monkeypatch.setattr(input_test, 'score_selector_review', lambda value: selector)
+
+    def run_video(*args, **kwargs):
+        assert kwargs['models'] is models and kwargs['base'] is models.preprocessing
+        assert kwargs['keep_working_data'] is True
+        return SimpleNamespace(working_data=SimpleNamespace(learned_model_prediction=prediction))
+
+    def score(item, actual, tolerance, excluded, *, supplied):
+        assert actual is stream and excluded is windows and not supplied
+        seen.append(tolerance)
+        return {'labelled_rallies': 1}, [
+            {'span_id': 3, 'outcome': 'fully_correct'},
+            {'span_id': 7, 'outcome': 'unlabelled_player'},
+        ]
+
+    monkeypatch.setattr(input_test, 'annotate_video', run_video)
+    monkeypatch.setattr(input_test.metrics, 'score_stream_for_item', score)
+    paths = {name: tmp_path for name in ('inpaint_root', 'pose_root', 'test_courts')}
+    (tmp_path / 'streams').mkdir()
+    (tmp_path / 'videos').mkdir()
+    counts, rows = input_test.evaluate_video(video, {}, windows, models, paths, tmp_path)
+    assert seen == [5, 10] and set(counts) == {'5', '10'}
+    assert len(rows) == 8 and {row['span'] for row in rows} == {3, 7}
+    assert {row['correct'] for row in rows} == {-1, 1}
+    assert next(row['score'] for row in rows if row['span'] == 3 and row['ranking'] == 'fitted') == .9
+
+
+def test_changed_scored_population_cannot_complete(tmp_path, monkeypatch):
+    runtime(monkeypatch, tmp_path)
+    original = input_test.evaluate_video
+
+    def changed(*args):
+        counts, rows = original(*args)
+        counts['10'] = counts['10'] | {'labelled_rallies': 0}
+        return counts, rows
+
+    monkeypatch.setattr(input_test, 'evaluate_video', changed)
+    output = tmp_path / 'output'
+    with pytest.raises(ValueError, match='3327 scored rallies'):
+        input_test.evaluate(tmp_path / 'models', tmp_path / 'paths.toml', output)
+    assert not (output / 'result.json.gz').exists()

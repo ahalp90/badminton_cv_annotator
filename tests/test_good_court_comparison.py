@@ -2,8 +2,8 @@
 
 import pytest
 
-from annotator.outcomes.point_winner import Half
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.good_court_refit.compare import (
     compare_video,
     expected_videos,
@@ -17,7 +17,7 @@ def stream(events: list[list]) -> dict:
 
 
 def test_contact_and_side_losses_are_visible_without_correct_rally_loss() -> None:
-    labels = (LabelledRally('r1', (20, 60, 100), (Half.TOP, Half.BOT, Half.TOP)),)
+    labels = (LabelledRally('r1', (20, 60, 100), (CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP)),)
     left = stream([[20, 0.9, 'Top'], [60, 0.9, 'Bot']])
     right = stream([[20, 0.9, 'Bot'], [100, 0.9, 'Top']])
     result = compare_video(left, right, labels, 30)
@@ -29,7 +29,7 @@ def test_contact_and_side_losses_are_visible_without_correct_rally_loss() -> Non
 
 
 def test_missed_rallies_and_unknown_sides_remain_explicit() -> None:
-    labels = (LabelledRally('r1', (20,), (None,)), LabelledRally('r2', (300,), (Half.TOP,)))
+    labels = (LabelledRally('r1', (20,), (None,)), LabelledRally('r2', (300,), (CourtHalf.TOP,)))
     result = compare_video(stream([[20, 0.9, 'Top']]), {'events': [], 'sequences': []}, labels, 30)
     assert result['scores']['left']['correct_side_contacts'] == 0
     assert result['scores']['left']['wholly_missed_rallies'] == 1

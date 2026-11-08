@@ -58,12 +58,12 @@ def test_empty_inference_keeps_all_labels() -> None:
 
 
 def test_wrong_hitter_reduces_attributed_scores_and_rally_accuracy() -> None:
-    events = [[100, 1.0, 'Bot'], [120, 1.0, 'Bot']]
+    events = [[100, 1.0, 'Top'], [120, 1.0, 'Top']]
     scores = score_item(item(), {'boundaries': 'provided', 'stream': {'events': events}})['10']
     assert (scores['precision'], scores['recall'], scores['f1']) == (1.0, 1.0, 1.0)
     assert (scores['attributed_precision'], scores['attributed_recall'], scores['attributed_f1']) == (0.5, 0.5, 0.5)
     assert scores['fully_correct_rallies_percent'] == 0.0
-    events[1][2] = 'Top'
+    events[0][2] = 'Bot'
     corrected = score_item(item(), {'boundaries': 'provided', 'stream': {'events': events}})['10']
     assert corrected['attributed_f1'] == 1.0
     assert corrected['fully_correct_rallies_percent'] == 100.0

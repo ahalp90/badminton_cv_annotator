@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Describe the frozen broader detector with the existing one-to-one scorer."""
 
 from __future__ import annotations

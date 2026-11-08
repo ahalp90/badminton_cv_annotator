@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO / 'src'))
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.model import contact_feature_matrix
+from annotator.contacts.score_candidates import contact_feature_matrix
 from annotator.models import AnnotatorModels, fitted_trees, load_models, save_models
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from experiments.annotator import development as experiment
@@ -56,7 +56,7 @@ def training_settings_record(seed: int, models: AnnotatorModels, device: str) ->
     settings = replace(experiment.settings_for(device, 5.0, seed_offset=seed),
                        preprocessing=models.preprocessing)
     record = asdict(settings)
-    record = experiment.contact_stage_settings(record)
+    record.pop('rally')
     return json.loads(json.dumps(record, default=sorted))
 
 
@@ -88,7 +88,7 @@ def refit(seed: int, prepared: Path, output: Path, tree_results: Path, device: s
     preprocessing = preprocessing_record(models.preprocessing)
     stage = contact_stage(seed, tree_results)
     settings = training_settings_record(seed, models, device)
-    if stage['seed_offset'] != seed or experiment.contact_stage_settings(stage['settings']['settings']) != settings:
+    if stage['seed_offset'] != seed or stage['settings']['settings'] != settings:
         raise ValueError(f'seed {seed}: contact settings differ from the test bundle contact stage')
     contact_settings = experiment.settings_for(device, 5.0, seed_offset=seed).contact
     videos = load_training_videos(prepared, preprocessing)
@@ -109,18 +109,18 @@ def refit(seed: int, prepared: Path, output: Path, tree_results: Path, device: s
                 time.perf_counter() - started)
 
     model_32, rows_32, positives_32, seconds_32 = fit('v_32')
-    expected, actual = predictions(models.contact, validation), predictions(model_32, validation)
+    expected, actual = predictions(models.contact_model, validation), predictions(model_32, validation)
     if not np.array_equal(expected, actual):
         raise ValueError(f'seed {seed}: refitted 32-video contact model differs from the bundle '
                          f'(max difference {np.abs(expected - actual).max():.3g})')
     model_40, rows_40, positives_40, seconds_40 = fit('final_40')
-    combined = replace(models, contact=model_40)
+    combined = replace(models, contact_model=model_40)
     for tree in fitted_trees(combined):
         if tree.get_params().get('device') != 'cpu':
             raise ValueError('bundle trees must predict on the CPU')
     save_models(combined, output / f'seed-{seed}')
     reloaded = load_models(output / f'seed-{seed}')
-    if not np.array_equal(predictions(reloaded.contact, validation), predictions(model_40, validation)):
+    if not np.array_equal(predictions(reloaded.contact_model, validation), predictions(model_40, validation)):
         raise ValueError(f'seed {seed}: saved 40-video bundle does not reload to the fitted model')
     record = {
         'seed_offset': seed, 'source_bundle': str(bundle_path(seed, tree_results)), 'device': device, 'threads': THREADS,

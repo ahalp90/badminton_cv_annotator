@@ -7,13 +7,13 @@ from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from pathlib import Path
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.manifest import redact_configuration
 from dataset_builder.models import RunManifest, StageOutcome
+from shared.video_metadata import VideoMetadata
 
-RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.3"
-RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.3"
-RALLY_RECORD_SCHEMA = "rally-record/0.3"
+RALLY_RECORD_COLLECTION_SCHEMA = "rally-record-collection/0.5"
+RALLY_RECORD_PROJECTION_SCHEMA = "primitive-projection/0.5"
+RALLY_RECORD_SCHEMA = "rally-record/0.5"
 RALLY_RECORDS_FILENAME = "rally_records.json.gz"
 RAW_REPLAY_ARTIFACT = "raw_replay_mask"
 DEFINITIVE_EXCLUSION_ARTIFACT = "definitive_exclusion_mask"
@@ -253,7 +253,7 @@ def _contacts(payload: object, rally: tuple[int, int]) -> int:
     stroke_count = _integer(contacts["stroke_count"], "record stroke_count")
     if stroke_count != len(accepted):
         raise ValueError("record stroke_count differs from accepted contacts")
-    failed = _hit_height_failures(contacts["hit_height_failures"], accepted)
+    failed = _unavailable_hit_height_indices(contacts["hit_height_failures"], accepted)
     for stroke_idx, row in enumerate(accepted):
         has_height = row["hit_height_code"] is not None
         if has_height == (stroke_idx in failed):
@@ -268,12 +268,12 @@ def _raw_contacts(payload: object, rally: tuple[int, int]) -> set[int]:
         row = _object(raw_row, "raw contact candidate")
         _exact_fields(
             row,
-            {"contact_frame", "proximity_ok", "wrist_near", "suppressed"},
+            {"contact_frame", "wrist_near", "temporal_proximity_suppressed"},
             "raw contact candidate",
         )
         frame = _frame_in_rally(row["contact_frame"], rally, "raw contact frame")
         frames.append(frame)
-        for name in ("proximity_ok", "wrist_near", "suppressed"):
+        for name in ("wrist_near", "temporal_proximity_suppressed"):
             _optional_boolean(row[name], f"raw contact {name}")
     if frames != sorted(frames) or len(frames) != len(set(frames)):
         raise ValueError("raw contact frames must be unique and ascending")
@@ -310,7 +310,7 @@ def _accepted_contacts(
     return normalized
 
 
-def _hit_height_failures(
+def _unavailable_hit_height_indices(
     payload: object,
     accepted: Sequence[Mapping[str, object]],
 ) -> set[int]:

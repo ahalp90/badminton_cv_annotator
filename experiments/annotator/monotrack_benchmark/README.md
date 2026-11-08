@@ -12,9 +12,9 @@ the main contact tolerance is ±10 frames, with ±5 in Appendix E.
 
 | Find | Location |
 | --- | --- |
-| Current scores and capped/uncapped discovery comparison | [Discovery results](benchmark_results/discovery_context/) |
-| Both 1/1 and 2/3 discovery confidence surveys | [Surveys](benchmark_results/discovery_context/surveys/) |
-| Selected annotator models and fit settings | [Model record](../tree_simplification/results/discovery_context/README.md) |
+| Current scores | [Discovery results](benchmark_results/hp_search/primary/) |
+| Both 1/1 and 2/3 discovery confidence surveys | [Surveys](benchmark_results/hp_search/surveys/) |
+| Selected annotator models and fit settings | [Model record](../tree_simplification/results/hp_search/fit-settings.json.gz) |
 | Earlier nine-way boundary comparison | [Historical results](benchmark_results/boundary_retrain_v7/README.md) |
 | MonoTrack selection, five-seed predictions and checkpoints | [MonoTrack results](benchmark_results/monotrack_five_seed/) |
 | Prepared court and rally inputs | [Inputs](benchmark_results/inputs/) |
@@ -27,8 +27,8 @@ Run from the repository root. To rescore predictions from the full comparison:
 ```bash
 W=experiments/annotator/monotrack_benchmark/writeup_scripts
 python "$W/metrics.py" \
-  --annotator-runs SAVED_RUN/reporting/annotator_runs/no_max \
-  --out REPORT_DATA
+  --annotator-runs SAVED_RUN/runs/no_max \
+  --out REPORT_DATA --skip-body-window
 ```
 
 This command reuses saved predictions from the selected configuration. The compact results contain scores and tables; annotator

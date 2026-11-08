@@ -32,7 +32,7 @@ from experiments.annotator.tree_simplification.options import (
 )
 from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 
-SCHEMA = 'tree-simplification-five-frame-targets/2'
+SCHEMA = 'tree-simplification-five-frame-targets/3'
 
 
 @dataclass(frozen=True)
@@ -53,8 +53,8 @@ def raw_five_targets(pool: LabelledOptions) -> np.ndarray:
     )
 
 
-def five_frame_preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
-    return rally_targets.five_frame_preferred_targets(pool.runtime, pool.targets, five)
+def preferred_targets(pool: LabelledOptions, five: np.ndarray) -> np.ndarray:
+    return rally_targets.preferred_targets(pool.runtime, pool.targets, five)
 
 
 def _metadata_path(array_path: Path) -> Path:
@@ -102,7 +102,7 @@ def _target_job(job: TargetJob) -> dict[str, Any] | None:
     with threadpool_limits(limits=1):
         started = time.perf_counter()
         pool: LabelledOptions = joblib.load(job.pool_path)
-        if pool.video.identity != job.identity or pool.video.group != job.group:
+        if pool.video.video_id != job.identity or pool.video.group != job.group:
             raise ValueError(f'{job.identity}: option pool identity or group differs from its record')
         targets = raw_five_targets(pool)
         if targets.shape != pool.targets.shape:

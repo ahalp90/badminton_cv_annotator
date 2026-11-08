@@ -1,4 +1,4 @@
-"""Strict decoder for persisted dataset-builder court provenance."""
+"""Read saved court-scene results and check their video and frame ranges."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from annotator.courts.evidence import CourtSceneRecord, SceneStatus
+    from annotator.courts.prepare_courts import CourtSceneRecord, SceneStatus
 
 
 def load_court_provenance(
@@ -31,7 +31,7 @@ def load_court_provenance(
 
 
 def _scene_record(payload: object, name: str) -> CourtSceneRecord:
-    from annotator.courts.evidence import CourtSceneRecord
+    from annotator.courts.prepare_courts import CourtSceneRecord
 
     record = _object(payload, name)
     expected = {field.name for field in fields(CourtSceneRecord)}
@@ -39,8 +39,6 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
         raise ValueError(f"{name} fields differ from CourtSceneRecord")
     return CourtSceneRecord(
         video_id=_video_id(record["video_id"], f"{name}.video_id"),
-        case_id=_string(record["case_id"], f"{name}.case_id"),
-        parent=_string(record["parent"], f"{name}.parent"),
         scene_index=_integer(record["scene_index"], f"{name}.scene_index"),
         start_frame=_integer(record["start_frame"], f"{name}.start_frame"),
         end_frame=_integer(record["end_frame"], f"{name}.end_frame"),
@@ -57,7 +55,7 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
 
 
 def _status(payload: object, name: str) -> SceneStatus:
-    from annotator.courts.evidence import SceneStatus
+    from annotator.courts.prepare_courts import SceneStatus
 
     try:
         return SceneStatus(_string(payload, name))
@@ -70,7 +68,7 @@ def _validate_scene_records(
     raw_cuts: Sequence[tuple[int, int]],
     video_id: str,
 ) -> None:
-    from annotator.courts.evidence import SceneStatus
+    from annotator.courts.prepare_courts import SceneStatus
 
     if len(records) != len(raw_cuts):
         raise ValueError("court scene record count differs from raw cuts")

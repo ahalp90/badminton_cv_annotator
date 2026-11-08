@@ -16,19 +16,20 @@ from pathlib import Path
 
 import numpy as np
 
+from annotator.annotate_video import AnnotatorResult
 from annotator.models import AnnotatorModels, load_models
-from annotator.outcomes.point_winner import (
-    GeometricVerdictRow,
-    Half,
+from annotator.rally_results.landing_and_winner import (
     Landing,
-    Verdict,
-    VerdictRow,
-    VerdictSource,
+    RallyOutcome,
+    WinnerSource,
 )
-from annotator.run_video import AnnotatorResult
-from annotator.sequence import ContactEvent
-from annotator.types import ContactCandidate
-from annotator.video_metadata import VideoMetadata
+from annotator.types import (
+    ContactCandidate,
+    ContactEvent,
+    ContactSequence,
+    CourtHalf,
+    FinishedRally,
+)
 from dataset_builder._commentary_status import (
     load_cleaning_statuses,
     save_cleaning_statuses,
@@ -88,6 +89,7 @@ from dataset_builder.vision import (
 from scraper import config as scraper_config
 from scraper._llm_provider import LLMSettings
 from scraper.commentary_pairing import CanonicalPairing
+from shared.video_metadata import VideoMetadata
 
 
 @dataclass
@@ -560,7 +562,7 @@ class RuntimeSupport:
         expected_quality = summarize_shuttle_quality(
             shuttle.track,
             shuttle.inpaint_fill_mask,
-            shuttle.guard_codes,
+            shuttle.shuttle_grades,
             self.annotator_models.preprocessing.rejected_grades,
         )
         self.state.annotations[video_id] = _load_annotation(
@@ -627,7 +629,7 @@ class RuntimeSupport:
     ) -> dict[int, str]:
         if pairing is None:
             reason = self.state.commentary_reasons.get(video_id) or "commentary unavailable"
-            return {rally_id: reason for rally_id in range(len(annotation.run.result.spans))}
+            return {rally_id: reason for rally_id in range(len(annotation.run.result.rallies))}
         base_status = self._commentary_status(video_id)
         return {
             rally_id: (
@@ -891,37 +893,32 @@ def _load_annotation(
 def _annotation_result(payload: object) -> AnnotatorResult:
     if not isinstance(payload, dict) or set(payload) != set(AnnotatorResult._fields):
         raise ValueError("persisted AnnotatorResult fields differ")
+    rallies = []
+    for value in _list(payload["rallies"]):
+        rally = _dict(value)
+        sequence = _dict(rally["sequence"])
+        rallies.append(FinishedRally(ContactSequence(
+            _integer(sequence["span_id"], "rally id"),
+            _integer(sequence["start_frame"], "rally start"),
+            _integer(sequence["end_frame"], "rally end"),
+            tuple(restore_contact_event(event) for event in _list(sequence["events"])),
+        ), None if rally["final_half"] is None else CourtHalf(rally["final_half"])))
+    outcomes = {}
+    for key, value in _dict(payload["outcomes"]).items():
+        outcomes[_integer_key(key)] = _rally_outcome(value)
     return AnnotatorResult(
-        spans=[tuple(_integer_list(row, 2, "rally span")) for row in _list(payload["spans"])],
-        contacts=[_contact(row) for row in _list(payload["contacts"])],
-        filtered_contacts=[_contact(row) for row in _list(payload["filtered_contacts"])],
-        filtered_by_rally={
-            _integer_key(key): _integer_list(value, None, "filtered contacts")
-            for key, value in _dict(payload["filtered_by_rally"]).items()
+        rallies=tuple(rallies), outcomes=outcomes,
+        hit_heights={_integer_key(key): _integer(value, "hit height")
+                     for key, value in _dict(payload["hit_heights"]).items()},
+        unavailable_hit_height_reasons={
+            _integer_key(key): _string(value, "unavailable hit-height reason")
+            for key, value in _dict(payload["unavailable_hit_height_reasons"]).items()
         },
-        striker_halves=_half_list(payload["striker_halves"]),
-        n_strokes_list=_integer_list(payload["n_strokes_list"], None, "stroke counts"),
-        next_servers=_half_list(payload["next_servers"]),
-        fitted_first_all=_half_list(payload["fitted_first_all"]),
-        verdict_rows={
-            _integer_key(key): _verdict_row(value)
-            for key, value in _dict(payload["verdict_rows"]).items()
-        },
-        landings={
-            _integer_key(key): None if value is None else _landing(value)
-            for key, value in _dict(payload["landings"]).items()
-        },
-        geometric_verdict_rows={
-            _integer_key(key): _geometric_row(value)
-            for key, value in _dict(payload["geometric_verdict_rows"]).items()
-        },
-        hit_height_by_frame={
-            _integer_key(key): _integer(value, "hit height")
-            for key, value in _dict(payload["hit_height_by_frame"]).items()
-        },
-        hit_height_failures=_hit_height_failures(payload["hit_height_failures"]),
         contact_events=tuple(restore_contact_event(event) for event in _list(payload["contact_events"])),
-        rally_confidence=tuple(_finite_float(score, 'rally confidence') for score in _list(payload['rally_confidence'])),
+        heuristic_candidates=[_contact(row) for row in _list(payload["heuristic_candidates"])],
+        rally_confidence=tuple(
+            _finite_float(score, "rally confidence") for score in _list(payload["rally_confidence"])
+        ),
     )
 
 
@@ -931,8 +928,8 @@ def restore_contact_event(payload: object) -> ContactEvent:
         raise ValueError('persisted final contact fields differ')
     return ContactEvent(
         _integer(row['frame'], 'contact frame'),
-        _finite_float(row['probability'], 'contact probability'),
-        None if row['side'] is None else Half(row['side']),
+        math.nan if row['probability'] is None else _finite_float(row['probability'], 'contact probability'),
+        None if row['side'] is None else CourtHalf(row['side']),
     )
 
 
@@ -943,24 +940,24 @@ def _contact(payload: object) -> ContactCandidate:
     return ContactCandidate(
         _integer(row["rally_id"], "contact rally_id"),
         _integer(row["contact_frame"], "contact frame"),
-        _optional_boolean(row["proximity_ok"], "contact proximity_ok"),
         _optional_boolean(row["wrist_near"], "contact wrist_near"),
-        _optional_boolean(row["suppressed"], "contact suppressed"),
+        _optional_boolean(row["temporal_proximity_suppressed"], "contact temporal_proximity_suppressed"),
     )
 
 
-def _verdict_row(payload: object) -> VerdictRow:
+def _rally_outcome(payload: object) -> RallyOutcome:
     row = _dict(payload)
-    if set(row) != set(VerdictRow._fields):
-        raise ValueError("persisted verdict fields differ")
-    return VerdictRow(
-        _integer(row["rally_id"], "verdict rally_id"),
-        Half(_string(row["striker_half"], "verdict striker_half")),
-        None if row["verdict"] is None else Verdict(row["verdict"]),
-        None if row["verdict_source"] is None else VerdictSource(row["verdict_source"]),
-        _optional_float(row["margin_m"], "verdict margin_m"),
+    if set(row) != set(RallyOutcome._fields):
+        raise ValueError("persisted outcome fields differ")
+    return RallyOutcome(
+        None if row["winner"] is None else CourtHalf(row["winner"]),
+        None if row["winner_source"] is None else WinnerSource(row["winner_source"]),
+        None if row["landing"] is None else _landing(row["landing"]),
+        _optional_float(row["landing_margin_m"], "landing margin"),
         _boolean(row["within_line_margin"], "within_line_margin"),
         _boolean(row["within_net_margin"], "within_net_margin"),
+        None if row["conservative_landing_winner"] is None else CourtHalf(row["conservative_landing_winner"]),
+        _boolean(row["search_shortened_by_exclusion"], "search_shortened_by_exclusion"),
     )
 
 
@@ -968,61 +965,23 @@ def _landing(payload: object) -> Landing:
     row = _dict(payload)
     if set(row) != set(Landing._fields):
         raise ValueError("persisted landing fields differ")
-    norm = _list(row["norm"])
-    if len(norm) != 2:
-        raise ValueError("persisted landing norm must contain two values")
+    court_xy = _list(row["court_xy"])
+    if len(court_xy) != 2:
+        raise ValueError("persisted landing court_xy must contain two values")
     return Landing(
         _integer(row["frame"], "landing frame"),
-        (_finite_float(norm[0], "landing x"), _finite_float(norm[1], "landing y")),
-        Half(_string(row["half"], "landing half")),
+        (_finite_float(court_xy[0], "landing x"), _finite_float(court_xy[1], "landing y")),
+        CourtHalf(_string(row["half"], "landing half")),
         _boolean(row["at_border"], "landing at_border"),
         _boolean(row["net_ender"], "landing net_ender"),
     )
 
-
-def _geometric_row(payload: object) -> GeometricVerdictRow:
-    row = _dict(payload)
-    if set(row) != set(GeometricVerdictRow._fields):
-        raise ValueError("persisted geometric verdict fields differ")
-    return GeometricVerdictRow(
-        _integer(row["rally_id"], "geometric rally_id"),
-        None if row["geometric_verdict"] is None else Verdict(row["geometric_verdict"]),
-        None if row["geometric_winner"] is None else Half(row["geometric_winner"]),
-        _optional_boolean(row["agreement"], "geometric agreement"),
-        _boolean(row["window_closed_by_mask"], "geometric mask flag"),
-    )
 
 
 def _boolean_mask(path: Path, frame_count: int) -> np.ndarray:
     values = load_npy_xz(path)
     if values.shape != (frame_count,) or values.dtype != np.bool_:
         raise ValueError(f"persisted annotation mask is invalid: {path}")
-    return values
-
-
-def _half_list(payload: object) -> list[Half | None]:
-    return [None if value is None else Half(value) for value in _list(payload)]
-
-
-def _hit_height_failures(payload: object) -> list[tuple[int, int, int, str]]:
-    failures: list[tuple[int, int, int, str]] = []
-    for value in _list(payload):
-        row = _list(value)
-        if len(row) != 4:
-            raise ValueError("hit-height failure must contain four values")
-        failures.append((
-            _integer(row[0], "failure rally_id"),
-            _integer(row[1], "failure stroke_idx"),
-            _integer(row[2], "failure frame"),
-            _string(row[3], "failure reason"),
-        ))
-    return failures
-
-
-def _integer_list(payload: object, length: int | None, name: str) -> list[int]:
-    values = [_integer(value, name) for value in _list(payload)]
-    if length is not None and len(values) != length:
-        raise ValueError(f"{name} must contain {length} integers")
     return values
 
 

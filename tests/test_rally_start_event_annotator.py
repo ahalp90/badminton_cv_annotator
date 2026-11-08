@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import annotator.review.rally_start_editor as tool
-import annotator.review.rally_starts as events
-from annotator.review.broadcast_labels import (
+import labelling.rally_start_editor as tool
+import labelling.rally_starts as events
+from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
     make_interval,

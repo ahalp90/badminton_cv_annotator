@@ -1,5 +1,9 @@
 # Inpaint hallucination guard: operation trace
 
+Historical trace from 13 August 2026. Function names and line references below
+refer to that implementation. For current behaviour, use the
+[annotator guides](../../annotator/README.md).
+
 Status: source trace updated for detector version 4, 2026-08-13.
 
 ## What this trace answers
@@ -14,9 +18,9 @@ video pixels or rerun InpaintNet. It reads the saved per-frame track and looks
 for exact position sequences that recur far more often than ordinary footage
 could explain.
 
-The guard's public entry point is `annotator.masks.inpaint.grade_track`. The
+The guard's public entry point is `annotator.excluded_frames.shuttle_hallucination.grade_track`. The
 surrounding event-mask seam is
-`annotator.run_video._build_shuttle_hallucination_mask`.
+`annotator.annotate_video._build_shuttle_hallucination_mask`.
 
 ## Plain-language summary
 
@@ -59,9 +63,9 @@ policy currently rejects all three non-zero grades.
 The chart follows the current control flow in
 `pattern_episodes`, `adaptive_threshold`, `_candidate_attractors`,
 `_validate_presence`, `_cover`, and `build_mask`
-(`src/annotator/masks/inpaint.py:42-323`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:42-323`).
 
-`(§ Detector internals, src/annotator/masks/inpaint.py:42-323)`
+`(§ Detector internals, src/annotator/excluded_frames/shuttle_hallucination.py:42-323)`
 
 ```mermaid
 flowchart TB
@@ -117,13 +121,13 @@ The detector reads only columns 0 and 1 as exact x and y coordinates. It does
 not use the visibility column. This makes the method useful after InpaintNet
 has overwritten a missed frame's visibility flag, but it also means the method
 cannot know fill provenance from the track alone
-(`src/annotator/masks/inpaint.py:42-59`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:42-59`).
 
 ### 2. Find exact recurring windows
 
 `pattern_episodes` slides a window over every possible start index from
 0 through `n_frames - window`
-(`src/annotator/masks/inpaint.py:42-72`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:42-72`).
 
 For each start:
 
@@ -142,7 +146,7 @@ The starts for each pattern are then merged into separated episodes. The
 episode gap is `2 * window`, which is 32 frames at the default window. A
 start whose distance from the previous start is greater than 32 begins a new
 episode. Starts at a distance of 32 remain in the same episode
-(`src/annotator/masks/inpaint.py:62-72`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:62-72`).
 
 This prevents one long recurrence zone, with many overlapping window starts,
 from being counted as hundreds of independent events. The detector counts
@@ -151,7 +155,7 @@ separated recurrence episodes instead.
 ### 3. Derive a threshold from the track
 
 `adaptive_threshold` does not hardcode one recurrence count
-(`src/annotator/masks/inpaint.py:75-89`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:75-89`).
 
 It:
 
@@ -175,7 +179,7 @@ checkpoint or choosing a universal count.
 ### 4. Apply the evidence gates
 
 `_candidate_attractors` applies three gates before accepting any attractor
-(`src/annotator/masks/inpaint.py:148-188`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:148-188`).
 
 1. At least two distinct candidate episode counts must exist. If all candidate
    patterns have the same count, there is no count gap from which to derive a
@@ -188,7 +192,7 @@ checkpoint or choosing a universal count.
 If a gate fails, the function logs a warning and returns empty attractor sets.
 `build_mask` then returns an all-zero code array with diagnostic fields such
 as `unavailable_reason`, `threshold`, and `margin`
-(`src/annotator/masks/inpaint.py:127-145, 258-290`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:127-145, 258-290`).
 
 The synthetic tests cover all three weak-evidence paths:
 `tests/test_inpaint_guard.py:52-84`.
@@ -198,7 +202,7 @@ The synthetic tests cover all three weak-evidence paths:
 For every pattern at or above the derived threshold, the guard reconstructs its
 `window x 2` coordinate array and checks whether either x or y has a non-zero
 peak-to-peak range
-(`src/annotator/masks/inpaint.py:188-193`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:188-193`).
 
 - If x or y changes within the window, the pattern is a **varying attractor**.
 - If both x and y stay constant, the pattern is a **flat attractor**.
@@ -217,7 +221,7 @@ blending can flatten it into a constant
 ### 6. Validate presence in both halves
 
 `_validate_presence` divides the video at `n_frames // 2`
-(`src/annotator/masks/inpaint.py:210-247`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:210-247`).
 
 For every accepted varying or flat attractor, it checks whether at least one
 window start overlaps the first half and at least one overlaps the second half.
@@ -301,7 +305,7 @@ four code counts, and converts the configured rejected grades into a boolean
 `non_evidence` mask. A missing track returns `None`. The CLI then passes that
 mask into `combine_mask`; `--no-replay-mask` bypasses detector computation and
 writes an all-False mask
-(`src/annotator/masks/replay.py:293-299, 302-346`).
+(`src/annotator/excluded_frames/replay.py:293-299, 302-346`).
 
 This CLI path creates a boolean replay input rather than `inpaint_codes`, so
 it does not preserve per-frame source codes for later event diagnostics.
@@ -310,7 +314,7 @@ it does not preserve per-frame source codes for later event diagnostics.
 
 `run_video` resolves the base configuration, then calls
 `_build_shuttle_hallucination_mask`
-(`src/annotator/run_video.py:28-45`, called from `src/annotator/run_video.py:321-323`).
+(`src/annotator/annotate_video.py:28-45`, called from `src/annotator/annotate_video.py:321-323`).
 
 The adapter has four paths:
 
@@ -323,7 +327,7 @@ The adapter has four paths:
 
 The code path does not validate a `uint8` dtype or reject unknown code
 values. It only validates shape and length before applying the configured
-membership test (`src/annotator/run_video.py:28-45`).
+membership test (`src/annotator/annotate_video.py:28-45`).
 
 `resolve` carries `base.rejected_grades` into the per-video resolved
 configuration without changing the set
@@ -335,7 +339,7 @@ grades, although callers can choose a subset.
 If the caller does not provide `raw_exclusion_mask`, `run_video` calls
 `build_dead_mask` with the event mask as
 `shuttle_hallucination_mask`
-(`src/annotator/run_video.py:390-417`).
+(`src/annotator/annotate_video.py:390-417`).
 
 `build_dead_mask` behaves differently by mode
 (`src/annotator/masks/dead.py:45-84`):
@@ -348,14 +352,14 @@ If the caller does not provide `raw_exclusion_mask`, `run_video` calls
 
 `combine_mask` does not directly union `non_evidence` into the replay
 mask. It passes it to `velocity_drop_signal`
-(`src/annotator/masks/replay.py:224-243`). That signal removes speed steps
+(`src/annotator/excluded_frames/replay.py:224-243`). That signal removes speed steps
 whose endpoints touch an event-mask frame before calculating the slow-motion
 baseline and rolling median
-(`src/annotator/masks/replay.py:162-205`).
+(`src/annotator/excluded_frames/replay.py:162-205`).
 
 The resulting raw mask is length-checked and duration-filtered. Only then does
 `run_video` use the definitive exclusion mask to remove contacts
-(`src/annotator/run_video.py:424-465`). The event mask and definitive
+(`src/annotator/annotate_video.py:424-465`). The event mask and definitive
 exclusion mask are therefore separate masks with different roles.
 
 The calibration inputs currently provide a pre-existing
@@ -368,11 +372,11 @@ the downstream event rules described next.
 
 After contacts have passed the definitive exclusion mask, the event mask is
 read directly in the per-rally event loop
-(`src/annotator/run_video.py:511-571`).
+(`src/annotator/annotate_video.py:511-571`).
 
 1. The latest unmasked contact becomes the candidate final contact.
 2. Trailing masked contacts are skipped and recorded as a `final_contact`
-   rejection. The first flagged frame supplies `trigger_code` when source
+   rejection. The first flagged frame supplies `rejection_grade` when source
    codes came from `inpaint_codes`.
 3. If every contact is masked, the rally receives no landing and no normal
    verdict.
@@ -391,8 +395,8 @@ landing tests `tests/test_point_winner.py:351-376`.
 The mask does not enter every downstream calculation. In particular,
 `attribute_half` receives the already filtered contact frames, while
 `build_hit_height_rows` later reads `filtered_by_rally` and does not accept
-an event mask (`src/annotator/run_video.py:462-483, 639-650`;
-`src/annotator/outcomes/point_winner.py:895-910`). This is an important boundary:
+an event mask (`src/annotator/annotate_video.py:462-483, 639-650`;
+`src/annotator/rally_results/landing_and_winner.py:895-910`). This is an important boundary:
 the guard directly protects final-contact and landing decisions, while
 contact and hit-height effects depend on the separate definitive exclusion
 mask.
@@ -401,12 +405,12 @@ mask.
 
 `_record_rejection` records a row only when the candidate interval contains
 at least one event-mask frame. It stores the rule, rally, interval, first
-masked trigger frame, and the matching source code when available
-(`src/annotator/run_video.py:48-75`).
+rejected frame (`first_rejected_frame`), and the matching source code when available
+(`src/annotator/annotate_video.py:48-75`).
 
 With an external boolean mask there is no source code array, so
-`trigger_code` is blank. With `inpaint_codes`, the original code array is
-retained specifically so diagnostics can say whether the trigger was proof,
+`rejection_grade` is blank. With `inpaint_codes`, the original code array is
+retained specifically so diagnostics can say whether the rejection grade was proof,
 flat suspicion, or degraded.
 
 ## Mermaid chart: runtime integration
@@ -416,7 +420,7 @@ the event rules consume. The dashed side path is the future sidecar route,
 not a current production consumer
 (`docs/tracknet/inpaint_sidecar_consumption.md:37-69`).
 
-`(§ Runtime integration, src/annotator/run_video.py:28-45, 321-610)`
+`(§ Runtime integration, src/annotator/annotate_video.py:28-45, 321-610)`
 
 ```mermaid
 flowchart LR
@@ -466,7 +470,7 @@ A real shuttle can rest on one pixel, and a weight-mode blend can flatten a
 repeated fill cycle into one constant position. The same constant pattern
 therefore lacks the proof available from a moving sequence. The current
 implementation preserves that distinction as codes 1 and 2
-(`src/annotator/masks/inpaint.py:188-194, 310-317`).
+(`src/annotator/excluded_frames/shuttle_hallucination.py:188-194, 310-317`).
 
 ### What the heuristic cannot see
 

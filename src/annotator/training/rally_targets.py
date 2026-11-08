@@ -1,80 +1,61 @@
-"""Judge rally options using labelled training videos and initial neighbours."""
+"""Judge proposed contacts directly against labelled rallies."""
 
 import numpy as np
 
-from annotator.sequence.contacts import ContactSequence, scale_frames
-from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS, finish_choices
-from annotator.sequence.rally_options import RallyOptions, sequence_key
+from annotator.rallies.build_contact_proposals import RallyOptions
 from annotator.training.sequences import (
     SequenceTrainingVideo,
     whole_rally_correctness,
 )
+from shared.frame_timing import frames_at_fps
 
 
-def finish_in_initial_context(
-    video: SequenceTrainingVideo, position: int, after: ContactSequence, stream_frames: np.ndarray,
-) -> ContactSequence:
-    """Apply canonical boundaries in a three-span window with initial neighbours."""
-    before = video.initial[position]
-    start_position = max(0, position - 1)
-    window = video.initial[start_position:position + 2]
-    local_position = position - start_position
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
-    left = min(window[0].start_frame, after.start_frame) - padding
-    right = max(window[-1].end_frame, after.end_frame) + padding + 1
-    first, last = np.searchsorted(stream_frames, (left, right))
-    local_events = video.events[first:last]
-    choices = {sequence.span_id: sequence for sequence in window}
-    choices[before.span_id] = after
-    finished, _stream = finish_choices(
-        window, local_events, choices, video.fps, frame_count=video.frame_count, bounds_supplied=video.bounds_supplied,
-    )
-    return finished[local_position]
+def option_targets_at_tolerances(
+    video: SequenceTrainingVideo, pool: RallyOptions, tolerances_at_30_fps: tuple[int, ...],
+) -> tuple[np.ndarray, ...]:
+    """Judge each proposed contact list at each matching tolerance.
+
+    Use the proposed bounds here. Inference extends bounds after selection.
+    """
+    fps = video.context.fps
+    targets = tuple(np.empty(len(pool.sequences), dtype=np.int8) for _ in tolerances_at_30_fps)
+    tolerance_frames = [frames_at_fps(tolerance, fps) for tolerance in tolerances_at_30_fps]
+    margin = max(tolerance_frames, default=0)
+    for rows in pool.span_rows.values():
+        options = tuple(pool.sequences[row] for row in rows)
+        start = min(sequence.start_frame for sequence in options) - margin
+        end = max(sequence.end_frame for sequence in options) + margin
+        # All options for this span use the same nearby labels. Retain each
+        # complete labelled rally so partial and merged proposals remain wrong.
+        nearby_rallies = tuple(
+            rally for rally in video.rallies if any(start <= frame < end for frame in rally.frames)
+        )
+        for row in rows:
+            for values, tolerance in zip(targets, tolerances_at_30_fps, strict=True):
+                values[row] = whole_rally_correctness(
+                    pool.sequences[row], nearby_rallies, fps, tolerance_at_30_fps=tolerance,
+                )
+    return targets
 
 
 def option_targets(
     video: SequenceTrainingVideo, pool: RallyOptions, tolerance_at_30_fps: int = 10,
 ) -> np.ndarray:
-    targets = np.empty(len(pool.sequences), dtype=np.int8)
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
-    for position, before in enumerate(video.initial):
-        rows = pool.span_rows[before.span_id]
-        ordered = tuple(pool.sequences[row] for row in rows)
-        tolerance = scale_frames(tolerance_at_30_fps, video.fps)
-        label_start = min(sequence.start_frame for sequence in ordered) - padding - tolerance
-        label_end = max(sequence.end_frame for sequence in ordered) + padding + tolerance + 1
-        rallies = tuple(
-            rally for rally in video.rallies if any(label_start <= frame < label_end for frame in rally.frames)
-        )
-        for row in rows:
-            finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
-            targets[row] = whole_rally_correctness(
-                finished, rallies, video.fps, tolerance_at_30_fps=tolerance_at_30_fps,
-            )
-    return targets
+    """Judge every proposal at one frame-rate-scaled matching tolerance."""
+    return option_targets_at_tolerances(video, pool, (tolerance_at_30_fps,))[0]
 
 
-def five_frame_preferred_targets(pool: RallyOptions, wide: np.ndarray, five: np.ndarray) -> np.ndarray:
-    """Prefer five-frame labels only when a judged span retains a positive option."""
-    if wide.shape != (len(pool.sequences),) or five.shape != wide.shape:
-        raise ValueError('five-frame targets must align with every option row')
+def preferred_targets(pool: RallyOptions, wide: np.ndarray, preferred: np.ndarray) -> np.ndarray:
+    """Use the tighter matching tolerance if at least one judged option still passes.
+
+    Otherwise keep the results from the wider tolerance. Options that cannot be
+    judged at the wider tolerance remain unjudgeable.
+    """
+    if wide.shape != (len(pool.sequences),) or preferred.shape != wide.shape:
+        raise ValueError('preferred targets must align with every option row')
     targets = wide.copy()
     for rows in pool.span_rows.values():
         included = rows[wide[rows] >= 0]
-        if np.any(five[included] == 1):
-            targets[included] = five[included]
+        if np.any(preferred[included] == 1):
+            targets[included] = preferred[included]
     return targets
-
-
-def original_option_rows(pool: RallyOptions) -> np.ndarray:
-    """Locate the original options to anchor training weight across pool sizes."""
-    original_keys: dict[int, set[tuple[int, int, tuple[int, ...]]]] = {}
-    for sequence in pool.context.initial:
-        original_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
-    for sequence in pool.context.repairs.sequences:
-        original_keys.setdefault(sequence.span_id, set()).add(sequence_key(sequence))
-    return np.asarray([
-        row for row, sequence in enumerate(pool.sequences)
-        if sequence_key(sequence) in original_keys[sequence.span_id]
-    ], dtype=np.int64)

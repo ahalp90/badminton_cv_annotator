@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Test incoming shuttle motion at the first accepted contact, then prepend a shot."""
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ from annotator.evaluation.gt_scoring import load_gt_tables
 from annotator.evaluation.scoring import RallyBoundary
 from annotator.masks.inpaint import NO_FLAG
 from annotator.outcomes import point_winner
-from annotator.types import Slot
+from annotator.types import PlayerRow
 
 RUN_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = RUN_DIR / "outputs"
@@ -205,7 +209,7 @@ def _measure_path(
     if run is None:
         return None
 
-    slot = Slot.TOP if anchor_player is point_winner.Half.TOP else Slot.BOTTOM
+    slot = PlayerRow.TOP if anchor_player is point_winner.Half.TOP else PlayerRow.BOTTOM
     run_slice = slice(run.start, run.end)
     row[f"{variant}_path_start"] = run.start
     row[f"{variant}_path_end"] = run.end
@@ -345,7 +349,7 @@ def _populate_covered_row(
         row["reused_gt_ordinal"] = sequence.reused_gt_ordinal
     distances = data.sticky.distances_per_slot[anchor]
     row["anchor_equal_distance_tie"] = bool(
-        np.isfinite(distances).all() and distances[Slot.TOP] == distances[Slot.BOTTOM]
+        np.isfinite(distances).all() and distances[PlayerRow.TOP] == distances[PlayerRow.BOTTOM]
     )
 
     earlier_raw = [contact for contact in raw_contacts if contact.contact_frame < anchor]
@@ -384,7 +388,7 @@ def _populate_covered_row(
     same_scene[segment_start:segment_end] = True
     coordinate_valid = np.isfinite(data.track[:, :2]).all(axis=1)
     coordinate_valid &= ~((data.track[:, 0] == 0) & (data.track[:, 1] == 0))
-    slot = Slot.TOP if anchor_player is point_winner.Half.TOP else Slot.BOTTOM
+    slot = PlayerRow.TOP if anchor_player is point_winner.Half.TOP else PlayerRow.BOTTOM
     common = (
         (data.track[:, 2] == 1)
         & coordinate_valid
@@ -394,8 +398,8 @@ def _populate_covered_row(
         & (data.sticky.bbox_height[:, slot] > 0)
     )
     masks = {
-        "recurrence_clean": common & (data.guard_codes == NO_FLAG),
-        "producer_original": common & (data.guard_codes == NO_FLAG) & ~data.producer_inpaint,
+        "recurrence_clean": common & (data.shuttle_grades == NO_FLAG),
+        "producer_original": common & (data.shuttle_grades == NO_FLAG) & ~data.producer_inpaint,
     }
     lookback_frames = int(ScalingKind.FRAME_COUNT.scale(LOOKBACK_BASE30_FRAMES, data.fixture.fps))
     maximum_frames_to_contact = int(

@@ -6,6 +6,7 @@ import argparse
 import csv
 import gzip
 import itertools
+import sys
 from bisect import bisect_left
 from pathlib import Path
 
@@ -13,15 +14,21 @@ import numpy as np
 import pandas as pd
 from scenedetect import open_video
 
-from annotator.artifact_io import artifacts_are_byte_equal, load_npy
-from annotator.config import COMPOSITION_KEEP_VOTE, BaseAnnotatorConfig, resolve
-from annotator.evaluation.scoring import _scale_base30_frames, load_gt_rallies
-from annotator.masks.composition import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from experiments.annotator.artifact_io import load_npy
+from experiments.annotator.legacy_evaluation.scoring import (
+    _scale_base30_frames,
+    load_gt_rallies,
+)
+from experiments.annotator.scene_cut_mask import (
+    COMPOSITION_KEEP_VOTE,
     CompositionSegment,
     build_composition_mask,
-    detect_cuts,
 )
-from annotator.video_metadata import probe_fps
+from shared.camera_cuts import MIN_SCENE_FRAMES_AT_30_FPS, detect_cuts
+from shared.frame_timing import frames_at_fps
+from shared.video_metadata import probe_fps
 
 VIDEO_IDS = (1, 15, 21)
 THRESHOLDS = (22, 27)
@@ -282,8 +289,8 @@ def main() -> None:
             print(f"  {homog}: keep_vote length={len(keep_vote)} true={int(keep_vote.sum())}")
             if video_id == 1:
                 stride_1_path = run_root / config_name / "sset_01" / STRIDE_1_VOTE_RELATIVE_PATH
-                stride_independent = artifacts_are_byte_equal(stride_1_path, vote_path)
-                print(f"    stride-1_vs_stride-8_byte_equal={stride_independent}")
+                stride_independent = np.array_equal(load_keep_vote(stride_1_path), keep_vote)
+                print(f"    stride-1_vs_stride-8_masks_equal={stride_independent}")
 
         baseline_path = analysis_dir / f"data/cuts_{video_id}_content27.csv.gz"
         baseline_cuts, baseline_n_frames = load_baseline(baseline_path)
@@ -303,7 +310,7 @@ def main() -> None:
     cut_lists: dict[int, dict[int, np.ndarray]] = {22: {}, 27: {}}
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = resolve(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
+        min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, video_input['fps'])
         detected_cuts = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],
@@ -325,7 +332,7 @@ def main() -> None:
     print("Threshold-27 gate passed for all videos; detecting threshold 22")
     for video_id in VIDEO_IDS:
         video_input = inputs[video_id]
-        min_scene_len = resolve(BaseAnnotatorConfig(), video_input['fps']).thresholds.composition_min_scene_len
+        min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, video_input['fps'])
         cut_lists[22][video_id] = detect_cuts(
             video_input["video_path"],
             video_input["n_frames"],

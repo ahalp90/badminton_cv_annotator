@@ -93,9 +93,9 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     """Find rallies in one whole video and keep each found rally's review score."""
     from threadpoolctl import threadpool_limits
 
+    from annotator.annotate_video import annotate_video
     from annotator.models import load_models
-    from annotator.run_video import RunCapture, run_video
-    from annotator.sequence.contacts import stream_payload
+    from experiments.annotator.contact_records import stream_payload
     from experiments.annotator.heuristic_only_tune import data
     from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 
@@ -108,22 +108,22 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
         inputs = data.load_original_inputs(video, paths['stages'], paths['development_courts'])
     with threadpool_limits(limits=2):
         models = load_models(bundle)
-        capture = RunCapture()
         pose = inputs.pose
-        run_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                  base=models.preprocessing, heuristic_only=False, models=models, serve_start=None,
-                  capture=capture, **data.run_video_kwargs(inputs))
-    prediction = capture.hybrid
+        annotation = annotate_video(inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
+                  base=models.preprocessing, heuristic_only=False, models=models,
+                  keep_working_data=True, **data.run_video_kwargs(inputs))
+    assert annotation.working_data is not None
+    prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video_id}: the annotator returned no contact stream')
-    sequences = prediction.refined.sequences
-    review = prediction.confidence
+    sequences = prediction.rally_prediction.sequences
+    review = prediction.rally_review
     scores = {int(span): float(score) for span, score in zip(review.features.span_ids, review.scores, strict=True)}
     missing = [sequence.span_id for sequence in sequences if sequence.span_id not in scores]
     if missing:
         raise ValueError(f'{video_id}: found rallies {missing} have no review score')
     path = output / f'{video_id}.json.gz'
-    write_json(path, stream_payload(sequences, prediction.refined.events) | {
+    write_json(path, stream_payload(sequences, prediction.rally_prediction.events) | {
         'confidence': {str(sequence.span_id): scores[sequence.span_id] for sequence in sequences},
     })
     return {'score': data.score_stream(video, read_json(path))}

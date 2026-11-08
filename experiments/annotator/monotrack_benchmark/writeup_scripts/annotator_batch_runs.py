@@ -30,17 +30,20 @@ sys.path.insert(0, str(REPO / 'src'))
 
 from threadpoolctl import threadpool_limits
 
-from annotator.config import resolve
-from annotator.contacts.features import ContactFeatures
-from annotator.hybrid import (
-    HybridPrediction,
-    features_from_evidence,
-    predict_contact_features,
+from annotator.config import scale_config_to_fps
+from annotator.contacts.build_features import ContactFeatures
+from annotator.inference.learned import (
+    LearnedModelPrediction,
+    contact_features_from_inputs,
+    predict_from_contact_features,
+)
+from annotator.inference.prepare_annotation_inputs import (
+    PreparedAnnotationInputs,
+    prepare_annotation_inputs,
 )
 from annotator.models import AnnotatorModels, load_models
-from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.contacts import stream_from_payload, stream_payload
-from annotator.sequence.rally_model import predict_rally_options, score_rally_review
+from annotator.rallies.refine_rallies import predict_rally_options, score_rally_review
+from experiments.annotator.contact_records import stream_from_payload, stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune import data
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
@@ -96,14 +99,13 @@ def cached_models(path: Path) -> AnnotatorModels:
 def require_shared_pool(models: tuple[AnnotatorModels, ...]) -> None:
     """Only selectors and review trees may differ when reusing contact options."""
     first = models[0]
-    contact = first.contact.get_booster().save_raw()
+    contact = first.contact_model.get_booster().save_raw()
     for other in models[1:]:
         if (other.preprocessing != first.preprocessing or other.contact_settings != first.contact_settings
-                or other.side_geometry != first.side_geometry
-                or other.sequences.max_edits != first.sequences.max_edits
-                or other.sequences.deletion_candidates != first.sequences.deletion_candidates):
+                or other.rally_selector.max_edits != first.rally_selector.max_edits
+                or other.rally_selector.deletion_candidates != first.rally_selector.deletion_candidates):
             raise ValueError('Shared rally pools require identical preparation, contact settings and proposal budgets')
-        if other.contact.get_booster().save_raw() != contact:
+        if other.contact_model.get_booster().save_raw() != contact:
             raise ValueError('Shared rally pools require the same fitted contact tree')
 
 
@@ -115,26 +117,26 @@ def policy_models(bundle_paths: tuple[Path, ...]) -> tuple[AnnotatorModels, ...]
 
 
 def predict_shared_pool(
-    evidence: AnnotationEvidence, features: ContactFeatures, models: tuple[AnnotatorModels, ...],
-) -> tuple[HybridPrediction, ...]:
+    evidence: PreparedAnnotationInputs, features: ContactFeatures, models: tuple[AnnotatorModels, ...],
+) -> tuple[LearnedModelPrediction, ...]:
     """Run each policy's own selector and review against one contact-derived pool."""
-    first = predict_contact_features(evidence, features, models[0])
+    first = predict_from_contact_features(evidence, features, models[0])
     predictions = [first]
     for model in models[1:]:
-        refined = predict_rally_options(model.sequences, first.refined.pool)
-        predictions.append(replace(first, refined=refined, confidence=score_rally_review(refined, model.confidence)))
+        refined = predict_rally_options(model.rally_selector, first.rally_prediction.pool)
+        predictions.append(replace(first, rally_prediction=refined, rally_review=score_rally_review(refined, model.review_model)))
     return tuple(predictions)
 
 
-def prediction_record(run: Run, video: str, prediction: HybridPrediction) -> dict[str, Any]:
-    stream = stream_payload(prediction.refined.sequences, prediction.refined.events)
+def prediction_record(run: Run, video: str, prediction: LearnedModelPrediction) -> dict[str, Any]:
+    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
     if run.condition != 'discovery':
         return {'item_id': video, 'condition': SUPPLIED_CONDITIONS[run.condition], 'status': 'completed',
                 'mode': 'full', 'boundaries': 'provided', 'stream': stream, 'seconds': None}
-    review = prediction.confidence
+    review = prediction.rally_review
     scores = dict(zip(review.features.span_ids, map(float, review.scores), strict=True))
     return stream | {'confidence': {str(sequence.span_id): scores[sequence.span_id]
-                                   for sequence in prediction.refined.sequences}}
+                                   for sequence in prediction.rally_prediction.sequences}}
 
 
 def read_prediction(path: Path, run: Run, video: str) -> dict[str, Any]:
@@ -187,7 +189,7 @@ def test_items() -> dict[str, dict[str, Any]]:
     return {item['item_id']: item for item in load_manifest(INPUTS)['items']}
 
 
-def prepare_group(group: VideoGroup, paths: BatchPaths, models: AnnotatorModels) -> tuple[AnnotationEvidence, ContactFeatures]:
+def prepare_group(group: VideoGroup, paths: BatchPaths, models: AnnotatorModels) -> tuple[PreparedAnnotationInputs, ContactFeatures]:
     video = videos_by_split(group.split)[group.video]
     if group.split == 'validation':
         inputs = data.load_original_inputs(video, paths.inputs['stages'], paths.inputs['development_courts'])
@@ -199,21 +201,20 @@ def prepare_group(group: VideoGroup, paths: BatchPaths, models: AnnotatorModels)
     if group.condition != 'discovery':
         spans = [(span['start_frame'], span['end_frame']) for span in test_items()[group.video]['spans']]
     evidence = prepare_inputs(inputs, models, spans)
-    return evidence, features_from_evidence(evidence)
+    return evidence, contact_features_from_inputs(evidence)
 
 
 def prepare_inputs(
     inputs: OldVideoInputs, models: AnnotatorModels, spans: list[tuple[int, int]] | None,
-) -> AnnotationEvidence:
-    """The preparation part of run_video, retaining its supplied-bound semantics."""
+) -> PreparedAnnotationInputs:
+    """The preparation part of annotate_video, retaining its supplied-bound semantics."""
     pose, court = inputs.pose, inputs.court
-    return prepare_annotation(
+    return prepare_annotation_inputs(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        resolved=resolve(models.preprocessing, inputs.fps), resolution=court.resolution,
-        video_id=inputs.identity, net_band=court.net_band, gate_court_info=court.gate_court_info,
-        gate_resolution_table=court.gate_resolution_table, court_present=inputs.court_present,
-        homography_rows=court.homography_rows, cut_frames=[end for _start, end in inputs.raw_cuts[:-1]],
-        keep_vote=inputs.keep_vote, inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True, spans=spans,
+        video_config=scale_config_to_fps(models.preprocessing, inputs.fps), resolution=court.resolution,
+        court_present=inputs.court_present,
+        homography_rows=court.homography_rows,
+        shuttle_grades=inputs.shuttle_grades, spans=spans,
     )
 
 

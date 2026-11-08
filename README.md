@@ -43,11 +43,11 @@ less manual review:
 
 | Confidence threshold | Found rallies kept | Found TP rallies kept | Right start and end | Fully correct rallies |
 | ---: | ---: | ---: | ---: | ---: |
-| 0.50 | 1,589 | 1,364 | 85.8% | 73.7% |
-| 0.70 | 821 | 734 | 89.4% | 80.9% |
-| 0.80 | 265 | 247 | 93.0% | 87.5% |
+| 0.50 | 1,714 | 1,512 | 88.2% | 77.5% |
+| 0.70 | 994 | 912 | 91.8% | 85.1% |
+| 0.80 | 469 | 441 | 94.1% | 89.6% |
 
-*TP = correct rally boundaries. Test set: 3,327 labelled rallies; ~3,663 detections
+*TP = correct rally boundaries. Test set: 3,327 labelled rallies; ~3,659 detections
 before filtering. Five-seed averages. “Right start and end” allows up to
 2 seconds early or 10 frames late for the first contact,
 and 10 frames early or 3 seconds late for the last contact (at 30 fps). These

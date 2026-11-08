@@ -9,6 +9,7 @@ import joblib
 import numpy as np
 import pytest
 
+from annotator.contacts.build_features import contact_feature_dtype
 from annotator.training.contact import ContactFitConfig
 from experiments.annotator import development as experiment
 from experiments.annotator.tree_simplification import contact_folds, pools
@@ -54,7 +55,8 @@ def prepared_fixture(tmp_path: Path) -> SimpleNamespace:
         split = 'validation' if group == 'V' else 'train'
         video = SimpleNamespace(identity=identity, split=split, fps=30.0,
                                 rallies=(SimpleNamespace(frames=(30, 10)),))
-        joblib.dump(SimpleNamespace(video=video, group=group, features=SimpleNamespace(rows=np.zeros(2))),
+        joblib.dump(SimpleNamespace(video=video, group=group,
+                                   features=SimpleNamespace(rows=np.zeros(2, dtype=contact_feature_dtype()))),
                     prepared / 'videos' / f'{identity}.joblib')
         metadata = {'video': identity, 'group': group, 'split': split}
         experiment.write_json(prepared / 'videos' / f'{identity}.json.gz', metadata)
@@ -89,7 +91,7 @@ def test_orchestration_fits_28_only_and_reuses_completed_folds(
     fits, prepared = [], []
 
     def fit(videos: Any, config: Any, *, fit_video_order: Any) -> Any:
-        identities = tuple(video.identity for video in videos)
+        identities = tuple(video.video_id for video in videos)
         assert len(identities) == 28 and not set(identities) & set(VALIDATION)
         assert config == ContactFitConfig(**fixture.manifest['settings']['contact'])
         assert identities == tuple(identity for identity in context.videos(('A', 'B', 'C', 'D'))

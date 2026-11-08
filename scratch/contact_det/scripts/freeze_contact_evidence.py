@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from annotator.config import BaseAnnotatorConfig, resolve  # noqa: E402
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps  # noqa: E402
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.1"
 EVIDENCE_SCHEMA = "contact-evidence-freeze/1"
@@ -282,7 +282,7 @@ def _load_inputs(
         court_inputs.gate_court_info,
         court_inputs.gate_resolution_table,
         RESOLUTION,
-        resolve(BaseAnnotatorConfig(), fixture.fps).thresholds.body_unit_half_window,
+        scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds.body_unit_half_window,
         scene_courts=build_scene_courts(homography_rows, court_inputs.resolution),
     )
     annotation = read_annotation(paths["annotation"], fixture)

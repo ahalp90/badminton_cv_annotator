@@ -1,5 +1,8 @@
 # RANSAC hallucination-guard experiments
 
+The serve-gate experiments are retired. To rerun their scripts and tests, use
+commit `3746dbee`, before the unused serve-start gate was removed.
+
 ## Bottom line
 
 Keep [PR 98's RANSAC output](https://github.com/ahalp90/badminton_cv_annotator/pull/98) as a review or ranking signal. None of the small guards tested here improved contact safety while also producing a useful change in final rally outputs.

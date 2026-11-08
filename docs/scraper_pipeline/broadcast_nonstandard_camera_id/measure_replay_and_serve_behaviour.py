@@ -25,6 +25,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -33,39 +34,53 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import SLOWMO_SPEED_FRAC, BaseAnnotatorConfig, resolve
-from annotator.evaluation.fixtures import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from annotator.annotate_video import annotate_video
+from annotator.array_calc_helpers import compute_speed, rolling_nanmedian
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.contacts.heuristics import impulse_contact_candidates
+from annotator.courts.frame_geometry import build_scene_courts
+from annotator.excluded_frames.replay import (
+    SLOWMO_SPEED_FRAC,
+    court_absence_signal,
+    filter_short_exclusion_runs,
+    velocity_drop_signal,
+)
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
+from annotator.inference.prepare_annotation_inputs import build_player_evidence
+from annotator.player_tracking import tracker_segments
+from annotator.rallies.find_rallies import find_rally_spans
+from annotator.types import TrackedPlayers, WristGaps
+from experiments.annotator.legacy_evaluation.fixtures import (
     SSET_01,
     Fixture,
     FixtureDigests,
     fixtures_root,
 )
-from annotator.evaluation.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    build_run_video_inputs,
+    canonical_tolerance,
+)
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    perspective_shift_signal,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
     GtRally,
     classify_all,
     greedy_match,
     load_gt_rallies,
 )
-from annotator.masks.inpaint import CODE_NAMES, NO_FLAG
-from annotator.masks.replay import (
-    court_absence_signal,
-    filter_short_exclusion_runs,
-    perspective_shift_signal,
-    velocity_drop_signal,
-)
-from annotator.rally.contacts import impulse_cell_candidates
-from annotator.rally.evidence import build_sticky_result, tracker_segments
-from annotator.rally.spans import find_rally_spans
-from annotator.review.broadcast_labels import (
+from labelling.scene_labels import (
     LabelInterval,
     SceneTruth,
     VideoMetadata,
     read_label_csv,
     validate_partition,
 )
-from annotator.run_video import RunCapture, run_video
-from annotator.types import compute_speed, rolling_nanmedian
+from shared.frame_timing import frames_at_fps
+
+SERVE_LOOKBACK_AT_30_FPS = 25
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_LABELS = SCRIPT_DIR / "data/sset_01_broadcast_timeline_labels.csv.gz"
@@ -89,7 +104,7 @@ SLOW_COLUMNS = (
 CANDIDATE_COLUMNS = (
     "span_id", "span_start", "span_end", "anchor_frame", "lookback_start",
     "candidate_frame", "impulse", "manual_truth", "inpaint_code", "inpaint_name",
-    "track_visible", "sticky_analysed", "sticky_distance_bh", "sticky_top_pick",
+    "track_visible", "sticky_distance_bh", "sticky_top_pick",
     "sticky_bottom_pick", "wrist_gate_pass", "evidence_pass", "definitive_mask",
     "raw_mask", "policy_pass", "selected_evidence", "selected_policy", "reject_reasons",
     "nearest_replay_or_cutaway_distance", "nearest_gt_rally_index", "nearest_gt_serve_frame",
@@ -266,12 +281,12 @@ def slow_motion_details(
     rally_spans: Sequence[tuple[int, int]],
     fps: float,
     *,
-    non_evidence: np.ndarray,
+    rejected_shuttle_frames: np.ndarray,
     baseline_exclude: np.ndarray,
 ) -> SlowMotionDetails:
     """Expose the current velocity-drop baseline without changing its rule."""
     speed = compute_speed(track)
-    unmeasured_steps = non_evidence[1:] | non_evidence[:-1]
+    unmeasured_steps = rejected_shuttle_frames[1:] | rejected_shuttle_frames[:-1]
     speed[1:][unmeasured_steps] = np.nan
     in_rally = np.zeros(len(track), dtype=bool)
     for start, end in rally_spans:
@@ -283,12 +298,12 @@ def slow_motion_details(
     rally_median = float(np.nanmedian(measured))
     if rally_median <= 0:
         raise ValueError("slow-motion rally median must be positive")
-    resolved = resolve(BaseAnnotatorConfig(), fps)
-    rolling_speed = rolling_nanmedian(speed, resolved.thresholds.rest_window)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
+    rolling_speed = rolling_nanmedian(speed, video_config.thresholds.rest_window)
     threshold = SLOWMO_SPEED_FRAC * rally_median
     signal = (
         (track[:, 2] == 1)
-        & (rolling_speed >= resolved.thresholds.rest_speed)
+        & (rolling_speed >= video_config.thresholds.rest_speed)
         & (rolling_speed < threshold)
     )
     return SlowMotionDetails(signal, speed, rolling_speed, rally_median, threshold)
@@ -297,14 +312,14 @@ def slow_motion_details(
 def slow_motion_rows(
     details: SlowMotionDetails,
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     track: np.ndarray,
 ) -> list[dict[str, Any]]:
     """Stratify the unchanged slow-motion signal by truth and inpaint grade."""
     rows: list[dict[str, Any]] = []
     for scene_truth in TRUTH_ORDER:
-        for code, name in sorted(CODE_NAMES.items()):
-            selected = (truth == scene_truth.value) & (inpaint_codes == code)
+        for code in ShuttleGrade:
+            selected = (truth == scene_truth.value) & (shuttle_grades == code)
             frames = int(selected.sum())
             visible = int(np.count_nonzero(selected & (track[:, 2] == 1)))
             measured_speed = int(np.count_nonzero(selected & np.isfinite(details.speed)))
@@ -312,8 +327,8 @@ def slow_motion_rows(
             rolling_values = details.rolling_speed[selected & np.isfinite(details.rolling_speed)]
             rows.append({
                 "truth": scene_truth.value,
-                "inpaint_code": code,
-                "inpaint_name": name,
+                "inpaint_code": int(code),
+                "inpaint_name": str(code),
                 "frames": frames,
                 "visible_frames": visible,
                 "measured_speed_frames": measured_speed,
@@ -328,8 +343,8 @@ def slow_motion_rows(
 
 def bootstrap_spans(track: np.ndarray, fps: float) -> list[tuple[int, int]]:
     """Reproduce the current unmasked span pass used to build the replay mask."""
-    resolved = resolve(BaseAnnotatorConfig(), fps)
-    return find_rally_spans(track, resolved)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
+    return find_rally_spans(track, video_config)
 
 
 def gt_statuses(
@@ -374,10 +389,11 @@ def evaluate_serve_candidates(
     *,
     track: np.ndarray,
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
-    sticky: Any,
+    players: TrackedPlayers,
+    wrist_gaps: WristGaps,
     spans: Sequence[tuple[int, int]],
     natural_raw_frames: set[int],
     accepted_by_span: dict[int, list[int]],
@@ -386,8 +402,9 @@ def evaluate_serve_candidates(
     fps: float,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Measure one fixed recording-only serve-lookback candidate rule."""
-    resolved = resolve(BaseAnnotatorConfig(), fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fps)
     tolerance = canonical_tolerance(fps)
+    lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fps)
     distance = nearest_replay_or_cutaway_distance(truth)
     gt_serve_frames = [rally.stroke_frames[0] for rally in gt_rallies]
     target_indexes = [int(row["rally_index"]) for row in statuses if row["target_miss"]]
@@ -400,13 +417,13 @@ def evaluate_serve_candidates(
         if not accepted:
             continue
         anchor = accepted[0]
-        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
-        flags = impulse_cell_candidates(
+        lookback_start = max(0, anchor - lookback_frames)
+        flags = impulse_contact_candidates(
             track,
             lookback_start,
             anchor,
-            resolved.thresholds,
-            smoothing_mode=resolved.smoothing_mode,
+            video_config.thresholds,
+            smoothing_mode=video_config.smoothing_mode,
         )
         evaluated: list[dict[str, Any]] = []
         for frame, impulse in flags:
@@ -415,19 +432,19 @@ def evaluate_serve_candidates(
                 key=lambda index: (abs(gt_serve_frames[index] - frame), index),
             )
             nearest_delta = abs(gt_serve_frames[nearest_gt] - frame)
-            sticky_distance = float(sticky.distances[frame])
+            sticky_distance = float(wrist_gaps.nearest[frame])
             visible = bool(track[frame, 2] == 1)
-            code = int(inpaint_codes[frame])
+            code = int(shuttle_grades[frame])
             wrist_pass = bool(
                 np.isfinite(sticky_distance)
-                and sticky_distance <= resolved.thresholds.wrist_distance_body_heights
+                and sticky_distance <= video_config.thresholds.wrist_distance_body_heights
             )
-            evidence_pass = visible and code == NO_FLAG and wrist_pass
+            evidence_pass = visible and code == ShuttleGrade.UNFLAGGED and wrist_pass
             policy_pass = evidence_pass and not bool(definitive_mask[frame])
             reasons = []
             if not visible:
                 reasons.append("track-not-visible")
-            if code != NO_FLAG:
+            if code != ShuttleGrade.UNFLAGGED:
                 reasons.append(f"inpaint-code-{code}")
             if not wrist_pass:
                 reasons.append("sticky-wrist-gate")
@@ -442,13 +459,12 @@ def evaluate_serve_candidates(
                 "candidate_frame": frame,
                 "impulse": impulse,
                 "manual_truth": str(truth[frame]),
-                "inpaint_code": code,
-                "inpaint_name": CODE_NAMES[code],
+                "inpaint_code": int(code),
+                "inpaint_name": str(ShuttleGrade(code)),
                 "track_visible": visible,
-                "sticky_analysed": bool(sticky.analysed[frame]),
                 "sticky_distance_bh": sticky_distance if np.isfinite(sticky_distance) else None,
-                "sticky_top_pick": int(sticky.picks[frame, 0]),
-                "sticky_bottom_pick": int(sticky.picks[frame, 1]),
+                "sticky_top_pick": int(players.detection_indices[frame, 0]),
+                "sticky_bottom_pick": int(players.detection_indices[frame, 1]),
                 "wrist_gate_pass": wrist_pass,
                 "evidence_pass": evidence_pass,
                 "definitive_mask": bool(definitive_mask[frame]),
@@ -503,11 +519,11 @@ def evaluate_serve_candidates(
     policy_selected = [int(row["candidate_frame"]) for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
+            "lookback_frames": lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
-            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
+            "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "requires_visible_track": True,
-            "requires_inpaint_code": NO_FLAG,
+            "requires_inpaint_code": ShuttleGrade.UNFLAGGED,
             "definitive_mask_policy": "blocked",
             "selection": "largest impulse, then earliest frame",
         },
@@ -729,12 +745,12 @@ def run_measurement(
     validate_partition(intervals, expected_metadata=metadata)
     truth = expand_truth(intervals, metadata)
 
-    inpaint_codes = np.asarray(keyword["inpaint_codes"])
+    shuttle_grades = np.asarray(keyword["shuttle_grades"])
     court_present = np.asarray(keyword["court_present"])
     homography_rows = keyword["homography_rows"]
     row_records = homography_rows.to_dict("records") if hasattr(homography_rows, "to_dict") else homography_rows
     bootstrap = bootstrap_spans(track, fixture.fps)
-    non_evidence = np.isin(inpaint_codes, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
+    rejected_shuttle_frames = np.isin(shuttle_grades, tuple(sorted(BaseAnnotatorConfig().rejected_grades)))
     court = court_absence_signal(court_present, len(track), fixture.fps)
     perspective = perspective_shift_signal(row_records, len(track))
     velocity = velocity_drop_signal(
@@ -742,35 +758,31 @@ def run_measurement(
         bootstrap,
         len(track),
         fixture.fps,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=court | perspective,
     )
     raw_union = court | perspective | velocity
     committed_mask = np.asarray(keyword["raw_exclusion_mask"])
     pinned_mask_diff_frames = int(np.count_nonzero(raw_union != committed_mask))
-    resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps)
     duration_filtered = filter_short_exclusion_runs(
-        raw_union, resolved.thresholds.replay_mask_min_frames,
+        raw_union, video_config.thresholds.replay_mask_min_frames,
     )
     e2e_definitive = duration_filtered | ~court_present
 
-    capture = RunCapture()
     keyword["raw_exclusion_mask"] = raw_union
-    keyword["court_invalid_is_excluded"] = True
-    keyword["capture"] = capture
-    result = run_video(*inputs.positional, **keyword)
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError("run_video did not capture both replay masks")
-    if not np.array_equal(capture.raw_exclusion_mask, raw_union):
+    annotation = annotate_video(*inputs.positional, **keyword)
+    result = annotation.result
+    if not np.array_equal(annotation.raw_exclusion_mask, raw_union):
         raise RuntimeError("run_video raw mask differs from the fresh replay union")
-    if not np.array_equal(capture.definitive_exclusion_mask, e2e_definitive):
+    if not np.array_equal(annotation.exclusion_mask, e2e_definitive):
         raise RuntimeError("run_video definitive mask differs from the e2e court-invalid union")
 
     details = slow_motion_details(
         track,
         bootstrap,
         fixture.fps,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=court | perspective,
     )
     if not np.array_equal(details.signal, velocity):
@@ -785,43 +797,42 @@ def run_measurement(
         "e2e_definitive": e2e_definitive,
     }
     mask_rows = mask_metric_rows(detectors, truth)
-    slow_rows = slow_motion_rows(details, truth, inpaint_codes, track)
+    slow_rows = slow_motion_rows(details, truth, shuttle_grades, track)
 
-    homography_for_sticky = row_records
-    segments = tracker_segments(homography_for_sticky, court_present, len(track))
-    sticky = build_sticky_result(
+    scene_courts = build_scene_courts(row_records, fixture.resolution)
+    segments = tracker_segments(scene_courts, court_present, len(track))
+    players, wrist_gaps = build_player_evidence(
         track,
         segments,
         bboxes,
         scores,
         kps,
         ndet,
-        str(fixture.video_id),
-        keyword["gate_court_info"],
-        keyword["gate_resolution_table"],
         fixture.resolution,
-        resolved.thresholds.body_unit_half_window,
+        video_config.thresholds.body_unit_half_window, scene_courts=scene_courts,
     )
-    accepted_by_span = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in result.filtered_by_rally.items()
-    }
-    raw_frames = {int(contact.contact_frame) for contact in result.contacts}
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]
+                        for rally_id, rally in enumerate(result.rallies)}
+    accepted_frames = {event.frame for rally in result.rallies for event in rally.sequence.events}
+    raw_frames = ({contact.contact_frame for contact in result.heuristic_candidates}
+                  if result.heuristic_candidates else accepted_frames)
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     statuses = gt_statuses(
         gt_rallies,
-        result.spans,
+        spans,
         accepted_by_span,
         canonical_tolerance(fixture.fps),
     )
     candidate_rows, opportunity_rows, serve_summary = evaluate_serve_candidates(
         track=track,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         raw_mask=raw_union,
         definitive_mask=e2e_definitive,
-        sticky=sticky,
-        spans=result.spans,
+        players=players,
+        wrist_gaps=wrist_gaps,
+        spans=spans,
         natural_raw_frames=raw_frames,
         accepted_by_span=accepted_by_span,
         gt_rallies=gt_rallies,
@@ -857,7 +868,7 @@ def run_measurement(
             {"path": pin.path.as_posix(), "md5": pin.md5} for pin in fixture.files
         ],
         "replay_mask": {
-            "replay_mask_min_frames": resolved.thresholds.replay_mask_min_frames,
+            "replay_mask_min_frames": video_config.thresholds.replay_mask_min_frames,
             "fresh_union_matches_pinned_raw_mask": pinned_mask_diff_frames == 0,
             "fresh_union_pinned_raw_diff_frames": pinned_mask_diff_frames,
             "detectors": binary_by_detector,
@@ -874,9 +885,9 @@ def run_measurement(
         "replay_duplicate_margin": replay_duplicate_feasibility(intervals, len(gt_rallies)),
         "serve_lookback": serve_summary,
         "natural_run": {
-            "spans": len(result.spans),
-            "raw_contacts": len(result.contacts),
-            "accepted_contacts": len(result.filtered_contacts),
+            "spans": len(spans),
+            "raw_contacts": len(raw_frames),
+            "accepted_contacts": len(accepted_frames),
             "gt_rallies": len(gt_rallies),
         },
         "limits": [

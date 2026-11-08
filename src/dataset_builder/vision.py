@@ -19,7 +19,6 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.shuttle_track import validate_shuttle_track
 from dataset_builder._pose_process import (
     POSE_CHILD_STEM,
     load_raw_pose_mapping,
@@ -31,21 +30,22 @@ from dataset_builder.shuttle_quality import (
     summarize_shuttle_quality,
 )
 from shared.progress import report
+from shared.shuttle_track_validation import validate_shuttle_track
 
 if TYPE_CHECKING:
     import pandas as pd
 
+    from annotator.annotate_video import AnnotatorResult
     from annotator.config import BaseAnnotatorConfig
-    from annotator.courts.evidence import CourtEvidenceResult, CourtInputs
+    from annotator.courts.prepare_courts import CourtEvidenceResult, CourtInputs
     from annotator.models import AnnotatorModels
-    from annotator.outcomes.point_winner import LandingFilterOptions
-    from annotator.run_video import AnnotatorResult
-    from annotator.video_metadata import VideoMetadata
+    from annotator.rally_results.landing_and_winner import LandingFilterOptions
     from bst_x.pipeline.shuttle_extractor import WholeVideoShuttle
+    from shared.video_metadata import VideoMetadata
 
 
-ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.2"
-COURT_EVIDENCE_SCHEMA = "court-evidence/0.2"
+ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.8"
+COURT_EVIDENCE_SCHEMA = "court-evidence/0.5"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
@@ -151,7 +151,7 @@ class CourtArtifacts:
 
 @dataclass(frozen=True)
 class AnnotationRun:
-    """Full primitive result plus the two distinct captured masks."""
+    """Full primitive result plus the two exclusion masks."""
 
     video_id: str
     result: AnnotatorResult
@@ -480,14 +480,12 @@ def build_detected_court_stage(
     pose_dir: Path,
     settings: CourtDetectorSettings,
     output_dir: Path,
-    case_id: str | None = None,
-    ref_err_px: float = 3.5,
 ) -> CourtVision:
     """Detect one court per scene from the saved poses, then persist the court evidence.
 
     :param pose_dir: where ``pose`` is saved; the detector reads those native-pixel arrays.
     """
-    from annotator.courts.evidence import (
+    from annotator.courts.prepare_courts import (
         NoAcceptedCourtError,
         build_court_detector_evidence,
         read_detector_scenes,
@@ -513,7 +511,6 @@ def build_detected_court_stage(
     resolution = (float(metadata.width), float(metadata.height))
     try:
         result = build_court_detector_evidence(
-            case_id or video_id,
             video_id,
             resolution,
             resolution,
@@ -521,7 +518,6 @@ def build_detected_court_stage(
             pose.bboxes,
             pose.scores,
             pose.ndet,
-            ref_err_px=ref_err_px,
         )
     except NoAcceptedCourtError as error:
         save_json_gz(failure_path, {"video_id": video_id, "error": str(error),
@@ -572,7 +568,7 @@ def load_court_vision(
     resolution: tuple[float, float],
 ) -> CourtVision:
     """Restore validated operational court evidence from compressed artefacts."""
-    from annotator.courts.evidence import CourtEvidenceResult
+    from annotator.courts.prepare_courts import CourtEvidenceResult
     from dataset_builder._court_codec import load_court_provenance
 
     root = Path(output_dir)
@@ -618,57 +614,20 @@ def load_court_vision(
 
 def _court_inputs_payload(inputs: CourtInputs) -> dict[str, object]:
     return {
-        "court_info": inputs.court_info,
-        "gate_court_info": inputs.gate_court_info,
-        "net_band": inputs.net_band,
         "resolution": inputs.resolution,
-        "gate_resolution_table": _dataframe_payload(inputs.gate_resolution_table),
         "homography_rows": _dataframe_payload(inputs.homography_rows),
-        "landing_error_band_m": inputs.landing_error_band_m,
-        "active_corners_refpx": inputs.active_corners_refpx,
     }
 
 
 def _court_inputs_from_payload(payload: object) -> CourtInputs:
-    from annotator.courts.evidence import CourtInputs
+    from annotator.courts.prepare_courts import CourtInputs
 
     record = _object_payload(payload, "court inputs")
-    expected = {
-        "court_info",
-        "gate_court_info",
-        "net_band",
-        "resolution",
-        "gate_resolution_table",
-        "homography_rows",
-        "landing_error_band_m",
-        "active_corners_refpx",
-    }
-    if set(record) != expected:
+    if set(record) != {"resolution", "homography_rows"}:
         raise ValueError("court inputs payload fields differ")
-    gate_payload = _object_payload(record["gate_court_info"], "gate_court_info")
-    gate_court_info = {
-        video_key: _court_info_from_payload(info, f"gate_court_info.{video_key}")
-        for video_key, info in gate_payload.items()
-    }
     return CourtInputs(
-        court_info=_court_info_from_payload(record["court_info"], "court_info"),
-        gate_court_info=gate_court_info,
-        net_band=_float_pair(record["net_band"], "net_band"),
         resolution=_float_pair(record["resolution"], "resolution"),
-        gate_resolution_table=_dataframe_from_payload(
-            record["gate_resolution_table"],
-            "gate_resolution_table",
-        ),
         homography_rows=_dataframe_from_payload(record["homography_rows"], "homography_rows"),
-        landing_error_band_m=_finite_float(
-            record["landing_error_band_m"],
-            "landing_error_band_m",
-        ),
-        active_corners_refpx=_float_array(
-            record["active_corners_refpx"],
-            "active_corners_refpx",
-            (4, 2),
-        ),
     )
 
 
@@ -700,18 +659,6 @@ def _dataframe_from_payload(payload: object, name: str) -> pd.DataFrame:
     return pd.DataFrame(data, columns=columns, index=index)
 
 
-def _court_info_from_payload(payload: object, name: str) -> dict[str, object]:
-    record = _object_payload(payload, name)
-    required = {"H", "border_L", "border_R", "border_U", "border_D"}
-    if not required.issubset(record):
-        raise ValueError(f"{name} is missing required court geometry")
-    restored = dict(record)
-    restored["H"] = _float_array(record["H"], f"{name}.H", (3, 3))
-    for key in required.difference({"H"}):
-        restored[key] = _finite_float(record[key], f"{name}.{key}")
-    return restored
-
-
 def _raw_cuts_from_payload(payload: object) -> tuple[tuple[int, int], ...]:
     if not isinstance(payload, list):
         raise TypeError("court raw_cuts must be a list")
@@ -738,16 +685,6 @@ def _float_pair(payload: object, name: str) -> tuple[float, float]:
     return _finite_float(payload[0], f"{name}[0]"), _finite_float(payload[1], f"{name}[1]")
 
 
-def _float_array(payload: object, name: str, shape: tuple[int, ...]) -> np.ndarray:
-    try:
-        values = np.asarray(payload, dtype=float)
-    except (TypeError, ValueError) as error:
-        raise ValueError(f"{name} must contain numbers") from error
-    if values.shape != shape or not np.isfinite(values).all():
-        raise ValueError(f"{name} must be a finite array with shape {shape}")
-    return values
-
-
 def _finite_float(payload: object, name: str) -> float:
     if isinstance(payload, bool) or not isinstance(payload, (int, float)):
         raise TypeError(f"{name} must be a finite number")
@@ -763,28 +700,27 @@ def run_full_annotation_stage(
     metadata: VideoMetadata,
     track: np.ndarray,
     inpaint_fill_mask: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     pose: PoseArrays,
     court: CourtVision,
     output_dir: Path,
     base: BaseAnnotatorConfig | None = None,
     models: AnnotatorModels | None = None,
+    heuristic_only: bool = False,
     landing_options: LandingFilterOptions | None = None,
     ref_err_px: float = 3.5,
 ) -> AnnotationOutput:
     """Run the full annotator with replay masking and persist all primitives."""
+    from annotator.annotate_video import annotate_video
     from annotator.config import BaseAnnotatorConfig
-    from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-    from annotator.run_video import RunCapture, run_video
-    from annotator.types import DeadMaskMode
+    from annotator.rally_results.landing_and_winner import (
+        SHIPPED_LANDING_FILTER_OPTIONS,
+    )
+
 
     effective_base = models.preprocessing if models is not None else BaseAnnotatorConfig()
     if base is not None:
         effective_base = base
-    if effective_base.dead_mask_mode is not DeadMaskMode.REPLAY:
-        raise ValueError(
-            "dataset-builder/0.1 requires BaseAnnotatorConfig.dead_mask_mode=DeadMaskMode.REPLAY"
-        )
     effective_landing = (
         SHIPPED_LANDING_FILTER_OPTIONS if landing_options is None else landing_options
     )
@@ -792,7 +728,7 @@ def run_full_annotation_stage(
     shuttle_quality = summarize_shuttle_quality(
         track,
         inpaint_fill_mask,
-        guard_codes,
+        shuttle_grades,
         effective_base.rejected_grades,
     )
     validate_pose_arrays(pose, metadata.frame_count)
@@ -806,9 +742,7 @@ def run_full_annotation_stage(
     if court_inputs is None:
         raise ValueError("detected court evidence has no operational inputs")
 
-    capture = RunCapture()
-    cut_frames = [end for _start, end in court.raw_cuts[:-1]]
-    result = run_video(
+    annotation = annotate_video(
         track,
         pose.bboxes,
         pose.scores,
@@ -817,34 +751,25 @@ def run_full_annotation_stage(
         fps=float(metadata.fps),
         base=effective_base,
         models=models,
+        heuristic_only=heuristic_only,
         landing_options=effective_landing,
-        net_band=court_inputs.net_band,
         resolution=court_inputs.resolution,
-        video_id=video_id,
-        court_info=court_inputs.court_info,
-        homo_df=None,
-        gate_court_info=court_inputs.gate_court_info,
-        gate_resolution_table=court_inputs.gate_resolution_table,
         ref_err_px=ref_err_px,
         raw_exclusion_mask=None,
         court_present=court.evidence.court_present,
         homography_rows=court_inputs.homography_rows,
-        cut_frames=cut_frames,
-        keep_vote=court.evidence.keep_vote,
-        inpaint_codes=guard_codes,
-        court_invalid_is_excluded=True,
-        landing_error_band_m=court_inputs.landing_error_band_m,
-        capture=capture,
+        shuttle_grades=shuttle_grades,
     )
+    result = annotation.result
     raw_mask = _validated_mask(
-        capture.raw_exclusion_mask,
+        annotation.raw_exclusion_mask,
         metadata.frame_count,
-        "captured raw replay mask",
+        "raw replay mask",
     )
     definitive_mask = _validated_mask(
-        capture.definitive_exclusion_mask,
+        annotation.exclusion_mask,
         metadata.frame_count,
-        "captured definitive exclusion mask",
+        "definitive exclusion mask",
     )
     run = AnnotationRun(
         video_id=video_id,
@@ -862,7 +787,7 @@ def persist_annotation_run(
     run: AnnotationRun,
     frame_count: int,
 ) -> AnnotationArtifacts:
-    """Persist every primitive result field and both captured masks."""
+    """Persist every primitive result field and both exclusion masks."""
     raw_mask = _validated_mask(run.raw_replay_mask, frame_count, "raw replay mask")
     definitive_mask = _validated_mask(
         run.definitive_exclusion_mask,
@@ -893,15 +818,13 @@ def persist_annotation_run(
 
 def annotation_result_payload(video_id: str, result: AnnotatorResult) -> dict[str, object]:
     """Return a versioned payload containing every ``AnnotatorResult`` field."""
-    from annotator.run_video import AnnotatorResult
+    from annotator.annotate_video import AnnotatorResult
 
     if not isinstance(video_id, str) or not video_id:
         raise ValueError("annotation video_id must be a non-empty string")
     if not isinstance(result, AnnotatorResult):
         raise TypeError(f"annotation result must be AnnotatorResult, got {type(result).__name__}")
     primitives = {name: _json_ready(getattr(result, name)) for name in AnnotatorResult._fields}
-    if tuple(primitives) != AnnotatorResult._fields:
-        raise AssertionError("annotation payload omitted an AnnotatorResult field")
     return {
         "schema": ANNOTATOR_RESULT_SCHEMA,
         "video_id": video_id,
@@ -936,9 +859,7 @@ def _validate_court_vision(
         )
 
 
-def _validated_mask(values: np.ndarray | None, frame_count: int, name: str) -> np.ndarray:
-    if values is None:
-        raise ValueError(f"{name} was not captured")
+def _validated_mask(values: np.ndarray, frame_count: int, name: str) -> np.ndarray:
     array = np.asarray(values)
     if array.shape != (frame_count,) or array.dtype != np.dtype(bool):
         raise ValueError(
@@ -959,6 +880,13 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def _json_ready(value: object) -> object:
+    from annotator.types import ContactEvent
+
+    if isinstance(value, ContactEvent):
+        probability = None if math.isnan(value.probability) else value.probability
+        return {
+            "frame": _json_ready(value.frame), "probability": _json_ready(probability), "side": _json_ready(value.side),
+        }
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, np.generic):

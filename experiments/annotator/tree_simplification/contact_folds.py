@@ -24,7 +24,7 @@ from annotator.training.contact import (
     ContactTrainingVideo,
     fit_contact_model,
 )
-from experiments.annotator.development import development_for, xgboost_settings
+from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.tree_simplification.pools import prepare_pools
 
@@ -108,7 +108,7 @@ def prepare_contact_folds(
     output.mkdir(parents=True, exist_ok=True)
     if not manifest_path.exists():
         experiment.write_json(manifest_path, manifest)
-    config = ContactFitConfig(**xgboost_settings(settings['contact']))
+    config = ContactFitConfig(**settings['contact'])
     training_ids = development.videos(experiment.TRAINING_GROUPS)
     training = {}
     for identity in training_ids:

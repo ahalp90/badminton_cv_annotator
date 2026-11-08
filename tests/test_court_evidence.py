@@ -5,14 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.config import COMPOSITION_CONTENT_THRESHOLD
-from annotator.courts import evidence
-from annotator.evaluation.fixtures import FIXTURES
-from annotator.outcomes import point_winner
-from annotator.outcomes.point_winner import (
-    corner_error_band_from_corners,
-    project_pixels_to_court,
-)
+from annotator.courts import prepare_courts as evidence
+from annotator.courts.frame_geometry import build_scene_courts, scene_ref_corners
+from experiments.annotator.legacy_evaluation import static_courts
+from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
+from shared.camera_cuts import COMPOSITION_CONTENT_THRESHOLD
+from shared.court import project_pixels_to_court
 
 
 def _identity_info() -> dict[str, object]:
@@ -72,7 +70,7 @@ def _result(rows: list[dict[str, object]], frame_count: int = 10) -> dict[str, o
     }
 
 
-def test_static_corner_order_matches_pose_columns_and_landing_band(monkeypatch) -> None:
+def test_static_corner_order_matches_pose_columns(monkeypatch) -> None:
     camera_order = np.array([
         [11.0, 12.0],  # top-left
         [21.0, 22.0],  # top-right
@@ -85,8 +83,8 @@ def test_static_corner_order_matches_pose_columns_and_landing_band(monkeypatch) 
         [31.0, 32.0],
         [41.0, 42.0],
     ])
-    monkeypatch.setattr(evidence, 'get_corner_camera', lambda _row: camera_order.T)
-    static_corners = evidence._static_corners_refpx(pd.Series(dtype=float))
+    monkeypatch.setattr(static_courts, 'get_corner_camera', lambda _row: camera_order.T)
+    static_corners = static_courts._static_corners_refpx(pd.Series(dtype=float))
     np.testing.assert_array_equal(static_corners, clockwise_order)
 
     rows = evidence.build_scene_rows(
@@ -101,20 +99,6 @@ def test_static_corner_order_matches_pose_columns_and_landing_band(monkeypatch) 
         clockwise_order[[0, 1, 3, 2]].reshape(-1),
     )
 
-    received = []
-
-    def fake_error_band(corners, _court_info, _err_px):
-        received.append(corners.copy())
-        return 1.25
-
-    monkeypatch.setattr(point_winner, 'get_corner_camera', lambda _row: camera_order.T)
-    monkeypatch.setattr(point_winner, 'corner_error_band_from_corners', fake_error_band)
-    result = point_winner.corner_error_band_m(
-        7, pd.DataFrame(index=[7]), _identity_info(), 3.5,
-    )
-    assert result == 1.25
-    np.testing.assert_array_equal(received[0], clockwise_order)
-
 
 @pytest.mark.parametrize(('fps', 'minimum'), [(25.0, 13), (30.0, 15)])
 def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, minimum) -> None:
@@ -124,8 +108,8 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
         calls.append((video_path, kwargs))
         return np.array([13, 28], dtype=int)
 
-    monkeypatch.setattr(evidence, 'detect_cuts', fake_detect)
-    intervals = evidence.build_raw_cut_intervals('video.mp4', 40, fps)
+    monkeypatch.setattr(static_courts, 'detect_cuts', fake_detect)
+    intervals = static_courts.build_raw_cut_intervals('video.mp4', 40, fps)
 
     assert intervals == [(0, 13), (13, 28), (28, 40)]
     assert calls == [(
@@ -136,7 +120,6 @@ def test_raw_cut_wrapper_uses_exact_arguments_and_partitions(monkeypatch, fps, m
             'min_scene_len': minimum,
         },
     )]
-
 
 
 def test_detector_schema_matches_the_runner() -> None:
@@ -240,18 +223,16 @@ def test_keep_vote_ignores_outside_people_and_includes_margin_boundaries() -> No
     assert vote.tolist() == [True]
 
 
-
 def test_detected_parent_applies_inclusive_scene_majority() -> None:
     bboxes, scores, ndet = _pose_inputs(7)
     ndet[2:4] = 0
     ndet[5:] = 0
     result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (512.0, 288.0),
+        1, (1280.0, 720.0), (512.0, 288.0),
         [_scene(0, 4, FULL_FRAME_PX), _scene(4, 7, FULL_FRAME_PX)],
         bboxes, scores, ndet,
     )
     first_record, second_record = result.scene_records
-    assert first_record.parent == evidence.DETECTED_PARENT
     assert first_record.exactly_two_fraction == pytest.approx(evidence.SCENE_VALID_MIN_FRACTION)
     assert first_record.scene_valid is True
     assert second_record.exactly_two_fraction == pytest.approx(1 / 3)
@@ -263,7 +244,7 @@ def test_detected_inputs_use_only_accepted_scene_courts() -> None:
     bboxes, scores, ndet = _pose_inputs(20)
     ndet[10:] = 0
     result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (512.0, 288.0),
+        1, (1280.0, 720.0), (512.0, 288.0),
         [_scene(0, 10, FULL_FRAME_PX), _scene(10, 20, FULL_FRAME_PX)],
         bboxes, scores, ndet,
     )
@@ -273,7 +254,7 @@ def test_detected_inputs_use_only_accepted_scene_courts() -> None:
     projected = project_pixels_to_court(
         np.array([[0.0, 1280.0, 1280.0, 0.0], [0.0, 0.0, 720.0, 720.0]]),
         (1280.0, 720.0),
-        inputs.court_info,
+        build_scene_courts(inputs.homography_rows.to_dict('records'), inputs.resolution)[0].court_info,
     )
     np.testing.assert_allclose(projected.T, [[0, 0], [1, 0], [1, 1], [0, 1]])
 
@@ -287,7 +268,7 @@ def test_scenes_without_a_court_keep_their_status_as_the_absence_reason() -> Non
         _scene(15, 20, status='detection_failed', error='CourtFitError()'),
     ]
     result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
+        1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
     )
     assert result.court_present.tolist() == [True] * 8 + [False] * 12
     assert result.keep_vote.tolist() == [True] * 8 + [False] * 12
@@ -312,7 +293,7 @@ def test_distinct_camera_views_keep_their_own_courts() -> None:
     bboxes[:, 0] = (650.0, 100.0, 750.0, 200.0)
     bboxes[:, 1] = (950.0, 300.0, 1050.0, 400.0)
     result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (512.0, 288.0),
+        1, (1280.0, 720.0), (512.0, 288.0),
         [_scene(0, 10, wide), _scene(10, 20, shifted, reused_from='video_scene_0')],
         bboxes, scores, ndet,
     )
@@ -332,12 +313,12 @@ def test_detector_corners_convert_from_native_to_pose_pixels() -> None:
     bboxes, scores, ndet = _pose_inputs(4)
     native = np.array(FULL_FRAME_PX) * np.array([1920.0 / 512.0, 1080.0 / 288.0])
     result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (1920.0, 1080.0), [_scene(0, 4, native)], bboxes, scores, ndet,
+        1, (1280.0, 720.0), (1920.0, 1080.0), [_scene(0, 4, native)], bboxes, scores, ndet,
     )
     assert result.court_present.all()
     assert result.inputs is not None
     np.testing.assert_allclose(
-        result.inputs.active_corners_refpx, [[0.0, 0.0], [1280.0, 0.0], [1280.0, 720.0], [0.0, 720.0]],
+        scene_ref_corners(result.inputs.homography_rows.iloc[0].to_dict(), result.inputs.resolution), [[0.0, 0.0], [1280.0, 0.0], [1280.0, 720.0], [0.0, 720.0]],
     )
     np.testing.assert_array_equal(result.scene_records[0].corners_native_px, native)
 
@@ -348,7 +329,7 @@ def test_no_accepted_court_hands_back_the_scene_evidence() -> None:
     scenes = [_scene(0, 6, FULL_FRAME_PX), _scene(6, 10, status='scene_too_short_for_feet')]
     with pytest.raises(evidence.NoAcceptedCourtError, match='scene_too_short_for_feet') as failure:
         evidence.build_court_detector_evidence(
-            'case-a', 1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
+            1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
         )
     handoff = failure.value.result
     assert handoff.inputs is None
@@ -366,11 +347,11 @@ def test_static_parent_net_band_matches_fixture(video_id: int) -> None:
     homography = pd.read_csv(
         'training/data/shuttleset/annotations/set/homography.csv',
     ).set_index('id')
-    inputs = evidence.build_static_court_inputs(
+    inputs = static_courts.build_static_court_inputs(
         video_id, homography, fixture.resolution, [(0, 10)],
     )
-    assert inputs.net_band == fixture.net_band
-
+    scene = build_scene_courts(inputs.homography_rows.to_dict('records'), inputs.resolution)[0]
+    assert scene.net_band == pytest.approx(fixture.net_band)
 
 
 def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
@@ -381,9 +362,7 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     static_bboxes = np.zeros((4, 1, 4), dtype=float)
     static_scores = np.full((4, 1), np.nan, dtype=float)
     static_ndet = np.zeros(4, dtype=int)
-    static_result = evidence.build_static_court_evidence(
-        'case-a',
-        'static_shuttleset_homography',
+    static_result = static_courts.build_static_court_evidence(
         1,
         homography,
         fixture.resolution,
@@ -401,52 +380,35 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     assert static_record.no_court_reason is None and static_record.reused_from is None
     np.testing.assert_allclose(
         static_record.corners_native_px,
-        static_result.inputs.active_corners_refpx * np.array([512.0, 288.0]) / np.array([1280.0, 720.0]),
+        static_courts._static_corners_refpx(homography.loc[1]) * np.array([512.0, 288.0]) / np.array([1280.0, 720.0]),
     )
 
     def fail_static_lookup(*_args, **_kwargs):
         raise AssertionError('detected parent must not read static homography')
 
-    monkeypatch.setattr(evidence, 'get_court_info', fail_static_lookup)
+    monkeypatch.setattr(static_courts, 'get_court_info', fail_static_lookup)
     bboxes, scores, ndet = _pose_inputs(4)
     detected_result = evidence.build_court_detector_evidence(
-        'case-a', 1, (1280.0, 720.0), (512.0, 288.0), [_scene(0, 4, FULL_FRAME_PX)], bboxes, scores, ndet,
+        1, (1280.0, 720.0), (512.0, 288.0), [_scene(0, 4, FULL_FRAME_PX)], bboxes, scores, ndet,
     )
     assert detected_result.keep_vote.any()
     assert detected_result.court_present.any()
     assert detected_result.inputs is not None
-    assert detected_result.inputs.net_band != static_result.inputs.net_band
-    assert detected_result.inputs.landing_error_band_m != static_result.inputs.landing_error_band_m
+    static_scene = build_scene_courts(
+        static_result.inputs.homography_rows.to_dict('records'), static_result.inputs.resolution,
+    )[0]
+    detected_scene = build_scene_courts(
+        detected_result.inputs.homography_rows.to_dict('records'), detected_result.inputs.resolution,
+    )[0]
+    assert detected_scene.net_band != static_scene.net_band
+    assert detected_scene.landing_error_band_m != static_scene.landing_error_band_m
     assert not np.shares_memory(
-        detected_result.inputs.active_corners_refpx,
-        static_result.inputs.active_corners_refpx,
+        detected_result.scene_records[0].corners_native_px, static_record.corners_native_px,
     )
 
 
-def test_court_inputs_copy_mutable_values() -> None:
-    court_info = _identity_info()
-    table = pd.DataFrame({'width': [10.0], 'height': [20.0]}, index=['1'])
+def test_court_inputs_copy_scene_rows() -> None:
     rows = pd.DataFrame([{'video_id': 1, 'start_frame': 0, 'end_frame': 1}])
-    corners = np.zeros((4, 2), dtype=float)
-    inputs = evidence.CourtInputs(
-        court_info, {'1': court_info}, (1.0, 2.0), (10.0, 20.0), table, rows, 0.1, corners,
-    )
-    court_info['H'][0, 0] = 9.0
-    table.loc['1', 'width'] = 99.0
+    inputs = evidence.CourtInputs((10.0, 20.0), rows)
     rows.loc[0, 'start_frame'] = 99
-    corners[0, 0] = 9.0
-    assert inputs.court_info['H'][0, 0] == 1.0
-    assert inputs.gate_resolution_table.loc['1', 'width'] == 10.0
     assert inputs.homography_rows.loc[0, 'start_frame'] == 0
-    assert inputs.active_corners_refpx[0, 0] == 0.0
-
-
-def test_static_error_band_wrapper_matches_pure_helper() -> None:
-    homography = pd.read_csv(
-        'training/data/shuttleset/annotations/set/homography.csv',
-    ).set_index('id')
-    fixture = next(item for item in FIXTURES if item.video_id == 1)
-    inputs = evidence.build_static_court_inputs(1, homography, fixture.resolution, [(0, 1)])
-    assert inputs.landing_error_band_m == pytest.approx(
-        corner_error_band_from_corners(inputs.active_corners_refpx, inputs.court_info, 3.5),
-    )

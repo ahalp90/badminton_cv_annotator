@@ -8,8 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.artifact_io import (
-    artifacts_are_byte_equal,
+from experiments.annotator.artifact_io import (
     atomic_gzip_text_writer,
     load_npy,
     open_text_artifact,
@@ -60,13 +59,3 @@ def test_npy_xz_round_trip_and_plain_fallback(tmp_path: Path) -> None:
     legacy = tmp_path / "legacy.npy"
     np.save(legacy, values, allow_pickle=False)
     np.testing.assert_array_equal(load_npy(tmp_path / "legacy.npy.xz"), values)
-
-
-def test_vote_byte_comparison_resolves_legacy_plain_fallbacks(tmp_path: Path) -> None:
-    values = np.array([True, False, True], dtype=np.bool_)
-    first = tmp_path / "first.npy"
-    second = tmp_path / "second.npy"
-    np.save(first, values, allow_pickle=False)
-    np.save(second, values, allow_pickle=False)
-
-    assert artifacts_are_byte_equal(tmp_path / "first.npy.xz", tmp_path / "second.npy.xz")

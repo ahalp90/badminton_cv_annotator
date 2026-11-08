@@ -102,14 +102,17 @@ def optional_display(method):
 
 
 class RunProgress:
-    def __init__(self, config, phases, mode: str = "auto", stream=None, log_dir=None):
+    def __init__(
+        self, phases, mode: str = "auto", stream=None, log_dir=None, *,
+        fixed_sources: bool = False, commentary_enabled: bool = True, pose_shards: int = 1,
+    ):
         self.stream = SafeOutput(
             stream if stream is not None else sys.stderr, on_failure=self.disable
         )
         self.enabled = mode == "on" or (mode == "auto" and self.stream.isatty())
         if mode not in {"auto", "on", "off"}:
             raise ValueError(f"unknown progress mode: {mode}")
-        self.config = config
+        self.pose_shards = pose_shards
         self.log_dir = Path(log_dir) if log_dir is not None else None
         self.video = None
         self.suppressed = set()
@@ -117,12 +120,12 @@ class RunProgress:
             return
         self.write(self.style("BADMINTON  /  Processing", "1"))
         skips = {}
-        if config.fixed_sources is not None:
+        if fixed_sources:
             skips["fixed source"] = ["search", "transcript", "triage", "download"]
-        if not config.commentary_enabled or config.fixed_sources is not None:
+        if not commentary_enabled or fixed_sources:
             skips[
                 "commentary disabled"
-                if not config.commentary_enabled
+                if not commentary_enabled
                 else "fixed source commentary bypass"
             ] = ["commentary_cleaning", "commentary_pairing"]
         skips = {
@@ -167,8 +170,8 @@ class RunProgress:
                     self.video = None
                 label = LABELS.get(phase, phase)
                 detail = ""
-                if phase == "pose" and self.config.pose_shards > 1:
-                    detail = f"  {self.config.pose_shards} parallel shards"
+                if phase == "pose" and self.pose_shards > 1:
+                    detail = f"  {self.pose_shards} parallel shards"
                 elif phase == "court":
                     detail = "  8 workers"
                 self.write(
@@ -231,14 +234,13 @@ class RunProgress:
                 os.environ[key] = value
 
     @optional_display
-    def finish(self, name, event, record, stage):
+    def finish(self, name, stage, *, outcome="processed", reused=False, reason=None, counts=()):
         if not self.enabled:
             return
         phase = name.partition(":")[0]
-        outcome = event.outcome.value
         if phase in self.suppressed and outcome in {"skipped", "unavailable"}:
             return
-        counts = dict(record.counts)
+        counts = dict(counts)
         work = next(
             (
                 f"{counts[key]:,} {key}"
@@ -253,7 +255,7 @@ class RunProgress:
             ),
             "done",
         )
-        if event.reused:
+        if reused:
             work = "reused"
         elif outcome != "processed":
             work = outcome
@@ -266,7 +268,7 @@ class RunProgress:
             else "✗"
         )
         label = LABELS.get(phase, phase)
-        reason = f"  {event.reason}" if event.reason and outcome != "processed" else ""
+        reason = f"  {reason}" if reason and outcome != "processed" else ""
         detail = stage.detail if stage is not None else ""
         if (
             stage is not None

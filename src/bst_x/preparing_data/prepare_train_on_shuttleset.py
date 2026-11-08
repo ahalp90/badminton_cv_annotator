@@ -49,15 +49,6 @@ from preparing_data.extract_failures import (
     failed_clips_log_path,
     log_failed_clip,
 )
-
-# Shared doubles-guard head count. No import cycle: base.py pulls in no pipeline
-# code, and the heuristics modules import this module only lazily inside functions.
-from preparing_data.heuristics.base import (
-    DOUBLES_COUNT_MARGIN,
-    SITTING_THRESHOLD,
-    count_standing_in_court,
-    is_sitting,
-)
 from preparing_data.shuttleset_dataset import (
     create_bones,
     get_bone_pairs,
@@ -76,6 +67,12 @@ from classifier_shared.taxonomy import (
 # Court helpers live in shared.court; re-export check_pos_in_court so the
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from shared.court import build_all_court_info, check_pos_in_court
+from shared.player_tracking import (
+    DOUBLES_COUNT_MARGIN,
+    SITTING_THRESHOLD,
+    count_standing_in_court,
+    is_sitting,
+)
 
 if TYPE_CHECKING:  # type-only: keeps rtmlib out of the runtime import (see module-top note)
     from shared.rtmlib_pose import RtmlibPoseExtractor

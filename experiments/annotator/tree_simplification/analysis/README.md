@@ -32,13 +32,11 @@ fields instead of rebuilding them. The last column lists them by key name.
 | `validation_evidence.py selectors` | the per-seed results, means and paired differences in `five-seed-evidence.json.gz` and `selector-settings-evidence.json.gz`, and the chosen bundle's replay in `selected-production.json.gz` | `streams/selection/` re-scored against the labels | no | `source_files`, `source_validation`, `reported_totals_verified`, `result_summary_verified`, `complete`, `same_pool_and_target_contract`, `tree`, `description`, `sources` |
 | `validation_evidence.py frame-rate` | `fps-normalisation-evidence.json.gz` | `streams/fps/` re-scored against the labels, and the raw seeds in `selector-settings-evidence.json.gz` | no | `baseline_source`, `interpretation`, `verification`, `sources` |
 | `validation_evidence.py ranking` | the six review-ranking groups (three rankings at ±10 and ±5) in `selected-production.json.gz` | `selected-review-rows.json.gz` | no | none |
-| `test_run.py materialise` | a working copy of the ten test runs in a new folder, with each bundle in place | `test-run/`, `models/` | no | none |
-| `test_run.py check` | loads all ten test bundles through `input_test`'s own checks | a folder made by `materialise` | no | none |
 | `flaw_rescore.py` | `test-flaw-scoring.json.gz`: the old and new annotators' test predictions scored with and without predictions inside the 524 left-out rallies | `streams/input-test/`, the old annotator's predictions in `../../tree_hp_tune/results/test_rerun/A/v32/grid-017/`, the MonoTrack benchmark manifest, `data/shuttleset22/set/` | no | none |
 | `screening_evidence.py` | `screening-evidence.json.gz`: the search arms the report describes but the repo does not hold | archived run records | yes: the local archive | none |
 | `plot_target_screen.py` | `target-screen.svg` | `screening-evidence.json.gz` | no | none |
 | `profile_selected.py` | an inference profile like `selected-profile.json.gz` | `models/selected/` and one video's prepared arrays | yes: prepared arrays, which `prepare` rebuilds from the video fixtures | not a checker |
-| `pool_coverage.py` | the option-list probe behind the ceiling in `screening-evidence.json.gz` | an option-list folder written by `pools`, and the labels | yes: option lists from a fresh run | not a checker |
+| `pool_coverage.py` | validation coverage from current proposal targets | an option-list folder written by `pools`, and the labels | yes: option lists from a fresh run | not a checker |
 | `contact_training_coverage.py` | GT contacts represented by positive contact-training frames, with per-video counts | saved prepared videos and the contact-fit count record | yes: `--training NEW_RUN/training` | none |
 
 "The labels" means `training/data/shuttleset/annotations/shots_master.csv` and
@@ -62,9 +60,8 @@ run folder's layout: `remote/` holds the run records, and `fps-k5/`,
 inside it are the names the runs were written with. Each script maps them to
 plain labels in one table near its top.
 
-**`test_run.py materialise --use-current-checkout`** writes this checkout's
-source record into the copy. `input_test` then accepts a fresh test run at a
-later commit. It needs a clean checkout.
+Use the original checkout to load the historical test weights. The current
+`input_test` evaluator takes `--models` directly.
 
 ## Example
 
@@ -76,7 +73,5 @@ analysis=experiments/annotator/tree_simplification/analysis
 "$python" "$analysis/validation_evidence.py" selectors
 "$python" "$analysis/input_selection.py" rank --output "$out/ranking.json.gz"
 "$python" "$analysis/input_selection.py" choose --ranking "$out/ranking.json.gz"
-"$python" "$analysis/test_run.py" materialise --output "$out/test-run"
-"$python" "$analysis/test_run.py" check --output "$out/test-run"
 "$python" "$analysis/plot_target_screen.py" --output "$out/target-screen.svg"
 ```

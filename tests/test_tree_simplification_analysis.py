@@ -19,7 +19,6 @@ from experiments.annotator.tree_simplification.analysis import (
     pool_coverage,
     profile_selected,
     screening_evidence,
-    test_run,
     validation_evidence,
 )
 from experiments.annotator.tree_simplification.options import expand_pool
@@ -112,22 +111,10 @@ def test_frame_rate_differences_and_ranks() -> None:
     assert input_evidence.nearest_rank([4.0, 1.0, 3.0, 2.0], 0.5) == 2.0
 
 
-def test_replace_placeholder_only_swaps_leading_run_folders() -> None:
-    record = {'export': 'SWEEP/candidates/a', 'items': ['SWEEP/b', 'not SWEEP/c'], 'count': 2}
-    assert test_run.replace_placeholder(record, '/data/run/') == {
-        'export': '/data/run/candidates/a', 'items': ['/data/run/b', 'not SWEEP/c'], 'count': 2,
-    }
 
 
-def test_materialise_refuses_a_folder_in_use(tmp_path) -> None:
-    (tmp_path / 'existing.txt').write_text('keep')
-    with pytest.raises(FileExistsError):
-        test_run.materialise(common.RESULTS, tmp_path, use_current_checkout=False)
 
 
-def test_tracked_test_run_loads_all_ten_bundles(tmp_path) -> None:
-    test_run.materialise(common.RESULTS, tmp_path / 'test-run', use_current_checkout=False)
-    test_run.check(tmp_path / 'test-run')
 
 
 def test_flaw_scoring_pools_seeds_like_the_write_up() -> None:
@@ -188,8 +175,8 @@ def test_pool_coverage_marks_every_labelled_rally_reachable() -> None:
 
 
 def test_profile_paths_hide_the_checkout() -> None:
-    inside = f'{common.REPOSITORY}/src/annotator/hybrid.py'
-    assert profile_selected.placeholder_path(inside) == 'CHECKOUT/src/annotator/hybrid.py'
+    inside = f'{common.REPOSITORY}/src/annotator/inference/learned.py'
+    assert profile_selected.placeholder_path(inside) == 'CHECKOUT/src/annotator/inference/learned.py'
     assert profile_selected.placeholder_path('<string>') == '<string>'
 
 

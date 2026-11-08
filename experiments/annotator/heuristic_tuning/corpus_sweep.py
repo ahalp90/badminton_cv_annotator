@@ -24,17 +24,21 @@ from uuid import uuid4
 
 import numpy as np
 
-from annotator.evaluation.fixtures import FIXTURES, SHARED_FILES, Fixture
-from annotator.evaluation.gt_scoring import (
+from annotator.annotate_video import annotate_video
+from experiments.annotator.heuristic_tuning import selection, sweep
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SHARED_FILES,
+    Fixture,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
     RunVideoInputs,
     canonical_tolerance,
     flatten_metrics,
     load_gt_tables,
     score_video,
 )
-from annotator.evaluation.scoring import load_gt_rallies, safe_f1
-from annotator.run_video import run_video
-from experiments.annotator.heuristic_tuning import selection, sweep
+from experiments.annotator.legacy_evaluation.scoring import load_gt_rallies, safe_f1
 
 RUN_SCHEMA = "annotator-corpus-sweep/1"
 ATTEMPT_SCHEMA = "annotator-corpus-sweep-attempt/1"
@@ -105,7 +109,6 @@ def search_space_document() -> dict[str, object]:
                 {key: sweep.BOUNDARY_VALUES[key][0] for key in sweep.BOUNDARY_KEYS}
             )
         ),
-        "serve_start": None,
     }
 
 
@@ -157,7 +160,9 @@ def load_pinned_replay_fixtures(
     annotator path contract is bound during module import.
     """
     from annotator.config import BaseAnnotatorConfig
-    from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
+    from annotator.rally_results.landing_and_winner import (
+        SHIPPED_LANDING_FILTER_OPTIONS,
+    )
     from dataset_builder._pipeline_runtime import DefaultPipelineRuntime
     from dataset_builder.artifact_index import artifact_index_path
     from dataset_builder.cli import SCRAPER_WORKSPACE_NAME, load_builder_config
@@ -214,35 +219,24 @@ def load_pinned_replay_fixtures(
         quality = summarize_shuttle_quality(
             shuttle.track,
             shuttle.inpaint_fill_mask,
-            shuttle.guard_codes,
+            shuttle.shuttle_grades,
             base.rejected_grades,
         )
-        cut_frames = [end for _start, end in court.raw_cuts[:-1]]
         keyword: dict[str, object] = {
             "fps": float(metadata.fps),
             "landing_options": SHIPPED_LANDING_FILTER_OPTIONS,
-            "net_band": court_inputs.net_band,
             "resolution": court_inputs.resolution,
-            "video_id": video_id,
-            "court_info": court_inputs.court_info,
-            "homo_df": None,
-            "gate_court_info": court_inputs.gate_court_info,
-            "gate_resolution_table": court_inputs.gate_resolution_table,
             "ref_err_px": 3.5,
             "raw_exclusion_mask": None,
             "court_present": court.evidence.court_present,
             "homography_rows": court_inputs.homography_rows,
-            "cut_frames": cut_frames,
-            "keep_vote": court.evidence.keep_vote,
-            "inpaint_codes": shuttle.guard_codes,
-            "court_invalid_is_excluded": True,
-            "landing_error_band_m": court_inputs.landing_error_band_m,
+            "shuttle_grades": shuttle.shuttle_grades,
         }
         inputs = RunVideoInputs(
             (shuttle.track, pose.bboxes, pose.scores, pose.kps, pose.ndet),
             keyword,
             master,
-            {fixture.video_id: court_inputs.court_info},
+            {},
         )
         index = artifact_index_path(destination, video_id)
         loaded.append(
@@ -280,10 +274,14 @@ def run_production_candidate(
     try:
         rows: dict[str, Mapping[str, Any]] = {}
         for item in fixtures:
-            base, serve_start = sweep._base_and_serve(spec)
+            base = sweep.base_config(spec)
             keyword = dict(item.inputs.keyword)
-            keyword.update(base=base, serve_start=serve_start)
-            result = run_video(*item.inputs.positional, **keyword, heuristic_only=True)
+            keyword.update(base=base)
+            annotation = annotate_video(
+                *item.inputs.positional, **keyword, heuristic_only=True, keep_working_data=True,
+            )
+            result = annotation.result
+            assert annotation.working_data is not None
             row = sweep._row_for_result(
                 item.fixture,
                 spec,
@@ -297,6 +295,7 @@ def run_production_candidate(
                     item.inputs.master,
                     item.inputs.courts,
                     canonical_tolerance(item.fixture.fps),
+                    scene_courts=annotation.working_data.prepared_inputs.scene_courts,
                 )
             )
             rows[item.fixture.name] = row
@@ -766,8 +765,8 @@ def _add_full_metric_aggregates(
             "n_filtered_contacts": sum(
                 int(values["n_filtered_contacts"]) for values in metrics.values()
             ),
-            "hit_height_failures": sum(
-                int(values["hit_height_failures"]) for values in metrics.values()
+            "unavailable_hit_height_reasons": sum(
+                int(values["unavailable_hit_height_reasons"]) for values in metrics.values()
             ),
         }
     )
@@ -865,7 +864,7 @@ def _spec_from_payload(payload: object, label: str) -> sweep.CandidateSpec:
     spec = sweep.CandidateSpec(
         label,
         {str(key): float(value) for key, value in overrides.items()},
-        {str(key): str(value) for key, value in strategies.items()},
+        dict(strategies),
     )
     sweep.serialise_spec(spec)
     return spec

@@ -122,8 +122,7 @@ The rally CSV currently stores these with `video_id` and `rally_id`.
 
 The record preserves two distinct contact views:
 
-- raw contact candidates with `contact_frame`, nullable `proximity_ok`,
-  nullable `wrist_near`, and nullable `suppressed` values;
+- raw contact candidates with `contact_frame`, nullable `wrist_near`, and nullable `suppressed` values;
 - accepted contact frames after the current wrist, suppression, and definitive
   exclusion filters, in ascending order within the rally.
 

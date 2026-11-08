@@ -8,13 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from annotator.review.broadcast_labels import (
-    SceneTruth,
-    VideoMetadata,
-    make_interval,
-    write_label_csv,
-)
-from annotator.vlm_scene_benchmark.contracts import (
+from experiments.annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
     CameraView,
@@ -29,8 +23,17 @@ from annotator.vlm_scene_benchmark.contracts import (
     SamplingRequest,
     ShardSpec,
 )
-from annotator.vlm_scene_benchmark.score_cli import main as score_main
-from annotator.vlm_scene_benchmark.scoring import boundary_metrics, score_run_record
+from experiments.annotator.vlm_scene_benchmark.score_cli import main as score_main
+from experiments.annotator.vlm_scene_benchmark.scoring import (
+    boundary_metrics,
+    score_run_record,
+)
+from labelling.scene_labels import (
+    SceneTruth,
+    VideoMetadata,
+    make_interval,
+    write_label_csv,
+)
 
 SHA256 = "a" * 64
 
@@ -235,7 +238,7 @@ def test_boundary_errors_are_reported_in_both_directions() -> None:
 
 
 def test_score_cli_writes_reloadable_json_and_signals_gate_failure(tmp_path: Path) -> None:
-    from annotator.vlm_scene_benchmark.contracts import write_run_record
+    from experiments.annotator.vlm_scene_benchmark.contracts import write_run_record
 
     record_path = tmp_path / "run.json"
     truth_path = tmp_path / "truth.csv.gz"

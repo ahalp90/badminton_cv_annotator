@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Evaluate a frozen precision-first rally filter without label leakage."""
 
 from __future__ import annotations
@@ -91,7 +95,7 @@ def _contact_evidence_complete(
     result: AnnotatorResult,
     span_id: int,
     track_visible: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     definitive_exclusion: np.ndarray,
 ) -> bool:
     contacts = [row for row in result.filtered_contacts if row.rally_id == span_id]
@@ -99,7 +103,7 @@ def _contact_evidence_complete(
         row.wrist_near is True
         and row.suppressed is False
         and bool(track_visible[row.contact_frame])
-        and int(guard_codes[row.contact_frame]) == NO_FLAG
+        and int(shuttle_grades[row.contact_frame]) == NO_FLAG
         and not bool(definitive_exclusion[row.contact_frame])
         for row in contacts
     )
@@ -112,7 +116,7 @@ def _record_features(
     court_present: np.ndarray,
     keep_vote: np.ndarray,
     track_visible: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     definitive_exclusion: np.ndarray,
 ) -> dict[str, object]:
     start, end = result.spans[span_id]
@@ -128,7 +132,7 @@ def _record_features(
             result,
             span_id,
             track_visible,
-            guard_codes,
+            shuttle_grades,
             definitive_exclusion,
         )
     )
@@ -166,7 +170,7 @@ def build_features(artifacts_root: Path) -> dict[str, object]:
         if track.ndim != 2 or track.shape[1] != 3:
             raise ValueError(f"{video_id}: shuttle track must have shape (frames, 3)")
         frame_count = len(track)
-        guard_codes = _load_vector(guard_path, frame_count, np.dtype(np.uint8))
+        shuttle_grades = _load_vector(guard_path, frame_count, np.dtype(np.uint8))
         court_root = stages / "court" / video_id
         court_path = court_root / "court_present.npy.xz"
         keep_path = court_root / "court_keep_vote.npy.xz"
@@ -184,7 +188,7 @@ def build_features(artifacts_root: Path) -> dict[str, object]:
                 court_present=court_present,
                 keep_vote=keep_vote,
                 track_visible=track_visible,
-                guard_codes=guard_codes,
+                shuttle_grades=shuttle_grades,
                 definitive_exclusion=definitive_exclusion,
             )
             for span_id in range(len(result.spans))

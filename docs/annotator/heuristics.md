@@ -16,7 +16,7 @@ new model fit.
 | [Exclusions and shuttle flags](#frame-exclusions-and-shuttle-flags) | [Frame-rate scaling](#frame-rate-scaling) | [Contact search regions](#contact-search-regions) |
 | [Frame exclusion mask](#frame-exclusion-mask) | [Sticky player evidence](#sticky-player-evidence) | [Contact-tree features](#what-reaches-the-contact-tree) |
 | [Shuttle guard grades](#shuttle-guard-grades) | [Rough rally spans](#rough-rally-spans) | [Rule locations](#where-the-main-rules-live) |
-| [Optional candidate rule](#optional-rule-for-guarded-candidates) | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
+|  | [Impulse contact heuristic](#the-impulse-contact-heuristic) |  |
 
 ![Rule-based front end](figures/heuristics.svg)
 
@@ -41,26 +41,31 @@ The purpose is to keep replay, slow motion, prolonged non-court footage and unus
 
 A camera angle change alone does not establish replay. The code can measure perspective shift, but the current replay mask does not reject a frame only because the court is viewed from a different angle.
 
-Relevant code: `masks/replay.py`, `masks/dead.py`, `run_video.py`.
+Relevant code: `excluded_frames/replay.py`, `prepare_annotation_inputs.py`.
 
 ### Shuttle guard grades
 
 Shuttle guard grades apply to the shuttle track itself rather than to the whole frame.
 
-`masks/inpaint.py` looks for exact coordinate sequences that recur far more often than ordinary shuttle motion should. The default pattern width is 16 frames. Repeated moving patterns are strong evidence that an inpainting or tracking stage has fallen into a fabricated loop. Repeated flat positions are suspicious but less conclusive because a real shuttle can remain still.
+`excluded_frames/shuttle_hallucination.py` looks for exact coordinate sequences that recur far more often than ordinary shuttle motion should. The default pattern width is 16 frames. Repeated moving patterns are strong evidence that an inpainting or tracking stage has fallen into a fabricated loop. Repeated flat positions are suspicious but less conclusive because a real shuttle can remain still.
 
 The current codes are:
 
 | Code | Meaning | Current treatment |
 | ---: | --- | --- |
-| `0` | no flag | usable |
-| `1` | repeated moving pattern; treated as fabricated | flagged as unreliable |
-| `2` | repeated flat pattern; suspicious | flagged as unreliable |
-| `3` | degraded frame near one of those recurrent patterns | flagged as unreliable |
+| `0` (`UNFLAGGED`) | no repeat detected | usable |
+| `1` (`REPEATED_MOVING_PATTERN`) | repeated moving pattern | flagged as unreliable |
+| `2` (`REPEATED_STATIONARY_POSITION`) | repeated stationary position | flagged as unreliable |
+| `3` (`REPEATED_PATTERN_HALO`) | frame in the surrounding halo | flagged as unreliable |
+| `4` (`MATCHES_ANY_PATTERN_POS`) | exact position match elsewhere | flagged as unreliable |
 
-`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3}`.
-`run_video()` marks positions with those grades in a boolean frame mask, which
-the code calls the shuttle hallucination mask. Each stage uses that mask
+The halo extends three frames before and after repeated runs by default. A position
+match needs only one matching `(x, y)`, not the whole repeated sequence. Outside
+the repeated runs, an exact position match takes precedence over the halo.
+
+`BaseAnnotatorConfig.rejected_grades` currently contains `{1, 2, 3, 4}`.
+`annotate_video()` marks positions with those grades in a boolean frame mask, which
+the code calls `rejected_shuttle_frames`. Each stage uses that mask
 differently, as described below.
 
 The guard matters because fabricated shuttle coordinates can create convincing but false movement. A repeated or inpainted track can produce a sharp change in velocity, an apparent contact, or a plausible landing even when the shuttle was not really observed there.
@@ -71,26 +76,11 @@ Flagged shuttle positions affect three stages:
 - **Outcome rules.** Landing estimates do not use flagged positions. If the last contact of a rally sits on a flagged frame, the landing is left empty rather than measured from an earlier hit.
 - **Contact candidates.** The contact tree scores flagged frames by default. The optional rule below removes some of those candidates before scoring.
 
-A contact can therefore be selected on a flagged frame. Grades `2` and `3` mark suspicious or degraded tracking; they do not prove that no hit happened.
+A contact can therefore be selected on a flagged frame. Grades `2`, `3` and `4` mark suspicious tracking; they do not prove that no hit happened.
 
 The saved `*_inpaint_mask.json.gz` has a different role. It records which positions came from the upstream inpainting stage. The guard codes are a later check on whether the final track contains recurrence patterns that look unsafe.
 
-Relevant code: `masks/inpaint.py`, `run_video.py::build_shuttle_hallucination_mask()`, `outcomes/video.py`, `dataset_builder/shuttle_evidence.py`.
-
-### Optional rule for guarded candidates
-
-`ContactModelConfig.reject_masked_without_player` is off by default. When it is on, a candidate frame is dropped before the contact tree scores it if both of these hold:
-
-- the frame's shuttle guard grade is flagged as unreliable (`1`, `2` and `3` by default, as set by `rejected_grades`);
-- the player tracker has selected no detected person on either court half at any of the five feature offsets (`-10`, `-5`, `0`, `+5` and `+10` frames at 30 FPS, scaled to the video).
-
-A picked player counts even when its wrists were not measured. An offset that falls outside the candidate's search interval counts as no player.
-
-Dropped rows leave the candidate pool completely. They cannot be selected as initial contacts, and the sequence stage cannot shortlist them later as a serve or a missed contact.
-
-The setting is saved in `models.joblib` with the contact score cutoff, so annotation follows whatever the model directory was fitted with. The standalone commands have no flag for it. The [refit guide](retuning.md#python-fit-settings) covers how it is set for a fit.
-
-Relevant code: `contacts/model.py::score_contact_features()`, `hybrid.py`, `training/workflow.py`.
+Relevant code: `excluded_frames/shuttle_hallucination.py`, `prepare_annotation_inputs.py::build_rejected_shuttle_mask()`, `rally_results/estimate_results.py`, `dataset_builder/shuttle_evidence.py`.
 
 ## Frame-rate scaling
 
@@ -105,7 +95,7 @@ Examples at 30 FPS include:
 | Fast movement must last this long before it counts as a rally-start burst | 3 frames | `start_min_frames` |
 | Shuttle positions are smoothed across this many frames before motion changes are measured | 3 frames | `smooth_window` |
 | A rest period this long separates one rally from the next | 90 frames | `end_rest_frames` |
-| The court must be absent this long before the full absence run is excluded | 15 frames | `court_absent_window` |
+| The court must be absent this long before the full absence run is excluded | 15 frames | `excluded_frames/replay.py` |
 | A replay or slow-motion exclusion signal must last this long before it is kept | 15 frames | `replay_mask_min_frames` |
 | A possible hit is compared with nearby shuttle-motion changes across this many junctions on each side | 12 junctions | `impulse_floor_half_window_frames` |
 | Raw hit-like motion changes closer than this compete so the stronger one survives | 3 frames | `contact_dedup_radius_frames` |
@@ -113,7 +103,7 @@ Examples at 30 FPS include:
 
 Frame counts grow with FPS. Per-frame speed thresholds shrink as FPS rises because the shuttle moves a shorter image distance between adjacent frames.
 
-Relevant code: `config.py::resolve()`.
+Relevant code: `config.py::scale_config_to_fps()`.
 
 ## Sticky player evidence
 
@@ -121,16 +111,20 @@ Pose extraction can return several people and store the same person in a
 different array slot from one frame to the next. The sticky player logic tries
 to follow one person on each court half across nearby frames.
 
-Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). From those picks it records:
+Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). `TrackedPlayers` contains:
 
-- wrist-to-shuttle distance, measured in player body-height units;
-- ankle position and ankle movement;
-- the raw pose slot assigned to each court half;
-- whether each player or wrist measurement is available.
+- selected indices into the original pose detections;
+- ankle positions, divided by video width and height;
+- bounding-box heights in pixels.
+
+Wrist measurement then produces `WristGaps`: one distance per player and the
+nearest distance per frame, all measured in body heights. Missing values
+distinguish untracked frames from unavailable measurements within an interval.
 
 This information later feeds contact features, serve-repair features and the initial `Top`/`Bot` guess for each contact.
 
-Relevant code: `rally/evidence.py`, `types.py::StickyResult`.
+Relevant code: `shared/player_tracking.py`, `annotator/player_tracking.py`,
+`types.py::TrackedPlayers`, `types.py::WristGaps`.
 
 ## Rough rally spans
 
@@ -145,13 +139,11 @@ At the current defaults:
 1. shuttle position is smoothed over a short window;
 2. a sustained fast burst confirms that an active region contains real play;
 3. a long rest separates one active region from the next;
-4. `SpanOpen.BACK_FILL` opens the rally at the start of that active region once a qualifying burst has been found.
+4. `require_fast_burst=True` opens the rally at the start of that active region once a qualifying burst has been found.
 
 This gives deliberately broad rally spans. The fitted sequence stage later has room to repair the first contact, and final bounds can move again after contacts are selected.
 
-The code also contains optional serve-gated and quiet-start span modes. The normal dataset-builder annotation call does not pass those options.
-
-Relevant code: `rally/spans.py`, `rally/trajectory.py`, `config.py`.
+Relevant code: `rallies/find_rallies.py`, `rally/trajectory.py`, `config.py`.
 
 ## The impulse contact heuristic
 
@@ -175,7 +167,7 @@ The heuristic chain then checks whether a tracked wrist is within 1.4 player-box
 
 Those heuristic survivors are useful evidence, but the fitted contact model is not limited to them.
 
-Relevant code: `rally/contacts.py`.
+Relevant code: `contacts/heuristics.py`.
 
 ## Contact search regions
 
@@ -198,7 +190,7 @@ Each seed adds a short interval of nearby frames to the search. The contact
 tree scores every frame in those intervals, including the seed frame itself,
 so a seed can open a search region without becoming a selected hit.
 
-Relevant code: `contacts/features.py`.
+Relevant code: `contacts/build_features.py`.
 
 ## What reaches the contact tree
 
@@ -224,11 +216,11 @@ The next layer is described in [How the trees work together](tree_stack.md).
 
 | Concern | Main source |
 | --- | --- |
-| Thresholds resolved for a video's frame rate | `config.py` |
-| assembled preprocessing settings | `config.py::resolve()` |
-| replay / off-rally exclusion | `masks/replay.py`, `masks/dead.py` |
-| shuttle recurrence guard | `masks/inpaint.py` |
-| sticky player picks | `rally/evidence.py` |
-| rally boundaries | `rally/spans.py` |
-| impulse contacts and wrist gate | `rally/contacts.py` |
-| broader contact search regions | `contacts/features.py` |
+| Thresholds scaled to a video's frame rate | `config.py` |
+| Preprocessing settings scaled to the video frame rate | `config.py::scale_config_to_fps()` |
+| replay / off-rally exclusion | `excluded_frames/replay.py` |
+| shuttle recurrence guard | `excluded_frames/shuttle_hallucination.py` |
+| sticky player picks | `player_tracking.py` |
+| rally boundaries | `rallies/find_rallies.py` |
+| impulse contacts and wrist-distance check | `contacts/heuristics.py` |
+| broader contact search regions | `contacts/build_features.py` |

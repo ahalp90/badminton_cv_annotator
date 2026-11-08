@@ -13,18 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from annotator import config as annotator_config
 from src.scraper import config, search_index
-
-
-def test_scrape_output_paths_are_annotator_owned() -> None:
-    assert config.SCRAPE_DIR is annotator_config.SCRAPE_DIR
-    assert config.MASKS_DIR is annotator_config.MASKS_DIR
-    assert config.RALLY_SPANS_CSV is annotator_config.RALLY_SPANS_CSV
-    assert config.CONTACT_FRAMES_CSV is annotator_config.CONTACT_FRAMES_CSV
-    assert annotator_config.MASKS_DIR == annotator_config.SCRAPE_DIR / 'masks'
-    assert annotator_config.RALLY_SPANS_CSV == annotator_config.SCRAPE_DIR / 'rally_spans.csv'
-    assert annotator_config.CONTACT_FRAMES_CSV == annotator_config.SCRAPE_DIR / 'contact_frames.csv'
 
 
 def _row_line(video_id: str, title: str = 'Singles match', channel: str = 'Chan',

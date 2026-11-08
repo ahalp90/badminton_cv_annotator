@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Serve recovery and proposed-start measures for a fixed contact stream."""
 
 from __future__ import annotations

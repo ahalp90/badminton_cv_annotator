@@ -3,7 +3,7 @@
 The current court loaders accept only court-evidence/0.2. These videos have
 court-evidence/0.1, whose operational fields match 0.2 but whose per-scene
 provenance records do not. This adapter reads the operational fields with the
-existing parsers for full annotation through ``run_video``, as the dataset
+existing parsers for full annotation through ``annotate_video``, as the dataset
 builder does. Training uses the same preparation inputs without calculating
 outcomes. The old provenance records are ignored rather than converted.
 """
@@ -18,14 +18,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.courts.evidence import CourtInputs
-from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
-from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.courts.prepare_courts import CourtInputs
 from annotator.training.sequences import LabelledRally
-from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
@@ -39,6 +34,7 @@ from dataset_builder.vision import (
     load_npy_xz,
     load_pose_arrays,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
 
 OLD_COURT_SCHEMA = 'court-evidence/0.1'
 TEST_TRACK_FILENAME = 'shuttle_track_inpainted.npy.xz'
@@ -46,7 +42,7 @@ TEST_GUARD_CODES_FILENAME = 'shuttle_guard_codes_inpainted.npy.xz'
 TEST_FPS = 30.0
 # The original ShuttleSet22 run used one fixed clock and frame size for all 47 videos.
 TEST_RESOLUTION = (1920.0, 1080.0)
-SIDE_BY_LABEL = {'Top': Half.TOP, 'Bot': Half.BOT, 'Bottom': Half.BOT}
+SIDE_BY_LABEL = {'Top': CourtHalf.TOP, 'Bot': CourtHalf.BOT, 'Bottom': CourtHalf.BOT}
 ALL_SOURCE_RALLY_COUNT = 3965
 ALL_SOURCE_CONTACT_COUNT = 43159
 
@@ -58,7 +54,7 @@ class OldVideoInputs:
     identity: str
     fps: float
     track: np.ndarray
-    guard_codes: np.ndarray
+    shuttle_grades: np.ndarray
     pose: PoseArrays
     raw_cuts: tuple[tuple[int, int], ...]
     court: CourtInputs
@@ -81,9 +77,9 @@ def load_old_inputs(
     track = load_npy_xz(track_path)
     frame_count = len(track)
     validate_shuttle_track(track, frame_count)
-    guard_codes = load_npy_xz(guard_codes_path)
-    if guard_codes.shape != (frame_count,):
-        raise ValueError(f'{identity}: guard codes cover {guard_codes.shape}, track has {frame_count} frames')
+    shuttle_grades = load_npy_xz(guard_codes_path)
+    if shuttle_grades.shape != (frame_count,):
+        raise ValueError(f'{identity}: guard codes cover {shuttle_grades.shape}, track has {frame_count} frames')
     pose = load_pose_arrays(pose_dir, frame_count)
     payload = load_json_gz(court_dir / COURT_EVIDENCE_FILENAME)
     if payload.get('schema') != OLD_COURT_SCHEMA:
@@ -91,14 +87,14 @@ def load_old_inputs(
     if payload.get('video_id') != identity:
         raise ValueError(f'{identity}: court evidence names video {payload.get("video_id")!r}')
     raw_cuts = _raw_cuts_from_payload(payload['raw_cuts'])
-    # run_video derives scene cut frames from these intervals, so they must tile the video.
+    # annotate_video derives scene cut frames from these intervals, so they must tile the video.
     starts = [start for start, _end in raw_cuts]
     ends = [end for _start, end in raw_cuts]
     if starts[0] != 0 or ends[-1] != frame_count or starts[1:] != ends[:-1]:
         raise ValueError(f'{identity}: raw court cuts do not tile the {frame_count}-frame video')
     court = _court_inputs_from_payload(payload['inputs'])
     return OldVideoInputs(
-        identity=identity, fps=fps, track=track, guard_codes=guard_codes, pose=pose, raw_cuts=raw_cuts,
+        identity=identity, fps=fps, track=track, shuttle_grades=shuttle_grades, pose=pose, raw_cuts=raw_cuts,
         court=court, keep_vote=frame_mask(court_dir / COURT_KEEP_VOTE_FILENAME, frame_count),
         court_present=frame_mask(court_dir / COURT_PRESENT_FILENAME, frame_count),
     )
@@ -134,28 +130,7 @@ def load_test_inputs(inpaint_root: Path, video_id: int) -> OldVideoInputs:
     return inputs
 
 
-def run_old_video(
-    inputs: OldVideoInputs, models: AnnotatorModels | None, capture: RunCapture,
-) -> AnnotatorResult:
-    """Run complete heuristic or fitted-model annotation on saved old-court inputs."""
-    court = inputs.court
-    return run_video(
-        inputs.track, inputs.pose.bboxes, inputs.pose.scores, inputs.pose.kps, inputs.pose.ndet,
-        fps=inputs.fps,
-        base=DEFAULT_TRAINING_SETTINGS.preprocessing if models is None else models.preprocessing,
-        models=models, heuristic_only=models is None,
-        landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
-        net_band=court.net_band, resolution=court.resolution, video_id=inputs.identity,
-        court_info=court.court_info, homo_df=None,
-        gate_court_info=court.gate_court_info, gate_resolution_table=court.gate_resolution_table,
-        court_present=inputs.court_present, homography_rows=court.homography_rows,
-        cut_frames=[end for _start, end in inputs.raw_cuts[:-1]], keep_vote=inputs.keep_vote,
-        inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
-        landing_error_band_m=court.landing_error_band_m, capture=capture,
-    )
-
-
-def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int, Half | None]]]]) -> None:
+def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int, CourtHalf | None]]]]) -> None:
     """Write the supported rally_id,frame,side contract; empty side means unknown."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')
@@ -168,7 +143,7 @@ def write_label_csv(path: Path, rallies: Sequence[tuple[str, Sequence[tuple[int,
     temporary.replace(path)
 
 
-def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str, list[tuple[int, Half | None]]]]:
+def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str, list[tuple[int, CourtHalf | None]]]]:
     """Read one ShuttleSet video's contacts from shots_master.csv as the original fits did.
 
     Rallies are keyed by set and rally number; frames are sorted within each
@@ -188,7 +163,7 @@ def development_label_rows(shots: pd.DataFrame, video_id: int) -> list[tuple[str
     return rallies
 
 
-def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, list[tuple[int, Half | None]]]]]:
+def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, list[tuple[int, CourtHalf | None]]]]]:
     """Read the 3,422 trusted ShuttleSet22 rallies saved by the PR149 scorer."""
     payload = json.loads(gzip.decompress(clean_labels.read_bytes()))
     if payload.get('schema') != 'shuttleset22-clean-contact-labels/1' or payload.get('status') != 'complete':
@@ -204,13 +179,13 @@ def trusted_test_label_rows(clean_labels: Path) -> dict[int, list[tuple[str, lis
     return by_video
 
 
-def source_player_side(player_y: object, opponent_y: object) -> Half | None:
+def source_player_side(player_y: object, opponent_y: object) -> CourtHalf | None:
     """Apply the PR149 rule: the player nearer the top of the image is Top."""
     player = pd.to_numeric(pd.Series([player_y]), errors='coerce').iloc[0]
     opponent = pd.to_numeric(pd.Series([opponent_y]), errors='coerce').iloc[0]
     if not np.isfinite(player) or not np.isfinite(opponent) or player == opponent:
         return None
-    return Half.TOP if player < opponent else Half.BOT
+    return CourtHalf.TOP if player < opponent else CourtHalf.BOT
 
 
 def all_source_rallies(
@@ -238,10 +213,10 @@ def all_source_rallies(
                     f'{path.stem}:{int(rally_number)}',
                     tuple(frame for frame, _side in contacts), tuple(side for _frame, side in contacts),
                 ))
-        by_id = {rally.identity: rally for rally in rallies}
+        by_id = {rally.rally_id: rally for rally in rallies}
         for rally in trusted[video_id]:
-            if by_id[rally.identity] != rally:
-                raise ValueError(f'{video_id}/{rally.identity}: all-source rally differs from its trusted copy')
+            if by_id[rally.rally_id] != rally:
+                raise ValueError(f'{video_id}/{rally.rally_id}: all-source rally differs from its trusted copy')
         by_video[video_id] = tuple(rallies)
     rally_count = sum(map(len, by_video.values()))
     contact_count = sum(len(rally.frames) for rallies in by_video.values() for rally in rallies)
@@ -261,7 +236,7 @@ def stream_from_output(
     start/end frames when the saved boundary correction is stored separately.
     """
     events = tuple(
-        ContactEvent(int(frame), float(score), None if side is None else Half(side))
+        ContactEvent(int(frame), float(score), None if side is None else CourtHalf(side))
         for frame, score, side in output['contacts'][fixture]
     )
     by_frame = {event.frame: event for event in events}

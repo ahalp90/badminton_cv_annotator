@@ -29,16 +29,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from shared.frame_timing import frames_at_fps
+
 # Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import scale_frames, stream_from_payload
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
@@ -105,7 +107,7 @@ def left_out_labels(item: dict) -> tuple[list[LabelledRally], dict[str, int], li
             check['left_out_no_side'] += sum(side is None for side in sides)
             check['left_out_rallies_no_side'] += any(side is None for side in sides)
             rallies.append(LabelledRally(f'left_out:{identity}', tuple(int(frame) for frame in ordered['frame_num']),
-                                         tuple(None if side is None else Half(side) for side in sides)))
+                                         tuple(None if side is None else CourtHalf(side) for side in sides)))
     return rallies, check, hits
 
 
@@ -114,7 +116,7 @@ def detection_near_hits(streams: dict[str, dict], items: list[dict], hits: dict[
     near = {True: [0, 0], False: [0, 0]}
     for item in items:
         predictions = np.sort([event[0] for event in streams[item['item_id']]['events']])
-        margin = scale_frames(TOLERANCE, item['fps'])
+        margin = frames_at_fps(TOLERANCE, item['fps'])
         for frame, is_flagged in hits[item['item_id']]:
             index = int(np.searchsorted(predictions, frame))
             neighbours = predictions[max(index - 1, 0):index + 1]
@@ -126,9 +128,9 @@ def detection_near_hits(streams: dict[str, dict], items: list[dict], hits: dict[
 def score(item: dict, stream: dict, labels: tuple) -> dict:
     _, contacts, predictions, _ = score_video(item['item_id'], 'test', stream, labels, item['fps'], TOLERANCE)
     sequences, _ = stream_from_payload(stream)
-    judged = judge_found_rallies(sequences, labels, scale_frames(TOLERANCE, item['fps']), fps=item['fps'])
+    judged = judge_found_rallies(sequences, labels, frames_at_fps(TOLERANCE, item['fps']), fps=item['fps'])
     ladder = rally_ladder(judged, labels)
-    left_out = {rally.identity for rally in labels if rally.identity.startswith('left_out:')}
+    left_out = {rally.rally_id for rally in labels if rally.rally_id.startswith('left_out:')}
     reached: dict[str, set[str]] = {}
     for record in judged:
         if record['rally_id'] is not None:
@@ -155,7 +157,7 @@ def score_task(task: tuple[str, dict, dict, list[LabelledRally]]) -> dict:
     windows = [(rally.frames[0] - WINDOW_BEFORE, rally.frames[-1] + WINDOW_AFTER) for rally in left_out]
     scored_frames = [frame for rally in scored for frame in rally.frames]
     # The main scorer's rule, so the ignore treatment reproduces the headline discovery scores.
-    masked, _ignored = ignore_left_out(stream, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
+    masked, _ignored = ignore_left_out(stream, windows, scored_frames, frames_at_fps(IGNORE_MARGIN, item['fps']))
     return score(item, masked, scored)
 
 

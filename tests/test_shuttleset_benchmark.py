@@ -3,12 +3,21 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import pytest
 
-import annotator.evaluation.shuttleset_benchmark as benchmark
-from annotator.evaluation.gt_scoring import RallyRow, _hit_height_gt_map
-from annotator.evaluation.shuttleset_benchmark import (
+import experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark as benchmark
+from annotator.rally_results.landing_and_winner import WinnerSource
+from annotator.types import CourtHalf
+from dataset_builder.vision import save_json_gz
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    ColumnAgg,
+    RallyRow,
+    _hit_height_gt_map,
+    aggregate_rally_scores,
+)
+from experiments.annotator.shuttleset_benchmarks.shuttleset_benchmark import (
     CONTACT_TOLERANCES_BASE30,
     _aggregate_contact_curves,
     _aggregate_feature_outputs,
@@ -19,8 +28,6 @@ from annotator.evaluation.shuttleset_benchmark import (
     _rally_output_rows,
     projection_to_annotator_result,
 )
-from annotator.outcomes.point_winner import Half, Verdict, VerdictSource
-from dataset_builder.vision import save_json_gz
 
 
 def _record(rally_id: int = 0) -> dict[str, object]:
@@ -31,19 +38,17 @@ def _record(rally_id: int = 0) -> dict[str, object]:
             "raw_candidates": [
                 {
                     "contact_frame": 15,
-                    "proximity_ok": None,
                     "wrist_near": True,
-                    "suppressed": False,
+                    "temporal_proximity_suppressed": False,
                 },
                 {
                     "contact_frame": 24,
-                    "proximity_ok": True,
                     "wrist_near": True,
-                    "suppressed": True,
+                    "temporal_proximity_suppressed": True,
                 },
             ],
             "accepted": [
-                {"stroke_idx": 0, "contact_frame": 15, "hit_height_code": 1},
+                {"stroke_idx": 0, "contact_frame": 15, "hit_height_code": 1, "player_half": "Top"},
             ],
             "stroke_count": 1,
             "hit_height_failures": [],
@@ -79,24 +84,18 @@ def _record(rally_id: int = 0) -> dict[str, object]:
 def test_projection_to_annotator_result_restores_scored_fields() -> None:
     result = projection_to_annotator_result([_record()])
 
-    assert result.spans == [(10, 30)]
-    assert [row.contact_frame for row in result.contacts] == [15, 24]
-    assert [row.contact_frame for row in result.filtered_contacts] == [15]
-    assert result.filtered_by_rally == {0: [15]}
-    assert result.hit_height_by_frame == {15: 1}
-    assert result.striker_halves == [Half.TOP]
-    assert result.fitted_first_all == [Half.TOP]
-    assert result.verdict_rows[0].verdict is Verdict.WON
-    assert result.verdict_rows[0].verdict_source is VerdictSource.NEXT_SERVER
-    assert result.landings[0].norm == (0.4, 0.8)
-    assert result.geometric_verdict_rows[0].geometric_winner is Half.TOP
-
-
-def test_projection_requires_contiguous_rally_ids() -> None:
-    record = _record(rally_id=1)
-
-    with pytest.raises(ValueError, match="contiguous"):
-        projection_to_annotator_result([record])
+    rally, = result.rallies
+    assert (rally.sequence.start_frame, rally.sequence.end_frame) == (10, 30)
+    assert [row.contact_frame for row in result.heuristic_candidates] == [15, 24]
+    assert [event.frame for event in rally.sequence.events] == [15]
+    assert np.isnan(rally.sequence.events[0].probability)
+    assert result.hit_heights == {15: 1}
+    assert rally.final_half is CourtHalf.TOP
+    assert rally.first_half is CourtHalf.TOP
+    assert result.outcomes[0].winner is CourtHalf.TOP
+    assert result.outcomes[0].winner_source is WinnerSource.NEXT_SERVER
+    assert result.outcomes[0].landing.court_xy == (0.4, 0.8)
+    assert result.outcomes[0].conservative_landing_winner is CourtHalf.TOP
 
 
 def test_contact_curve_aggregation_uses_integer_populations() -> None:
@@ -331,6 +330,25 @@ def _rally_row(gt_index: int, mapped_span: int | None, *, covered: bool) -> Rall
         landing_pred="Bot" if covered else None,
         landing_correct=covered,
     )
+
+
+def test_rally_counts_keep_eligibility_and_covered_denominators() -> None:
+    covered = _rally_row(0, 0, covered=True)._replace(
+        n_gt_strokes=3, timing_matched_n=2, hit_height_eligible_n=2, hit_height_correct_n=1,
+    )
+    missed = _rally_row(1, None, covered=False)._replace(
+        n_gt_strokes=4, hit_height_eligible_n=3,
+        landing_eligible=False, landing_correct=None,
+        getpoint_eligible=False, getpoint_correct=None,
+    )
+
+    counts = aggregate_rally_scores([covered, missed])
+
+    assert counts["ball_round"] == ColumnAgg(1, 2, 1, 1)
+    assert counts["timing"] == ColumnAgg(2, 7, 2, 3)
+    assert counts["player"] == counts["server"] == ColumnAgg(1, 2, 1, 1)
+    assert counts["hit_height"] == ColumnAgg(1, 5, 1, 2)
+    assert counts["landing"] == counts["getpoint"] == ColumnAgg(1, 1, 1, 1)
 
 
 def test_merged_span_outcomes_are_marked_unusable(
