@@ -36,8 +36,8 @@ from pipeline.config import (  # noqa: E402
     SHUTTLE_OUTPUT_DIR,
 )
 
-from annotator.shuttle_track import validate_shuttle_track  # noqa: E402
 from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE  # noqa: E402
+from shared.shuttle_track_validation import validate_shuttle_track  # noqa: E402
 
 DEFAULT_TRACKNET_DIR = _SRC / 'shared' / 'tracknetv3'
 _DEFAULT_TRACKNET_SUBPATH = Path('ckpts') / 'TrackNet_best.pt'

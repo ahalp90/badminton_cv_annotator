@@ -15,7 +15,6 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.export_v1 import derive_player_inputs
 from dataset_builder.features import (
     InterpolationType,
@@ -24,6 +23,7 @@ from dataset_builder.features import (
     half_court_centre_distance_m,
 )
 from dataset_builder.vision import TRACK_FILENAME, load_json_gz, save_json_gz
+from shared.video_metadata import VideoMetadata
 
 METADATA_FILENAME = "video_metadata.json.gz"
 QUANTILES = (

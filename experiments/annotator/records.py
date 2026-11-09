@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from annotator.artifact_io import (
+from experiments.annotator.artifact_io import (
     encode_json_object,
     open_text_artifact,
     read_json_object,

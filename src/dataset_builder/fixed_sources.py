@@ -10,9 +10,9 @@ from fractions import Fraction
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 from dataset_builder.manifest import artifact_integrity
 from dataset_builder.models import ArtifactIntegrity
+from shared.video_metadata import VideoMetadata, probe_video_metadata
 
 FIXED_SOURCE_MANIFEST_SCHEMA = "dataset-builder-fixed-sources/1"
 FIXED_SOURCE_DATASET = "ShuttleSet"

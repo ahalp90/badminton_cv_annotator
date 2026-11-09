@@ -7,6 +7,7 @@ import argparse
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,9 +16,14 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.config import COMPOSITION_KEEP_VOTE
-from annotator.evaluation.scoring import GtRally, load_gt_rallies
-from annotator.masks.composition import CompositionSegment, build_composition_mask
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from experiments.annotator.legacy_evaluation.scoring import GtRally, load_gt_rallies
+from experiments.annotator.scene_cut_mask import (
+    COMPOSITION_KEEP_VOTE,
+    CompositionSegment,
+    build_composition_mask,
+)
 
 ANALYSIS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ANALYSIS_DIR.parents[3]

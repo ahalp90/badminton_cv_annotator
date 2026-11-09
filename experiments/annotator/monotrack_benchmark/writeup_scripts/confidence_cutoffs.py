@@ -21,10 +21,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from shared.frame_timing import frames_at_fps
+
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.heuristic_only_tune.data import load_original_videos
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     read_json,
@@ -54,7 +56,7 @@ def validation_found(
             stream = read_json(validation / f'seed-{seed}' / f'{video.identity}.json.gz')
             sequences, _ = stream_from_payload(stream)
             judged = judge_found_rallies(
-                sequences, video.rallies, scale_frames(TOLERANCE, video.fps), fps=video.fps,
+                sequences, video.rallies, frames_at_fps(TOLERANCE, video.fps), fps=video.fps,
                 endpoint_limits=endpoint_limits,
             )
             for record in judged:

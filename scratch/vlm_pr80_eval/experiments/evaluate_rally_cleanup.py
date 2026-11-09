@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Replay VLM contact decisions through the normal annotator rally stages."""
 
 from __future__ import annotations
@@ -65,7 +69,7 @@ def _build_artifact_inputs(
     stages = artifacts_root / "stages"
     video_id = fixture.name
     track = load_npy_xz(stages / "shuttle" / video_id / "shuttle_track.npy.xz")
-    guard_codes = load_npy_xz(
+    shuttle_grades = load_npy_xz(
         stages / "shuttle" / video_id / "shuttle_guard_codes.npy.xz"
     )
     pose = load_pose_arrays(stages / "pose" / video_id, len(track))
@@ -82,8 +86,6 @@ def _build_artifact_inputs(
         "net_band": court_inputs.net_band,
         "resolution": court_inputs.resolution,
         "video_id": video_id,
-        "court_info": court_inputs.court_info,
-        "homo_df": None,
         "gate_court_info": court_inputs.gate_court_info,
         "gate_resolution_table": court_inputs.gate_resolution_table,
         "ref_err_px": 3.5,
@@ -92,9 +94,8 @@ def _build_artifact_inputs(
         "homography_rows": court_inputs.homography_rows,
         "cut_frames": [end for _start, end in raw_cuts[:-1]],
         "keep_vote": keep_vote,
-        "inpaint_codes": guard_codes,
+        "shuttle_grades": shuttle_grades,
         "court_invalid_is_excluded": True,
-        "landing_error_band_m": court_inputs.landing_error_band_m,
     }
     return RunVideoInputs(
         (track, pose.bboxes, pose.scores, pose.kps, pose.ndet),

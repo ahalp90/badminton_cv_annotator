@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import subprocess
 from pathlib import Path
 
@@ -16,38 +15,12 @@ def annotator_models():
     from sklearn.dummy import DummyClassifier
 
     from annotator.models import AnnotatorModels
-    from annotator.sequence.rally_model import RallyLayerModels
+    from annotator.rallies.refine_rallies import RallySelector
 
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 0, 1])
-    return AnnotatorModels(tree, RallyLayerModels((tree,)), tree)
+    return AnnotatorModels(tree, RallySelector(tree), tree)
 
 
-@pytest.fixture
-def serve_setup_defaults():
-    """Build the shared analysed, ankle, and height arrays for serve-setup tests."""
-    def build(n_frames: int) -> dict[str, np.ndarray]:
-        shape = (n_frames, 2)
-        return {
-            'analysed': np.ones(n_frames, dtype=bool),
-            'top_ankles': np.full(shape, (0.2, 0.3), dtype=float),
-            'bot_ankles': np.full(shape, (0.7, 0.3), dtype=float),
-            'top_height': np.full(n_frames, 0.2, dtype=float),
-            'bot_height': np.full(n_frames, 0.2, dtype=float),
-        }
-
-    return build
-
-
-@pytest.fixture
-def write_doubles_flags():
-    """Write complete video, rally, and doubles-flag rows."""
-    def write(path: Path, rows: list[tuple[str, str, str]]) -> None:
-        with path.open('w', newline='', encoding='utf-8') as handle:
-            writer = csv.writer(handle)
-            writer.writerow(['video_id', 'rally_id', 'doubles_flag'])
-            writer.writerows(rows)
-
-    return write
 
 
 @pytest.fixture(scope="session")

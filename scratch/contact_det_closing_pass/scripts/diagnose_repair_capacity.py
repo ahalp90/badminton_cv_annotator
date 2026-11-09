@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Count label-guided repair opportunities without fitting or choosing a model."""
 
 from __future__ import annotations

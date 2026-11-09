@@ -12,21 +12,17 @@ import cv2
 import numpy as np
 import pytest
 
-import annotator.video_metadata as video_metadata_module
-from annotator.validation_overlay.core.cli import make_render_plan, render
-from annotator.validation_overlay.core.decode import (
-    VideoInfo,
-    iter_span_frames,
-    probe_video,
-)
-from annotator.validation_overlay.core.timeline import (
+import shared.video_metadata as video_metadata_module
+from shared.video_metadata import VideoMetadata, probe_video_metadata
+from video_overlay.decode import iter_span_frames
+from video_overlay.render import make_render_plan, render
+from video_overlay.timeline import (
     Segment,
     SegmentPlan,
     SpacerPlan,
     SpanState,
     build_timeline,
 )
-from annotator.video_metadata import VideoMetadata, probe_video_metadata
 
 SOURCE_FPS = Fraction(25)
 SOURCE_WIDTH = 64
@@ -156,9 +152,6 @@ def test_canonical_metadata_round_trips_exact_values(tmp_path: Path) -> None:
     assert VideoMetadata.from_dict(metadata.to_dict()) == metadata
 
 
-def test_validation_overlay_metadata_names_remain_compatible() -> None:
-    assert VideoInfo is VideoMetadata
-    assert probe_video is probe_video_metadata
 
 
 def test_canonical_metadata_rejects_conflicting_frame_counts(
@@ -316,7 +309,6 @@ def test_frame_zero_lead_context_is_clipped_without_padding() -> None:
     assert plan.ordered_source_indices == (0, 1, 2, 3)
     assert plan.ordered_source_indices.count(0) == 1
     assert plan.parts[0].effective_first == 0
-    assert plan.parts[0].requested_first == -3
 
 
 def test_short_read_raises_and_exact_eof_span_succeeds(validation_video: Path) -> None:

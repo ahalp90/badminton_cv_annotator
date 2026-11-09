@@ -2,7 +2,7 @@
 import pandas as pd
 import pytest
 
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.scoring import (
     CANONICAL_CONTACT_TOLERANCE_BASE30,
     CONTACT_TOLERANCES_BASE30,
     GtRally,

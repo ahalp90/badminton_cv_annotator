@@ -9,16 +9,18 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from shared.frame_timing import frames_at_fps
+
 os.environ.update(OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 import numpy as np
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
     load_original_videos,
@@ -85,9 +87,9 @@ def score_validation(job: ValidationJob) -> dict:
             'correct_player_contacts': sum(bool(contact['player_correct']) for contact in contacts),
         }
     sequences, _events = stream_from_payload(stream)
-    judged = judge_found_rallies(sequences, video.rallies, scale_frames(10, video.fps), fps=video.fps)
+    judged = judge_found_rallies(sequences, video.rallies, frames_at_fps(10, video.fps), fps=video.fps)
     correct = {row['rally_id'] for row in judged if row['outcome'] == 'fully_correct'}
-    unflagged = {rally.identity for rally in video.rallies} - job.flagged
+    unflagged = {rally.rally_id for rally in video.rallies} - job.flagged
     counts |= {'rallies': len(video.rallies), 'fully_correct': len(correct),
                'unflagged_rallies': len(unflagged), 'unflagged_fully_correct': len(correct & unflagged)}
     record = {'name': job.name, 'seed': job.seed, 'video': video.identity, 'protocol': PROTOCOL,

@@ -2,7 +2,7 @@
 
 The annotator turns saved shuttle tracks, player poses and court geometry into
 rallies, racket contacts and estimated outcomes. Start with
-[`run_video()`](../../src/annotator/run_video.py): it shows the order of the
+[`annotate_video()`](../../src/annotator/annotate_video.py): it shows the order of the
 work. The [quickstart](quickstart.md) explains how to supply a video's files.
 
 The main path has three parts:
@@ -22,7 +22,7 @@ normalised `(x, y, visibility)` row per frame. Pose arrays contain detected play
 boxes and keypoints. Court records identify usable scenes and provide the
 image-to-court transform, called a homography.
 
-Rally bounds are half-open: `[start, end)` includes `start` and excludes `end`.
+Rally bounds include `start` and exclude `end`: `[start, end)`.
 The frame rate scales timing and movement thresholds. A frame is never renumbered
 when a replay or tracking gap is excluded.
 
@@ -65,10 +65,13 @@ See [Fixed heuristics](heuristics.md) for the individual rules and research cont
 
 The contact search includes impulse peaks, wrist-distance minima, visibility
 changes, rough rally starts, scene starts and a serve look-back window.
-[`contacts/features.py`](../../src/annotator/contacts/features.py) measures
-85 values per searched frame: 17 shuttle/player signals at five time offsets.
+[`contacts/build_features.py`](../../src/annotator/contacts/build_features.py) measures
+85 values per candidate frame: 17 shuttle/player signals at five time offsets.
+It applies the search-region priors once and returns only candidate rows. Both
+training and inference use those rows directly. Time offsets still refer to the
+full video timeline, including frames outside the candidate set.
 
-[`contacts/model.py`](../../src/annotator/contacts/model.py) scores candidates
+[`contacts/score_candidates.py`](../../src/annotator/contacts/score_candidates.py) scores candidates
 with the contact classifier. Candidates compete by probability and temporal
 separation. The selected cutoff is 0.9. Lower-scoring candidates remain available
 for the next stage, which can recognise a useful contact from the rally as a whole.
@@ -79,7 +82,7 @@ repair it. Initial contacts outside every rough rally remain part of that stream
 ### How contact training uses ground truth
 
 The contact model learns from frames in these broad heuristic-defined search
-regions, labelled against the human-annotated contacts. It is not restricted to
+regions, labelled against the GT contacts. It is not restricted to
 the heuristic's final hit predictions.
 
 For example, at 30 fps, a heuristic seed at frame 95 creates a search region
@@ -103,9 +106,9 @@ Ground truth does not force a frame into the candidate set. A labelled contact
 with no eligible candidate within ±1 frame contributes no positive example.
 In the selected model's 32 training videos, **26,893 of 27,571 labelled contacts
 (97.5%)** have at least one positive candidate frame, providing **80,651 positive
-frame examples**. The remaining 678 contacts have no feature/search rows within
-that radius. None were lost solely to the candidate-region filter once feature
-rows were available.
+frame examples**. The remaining 678 contacts fall outside the feature search
+intervals by more than that radius. The candidate-region rules excluded no
+additional labelled contacts within those intervals.
 
 The [saved coverage counts and measurement command](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md#contact-training-coverage)
 give the per-video breakdown. The training implementation is in
@@ -113,23 +116,20 @@ give the per-video breakdown. The training implementation is in
 
 ## Choose a contact sequence for each rally
 
-The rally model compares alternative sequences, each containing a concrete set
-of contact frames. The proposal builder shortlists up to two earlier serve frames
-and six later-contact frames. It retains the original sequence and proposes serve
-repairs, deletions and additions. The selected model allows up to three combined
-changes and considers up to six contacts for deletion.
-
-Some proposals come from the earlier serve/deletion rules. Those rules remain
-because they contribute choices the current model was trained to score. The
-retired sequence classifiers are no longer involved.
+The rally model compares alternative contact sequences. Shortlist up to two
+earlier serve candidates and six later-contact candidates. Keep the initial
+sequence, then generate alternatives by adding shortlisted contacts and deleting
+from the first contact plus the five weakest remaining contacts. The selected
+model allows up to three combined changes. Spacing and neighbouring-rally bounds
+restrict those combinations.
 
 Each proposal describes the original and proposed contacts, their timing and
 probabilities, raw court-half guesses, physical contact evidence and unused
 candidates. The selector scores these rows and chooses the highest-scoring
 proposal for each initial rally. Stable proposal order resolves equal scores.
 
-The selected model has one rally selector. Experiments can fit more layers; each
-extra layer receives the earlier layers' scores and choices as additional inputs.
+The selected model has one rally selector. Its scores and the gap between the
+top two options also inform the separate review model.
 Training and inference share the same proposal and feature builders.
 
 An earlier serve can move a rally's start and absorb intervening contacts.
@@ -173,8 +173,11 @@ does not change the discovery predictions used for evaluation.
 
 Each contact initially has an individual court-half guess: `Top` for the far
 half, `Bot` for the near half, or unknown. The finishing rule chooses the
-alternating pattern that best matches those guesses. A tied vote keeps the
-individual guesses. These are court halves, not player identities.
+alternating pattern that best matches those guesses. A tied vote uses the order
+with the smaller sum of shuttle-to-wrist distances, normalised by player height.
+Each contact contributes only when both court halves have usable distances.
+Equal or unavailable distance sums fall back to the first known guess. When no
+guess is known, all players stay unknown. These are court halves, not player identities.
 
 The review model uses evidence from the chosen proposal, selector scores and
 final boundaries. It retains the original side guesses when measuring agreement;
@@ -182,24 +185,36 @@ using the enforced alternating sides would make that evidence misleading.
 
 ## Estimate outcomes and return the result
 
-[`outcomes/video.py`](../../src/annotator/outcomes/video.py) derives server,
-winner, landing and hit-height fields from the final contacts and geometry.
-Insufficient evidence can leave an outcome unresolved while retaining the contacts.
+Start with `build_outcomes()` in
+[`rally_results/estimate_results.py`](../../src/annotator/rally_results/estimate_results.py). For each rally,
+check the last contact, choose a camera view for the final flight, find its
+landing, then determine the winner. The next server takes precedence over the
+landing estimate. Insufficient evidence can leave an outcome unresolved while
+retaining the contacts.
+
+Each landing search stays within one camera view. When the final contact falls
+outside the available court views, a returning view within that rally can still
+provide a landing. The unseen part of the flight prevents a net-fault call.
+Optional diagnostics record rejected shuttle observations. Experiments compare
+shorter search windows after ordinary inference. Hit heights are calculated separately for each contact.
 
 `AnnotatorResult` holds the public result. The dataset builder saves all of its
 fields. In particular:
 
-- `filtered_by_rally` is the contact membership of each rally.
+- `rallies` retains each finished sequence and its final striker; contact membership comes from its events.
 - `contact_events` is the full learned contact stream, including contacts outside rallies.
 - `rally_confidence` holds review scores in rally order.
-- Winner, landing and hit-height fields carry outcomes and explicit failures.
+- `outcomes` groups winner, landing and geometric estimates by rally; contact heights and unavailable-height reasons are keyed by frame.
 
-`RunCapture` optionally retains intermediate predictions, both exclusion masks
-and requested landing diagnostics. It supports debugging, preparation and
-experiments without changing the result contract.
+`annotate_video` returns a `VideoAnnotation` containing the finished result
+and both exclusion masks. Pass `keep_working_data=True` to also retain prepared
+inputs and model scores for inspection.
+
+Run landing-time comparisons separately with
+`experiments.annotator.landing_search.compare_landing_searches()`.
 
 The standalone command, dataset builder and MonoTrack adapter all call
-`run_video()`. Their loading and persistence differ; the annotation decisions
+`annotate_video()`. Their loading and persistence differ; the annotation decisions
 come from the same function. See [Inputs and outputs](inputs_outputs.md) for
 the saved contracts, [Code map](code_map.md) for source entry points, and
 [How the trees work together](tree_stack.md) for model and training details.

@@ -26,7 +26,7 @@ import pandas as pd
 from summarise_court_change import labelled_court_states
 from trace_label_rows import official_rows
 
-from annotator.courts.evidence import (
+from annotator.courts.prepare_courts import (
     _as_ref_corners,
     build_net_band,
     detected_court_info,

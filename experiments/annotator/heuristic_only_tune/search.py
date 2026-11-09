@@ -8,7 +8,7 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
@@ -27,8 +27,8 @@ AXES: dict[str, tuple[float, ...]] = {
     'contact_suppression_radius_frames': (3, 5, 7, 9, 12),
     'body_unit_half_window': (6, 12, 24),
     'replay_mask_min_frames': (5, 15, 30),
-    'blip_max_frames': (6, 12, 24),
-    'gap_state_demotion_bound': (30, 75, 150),
+    'max_unexplained_shuttle_gap_frames': (6, 12, 24),
+    'max_high_shot_gap_frames': (30, 75, 150),
 }
 COUPLED_AXES = (
     ('rest_speed', 'start_speed'),
@@ -52,7 +52,7 @@ def seed_specs() -> list[CandidateSpec]:
         'impulse_floor_half_window_frames': 12, 'contact_impulse_multiple': 4,
         'contact_dedup_radius_frames': 3, 'contact_suppression_radius_frames': 9,
         'body_unit_half_window': 12, 'replay_mask_min_frames': 15,
-        'blip_max_frames': 12, 'gap_state_demotion_bound': 75,
+        'max_unexplained_shuttle_gap_frames': 12, 'max_high_shot_gap_frames': 75,
     }
     earlier = {
         **fixed, 'rest_speed': 0.01, 'rest_window': 15, 'start_speed': 0.03,
@@ -70,7 +70,7 @@ def seed_specs() -> list[CandidateSpec]:
         **fixed, 'rest_speed': 1 / 240, 'rest_window': 9, 'start_speed': 1 / 60,
         'start_min_frames': 3, 'smooth_window': 5, 'end_rest_frames': 54,
     }
-    return [CandidateSpec(label, values, {'span_open': 'BACK_FILL'}) for label, values in (
+    return [CandidateSpec(label, values, {'require_fast_burst': True}) for label, values in (
         ('earlier_integer', earlier), ('earlier_scaled', scaled), ('moderate', moderate),
     )]
 
@@ -99,7 +99,7 @@ def coarse_specs(count: int, seed: int) -> list[CandidateSpec]:
                 specs.append(spec)
     while len(specs) < count:
         spec = CandidateSpec('coarse', {key: generator.choice(values) for key, values in AXES.items()}, {
-            'span_open': generator.choice(('BACK_FILL', 'REGION_START')),
+            'require_fast_burst': generator.choice((True, False)),
         })
         identity = candidate_id(spec)
         if valid_spec(spec) and identity not in seen:
@@ -148,7 +148,7 @@ def refine_specs(
     rows: list[dict[str, Any]], objective: str, parents: int,
     axes: dict[str, tuple[float, ...]] = AXES,
 ) -> list[CandidateSpec]:
-    default_wrist_distance = resolve(BaseAnnotatorConfig(), 30.0).thresholds.wrist_distance_body_heights
+    default_wrist_distance = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds.wrist_distance_body_heights
     seen = {row['candidate_id'] for row in rows}
     specs = []
 
@@ -176,8 +176,9 @@ def refine_specs(
                 append(CandidateSpec('refine', {
                     **parent.overrides_base30, first: first_value, second: second_value,
                 }, parent.strategies))
-        other_open = 'REGION_START' if parent.strategies['span_open'] == 'BACK_FILL' else 'BACK_FILL'
-        append(CandidateSpec('refine', parent.overrides_base30, {'span_open': other_open}))
+        append(CandidateSpec('refine', parent.overrides_base30, {
+            'require_fast_burst': not parent.strategies['require_fast_burst'],
+        }))
     return specs
 
 

@@ -5,8 +5,15 @@ import json
 
 import pytest
 
-from annotator.evaluation.fixtures import FIXTURES
 from experiments.annotator.heuristic_tuning import corpus_sweep, sweep
+from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
+
+
+@pytest.mark.parametrize('require_fast_burst', [True, False])
+def test_saved_recommendation_keeps_rally_start_choice(require_fast_burst):
+    payload = {'overrides_base30': {}, 'strategies': {'require_fast_burst': require_fast_burst}}
+    spec = corpus_sweep._spec_from_payload(payload, 'grid')
+    assert sweep.base_config(spec).require_fast_burst is require_fast_burst
 
 
 def _inputs() -> tuple[corpus_sweep.CorpusFixtureInput, ...]:
@@ -81,7 +88,7 @@ def _full_metrics(matched: int) -> dict[str, int | float]:
         contact_gt_total=20,
         n_raw_contacts=30,
         n_filtered_contacts=10,
-        hit_height_failures=0,
+        unavailable_hit_height_reasons=0,
     )
     return metrics
 

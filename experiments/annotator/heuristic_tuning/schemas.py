@@ -7,13 +7,12 @@ runner decides frontier membership; this module only supplies its fixed header.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from enum import Enum
 from numbers import Real
 from typing import Any
 
-from annotator.evaluation.scoring import CONTACT_TOLERANCES_BASE30
+from experiments.annotator.legacy_evaluation.scoring import CONTACT_TOLERANCES_BASE30
 
-FROZEN_ROW_COLUMNS = (
+COMMON_ROW_COLUMNS = (
     "label",
     "rest_speed",
     "rest_window",
@@ -21,7 +20,6 @@ FROZEN_ROW_COLUMNS = (
     "start_speed",
     "start_min_frames",
     "smooth_window",
-    "min_contact_speed",
     "n_spans",
     "covered",
     "covered_fraction",
@@ -69,16 +67,13 @@ BOUNDARY_DIAGNOSTIC_COLUMNS = (
 )
 
 BOUNDARY_SWEEP_COLUMNS = (
-    *FROZEN_ROW_COLUMNS,
+    *COMMON_ROW_COLUMNS,
     *BOUNDARY_DIAGNOSTIC_COLUMNS,
     *TOLERANCE_FRAME_COLUMNS,
 )
 
 CONTACT_SWEEP_COLUMNS = (
-    *FROZEN_ROW_COLUMNS,
-    # The live impulse axes sit outside the frozen prefix so old and new contact
-    # CSVs stay column-comparable in the frozen order; the swept smoothing value
-    # rides the frozen prefix's smooth_window column.
+    *COMMON_ROW_COLUMNS,
     "impulse_floor_half_window_frames",
     "contact_dedup_radius_frames",
     "contact_impulse_multiple",
@@ -148,22 +143,14 @@ WINNER_SPEC_STRATEGIES_KEY = "strategies"
 WINNER_SPEC_KEYS = (WINNER_SPEC_OVERRIDES_KEY, WINNER_SPEC_STRATEGIES_KEY)
 
 
-def serialise_winner_strategy(value: object) -> object:
-    """Return enum strategies by name so JSON never receives their integer value."""
-    return value.name if isinstance(value, Enum) else value
-
-
 def winner_spec(
     overrides_base30: Mapping[str, Real],
-    strategies: Mapping[str, object],
+    strategies: Mapping[str, bool],
 ) -> dict[str, dict[str, object]]:
     """Build one phase's winner payload from its swept numeric and strategy axes."""
     return {
         WINNER_SPEC_OVERRIDES_KEY: dict(overrides_base30),
-        WINNER_SPEC_STRATEGIES_KEY: {
-            field: serialise_winner_strategy(value)
-            for field, value in strategies.items()
-        },
+        WINNER_SPEC_STRATEGIES_KEY: dict(strategies),
     }
 
 

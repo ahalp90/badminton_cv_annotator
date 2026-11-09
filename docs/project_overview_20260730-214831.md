@@ -257,7 +257,7 @@ then runs with that mask applied.
 
 | Path | What it does | Input style |
 | --- | --- | --- |
-| `src/annotator/run_video.py` | Runs the maintained annotation stages for one video | Prepared arrays and court evidence supplied by its caller |
+| `src/annotator/annotate_video.py` | Runs the maintained annotation stages for one video | Prepared arrays and court evidence supplied by its caller |
 | `src/annotator/e2e_court_annotator.py` | Runs the fixed four-case, two-court-mode measurement | Pinned videos, shuttle tracks and pose arrays; regenerates cuts, court evidence and masks |
 | `src/annotator/calibration/run_cli.py` | Scores selected maintained fixtures | Frozen `Fixture` arrays, court evidence and mask |
 | `src/annotator/calibration/sweep.py` | Tests calibration settings on one fixture | The same frozen inputs, with an optional replacement mask |

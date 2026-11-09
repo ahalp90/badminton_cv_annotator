@@ -182,7 +182,7 @@ def rounded_locations(
 
 def sequence_starts(
     track: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     frame_mask: np.ndarray,
     view: str,
 ) -> np.ndarray:
@@ -191,7 +191,7 @@ def sequence_starts(
     masked_windows = np.lib.stride_tricks.sliding_window_view(frame_mask, WINDOW)
     if view == "uncaught":
         clean_windows = np.lib.stride_tricks.sliding_window_view(
-            guard_codes == 0, WINDOW
+            shuttle_grades == 0, WINDOW
         ).all(axis=1)
         selected_windows = masked_windows.any(axis=1)
         return np.flatnonzero(valid_windows & clean_windows & selected_windows)
@@ -206,11 +206,11 @@ def sequence_starts(
 
 def exact_sequences(
     track: np.ndarray,
-    guard_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     frame_mask: np.ndarray,
     view: str,
 ) -> list[dict[str, object]]:
-    starts = sequence_starts(track, guard_codes, frame_mask, view)
+    starts = sequence_starts(track, shuttle_grades, frame_mask, view)
     sequence_starts_by_key: defaultdict[bytes, list[int]] = defaultdict(list)
     for start in starts.tolist():
         key = np.ascontiguousarray(track[start : start + WINDOW, :2]).tobytes()
@@ -588,7 +588,7 @@ def main() -> None:
 
     for fixture in FIXTURE_NAMES:
         track = read_npy_xz(workset / "raw" / f"{fixture}_track.npy.xz")
-        guard_codes = read_npy_xz(analysis_dir / f"{fixture}_guard_codes.npy.xz")
+        shuttle_grades = read_npy_xz(analysis_dir / f"{fixture}_guard_codes.npy.xz")
         uncaught = read_npy_xz(analysis_dir / f"{fixture}_uncaught_mask.npy.xz")
         inpaint = read_npy_xz(analysis_dir / f"{fixture}_sidecar_inpaint_mask.npy.xz")
         impulse = read_npy_xz(analysis_dir / f"{fixture}_impulse_event_mask.npy.xz")
@@ -599,7 +599,7 @@ def main() -> None:
         valid = ~np.all(track[:, :2] == 0, axis=1)
         if not all(
             len(values) == len(track)
-            for values in (guard_codes, uncaught, inpaint, impulse, tp_rally_ender)
+            for values in (shuttle_grades, uncaught, inpaint, impulse, tp_rally_ender)
         ):
             raise ValueError(f"{fixture}: derived arrays do not match track length")
         points_by_fixture[fixture] = points
@@ -619,7 +619,7 @@ def main() -> None:
         for view in views:
             frame_mask = masks_by_view[view][fixture]
             locations_by_view[view][fixture] = rounded_locations(points, frame_mask, args.top_n)
-            exact = exact_sequences(track, guard_codes, frame_mask, view)
+            exact = exact_sequences(track, shuttle_grades, frame_mask, view)
             sequences_by_view[view][fixture] = cluster_sequence_families(exact, args.top_n)
 
     for view in views:

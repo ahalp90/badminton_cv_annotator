@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from annotator.courts.scenes import (
+from annotator.courts.frame_geometry import (
     SceneCourt,
     build_scene_courts,
     court_at_frame,
     scene_ref_corners,
 )
-from annotator.outcomes.point_winner import project_pixels_to_court
+from shared.court import project_pixels_to_court
 
 
 def _empty_scene(start_frame: int, end_frame: int) -> SceneCourt:
@@ -58,3 +58,18 @@ def test_scene_row_resolution_scales_native_corners_before_projection():
     native_points = np.array([[160.0, 480.0], [90.0, 270.0]])
     projected = project_pixels_to_court(native_points, (640.0, 360.0), scene.court_info)
     np.testing.assert_allclose(projected, [[0.25, 0.75], [0.25, 0.75]])
+
+
+@pytest.mark.parametrize(('bounds', 'message'), [
+    ([(4, 2)], 'reversed'),
+    ([(0, 4), (3, 5)], 'overlap'),
+])
+def test_scene_courts_reject_invalid_timeline_bounds(bounds, message):
+    with pytest.raises(ValueError, match=message):
+        build_scene_courts([_row(start, end) for start, end in bounds], (640.0, 360.0))
+
+
+def test_empty_scene_precedes_nonempty_scene_with_the_same_start():
+    scenes = build_scene_courts([_row(4, 8), _row(4, 4)], (640.0, 360.0))
+    assert [(scene.start_frame, scene.end_frame) for scene in scenes] == [(4, 4), (4, 8)]
+    assert court_at_frame(scenes, 4) is scenes[1]

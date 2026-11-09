@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, fields
@@ -17,8 +18,14 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 
-from annotator.artifact_io import open_text_artifact, read_json_object
-from annotator.evaluation.scoring import RallyBoundary, classify_rally_boundary
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from experiments.annotator.artifact_io import open_text_artifact, read_json_object  # noqa: E402
+from experiments.annotator.legacy_evaluation.scoring import (  # noqa: E402
+    RallyBoundary,
+    classify_rally_boundary,
+)
 
 
 class CandidateGtRelation(StrEnum):

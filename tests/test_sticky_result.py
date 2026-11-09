@@ -1,14 +1,13 @@
-"""Direct contract tests for the cached StickyResult evidence arrays."""
+"""Tracking intervals, missing measurements and wrist-gap normalisation."""
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from annotator.courts.scenes import build_scene_courts
-from annotator.rally.evidence import build_sticky_result
-from annotator.rally_segmentation import segment_video
+from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
+from annotator.inference.prepare_annotation_inputs import build_player_evidence
+from annotator.rallies.find_rallies import segment_video
 from annotator.types import WRIST_L, WRIST_R
-from tests.annotator_config import burst_config
+from tests.annotator_config import trajectory_config
 
 
 def _bbox(x: float, foot_y: float, height: float = 120.0) -> np.ndarray:
@@ -76,8 +75,7 @@ def _sticky_inputs():
         'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0,
         'border_U': 0.0, 'border_D': 720.0,
     }
-    resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
-    return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info}, resolution_table)
+    return (track, [(1, 4)], bboxes, scores, kps, ndet, {'1': court_info})
 
 
 def _scene_sticky_inputs():
@@ -113,28 +111,22 @@ def _scene_sticky_inputs():
         (1280.0, 720.0),
     )
     track = np.tile(np.array([0.5, 0.5, 1.0]), (n_frames, 1))
-    resolution_table = pd.DataFrame(
-        {'width': [1280.0], 'height': [720.0]}, index=['1']
-    )
-    return track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row
+    return track, bboxes, scores, kps, ndet, scene_courts, row
 
 
 def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
-    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, row) = (
+    (track, bboxes, scores, kps, ndet, scene_courts, row) = (
         _scene_sticky_inputs()
     )
     assert not np.allclose(scene_courts[0].court_info['H'], scene_courts[1].court_info['H'])
 
-    local_result = build_sticky_result(
+    local_players, _ = build_player_evidence(
         track,
         [(0, 2), (2, 4)],
         bboxes,
         scores,
         kps,
         ndet,
-        '1',
-        {'1': scene_courts[0].court_info},
-        resolution_table,
         (1280.0, 720.0),
         scene_courts=scene_courts,
         half_window=12,
@@ -143,128 +135,104 @@ def test_sticky_picker_uses_each_scene_geometry_for_consecutive_segments():
     # A displaced global outline rejects the top player in scene 0, while the
     # scene-local rows retain both picks in both camera views.
     global_scene = build_scene_courts([row(0, 4, 500.0, 1780.0)], (1280.0, 720.0))[0]
-    global_result = build_sticky_result(
+    global_players, _ = build_player_evidence(
         track,
         [(0, 4)],
         bboxes,
         scores,
         kps,
         ndet,
-        '1',
-        {'1': global_scene.court_info},
-        resolution_table,
         (1280.0, 720.0),
         half_window=12,
+        scene_courts=(global_scene,),
     )
 
-    np.testing.assert_array_equal(local_result.picks, np.tile([0, 1], (4, 1)))
-    assert local_result.analysed.all()
-    assert local_result.picks[0, 0] == 0
-    assert global_result.picks[0].tolist() == [-1, 1]
+    np.testing.assert_array_equal(local_players.detection_indices, np.tile([0, 1], (4, 1)))
+    assert local_players.detection_indices[0, 0] == 0
+    assert global_players.detection_indices[0].tolist() == [-1, 1]
 
 
-def test_sticky_picker_rejects_tracker_segment_crossing_scene_boundary():
-    (track, bboxes, scores, kps, ndet, resolution_table, scene_courts, _row) = (
-        _scene_sticky_inputs()
+def test_build_player_evidence_pins_failure_defaults_and_success_contract():
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
+    players, gaps = build_player_evidence(
+        track,
+        segments,
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
-    with pytest.raises(ValueError, match='tracker segment crosses a court scene boundary'):
-        build_sticky_result(
-            track,
-            [(1, 3)],
-            bboxes,
-            scores,
-            kps,
-            ndet,
-            '1',
-            {'1': scene_courts[0].court_info},
-            resolution_table,
-            (1280.0, 720.0),
-            scene_courts=scene_courts,
-            half_window=12,
-        )
+    assert np.isposinf(gaps.nearest[0])
+    assert players.detection_indices[0].tolist() == [-1, -1]
+    assert np.isnan(players.ankle_xy[0]).all()
+    assert np.isnan(players.box_heights_px[0]).all()
 
+    assert np.isnan(gaps.nearest[1])
+    assert players.detection_indices[2].tolist() == [1, 2]
+    assert players.box_heights_px[2].tolist() == [120.0, 120.0]
+    np.testing.assert_allclose(players.ankle_xy[2, 0], [610 / 1280, 180 / 720])
+    np.testing.assert_allclose(players.ankle_xy[2, 1], [610 / 1280, 540 / 720])
 
-def test_build_sticky_result_pins_failure_defaults_and_success_contract():
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
-    result = build_sticky_result(
-        track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, (1280.0, 720.0), half_window=1,
-    )
-
-    assert np.isposinf(result.distances[0])
-    assert result.picks[0].tolist() == [-1, -1]
-    assert result.standing_count[0] == 0
-    assert np.isnan(result.ankle_pos[0]).all()
-    assert np.isnan(result.bbox_height[0]).all()
-
-    assert np.isnan(result.distances[1])
-    assert result.standing_count[1] == 1
-    assert result.picks[2].tolist() == [1, 2]
-    assert result.bbox_height[2].tolist() == [120.0, 120.0]
-    np.testing.assert_allclose(result.ankle_pos[2, 0], [610 / 1280, 180 / 720])
-    np.testing.assert_allclose(result.ankle_pos[2, 1], [610 / 1280, 540 / 720])
-
-    # Additive Stage 5 fields: analysed marks exactly the segment frames; per-slot
-    # distances are +inf outside the segments, NaN on a visited frame with no
-    # finite gap, and consistent with the min-collapsed series where finite.
-    assert result.analysed.tolist() == [False, True, True, True, False]
-    assert np.isposinf(result.distances_per_slot[0]).all()
-    assert np.isposinf(result.distances_per_slot[4]).all()
-    assert np.isnan(result.distances_per_slot[1]).all()
-    per_slot = result.distances_per_slot[2]
+    # Gaps distinguish untracked frames from missing measurements inside an interval.
+    assert np.isposinf(gaps.per_player[0]).all()
+    assert np.isposinf(gaps.per_player[4]).all()
+    assert np.isnan(gaps.per_player[1]).all()
+    per_slot = gaps.per_player[2]
     finite = np.isfinite(per_slot)
-    assert np.isfinite(result.distances[2]) == finite.any()
+    assert np.isfinite(gaps.nearest[2]) == finite.any()
     if finite.any():
-        assert result.distances[2] == per_slot[finite].min()
+        assert gaps.nearest[2] == per_slot[finite].min()
 
     # Frame 3's single top-half detection: the unpicked bottom slot stays NaN
     # while the picked top slot owns whatever gap the collapse saw.
-    assert result.picks[3].tolist()[1] == -1
-    assert result.picks[3][0] >= 0
-    assert np.isnan(result.distances_per_slot[3, 1])
-    top_gap = result.distances_per_slot[3, 0]
-    assert np.isfinite(result.distances[3]) == bool(np.isfinite(top_gap))
+    assert players.detection_indices[3].tolist()[1] == -1
+    assert players.detection_indices[3][0] >= 0
+    assert np.isnan(gaps.per_player[3, 1])
+    top_gap = gaps.per_player[3, 0]
+    assert np.isfinite(gaps.nearest[3]) == bool(np.isfinite(top_gap))
     if np.isfinite(top_gap):
-        assert result.distances[3] == top_gap
+        assert gaps.nearest[3] == top_gap
 
 
-def test_build_sticky_result_wrist_distance_visibility_and_sentinels():
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+def test_build_player_evidence_wrist_distance_visibility_and_sentinels():
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     track = track.copy()
     track[2, :2] = 0.0
     track[2, 2] = 0.0
     kps[3, 0, WRIST_L] = (640.0, 300.0)
     kps[3, 0, WRIST_R] = (600.0, 180.0)
 
-    result = build_sticky_result(
-        track, segments, bboxes, scores, kps, ndet, '1', court_info,
-        resolution_table, (1280.0, 720.0), half_window=1,
+    _, gaps = build_player_evidence(
+        track,
+        segments,
+        bboxes,
+        scores,
+        kps,
+        ndet,
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
     )
 
-    assert result.wrist_dist_px.shape == (len(track), 2)
-    assert result.wrist_dist_px.dtype == np.float64
-    assert np.isposinf(result.wrist_dist_px[0]).all()
-    assert np.isposinf(result.wrist_dist_px[4]).all()
-    assert np.isnan(result.wrist_dist_px[2]).all()
-    assert np.isnan(result.wrist_dist_px[3, 1])
-    assert result.wrist_dist_px[3, 0] == pytest.approx(10.0)
 
-    # The invisible frame keeps the old corner-derived contact-distance cache and collapse,
-    # while the serve-only raw wrist cache refuses to measure it.
-    assert np.isfinite(result.distances_per_slot[2]).all()
-    assert np.isfinite(result.distances[2])
-    assert result.distances[2] == pytest.approx(np.min(result.distances_per_slot[2]))
+    # Invisible coordinates still contribute to contact-distance measurements.
+    assert np.isfinite(gaps.per_player[2]).all()
+    assert np.isfinite(gaps.nearest[2])
+    assert gaps.nearest[2] == pytest.approx(np.min(gaps.per_player[2]))
 
 
 def test_segment_video_sticky_distance_shape_is_checked():
     track = np.zeros((3, 3), dtype=np.float64)
 
     with pytest.raises(ValueError, match='shape'):
-        segment_video(track, sticky_distances=np.zeros(2), resolved=burst_config())
+        segment_video(track, nearest_wrist_distances=np.zeros(2), video_config=trajectory_config())
 
 
-def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
+def test_build_player_evidence_clips_height_windows_at_touching_segment_bounds():
     n_frames = 6
     bboxes = np.full((n_frames, 1, 4), np.nan, dtype=np.float32)
     scores = np.ones((n_frames, 1), dtype=np.float32)
@@ -276,38 +244,58 @@ def test_build_sticky_result_clips_height_windows_at_touching_segment_bounds():
         kps[frame, 0] = _standing_pose(box, (600.0, 360.0), (620.0, 360.0))
     track = np.tile(np.array([600.0 / 1280.0, 170.0 / 720.0, 1.0]), (n_frames, 1))
     court_info = {'H': np.eye(3), 'border_L': 0.0, 'border_R': 1280.0, 'border_U': 0.0, 'border_D': 720.0}
-    resolution_table = pd.DataFrame({'width': [1280.0], 'height': [720.0]}, index=['1'])
-    result = build_sticky_result(
-        track, [(0, 3), (3, 6)], bboxes, scores, kps, np.ones(n_frames, dtype=np.int64), '1',
-        {'1': court_info}, resolution_table, (1280.0, 720.0), half_window=1,
+    players, gaps = build_player_evidence(
+        track,
+        [(0, 3), (3, 6)],
+        bboxes,
+        scores,
+        kps,
+        np.ones(n_frames, dtype=np.int64),
+        (1280.0, 720.0),
+        half_window=1,
+        scene_courts=(SceneCourt(0, len(track), court_info, (0.0, 0.0), 0.0),),
     )
 
     numerator = np.hypot(600.0 - 600.0, 360.0 - 170.0)
-    picked_half = int(np.flatnonzero(result.picks[2] >= 0)[0])
-    assert result.distances_per_slot[2, picked_half] == pytest.approx(numerator / 100.0)
+    picked_half = int(np.flatnonzero(players.detection_indices[2] >= 0)[0])
+    assert gaps.per_player[2, picked_half] == pytest.approx(numerator / 100.0)
 
 
-def test_build_sticky_result_fails_when_candidate_has_no_finite_height() -> None:
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+def test_build_player_evidence_fails_when_candidate_has_no_finite_height() -> None:
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = np.nan
     bboxes[2, 1, 1] = np.nan
     bboxes[3, 0, 1] = np.nan
 
     with pytest.raises(ValueError, match='no accepted finite height'):
-        build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, '1', court_info,
-            resolution_table, (1280.0, 720.0), half_window=1,
+        build_player_evidence(
+            track,
+            segments,
+            bboxes,
+            scores,
+            kps,
+            ndet,
+            (1280.0, 720.0),
+            half_window=1,
+            scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
         )
 
 
-def test_build_sticky_result_fails_on_non_positive_height_denominator() -> None:
-    (track, segments, bboxes, scores, kps, ndet, court_info, resolution_table) = _sticky_inputs()
+def test_build_player_evidence_fails_on_non_positive_height_denominator() -> None:
+    (track, segments, bboxes, scores, kps, ndet, court_info) = _sticky_inputs()
     bboxes[1, 1, 1] = bboxes[1, 1, 3]
     bboxes[2, 1, 1] = bboxes[2, 1, 3]
     bboxes[3, 0, 1] = bboxes[3, 0, 3]
 
     with pytest.raises(ValueError, match='non-finite or non-positive body-scale denominator'):
-        build_sticky_result(
-            track, segments, bboxes, scores, kps, ndet, '1', court_info,
-            resolution_table, (1280.0, 720.0), half_window=1,
+        build_player_evidence(
+            track,
+            segments,
+            bboxes,
+            scores,
+            kps,
+            ndet,
+            (1280.0, 720.0),
+            half_window=1,
+            scene_courts=(SceneCourt(0, len(track), court_info['1'], (0.0, 0.0), 0.0),),
         )

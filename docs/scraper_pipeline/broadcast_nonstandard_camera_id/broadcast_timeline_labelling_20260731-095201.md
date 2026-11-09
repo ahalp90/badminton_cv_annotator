@@ -456,7 +456,7 @@ content in either artefact.
 | --- | --- | --- |
 | Replay-mask signals | `src/annotator/replay_mask.py` | `court_absence_signal`, `perspective_shift_signal`, and `velocity_drop_signal` are independent boolean arrays. `combine_mask` returns only their union |
 | Belief threshold | `filter_short_exclusion_runs` in `src/annotator/replay_mask.py` | Runs shorter than the fps-scaled `replay_mask_min_frames` are removed. The current values are 13 frames at 25 fps and 15 at 30 fps |
-| Raw and definitive masks | `RunCapture` in `src/annotator/run_video.py` and `src/annotator/e2e_court_annotator.py` | The e2e capture saves raw and definitive arrays. Preserve both. Neither is human truth |
+| Raw and definitive masks | `RunCapture` in `src/annotator/annotate_video.py` and `src/annotator/e2e_court_annotator.py` | The e2e capture saves raw and definitive arrays. Preserve both. Neither is human truth |
 | Track treatment | `apply_replay_mask` in `src/annotator/rally_segmentation.py` | Believed replay runs freeze the shuttle track before segmentation |
 | Contact treatment | `run_video` | Contacts on the definitive mask are removed after the scoring gate |
 | Commentary pairing | `src/scraper/commentary_pairing.py` | Pairing uses the same fps-scaled `replay_mask_min_frames` constant for its interior grace. It holds out a rally only when believed replay reaches the interior beyond that grace. Chunk starts on believed replay are skipped |
@@ -530,7 +530,7 @@ the issue names this consumer.
 
 ### 4. Serve-lookback false-positive study
 
-`build_serve_options` in `src/annotator/run_video.py` currently builds serve
+`build_serve_options` in `src/annotator/annotate_video.py` currently builds serve
 setup options from the unmasked sticky cache. The replay-mask rule can still
 remove contacts on believed replay frames. Measure that interaction, but do not
 change either rule in this task.

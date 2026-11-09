@@ -11,14 +11,13 @@ from typing import Any
 import numpy as np
 import pytest
 
+import annotator.annotate_video as video_module
 import annotator.models as model_module
-import annotator.run_video as video_module
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.models import SideGeometry
-from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS, Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
-from annotator.types import DeadMaskMode
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, FinishedRally
 from dataset_builder import vision
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_tuning.corpus_sweep import candidate_id
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec, serialise_spec
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import read_json
@@ -50,8 +49,8 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         kps=np.zeros((frame_count, 1, 17, 2)), ndet=np.ones(frame_count, dtype=int),
     )
     court = SimpleNamespace(
-        net_band=(0.4, 0.6), resolution=(1280.0, 720.0), court_info={}, gate_court_info={},
-        gate_resolution_table=object(), homography_rows=object(), landing_error_band_m=0.05,
+        net_band=(0.4, 0.6), resolution=(1280.0, 720.0), court_info={},
+        homography_rows=object(), landing_error_band_m=0.05,
     )
     court_vision = SimpleNamespace(
         evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool),
@@ -63,8 +62,8 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     court_paths = []
     model_paths = []
     models = SimpleNamespace(
-        preprocessing=BaseAnnotatorConfig(), side_geometry=SideGeometry.VIDEO,
-        contact_settings=SimpleNamespace(score_cutoff=0.9, reject_masked_without_player=False),
+        preprocessing=BaseAnnotatorConfig(),
+        contact_settings=SimpleNamespace(score_cutoff=0.9),
     )
 
     def load_array(path: Path) -> np.ndarray:
@@ -97,7 +96,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 def _selected_spec() -> CandidateSpec:
     return CandidateSpec(
-        'selected', {'wrist_distance_body_heights': 1.8, 'smooth_window': 6.0}, {'span_open': 'REGION_START'},
+        'selected', {'wrist_distance_body_heights': 1.8, 'smooth_window': 6.0}, {'require_fast_burst': False},
     )
 
 
@@ -115,23 +114,22 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
         assert kwargs['heuristic_only'] is True
         assert kwargs['spans'] == [(0, 45)]
         assert kwargs['fps'] == 25.0
-        resolved = resolve(kwargs['base'], kwargs['fps'])
-        assert resolved.thresholds.wrist_distance_body_heights == 1.8
-        assert resolved.thresholds.smooth_window == 5
-        assert kwargs['serve_start'] is None
+        video_config = scale_config_to_fps(kwargs['base'], kwargs['fps'])
+        assert video_config.thresholds.wrist_distance_body_heights == 1.8
+        assert video_config.thresholds.smooth_window == 5
         assert kwargs['landing_options'] is SHIPPED_LANDING_FILTER_OPTIONS
-        assert kwargs['court_invalid_is_excluded'] is True
-        assert kwargs['inpaint_codes'] is inputs.guards
+        assert kwargs['shuttle_grades'] is inputs.guards
         assert kwargs['court_present'] is inputs.vision.evidence.court_present
-        assert kwargs['keep_vote'] is inputs.vision.evidence.keep_vote
         assert kwargs['homography_rows'] is inputs.court.homography_rows
-        assert kwargs['gate_resolution_table'] is inputs.court.gate_resolution_table
-        assert kwargs['gate_court_info'] is inputs.court.gate_court_info
-        assert kwargs['cut_frames'] == [30]
-        assert kwargs['landing_error_band_m'] == 0.05
-        return empty_annotation(kwargs['spans'], [])._replace(filtered_by_rally={0: [10, 20]}, striker_halves=[Half.BOT])
+        result = empty_annotation(kwargs['spans'], [])._replace(rallies=(FinishedRally(
+            ContactSequence(0, *kwargs['spans'][0], (
+                ContactEvent(10, np.nan, CourtHalf.TOP), ContactEvent(20, np.nan, CourtHalf.BOT),
+            )),
+            CourtHalf.BOT,
+        ),))
+        return SimpleNamespace(result=result)
 
-    monkeypatch.setattr(video_module, 'run_video', infer)
+    monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path), heuristic_spec=spec)
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['status'] == 'completed'
@@ -139,7 +137,7 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
     assert result['boundaries'] == 'provided'
     assert result['candidate_id'] == candidate_id(spec)
     assert result['heuristic_settings'] == serialise_spec(spec)
-    assert result['stream']['events'] == [[10, 1.0, 'Top'], [20, 1.0, 'Bot']]
+    assert result['stream']['events'] == [[10, None, 'Top'], [20, None, 'Bot']]
     assert not inputs.model_paths
     assert inputs.pose_paths == [inputs.config['paths']['pose_root'] / inputs.item['directory']]
     assert inputs.array_paths == [
@@ -150,22 +148,26 @@ def test_heuristic_keeps_benchmark_inputs_spans_and_court_flags(
 
 
 @pytest.mark.parametrize('condition', ['ours_our_courts', 'ours_mono_courts', 'ours_discovery'])
-def test_full_default_keeps_the_selected_models_and_capture_stream(
+def test_full_default_keeps_the_selected_models_and_contact_stream(
     runner: ModuleType, inputs: SimpleNamespace, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, condition: str,
 ) -> None:
-    events = (ContactEvent(10, 0.8, Half.TOP), ContactEvent(20, 0.9, Half.BOT))
+    events = (ContactEvent(10, 0.8, CourtHalf.TOP), ContactEvent(20, 0.9, CourtHalf.BOT))
     sequences = (ContactSequence(0, 0, 45, events),)
 
     def infer(*args: Any, **kwargs: Any) -> Any:
         assert kwargs['models'] is inputs.models
         assert kwargs['base'] is inputs.models.preprocessing
         assert kwargs['heuristic_only'] is False
-        assert kwargs['serve_start'] is None
         assert kwargs['spans'] == (None if condition == 'ours_discovery' else [(0, 45)])
-        kwargs['capture'].hybrid = SimpleNamespace(refined=SimpleNamespace(sequences=sequences, events=events))
-        return empty_annotation([], [])
+        assert kwargs['keep_working_data'] is True
+        return SimpleNamespace(
+            result=empty_annotation([], []),
+            working_data=SimpleNamespace(learned_model_prediction=SimpleNamespace(
+                rally_prediction=SimpleNamespace(sequences=sequences, events=events),
+            )),
+        )
 
-    monkeypatch.setattr(video_module, 'run_video', infer)
+    monkeypatch.setattr(video_module, 'annotate_video', infer)
     runner.run_item((inputs.config, inputs.item, condition, tmp_path))
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['mode'] == 'full'
@@ -178,8 +180,8 @@ def test_full_default_keeps_the_selected_models_and_capture_stream(
 def test_full_mode_keeps_existing_model_checks(
     runner: ModuleType, inputs: SimpleNamespace, tmp_path: Path,
 ) -> None:
-    inputs.models.preprocessing = BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.COMPOSITION)
-    with pytest.raises(ValueError, match='selected REPLAY mask'):
+    inputs.models.preprocessing = BaseAnnotatorConfig(rejected_grades=frozenset())
+    with pytest.raises(ValueError, match='settings differ'):
         runner.run_item((inputs.config, inputs.item, 'ours_our_courts', tmp_path))
 
 
@@ -189,7 +191,7 @@ def test_failed_heuristic_keeps_contacts_and_rallies_in_the_scored_population(
     def fail(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError('failed inference')
 
-    monkeypatch.setattr(video_module, 'run_video', fail)
+    monkeypatch.setattr(video_module, 'annotate_video', fail)
     runner.run_item((inputs.config, inputs.item, 'ours_our_courts', tmp_path), _selected_spec())
     result = read_json(tmp_path / 'ss22_08.json.gz')
     assert result['status'] == 'failed'

@@ -17,24 +17,37 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.courts.evidence import (
+from annotator import player_tracking
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.contacts.player_attribution import fit_alternation
+from annotator.courts.frame_geometry import build_scene_courts
+from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
     build_net_band,
     detected_court_info,
 )
-from annotator.evaluation.fixtures import (
+from annotator.inference import prepare_annotation_inputs as player_evidence
+from annotator.types import (
+    OTHER_HALF,
+    WRIST_L,
+    WRIST_R,
+    CourtHalf,
+    TrackedPlayers,
+    WristGaps,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
     FIXTURES,
     REPO_ROOT,
     SHARED_FILES,
     Fixture,
     verify_file,
 )
-from annotator.evaluation.scoring import RallyBoundary, classify_all, load_gt_rallies
-from annotator.outcomes import point_winner
-from annotator.rally import evidence as rally_evidence
-from annotator.types import WRIST_L, WRIST_R, StickyResult
-from shared.court import HOMOGRAPHY_RESOLUTION
+from experiments.annotator.legacy_evaluation.scoring import (
+    RallyBoundary,
+    classify_all,
+    load_gt_rallies,
+)
+from shared.court import HOMOGRAPHY_RESOLUTION, project_pixels_to_court
 
 REFERENCE_TAG = "shuttleset-annotator-heuristic-reference-v1"
 REFERENCE_RUN = "measurement/current_annotator_8config_288p"
@@ -182,7 +195,7 @@ def load_sticky(
     fixture: Fixture,
     paths: VideoPaths,
     resolution_table: pd.DataFrame,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, StickyResult, dict[str, object], tuple[float, float]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, TrackedPlayers, WristGaps, dict[str, object], tuple[float, float]]:
     """Build current sticky-player evidence from the pinned arrays."""
     track = np.load(paths.track, mmap_mode="r")
     bboxes = np.load(paths.bboxes, mmap_mode="r")
@@ -206,57 +219,53 @@ def load_sticky(
 
     court_info = load_active_court_info(paths.court_scenes)
     net_band = build_net_band(court_info, fixture.resolution)
-    segments = rally_evidence.tracker_segments(
-        scene_rows.to_dict("records"), court_present, expected_frames
-    )
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
-    sticky = rally_evidence.build_sticky_result(
+    scene_courts = build_scene_courts(scene_rows.to_dict("records"), fixture.resolution)
+    segments = player_tracking.tracker_segments(scene_courts, court_present, expected_frames)
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
+    players, wrist_gaps = player_evidence.build_player_evidence(
         track,
         segments,
         bboxes,
         scores,
         kps,
         ndet,
-        str(fixture.video_id),
-        {str(fixture.video_id): court_info},
-        resolution_table,
         fixture.resolution,
-        constants.body_unit_half_window,
+        constants.body_unit_half_window, scene_courts=scene_courts,
     )
-    return track, bboxes, kps, sticky, court_info, net_band
+    return track, bboxes, kps, players, wrist_gaps, court_info, net_band
 
 
 def half_from_distances(
     frame: int,
     distances: np.ndarray,
     track: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
     bboxes: np.ndarray,
     net_band: tuple[float, float],
-) -> point_winner.Half | None:
+) -> CourtHalf | None:
     """Select the nearest slot and retain production's foot-versus-net half check."""
     if track[frame, 2] != 1:
         return None
     if not np.isfinite(distances).any():
         return None
     slot_index = int(np.nanargmin(distances))
-    pose_index = int(sticky.picks[frame, slot_index])
+    pose_index = int(players.detection_indices[frame, slot_index])
     if pose_index < 0:
         return None
     foot_y = float(bboxes[frame, pose_index, 3])
     if not np.isfinite(foot_y):
         return None
     if foot_y < net_band[0]:
-        return point_winner.Half.TOP
+        return CourtHalf.TOP
     if foot_y > net_band[1]:
-        return point_winner.Half.BOT
+        return CourtHalf.BOT
     return None
 
 
 def court_distances(
     frame: int,
     track: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
     kps: np.ndarray,
     resolution: tuple[float, float],
     court_info: dict[str, object],
@@ -264,19 +273,19 @@ def court_distances(
     """Measure wrist-to-shuttle distance after a floor-plane homography projection."""
     distances = np.full(2, np.nan, dtype=float)
     shuttle_px = np.asarray(track[frame, :2], dtype=float) * np.asarray(resolution, dtype=float)
-    shuttle_court = point_winner.project_pixels_to_court(
+    shuttle_court = project_pixels_to_court(
         shuttle_px[:, None], resolution, court_info
     )[:, 0]
     if not np.isfinite(shuttle_court).all():
         return distances
     for slot_index in range(2):
-        pose_index = int(sticky.picks[frame, slot_index])
+        pose_index = int(players.detection_indices[frame, slot_index])
         if pose_index < 0:
             continue
         wrists = np.asarray(kps[frame, pose_index, (WRIST_L, WRIST_R), :], dtype=float)
         if not np.isfinite(wrists).all():
             continue
-        projected = point_winner.project_pixels_to_court(wrists.T, resolution, court_info).T
+        projected = project_pixels_to_court(wrists.T, resolution, court_info).T
         if np.isfinite(projected).all():
             distances[slot_index] = float(np.linalg.norm(projected - shuttle_court, axis=1).min())
     return distances
@@ -285,7 +294,7 @@ def court_distances(
 def image_distances(
     frame: int,
     track: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
     kps: np.ndarray,
     resolution: tuple[float, float],
 ) -> np.ndarray:
@@ -293,7 +302,7 @@ def image_distances(
     distances = np.full(2, np.nan, dtype=float)
     shuttle_px = np.asarray(track[frame, :2], dtype=float) * np.asarray(resolution, dtype=float)
     for slot_index in range(2):
-        pose_index = int(sticky.picks[frame, slot_index])
+        pose_index = int(players.detection_indices[frame, slot_index])
         if pose_index < 0:
             continue
         wrists = np.asarray(kps[frame, pose_index, (WRIST_L, WRIST_R), :], dtype=float)
@@ -306,51 +315,52 @@ def predictions_for_frame(
     track: np.ndarray,
     bboxes: np.ndarray,
     kps: np.ndarray,
-    sticky: StickyResult,
+    players: TrackedPlayers,
+    wrist_gaps: WristGaps,
     resolution: tuple[float, float],
     court_info: dict[str, object],
     net_band: tuple[float, float],
-) -> tuple[dict[str, point_winner.Half | None], dict[str, np.ndarray]]:
+) -> tuple[dict[str, CourtHalf | None], dict[str, np.ndarray]]:
     """Return all three predictions and their two-slot distance vectors."""
-    body = np.asarray(sticky.distances_per_slot[frame], dtype=float)
-    image = image_distances(frame, track, sticky, kps, resolution)
-    projected = court_distances(frame, track, sticky, kps, resolution, court_info)
+    body = np.asarray(wrist_gaps.per_player[frame], dtype=float)
+    image = image_distances(frame, track, players, kps, resolution)
+    projected = court_distances(frame, track, players, kps, resolution, court_info)
     distances = {
         "body_height": body,
         "image_pixels": image,
         "court_projection": projected,
     }
     predictions = {
-        method: half_from_distances(frame, values, track, sticky, bboxes, net_band)
+        method: half_from_distances(frame, values, track, players, bboxes, net_band)
         for method, values in distances.items()
     }
     return predictions, distances
 
 
-def fitted_first(final: point_winner.Half | None, n_strokes: int) -> point_winner.Half | None:
+def fitted_first(final: CourtHalf | None, n_strokes: int) -> CourtHalf | None:
     """Return the first alternating half implied by one final half and count."""
     if final is None or n_strokes == 0:
         return None
-    return final if n_strokes % 2 == 1 else point_winner.OTHER_HALF[final]
+    return final if n_strokes % 2 == 1 else OTHER_HALF[final]
 
 
 def per_span_predictions(
     method: str,
     annotations: dict[str, Any],
-    prediction_cache: dict[int, dict[str, point_winner.Half | None]],
-) -> tuple[list[point_winner.Half | None], list[point_winner.Half | None]]:
+    prediction_cache: dict[int, dict[str, CourtHalf | None]],
+) -> tuple[list[CourtHalf | None], list[CourtHalf | None]]:
     """Fit alternating player phases for the published detected contacts."""
     n_spans = len(annotations["spans"])
     contacts = {
         int(rally_id): [int(frame) for frame in frames]
         for rally_id, frames in annotations["filtered_by_rally"].items()
     }
-    final_halves: list[point_winner.Half | None] = []
-    first_halves: list[point_winner.Half | None] = []
+    final_halves: list[CourtHalf | None] = []
+    first_halves: list[CourtHalf | None] = []
     for rally_id in range(n_spans):
         frames = contacts.get(rally_id, [])
         guesses = [prediction_cache[frame][method] for frame in frames]
-        final = point_winner.fit_alternation(guesses)
+        final = fit_alternation(guesses)
         final_halves.append(final)
         first_halves.append(fitted_first(final, len(frames)))
     return final_halves, first_halves
@@ -360,15 +370,15 @@ def end_to_end_counts(
     fixture: Fixture,
     master: pd.DataFrame,
     spans: list[tuple[int, int]],
-    final_halves: list[point_winner.Half | None],
-    first_halves: list[point_winner.Half | None],
+    final_halves: list[CourtHalf | None],
+    first_halves: list[CourtHalf | None],
 ) -> dict[str, dict[str, int]]:
     """Score rally-final player and server predictions under fixed boundaries and contacts."""
     rallies = load_gt_rallies(master, fixture.video_id)
     classifications = classify_all(spans, rallies)
     video_gt = master.loc[master["vid"] == fixture.video_id, ["frame_num", "player_side"]]
     frame_side = {
-        int(frame): point_winner.Half.TOP if str(side) == "Top" else point_winner.Half.BOT
+        int(frame): CourtHalf.TOP if str(side) == "Top" else CourtHalf.BOT
         for frame, side in video_gt.itertuples(index=False, name=None)
     }
     counts = {
@@ -507,7 +517,7 @@ def main() -> None:
     provenance_files: dict[str, dict[str, str]] = {}
     for fixture in FIXTURES:
         paths = video_paths(fixture, reference_root, pose_root, release_records)
-        track, bboxes, kps, sticky, court_info, net_band = load_sticky(
+        track, bboxes, kps, players, wrist_gaps, court_info, net_band = load_sticky(
             fixture, paths, resolution_table
         )
         annotations = json.loads(paths.annotations.read_text())
@@ -519,7 +529,7 @@ def main() -> None:
         gt = master.loc[master["vid"] == fixture.video_id, ["frame_num", "player_side"]]
         gt_frames = {int(frame) for frame in gt["frame_num"]}
         needed_frames = sorted(gt_frames | filtered_frames)
-        prediction_cache: dict[int, dict[str, point_winner.Half | None]] = {}
+        prediction_cache: dict[int, dict[str, CourtHalf | None]] = {}
         distance_cache: dict[int, dict[str, np.ndarray]] = {}
         for frame in needed_frames:
             predictions, distances = predictions_for_frame(
@@ -527,7 +537,8 @@ def main() -> None:
                 track,
                 bboxes,
                 kps,
-                sticky,
+                players,
+                wrist_gaps,
                 fixture.resolution,
                 court_info,
                 net_band,
@@ -550,19 +561,19 @@ def main() -> None:
                 row[f"{method}_pred"] = prediction.value if prediction is not None else None
                 row[f"{method}_top_distance"] = nullable_float(float(distances[method][0]))
                 row[f"{method}_bot_distance"] = nullable_float(float(distances[method][1]))
-            row["top_bbox_height"] = nullable_float(float(sticky.bbox_height[frame, 0]))
-            row["bot_bbox_height"] = nullable_float(float(sticky.bbox_height[frame, 1]))
+            row["top_bbox_height"] = nullable_float(float(players.box_heights_px[frame, 0]))
+            row["bot_bbox_height"] = nullable_float(float(players.box_heights_px[frame, 1]))
             contact_rows.append(row)
 
         body_final, body_first = per_span_predictions(
             "body_height", annotations, prediction_cache
         )
         stored_final = [
-            point_winner.Half(value) if value is not None else None
+            CourtHalf(value) if value is not None else None
             for value in annotations["striker_halves"]
         ]
         stored_first = [
-            point_winner.Half(value) if value is not None else None
+            CourtHalf(value) if value is not None else None
             for value in annotations["fitted_first_all"]
         ]
         if body_final != stored_final or body_first != stored_first:

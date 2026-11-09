@@ -2,8 +2,7 @@
 
 The routing rule is deliberately centralised: numeric names in
 ``_OVERRIDABLE_THRESHOLD_FIELDS`` become ``BaseAnnotatorConfig.overrides_base30``;
-the two segmentation fields are direct base fields; serve numerics belong to
-``ServeStartConfig``.  Strategy names are enum names, never enum values.
+``max_high_shot_gap_frames`` is a direct base field. ``require_fast_burst`` is a boolean choice.
 """
 from __future__ import annotations
 
@@ -23,32 +22,12 @@ from typing import Any
 
 import numpy as np
 
+from annotator.annotate_video import annotate_video
 from annotator.config import (
     _OVERRIDABLE_THRESHOLD_FIELDS,
     BaseAnnotatorConfig,
-    ScalingKind,
-    resolve,
+    scale_config_to_fps,
 )
-from annotator.evaluation.fixtures import (
-    FIXTURES,
-    SHARED_FILES,
-    FilePin,
-    Fixture,
-    verify_file,
-)
-from annotator.evaluation.gt_scoring import RunVideoInputs, build_run_video_inputs
-from annotator.evaluation.scoring import (
-    CONTACT_TOLERANCES_BASE30,
-    RallyBoundary,
-    classify_all,
-    load_gt_rallies,
-    merged_span_indices,
-    score_boundaries,
-    score_contacts,
-)
-from annotator.rally.serve import ServeStartClose, ServeStartMode
-from annotator.run_video import run_video
-from annotator.types import ServeStartConfig, SpanOpen
 from experiments.annotator.heuristic_tuning import selection
 from experiments.annotator.heuristic_tuning.schemas import (
     CSV_COLUMNS_BY_FILENAME,
@@ -59,18 +38,35 @@ from experiments.annotator.heuristic_tuning.schemas import (
     winner_document,
     winner_spec,
 )
+from experiments.annotator.legacy_evaluation.fixtures import (
+    FIXTURES,
+    SHARED_FILES,
+    FilePin,
+    Fixture,
+    verify_file,
+)
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    RunVideoInputs,
+    build_run_video_inputs,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
+    CONTACT_TOLERANCES_BASE30,
+    RallyBoundary,
+    classify_all,
+    load_gt_rallies,
+    merged_span_indices,
+    score_boundaries,
+    score_contacts,
+)
+from shared.frame_timing import frames_at_fps
 
 LABEL_SHIPPED = "shipped_defaults"
 QUALITY_FLOOR = 0.6
 WINNER_FILENAME = "config_winner.json"
 WINNER_SCHEMA_VERSION = 1
-# Persisted compatibility field from the retired direction-and-speed detector.
-# Live contact detection does not read this value.
-LEGACY_MIN_CONTACT_SPEED = 0.005
 BOUNDARY_KEYS = ("rest_speed", "rest_window", "end_rest_frames", "start_speed", "start_min_frames")
 CONTACT_KEYS = ("smooth_window", "impulse_floor_half_window_frames", "contact_dedup_radius_frames", "contact_impulse_multiple")
-DIRECT_BASE_KEYS = frozenset({"gap_state_demotion_bound", "quiet_start_window"})
-SERVE_NUMERIC_KEYS = frozenset({"threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames"})
+DIRECT_BASE_KEYS = frozenset({"max_high_shot_gap_frames"})
 
 BOUNDARY_VALUES = {
     "rest_speed": (1 / 600, 1 / 400, 1 / 240, 1 / 120, 1 / 60),
@@ -218,7 +214,7 @@ class CandidateSpec:
 
     label: str
     overrides_base30: Mapping[str, float]
-    strategies: Mapping[str, str]
+    strategies: Mapping[str, bool]
 
 
 def build_boundary_grid() -> list[CandidateSpec]:
@@ -238,61 +234,34 @@ def shipped_spec() -> CandidateSpec:
     return CandidateSpec(LABEL_SHIPPED, {}, {})
 
 
-def _base_and_serve(spec: CandidateSpec) -> tuple[BaseAnnotatorConfig, ServeStartConfig | None]:
-    """Apply the module routing rule shared by serialisation and execution."""
+def base_config(spec: CandidateSpec) -> BaseAnnotatorConfig:
+    """Convert a sweep candidate into the supported preprocessing settings."""
     overrides: dict[str, float] = {}
     direct: dict[str, float] = {}
-    serve: dict[str, float] = {}
     for key, value in spec.overrides_base30.items():
         if key in _OVERRIDABLE_THRESHOLD_FIELDS:
             overrides[key] = value
         elif key in DIRECT_BASE_KEYS:
             direct[key] = value
-        elif key in SERVE_NUMERIC_KEYS:
-            serve[key] = value
         else:
             raise ValueError(f"cannot route numeric sweep key {key!r}")
-    strategies: dict[str, str] = {}
-    span_open: SpanOpen | None = None
-    for key, name in spec.strategies.items():
-        try:
-            if key == "span_open":
-                span_open = SpanOpen[name]
-            elif key == "mode":
-                ServeStartMode[name]
-            elif key == "close":
-                ServeStartClose[name]
-            else:
-                raise ValueError(f"cannot route strategy key {key!r}")
-        except KeyError as error:
-            raise ValueError(f"invalid strategy value for key {key!r}: {name!r}") from error
-        if key in {"span_open", "mode", "close"}:
-            strategies[key] = name
-        else:
+    for key, value in spec.strategies.items():
+        if key != "require_fast_burst":
             raise ValueError(f"cannot route strategy key {key!r}")
-    base_kwargs: dict[str, Any] = {"overrides_base30": overrides or None, **direct}
-    if "span_open" in strategies:
-        base_kwargs["span_open"] = span_open
-    elif "quiet_start_window" in direct:
-        base_kwargs["span_open"] = None
-    base = BaseAnnotatorConfig(**base_kwargs)
-    if not serve and "mode" not in spec.strategies and "close" not in spec.strategies:
-        return base, None
-    if "threshold_bh" not in serve or "mode" not in spec.strategies:
-        raise ValueError("serve request requires threshold_bh and mode")
-    close = ServeStartClose[spec.strategies["close"]] if "close" in spec.strategies else None
-    return base, ServeStartConfig(serve["threshold_bh"], ServeStartMode[spec.strategies["mode"]], close, serve.get("stillness_threshold_bh"))
+        if not isinstance(value, bool):
+            raise TypeError(f"invalid strategy value for key {key!r}: {value!r}")
+    return BaseAnnotatorConfig(overrides_base30=overrides or None, **direct, **spec.strategies)
 
 
 def serialise_spec(spec: CandidateSpec) -> dict[str, dict[str, object]]:
     """Serialise using the same closed routing validation as application."""
-    _base_and_serve(spec)
+    base_config(spec)
     return winner_spec(spec.overrides_base30, spec.strategies)
 
 
 def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
-    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "gap_state_demotion_bound", "quiet_start_window", "threshold_bh", "stillness_threshold_bh", "serve_stillness_window_frames", "span_open", "mode", "close")
-    ranks = {"span_open": {None: 0, "REGION_START": 1, "BACK_FILL": 2}, "mode": {None: 0, "TRIM": 1, "REJECT": 2}, "close": {None: 0, "BURST": 1, "LAST_REST": 2}}
+    keys = (*BOUNDARY_KEYS, *CONTACT_KEYS, "max_high_shot_gap_frames", "require_fast_burst")
+    ranks = {"require_fast_burst": {False: 1, True: 2}}
     values: list[tuple[int, object]] = []
     for key in keys:
         value = spec.strategies.get(key) if key in ranks else spec.overrides_base30.get(key)
@@ -301,44 +270,21 @@ def _settings(spec: CandidateSpec) -> tuple[tuple[int, object], ...]:
 
 
 def _shipped_base30_values() -> dict[str, float]:
-    thresholds = resolve(BaseAnnotatorConfig(), 30.0).thresholds
+    thresholds = scale_config_to_fps(BaseAnnotatorConfig(), 30.0).thresholds
     return {key: getattr(thresholds, key) for key in _OVERRIDABLE_THRESHOLD_FIELDS}
 
 
 def _changed_from_defaults(spec: CandidateSpec) -> int:
-    """Count applied axes that differ from the complete shipped configuration."""
-    base, serve = _base_and_serve(spec)
+    """Count applied axes that differ from the shipped configuration."""
+    base = base_config(spec)
     shipped = BaseAnnotatorConfig()
     shipped_base30 = _shipped_base30_values()
     changed = 0
     for key, value in spec.overrides_base30.items():
-        if key in _OVERRIDABLE_THRESHOLD_FIELDS:
-            if value != shipped_base30[key]:
-                changed += 1
-        elif key in DIRECT_BASE_KEYS:
-            if value != getattr(shipped, key):
-                changed += 1
-        elif key in SERVE_NUMERIC_KEYS:
-            changed += 1
-        else:
-            raise ValueError(f"cannot route numeric sweep key {key!r}")
-    for key, value in spec.strategies.items():
-        shipped_value = getattr(shipped, key, None)
-        if key == "span_open":
-            applied = base.span_open
-            if applied != shipped_value:
-                changed += 1
-        else:
-            # There is no shipped serve configuration. Any requested serve
-            # axis is therefore a real configuration change.
-            if key in {"mode", "close"}:
-                changed += 1
-            else:
-                raise ValueError(f"cannot route strategy key {key!r}")
-    if serve is not None:
-        # Numeric serve axes were counted above. This assertion keeps the
-        # complete application and counting paths aligned.
-        assert any(key in SERVE_NUMERIC_KEYS for key in spec.overrides_base30)
+        default = shipped_base30[key] if key in _OVERRIDABLE_THRESHOLD_FIELDS else getattr(shipped, key)
+        changed += value != default
+    if "require_fast_burst" in spec.strategies:
+        changed += base.require_fast_burst != shipped.require_fast_burst
     return changed
 
 
@@ -352,7 +298,7 @@ def _display_config(spec: CandidateSpec) -> dict[str, object]:
 
 def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: Any) -> dict[str, Any]:
     gt = load_gt_rallies(master, fixture.video_id)
-    spans = result.spans
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
     boundary = score_boundaries(spans, gt)
     classifications = classify_all(spans, gt)
     merged = merged_span_indices(spans, gt)
@@ -360,18 +306,20 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
     offsets = [abs(spans[span][0] - rally.extent[0]) for _index, rally, span in clean]
     contained = [sum(start <= first and last < end for first, last in (r.extent for r in gt)) for start, end in spans]
     tolerances = {
-        band: ScalingKind.FRAME_COUNT.scale(band, fixture.fps)
+        band: frames_at_fps(band, fixture.fps)
         for band in CONTACT_TOLERANCES_BASE30
     }
-    contacts = [(contact.rally_id, contact.contact_frame, contact.proximity_ok, contact.wrist_near) for contact in result.filtered_contacts]
+    contacts = [(rally_id, event.frame, None, None)
+                for rally_id, rally in enumerate(result.rallies) for event in rally.sequence.events]
     contact = score_contacts(spans, contacts, gt, tuple(tolerances.values()))
     row: dict[str, Any] = {
         "label": spec.label,
         **_display_config(spec),
-        "min_contact_speed": LEGACY_MIN_CONTACT_SPEED,
         "n_spans": len(spans), **boundary, "clean_covered": len(clean), "swallowed_rallies": sum(max(0, count - 1) for count in contained), "max_rallies_in_one_span": max(contained, default=0),
         "strict_align_median": float(np.median(offsets)) if offsets else None, "strict_align_p90": float(np.percentile(offsets, 90)) if offsets else None,
-        "total_candidates": len(result.filtered_contacts), "changed_from_defaults": _changed_from_defaults(spec), "settings": _settings(spec)}
+        "total_candidates": len(contacts), "changed_from_defaults": _changed_from_defaults(spec),
+        "settings": _settings(spec),
+    }
     denominator = len(gt) + row["clean_covered"] + row["spurious_spans"]
     row["strict_f1"] = 0.0 if denominator == 0 else 2 * row["clean_covered"] / denominator
     start = boundary["start_alignment"]
@@ -419,17 +367,17 @@ def _row_for_result(fixture: Fixture, spec: CandidateSpec, result: Any, master: 
 
 
 def production_candidate_runner(*, fixture_inputs: RunVideoInputs, candidate_spec: CandidateSpec) -> dict[str, Any]:
-    """Run and score one candidate; resolution remains inside ``run_video``."""
+    """Run and score one candidate; resolution remains inside ``annotate_video``."""
     video_id = fixture_inputs.keyword["video_id"]
     fixture = next(
         fixture
         for fixture in FIXTURES
         if fixture.video_id == video_id or fixture.name == video_id
     )
-    base, serve_start = _base_and_serve(candidate_spec)
+    base = base_config(candidate_spec)
     keyword = dict(fixture_inputs.keyword)
-    keyword.update(base=base, serve_start=serve_start)
-    result = run_video(*fixture_inputs.positional, **keyword, heuristic_only=True)
+    keyword.update(base=base)
+    result = annotate_video(*fixture_inputs.positional, **keyword, heuristic_only=True).result
     return _row_for_result(fixture, candidate_spec, result, fixture_inputs.master)
 
 

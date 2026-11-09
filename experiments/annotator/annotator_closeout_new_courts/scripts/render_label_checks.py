@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from annotator.validation_overlay.core.decode import iter_span_frames
+from video_overlay.decode import iter_span_frames
 
 STILL_WIDTH = 640
 STILL_HEIGHT = 360

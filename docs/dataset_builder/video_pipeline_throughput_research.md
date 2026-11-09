@@ -135,7 +135,7 @@ set per stage.
 | Future RGB features | Frame-indexed player or action crops | Enough detail for hands, rackets, and body motion | Retain the original master until validated |
 
 The canonical metadata checks are in
-[video_metadata.py](../../src/annotator/video_metadata.py). They reject
+[video_metadata.py](../../src/shared/video_metadata.py). They reject
 variable frame rate, conflicting counted and declared frame totals, non-zero
 start time, and rotation metadata.
 
@@ -144,7 +144,7 @@ TrackNet's fixed dimensions are declared in
 640x640 detector input and 192x256 per-person pose input in
 [rtmlib_pose.py](../../src/shared/rtmlib_pose.py). Scene detection
 explicitly calls for a frame-count-preserving 288p downsample in
-[composition_mask.py](../../src/annotator/masks/composition.py).
+[composition_mask.py](../../experiments/annotator/scene_cut_mask.py).
 
 ## Stride and repeated resizing are the strongest known shuttle costs
 
@@ -179,7 +179,7 @@ only frame, position, and visibility data. See
 
 The full annotation entry point supports either frame-level Inpaint codes or a
 boolean shuttle-hallucination mask. When neither is supplied, it creates an
-all-false mask. See [run_video.py](../../src/annotator/run_video.py).
+all-false mask. See [run_video.py](../../src/annotator/annotate_video.py).
 
 The first completed trial video's sidecar reported:
 

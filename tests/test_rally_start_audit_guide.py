@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-import annotator.review.rally_starts as events
-from annotator.review.broadcast_editor import read_guides
+import labelling.rally_starts as events
+from labelling.scene_editor import read_guides
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = (

@@ -9,8 +9,7 @@ X3D-M records come first; [VideoMAE (base) records](#videomae-b-pilot) follow.
 
 Each directory under [`x3d_pilot/`](x3d_pilot/) is one training run, named
 `{scheme}-contact{percent}-lr{rate}-seed{seed}`. We keep all 12 runs,
-including the ones not selected, as the pilot's full record. The write-up is
-[`../x3d_results.md`](../x3d_results.md).
+including the ones not selected, as the pilot's full record.
 
 ## Files in each run
 
@@ -27,8 +26,8 @@ matched and correct-player hit counts, rally and fully correct rally counts,
 contact F1, correct-player F1 and the fully correct percentage. Every check
 covers the same 668 validation rallies and 5,696 labelled hits.
 
-The two selected checkpoints are in [`../weights/`](../weights/README.md).
-Other checkpoints and per-frame probabilities are not included.
+Pilot checkpoints and per-frame probabilities are not included. Download
+the seven current rerun checkpoints from the [weights release](../weights/README.md).
 
 ## Test results
 
@@ -42,8 +41,8 @@ labelled hits. Settings and checkpoint selection were fixed before testing.
 | `events.json.gz` | Aggregate contact F1, correct-player F1 and fully correct rally scores at ±5 and ±10 frames, with supporting counts; decoded event predictions grouped by video and rally. |
 | `frame_metrics.json.gz` | Test cross-entropy, macro F1 and frame confusion matrix, using the same class order as the validation histories. |
 
-The [report](../x3d_results.md#test-comparison) compares the two seeds
-with the five-seed supplied-boundary annotator and MonoTrack results.
+The [current report](../x3d_results.md#test-results) compares the completed
+five-seed rerun with the annotator and MonoTrack.
 
 ## Other files
 
@@ -98,8 +97,7 @@ named `videomae-lr{rate}-seed{seed}`. Each holds the same four files as an X3D-M
 run: `settings.json.gz`, `history.json.gz`, `continuation.json.gz` and
 `training_progress.json.gz`. The settings add the VideoMAE fields described in
 the [run guide](../VIDEOMAE.md). Every check covers the same 668 validation
-rallies and 5,696 labelled hits as X3D-M. The write-up is
-[`../videomae_results.md`](../videomae_results.md).
+rallies and 5,696 labelled hits as X3D-M.
 
 `videomae_pilot/selection.json.gz` records the queue's learning-rate ranking
 and each run's selected checkpoint. [`videomae_test/`](videomae_test/) contains

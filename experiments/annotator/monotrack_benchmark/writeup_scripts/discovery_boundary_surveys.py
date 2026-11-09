@@ -10,13 +10,15 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import asdict
 from pathlib import Path
 
+from shared.frame_timing import frames_at_fps
+
 os.environ.update(OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
 import pandas as pd
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
@@ -45,7 +47,7 @@ def judge_video(task: tuple[dict, Path, list[tuple[int, int]]]) -> dict[str, lis
     sequences, _events = stream_from_payload(scored)
     result = {}
     for name, policy in POLICIES.items():
-        judged = judge_found_rallies(sequences, labels, scale_frames(10, item['fps']), fps=item['fps'],
+        judged = judge_found_rallies(sequences, labels, frames_at_fps(10, item['fps']), fps=item['fps'],
                                     endpoint_limits=policy)
         result[name] = [row | {'video': int(item['video_id']), 'confidence': stream['confidence'][str(row['span_id'])]}
                         for row in judged]

@@ -6,8 +6,8 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from annotator.vlm_scene_benchmark.backends import backend_spec
-from annotator.vlm_scene_benchmark.contracts import (
+from experiments.annotator.vlm_scene_benchmark.backends import backend_spec
+from experiments.annotator.vlm_scene_benchmark.contracts import (
     BenchmarkRunRecord,
     BroadcastPhase,
     CameraView,
@@ -25,8 +25,12 @@ from annotator.vlm_scene_benchmark.contracts import (
     read_run_record,
     write_run_record,
 )
-from annotator.vlm_scene_benchmark.gate_cli import RecordTarget, gate_failures, main
-from annotator.vlm_scene_benchmark.runtime import sha256_bytes
+from experiments.annotator.vlm_scene_benchmark.gate_cli import (
+    RecordTarget,
+    gate_failures,
+    main,
+)
+from experiments.annotator.vlm_scene_benchmark.runtime import sha256_bytes
 
 SHA256 = "a" * 64
 

@@ -18,7 +18,6 @@ sys.path.insert(0, str(REPO / 'src'))
 
 from dataset_builder.vision import load_npy_xz
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
-from experiments.annotator.tree_simplification.pools import original_options
 
 POLICIES = ('2_3', '3_3', '5_5')
 
@@ -45,12 +44,10 @@ def compare_arrays(left: np.ndarray, right: np.ndarray, spans: np.ndarray) -> di
     return result
 
 
-def compare_video(roots: dict[str, Path], settings: dict[str, Any], identity: str) -> list[dict[str, Any]]:
+def compare_video(roots: dict[str, Path], identity: str) -> list[dict[str, Any]]:
     pools, targets = {}, {}
     for policy, root in roots.items():
         pool = joblib.load(root / 'pools/videos' / f'{identity}.joblib')
-        if settings[policy]['original_options']:
-            pool = original_options(pool)
         pools[policy] = pool
         targets[policy] = load_npy_xz(root / 'selector/targets' / f'{identity}.npy.xz')
     reference = pools[POLICIES[0]]
@@ -67,7 +64,6 @@ def compare_video(roots: dict[str, Path], settings: dict[str, Any], identity: st
 def compare_group(training: Path, out: Path, candidate: str, seed: int) -> list[dict[str, Any]]:
     roots = {policy: training / policy / 'test-run/candidates' / candidate / f'seed-{seed}'
              for policy in POLICIES}
-    settings = {policy: read_json(root / 'selector/settings.json.gz') for policy, root in roots.items()}
     counts = read_json(roots[POLICIES[0]] / 'selector/pool-counts.json.gz')
     if any(set(counts) != set(read_json(root / 'selector/pool-counts.json.gz')) for root in roots.values()):
         raise ValueError('Policy fits use different videos')
@@ -81,7 +77,7 @@ def compare_group(training: Path, out: Path, candidate: str, seed: int) -> list[
                 rows = read_json(checkpoint)
             else:
                 rows = []
-                for comparison in compare_video(roots, settings, identity):
+                for comparison in compare_video(roots, identity):
                     rows.append({'candidate': candidate, 'seed': seed, 'video': identity,
                                  'split': count['split'], **comparison})
                 write_json(checkpoint, rows)

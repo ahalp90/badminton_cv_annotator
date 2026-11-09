@@ -10,7 +10,6 @@ import multiprocessing
 import os
 import platform
 import resource
-import subprocess
 import time
 import tomllib
 import traceback
@@ -72,7 +71,7 @@ from experiments.annotator.heuristic_tuning.corpus_sweep import (
 )
 from experiments.annotator.heuristic_tuning.sweep import (
     CandidateSpec,
-    _base_and_serve,
+    base_config,
     serialise_spec,
 )
 from experiments.annotator.old_court_regression.old_inputs import (
@@ -160,14 +159,12 @@ def load_paths(path: Path) -> dict[str, Path]:
     return paths
 
 
-def source_record() -> dict[str, Any]:
-    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPOSITORY, text=True).strip()
+def runtime_versions() -> dict[str, Any]:
+    """Python and package versions used for fitting and evaluation."""
     return {
-        'revision': revision, 'files_md5': {},
-        'dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=REPOSITORY, text=True).strip()),
         'python': platform.python_version(),
         'packages': {name: version(name) for name in (
-            'numpy', 'scipy', 'scikit-learn', 'pandas', 'joblib', 'numba',
+            'numpy', 'scipy', 'scikit-learn', 'xgboost', 'pandas', 'joblib', 'numba',
             'beartype', 'jaxtyping', 'threadpoolctl',
         )},
     }
@@ -217,32 +214,9 @@ def file_manifest(files: dict[str, Path]) -> dict[str, dict[str, Any]]:
     return records
 
 
-def resume_identity(document: dict[str, Any]) -> dict[str, Any]:
-    """Compare inputs and settings, allowing source edits in legacy run records.
-
-    Use a fresh output directory when code changes affect the experiment itself.
-    """
-    identity = dict(document)
-    identity.pop('script_md5', None)
-    identity.pop('repeat_helper_md5', None)
-    if 'source' in identity:
-        source = dict(identity['source'])
-        source.pop('revision', None)
-        source.pop('dirty', None)
-        # Keep data/config hashes such as training groups from older snapshots.
-        source['files_md5'] = {
-            name: checksum for name, checksum in source.get('files_md5', {}).items()
-            if not name.endswith('.py') and name not in ('pyproject.toml', 'uv.lock')
-        }
-        identity['source'] = source
-    if 'original_snapshot' in identity:
-        identity['original_snapshot'] = resume_identity(identity['original_snapshot'])
-    return identity
-
-
 def keep_run_identity(path: Path, document: dict[str, Any]) -> None:
     if path.exists():
-        if resume_identity(read_json(path)) != resume_identity(document):
+        if read_json(path) != document:
             raise ValueError(f'{path}: environment, inputs or configurations changed; use a fresh output directory')
     else:
         write_json(path, document)
@@ -252,7 +226,7 @@ def initialise_worker(paths: dict[str, Path], output: Path, full: bool) -> None:
     global _WORKER
     threadpool_limits(limits=1)
     models = load_models(paths['bundle']) if full else None
-    _WORKER = WorkerState(paths, output, models, OrderedDict(), source_record())
+    _WORKER = WorkerState(paths, output, models, OrderedDict(), runtime_versions())
 
 
 def load_video_inputs(video: SearchVideo, paths: dict[str, Path]) -> OldVideoInputs:
@@ -299,7 +273,7 @@ def run_one_job(job: SearchJob) -> bool:
     if len(_WORKER.inputs) > INPUT_CACHE_SIZE:
         _WORKER.inputs.popitem(last=False)
     load_seconds = time.perf_counter() - started
-    base, serve_start = _base_and_serve(spec)
+    base = base_config(spec)
     models = _WORKER.models
     if models is not None:
         base = models.preprocessing
@@ -308,7 +282,7 @@ def run_one_job(job: SearchJob) -> bool:
     failure = None
     try:
         with cache_sticky_result(_WORKER.output / 'cache' / 'sticky', video.identity):
-            stream = run_configuration(inputs, base, serve_start=serve_start, models=models)
+            stream = run_configuration(inputs, base, models=models)
     except StickyCacheError:
         raise
     except Exception as error:  # noqa: BLE001 -- retain failed inference in the scored population.
@@ -497,7 +471,7 @@ def run_locked(args: argparse.Namespace) -> None:
     if not videos:
         raise ValueError('the selected split contains no videos')
     identity = {
-        'schema': 'heuristic-only-tune/2', 'source': source_record(), 'split': args.split,
+        'schema': 'heuristic-only-tune/2', 'source': runtime_versions(), 'split': args.split,
         'mode': 'full' if args.full else 'heuristic', 'smoke_test': bool(args.only),
         'paths': {key: str(path) for key, path in paths.items()},
         'input_files': file_manifest(input_paths(paths, videos, args.full)),
@@ -506,7 +480,7 @@ def run_locked(args: argparse.Namespace) -> None:
             'identity': video.identity, 'dataset': video.dataset, 'split': video.split,
             'fps': video.fps, 'resolution': list(video.resolution),
             'directory': video.directory, 'frame_count': video.frame_count,
-            'rallies': [[rally.identity, list(rally.frames),
+            'rallies': [[rally.rally_id, list(rally.frames),
                          [None if side is None else side.value for side in rally.sides]] for rally in video.rallies],
         } for video in videos],
     }

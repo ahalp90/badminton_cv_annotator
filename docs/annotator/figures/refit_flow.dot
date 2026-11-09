@@ -8,15 +8,18 @@ digraph refit {
   heur [label="Build training inputs\nrough rallies + contact features"];
   finalcontact [label="Deployment contact tree\nfit on all training groups"];
   crosscontact [label="Out-of-group contact scores\neach training group scored by a tree that did not see it"];
-  seq [label="Sequence trees\nfit from shared repair options"];
+  seq [label="Deployment rally selector\nfit contact-toggle options from all training groups"];
+  crossseq [label="Held-group selector predictions\none selector fit per held-out group"];
   conf [label="Rally review tree\nfit from out-of-group finished rallies"];
-  bundle [label="Model directory\ncontact + sequence + review trees\nsettings + side geometry"];
+  bundle [label="Model directory\ncontact + rally selector + review trees\nsettings"];
   val [label="Validation\ncompare model variants"];
   test [label="Test\nfinal held-out measurement"];
 
   data -> manifest -> heur;
   heur -> finalcontact;
-  heur -> crosscontact -> seq -> conf;
+  heur -> crosscontact;
+  crosscontact -> seq;
+  crosscontact -> crossseq -> conf;
   finalcontact -> bundle;
   seq -> bundle;
   conf -> bundle;

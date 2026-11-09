@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.commentary_benchmark_inputs import (
+from dataset_builder.commentary_inputs import (
     RETIMED_RELATIVE_DIR,
     load_retimed_chunks_for_video,
 )
@@ -47,7 +47,7 @@ REPLAY_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 
 # Ari's issue #138 rule: a chunk links to the rally it starts inside, plus every rally
 # that ended within this many seconds before it. Swept on the issue #136 aligned times
-# over 6,156 combined human rallies (docs/dataset_builder/issue_104_shuttleset_benchmark.md,
+# over 6,156 combined GT rallies (docs/dataset_builder/issue_104_shuttleset_benchmark.md,
 # "Aligned rerun, issue 136"): 8 s covers 34.4% with 0 ambiguous chunks, 10 s covers 36.1%
 # with 0 ambiguous, 15 s covers 39.6% with 8 ambiguous, 20 s covers 42.5% with 97
 # ambiguous. 10 s is the widest window with zero ambiguity, and coverage keeps climbing

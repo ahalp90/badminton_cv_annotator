@@ -11,13 +11,13 @@ from types import SimpleNamespace
 import numpy as np
 
 import shuttleset22
-from annotator.video_metadata import VideoMetadata
 from dataset_builder.vision import (
     CourtDetectorSettings,
     load_npy_xz,
     pose_artifact_paths,
     save_npy_xz,
 )
+from shared.video_metadata import VideoMetadata
 
 
 def test_real_source_list_records_downloads_overlaps_and_missing_sources() -> None:
@@ -356,7 +356,6 @@ def test_court_source_publishes_receipt_and_validates_resume(
     (build,) = builds
     assert build["settings"] is COURT_SETTINGS
     assert build["pose_dir"] == output
-    assert build["ref_err_px"] == shuttleset22.COURT_REF_ERR_PX
     receipt = vision.load_json_gz(output / shuttleset22.COURT_RECEIPT_FILENAME)
     assert receipt["schema"] == "shuttleset22-court/0.2"
     assert receipt["configuration"] == {
@@ -364,7 +363,6 @@ def test_court_source_publishes_receipt_and_validates_resume(
         "template_device": "cpu",
         "reuse_courts": False,
         "court_mode": "video-robust",
-        "ref_err_px": shuttleset22.COURT_REF_ERR_PX,
     }
     assert receipt["model"] == DEEPLSD_IDENTITY
     assert receipt["completed"] is True

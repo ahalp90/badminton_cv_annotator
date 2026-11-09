@@ -12,14 +12,14 @@ from typing import Any, cast
 
 import pytest
 
-from annotator.outcomes.point_winner import Half
 from annotator.training.sequences import LabelledRally
+from annotator.types import CourtHalf
 from experiments.annotator.heuristic_only_tune import run as search
 from experiments.annotator.heuristic_tuning.sweep import CandidateSpec
 
 
 def _video(identity: str = 'example') -> search.SearchVideo:
-    rally = LabelledRally('set_1/rally_1', (10, 20), (Half.TOP, Half.BOT))
+    rally = LabelledRally('set_1/rally_1', (10, 20), (CourtHalf.TOP, CourtHalf.BOT))
     return search.SearchVideo(identity, 'ShuttleSet', 'train', 30.0, (1280.0, 720.0), (rally,))
 
 
@@ -178,9 +178,9 @@ def test_failed_inference_keeps_labels_in_summary_and_is_not_retried(
 
     monkeypatch.setattr(search, 'load_video_inputs', load)
     monkeypatch.setattr(search, 'run_configuration', fail)
-    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'worker-start'})
+    monkeypatch.setattr(search, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.0'}})
     search.initialise_worker({}, tmp_path, False)
-    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'later-commit'})
+    monkeypatch.setattr(search, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.1'}})
     assert search.run_one_job(search.SearchJob(video, spec))
     other = _spec('other settings', 4)
     assert search.run_one_job(search.SearchJob(video, other))
@@ -196,7 +196,7 @@ def test_failed_inference_keeps_labels_in_summary_and_is_not_retried(
     attempt = search.latest_attempt(tmp_path, video.identity, other)
     assert attempt is not None
     record = attempt['fixtures'][video.identity]
-    assert record['source'] == {'revision': 'worker-start'}
+    assert record['source'] == {'python': '3.12', 'packages': {'numpy': '2.0'}}
     assert record['input_cache_hit']
     assert record['failure']['type'] == 'RuntimeError'
     assert record['inference_seconds'] >= 0
@@ -236,32 +236,36 @@ def test_cache_failure_propagates_without_becoming_an_empty_prediction(
 
     monkeypatch.setattr(search, 'load_video_inputs', lambda *_args: object())
     monkeypatch.setattr(search, 'run_configuration', fail)
-    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'worker-start'})
+    monkeypatch.setattr(search, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.0'}})
     search.initialise_worker({}, tmp_path, False)
-    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'later-commit'})
+    monkeypatch.setattr(search, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.1'}})
     with pytest.raises(search.StickyCacheError, match='cache read failed'):
         search.run_one_job(job)
     assert search.latest_attempt(tmp_path, job.video.identity, job.spec) is None
 
 
-def test_resume_allows_source_edits_but_preserves_inputs_and_settings(tmp_path: Path) -> None:
+def test_runtime_versions_work_from_an_archive_without_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(search, 'REPOSITORY', tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('PATH', '')
+    runtime = search.runtime_versions()
+    assert set(runtime) == {'python', 'packages'}
+    assert runtime['python']
+    assert runtime['packages']['xgboost']
+
+
+def test_resume_preserves_inputs_settings_and_runtime_versions(tmp_path: Path) -> None:
     array = tmp_path / 'track.npy.xz'
     array.write_bytes(b'first input')
-    source = {
-        'revision': 'first', 'python': '3.12', 'packages': {'numpy': '2.0'},
-        'files_md5': {'src/model.py': 'old', 'pyproject.toml': 'old', 'uv.lock': 'old', 'groups.json.gz': 'fixed'},
-    }
+    source = {'python': '3.12', 'packages': {'numpy': '2.0'}}
     identity = {'source': source, 'input_files': search.file_manifest({'track': array}), 'candidates': ['fixed']}
     run_path = tmp_path / 'run.json.gz'
     search.keep_run_identity(run_path, identity)
-    current_source = {**source, 'revision': 'second', 'dirty': True, 'files_md5': {'groups.json.gz': 'fixed'}}
-    search.keep_run_identity(run_path, {**identity, 'source': current_source})
+    search.keep_run_identity(run_path, identity)
     assert search.read_json(run_path) == identity
-    assert source['files_md5']['src/model.py'] == 'old'
     for changed in (
         {**identity, 'candidates': ['changed']},
-        {**identity, 'source': {**current_source, 'packages': {'numpy': '2.1'}}},
-        {**identity, 'source': {**current_source, 'files_md5': {'groups.json.gz': 'changed'}}},
+        {**identity, 'source': {**source, 'packages': {'numpy': '2.1'}}},
     ):
         with pytest.raises(ValueError, match='changed'):
             search.keep_run_identity(run_path, changed)
@@ -303,12 +307,12 @@ def test_coordinator_starts_before_worker_initialisation(tmp_path: Path, monkeyp
     monkeypatch.setattr(search, 'load_candidates', lambda _path: ({'stage': 'grid'}, [_spec('shipped', 3)]))
     monkeypatch.setattr(search, 'load_original_videos', lambda _path: (_video(),))
     monkeypatch.setattr(search, 'input_paths', lambda *_args: {})
-    monkeypatch.setattr(search, 'source_record', lambda: {'revision': 'parent-start'})
+    monkeypatch.setattr(search, 'runtime_versions', lambda: {'python': '3.12', 'packages': {'numpy': '2.0'}})
     monkeypatch.setattr(search, 'ProcessPoolExecutor', lambda **_kwargs: nullcontext(object()))
     monkeypatch.setattr(search, 'schedule_jobs', lambda *_args: {'worker_targets': []})
     monkeypatch.setattr(search, 'summarise', lambda *_args: [])
     args = argparse.Namespace(paths=tmp_path, candidates=tmp_path, split='train', only=None,
                               full=False, output=tmp_path, workers=1, workers_file=None)
     search.run_locked(args)
-    assert search.read_json(tmp_path / 'run.json.gz')['source'] == {'revision': 'parent-start'}
+    assert search.read_json(tmp_path / 'run.json.gz')['source'] == {'python': '3.12', 'packages': {'numpy': '2.0'}}
     assert not hasattr(search, '_WORKER')

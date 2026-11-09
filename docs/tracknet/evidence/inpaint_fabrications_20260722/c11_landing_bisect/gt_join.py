@@ -14,8 +14,8 @@ from pathlib import Path
 sys.path.insert(0, '/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 from instrument_bisect import run_once
 
-from annotator.evaluation.fixtures import PILOT
-from annotator.evaluation.gt_scoring import (
+from experiments.annotator.legacy_evaluation.fixtures import PILOT
+from experiments.annotator.legacy_evaluation.gt_scoring import (
     build_run_video_inputs,
     canonical_tolerance,
     score_video,

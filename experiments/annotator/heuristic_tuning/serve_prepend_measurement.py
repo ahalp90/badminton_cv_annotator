@@ -8,25 +8,32 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.evaluation.fixtures import Fixture
-from annotator.evaluation.gt_scoring import canonical_tolerance
-from annotator.evaluation.scoring import GtRally, classify_all, greedy_match
-from annotator.masks.inpaint import CODE_NAMES, NO_FLAG
-from annotator.rally.contacts import impulse_cell_candidates
-from annotator.review.broadcast_labels import (
+from annotator.annotate_video import annotate_video
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.contacts.heuristics import impulse_contact_candidates
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
+from experiments.annotator.legacy_evaluation.fixtures import Fixture
+from experiments.annotator.legacy_evaluation.gt_scoring import canonical_tolerance
+from experiments.annotator.legacy_evaluation.scoring import (
+    GtRally,
+    classify_all,
+    greedy_match,
+)
+from labelling.scene_labels import (
     SceneTruth,
     VideoMetadata,
     read_label_csv,
     validate_partition,
 )
-from annotator.run_video import run_video
+from shared.frame_timing import frames_at_fps
 
 POSE_BANDS = {
     "middle-half": 0.5,
     "middle-two-thirds": 2.0 / 3.0,
 }
 TRUTH_ORDER = tuple(SceneTruth)
+
+SERVE_LOOKBACK_AT_30_FPS = 25
 
 CANDIDATE_COLUMNS = (
     "fixture", "band", "span_id", "span_start", "span_end", "anchor_frame",
@@ -182,7 +189,7 @@ def _candidate_reasons(
     reasons = []
     if not visible:
         reasons.append("track-not-visible")
-    if inpaint_code != NO_FLAG:
+    if inpaint_code != ShuttleGrade.UNFLAGGED:
         reasons.append(f"inpaint-code-{inpaint_code}")
     if not court_absent:
         reasons.append("court-present")
@@ -276,7 +283,7 @@ def _target_outcomes(
             outcome = "selected_match"
         elif not near:
             outcome = "no_raw_candidate_within_tolerance"
-        elif not any(row["track_visible"] and row["inpaint_code"] == NO_FLAG for row in near):
+        elif not any(row["track_visible"] and row["inpaint_code"] == ShuttleGrade.UNFLAGGED for row in near):
             outcome = "no_clean_shuttle_evidence"
         elif not any(row["court_absent"] for row in near):
             outcome = "court_present_not_prototype_target"
@@ -306,7 +313,7 @@ def _build_candidate_row(
     impulse: float,
     arrays: tuple[np.ndarray, ...],
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     court_present: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
@@ -330,14 +337,14 @@ def _build_candidate_row(
         band_fraction=band_fraction,
     )
     visible = bool(track[frame, 2] == 1)
-    code = int(inpaint_codes[frame])
+    code = int(shuttle_grades[frame])
     court_absent = not bool(court_present[frame])
     wrist_pass = bool(
         pose.wrist_distance_bh is not None
         and np.isfinite(pose.wrist_distance_bh)
         and pose.wrist_distance_bh <= wrist_distance_body_heights
     )
-    evidence_pass = visible and code == NO_FLAG and court_absent and wrist_pass
+    evidence_pass = visible and code == ShuttleGrade.UNFLAGGED and court_absent and wrist_pass
     anchor_distance = anchor - frame
     anchor_suppression_pass = bool(
         anchor_source != "first-accepted-contact"
@@ -364,7 +371,7 @@ def _build_candidate_row(
         "impulse": impulse,
         "manual_truth": str(truth[frame]),
         "inpaint_code": code,
-        "inpaint_name": CODE_NAMES[code],
+        "inpaint_name": str(ShuttleGrade(code)),
         "track_visible": visible,
         "court_present": not court_absent,
         "court_absent": court_absent,
@@ -413,7 +420,7 @@ def evaluate_serve_candidates(
     band_fraction: float,
     arrays: tuple[np.ndarray, ...],
     truth: np.ndarray,
-    inpaint_codes: np.ndarray,
+    shuttle_grades: np.ndarray,
     court_present: np.ndarray,
     raw_mask: np.ndarray,
     definitive_mask: np.ndarray,
@@ -424,8 +431,9 @@ def evaluate_serve_candidates(
     statuses: Sequence[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Score every bounded raw candidate before each claimed rally start."""
-    resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps)
     tolerance = canonical_tolerance(fixture.fps)
+    lookback_frames = frames_at_fps(SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     natural_raw = {
         (span_id, frame) for span_id, frames in raw_by_span.items() for frame in frames
     }
@@ -439,13 +447,13 @@ def evaluate_serve_candidates(
         accepted = accepted_by_span.get(span_id, [])
         anchor = min(accepted) if accepted else span[0]
         anchor_source = "first-accepted-contact" if accepted else "span-start-fallback"
-        lookback_start = max(0, anchor - resolved.thresholds.serve_start_lookback_frames)
-        flags = impulse_cell_candidates(
+        lookback_start = max(0, anchor - lookback_frames)
+        flags = impulse_contact_candidates(
             arrays[0],
             lookback_start,
             anchor,
-            resolved.thresholds,
-            smoothing_mode=resolved.smoothing_mode,
+            video_config.thresholds,
+            smoothing_mode=video_config.smoothing_mode,
         )
         evaluated = [
             _build_candidate_row(
@@ -461,15 +469,15 @@ def evaluate_serve_candidates(
                 impulse=impulse,
                 arrays=arrays,
                 truth=truth,
-                inpaint_codes=inpaint_codes,
+                shuttle_grades=shuttle_grades,
                 court_present=court_present,
                 raw_mask=raw_mask,
                 definitive_mask=definitive_mask,
                 gt_rallies=gt_rallies,
                 statuses=statuses,
                 tolerance=tolerance,
-                suppression_radius=resolved.thresholds.contact_suppression_radius_frames,
-                wrist_distance_body_heights=resolved.thresholds.wrist_distance_body_heights,
+                suppression_radius=video_config.thresholds.contact_suppression_radius_frames,
+                wrist_distance_body_heights=video_config.thresholds.wrist_distance_body_heights,
                 natural_raw=natural_raw,
                 natural_accepted=natural_accepted,
             )
@@ -510,13 +518,13 @@ def evaluate_serve_candidates(
     policy_selected = [row for row in candidate_rows if row["selected_policy"]]
     summary = {
         "candidate_rule": {
-            "lookback_frames": resolved.thresholds.serve_start_lookback_frames,
+            "lookback_frames": lookback_frames,
             "gt_serve_tolerance_frames": tolerance,
             "central_band_fraction": band_fraction,
             "pose_selection": "largest valid bbox area, then score, then earliest slot",
-            "wrist_threshold_body_heights": resolved.thresholds.wrist_distance_body_heights,
+            "wrist_threshold_body_heights": video_config.thresholds.wrist_distance_body_heights,
             "contact_suppression_radius_frames": (
-                resolved.thresholds.contact_suppression_radius_frames
+                video_config.thresholds.contact_suppression_radius_frames
             ),
             "requires_visible_clean_track": True,
             "requires_court_absent": True,
@@ -576,8 +584,8 @@ def run_contact_injection_counterfactual(
     """Inject all selected candidates into a copied accepted-contact map."""
     selected = [row for row in candidate_rows if row[selection_field]]
     contacts = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in natural_result.filtered_by_rally.items()
+        rally_id: [event.frame for event in rally.sequence.events]
+        for rally_id, rally in enumerate(natural_result.rallies)
     }
     natural_pairs = {
         (span_id, frame) for span_id, frames in contacts.items() for frame in frames
@@ -591,25 +599,25 @@ def run_contact_injection_counterfactual(
         for row in selected:
             raw_mask[int(row["candidate_frame"])] = False
         keyword["raw_exclusion_mask"] = raw_mask
-    injected_result = run_video(
+    injected_result = annotate_video(
         *inputs.positional,
         **keyword,
-        spans=list(natural_result.spans),
+        spans=[(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies],
         contacts=contacts, heuristic_only=True,
-    )
+    ).result
     injected_accepted = {
-        (int(contact.rally_id), int(contact.contact_frame))
-        for contact in injected_result.filtered_contacts
+        (rally_id, event.frame)
+        for rally_id, rally in enumerate(injected_result.rallies) for event in rally.sequence.events
     }
     selected_pairs = {
         (int(row["span_id"]), int(row["candidate_frame"])) for row in selected
     }
     injected_statuses = gt_statuses(
         gt_rallies,
-        injected_result.spans,
+        [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in injected_result.rallies],
         {
-            int(span_id): sorted(map(int, frames))
-            for span_id, frames in injected_result.filtered_by_rally.items()
+            rally_id: [event.frame for event in rally.sequence.events]
+            for rally_id, rally in enumerate(injected_result.rallies)
         },
         tolerance,
     )
@@ -639,15 +647,16 @@ def run_contact_injection_counterfactual(
         "all_unmatched_serves_recovered": all_recovered,
         "all_unmatched_serves_still_missed": len(unmatched_indexes) - all_recovered,
         "accepted_contact_delta": (
-            len(injected_result.filtered_contacts) - len(natural_result.filtered_contacts)
+            sum(len(rally.sequence.events) for rally in injected_result.rallies)
+            - sum(len(rally.sequence.events) for rally in natural_result.rallies)
         ),
-        "span_delta": len(injected_result.spans) - len(natural_result.spans),
+        "span_delta": len(injected_result.rallies) - len(natural_result.rallies),
         "stroke_count_rows_changed": _changed_positions(
-            natural_result.n_strokes_list,
-            injected_result.n_strokes_list,
+            [len(rally.sequence.events) for rally in natural_result.rallies],
+            [len(rally.sequence.events) for rally in injected_result.rallies],
         ),
         "next_server_rows_changed": _changed_positions(
-            natural_result.next_servers,
-            injected_result.next_servers,
+            ([rally.first_half for rally in natural_result.rallies[1:]] + [None]) if natural_result.rallies else [],
+            ([rally.first_half for rally in injected_result.rallies[1:]] + [None]) if injected_result.rallies else [],
         ),
     }

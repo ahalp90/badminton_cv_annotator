@@ -12,17 +12,18 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.video_models_benchmark.data import read_json, write_json
 from experiments.annotator.video_models_benchmark.evaluate import CLASS_SIDES
-from experiments.annotator.video_models_benchmark.writeup_scripts.rescore_videomae import (
+from experiments.annotator.video_models_benchmark.scoring import (
     COUNT_NAMES,
     TOLERANCES,
     add_rates,
+    score_video_rules,
+)
+from experiments.annotator.video_models_benchmark.writeup_scripts.rescore_videomae import (
     earliest_minimum,
     read_probabilities,
-    score_video_rules,
 )
 
 RESULTS = Path(__file__).resolve().parents[1] / "results" / "stride3_20261105"
@@ -74,7 +75,7 @@ def collect_predictions(job: dict) -> list[dict]:
                 assert float(peak[predicted_class]) == confidence
                 compact_events.append([frame, confidence, raw_side.value, forced_side])
                 raw_events.append(ContactEvent(frame, confidence, raw_side))
-                alternating_events.append(ContactEvent(frame, confidence, Half(forced_side)))
+                alternating_events.append(ContactEvent(frame, confidence, CourtHalf(forced_side)))
             for rule, events in (("raw", raw_events), ("alternating", alternating_events)):
                 sequences[rule].append(ContactSequence(
                     span["span_id"], span["start_frame"], span["end_frame"], tuple(events),

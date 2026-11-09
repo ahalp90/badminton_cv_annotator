@@ -3,30 +3,33 @@ from __future__ import annotations
 
 import numpy as np
 
-from annotator.contacts.model import (
+from annotator.contacts.player_attribution import alternating_player_sides
+from annotator.contacts.score_candidates import (
     NEARBY_CONTACT_DISTANCE_AT_30_FPS,
     remove_nearby_contacts,
 )
-from annotator.outcomes.point_winner import (
-    Half,
-    alternating_player_sides,
-    fit_alternation,
-)
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    scale_frames,
-    stream_payload,
-)
-from annotator.training.sequences import LabelledRally
-from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
-    score_video,
-)
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from experiments.annotator.contact_records import stream_payload
+from shared.frame_timing import frames_at_fps
 
 from .data import ClipDataset
+from .scoring import COUNT_NAMES, TOLERANCES, add_rates, score_video_rules
 
-CLASS_SIDES = {1: Half.BOT, 2: Half.TOP}
+CLASS_SIDES = {1: CourtHalf.BOT, 2: CourtHalf.TOP}
 SIDE_CLASSES = {side: label for label, side in CLASS_SIDES.items()}
+
+
+def fit_alternation(guesses: list[CourtHalf]) -> CourtHalf | None:
+    """Keep the benchmark's original majority vote, leaving equal votes unresolved."""
+    scores = {
+        half: sum(guess == assigned for guess, assigned in zip(
+            guesses, alternating_player_sides(half, len(guesses)), strict=True,
+        ))
+        for half in (CourtHalf.TOP, CourtHalf.BOT)
+    }
+    if scores[CourtHalf.TOP] == scores[CourtHalf.BOT]:
+        return None
+    return max(scores, key=scores.__getitem__)
 
 
 def decode_span(
@@ -39,13 +42,13 @@ def decode_span(
     scores = probabilities[candidates, classes[candidates]]
     kept = remove_nearby_contacts(
         frames, np.zeros(len(frames), dtype=int), scores, 0,
-        scale_frames(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps),
+        frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps),
     )
     guesses = [CLASS_SIDES[int(classes[candidates[index]])] for index in kept]
     final_side = fit_alternation(guesses)
     sides = guesses if final_side is None else alternating_player_sides(final_side, len(guesses))
     if break_alternation_ties and final_side is None and guesses:
-        alternatives = [alternating_player_sides(half, len(guesses)) for half in (Half.TOP, Half.BOT)]
+        alternatives = [alternating_player_sides(half, len(guesses)) for half in (CourtHalf.TOP, CourtHalf.BOT)]
         kept_probabilities = probabilities[candidates[kept]]
         sides = max(alternatives, key=lambda order: (
             sum(float(row[SIDE_CLASSES[side]]) for row, side in zip(kept_probabilities, order, strict=True)),
@@ -63,35 +66,24 @@ def score_probabilities(
     if len(probabilities) != len(dataset):
         raise ValueError("Predictions and exhaustive validation centres differ")
     streams = {}
-    totals = {str(tolerance): {"labelled": 0, "predicted": 0, "matched": 0, "correct_player": 0, "rallies": 0, "fully_correct": 0}
-              for tolerance in (10, 5)}
+    totals = {str(tolerance): dict.fromkeys(COUNT_NAMES, 0) for tolerance in TOLERANCES}
     offset = 0
     for video in dataset.videos:
-        sequences, rallies = [], []
+        sequences = []
         for span in video["spans"]:
             count = span["end_frame"] - span["start_frame"]
             sequences.append(decode_span(span, probabilities[offset:offset + count], video["fps"],
                                          break_alternation_ties=break_alternation_ties))
-            rallies.append(LabelledRally(span["rally_id"], tuple(span["label_frames"]),
-                                        tuple(None if side is None else Half(side) for side in span["label_sides"])))
             offset += count
         stream = stream_payload(sequences, [event for sequence in sequences for event in sequence.events])
         streams[video["item_id"]] = stream
-        for tolerance in (10, 5):
-            _proposals, contacts, predictions, rally_rows = score_video(
-                video["item_id"], video["role"], stream, tuple(rallies), video["fps"], tolerance,
-            )
-            counts = totals[str(tolerance)]
-            counts["labelled"] += len(contacts)
-            counts["predicted"] += len(predictions)
-            counts["matched"] += sum(row["matched"] for row in contacts)
-            counts["correct_player"] += sum(row["player_correct"] for row in contacts)
-            counts["rallies"] += len(rally_rows)
-            counts["fully_correct"] += sum(row["fully_correct"] for row in rally_rows)
+        for tolerance in TOLERANCES:
+            scored = score_video_rules(video, {"decoded": sequences}, tolerance)["decoded"]
+            for name in COUNT_NAMES:
+                totals[str(tolerance)][name] += scored[name]
     for counts in totals.values():
-        denominator = counts["labelled"] + counts["predicted"]
-        counts["contact_f1"] = 200 * counts["matched"] / denominator
-        counts["correct_player_f1"] = 200 * counts["correct_player"] / denominator
-        counts["fully_correct_percent"] = 100 * counts["fully_correct"] / counts["rallies"]
+        rates = add_rates(counts)
+        for name in ("contact_f1", "correct_player_f1", "fully_correct_percent"):
+            counts[name] = rates[name]
     return {"metrics": totals, "streams": streams,
             "hitter_rule": "forced_alternation_probability_ties" if break_alternation_ties else "alternation_raw_ties"}

@@ -8,19 +8,16 @@ from typing import Any
 
 import pandas as pd
 
+from annotator.annotate_video import (
+    AnnotatorResult,
+    annotate_video,
+)
 from annotator.config import BaseAnnotatorConfig
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import (
-    SHIPPED_LANDING_FILTER_OPTIONS,
-    alternating_player_sides,
-)
-from annotator.run_video import AnnotatorResult, RunCapture, run_video
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.rally_results.landing_and_winner import SHIPPED_LANDING_FILTER_OPTIONS
 from annotator.training.sequences import (
     LabelledRally,
 )
-from annotator.types import ServeStartConfig
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     TRACK_FILENAME,
@@ -32,6 +29,7 @@ from dataset_builder.vision import (
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     labels_for_item,
     load_manifest,
@@ -42,6 +40,7 @@ from experiments.annotator.old_court_regression.old_inputs import (
     OldVideoInputs,
     development_label_rows,
 )
+from shared.shuttle_track_validation import validate_shuttle_track
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 TRACKED_SPLIT = (
@@ -112,7 +111,7 @@ def _load_inputs(
         raise ValueError(f'{video.identity}: track frame count differs from the frozen manifest')
     for rally in video.rallies:
         if any(not 0 <= frame < frame_count for frame in rally.frames):
-            raise ValueError(f'{video.identity}: rally {rally.identity} has a label outside the video')
+            raise ValueError(f'{video.identity}: rally {rally.rally_id} has a label outside the video')
     guards = load_npy_xz(guard_path)
     if guards.shape != (frame_count,):
         raise ValueError(f'{video.identity}: guard codes do not cover the video')
@@ -157,54 +156,39 @@ def run_video_kwargs(inputs: OldVideoInputs) -> dict[str, Any]:
     return {
         'fps': inputs.fps,
         'landing_options': SHIPPED_LANDING_FILTER_OPTIONS,
-        'net_band': court.net_band,
         'resolution': court.resolution,
-        'video_id': inputs.identity,
-        'court_info': court.court_info,
-        'gate_court_info': court.gate_court_info,
-        'gate_resolution_table': court.gate_resolution_table,
         'court_present': inputs.court_present,
         'homography_rows': court.homography_rows,
-        'cut_frames': [end for _start, end in inputs.raw_cuts[:-1]],
-        'keep_vote': inputs.keep_vote,
-        'inpaint_codes': inputs.guard_codes,
-        'court_invalid_is_excluded': True,
-        'landing_error_band_m': court.landing_error_band_m,
+        'shuttle_grades': inputs.shuttle_grades,
     }
 
 
 def heuristic_stream(result: AnnotatorResult) -> dict[str, Any]:
-    """Keep discovered spans and expand each rally's fitted final striker phase."""
-    sequences = []
-    events = []
-    for rally_id, (start, end) in enumerate(result.spans):
-        frames = result.filtered_by_rally.get(rally_id, [])
-        final_half = result.striker_halves[rally_id]
-        sides = [None] * len(frames) if final_half is None else alternating_player_sides(final_half, len(frames))
-        own_events = tuple(ContactEvent(frame, 1.0, side) for frame, side in zip(frames, sides, strict=True))
-        sequences.append(ContactSequence(rally_id, start, end, own_events))
-        events.extend(own_events)
+    """Serialise the finished heuristic rallies with their available side evidence."""
+    sequences = [rally.sequence for rally in result.rallies]
+    events = tuple(event for rally in result.rallies for event in rally.sequence.events)
     return stream_payload(sequences, events)
 
 
 def run_configuration(
     inputs: OldVideoInputs, base: BaseAnnotatorConfig, *,
-    serve_start: ServeStartConfig | None = None, models: AnnotatorModels | None = None,
+    models: AnnotatorModels | None = None,
 ) -> dict[str, Any]:
     """Run the complete annotator with discovered boundaries and optional fitted models."""
-    capture = RunCapture()
     pose = inputs.pose
-    result = run_video(
+    annotation = annotate_video(
         inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        base=base, heuristic_only=models is None, models=models, serve_start=serve_start,
-        capture=capture, **run_video_kwargs(inputs),
+        base=base, heuristic_only=models is None, models=models,
+        keep_working_data=True, **run_video_kwargs(inputs),
     )
+    result = annotation.result
     if models is None:
         return heuristic_stream(result)
-    prediction = capture.hybrid
+    assert annotation.working_data is not None
+    prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{inputs.identity}: fitted annotation did not return its contact stream')
-    return stream_payload(prediction.refined.sequences, prediction.refined.events)
+    return stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
 
 
 def score_stream(

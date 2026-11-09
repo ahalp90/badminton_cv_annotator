@@ -13,8 +13,8 @@ from types import ModuleType
 import numpy as np
 import pytest
 
-from annotator.video_metadata import probe_video_metadata
 from dataset_builder.tracknet_input import TrackNetInputMode, create_tracknet_input
+from shared.video_metadata import probe_video_metadata
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TRACKNET_DIR = REPO_ROOT / "src" / "shared" / "tracknetv3"

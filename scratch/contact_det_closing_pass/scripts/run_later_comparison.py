@@ -169,7 +169,7 @@ def _load_later_inputs(
     for span in population.spans:
         spans_by_fixture.setdefault(span.fixture, set()).add(span.span_id)
     candidates_by_section: dict[SectionIdentity, tuple[FixedEvent, ...]] = {}
-    physical_by_frame: dict[FrameIdentity, np.ndarray] = {}
+    contact_features_by_frame: dict[FrameIdentity, np.ndarray] = {}
     seen_fixtures: set[str] = set()
     input_video_records = []
     for raw_video in raw_videos:
@@ -212,13 +212,13 @@ def _load_later_inputs(
                 if type(frame) is not int:
                     raise ValueError(f"{fixture}/{span_id}: later candidate frame differs")
                 identity = (fixture, frame)
-                if identity in physical_by_frame:
+                if identity in contact_features_by_frame:
                     raise ValueError(f"{identity}: later candidate frame repeats")
                 score = _finite_number(raw_candidate.get("contact_score"), f"{fixture}/{frame}: contact score")
                 if not 0.0 <= score <= 1.0:
                     raise ValueError(f"{fixture}/{frame}: contact score is outside zero to one")
                 event = FixedEvent(fixture, frame, score, _side(raw_candidate.get("predicted_side"), f"{fixture}/{frame}"))
-                physical_by_frame[identity] = _physical_block(
+                contact_features_by_frame[identity] = _physical_block(
                     raw_candidate.get("physical"), raw_names, f"{fixture}/{frame}"
                 )
                 section_candidates.append(event)
@@ -232,9 +232,9 @@ def _load_later_inputs(
         "path": path.name,
         "physical_feature_names": list(raw_names),
         "video_records": input_video_records,
-        "candidate_count": len(physical_by_frame),
+        "candidate_count": len(contact_features_by_frame),
     }
-    return candidates_by_section, physical_by_frame, tuple(raw_names), metadata
+    return candidates_by_section, contact_features_by_frame, tuple(raw_names), metadata
 
 
 def _merge_measurements(

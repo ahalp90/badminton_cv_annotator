@@ -5,13 +5,13 @@ from __future__ import annotations
 import gzip
 import importlib.util
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from annotator.evaluation.scoring import GtRally
-from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
+from annotator.types import TrackedPlayers, WristGaps
+from experiments.annotator.legacy_evaluation.scoring import GtRally
+from labelling.scene_labels import SceneTruth, VideoMetadata, make_interval
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
@@ -63,14 +63,14 @@ def test_nearest_replay_or_cutaway_distance_uses_both_classes() -> None:
 def test_slow_motion_details_reconstruct_current_signal() -> None:
     x = np.concatenate((np.arange(10) * 0.02, 0.2 + np.arange(10) * 0.003))
     track = np.column_stack((x, np.zeros(20), np.ones(20)))
-    non_evidence = np.zeros(20, dtype=bool)
+    rejected_shuttle_frames = np.zeros(20, dtype=bool)
     baseline_exclude = np.zeros(20, dtype=bool)
 
     details = measurement.slow_motion_details(
         track,
         [(0, 20)],
         25.0,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=baseline_exclude,
     )
     expected = measurement.velocity_drop_signal(
@@ -78,7 +78,7 @@ def test_slow_motion_details_reconstruct_current_signal() -> None:
         [(0, 20)],
         20,
         25.0,
-        non_evidence=non_evidence,
+        rejected_shuttle_frames=rejected_shuttle_frames,
         baseline_exclude=baseline_exclude,
     )
 
@@ -103,22 +103,23 @@ def test_gt_statuses_distinguish_target_serve_miss() -> None:
 def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     monkeypatch.setattr(
         measurement,
-        "impulse_cell_candidates",
+        "impulse_contact_candidates",
         lambda *_args, **_kwargs: [(5, 3.0), (7, 4.0), (9, 1.0), (10, 0.5)],
     )
     track = np.column_stack((np.linspace(0, 1, 25), np.zeros(25), np.ones(25)))
     truth = np.full(25, "live", dtype="U18")
     truth[7:9] = "replay"
-    inpaint_codes = np.zeros(25, dtype=np.int8)
+    shuttle_grades = np.zeros(25, dtype=np.int8)
     raw_mask = np.zeros(25, dtype=bool)
     raw_mask[7:9] = True
     definitive = raw_mask.copy()
     distances = np.full(25, 0.5)
-    sticky = SimpleNamespace(
-        distances=distances,
-        analysed=np.ones(25, dtype=bool),
-        picks=np.zeros((25, 2), dtype=int),
+    players = TrackedPlayers(
+        detection_indices=np.zeros((25, 2), dtype=int),
+        ankle_xy=np.zeros((25, 2, 2)),
+        box_heights_px=np.ones((25, 2)),
     )
+    wrist_gaps = WristGaps(nearest=distances, per_player=np.full((25, 2), 0.5))
     rallies = [GtRally("set1", 1, (5, 20))]
     statuses = [{
         "rally_index": 0,
@@ -130,10 +131,11 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
     candidates, opportunities, summary = measurement.evaluate_serve_candidates(
         track=track,
         truth=truth,
-        inpaint_codes=inpaint_codes,
+        shuttle_grades=shuttle_grades,
         raw_mask=raw_mask,
         definitive_mask=definitive,
-        sticky=sticky,
+        players=players,
+        wrist_gaps=wrist_gaps,
         spans=[(5, 20)],
         natural_raw_frames=set(),
         accepted_by_span={0: [15]},

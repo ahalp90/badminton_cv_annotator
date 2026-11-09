@@ -1,6 +1,6 @@
-# Selected discovery model
+# Earlier discovery model
 
-The default annotator uses the **no-max raw-baseline bundle, seed offset 0**.
+The earlier annotator used the **no-max raw-baseline bundle, seed offset 0**.
 Training and discovery retain outward context without a fixed time limit.
 The validation comparison uses all 668 rallies from eight videos, five seeds
 and ±10-frame contact tolerance. Discovery assessment uses the first and last
@@ -44,5 +44,5 @@ seed is 20260824; selector and review use 20260905. Benchmark offsets are
 0, 100, 200, 300 and 400. These are variations in fitting, not independent
 samples of videos.
 
-A fresh hyperparameter search is a low-priority follow-up. Another selector
+A fresh hyperparameter search was a low-priority follow-up. Another selector
 layer remains a separate experiment.

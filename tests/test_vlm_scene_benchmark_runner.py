@@ -7,15 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from annotator.vlm_scene_benchmark.backends import GenerationEvidence
-from annotator.vlm_scene_benchmark.contracts import (
+from experiments.annotator.vlm_scene_benchmark.backends import GenerationEvidence
+from experiments.annotator.vlm_scene_benchmark.contracts import (
     RunOutcome,
     ShardSpec,
     read_run_record,
 )
-from annotator.vlm_scene_benchmark.prepare import PreparedShardManifest, VideoFileSpec
-from annotator.vlm_scene_benchmark.run_cli import run_benchmark
-from annotator.vlm_scene_benchmark.scoring import deployment_failures
+from experiments.annotator.vlm_scene_benchmark.prepare import (
+    PreparedShardManifest,
+    VideoFileSpec,
+)
+from experiments.annotator.vlm_scene_benchmark.run_cli import run_benchmark
+from experiments.annotator.vlm_scene_benchmark.scoring import deployment_failures
 
 SHA256 = "a" * 64
 
@@ -98,16 +101,16 @@ def _patch_runtime(
     manifest_path = tmp_path / "manifest.json"
     video_path = tmp_path / "model.mp4"
     video_path.write_bytes(b"fake")
-    monkeypatch.setattr("annotator.vlm_scene_benchmark.run_cli.read_manifest", lambda _path: _manifest())
+    monkeypatch.setattr("experiments.annotator.vlm_scene_benchmark.run_cli.read_manifest", lambda _path: _manifest())
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.run_cli.resolve_model_video",
+        "experiments.annotator.vlm_scene_benchmark.run_cli.resolve_model_video",
         lambda _path, _manifest_value: video_path,
     )
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.run_cli.load_backend",
+        "experiments.annotator.vlm_scene_benchmark.run_cli.load_backend",
         lambda _name, expected_input_frames, max_model_len: backend,
     )
-    monkeypatch.setattr("annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor", FakeMonitor)
+    monkeypatch.setattr("experiments.annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor", FakeMonitor)
     return manifest_path
 
 
@@ -149,7 +152,7 @@ def test_runner_passes_explicit_qwen_context_to_backend(
         calls.append((expected_input_frames, max_model_len))
         return backend
 
-    monkeypatch.setattr("annotator.vlm_scene_benchmark.run_cli.load_backend", load)
+    monkeypatch.setattr("experiments.annotator.vlm_scene_benchmark.run_cli.load_backend", load)
 
     record = run_benchmark(
         "qwen3-vl",
@@ -323,7 +326,7 @@ def test_runner_does_not_claim_cache_dtype_when_backend_load_fails(
         raise RuntimeError(f"load failed for {expected_input_frames} frames")
 
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.run_cli.load_backend",
+        "experiments.annotator.vlm_scene_benchmark.run_cli.load_backend",
         fail_load,
     )
 
@@ -350,7 +353,7 @@ def test_runner_fails_when_gpu_monitoring_is_incomplete(
         error = "nvidia-smi failed after an initial sample"
 
     monkeypatch.setattr(
-        "annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor",
+        "experiments.annotator.vlm_scene_benchmark.run_cli.GpuMemoryMonitor",
         FailedMonitor,
     )
 

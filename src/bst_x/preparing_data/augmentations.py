@@ -37,9 +37,10 @@ import torch
 from beartype import beartype
 from jaxtyping import Float32, jaxtyped
 from pipeline.config import COCO_N_JOINTS
-from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
 from preparing_data.shuttleset_dataset import get_bone_pairs
 from torch import Tensor
+
+from shared.player_tracking import StickyAnchorParams
 
 # COCO-17 bilateral joint pairs. Slot 0 (nose) has no mirror partner; mirroring
 # its x is the only transform it needs. Eyes (1,2), ears (3,4), shoulders (5,6),

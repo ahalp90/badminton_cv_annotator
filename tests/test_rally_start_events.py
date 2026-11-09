@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-import annotator.review.rally_starts as events
-from annotator.review.broadcast_labels import VideoMetadata
+import labelling.rally_starts as events
+from labelling.scene_labels import VideoMetadata
 
 METADATA = VideoMetadata("sset_01", 25.0, 1_000)
 
@@ -315,31 +315,32 @@ def test_writer_rejects_a_canonical_timeline_filename(tmp_path: Path) -> None:
     assert not path.exists()
 
 
-def test_failed_candidate_reload_preserves_destination_and_cleans_temp(
+def test_failed_replace_preserves_destination_session_and_cleans_temp(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = _target()
     pending = events.RallyStartDecision.pending(target.key)
-    reviewed = _reviewed(target, events.ServeVisibility.VISIBLE)
     path = tmp_path / "decisions.csv.gz"
     events.write_decision_csv(path, [pending], [target])
     original = path.read_bytes()
-    real_reader = events.read_decision_csv
+    session = events.RallyStartAuditSession([target], [pending], decision_path=path)
+    session.select_visibility(events.ServeVisibility.VISIBLE)
+    session.capture_visible_serve(target.gt_first_frame)
+    session.set_note("serve visible")
+    draft = session.draft
 
-    def corrupt_temporary_read(
-        candidate: Path,
-        targets: list[events.RallyStartTarget] | tuple[events.RallyStartTarget, ...] | None = None,
-    ) -> list[events.RallyStartDecision]:
-        if candidate != path:
-            return []
-        return real_reader(candidate, targets)
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise OSError("replace failed")
 
-    monkeypatch.setattr(events, "read_decision_csv", corrupt_temporary_read)
-    with pytest.raises(RuntimeError, match="round trip changed"):
-        events.write_decision_csv(path, [reviewed], [target])
+    monkeypatch.setattr(events.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="replace failed"):
+        session.save(path)
 
     assert path.read_bytes() == original
+    assert session.current_decision == pending
+    assert session.draft == draft
+    assert session.dirty
     assert not list(tmp_path.glob(".*.tmp.csv.gz"))
 
 

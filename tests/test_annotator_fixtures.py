@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from annotator.evaluation.fixtures import (
+from experiments.annotator.legacy_evaluation.fixtures import (
     _HOMOGRAPHY_SOURCE,
     _RESOLUTION_SOURCE,
     FIXTURES,
@@ -22,8 +22,10 @@ from annotator.evaluation.fixtures import (
     verify_fixture,
     verify_run_video_fixture,
 )
-from annotator.evaluation.gt_scoring import build_run_video_inputs
-from annotator.masks.replay import perspective_shift_signal
+from experiments.annotator.legacy_evaluation.gt_scoring import build_run_video_inputs
+from experiments.annotator.legacy_evaluation.perspective_shift import (
+    perspective_shift_signal,
+)
 
 # The complete nine-file external pin set per fixture (track, five pose-role
 # arrays including kp_scores, dead mask, court-present mask, scene rows),
@@ -181,31 +183,26 @@ def test_fixture_manifest_includes_calibration_inputs_once(fixture):
 
 
 @pytest.mark.parametrize(
-    ("fixture", "expected_court_geo", "expected_net_band"),
+    ("fixture", "expected_net_band"),
     [
         (
             "sset_01",
-            ((460.8, 1459.5), (461.1, 1006.8), (664.6, 703.7)),
             (664.6, 703.7),
         ),
         (
             "sset_15",
-            ((439.5, 1472.1), (378.0, 994.2), (583.9, 626.6)),
             (583.9, 626.6),
         ),
         (
             "sset_21",
-            ((434.1, 1480.2), (453.3, 988.5), (644.6, 682.5)),
             (644.6, 682.5),
         ),
     ],
 )
-def test_calibration_geometry_matches_tracked_sources(fixture, expected_court_geo, expected_net_band):
+def test_calibration_geometry_matches_tracked_sources(fixture, expected_net_band):
     selected_fixture = next(item for item in FIXTURES if item.name == fixture)
 
-    assert selected_fixture.court_geo == expected_court_geo
     assert selected_fixture.net_band == expected_net_band
-    assert selected_fixture.court_geo[2] is selected_fixture.net_band
     assert selected_fixture.resolution == (1920.0, 1080.0)
 
 
@@ -285,16 +282,16 @@ def test_calibration_inputs_have_expected_shapes_and_rows(fixture):
 
     inputs = build_run_video_inputs(fixture)
     track = inputs.positional[0]
-    inpaint_codes = inputs.keyword["inpaint_codes"]
+    shuttle_grades = inputs.keyword["shuttle_grades"]
     court_present = inputs.keyword["court_present"]
     homography_rows = inputs.keyword["homography_rows"]
 
     assert isinstance(court_present, np.ndarray)
     assert court_present.shape == (len(track),)
     assert court_present.dtype == np.bool_
-    assert isinstance(inpaint_codes, np.ndarray)
-    assert inpaint_codes.shape == (len(track),)
-    assert inpaint_codes.dtype == np.uint8
+    assert isinstance(shuttle_grades, np.ndarray)
+    assert shuttle_grades.shape == (len(track),)
+    assert shuttle_grades.dtype == np.uint8
     assert isinstance(homography_rows, list) and homography_rows
     starts = [int(row["start_frame"]) for row in homography_rows]
     ends = [int(row["end_frame"]) for row in homography_rows]

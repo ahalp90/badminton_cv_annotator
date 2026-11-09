@@ -1,3 +1,4 @@
+# Historical experiment: requires its original source revision; retired annotation APIs are not restored.
 """Landing-regression bisect: pool vs sticky build_landing_kinematics on the pilot fixture.
 
 Runs the pilot video through run_video twice, identical but for build_landing_kinematics:
@@ -5,10 +6,10 @@ Runs the pilot video through run_video twice, identical but for build_landing_ki
   RUN B  pool kinematics   (the d04a789 per-frame nearest-court-scale version, verbatim below)
 
 Everything upstream (contacts, spans, strikers, window_end) is identical by construction; the
-only moving part is the per-frame carry_ratio/ankle_ratio the settle cap and carry filter read.
+only moving part is the per-frame wrist_distance_body_heights/ankle_distance_body_heights the settle cap and carry filter read.
 
 Traces pick_landing / window_end / landing_settle_cap / filtered_descending_landing by monkeypatching
-them on the annotator.outcomes.point_winner module (bare-name internal calls resolve through the module
+them on the annotator.rally_results.landing_and_winner module (bare-name internal calls resolve through the module
 globals, so wrapping the module attribute catches the nested calls too). Then recomputes the
 settle-cap arithmetic offline from the two captured kin objects to attribute the mechanism.
 """
@@ -19,10 +20,9 @@ from pathlib import Path
 
 import numpy as np
 
-import annotator.outcomes.point_winner as pw
-from annotator.evaluation.fixtures import PILOT
-from annotator.evaluation.gt_scoring import build_run_video_inputs
-from annotator.outcomes.point_winner import LandingKinematics
+import annotator.rally_results.landing_and_winner as pw
+from annotator.annotate_video import annotate_video
+from annotator.rally_results.landing_and_winner import LandingKinematics
 from annotator.rally_segmentation import (
     ANKLE_L,
     ANKLE_R,
@@ -32,14 +32,15 @@ from annotator.rally_segmentation import (
     court_scale_boxes,
     rolling_nanmedian,
 )
-from annotator.run_video import run_video
+from experiments.annotator.legacy_evaluation.fixtures import PILOT
+from experiments.annotator.legacy_evaluation.gt_scoring import build_run_video_inputs
 
 OUT = Path('/home/ariel/.claude/jobs/133d9166/tmp/bisect_out')
 
 
 # ---------------------------------------------------------------------------
 # Pool (d04a789) build_landing_kinematics, copied verbatim from
-# git show d04a789:src/annotator/outcomes/point_winner.py (lines ~417-452).
+# git show d04a789:src/annotator/rally_results/landing_and_winner.py (lines ~417-452).
 # ---------------------------------------------------------------------------
 def build_landing_kinematics_pool(
     track: np.ndarray, bboxes: np.ndarray, scores: np.ndarray, kps: np.ndarray,
@@ -47,8 +48,8 @@ def build_landing_kinematics_pool(
 ) -> LandingKinematics:
     width, height = resolution
     n_frames = len(track)
-    carry_ratio = np.full(n_frames, np.nan)
-    ankle_ratio = np.full(n_frames, np.nan)  # nearer-ANKLE / box-height; mirrors carry_ratio exactly
+    wrist_distance_body_heights = np.full(n_frames, np.nan)
+    ankle_distance_body_heights = np.full(n_frames, np.nan)  # nearer-ANKLE / box-height; mirrors wrist_distance_body_heights exactly
     for frame in np.flatnonzero(track[:, 2] == 1):
         x1, y1, _x2, y2, cand_scores = court_scale_boxes(bboxes[frame], scores[frame], court_box)
         if len(x1) == 0:
@@ -59,11 +60,11 @@ def build_landing_kinematics_pool(
         wrists = kps[frame, slots][:, (WRIST_L, WRIST_R), :]  # (k candidates, 2 wrists, xy) px
         wrist_px = np.hypot(wrists[..., 0] - shuttle_x, wrists[..., 1] - shuttle_y).min(axis=1)
         ratios = wrist_px / (y2 - y1)  # body-height units, one per candidate
-        carry_ratio[frame] = float(ratios.min())
+        wrist_distance_body_heights[frame] = float(ratios.min())
         ankles = kps[frame, slots][:, (ANKLE_L, ANKLE_R), :]  # (k candidates, 2 ankles, xy) px
         ankle_px = np.hypot(ankles[..., 0] - shuttle_x, ankles[..., 1] - shuttle_y).min(axis=1)
-        ankle_ratio[frame] = float((ankle_px / (y2 - y1)).min())
-    return LandingKinematics(carry_ratio=carry_ratio, ankle_ratio=ankle_ratio, speed=compute_speed(track))
+        ankle_distance_body_heights[frame] = float((ankle_px / (y2 - y1)).min())
+    return LandingKinematics(wrist_distance_body_heights=wrist_distance_body_heights, ankle_distance_body_heights=ankle_distance_body_heights, speed=compute_speed(track))
 
 
 # ---------------------------------------------------------------------------
@@ -73,10 +74,10 @@ def settle_cap_detail(final_contact, win_end, kin, opts):
     """Return (cap, n_static, n_held, n_ground_static), replicating pw.landing_settle_cap exactly."""
     speed_seg = kin.speed[final_contact:win_end]
     static = rolling_nanmedian(speed_seg, opts.settle_win) <= opts.settle_thr
-    held = np.nan_to_num(kin.carry_ratio[final_contact:win_end], nan=np.inf) <= opts.carry_thr
+    held = np.nan_to_num(kin.wrist_distance_body_heights[final_contact:win_end], nan=np.inf) <= opts.carry_thr
     if opts.use_ankle_rule:
-        seg_carry = kin.carry_ratio[final_contact:win_end]
-        seg_ankle = kin.ankle_ratio[final_contact:win_end]
+        seg_carry = kin.wrist_distance_body_heights[final_contact:win_end]
+        seg_ankle = kin.ankle_distance_body_heights[final_contact:win_end]
         held = held & ~(seg_ankle < seg_carry)
     ground_static = static & ~held
     cap = win_end
@@ -193,7 +194,7 @@ def run_once(inputs, pool_kin=False):
 
         pw.build_landing_kinematics = fake
     try:
-        result = run_video(*inputs.positional, **inputs.keyword)
+        result = annotate_video(*inputs.positional, **inputs.keyword)
     finally:
         pw.build_landing_kinematics = orig_blk
         _restore_trace()
@@ -307,11 +308,11 @@ def main():
         for r in rows:
             w.writerow({c: r[c] for c in cols})
 
-    # Kinematics coverage: fraction of shuttle-visible frames with finite carry_ratio.
+    # Kinematics coverage: fraction of shuttle-visible frames with finite wrist_distance_body_heights.
     vis_mask = track[:, 2] == 1
     n_vis = int(vis_mask.sum())
-    cov_pool = float(np.isfinite(kin_pool.carry_ratio[vis_mask]).mean())
-    cov_sticky = float(np.isfinite(kin_sticky.carry_ratio[vis_mask]).mean())
+    cov_pool = float(np.isfinite(kin_pool.wrist_distance_body_heights[vis_mask]).mean())
+    cov_sticky = float(np.isfinite(kin_sticky.wrist_distance_body_heights[vis_mask]).mean())
 
     # Rallies that flipped from a landing (pool) to None (sticky), and the reverse.
     flip_to_none = [r['rally_id'] for r in rows if r['landing_sticky_none'] and not r['landing_pool_none']]
@@ -377,14 +378,14 @@ def main():
     lines.append(f'  The 10 immediate-gate-fail rallies (visible < 3) sit entirely in the shared-None 26,')
     lines.append(f'  not in the regression set.')
     lines.append('')
-    lines.append('KINEMATICS COVERAGE (fraction of shuttle-visible frames with finite carry_ratio):')
+    lines.append('KINEMATICS COVERAGE (fraction of shuttle-visible frames with finite wrist_distance_body_heights):')
     lines.append(f'  shuttle-visible frames: {n_vis}')
     lines.append(f'  POOL:   {cov_pool:.4f}')
     lines.append(f'  STICKY: {cov_sticky:.4f}')
     lines.append(f'  drop (pp): {(cov_pool - cov_sticky) * 100:.2f}')
     lines.append(f'  (prior-session claimed ~5 pp; measured {(cov_pool - cov_sticky) * 100:.2f} pp. Coverage is not')
-    lines.append(f'   the driver anyway: the swap mainly moves the VALUE of carry_ratio, not finite-vs-NaN.')
-    lines.append(f'   Pool scans every court-scale detection and picks the nearest player, so carry_ratio is')
+    lines.append(f'   the driver anyway: the swap mainly moves the VALUE of wrist_distance_body_heights, not finite-vs-NaN.')
+    lines.append(f'   Pool scans every court-scale detection and picks the nearest player, so wrist_distance_body_heights is')
     lines.append(f'   smaller and reads as held far more often (mean held 14.85 vs 3.74), vetoing static frames')
     lines.append(f'   from the settle cap. Sticky reads only the tracker pick per half, farther on average, so')
     lines.append(f'   static frames convert to ground-static and the cap fires.)')

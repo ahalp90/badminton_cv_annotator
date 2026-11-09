@@ -14,13 +14,16 @@ delta_* columns). The tracked ones were too big for the repo; regenerate with:
 from __future__ import annotations
 
 import argparse
+import sys
 from bisect import bisect_right
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from annotator.evaluation.scoring import GtRally, load_gt_rallies
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+
+from experiments.annotator.legacy_evaluation.scoring import GtRally, load_gt_rallies
 
 PROFILE_STATS = ("content_val", "delta_lum", "delta_edges")
 def read_cuts(cuts_path: Path) -> tuple[int, list[int]]:

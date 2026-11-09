@@ -28,6 +28,7 @@ import json
 import lzma
 import math
 import subprocess
+import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -36,8 +37,15 @@ from typing import Any, NamedTuple
 
 import numpy as np
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.evaluation.fixtures import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+
+from annotator.annotate_video import annotate_video
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
+from experiments.annotator.heuristic_tuning import (
+    serve_prepend_measurement as candidate_measurement,
+)
+from experiments.annotator.legacy_evaluation.fixtures import (
     FIXTURES,
     SSET_01,
     SSET_15,
@@ -45,19 +53,18 @@ from annotator.evaluation.fixtures import (
     Fixture,
     fixtures_root,
 )
-from annotator.evaluation.gt_scoring import build_run_video_inputs, canonical_tolerance
-from annotator.evaluation.scoring import (
+from experiments.annotator.legacy_evaluation.gt_scoring import (
+    build_run_video_inputs,
+    canonical_tolerance,
+)
+from experiments.annotator.legacy_evaluation.scoring import (
     RallyBoundary,
     classify_all,
     greedy_match,
     load_gt_rallies,
 )
-from annotator.masks.inpaint import DEGRADED, FABRICATED, NO_FLAG, SUSPECT_FLAT
-from annotator.review.broadcast_labels import VideoMetadata
-from annotator.run_video import RunCapture, run_video
-from experiments.annotator.heuristic_tuning import (
-    serve_prepend_measurement as candidate_measurement,
-)
+from labelling.scene_labels import VideoMetadata
+from shared.frame_timing import frames_at_fps
 
 WINDOW_SECONDS = 1.0
 CLEAN_RUN_BASE30_FRAMES = 5
@@ -148,9 +155,12 @@ ARRAY_DTYPE = np.dtype([
     ("nearest_accepted_delta", "<i4"),
     ("window_visible_fraction", "<f4"),
     ("window_clean_fraction", "<f4"),
-    ("window_fabricated_fraction", "<f4"),
-    ("window_suspect_flat_fraction", "<f4"),
-    ("window_degraded_fraction", "<f4"),
+    ("window_repeated_moving_pattern_fraction", "<f4"),
+    ("window_repeated_stationary_position_fraction", "<f4"),
+    ("window_repeated_pattern_halo_fraction", "<f4"),
+    ("window_matches_any_pattern_pos_fraction", "<f4"),
+    ("window_unflagged_fraction", "<f4"),
+    ("window_unreliable_fraction", "<f4"),
     ("window_longest_clean_run", "<i4"),
     ("window_raw_mask_fraction", "<f4"),
     ("window_believed_mask_fraction", "<f4"),
@@ -191,7 +201,7 @@ def _segment_stats(
     start: int,
     end: int,
 ) -> dict[str, Any]:
-    """Return compact evidence for the half-open frame interval ``[start, end)``."""
+    """Measure the frame range, incl start, excl end."""
     start = max(0, start)
     end = min(len(track), end)
     if end <= start:
@@ -201,9 +211,12 @@ def _segment_stats(
             "clean_visible_frames": 0,
             "visible_fraction": 0.0,
             "clean_fraction": 0.0,
-            "fabricated_fraction": 0.0,
-            "suspect_flat_fraction": 0.0,
-            "degraded_fraction": 0.0,
+            "repeated_moving_pattern_fraction": 0.0,
+            "repeated_stationary_position_fraction": 0.0,
+            "repeated_pattern_halo_fraction": 0.0,
+            "matches_any_pattern_pos_fraction": 0.0,
+            "unflagged_fraction": 0.0,
+            "unreliable_fraction": 0.0,
             "longest_clean_run": 0,
             "raw_mask_fraction": 0.0,
             "believed_mask_fraction": 0.0,
@@ -217,16 +230,19 @@ def _segment_stats(
     believed_slice = believed_mask[start:end]
     court_slice = court_present[start:end]
     visible = track_slice[:, 2] == 1
-    clean_visible = visible & (code_slice == NO_FLAG)
+    clean_visible = visible & (code_slice == ShuttleGrade.UNFLAGGED)
     return {
         "frame_count": end - start,
         "visible_frames": int(visible.sum()),
         "clean_visible_frames": int(clean_visible.sum()),
         "visible_fraction": _fraction(visible),
         "clean_fraction": _fraction(clean_visible),
-        "fabricated_fraction": _fraction(code_slice == FABRICATED),
-        "suspect_flat_fraction": _fraction(code_slice == SUSPECT_FLAT),
-        "degraded_fraction": _fraction(code_slice == DEGRADED),
+        "repeated_moving_pattern_fraction": _fraction(code_slice == ShuttleGrade.REPEATED_MOVING_PATTERN),
+        "repeated_stationary_position_fraction": _fraction(code_slice == ShuttleGrade.REPEATED_STATIONARY_POSITION),
+        "repeated_pattern_halo_fraction": _fraction(code_slice == ShuttleGrade.REPEATED_PATTERN_HALO),
+        "matches_any_pattern_pos_fraction": _fraction(code_slice == ShuttleGrade.MATCHES_ANY_PATTERN_POS),
+        "unflagged_fraction": _fraction(code_slice == ShuttleGrade.UNFLAGGED),
+        "unreliable_fraction": _fraction(code_slice != ShuttleGrade.UNFLAGGED),
         "longest_clean_run": _longest_true_run(clean_visible),
         "raw_mask_fraction": _fraction(raw_slice),
         "believed_mask_fraction": _fraction(believed_slice),
@@ -294,34 +310,32 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
     keyword = dict(inputs.keyword)
     if mask_mode == "no_replay":
         keyword["raw_exclusion_mask"] = np.zeros(len(track), dtype=bool)
-    capture = RunCapture()
-    keyword["capture"] = capture
-    keyword["rejection_diagnostics"] = []
-    result = run_video(*inputs.positional, **keyword)
+    annotation = annotate_video(*inputs.positional, **keyword)
+    result = annotation.result
 
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError(f"{fixture.name}/{mask_mode}: run did not capture replay masks")
-    raw_mask = capture.raw_exclusion_mask
-    believed_mask = capture.definitive_exclusion_mask
-    codes = np.asarray(inputs.keyword["inpaint_codes"])
+    raw_mask = annotation.raw_exclusion_mask
+    believed_mask = annotation.exclusion_mask
+    codes = np.asarray(inputs.keyword["shuttle_grades"])
     court_present = np.asarray(inputs.keyword["court_present"])
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
-    classifications = classify_all(result.spans, gt_rallies)
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in result.rallies]
+    classifications = classify_all(spans, gt_rallies)
     tolerance = canonical_tolerance(fixture.fps)
-    constants = resolve(BaseAnnotatorConfig(), fixture.fps).thresholds
+    constants = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps).thresholds
+    lookback_frames = frames_at_fps(candidate_measurement.SERVE_LOOKBACK_AT_30_FPS, fixture.fps)
     clean_run_min_frames = max(
         1, math.floor(CLEAN_RUN_BASE30_FRAMES * fixture.fps / 30.0 + 0.5),
     )
-    raw_frames = sorted(int(contact.contact_frame) for contact in result.contacts)
-    accepted_frames = sorted(int(contact.contact_frame) for contact in result.filtered_contacts)
+    accepted_frames = sorted(event.frame for rally in result.rallies for event in rally.sequence.events)
+    raw_frames = (sorted(contact.contact_frame for contact in result.heuristic_candidates)
+                  if result.heuristic_candidates else accepted_frames)
     rows: list[dict[str, Any]] = []
 
     for rally_index, (rally, (category, span_id)) in enumerate(zip(gt_rallies, classifications)):
-        overlapping = _overlapping_span_ids(rally.extent, result.spans)
+        overlapping = _overlapping_span_ids(rally.extent, spans)
         accepted_for_rally = [
-            int(contact.contact_frame)
-            for contact in result.filtered_contacts
-            if contact.rally_id in overlapping
+            event.frame for rally_id, found in enumerate(result.rallies) for event in found.sequence.events
+            if rally_id in overlapping
         ]
         matched = greedy_match(rally.stroke_frames, accepted_for_rally, tolerance)
         matched_gt = {gt_index for gt_index, _ in matched}
@@ -334,7 +348,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             "first_assigned_accepted_contact"
             if first_accepted_frame is not None else "gt_serve_fallback"
         )
-        lookback_start = max(0, lookback_anchor - constants.serve_start_lookback_frames)
+        lookback_start = max(0, lookback_anchor - lookback_frames)
         window_half = round(WINDOW_SECONDS * fixture.fps)
         window_start = max(0, serve_frame - window_half)
         window_end = min(len(track), serve_frame + window_half + 1)
@@ -349,8 +363,8 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
         raw_in_window = [frame for frame in raw_frames if window_start <= frame < window_end]
         accepted_in_window = [frame for frame in accepted_frames if window_start <= frame < window_end]
         pose = _pose_stats(bboxes, kps, ndet, serve_frame)
-        span_start = result.spans[span_id][0] if span_id is not None else None
-        span_end = result.spans[span_id][1] if span_id is not None else None
+        span_start = spans[span_id][0] if span_id is not None else None
+        span_end = spans[span_id][1] if span_id is not None else None
         row = {
             "mask_mode": mask_mode,
             "rally_index": rally_index,
@@ -382,9 +396,12 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             "window_clean_visible_frames": window["clean_visible_frames"],
             "window_visible_fraction": window["visible_fraction"],
             "window_clean_fraction": window["clean_fraction"],
-            "window_fabricated_fraction": window["fabricated_fraction"],
-            "window_suspect_flat_fraction": window["suspect_flat_fraction"],
-            "window_degraded_fraction": window["degraded_fraction"],
+            "window_repeated_moving_pattern_fraction": window["repeated_moving_pattern_fraction"],
+            "window_repeated_stationary_position_fraction": window["repeated_stationary_position_fraction"],
+            "window_repeated_pattern_halo_fraction": window["repeated_pattern_halo_fraction"],
+            "window_matches_any_pattern_pos_fraction": window["matches_any_pattern_pos_fraction"],
+            "window_unflagged_fraction": window["unflagged_fraction"],
+            "window_unreliable_fraction": window["unreliable_fraction"],
             "window_longest_clean_run": window["longest_clean_run"],
             "window_raw_mask_fraction": window["raw_mask_fraction"],
             "window_believed_mask_fraction": window["believed_mask_fraction"],
@@ -403,7 +420,7 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             "serve_on_believed_mask": bool(believed_mask[serve_frame]),
             "court_present_at_serve": bool(court_present[serve_frame]),
             "replay_mask_min_frames": constants.replay_mask_min_frames,
-            "serve_start_lookback_frames": constants.serve_start_lookback_frames,
+            "serve_start_lookback_frames": lookback_frames,
             "clean_run_min_frames": clean_run_min_frames,
             **pose,
         }
@@ -417,11 +434,11 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
         "mask_mode": mask_mode,
         "raw_mask_true_frames": int(raw_mask.sum()),
         "believed_mask_true_frames": int(believed_mask.sum()),
-        "n_spans": len(result.spans),
-        "n_raw_contacts": len(result.contacts),
-        "n_accepted_contacts": len(result.filtered_contacts),
+        "n_spans": len(spans),
+        "n_raw_contacts": len(raw_frames),
+        "n_accepted_contacts": len(accepted_frames),
         "replay_mask_min_frames": constants.replay_mask_min_frames,
-        "serve_start_lookback_frames": constants.serve_start_lookback_frames,
+        "serve_start_lookback_frames": lookback_frames,
         "clean_run_min_frames": clean_run_min_frames,
     }
     array = np.empty(len(rows), dtype=ARRAY_DTYPE)
@@ -434,8 +451,10 @@ def _measure_variant(fixture: Fixture, mask_mode: str) -> tuple[list[dict[str, A
             -1 if row["nearest_raw_delta"] == "" else row["nearest_raw_delta"],
             -1 if row["nearest_accepted_delta"] == "" else row["nearest_accepted_delta"],
             row["window_visible_fraction"],
-            row["window_clean_fraction"], row["window_fabricated_fraction"],
-            row["window_suspect_flat_fraction"], row["window_degraded_fraction"],
+            row["window_clean_fraction"], row["window_repeated_moving_pattern_fraction"],
+            row["window_repeated_stationary_position_fraction"], row["window_repeated_pattern_halo_fraction"],
+            row["window_matches_any_pattern_pos_fraction"], row["window_unflagged_fraction"],
+            row["window_unreliable_fraction"],
             row["window_longest_clean_run"], row["window_raw_mask_fraction"],
             row["window_believed_mask_fraction"], row["serve_on_believed_mask"],
             row["court_present_at_serve"], row["n_pose_detections"],
@@ -455,26 +474,23 @@ def measure_candidate_fixture(
     metadata = VideoMetadata(fixture.name, fixture.fps, len(track))
     truth, interval_count = expand_truth(labels_path, metadata)
     keyword = dict(inputs.keyword)
-    capture = RunCapture()
-    keyword["capture"] = capture
-    natural_result = run_video(*inputs.positional, **keyword)
-    if capture.raw_exclusion_mask is None or capture.definitive_exclusion_mask is None:
-        raise RuntimeError(f"{fixture.name}: committed run did not capture replay masks")
+    annotation = annotate_video(*inputs.positional, **keyword)
+    natural_result = annotation.result
 
     gt_rallies = load_gt_rallies(inputs.master, fixture.video_id)
     tolerance = canonical_tolerance(fixture.fps)
-    raw_by_span = candidate_measurement.contacts_by_span(natural_result.contacts)
-    accepted_by_span = {
-        int(span_id): sorted(map(int, frames))
-        for span_id, frames in natural_result.filtered_by_rally.items()
-    }
+    spans = [(rally.sequence.start_frame, rally.sequence.end_frame) for rally in natural_result.rallies]
+    accepted_by_span = {rally_id: [event.frame for event in rally.sequence.events]
+                        for rally_id, rally in enumerate(natural_result.rallies)}
+    raw_by_span = (candidate_measurement.contacts_by_span(natural_result.heuristic_candidates)
+                   if natural_result.heuristic_candidates else accepted_by_span)
     statuses = candidate_measurement.gt_statuses(
         gt_rallies,
-        natural_result.spans,
+        spans,
         accepted_by_span,
         tolerance,
     )
-    inpaint_codes = np.asarray(inputs.keyword["inpaint_codes"])
+    shuttle_grades = np.asarray(inputs.keyword["shuttle_grades"])
     court_present = np.asarray(inputs.keyword["court_present"])
     all_candidates: list[dict[str, Any]] = []
     all_opportunities: list[dict[str, Any]] = []
@@ -486,11 +502,11 @@ def measure_candidate_fixture(
             band_fraction=fraction,
             arrays=inputs.positional,
             truth=truth,
-            inpaint_codes=inpaint_codes,
+            shuttle_grades=shuttle_grades,
             court_present=court_present,
-            raw_mask=capture.raw_exclusion_mask,
-            definitive_mask=capture.definitive_exclusion_mask,
-            spans=natural_result.spans,
+            raw_mask=annotation.raw_exclusion_mask,
+            definitive_mask=annotation.exclusion_mask,
+            spans=spans,
             raw_by_span=raw_by_span,
             accepted_by_span=accepted_by_span,
             gt_rallies=gt_rallies,
@@ -537,9 +553,9 @@ def measure_candidate_fixture(
             for pin in fixture.run_video_files
         ],
         "natural_run": {
-            "spans": len(natural_result.spans),
-            "raw_contacts": len(natural_result.contacts),
-            "accepted_contacts": len(natural_result.filtered_contacts),
+            "spans": len(spans),
+            "raw_contacts": sum(len(frames) for frames in raw_by_span.values()),
+            "accepted_contacts": sum(len(frames) for frames in accepted_by_span.values()),
             "gt_rallies": len(gt_rallies),
             "target_serve_misses": sum(row["target_miss"] for row in statuses),
             "serve_matched": sum(row["serve_matched"] for row in statuses),

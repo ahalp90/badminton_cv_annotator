@@ -11,11 +11,11 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig
-from annotator.outcomes.point_winner import Half
-from annotator.run_video import AnnotatorResult
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
+from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.training.sequences import LabelledRally
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.vision import load_json_gz
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune import data as search_data
 from tests.annotator_result import empty_annotation
 
@@ -25,21 +25,24 @@ def _video(rallies: tuple[LabelledRally, ...]) -> search_data.SearchVideo:
 
 
 @pytest.mark.parametrize(
-    ('final_half', 'count', 'expected'),
+    ('guesses', 'final_half', 'expected'),
     [
-        (Half.TOP, 3, ['Top', 'Bot', 'Top']),
-        (Half.TOP, 2, ['Bot', 'Top']),
-        (Half.BOT, 2, ['Top', 'Bot']),
-        (None, 2, [None, None]),
+        (['Top', 'Bot', 'Top'], CourtHalf.TOP, ['Top', 'Bot', 'Top']),
+        (['Bot', 'Top'], CourtHalf.TOP, ['Bot', 'Top']),
+        (['Top', 'Bot'], CourtHalf.BOT, ['Top', 'Bot']),
+        ([None, None], None, [None, None]),
+        (['Top', 'Top'], CourtHalf.BOT, ['Top', 'Bot']),
     ],
 )
-def test_heuristic_stream_uses_fitted_final_striker(
-    final_half: Half | None, count: int, expected: list[str | None],
+def test_heuristic_stream_preserves_fitted_contact_sides(
+    guesses: list[str | None], final_half: CourtHalf | None, expected: list[str | None],
 ) -> None:
-    frames = [10, 20, 30][:count]
-    result = empty_annotation([(0, 40)], [])._replace(
-        filtered_by_rally={0: frames}, striker_halves=[final_half],
-    )
+    frames = [10, 20, 30][:len(guesses)]
+    events = tuple(ContactEvent(frame, np.nan, None if side is None else CourtHalf(side))
+                   for frame, side in zip(frames, guesses, strict=True))
+    rallies = fit_rally_sides((ContactSequence(0, 0, 40, events),))
+    assert rallies[0].final_half is final_half
+    result = empty_annotation([(0, 40)], [])._replace(rallies=rallies)
     stream = search_data.heuristic_stream(result)
     assert [event[2] for event in stream['events']] == expected
     assert stream['sequences'] == [{
@@ -60,11 +63,11 @@ def test_original_videos_keep_the_frozen_split(tmp_path: Path) -> None:
     validation = {video.identity for video in videos if video.split == 'validation'}
     assert validation == {'sset_18', 'sset_22', 'sset_24', 'sset_25', 'sset_30', 'sset_31', 'sset_39', 'sset_40'}
     assert sum(video.split == 'train' for video in videos) == 32
-    assert videos[0].rallies == (LabelledRally('1:1', (10, 20), (Half.TOP, Half.BOT)),)
+    assert videos[0].rallies == (LabelledRally('1:1', (10, 20), (CourtHalf.TOP, CourtHalf.BOT)),)
 
 
 def test_failed_empty_stream_keeps_all_label_denominators() -> None:
-    video = _video((LabelledRally('rally', (10, 20), (Half.TOP, Half.BOT)),))
+    video = _video((LabelledRally('rally', (10, 20), (CourtHalf.TOP, CourtHalf.BOT)),))
     scores = search_data.score_stream(video, stream_payload((), ()))
     for counts in scores.values():
         assert counts == {
@@ -78,11 +81,11 @@ def test_failed_empty_stream_keeps_all_label_denominators() -> None:
 
 def test_merged_rallies_match_contacts_without_counting_a_complete_rally() -> None:
     video = _video((
-        LabelledRally('first', (10, 20), (Half.TOP, Half.BOT)),
-        LabelledRally('second', (50, 60), (Half.TOP, Half.BOT)),
+        LabelledRally('first', (10, 20), (CourtHalf.TOP, CourtHalf.BOT)),
+        LabelledRally('second', (50, 60), (CourtHalf.TOP, CourtHalf.BOT)),
     ))
     events = tuple(ContactEvent(frame, 1.0, side) for frame, side in (
-        (10, Half.TOP), (20, Half.BOT), (50, Half.TOP), (60, Half.BOT),
+        (10, CourtHalf.TOP), (20, CourtHalf.BOT), (50, CourtHalf.TOP), (60, CourtHalf.BOT),
     ))
     stream = stream_payload((ContactSequence(0, 0, 70, events),), events)
     for counts in search_data.score_stream(video, stream).values():
@@ -92,8 +95,8 @@ def test_merged_rallies_match_contacts_without_counting_a_complete_rally() -> No
 
 
 def test_split_rally_matches_contacts_without_counting_a_complete_rally() -> None:
-    video = _video((LabelledRally('rally', (10, 20), (Half.TOP, Half.BOT)),))
-    events = (ContactEvent(10, 1.0, Half.TOP), ContactEvent(20, 1.0, Half.BOT))
+    video = _video((LabelledRally('rally', (10, 20), (CourtHalf.TOP, CourtHalf.BOT)),))
+    events = (ContactEvent(10, 1.0, CourtHalf.TOP), ContactEvent(20, 1.0, CourtHalf.BOT))
     sequences = (ContactSequence(0, 0, 15, events[:1]), ContactSequence(1, 15, 30, events[1:]))
     for counts in search_data.score_stream(video, stream_payload(sequences, events)).values():
         assert counts['matched_contacts'] == 2
@@ -101,9 +104,9 @@ def test_split_rally_matches_contacts_without_counting_a_complete_rally() -> Non
 
 
 def test_contacts_outside_all_rallies_still_count_against_precision() -> None:
-    video = _video((LabelledRally('rally', (10, 20), (Half.TOP, Half.BOT)),))
-    own = (ContactEvent(10, 1.0, Half.TOP), ContactEvent(20, 1.0, Half.BOT))
-    events = (*own, ContactEvent(100, 1.0, Half.TOP))
+    video = _video((LabelledRally('rally', (10, 20), (CourtHalf.TOP, CourtHalf.BOT)),))
+    own = (ContactEvent(10, 1.0, CourtHalf.TOP), ContactEvent(20, 1.0, CourtHalf.BOT))
+    events = (*own, ContactEvent(100, 1.0, CourtHalf.TOP))
     stream = stream_payload((ContactSequence(0, 0, 30, own),), events)
     for counts in search_data.score_stream(video, stream).values():
         assert counts['predicted_contacts'] == 3
@@ -115,9 +118,9 @@ def test_contacts_outside_all_rallies_still_count_against_precision() -> None:
 def test_tolerances_scale_with_video_fps() -> None:
     video = search_data.SearchVideo(
         'example', 'ShuttleSet', 'validation', 60.0, (1920.0, 1080.0),
-        (LabelledRally('rally', (30,), (Half.TOP,)),),
+        (LabelledRally('rally', (30,), (CourtHalf.TOP,)),),
     )
-    events = (ContactEvent(42, 1.0, Half.TOP),)
+    events = (ContactEvent(42, 1.0, CourtHalf.TOP),)
     stream = stream_payload((ContactSequence(0, 0, 60, events),), events)
     scores = search_data.score_stream(video, stream)
     assert scores['5']['matched_contacts'] == 0
@@ -125,7 +128,7 @@ def test_tolerances_scale_with_video_fps() -> None:
 
 
 def test_load_inputs_rejects_labels_beyond_the_track(monkeypatch: pytest.MonkeyPatch) -> None:
-    video = _video((LabelledRally('rally', (20,), (Half.TOP,)),))
+    video = _video((LabelledRally('rally', (20,), (CourtHalf.TOP,)),))
     track = np.zeros((20, 3), dtype=np.float32)
     monkeypatch.setattr(search_data, 'load_npy_xz', lambda _path: track)
     with pytest.raises(ValueError, match='label outside the video'):
@@ -137,11 +140,11 @@ def test_run_configuration_discovers_boundaries_without_loading_models(monkeypat
     inputs = SimpleNamespace(track=object(), pose=SimpleNamespace(bboxes=1, scores=2, kps=3, ndet=4))
     recorded = {}
 
-    def run(*positional: Any, **keyword: Any) -> AnnotatorResult:
+    def run(*positional: Any, **keyword: Any) -> SimpleNamespace:
         recorded.update(keyword)
-        return empty_annotation([], [])
+        return SimpleNamespace(result=empty_annotation([], []))
 
-    monkeypatch.setattr(search_data, 'run_video', run)
+    monkeypatch.setattr(search_data, 'annotate_video', run)
     monkeypatch.setattr(search_data, 'run_video_kwargs', lambda _inputs: {'fps': 30.0})
     assert search_data.run_configuration(inputs, base) == {'sequences': [], 'events': []}
     assert recorded['base'] is base

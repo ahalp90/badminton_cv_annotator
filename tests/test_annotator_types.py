@@ -1,91 +1,72 @@
-"""Contracts for the annotator's declarations and composition resolver."""
+"""Annotator types and frame-rate scaling."""
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
 
 import pytest
 
-from annotator.config import (
-    BaseAnnotatorConfig,
-    ScalingKind,
-    resolve,
-)
-from annotator.types import (
-    DeadMaskMode,
-    Slot,
-    SmoothingMode,
-)
-from src.bst_x.preparing_data.heuristics.sticky_anchor import SLOT_BOTTOM, SLOT_TOP
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.types import PlayerRow, SmoothingMode
+from shared.frame_timing import frames_at_fps, speed_at_fps
+from shared.player_tracking import BOTTOM_ROW, TOP_ROW
 
 _FIELDS = {
-    'rest_speed': (0.002, ScalingKind.PER_FRAME_SPEED),
-    'rest_window': (5.0, ScalingKind.FRAME_COUNT),
-    'start_speed': (0.015, ScalingKind.PER_FRAME_SPEED),
-    'start_min_frames': (3.0, ScalingKind.FRAME_COUNT),
-    'smooth_window': (3.0, ScalingKind.FRAME_COUNT),
-    'end_rest_frames': (90.0, ScalingKind.FRAME_COUNT),
-    'court_absent_window': (15.0, ScalingKind.FRAME_COUNT),
-    'impulse_floor_half_window_frames': (12.0, ScalingKind.FRAME_COUNT),
-    'contact_dedup_radius_frames': (3.0, ScalingKind.FRAME_COUNT),
-    'contact_suppression_radius_frames': (9.0, ScalingKind.FRAME_COUNT),
-    'serve_start_lookback_frames': (25.0, ScalingKind.FRAME_COUNT),
-    'serve_stillness_window_frames': (15.0, ScalingKind.FRAME_COUNT),
-    'sustained_loss_frames': (10.0, ScalingKind.FRAME_COUNT),
-    'min_descend_samples': (3.0, ScalingKind.FRAME_COUNT),
-    'body_unit_half_window': (12.0, ScalingKind.FRAME_COUNT),
-    'composition_min_scene_len': (15.0, ScalingKind.FRAME_COUNT),
+    'rest_speed': (0.002, speed_at_fps),
+    'rest_window': (5.0, frames_at_fps),
+    'start_speed': (0.015, speed_at_fps),
+    'start_min_frames': (3.0, frames_at_fps),
+    'smooth_window': (3.0, frames_at_fps),
+    'end_rest_frames': (90.0, frames_at_fps),
+    'impulse_floor_half_window_frames': (12.0, frames_at_fps),
+    'contact_dedup_radius_frames': (3.0, frames_at_fps),
+    'contact_suppression_radius_frames': (9.0, frames_at_fps),
+    'sustained_loss_frames': (10.0, frames_at_fps),
+    'min_descend_samples': (3.0, frames_at_fps),
+    'body_unit_half_window': (12.0, frames_at_fps),
 }
 
 
 def test_scaling_kind_matches_every_fps_constant_field() -> None:
     for fps in (25.0, 30.0, 50.0, 60.0):
-        constants = resolve(BaseAnnotatorConfig(), fps).thresholds
+        constants = scale_config_to_fps(BaseAnnotatorConfig(), fps).thresholds
         for field, (base30, kind) in _FIELDS.items():
-            result = kind.scale(base30, fps)
+            result = kind(base30, fps)
             assert getattr(constants, field) == result
-            if kind is ScalingKind.FRAME_COUNT:
+            if kind is frames_at_fps:
                 assert type(result) is int
 
 
-@pytest.mark.parametrize('kind', list(ScalingKind))
+@pytest.mark.parametrize('kind', [frames_at_fps, speed_at_fps])
 @pytest.mark.parametrize('fps', (0.0, -25.0, float('nan'), float('inf')))
-def test_scaling_kind_rejects_invalid_fps(kind: ScalingKind, fps: float) -> None:
+def test_scaling_kind_rejects_invalid_fps(kind, fps: float) -> None:
     with pytest.raises(ValueError, match='fps must be positive and finite'):
-        kind.scale(1.0, fps)
+        kind(1.0, fps)
 
 
 def test_slot_values_pin_sticky_storage_rows() -> None:
-    assert Slot.TOP == SLOT_TOP
-    assert Slot.BOTTOM == SLOT_BOTTOM
+    assert PlayerRow.TOP == TOP_ROW
+    assert PlayerRow.BOTTOM == BOTTOM_ROW
     rows = ['row 0', 'row 1']
-    assert rows[Slot.TOP] == 'row 0'
-    assert rows[Slot.BOTTOM] == 'row 1'
+    assert rows[PlayerRow.TOP] == 'row 0'
+    assert rows[PlayerRow.BOTTOM] == 'row 1'
 
 
-
-
-def test_resolve_preserves_dead_mask_mode_without_fps_scaling() -> None:
-    base = BaseAnnotatorConfig(dead_mask_mode=DeadMaskMode.UNION)
-    resolved = resolve(base, 50.0)
-    assert resolved.dead_mask_mode is DeadMaskMode.UNION
-
-
-def test_resolve_preserves_smoothing_mode_without_fps_scaling() -> None:
-    base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.ZERO_FILL)
-    resolved = resolve(base, 50.0)
-    assert resolved.smoothing_mode is SmoothingMode.ZERO_FILL
+def test_scale_preserves_smoothing_mode_without_fps_scaling() -> None:
+    base = BaseAnnotatorConfig(smoothing_mode=SmoothingMode.INCLUDE_INVISIBLE)
+    video_config = scale_config_to_fps(base, 50.0)
+    assert video_config.smoothing_mode is SmoothingMode.INCLUDE_INVISIBLE
 
 
 def test_config_dataclasses_are_frozen() -> None:
     base = BaseAnnotatorConfig()
-    resolved = resolve(base, 30.0)
+    video_config = scale_config_to_fps(base, 30.0)
     with pytest.raises(FrozenInstanceError):
-        base.smoothing_mode = SmoothingMode.ZERO_FILL  # type: ignore[misc]
+        base.smoothing_mode = SmoothingMode.INCLUDE_INVISIBLE  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
-        resolved.fps = 60.0  # type: ignore[misc]
+        video_config.fps = 60.0  # type: ignore[misc]
 
 
-def test_resolved_thresholds_are_frozen() -> None:
-    resolved = resolve(BaseAnnotatorConfig(), 30.0)
+def test_scaled_thresholds_are_frozen() -> None:
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), 30.0)
     with pytest.raises(FrozenInstanceError):
-        resolved.thresholds.rest_speed = 0.5  # type: ignore[misc]
+        video_config.thresholds.rest_speed = 0.5  # type: ignore[misc]

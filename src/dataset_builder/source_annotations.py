@@ -1,4 +1,4 @@
-"""Reader for ShuttleSet human contact annotations into the frozen v1 schema.
+"""Reader for ShuttleSet manually labelled contact annotations into the frozen v1 schema.
 
 Builds usable rally spans and the columns this module owns for one match's
 ShuttleSet set CSVs: every ``schema_v1.SOURCE_CONTACTS`` column except the
@@ -9,7 +9,7 @@ rally structure and the player-signal positions, then validates the
 completed table against the frozen schema.
 
 Reproduces the rally-usability rules from the benchmark-only reader
-``annotator.evaluation.shuttleset22_features.load_annotation_rallies``: a
+``experiments.annotator.shuttleset_benchmarks.shuttleset22_features.load_annotation_rallies``: a
 rally is unusable if any of its rows has an invalid frame, or if its contact
 frames are not strictly increasing in (ball_round, frame_num) order. See
 issue #18.
@@ -56,7 +56,7 @@ def english_label(label: object) -> object:
 
 
 class SourceRally(NamedTuple):
-    """One usable ShuttleSet rally, rebuilt from its human contact rows."""
+    """One usable ShuttleSet rally, rebuilt from its manually labelled contact rows."""
 
     source_set: int
     source_rally: int

@@ -370,7 +370,7 @@ def process_video(
     mask = generate_inpaint_mask(arrays["Y"], arrays["Visibility"])
     output_x, output_y, output_visibility = run_inpaint(arrays, mask, model, torch)
     track = normalised_track(output_x, output_y, output_visibility)
-    guard_codes, guard_diagnostics = guard_outputs(track, repo_src)
+    shuttle_grades, guard_diagnostics = guard_outputs(track, repo_src)
 
     sidecar: dict[str, object] = {
         "schema": "inpaint_fill_mask/1",
@@ -389,7 +389,7 @@ def process_video(
     write_bytes(paths.csv_path, gzip_csv_bytes(arrays["Frame"], output_x, output_y, output_visibility))
     write_bytes(paths.sidecar_path, gzip_json_bytes(sidecar))
     write_bytes(paths.track_path, npy_xz_bytes(track))
-    write_bytes(paths.guard_codes_path, npy_xz_bytes(guard_codes))
+    write_bytes(paths.guard_codes_path, npy_xz_bytes(shuttle_grades))
     write_bytes(paths.guard_diagnostics_path, gzip_json_bytes(guard_diagnostics))
 
     output_hashes = {path.name: sha256(path) for path in paths.files() if path != paths.receipt_path}

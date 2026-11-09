@@ -1,192 +1,132 @@
-"""Shared annotator declarations for FPS scaling and storage slots.
-
-This module also owns shuttle-track primitives and pose-array conventions used
-by rally segmentation and point-winner attribution.
-"""
+"""Court halves, player measurements, contact records and rally settings."""
 from __future__ import annotations
 
-import warnings
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
-from typing import TYPE_CHECKING, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
 
-if TYPE_CHECKING:
-    from .rally.serve import ServeStartClose, ServeStartMode
+# Court halves and tracked players
 
 
-class DeadMaskMode(StrEnum):
-    """Choose replay detection, scene composition, or both to mask dead time."""
+class CourtHalf(StrEnum):
+    """Player or landing half as seen by the camera: Top is far, Bot is near."""
 
-    REPLAY = 'replay'
-    COMPOSITION = 'composition'
-    UNION = 'union'
-
-
-class SmoothingMode(StrEnum):
-    """Select how invisible frames contribute to span smoothing."""
-
-    ZERO_FILL = 'zero_fill'
-    IGNORE_INVISIBLE = 'ignore_invisible'
+    TOP = 'Top'
+    BOT = 'Bot'
 
 
-class SpanOpen(StrEnum):
-    """Where to start a rally within the region between long rests.
-
-    REGION_START opens a rally at every region's start. BACK_FILL also opens at
-    the region's start, but requires a sustained fast burst within that region.
-    Setting ``ResolvedAnnotatorConfig.span_open`` to None starts at the first
-    qualifying fast burst instead.
-    """
-
-    REGION_START = 'region_start'
-    BACK_FILL = 'back_fill'
+OTHER_HALF = {CourtHalf.TOP: CourtHalf.BOT, CourtHalf.BOT: CourtHalf.TOP}
 
 
-class ReentryGuardVariant(StrEnum):
-    """Checks for a shuttle returning after leaving the top of the frame.
-
-    REENTRY_ONLY requires it to return near the top and descend. TWO_SIDED also
-    requires its last position before disappearing to be near the top.
-    """
-
-    TWO_SIDED = 'two-sided'
-    REENTRY_ONLY = 'reentry-only'
-
-
-class ContactCandidate(NamedTuple):
-    """A contact candidate with proximity, wrist-distance and suppression results."""
-
-    rally_id: int
-    contact_frame: int
-    proximity_ok: bool | None
-    wrist_near: bool | None
-    suppressed: bool | None
-
-
-class ServeStartConfig(NamedTuple):
-    """Serve detection settings, with distance thresholds in player body heights."""
-
-    threshold_bh: float
-    mode: ServeStartMode
-    close: ServeStartClose | None = None
-    stillness_threshold_bh: float | None = None
-
-
-class Slot(IntEnum):
-    """Storage-row indices pinned to sticky_anchor's public constants.
-
-    ``SLOT_TOP = 0`` and ``SLOT_BOTTOM = 1`` let annotator code index sticky's
-    per-slot arrays directly.
-    Sticky's pick order is bottom-first and is deliberately not modelled here;
-    enum definition and iteration order must never be read as pick order.
-    """
+class PlayerRow(IntEnum):
+    """Index the player axis of tracked arrays: top = 0, bottom = 1."""
 
     TOP = 0
     BOTTOM = 1
 
 
-# ---------------------------------------------------------------------------
-# Shared shuttle-track primitives (rally segmentation and replay masking both import these)
-# ---------------------------------------------------------------------------
-def compute_speed(track: np.ndarray) -> np.ndarray:
-    """Per-frame shuttle speed, NaN where the step is not fully visible.
-
-    Speed at frame i is the L2 displacement of `(x, y)` from frame i-1 to i.
-    Frame 0 has no predecessor and both endpoint frames must have visibility 1,
-    else the step is unmeasured and reads NaN (so nan-aware stats skip it).
-
-    :param track: `(t, 3)` `[x_norm, y_norm, visibility]` whole-video track.
-    :return: `(t,)` speed in norm-units/frame; NaN on frame 0 and on any step
-        touching a non-visible frame.
-    """
-    xy = track[:, :2]  # (t, 2) normalised position
-    visibility = track[:, 2]  # (t,)
-    step = np.diff(xy, axis=0)  # (t-1, 2) frame i-1 -> i
-    step_speed = np.linalg.norm(step, axis=1)  # (t-1,)
-    both_visible = (visibility[:-1] == 1) & (visibility[1:] == 1)  # (t-1,) both ends of the step
-
-    speed = np.full(len(track), np.nan)  # (t,) frame-indexed; frame 0 stays NaN
-    speed[1:] = np.where(both_visible, step_speed, np.nan)
-    return speed
-
-
-def true_runs(mask: np.ndarray) -> list[tuple[int, int]]:
-    """Maximal runs of True in a boolean mask, as half-open `[start, end)` ranges.
-
-    Vectorised via edge detection on the zero-padded int mask: +1 marks a run
-    start, -1 marks one-past a run end. Shared with replay masking's court-absence
-    signal, which masks whole absent runs.
-
-    :param mask: `(t,)` boolean.
-    :return: list of `(start, end)` with `mask[start:end]` all True.
-    """
-    padded = np.concatenate([[0], mask.astype(np.int8), [0]])  # sentinels force edges at the ends
-    edges = np.diff(padded)
-    starts = np.flatnonzero(edges == 1)
-    ends = np.flatnonzero(edges == -1)
-    return [(int(start), int(end)) for start, end in zip(starts, ends)]
-
-
-def rolling_nanmedian(values: np.ndarray, window: int) -> np.ndarray:
-    """Centred rolling median that ignores NaN, one value per input frame.
-
-    Pads both ends with NaN so every frame gets a full-width window and the
-    output keeps length t; nanmedian drops the pad and any NaN steps. Shared
-    with replay masking's slow-motion signal.
-
-    :param values: `(t,)` values, may contain NaN.
-    :param window: window width in frames.
-    :return: `(t,)` centred rolling median; NaN only where a whole window is NaN.
-    """
-    left = window // 2
-    right = window - 1 - left
-    padded = np.concatenate([np.full(left, np.nan), values, np.full(right, np.nan)])
-    windows = sliding_window_view(padded, window)  # (t, window)
-    with warnings.catch_warnings():
-        # An all-NaN window (e.g. a fully untracked span) is expected and yields
-        # NaN by design; silence the RuntimeWarning rather than let it spam logs.
-        warnings.simplefilter('ignore', category=RuntimeWarning)
-        return np.nanmedian(windows, axis=1)
-
-
-# COCO wrist/ankle keypoint indices in the (t, n_max, 17, 2) pose keypoint arrays. Rally segmentation
-# (rally_segmentation.py) and point_winner both read these for the sticky picker, attribution
-# and landing kinematics.
+# COCO wrist and ankle joint indices.
 WRIST_L, WRIST_R = 9, 10
 ANKLE_L, ANKLE_R = 15, 16
 
 
-class StickyResult(NamedTuple):
-    """Frame-aligned evidence from the sticky player picker.
+class TrackedPlayers(NamedTuple):
+    """Selected top/bottom players, one row per video frame.
 
-    The second axis of every per-slot field is ``[TOP, BOTTOM]``.
-
-    :param distances: ``(t,)`` nearest finite wrist gap in body-height units;
-        positive infinity outside analysed segments and NaN when an analysed
-        frame has no finite picked-player gap.
-    :param picks: ``(t, 2)`` raw pose-slot indices; ``-1`` means no accepted
-        player for that court half.
-    :param standing_count: ``(t,)`` number of standing in-court detections.
-    :param ankle_pos: ``(t, 2, 2)`` mean ankle ``[x, y]`` normalised by video
-        resolution; NaN where no player was picked.
-    :param bbox_height: ``(t, 2)`` picked-player box heights in pixels; NaN
-        where no player was picked.
-    :param distances_per_slot: ``(t, 2)`` wrist gaps in body-height units before
-        the nearest-slot collapse, with the same infinity and NaN sentinels as
-        ``distances``.
-    :param wrist_dist_px: ``(t, 2)`` wrist gaps in pixels on visible shuttle
-        frames; positive infinity outside analysed segments and NaN when
-        unavailable inside them.
-    :param analysed: ``(t,)`` boolean mask of frames visited by the picker.
+    Detection indices address the original pose arrays; -1 means no selection.
+    Ankle xy is divided by video width/height. Missing positions/heights are NaN.
     """
 
-    distances: np.ndarray
-    picks: np.ndarray
-    standing_count: np.ndarray
-    ankle_pos: np.ndarray
-    bbox_height: np.ndarray
-    distances_per_slot: np.ndarray
-    wrist_dist_px: np.ndarray
-    analysed: np.ndarray
+    detection_indices: np.ndarray  # (frames, players)
+    ankle_xy: np.ndarray  # (frames, players, xy)
+    box_heights_px: np.ndarray  # (frames, players)
+
+
+class WristGaps(NamedTuple):
+    """Shuttle-to-wrist distances in body heights, for contact detection/attribution.
+
+    Infinity outside tracked intervals; NaN for unavailable gaps inside them.
+    Each player's distance uses its nearer wrist and mean nearby box height.
+    """
+
+    nearest: np.ndarray  # (frames,)
+    per_player: np.ndarray  # (frames, players), top then bottom
+
+
+# Contacts and rallies
+
+
+class ContactCandidate(NamedTuple):
+    """Raw heuristic contact, kept for inspection even if rejected.
+
+    ``rally_id`` indexes the initial rally ranges. Supplied contacts and
+    candidates found without wrist measurements have both checks unset.
+    """
+
+    rally_id: int
+    contact_frame: int
+    wrist_near: bool | None
+    temporal_proximity_suppressed: bool | None
+
+
+@dataclass(frozen=True)
+class ContactEvent:
+    """Contact frame, score and hitter, before or after fitting player order.
+
+    ``side`` starts as the nearest-player guess. ``fit_rally_sides`` replaces
+    it with the chosen alternating side. None means unknown at either stage.
+    ``probability`` is the contact-model score, or NaN for a heuristic contact.
+    ``wrist_distances`` is (Top, Bot) in body heights, or None when the two
+    players cannot both be compared.
+    """
+
+    frame: int
+    probability: float
+    side: CourtHalf | None
+    wrist_distances: tuple[float, float] | None = None  # TOP/BOT gaps in body heights.
+
+
+@dataclass(frozen=True)
+class ContactSequence:
+    """Rally bounds and contacts in time order, from initial detection to selection.
+
+    Frame range includes start, excludes end. ``span_id`` identifies the
+    initial rally across alternative contact lists and later boundary changes.
+    Contact sides are individual guesses until ``fit_rally_sides`` assigns
+    one alternating order.
+    """
+
+    span_id: int
+    start_frame: int
+    end_frame: int
+    events: tuple[ContactEvent, ...]
+
+
+@dataclass(frozen=True)
+class FinishedRally:
+    """Selected contacts after fitting one alternating player order.
+
+    ``final_half`` is None if no contact identified a player.
+    """
+
+    sequence: ContactSequence
+    final_half: CourtHalf | None
+
+    @property
+    def first_half(self) -> CourtHalf | None:
+        """First hitter, derived from the final hitter and contact count."""
+        if self.final_half is None:
+            return None
+        return self.final_half if len(self.sequence.events) % 2 else OTHER_HALF[self.final_half]
+
+
+# Rally and contact detection choices
+
+
+class SmoothingMode(StrEnum):
+    """Whether to include invisible shuttle coordinates when smoothing the track."""
+
+    INCLUDE_INVISIBLE = 'include_invisible'
+    IGNORE_INVISIBLE = 'ignore_invisible'

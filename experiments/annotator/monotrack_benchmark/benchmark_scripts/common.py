@@ -62,11 +62,11 @@ def load_manifest(root: Path) -> dict[str, Any]:
 
 
 def labels_for_item(item: dict[str, Any]) -> tuple[Any, ...]:
-    from annotator.outcomes.point_winner import Half
     from annotator.training.sequences import LabelledRally
+    from annotator.types import CourtHalf
 
     return tuple(LabelledRally(span['rally_id'], tuple(span['label_frames']),
-                              tuple(None if side is None else Half(side) for side in span['label_sides']))
+                              tuple(None if side is None else CourtHalf(side) for side in span['label_sides']))
                  for span in item['spans'])
 
 

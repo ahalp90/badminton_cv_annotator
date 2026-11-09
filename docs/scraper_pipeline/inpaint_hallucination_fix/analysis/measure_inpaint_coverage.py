@@ -58,7 +58,7 @@ def measure_fixture(spec: FixtureSpec, analysis_dir: Path) -> dict[str, object]:
     sidecar_mask, sidecar_payload = load_sidecar_mask(spec, len(track))
     spans = cast(list[list[int]], sidecar_payload["inpaint_selected"])
 
-    guard_codes = read_npy_xz(analysis_dir / f"{spec.name}_guard_codes.npy.xz")
+    shuttle_grades = read_npy_xz(analysis_dir / f"{spec.name}_guard_codes.npy.xz")
     uncaught = read_npy_xz(analysis_dir / f"{spec.name}_uncaught_mask.npy.xz")
     impulse = read_npy_xz(analysis_dir / f"{spec.name}_impulse_event_mask.npy.xz")
     tp_rally_ender = read_npy_xz(
@@ -66,7 +66,7 @@ def measure_fixture(spec: FixtureSpec, analysis_dir: Path) -> dict[str, object]:
     )
     valid = ~((track[:, 0] == 0) & (track[:, 1] == 0))
 
-    baseline_guard = guard_codes != 0
+    baseline_guard = shuttle_grades != 0
     union_one = uncaught | sidecar_mask | (impulse & valid)
     union_two = uncaught | (impulse & valid) | (tp_rally_ender & valid)
     augmented_tag = baseline_guard | union_two

@@ -9,19 +9,11 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator.validation_overlay.core.cli import (
-    compose_frames,
-    make_render_plan,
-    render,
-)
-from annotator.validation_overlay.core.decode import iter_span_frames
-from annotator.validation_overlay.core.timeline import Segment
-from annotator.validation_overlay.overlays.shuttle_track import (
-    BOX_COLOUR,
-    load_track,
-    make_draw,
-)
-from annotator.video_metadata import probe_video_metadata
+from shared.video_metadata import probe_video_metadata
+from video_overlay.decode import iter_span_frames
+from video_overlay.render import compose_frames, make_render_plan, render
+from video_overlay.shuttle_track import BOX_COLOUR, load_track, make_draw
+from video_overlay.timeline import Segment
 
 
 def test_shuttle_loader_applies_shared_visibility_and_coordinate_contract(tmp_path: Path) -> None:

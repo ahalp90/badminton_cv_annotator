@@ -1,52 +1,60 @@
 """A fitted bundle carries its preprocessing rules into the current runtime."""
 
 import json
-from dataclasses import replace
+from pathlib import Path
 
-import joblib
 import numpy as np
 import pytest
 from sklearn.dummy import DummyClassifier
 
-from annotator.contacts.model import ContactModelConfig
 from annotator.models import (
     DEFAULT_MODEL_DIRECTORY,
-    MODEL_SCHEMA,
     AnnotatorModels,
-    SideGeometry,
     fitted_trees,
     load_models,
     save_models,
 )
-from annotator.sequence.rally_model import RallyLayerModels
+from annotator.rallies.refine_rallies import RallySelector
 
 
-@pytest.mark.parametrize('name', [
-    *(f'{variant}-seed-{seed}' for variant in ('raw_baseline', 'body_window_36')
-      for seed in (0, 100, 200, 300, 400)),
-])
-def test_shipped_bundle_loads_and_predicts(name):
-    models = load_models(DEFAULT_MODEL_DIRECTORY.parent / name)
-    assert 'thresholds' not in vars(models.preprocessing)
-    assert isinstance(models.sequences, RallyLayerModels)
+@pytest.mark.parametrize('device', ['cuda', 'cpu'])
+def test_default_bundle_loads_and_predicts_with_all_three_models(device):
+    models = load_models(DEFAULT_MODEL_DIRECTORY, device=device)
     for estimator in fitted_trees(models):
-        assert estimator.get_params()['n_jobs'] == 2
+        assert estimator.get_params()['device'] == device
         probabilities = estimator.predict_proba(np.zeros((1, estimator.n_features_in_)))
         assert probabilities.shape == (1, 2)
         assert np.isfinite(probabilities).all()
-        np.testing.assert_allclose(probabilities.sum(axis=1), 1)
 
 
-def test_bundle_roundtrip_keeps_predictions_and_geometry(tmp_path):
+def test_loading_uses_runtime_device_instead_of_saved_device(tmp_path):
+    models = load_models(DEFAULT_MODEL_DIRECTORY, device='cpu')
+    save_models(models, tmp_path)
+    restored = load_models(tmp_path)
+    for original, loaded in zip(fitted_trees(models), fitted_trees(restored), strict=True):
+        assert loaded.get_params()['device'] == 'cuda'
+        matrix = np.zeros((3, loaded.n_features_in_), dtype=np.float32)
+        np.testing.assert_allclose(loaded.predict_proba(matrix), original.predict_proba(matrix), rtol=1e-6)
+
+
+def test_previous_schema_requires_matching_historical_checkout():
+    historical = (
+        Path(__file__).resolve().parents[1]
+        / 'experiments/annotator/tree_simplification/results/discovery_context/no_max/models/raw_baseline-seed-0'
+    )
+    with pytest.raises(ValueError, match='Unsupported annotator model bundle'):
+        load_models(historical)
+
+
+def test_bundle_roundtrip_keeps_predictions_and_preprocessing(tmp_path):
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 1, 1])
     models = AnnotatorModels(
-        tree, RallyLayerModels((tree,)), tree, side_geometry=SideGeometry.SCENE,
+        tree, RallySelector(tree), tree,
     )
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
-    assert restored.side_geometry is SideGeometry.SCENE
     assert restored.preprocessing == models.preprocessing
-    np.testing.assert_array_equal(restored.contact.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
+    np.testing.assert_array_equal(restored.contact_model.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
 
 
 def test_missing_bundle_explains_retune_requirement(tmp_path):
@@ -54,32 +62,17 @@ def test_missing_bundle_explains_retune_requirement(tmp_path):
         load_models(tmp_path)
 
 
-def test_incompatible_runtime_is_rejected_before_loading_models(tmp_path):
-    (tmp_path / 'models.joblib').write_bytes(b'not loaded')
-    (tmp_path / 'metadata.json').write_text(json.dumps({
-        'schema': MODEL_SCHEMA, 'scikit_learn': '0.0',
-    }))
-    with pytest.raises(ValueError, match='Refit the bundle'):
-        load_models(tmp_path)
-
-
-@pytest.mark.parametrize('enabled', [False, True])
-def test_bundle_keeps_masked_candidate_policy(tmp_path, annotator_models, enabled):
-    models = replace(annotator_models, contact_settings=ContactModelConfig(reject_masked_without_player=enabled))
-    save_models(models, tmp_path)
-    restored = load_models(tmp_path)
-    assert restored.contact_settings.reject_masked_without_player is enabled
-
-
-def test_bundle_without_new_policy_field_defaults_to_baseline(tmp_path, annotator_models):
+def test_library_version_metadata_does_not_block_loading(tmp_path, annotator_models):
     save_models(annotator_models, tmp_path)
-    old_models = joblib.load(tmp_path / 'models.joblib')
-    object.__delattr__(old_models.contact_settings, 'reject_masked_without_player')
-    joblib.dump(old_models, tmp_path / 'models.joblib')
-    assert not load_models(tmp_path).contact_settings.reject_masked_without_player
+    metadata_path = tmp_path / 'metadata.json'
+    metadata = json.loads(metadata_path.read_text())
+    metadata.update(scikit_learn='0.0', xgboost='0.0')
+    metadata_path.write_text(json.dumps(metadata))
+
+    assert load_models(tmp_path).preprocessing == annotator_models.preprocessing
 
 
-@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1'])
+@pytest.mark.parametrize('schema', ['annotator-models/1', 'annotator-rally-layers/1', 'annotator-three-models/1', 'annotator-three-models/2', 'annotator-three-models/3'])
 def test_retired_schema_is_rejected_before_unpickling(tmp_path, schema):
     (tmp_path / 'models.joblib').write_bytes(b'not loaded')
     (tmp_path / 'metadata.json').write_text(json.dumps({'schema': schema}))

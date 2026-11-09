@@ -193,10 +193,10 @@ def court_setup(print_versions: bool = False) -> tuple:
     import pandas as pd
     from pipeline.config import RESOLUTION_CSV_PATH, SET_INFO_DIR
     from preparing_data.heuristics.base import ClipContext, RawClip
-    from preparing_data.heuristics.sticky_anchor import StickyAnchorParams
     from preparing_data.heuristics.sticky_anchor import apply as sticky_apply
 
     from shared.court import get_court_info
+    from shared.player_tracking import StickyAnchorParams
 
     if print_versions:
         print(f"numpy {np.__version__} | pandas {pd.__version__}")

@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from annotator.evaluation.scoring import safe_f1
+from experiments.annotator.legacy_evaluation.scoring import safe_f1
 
 ScoreRow = dict[str, Any]
 SortKey = tuple[Any, ...]

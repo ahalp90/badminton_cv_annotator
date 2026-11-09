@@ -19,8 +19,8 @@ import cv2
 import numpy as np
 import pytest
 
-from annotator.courts import views as court_views
 from court_detector import measurements, reuse, stripe_refit
+from court_detector import view_matching as court_views
 from court_detector.detect import (
     LiveModules,
     freeze_arrays,
@@ -114,12 +114,7 @@ def test_extracted_alignment_keeps_the_same_camera_result() -> None:
     same = court_views.measure_view_alignment(image, image, corners_refpx)
     assert same is not None and same.matches
     np.testing.assert_allclose(same.moved_corners_refpx, corners_refpx, atol=1e-3)
-    view = court_views.CourtView(np.zeros((1, 16, 16), dtype=bool), image)
-    assert court_views._view_alignment(view, view, corners_refpx) is True
-
-    blank = court_views.CourtView(view.hashes, np.zeros_like(image))
-    assert court_views.measure_view_alignment(blank.image, image, corners_refpx) is None
-    assert court_views._view_alignment(blank, view, corners_refpx) is False
+    assert court_views.measure_view_alignment(np.zeros_like(image), image, corners_refpx) is None
 
 
 def test_supplied_image_aligns_without_using_the_raw_frame() -> None:

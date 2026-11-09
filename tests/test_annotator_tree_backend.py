@@ -1,5 +1,6 @@
 """XGBoost weighting and stopping use the same selected training rows."""
 
+from dataclasses import replace
 from typing import Any, Literal
 
 import numpy as np
@@ -7,12 +8,9 @@ import pytest
 from sklearn.utils.class_weight import compute_sample_weight
 from threadpoolctl import threadpool_limits
 
-from annotator.training.trees import fit_binary_tree
+from annotator.training.trees import TreeFitConfig, fit_binary_tree
 
-FIT_SETTINGS = {
-    'max_iter': 8, 'max_leaf_nodes': 7, 'learning_rate': 0.15,
-    'l2_regularization': 1.0, 'random_seed': 7,
-}
+FIT_SETTINGS = TreeFitConfig(max_iter=8, max_leaf_nodes=7, learning_rate=0.15, random_seed=7)
 
 
 def examples(row_count: int = 120) -> tuple[np.ndarray, np.ndarray]:
@@ -72,27 +70,27 @@ def test_xgb_weights_and_internal_stopping_split(
     monkeypatch.setattr(xgb.XGBClassifier, 'fit', observe_fit)
     with threadpool_limits(limits=1):
         model = fit_binary_tree(
-            matrix, labels, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
-            **FIT_SETTINGS,
+            matrix, labels, FIT_SETTINGS, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
         )
         repeated = fit_binary_tree(
-            matrix, labels, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
-            **FIT_SETTINGS,
+            matrix, labels, FIT_SETTINGS, balanced=balanced, sample_weight=weights, early_stopping=early_stopping,
         )
     np.testing.assert_array_equal(seen[0], seen[1])
     np.testing.assert_array_equal(model.predict_proba(matrix), repeated.predict_proba(matrix))
     assert model.get_params()['early_stopping_rounds'] == (10 if stopping else None)
+    assert model.get_params()['device'] == FIT_SETTINGS.device
     assert np.mean(model.predict_proba(matrix)[labels == 1, 1]) > np.mean(model.predict_proba(matrix)[labels == 0, 1])
 
 
-def test_xgb_stops_when_internal_holdout_loss_cannot_improve() -> None:
+@pytest.mark.parametrize('device', ['cuda', 'cpu'])
+def test_xgb_stops_when_internal_holdout_loss_cannot_improve(device: str) -> None:
     pytest.importorskip('xgboost')
     matrix = np.zeros((200, 3), dtype=np.float32)
     labels = np.tile([0, 1], 100)
     model = fit_binary_tree(
-        matrix, labels, balanced=True, early_stopping=True,
-        **{**FIT_SETTINGS, 'max_iter': 40},
+        matrix, labels, replace(FIT_SETTINGS, max_iter=40, device=device), balanced=True, early_stopping=True,
     )
+    assert model.get_params()['device'] == device
     assert model.best_iteration == 0
     assert model.get_booster().num_boosted_rounds() == 11
     np.testing.assert_allclose(model.predict_proba(matrix), 0.5)

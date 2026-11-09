@@ -1,16 +1,16 @@
-"""Retune and evaluate the hybrid annotator from dataset-builder artefacts.
+"""Fit and evaluate the annotator using saved extraction outputs and contact labels.
 
-The manifest names disjoint train/validation/test groups. Fitting reads only
-training videos. Sequence and confidence training use held-group downstream
-predictions. Each training video's contact scores also come from a tree fitted
-without its group; the saved contact tree is fitted on all training videos.
+The manifest assigns videos to disjoint training, validation and test groups.
+Fitting reads training videos only. Contact scores for selector training use
+a tree fitted without the scored video's group. Review training likewise
+uses selector predictions made while withholding that video's group.
 """
 
 import argparse
 import csv
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -18,31 +18,29 @@ from typing import Any
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.contacts.features import ContactFeatures
-from annotator.contacts.model import ContactModelConfig, score_contact_features
-from annotator.hybrid import (
-    features_from_evidence,
-    predict_contacts,
-    sequence_inputs,
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.contacts.build_features import ContactFeatures
+from annotator.contacts.score_candidates import (
+    ContactModelConfig,
+    score_contact_features,
 )
-from annotator.models import AnnotatorModels, SideGeometry, load_models, save_models
-from annotator.outcomes.point_winner import Half
-from annotator.preparation import AnnotationEvidence, prepare_annotation
-from annotator.sequence.contacts import (
-    ContactEvent,
-    ContactSequence,
-    initial_sequences,
-    scale_frames,
+from annotator.inference.learned import (
+    contact_features_from_inputs,
+    predict_rallies_and_contacts,
 )
-from annotator.sequence.repairs import build_rally_repairs
-from annotator.shuttle_track import validate_shuttle_track
+from annotator.inference.prepare_annotation_inputs import (
+    PreparedAnnotationInputs,
+    prepare_annotation_inputs,
+)
+from annotator.models import AnnotatorModels, load_models, save_models
+from annotator.rallies.build_contact_proposals import build_rally_context
+from annotator.saved_inputs import load_saved_video_inputs
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
     fit_contact_model,
 )
-from annotator.training.rally_layers import (
+from annotator.training.rally import (
     RallyFitConfig,
     fit_rally_models,
     fit_rally_review_model,
@@ -54,23 +52,15 @@ from annotator.training.sequences import (
     whole_rally_correctness,
 )
 from annotator.training.trees import TreeFitConfig
-from annotator.video_metadata import VideoMetadata
-from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
-from dataset_builder.vision import (
-    TRACK_FILENAME,
-    load_court_vision,
-    load_json_gz,
-    load_npy_xz,
-    load_pose_arrays,
-    save_json_gz,
-)
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from dataset_builder.vision import save_json_gz
+from shared.frame_timing import frames_at_fps
 
-METADATA_FILENAME = 'video_metadata.json.gz'
 EVALUATION_TOLERANCE_AT_30_FPS = 10
 
 
 class Split(StrEnum):
-    """The named data partitions accepted by the retune manifest."""
+    """Training, validation or test partition named in the manifest."""
 
     TRAIN = 'train'
     VALIDATION = 'validation'
@@ -79,9 +69,12 @@ class Split(StrEnum):
 
 @dataclass(frozen=True)
 class VideoInput:
-    """One dataset-builder video and its human contact-label file."""
+    """Saved video ID, contact-label file and split assignment.
 
-    identity: str
+    Videos sharing a group are withheld together during fitting.
+    """
+
+    video_id: str
     group: str
     split: Split
     labels: Path
@@ -89,258 +82,117 @@ class VideoInput:
 
 @dataclass(frozen=True)
 class TrainingManifest:
-    """An existing dataset-builder run and explicit, disjoint labelled splits."""
+    """Saved extraction run and labelled video assignments.
+
+    Each video appears once. Groups cannot cross train/validation/test splits.
+    """
 
     run_dir: Path
     videos: tuple[VideoInput, ...]
 
     def __post_init__(self) -> None:
-        identities = set()
+        video_ids = set()
         group_splits = {}
         for video in self.videos:
-            if video.identity in identities:
-                raise ValueError(f'duplicate video id: {video.identity}')
-            identities.add(video.identity)
+            if video.video_id in video_ids:
+                raise ValueError(f'duplicate video id: {video.video_id}')
+            video_ids.add(video.video_id)
             if video.group in group_splits and group_splits[video.group] != video.split:
                 raise ValueError(f'group {video.group!r} occurs in more than one split')
             group_splits[video.group] = video.split
 
 
 @dataclass(frozen=True)
+class LoadedTrainingVideo:
+    """Prepared inputs reused across contact and rally training.
+
+    ``contact_input`` pairs candidate rows with flattened contact labels.
+    ``rallies`` keeps those labels grouped, with player sides, for rally fitting.
+    """
+
+    entry: VideoInput
+    evidence: PreparedAnnotationInputs
+    features: ContactFeatures
+    rallies: tuple[LabelledRally, ...]
+    contact_input: ContactTrainingVideo
+
+
+@dataclass(frozen=True)
 class TrainingSettings:
-    """Python API settings for fitting; the command uses these supported defaults."""
+    """Settings for fitting all three models; the command starts from these defaults."""
 
     contact: ContactFitConfig = field(default_factory=ContactFitConfig)
     contact_prediction: ContactModelConfig = field(default_factory=ContactModelConfig)
     confidence: TreeFitConfig = field(default_factory=lambda: TreeFitConfig(max_iter=100, max_leaf_nodes=7))
     preprocessing: BaseAnnotatorConfig = field(default_factory=BaseAnnotatorConfig)
-    rally_layers: RallyFitConfig = field(default_factory=RallyFitConfig)
+    rally: RallyFitConfig = field(default_factory=RallyFitConfig)
 
 
 DEFAULT_TRAINING_SETTINGS = TrainingSettings()
 
 
-def manifest_path(value: object, directory: Path, field_name: str) -> Path:
-    """Resolve a required manifest path relative to the manifest's directory."""
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f'{field_name} must be a non-empty path string')
-    path = Path(value)
-    return (path if path.is_absolute() else directory / path).resolve()
-
-
-def load_manifest(path: Path) -> TrainingManifest:
-    """Read the small JSON contract without opening any video or label artefacts."""
-    payload = json.loads(path.read_text())
-    if not isinstance(payload, dict) or set(payload) != {'run_dir', 'videos'}:
-        raise ValueError('manifest must contain run_dir and videos')
-    run_dir = manifest_path(payload['run_dir'], path.resolve().parent, 'run_dir')
-    if not isinstance(payload['videos'], list):
-        raise TypeError('manifest videos must be a list')
-    videos = []
-    for entry in payload['videos']:
-        if not isinstance(entry, dict) or set(entry) != {'id', 'group', 'split', 'labels'}:
-            raise ValueError('each manifest video must contain id, group, split and labels')
-        raw_identity = entry['id']
-        if isinstance(raw_identity, bool) or not isinstance(raw_identity, (str, int)):
-            raise TypeError('video id must be a string or integer')
-        identity = str(raw_identity)
-        if not identity or identity in ('.', '..') or Path(identity).name != identity:
-            raise ValueError(f'video id must be one directory name: {identity!r}')
-        group = entry['group']
-        if not isinstance(group, str) or not group.strip():
-            raise ValueError(f'{identity}: group must be a non-empty string')
-        try:
-            split = Split(entry['split'])
-        except ValueError as error:
-            raise ValueError(f'{identity}: split must be train, validation or test') from error
-        labels = manifest_path(entry['labels'], path.resolve().parent, f'{identity} labels')
-        videos.append(VideoInput(identity, group, split, labels))
-    return TrainingManifest(run_dir, tuple(videos))
-
-
-def videos_for_split(manifest: TrainingManifest, split: Split) -> tuple[VideoInput, ...]:
-    """Select exactly one named partition, failing clearly when it is empty."""
-    videos = tuple(video for video in manifest.videos if video.split == split)
-    if not videos:
-        raise ValueError(f'manifest contains no {split.value} videos')
-    return videos
-
-
-def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
-    """Read rally_id,frame,side CSV rows, grouped by rally and increasing in frame.
-
-    Empty sides remain unknown. Each rally must occupy one contiguous CSV block.
-    All frames must lie inside the source video timeline.
-    """
-    rallies = []
-    seen = set()
-    current = None
-    frames: list[int] = []
-    sides: list[Half | None] = []
-    with path.open(newline='') as handle:
-        reader = csv.DictReader(handle)
-        expected_columns = {'rally_id', 'frame', 'side'}
-        if reader.fieldnames is None or len(reader.fieldnames) != 3 or set(reader.fieldnames) != expected_columns:
-            raise ValueError(f'{path}: labels need rally_id,frame,side columns')
-        for line, row in enumerate(reader, start=2):
-            if None in row or any(value is None for value in row.values()):
-                raise ValueError(f'{path}:{line}: label row has the wrong column count')
-            identity = row['rally_id'].strip()
-            if not identity:
-                raise ValueError(f'{path}:{line}: rally_id is empty')
-            if identity != current:
-                if identity in seen:
-                    raise ValueError(f'{path}:{line}: rally rows must form a contiguous block')
-                if current is not None:
-                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
-                seen.add(identity)
-                current, frames, sides = identity, [], []
-            try:
-                frame = int(row['frame'])
-                side_text = row['side'].strip()
-                side = Half(side_text) if side_text else None
-            except ValueError as error:
-                raise ValueError(f'{path}:{line}: frame must be an integer and side Top, Bot or empty') from error
-            if not 0 <= frame < frame_count:
-                raise ValueError(f'{path}:{line}: contact frame {frame} lies outside the video')
-            if frames and frame <= frames[-1]:
-                raise ValueError(f'{path}:{line}: rally frames must be strictly increasing')
-            frames.append(frame)
-            sides.append(side)
-    if current is not None:
-        rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
-    return tuple(rallies)
-
-
-def load_contact_evidence(run_dir: Path, identity: str, preprocessing: BaseAnnotatorConfig) -> AnnotationEvidence:
-    """Prepare canonical stage arrays directly for contact-model features."""
-    stages = run_dir / 'stages'
-    try:
-        metadata = VideoMetadata.from_dict(load_json_gz(stages / 'metadata' / identity / METADATA_FILENAME))
-        track = load_npy_xz(stages / 'shuttle' / identity / TRACK_FILENAME)
-        validate_shuttle_track(track, metadata.frame_count)
-        guard_codes = load_npy_xz(stages / 'shuttle' / identity / GUARD_CODES_FILENAME)
-        pose = load_pose_arrays(stages / 'pose' / identity, metadata.frame_count)
-        court = load_court_vision(
-            stages / 'court' / identity, video_id=identity, frame_count=metadata.frame_count,
-            resolution=(float(metadata.width), float(metadata.height)),
-        )
-    except (FileNotFoundError, TypeError, ValueError) as error:
-        raise ValueError(f'{identity}: cannot load current metadata/pose/court/shuttle artefacts: {error}') from error
-    inputs = court.evidence.inputs
-    if inputs is None:
-        raise ValueError(f'{identity}: court extraction has no usable operational court inputs')
-    return prepare_annotation(
-        track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-        resolved=resolve(preprocessing, float(metadata.fps)),
-        net_band=inputs.net_band, resolution=inputs.resolution, video_id=identity,
-        gate_court_info=inputs.gate_court_info, gate_resolution_table=inputs.gate_resolution_table,
-        court_present=court.evidence.court_present, homography_rows=inputs.homography_rows,
-        cut_frames=[end for _start, end in court.raw_cuts[:-1]], keep_vote=court.evidence.keep_vote,
-        inpaint_codes=guard_codes, court_invalid_is_excluded=True,
-    )
-
-
-def sequence_training_video(
-    entry: VideoInput, evidence: AnnotationEvidence, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
-    contact_model: Any, settings: ContactModelConfig, side_geometry: SideGeometry,
-) -> SequenceTrainingVideo:
-    """Score contacts and prepare candidate sequences for rally fitting."""
-    scored = score_contact_features(
-        features.rows, contact_model, evidence.fps, settings,
-        shuttle_hallucination_mask=evidence.shuttle_hallucination_mask,
-    )
-    scores, events, side_for_frame = sequence_inputs(evidence, scored, side_geometry)
-    initial = initial_sequences(evidence.heuristic_spans, events)
-    repairs = build_rally_repairs(
-        initial, events, scores, features.rows, features.search_intervals,
-        fps=evidence.fps, side_for_frame=side_for_frame,
-    )
-    return SequenceTrainingVideo(
-        entry.identity, entry.group, evidence.fps, initial, events, repairs, rallies, len(evidence.track),
-        evidence.bounds_supplied,
-    )
-
-
 def fit_from_manifest(
-    manifest: TrainingManifest, output: Path, side_geometry: SideGeometry = SideGeometry.VIDEO,
+    manifest: TrainingManifest, output: Path,
     settings: TrainingSettings = DEFAULT_TRAINING_SETTINGS,
 ) -> AnnotatorModels:
-    """Fit and save all stages from train inputs only; held-out labels are never read."""
+    """Fit and save the three models using the manifest's training videos.
+
+    Fit the deployed contact model on all training videos. Prepare selector
+    inputs using contact models that withhold the scored video's group, then
+    fit the selector and review model. Save their shared preprocessing too.
+    """
     entries = videos_for_split(manifest, Split.TRAIN)
     groups = tuple(dict.fromkeys(entry.group for entry in entries))
     if len(groups) < 3:
         raise ValueError('sequence training needs at least three distinct training groups')
-    evidence_by_video = {}
-    features_by_video = {}
-    labels_by_video = {}
-    contact_inputs = []
+    loaded = []
     for entry in entries:
-        evidence = load_contact_evidence(manifest.run_dir, entry.identity, settings.preprocessing)
-        features = features_from_evidence(evidence)
+        evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, settings.preprocessing)
+        features = contact_features_from_inputs(evidence)
         rallies = load_labels(entry.labels, len(evidence.track))
-        evidence_by_video[entry.identity] = evidence
-        features_by_video[entry.identity] = features
-        labels_by_video[entry.identity] = rallies
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
-        contact_inputs.append(ContactTrainingVideo(entry.identity, features.rows, frames, evidence.fps))
+        contact_input = ContactTrainingVideo(entry.video_id, features.rows, frames, evidence.fps)
+        loaded.append(LoadedTrainingVideo(entry, evidence, features, rallies, contact_input))
     try:
-        contact_model = fit_contact_model(contact_inputs, settings.contact).model
+        contact_model = fit_contact_model(
+            [video.contact_input for video in loaded], settings.contact,
+        ).model
     except ValueError as error:
         raise ValueError(f'contact-model fitting failed: {error}') from error
     contact_models_by_held_group = {}
     for group in groups:
-        other_group_inputs = [
-            video for entry, video in zip(entries, contact_inputs, strict=True) if entry.group != group
-        ]
         try:
-            contact_models_by_held_group[group] = fit_contact_model(other_group_inputs, settings.contact).model
+            contact_models_by_held_group[group] = fit_contact_model(
+                [video.contact_input for video in loaded if video.entry.group != group], settings.contact,
+            ).model
         except ValueError as error:
             raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
-    del contact_inputs
-    del other_group_inputs
     training_videos = []
-    for entry in entries:
-        evidence = evidence_by_video.pop(entry.identity)
-        features = features_by_video.pop(entry.identity)
+    for video in loaded:
         training_videos.append(sequence_training_video(
-            entry, evidence, features, labels_by_video[entry.identity],
-            contact_models_by_held_group[entry.group], settings.contact_prediction, side_geometry,
+            video.entry.video_id, video.entry.group, video.evidence, video.features, video.rallies,
+            contact_models_by_held_group[video.entry.group], settings.contact_prediction,
         ))
-    del evidence, features
-    layer_fit = fit_rally_models(training_videos, settings.rally_layers)
+    # Release the large contact-feature arrays before building rally-training pools.
+    del loaded, video, evidence, features, contact_input
+    rally_fit = fit_rally_models(training_videos, settings.rally)
     review_model = fit_rally_review_model(
-        training_videos, layer_fit.cross_fitted, settings.confidence,
+        training_videos, rally_fit.held_group_predictions, settings.confidence,
+        tolerance_at_30_fps=settings.rally.review_tolerance_at_30_fps,
     )
-    models = AnnotatorModels(contact_model, layer_fit.models, review_model, settings.contact_prediction,
-                             settings.preprocessing, side_geometry)
+    models = AnnotatorModels(
+        contact_model=contact_model, rally_selector=rally_fit.selector, review_model=review_model,
+        contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
+    )
     save_models(models, output)
+    save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
     return models
-
-
-def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[ContactSequence],
-                      rallies: Sequence[LabelledRally], fps: float) -> dict[str, int | float]:
-    """Count whole-video contact matches and judged final rally sequences."""
-    labels = sorted(frame for rally in rallies for frame in rally.frames)
-    matches = match_contacts(
-        labels, [event.frame for event in events], scale_frames(EVALUATION_TOLERANCE_AT_30_FPS, fps),
-    )
-    correctness = [whole_rally_correctness(
-        sequence, rallies, fps, tolerance_at_30_fps=EVALUATION_TOLERANCE_AT_30_FPS,
-    ) for sequence in sequences]
-    return {
-        'labelled_contacts': len(labels), 'predicted_contacts': len(events), 'matched_contacts': len(matches),
-        'contact_precision': len(matches) / len(events) if events else 0.0,
-        'contact_recall': len(matches) / len(labels) if labels else 0.0,
-        'whole_rally_judged': sum(value >= 0 for value in correctness),
-        'whole_rally_correct': correctness.count(1), 'whole_rally_unjudgeable': correctness.count(-1),
-    }
 
 
 def evaluate_manifest(
     manifest: TrainingManifest, models: AnnotatorModels, split: Split, output: Path,
 ) -> dict[str, Any]:
-    """Evaluate only the named held-out split and write a compact compressed report."""
+    """Evaluate the requested validation/test split and save per-video and total scores."""
     if split not in (Split.VALIDATION, Split.TEST):
         raise ValueError('evaluation split must be validation or test')
     if not output.name.endswith('.json.gz'):
@@ -350,11 +202,11 @@ def evaluate_manifest(
                    'whole_rally_judged', 'whole_rally_correct', 'whole_rally_unjudgeable')
     totals: dict[str, int | float] = dict.fromkeys(count_names, 0)
     for entry in videos_for_split(manifest, split):
-        evidence = load_contact_evidence(manifest.run_dir, entry.identity, models.preprocessing)
+        evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, models.preprocessing)
         rallies = load_labels(entry.labels, len(evidence.track))
-        prediction = predict_contacts(evidence, models)
-        counts = evaluation_counts(prediction.refined.events, prediction.refined.sequences, rallies, evidence.fps)
-        rows.append({'id': entry.identity, **counts})
+        prediction = predict_rallies_and_contacts(evidence, models)
+        counts = evaluation_counts(prediction.rally_prediction.events, prediction.rally_prediction.sequences, rallies, evidence.fps)
+        rows.append({'id': entry.video_id, **counts})
         for name in count_names:
             totals[name] += int(counts[name])
     predicted = totals['predicted_contacts']
@@ -368,24 +220,152 @@ def evaluate_manifest(
     return report
 
 
-def argument_parser() -> argparse.ArgumentParser:
-    """Expose the two supported operations without research or tuning switches."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest='command', required=True)
-    fit = commands.add_parser('fit', help='Fit a fresh complete bundle from the train split')
-    fit.add_argument('--manifest', required=True, type=Path)
-    fit.add_argument('--output', required=True, type=Path)
-    fit.add_argument('--side-geometry', choices=list(SideGeometry), default=SideGeometry.VIDEO, type=SideGeometry)
-    fit.add_argument('--rally-layers', type=int, choices=(1, 2, 3), default=1, help='Number of rally selector layers')
-    fit.add_argument('--device', choices=('cpu', 'cuda'), default='cpu', help='XGBoost fitting device')
-    fit.add_argument('--threads', type=int, default=2)
-    evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
-    evaluate.add_argument('--manifest', required=True, type=Path)
-    evaluate.add_argument('--models', required=True, type=Path)
-    evaluate.add_argument('--split', choices=[Split.VALIDATION, Split.TEST], required=True, type=Split)
-    evaluate.add_argument('--output', required=True, type=Path, help='Compressed report path ending in .json.gz')
-    return parser
+def evaluation_counts(events: Sequence[ContactEvent], sequences: Sequence[ContactSequence],
+                      rallies: Sequence[LabelledRally], fps: float) -> dict[str, int | float]:
+    """Count matched contacts and correct, wrong or unjudgeable final rallies."""
+    labels = sorted(frame for rally in rallies for frame in rally.frames)
+    matches = match_contacts(
+        labels, [event.frame for event in events], frames_at_fps(EVALUATION_TOLERANCE_AT_30_FPS, fps),
+    )
+    correctness = [whole_rally_correctness(
+        sequence, rallies, fps, tolerance_at_30_fps=EVALUATION_TOLERANCE_AT_30_FPS,
+    ) for sequence in sequences]
+    return {
+        'labelled_contacts': len(labels), 'predicted_contacts': len(events), 'matched_contacts': len(matches),
+        'contact_precision': len(matches) / len(events) if events else 0.0,
+        'contact_recall': len(matches) / len(labels) if labels else 0.0,
+        'whole_rally_judged': sum(value >= 0 for value in correctness),
+        'whole_rally_correct': correctness.count(1), 'whole_rally_unjudgeable': correctness.count(-1),
+    }
 
+
+# Prepare saved inputs and labels
+
+def prepare_saved_video_inputs(run_dir: Path, video_id: str, preprocessing: BaseAnnotatorConfig) -> PreparedAnnotationInputs:
+    """Load saved metadata, pose, court and shuttle arrays, then prepare annotation inputs."""
+    try:
+        saved = load_saved_video_inputs(run_dir, video_id)
+    except (FileNotFoundError, TypeError, ValueError) as error:
+        raise ValueError(f'{video_id}: cannot load current metadata/pose/court/shuttle artefacts: {error}') from error
+    court_inputs = saved.court.evidence.inputs
+    assert court_inputs is not None
+    pose = saved.pose
+    return prepare_annotation_inputs(
+        saved.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
+        video_config=scale_config_to_fps(preprocessing, float(saved.metadata.fps)),
+        resolution=court_inputs.resolution,
+        court_present=saved.court.evidence.court_present, homography_rows=court_inputs.homography_rows,
+        shuttle_grades=saved.shuttle_grades,
+    )
+
+
+def sequence_training_video(
+    video_id: str, group: str, evidence: PreparedAnnotationInputs, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
+    contact_model: Any, settings: ContactModelConfig,
+) -> SequenceTrainingVideo:
+    """Score contacts and prepare candidate sequences for rally fitting."""
+    scored = score_contact_features(
+        features.rows, contact_model, evidence.fps, settings,
+    )
+    context = build_rally_context(evidence, scored)
+    return SequenceTrainingVideo(video_id, group, context, rallies)
+
+
+def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
+    """Read rally_id,frame,side CSV rows, grouped by rally and increasing in frame.
+
+    Empty sides remain unknown. Each rally must occupy one contiguous CSV block.
+    All frames must lie inside the source video timeline.
+    """
+    rallies = []
+    seen = set()
+    current = None
+    frames: list[int] = []
+    sides: list[CourtHalf | None] = []
+    with path.open(newline='') as handle:
+        reader = csv.DictReader(handle)
+        expected_columns = {'rally_id', 'frame', 'side'}
+        if reader.fieldnames is None or len(reader.fieldnames) != 3 or set(reader.fieldnames) != expected_columns:
+            raise ValueError(f'{path}: labels need rally_id,frame,side columns')
+        for line, row in enumerate(reader, start=2):
+            if None in row or any(value is None for value in row.values()):
+                raise ValueError(f'{path}:{line}: label row has the wrong column count')
+            rally_id = row['rally_id'].strip()
+            if not rally_id:
+                raise ValueError(f'{path}:{line}: rally_id is empty')
+            if rally_id != current:
+                if rally_id in seen:
+                    raise ValueError(f'{path}:{line}: rally rows must form a contiguous block')
+                if current is not None:
+                    rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
+                seen.add(rally_id)
+                current, frames, sides = rally_id, [], []
+            try:
+                frame = int(row['frame'])
+                side_text = row['side'].strip()
+                side = CourtHalf(side_text) if side_text else None
+            except ValueError as error:
+                raise ValueError(f'{path}:{line}: frame must be an integer and side Top, Bot or empty') from error
+            if not 0 <= frame < frame_count:
+                raise ValueError(f'{path}:{line}: contact frame {frame} lies outside the video')
+            if frames and frame <= frames[-1]:
+                raise ValueError(f'{path}:{line}: rally frames must be strictly increasing')
+            frames.append(frame)
+            sides.append(side)
+    if current is not None:
+        rallies.append(LabelledRally(current, tuple(frames), tuple(sides)))
+    return tuple(rallies)
+
+
+# Read video assignments
+
+def load_manifest(path: Path) -> TrainingManifest:
+    """Read and validate video assignments and paths without loading videos or labels."""
+    payload = json.loads(path.read_text())
+    if not isinstance(payload, dict) or set(payload) != {'run_dir', 'videos'}:
+        raise ValueError('manifest must contain run_dir and videos')
+    run_dir = manifest_path(payload['run_dir'], path.resolve().parent, 'run_dir')
+    if not isinstance(payload['videos'], list):
+        raise TypeError('manifest videos must be a list')
+    videos = []
+    for entry in payload['videos']:
+        if not isinstance(entry, dict) or set(entry) != {'id', 'group', 'split', 'labels'}:
+            raise ValueError('each manifest video must contain id, group, split and labels')
+        raw_video_id = entry['id']
+        if isinstance(raw_video_id, bool) or not isinstance(raw_video_id, (str, int)):
+            raise TypeError('video id must be a string or integer')
+        video_id = str(raw_video_id)
+        if not video_id or video_id in ('.', '..') or Path(video_id).name != video_id:
+            raise ValueError(f'video id must be one directory name: {video_id!r}')
+        group = entry['group']
+        if not isinstance(group, str) or not group.strip():
+            raise ValueError(f'{video_id}: group must be a non-empty string')
+        try:
+            split = Split(entry['split'])
+        except ValueError as error:
+            raise ValueError(f'{video_id}: split must be train, validation or test') from error
+        labels = manifest_path(entry['labels'], path.resolve().parent, f'{video_id} labels')
+        videos.append(VideoInput(video_id, group, split, labels))
+    return TrainingManifest(run_dir, tuple(videos))
+
+
+def manifest_path(value: object, directory: Path, field_name: str) -> Path:
+    """Resolve a required manifest path relative to the manifest's directory."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{field_name} must be a non-empty path string')
+    path = Path(value)
+    return (path if path.is_absolute() else directory / path).resolve()
+
+
+def videos_for_split(manifest: TrainingManifest, split: Split) -> tuple[VideoInput, ...]:
+    """Select exactly one named partition, failing clearly when it is empty."""
+    videos = tuple(video for video in manifest.videos if video.split == split)
+    if not videos:
+        raise ValueError(f'manifest contains no {split.value} videos')
+    return videos
+
+
+# Command-line entry point
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run fitting or held-out evaluation, reporting input errors without a traceback."""
@@ -401,13 +381,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 defaults,
                 contact=replace(defaults.contact, device=arguments.device),
                 confidence=replace(defaults.confidence, device=arguments.device),
-                rally_layers=replace(
-                    defaults.rally_layers, depth=arguments.rally_layers,
-                    tree=replace(defaults.rally_layers.tree, device=arguments.device),
+                rally=replace(
+                    defaults.rally,
+                    tree=replace(defaults.rally.tree, device=arguments.device),
                 ),
             )
             with threadpool_limits(limits=arguments.threads):
-                fit_from_manifest(manifest, arguments.output, arguments.side_geometry, settings)
+                fit_from_manifest(manifest, arguments.output, settings)
             print(f'Saved annotator models to {arguments.output}')
         else:
             models = load_models(arguments.models)
@@ -416,3 +396,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, TypeError, ValueError) as error:
         parser.error(str(error))
     return 0
+
+
+def argument_parser() -> argparse.ArgumentParser:
+    """Command options for fitting models and evaluating a saved bundle."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    fit = commands.add_parser('fit', help='Fit a fresh complete bundle from the train split')
+    fit.add_argument('--manifest', required=True, type=Path)
+    fit.add_argument('--output', required=True, type=Path)
+    fit.add_argument('--device', choices=('cpu', 'cuda'), default='cuda', help='XGBoost fitting device')
+    fit.add_argument('--threads', type=int, default=2)
+    evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
+    evaluate.add_argument('--manifest', required=True, type=Path)
+    evaluate.add_argument('--models', required=True, type=Path)
+    evaluate.add_argument('--split', choices=[Split.VALIDATION, Split.TEST], required=True, type=Split)
+    evaluate.add_argument('--output', required=True, type=Path, help='Compressed report path ending in .json.gz')
+    return parser

@@ -14,31 +14,30 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig
-from annotator.contacts.model import ContactModelConfig
-from annotator.hybrid import predict_contact_features
-from annotator.models import AnnotatorModels, SideGeometry, fitted_trees
-from annotator.sequence.contacts import stream_payload
-from annotator.sequence.rally_model import (
-    RallyLayerModels,
-    RallyLayerPrediction,
-    score_rally_review,
-)
+from annotator.contacts.score_candidates import ContactModelConfig
+from annotator.inference.learned import predict_from_contact_features
+from annotator.models import AnnotatorModels, fitted_trees
+from annotator.rallies.refine_rallies import RallySelector
 from annotator.training.sequences import whole_rally_correctness
 from experiments.annotator import development as experiment
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune.data import score_stream
-from experiments.annotator.heuristic_only_tune.run import source_record
+from experiments.annotator.heuristic_only_tune.run import runtime_versions
 from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.fps_normalisation import (
     preparation_receipt,
 )
+from experiments.annotator.tree_simplification.selector_review import (
+    score_selector_review,
+)
 
 
 def evaluate(run: Path, targets: Path, output: Path) -> None:
-    """Check rebuilt pools and streams before reporting fitted review rankings."""
+    """Fit review ranking and score fresh validation predictions."""
     settings = experiment.read_json(run / 'settings.json.gz')
     result = experiment.read_json(run / 'result.json.gz')
-    if not result['complete'] or settings['layers'] != 1:
+    if not result['complete']:
         raise ValueError('FPS comparison requires a complete single-selector run')
     pool_settings = settings['pool_settings']
     prepared_root = Path(pool_settings['prepared'])
@@ -54,15 +53,13 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
     if receipt_path.exists() and experiment.read_json(receipt_path) != receipt:
         raise ValueError('Review inputs changed; use a fresh output directory')
     experiment.write_json(receipt_path, receipt)
-    review = integrate.fit_review(run, 1, targets, output, settings)
-    layers = joblib.load(run / 'layers-1' / 'rally-models.joblib')
-    if len(layers) != 1:
-        raise ValueError('Expected exactly one rally selector')
+    review = integrate.fit_review(run, targets, output, settings)
+    selector = joblib.load(run / 'selector.joblib')
     models = AnnotatorModels(
         joblib.load(contact_run_root / 'contacts' / 'v_32.joblib'),
-        RallyLayerModels(layers, pool_settings['max_edits'], pool_settings['deletion_candidates']),
+        RallySelector(selector, pool_settings['max_edits'], pool_settings['deletion_candidates']),
         review, ContactModelConfig(**pool_settings['settings']['contact_prediction']),
-        BaseAnnotatorConfig(), SideGeometry.VIDEO,
+        BaseAnnotatorConfig(),
     )
     for tree in fitted_trees(models):
         tree.set_params(device='cpu')
@@ -74,22 +71,16 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         prepared = experiment.load_prepared(prepared_root, identity)
         if prepared.video.split != 'validation':
             raise ValueError('Replay video is not validation')
-        prediction = predict_contact_features(prepared.evidence, prepared.features, models)
-        layer_prediction = prediction.refined
-        if not isinstance(layer_prediction, RallyLayerPrediction):
-            raise TypeError('Expected a rally-layer prediction')
-        saved = joblib.load(Path(settings['pools']) / 'videos' / f'{identity}.joblib')
-        integrate.verify_pool(layer_prediction.pool, saved)
-        stream = stream_payload(layer_prediction.sequences, layer_prediction.events)
-        if stream != experiment.read_json(run / 'layers-1' / 'streams' / f'{identity}.json.gz'):
-            raise ValueError(f'{identity}: replay stream differs')
+        prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
+        rally_prediction = prediction.rally_prediction
+        stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
         experiment.write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(prepared.video, stream)
-        selector = score_rally_review(layer_prediction, None)
+        selector = score_selector_review(rally_prediction)
         rankings[identity] = {}
-        by_span = {sequence.span_id: sequence for sequence in layer_prediction.sequences}
+        by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
         for tolerance in (5, 10):
-            for name, confidence in (('selector', selector), ('fitted', prediction.confidence)):
+            for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
                 labels = np.asarray([
                     whole_rally_correctness(
                         by_span[span], prepared.video.rallies, prepared.video.fps, tolerance_at_30_fps=tolerance,
@@ -100,7 +91,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
                 for span, label, score in zip(confidence.features.span_ids, labels, confidence.scores, strict=True):
                     rows.append({'video': identity, 'span': span, 'tolerance': tolerance,
                                  'ranking': name, 'correct': int(label), 'score': float(score)})
-        experiment.progress(output, 'replay-parity', video=identity, complete=len(per_video), planned=8)
+        experiment.progress(output, 'validation', video=identity, complete=len(per_video), planned=8)
     if len(per_video) != 8:
         raise ValueError('Replay requires the eight validation videos')
     pooled = {}
@@ -112,8 +103,7 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
             )
     experiment.write_json(output / 'review-rows.json.gz', rows)
     experiment.write_json(output / 'result.json.gz', {
-        'complete': True, 'source': source_record(), 'motion_units': units['schema'],
-        'replay_streams_match': True,
+        'complete': True, 'source': runtime_versions(), 'motion_units': units['schema'],
         'per_video': per_video, 'totals': pooled_scores(per_video), 'review_per_video': rankings, 'review': pooled,
     })
     experiment.progress(output, 'complete', totals=pooled_scores(per_video))

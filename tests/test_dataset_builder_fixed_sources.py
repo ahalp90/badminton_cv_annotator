@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from annotator.video_metadata import VideoMetadata
 from dataset_builder import vision
 from dataset_builder.fixed_sources import (
     FIXED_SOURCE_DATASET,
@@ -20,6 +19,7 @@ from dataset_builder.fixed_sources import (
     preflight_fixed_sources,
     save_fixed_acquisition,
 )
+from shared.video_metadata import VideoMetadata
 
 
 def _md5(content: bytes) -> str:

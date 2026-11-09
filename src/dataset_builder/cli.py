@@ -473,7 +473,10 @@ def run_dataset_builder_replay(
 def _progress_display(config, phases, mode, destination):
     from dataset_builder.progress import RunProgress
 
-    return RunProgress(config, phases, mode, log_dir=destination / "terminal-logs")
+    return RunProgress(
+        phases, mode, log_dir=destination / "terminal-logs", fixed_sources=config.fixed_sources is not None,
+        commentary_enabled=config.commentary_enabled, pose_shards=config.pose_shards,
+    )
 
 
 def _run_pipeline_phases(
@@ -503,7 +506,10 @@ def _run_pipeline_phases(
                 )
             if display is not None and display.enabled:
                 record = next(record for record in manifest.stages if record.name == plan.name)
-                display.finish(plan.name, event, record, stage_progress)
+                display.finish(
+                    plan.name, stage_progress, outcome=event.outcome.value, reused=event.reused,
+                    reason=event.reason, counts=record.counts,
+                )
             events.append(event)
             if plan.blocks_pipeline and event.outcome is StageOutcome.FAILED:
                 stopped_after = plan.name

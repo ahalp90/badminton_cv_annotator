@@ -37,7 +37,7 @@ def write_json(path: Path, value: object) -> None:
 
 
 def run_job(job: Job) -> None:
-    """Let each stage validate its own resumable outputs; retain failure logs."""
+    """Run a stage unless the same command already completed; retain its log."""
     job.output.mkdir(parents=True, exist_ok=True)
     completed = job.output / 'completed-command.json.gz'
     command = list(job.command)
@@ -101,15 +101,13 @@ def stage_jobs(args: argparse.Namespace, stage: str, workers_per_job: int) -> li
                 jobs.append(Job(command(
                     stage, '--pools', pools, '--five-frame-targets', targets, '--output', fitted,
                     '--device', args.device, '--threads', 2, '--seed', 20260905 + seed,
-                    '--leaves', 31, '--rounds', 400, '--layers', 1,
+                    '--leaves', 31, '--rounds', 400,
                     '--learning-rate', .05, '--min-child-weight', 5, '--l2', 1,
                 ), fitted))
             else:
                 exported = root / 'export'
-                reuse_arguments = ('--reuse-upstream',) if args.reuse_training_root is not None else ()
                 jobs.append(Job(command(stage, '--run', fitted, '--five-frame-targets', targets,
-                                        '--output', exported, '--threads', 2, '--device', args.device,
-                                        *reuse_arguments), exported))
+                                        '--output', exported, '--threads', 2, '--device', args.device), exported))
     return jobs
 
 
@@ -158,7 +156,6 @@ def main() -> None:
         args.reuse_training_root = args.reuse_training_root.resolve()
     if not args.plan_only:
         record = {
-            'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=REPO, text=True).strip(),
             'paths': str(args.paths), 'candidates': args.candidates,
             'seeds': args.seeds, 'device': args.device,
             'reuse_training_root': str(args.reuse_training_root) if args.reuse_training_root is not None else None,
@@ -168,7 +165,7 @@ def main() -> None:
         if receipt.exists():
             with gzip.open(receipt, 'rt') as handle:
                 if json.load(handle) != record:
-                    raise ValueError('Training inputs or source changed; use a fresh output directory')
+                    raise ValueError('Training inputs or settings changed; use a fresh output directory')
         write_json(receipt, record)
         prepare_candidates(args)
     for stage in args.stages:

@@ -1,3 +1,7 @@
+# HISTORICAL CODE — incompatible with the current annotator.
+# Uses the removed ScalingKind API.
+# Use the matching historical checkout, or port this script before running it.
+
 """Score combined edits and reuse time pairings for raw and voted player sides."""
 
 from __future__ import annotations

@@ -19,7 +19,7 @@ from experiments.annotator.heuristic_only_tune.run import (
     load_candidates,
     load_paths,
     read_json,
-    source_record,
+    runtime_versions,
     write_json,
 )
 
@@ -28,10 +28,10 @@ from experiments.annotator.heuristic_only_tune.run import (
 import joblib
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, resolve
-from annotator.hybrid import features_from_evidence
-from annotator.preparation import prepare_annotation
-from annotator.types import DeadMaskMode, ReentryGuardVariant, SmoothingMode, SpanOpen
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
+from annotator.inference.learned import contact_features_from_inputs
+from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
+from annotator.types import SmoothingMode
 from experiments.annotator.development import development_for, preprocessing
 from experiments.annotator.heuristic_only_tune.cache import cache_sticky_result
 from experiments.annotator.heuristic_only_tune.data import (
@@ -59,17 +59,12 @@ def preprocessing_from_record(record: dict[str, Any]) -> BaseAnnotatorConfig:
     if not isinstance(rejected_grades, list):
         raise TypeError('Saved rejected grades must be a list')
     config = BaseAnnotatorConfig(
-        dead_mask_mode=DeadMaskMode(record['dead_mask_mode']),
+
         smoothing_mode=SmoothingMode(record['smoothing_mode']),
         overrides_base30=overrides,
-        span_open=SpanOpen(record['span_open']) if record['span_open'] is not None else None,
-        gap_state_demotion_bound=record['gap_state_demotion_bound'],
-        reentry_guard_variant=(
-            ReentryGuardVariant(record['reentry_guard_variant'])
-            if record['reentry_guard_variant'] is not None else None
-        ),
+        require_fast_burst=record['require_fast_burst'],
+        max_high_shot_gap_frames=record['max_high_shot_gap_frames'],
         reentry_guard_buffer=record['reentry_guard_buffer'],
-        quiet_start_window=record['quiet_start_window'],
         rejected_grades=frozenset(rejected_grades),
     )
     if preprocessing_record(config) != record:
@@ -116,17 +111,14 @@ def prepare_video(
         inputs = load_original_inputs(video, paths['stages'], paths['development_courts'])
         pose = inputs.pose
         with cache_sticky_result(output / 'sticky', video.identity):
-            evidence = prepare_annotation(
+            evidence = prepare_annotation_inputs(
                 inputs.track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
-                resolved=resolve(base, inputs.fps), video_id=inputs.identity,
-                resolution=inputs.court.resolution, net_band=inputs.court.net_band,
-                gate_court_info=inputs.court.gate_court_info,
-                gate_resolution_table=inputs.court.gate_resolution_table,
+                video_config=scale_config_to_fps(base, inputs.fps),
+                resolution=inputs.court.resolution,
                 court_present=inputs.court_present, homography_rows=inputs.court.homography_rows,
-                cut_frames=[end for _start, end in inputs.raw_cuts[:-1]], keep_vote=inputs.keep_vote,
-                inpaint_codes=inputs.guard_codes, court_invalid_is_excluded=True,
+                shuttle_grades=inputs.shuttle_grades,
             )
-        features = features_from_evidence(evidence)
+        features = contact_features_from_inputs(evidence)
         prepared = PreparedVideo(video, group, evidence, features)
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = destination.with_suffix('.tmp')
@@ -163,7 +155,7 @@ def main() -> None:
     identity = json.loads(json.dumps(identity, default=sorted))
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = args.output / 'preparation.json.gz'
-    manifest_record = {'inputs': identity, 'source': source_record()}
+    manifest_record = {'inputs': identity, 'source': runtime_versions()}
     if candidate is not None:
         manifest_record['candidate'] = candidate
     if manifest.exists():

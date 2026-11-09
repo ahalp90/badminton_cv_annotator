@@ -16,6 +16,9 @@ from typing import Protocol
 
 import numpy as np
 
+from shared.camera_cuts import MIN_SCENE_FRAMES_AT_30_FPS
+from shared.frame_timing import frames_at_fps
+
 HISTOGRAM_BINS = 256  # one per 8-bit luma level, as in PySceneDetect's HistogramDetector
 
 
@@ -99,14 +102,9 @@ class PySceneDetectSource:
         :return: one `SceneInfo` per scene, including the opening and closing
             scenes. A video without cuts is one scene.
         """
-        from annotator.config import (
-            COMPOSITION_CONTENT_THRESHOLD,
-            BaseAnnotatorConfig,
-            resolve,
-        )
-        from annotator.masks.composition import detect_cuts
+        from shared.camera_cuts import COMPOSITION_CONTENT_THRESHOLD, detect_cuts
 
-        min_scene_len = resolve(BaseAnnotatorConfig(), fps).thresholds.composition_min_scene_len
+        min_scene_len = frames_at_fps(MIN_SCENE_FRAMES_AT_30_FPS, fps)
         # detect_cuts raises unless both frame counts equal expected_frames. Each cut
         # is the first frame of a new scene, in ascending order, and so the exclusive
         # end of the scene before it.

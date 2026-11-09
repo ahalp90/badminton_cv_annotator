@@ -23,12 +23,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from shared.frame_timing import frames_at_fps
+
 # Bound inline: ruff's E402 allows sys.path calls above imports, but not assignments.
 sys.path.insert(0, str(REPO := Path(__file__).resolve().parents[4]))
 sys.path.insert(0, str(REPO / 'src'))
 
-from annotator.sequence.contacts import scale_frames, stream_from_payload
-from annotator.sequence.rally_model import alternate_sides
+from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.training.sequences import (
     judge_rally_boundaries,
     match_contacts,
@@ -36,6 +37,7 @@ from annotator.training.sequences import (
 from experiments.annotator.annotator_closeout_new_courts.scripts.evaluate_saved import (
     score_video,
 )
+from experiments.annotator.contact_records import stream_from_payload
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     fixed_stream,
     labels_for_item,
@@ -68,7 +70,9 @@ def annotator_run(condition: str, models: str, seed: int, root: Path) -> Path:
     return root / 'test' / condition / models / f'seed-{seed}'
 
 
-def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[Path]]:
+def supplied_runs(
+    annotator_root: Path, monotrack_root: Path, *, include_body_window: bool = True,
+) -> dict[str, list[Path]]:
     runs = {
         'monotrack_own_courts': [monotrack_root / 'test/monotrack' / f'seed-{seed}' for seed in SEEDS],
         'monotrack_our_courts': [monotrack_root / 'test/ours' / f'seed-{seed}' for seed in SEEDS],
@@ -80,9 +84,12 @@ def supplied_runs(annotator_root: Path, monotrack_root: Path) -> dict[str, list[
         ('annotator_monotrack_courts', 'monotrack_courts', '32_videos'),
         ('annotator40_our_courts', 'our_courts', '40_videos'),
         ('annotator40_monotrack_courts', 'monotrack_courts', '40_videos'),
-        ('annotator_body_window_36_our_courts', 'our_courts', 'body_window_36'),
     ):
         runs[name] = [annotator_run(condition, family, seed, annotator_root) for seed in SEEDS]
+    if include_body_window:
+        runs['annotator_body_window_36_our_courts'] = [
+            annotator_run('our_courts', 'body_window_36', seed, annotator_root) for seed in SEEDS
+        ]
     return runs
 
 
@@ -201,19 +208,19 @@ def judge_found_rallies(
         boundary = judge_rally_boundaries(sequence, rallies, tolerance=tolerance)
         rally = boundary.rally
         if rally is not None:
-            record['rally_id'] = rally.identity
+            record['rally_id'] = rally.rally_id
         if boundary.outcome != 'boundaries_right':
             judged.append(record | {'outcome': boundary.outcome})
             continue
         assert rally is not None
         if endpoint_limits is not None:
-            before = scale_frames(round(endpoint_limits.before_seconds * 30), fps)
-            after = scale_frames(round(endpoint_limits.after_seconds * 30), fps)
+            before = frames_at_fps(round(endpoint_limits.before_seconds * 30), fps)
+            after = frames_at_fps(round(endpoint_limits.after_seconds * 30), fps)
             if sequence.start_frame < rally.frames[0] - before or sequence.end_frame - 1 > rally.frames[-1] + after:
                 judged.append(record | {'outcome': 'overlong_rally'})
                 continue
         matches = match_contacts(rally.frames, frames, tolerance)
-        revised = alternate_sides((sequence,), sequence.events)[0][0]
+        revised = fit_rally_sides((sequence,))[0].sequence
         # Every error is counted, not just the first, so the write-up can say how many fixes a rally needs.
         record |= {
             'missed': len(rally.frames) - len(matches),
@@ -237,7 +244,7 @@ def judge_found_rallies(
 
 def rally_ladder(judged: list[dict], rallies) -> dict[str, int]:
     """Count labelled rallies reaching each rung through any one found rally."""
-    best: dict[str, set[str]] = {rally.identity: set() for rally in rallies}
+    best: dict[str, set[str]] = {rally.rally_id: set() for rally in rallies}
     for record in judged:
         if record['rally_id'] is not None:
             best[record['rally_id']].add(record['outcome'])
@@ -258,7 +265,7 @@ def prepare_scoring_stream(item: dict, stream: dict, labels, windows: list[tuple
     else:
         unmasked = stream
     scored_frames = [frame for rally in labels for frame in rally.frames]
-    scored, ignored = ignore_left_out(unmasked, windows, scored_frames, scale_frames(IGNORE_MARGIN, item['fps']))
+    scored, ignored = ignore_left_out(unmasked, windows, scored_frames, frames_at_fps(IGNORE_MARGIN, item['fps']))
     if supplied:
         scored = fixed_stream(scored['events'], item['spans'])
     else:
@@ -276,7 +283,7 @@ def score_stream_for_item(item: dict, stream: dict, tolerance: int, windows: lis
     )
     strict = sum(bool(row['fully_correct']) for row in rally_rows)
     sequences, _ = stream_from_payload(scored)
-    judged = judge_found_rallies(sequences, labels, scale_frames(tolerance, item['fps']), fps=item['fps'],
+    judged = judge_found_rallies(sequences, labels, frames_at_fps(tolerance, item['fps']), fps=item['fps'],
                                 supplied=supplied)
     # Separate endpoint context from the contact-timing tolerance.
     no_allowance = rally_ladder(judge_found_rallies(
@@ -452,6 +459,7 @@ def main() -> None:
     parser.add_argument('--annotator-runs', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--workers', type=int, default=6)
+    parser.add_argument('--skip-body-window', action='store_true', help='omit the historical body-window ablation')
     parser.add_argument('--monotrack-runs', type=Path, default=MONOTRACK_RUNS,
                         help='five_seed.py output with validation-selected test runs')
     args = parser.parse_args()
@@ -462,7 +470,7 @@ def main() -> None:
 
     conditions = {}
     pool = ProcessPoolExecutor(max_workers=args.workers)
-    supplied = supplied_runs(args.annotator_runs, args.monotrack_runs)
+    supplied = supplied_runs(args.annotator_runs, args.monotrack_runs, include_body_window=not args.skip_body_window)
     selected = read_json(args.monotrack_runs / 'selected.json.gz')
     if selected['selection_split'] != 'validation' or selected['seeds'] != list(SEEDS):
         raise ValueError('MonoTrack results must use all five validation-selected seeds')

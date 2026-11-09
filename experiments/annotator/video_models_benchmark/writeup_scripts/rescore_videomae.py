@@ -34,29 +34,24 @@ from pathlib import Path
 
 import numpy as np
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import (
-    ContactSequence,
-    scale_frames,
-    stream_payload,
-)
-from annotator.training.sequences import (
-    LabelledRally,
-    judge_rally_boundaries,
-    match_contacts,
-)
+from annotator.types import ContactSequence
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.video_models_benchmark.data import read_json, write_json
 from experiments.annotator.video_models_benchmark.evaluate import (
     CLASS_SIDES,
     decode_span,
 )
+from experiments.annotator.video_models_benchmark.scoring import (
+    COUNT_NAMES,
+    TOLERANCES,
+    add_rates,
+    score_video_rules,
+)
 
 BENCHMARK = Path(__file__).resolve().parents[1]
 RESULTS = BENCHMARK / "results"
-TOLERANCES = (10, 5)  # frames at 30 fps, scaled to each video's frame rate
 SAMPLINGS = ((1, 0), (3, 0), (3, 1), (3, 2))  # (stride, offset); dense first
 HITTER_RULES = ("raw", "alternating")
-COUNT_NAMES = ("labelled", "predicted", "matched", "correct_player", "rallies", "fully_correct")
 NO_CONTACT = (1.0, 0.0, 0.0)
 RUN_RECORDS = ("settings.json.gz", "history.json.gz", "continuation.json.gz", "training_progress.json.gz")
 TEST_RECORDS = ("events.json.gz", "frame_metrics.json.gz")
@@ -110,63 +105,6 @@ def decode_video(video: dict, probabilities: np.ndarray, stride: int, offset: in
     if row != len(probabilities):
         raise ValueError(f"{video['item_id']}: {len(probabilities)} rows for {row} centres")
     return sequences
-
-
-def score_video_rules(video: dict, sequences: dict[str, list[ContactSequence]], tolerance_base30: int) -> dict:
-    """Count contact and whole-rally scores for both hitter rules with the shared matcher.
-
-    Contact matching is identical for both rules. The shared report scorer always
-    re-alternates hitters inside its whole-rally judgement, so the raw-hitter rally
-    tally is made here with the same matching and boundary rules. A labelled contact
-    with an unknown hitter stays in the contact denominator, receives no
-    correct-player credit and prevents its rally from being fully correct.
-    """
-    rallies = []
-    for span in video["spans"]:
-        sides = tuple(None if side is None else Half(side) for side in span["label_sides"])
-        rallies.append(LabelledRally(span["rally_id"], tuple(span["label_frames"]), sides))
-    # Same order as the shared scorer, so one-to-one matching pairs agree.
-    labels = sorted(
-        (frame, rally.identity, index, side)
-        for rally in rallies for index, (frame, side) in enumerate(zip(rally.frames, rally.sides, strict=True))
-    )
-    events = {rule: [event for sequence in items for event in sequence.events] for rule, items in sequences.items()}
-    tolerance = scale_frames(tolerance_base30, video["fps"])
-    matches = match_contacts([label[0] for label in labels], [event.frame for event in events["raw"]], tolerance)
-    counts = {}
-    for rule, predictions in events.items():
-        correct_player = 0
-        for label, prediction, _distance in matches:
-            side = labels[label][3]
-            correct_player += side is not None and predictions[prediction].side == side
-        counts[rule] = {"labelled": len(labels), "predicted": len(predictions), "matched": len(matches),
-                        "correct_player": correct_player, "rallies": len(rallies), "fully_correct": 0}
-    for raw, alternating in zip(sequences["raw"], sequences["alternating"], strict=True):
-        boundary = judge_rally_boundaries(raw, rallies, tolerance=tolerance)
-        if boundary.outcome != "boundaries_right":
-            continue
-        rally = boundary.rally
-        assert rally is not None
-        pairs = match_contacts(rally.frames, [event.frame for event in raw.events], tolerance)
-        if len(pairs) != len(rally.frames) or len(raw.events) != len(rally.frames):
-            continue
-        for rule, sequence in (("raw", raw), ("alternating", alternating)):
-            if all(rally.sides[label] is not None and sequence.events[prediction].side == rally.sides[label]
-                   for label, prediction, _distance in pairs):
-                counts[rule]["fully_correct"] += 1
-    return counts
-
-
-def add_rates(counts: dict) -> dict:
-    denominator = counts["labelled"] + counts["predicted"]
-    return {
-        **counts,
-        "contact_recall": 100 * counts["matched"] / counts["labelled"],
-        "contact_precision": 100 * counts["matched"] / counts["predicted"] if counts["predicted"] else 0.0,
-        "contact_f1": 200 * counts["matched"] / denominator,
-        "correct_player_f1": 200 * counts["correct_player"] / denominator,
-        "fully_correct_percent": 100 * counts["fully_correct"] / counts["rallies"],
-    }
 
 
 def check_saved_counts(totals: dict, saved_metrics: dict, name: str) -> None:

@@ -3,13 +3,13 @@ import numpy as np
 import pytest
 
 from experiments.annotator.video_models_benchmark.evaluate import decode_span
+from experiments.annotator.video_models_benchmark.scoring import score_video_rules
 from experiments.annotator.video_models_benchmark.writeup_scripts.make_videomae_figures import (
     binned_training_loss,
     training_windows,
 )
 from experiments.annotator.video_models_benchmark.writeup_scripts.rescore_videomae import (
     decode_video,
-    score_video_rules,
 )
 
 BOTTOM, TOP = (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)

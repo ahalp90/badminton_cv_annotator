@@ -14,7 +14,7 @@ import numpy as np
 from courtkeynet.court_corners import pick_scene_corners
 from courtkeynet.wrapper import CourtKeyNetDetector
 
-from annotator.courts.views import CourtView, describe_court_view
+from court_detector.view_matching import CourtView, describe_court_view
 
 EVIDENCE_SCHEMA = 'scene-court-evidence/2'
 

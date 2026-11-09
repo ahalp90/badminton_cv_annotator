@@ -1,11 +1,9 @@
 """Count which validation rallies any choice from the saved option lists could get fully correct.
 
-This made ``remote/candidate-pool-coverage.json.gz``, the probe behind the option-list ceiling in
-``screening-evidence.json.gz``. It reads one option-list folder (``<pools>/videos/<video>.joblib``,
-written by ``pools``) and checks each of the eight validation videos' labelled rallies:
+Read an option-list folder (``<pools>/videos/<video>.joblib``) written by the
+current ``pools`` command. Check three kinds of coverage:
 
-- **Correct option with initial neighbours:** some option is fully correct for the rally when the
-  neighbouring rally sections stay as they started. This is neither a ceiling nor a score.
+- **Correct option:** some proposed contact sequence is fully correct for the rally. This is neither a ceiling nor a score.
 - **Bounds possible:** some rally section could stretch to contain every labelled hit. A start can
   move back to the previous section's end and both ends can gain the finishing padding, so the
   check is generous.
@@ -25,44 +23,42 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import numpy as np
 
-from annotator.sequence.contacts import scale_frames
-from annotator.sequence.rally_model import BOUNDARY_PADDING_AT_30_FPS
-from annotator.training.sequences import match_contacts, overlapping_rallies
+from annotator.rallies.refine_rallies import BOUNDARY_PADDING_AT_30_FPS
+from annotator.training.sequences import judge_rally_boundaries, match_contacts
 from experiments.annotator.tree_simplification.analysis.common import (
     SHOTS_MASTER,
+    read_json,
     validation_videos,
 )
 from experiments.annotator.tree_simplification.options import (
     LabelledOptions,
-    finish_in_initial_context,
 )
+from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
+from shared.frame_timing import frames_at_fps
 
 TOLERANCE_AT_30_FPS = 10
 
 
 def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
-    """Coverage with initial neighbours, then the two generous reachability checks, for one video."""
+    """Count correct proposals and the two generous reachability checks for one video."""
     video = pool.video
-    padding = scale_frames(BOUNDARY_PADDING_AT_30_FPS, video.fps)
-    tolerance = scale_frames(TOLERANCE_AT_30_FPS, video.fps)
-    stream_frames = np.asarray([event.frame for event in video.events], dtype=np.int64)
+    padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, video.context.fps)
+    tolerance = frames_at_fps(TOLERANCE_AT_30_FPS, video.context.fps)
     covered: set[str] = set()
     sections_with_correct_option = 0
     # One (earliest start, latest end, all option frames) per initial rally section.
     envelopes: list[tuple[int, int, list[int]]] = []
     previous_end = 0
-    for position, before in enumerate(video.initial):
+    for before in video.context.initial:
         rows = pool.span_rows[before.span_id]
         correct_rows = rows[pool.targets[rows] == 1]
         sections_with_correct_option += bool(len(correct_rows))
         for row in correct_rows:
-            finished = finish_in_initial_context(video, position, pool.sequences[row], stream_frames)
-            overlaps = overlapping_rallies(finished, video.rallies)
-            if len(overlaps) != 1:
-                raise ValueError(f'{video.identity}: a correct option overlaps {len(overlaps)} labelled rallies')
-            covered.add(overlaps[0].identity)
+            boundary = judge_rally_boundaries(pool.sequences[row], video.rallies, tolerance=tolerance)
+            if boundary.rally is None:
+                raise ValueError(f'{video.video_id}: a correct option has no labelled rally')
+            covered.add(boundary.rally.rally_id)
         options = [pool.sequences[row] for row in rows]
         earliest_start = max(previous_end, min(option.start_frame for option in options) - padding)
         latest_end = max(option.end_frame for option in options) + padding
@@ -77,14 +73,14 @@ def inspect_pool(pool: LabelledOptions) -> dict[str, Any]:
             len(match_contacts(rally.frames, frames, tolerance)) == len(rally.frames) for frames in containing
         )
         rallies.append({
-            'rally': rally.identity,
+            'rally': rally.rally_id,
             'all_sides_known': all(side is not None for side in rally.sides),
-            'correct_option_with_initial_neighbours': rally.identity in covered,
+            'correct_option': rally.rally_id in covered,
             'bounds_possible': bool(containing),
             'frame_union_possible': frame_union_possible,
         })
     return {
-        'video': video.identity,
+        'video': video.video_id,
         'labelled_rallies': len(video.rallies),
         'sections_with_correct_option': sections_with_correct_option,
         'with_correct_option': len(covered),
@@ -99,10 +95,13 @@ def main() -> None:
     parser.add_argument('--pools', type=Path, required=True, help='option-list folder holding videos/')
     parser.add_argument('--shots-master', type=Path, default=SHOTS_MASTER, help='labels CSV')
     args = parser.parse_args()
+    manifest = read_json(args.pools / 'pools.json.gz')
+    if manifest['schema'] != POOL_SCHEMA:
+        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
     results = []
     for identity, video in sorted(validation_videos(args.shots_master).items()):
         pool: LabelledOptions = joblib.load(args.pools / 'videos' / f'{identity}.joblib')
-        if pool.video.identity != identity or pool.video.rallies != video.rallies:
+        if pool.video.video_id != identity or pool.video.rallies != video.rallies:
             raise ValueError(f'{identity}: the option list was built from different labels')
         results.append(inspect_pool(pool))
     print(json.dumps({'per_video': results}, indent=2))

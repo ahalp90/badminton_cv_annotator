@@ -13,18 +13,8 @@ import pytest
 from scraper.config import SCRAPE_TRACKNET_LARGE_VIDEO, SCRAPE_TRACKNET_STRIDE
 
 
-def test_rally_dead_mask_loader_keeps_dead_mask_filename(tmp_path: Path) -> None:
-    from annotator.rally import cli
-
-    expected = np.array([True, False, True], dtype=bool)
-    np.save(tmp_path / 'video-1_dead_mask.npy', expected)
-
-    np.testing.assert_array_equal(cli._load_dead_mask(tmp_path, 'video-1'), expected)
-    assert cli._load_dead_mask(tmp_path, 'missing') is None
-
-
 def test_composition_mask_main_scales_composition_min_scene_len(monkeypatch, tmp_path: Path) -> None:
-    import annotator.masks.composition as composition_mask
+    import experiments.annotator.scene_cut_mask as composition_mask
 
     keep_vote_path = tmp_path / 'keep_vote.npy'
     np.save(keep_vote_path, np.ones(200, dtype=bool))
@@ -46,126 +36,6 @@ def test_composition_mask_main_scales_composition_min_scene_len(monkeypatch, tmp
     composition_mask.main()
 
     assert captured == [30, 25]
-
-
-@pytest.mark.parametrize(
-    ('fps_args', 'expected_impulse'),
-    [
-        (['--fps-csv'], 20),
-        (['--fps-csv', '--missing-id'], None),
-        (['--fps', '60'], 24),
-    ],
-)
-def test_rally_segmentation_main_resolves_fps_thresholds(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-    tmp_path: Path,
-    fps_args: list[str],
-    expected_impulse: int | None,
-) -> None:
-    from annotator import rally_segmentation
-
-    shuttle_dir = tmp_path / 'shuttles'
-    shuttle_dir.mkdir()
-    np.save(shuttle_dir / 'video-1.npy', np.zeros((4, 3)))
-    fps_csv = tmp_path / 'fps.csv'
-    fps_csv.write_text('id,fps\nvideo-1,50\n', encoding='utf-8')
-    captured = []
-    calls = []
-
-    def fake_segment(track, resolved, **kwargs):
-        calls.append((track, resolved, kwargs))
-        captured.append(resolved.thresholds)
-        return [], []
-
-    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', fake_segment)
-    args = [
-        '--shuttle-dir', str(shuttle_dir), '--rally-spans-csv', str(tmp_path / 'spans.csv'),
-        '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
-    ]
-    if '--fps-csv' in fps_args:
-        args.extend(['--fps-csv', str(fps_csv)])
-    elif '--fps' in fps_args:
-        args.extend(fps_args)
-    if '--missing-id' in fps_args:
-        (shuttle_dir / 'video-1.npy').rename(shuttle_dir / 'missing-id.npy')
-    monkeypatch.setattr(sys, 'argv', ['rally_segmentation', *args])
-    if expected_impulse is None:
-        with pytest.raises(RuntimeError, match='processed 0 of 1 video'):
-            rally_segmentation.main()
-    else:
-        rally_segmentation.main()
-
-    if expected_impulse is not None:
-        assert captured[0].impulse_floor_half_window_frames == expected_impulse
-        assert calls[0][1].span_open is None
-        np.testing.assert_array_equal(calls[0][2]['raw_exclusion_mask'], np.zeros(4, dtype=bool))
-    if '--missing-id' in fps_args:
-        assert not captured
-        assert 'skipping missing-id: absent from fps CSV' in caplog.text
-        assert not (tmp_path / 'spans.csv').exists()
-        assert not (tmp_path / 'contacts.csv').exists()
-
-
-def test_rally_segmentation_main_serialises_split_verdicts_to_csv(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
-) -> None:
-    """The contacts CSV carries both verdict columns, blank on the no-gate path."""
-    from annotator import rally_segmentation
-    from annotator.types import ContactCandidate
-
-    shuttle_dir = tmp_path / 'shuttles'
-    shuttle_dir.mkdir()
-    np.save(shuttle_dir / 'video-1.npy', np.zeros((4, 3)))
-    contacts_csv = tmp_path / 'contacts.csv'
-
-    def fake_segment(track, resolved, **kwargs):
-        return [(0, 20)], [
-            ContactCandidate(0, 1, True, True, False),    # gate winner
-            ContactCandidate(0, 5, True, True, True),     # suppression loser
-            ContactCandidate(0, 9, False, False, False),  # gate failure
-            ContactCandidate(0, 13, None, None, None),    # no-gate path
-        ]
-
-    monkeypatch.setattr(rally_segmentation, 'segment_shuttle_track', fake_segment)
-    monkeypatch.setattr(sys, 'argv', [
-        'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--fps', '30',
-        '--rally-spans-csv', str(tmp_path / 'spans.csv'),
-        '--contact-frames-csv', str(contacts_csv),
-    ])
-    rally_segmentation.main()
-
-    assert contacts_csv.read_text(encoding='utf-8').splitlines() == [
-        'video_id,rally_id,contact_frame,proximity_ok,wrist_near,suppressed',
-        'video-1,0,1,True,True,False',
-        'video-1,0,5,True,True,True',
-        'video-1,0,9,False,False,False',
-        'video-1,0,13,,,',
-    ]
-
-
-def test_rally_segmentation_main_requires_an_fps_source(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path,
-) -> None:
-    from annotator import rally_segmentation
-
-    shuttle_dir = tmp_path / 'shuttles'
-    shuttle_dir.mkdir()
-    monkeypatch.setattr(sys, 'argv', [
-        'rally_segmentation', '--shuttle-dir', str(shuttle_dir), '--rally-spans-csv', str(tmp_path / 'spans.csv'),
-        '--contact-frames-csv', str(tmp_path / 'contacts.csv'),
-    ])
-    with pytest.raises(SystemExit, match='2'):
-        rally_segmentation.main()
-    assert 'one of --fps or --fps-csv is required' in capsys.readouterr().err
-
-
-def test_replay_main_requires_fps(monkeypatch: pytest.MonkeyPatch) -> None:
-    from annotator.masks import replay
-
-    monkeypatch.setattr(sys, 'argv', ['replay', '--video-id', 'one'])
-    with pytest.raises(SystemExit, match='2'):
-        replay.main()
 
 
 @pytest.mark.parametrize(

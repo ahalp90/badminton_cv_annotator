@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from annotator.outcomes.point_winner import Half
+from annotator.types import CourtHalf
 from experiments.annotator.video_models_benchmark.data import (
     IMAGE_SIZE,
     ClipDataset,
@@ -90,10 +90,10 @@ def test_decoder_background_suppression_ties_and_alternation() -> None:
     probabilities[15] = [0.1, 0.8, 0.1]
     events = decode_span(rally, probabilities, 30).events
     assert [event.frame for event in events] == [102, 115]
-    assert [event.side for event in events] == [Half.BOT, Half.BOT]  # Alternation tie keeps raw guesses.
+    assert [event.side for event in events] == [CourtHalf.BOT, CourtHalf.BOT]  # Alternation tie keeps raw guesses.
     probabilities[30] = [0.1, 0.8, 0.1]
     events = decode_span(rally, probabilities, 30).events
-    assert [event.side for event in events] == [Half.BOT, Half.TOP, Half.BOT]
+    assert [event.side for event in events] == [CourtHalf.BOT, CourtHalf.TOP, CourtHalf.BOT]
     probabilities[8] = [0.05, 0.9, 0.05]
     assert decode_span(rally, probabilities, 25).events[0].frame == 102  # Six exceeds scaled distance five.
 
@@ -121,6 +121,31 @@ def test_supplied_rallies_reuse_existing_scorer(second_side: str | None) -> None
     counts = score_probabilities(FakeDataset(), probabilities)["metrics"]["10"]
     assert counts["fully_correct"] == 0
     assert counts["contact_f1"] == 80
+
+
+@pytest.mark.parametrize("break_ties,expected_correct_player,expected_rallies", [(False, 2, 1), (True, 1, 0)])
+def test_scoring_preserves_the_selected_tie_rule(
+    break_ties: bool, expected_correct_player: int, expected_rallies: int,
+) -> None:
+    rally = span(0, 50, [10, 30], ["Top", "Top"])
+
+    class FakeDataset:
+        def __init__(self) -> None:
+            self.videos = [{"item_id": "one", "role": "validation", "fps": 30, "spans": [rally]}]
+
+        def __len__(self) -> int:
+            return 50
+
+    probabilities = np.tile([1.0, 0.0, 0.0], (50, 1))
+    probabilities[10] = [0.0, 0.4, 0.6]
+    probabilities[30] = [0.0, 0.1, 0.9]
+    result = score_probabilities(FakeDataset(), probabilities, break_alternation_ties=break_ties)
+    for counts in result["metrics"].values():
+        assert counts["matched"] == 2
+        assert counts["correct_player"] == expected_correct_player
+        assert counts["fully_correct"] == expected_rallies
+    events = result["streams"]["one"]["events"]
+    assert [event[2] for event in events] == (["Bot", "Top"] if break_ties else ["Top", "Top"])
 
 
 def test_ffmpeg_cache_selects_correct_source_frames_and_reuses(tmp_path: Path) -> None:
@@ -403,12 +428,12 @@ def test_launcher_termination_records_failure_and_stops_child(tmp_path: Path) ->
 
 
 @pytest.mark.parametrize("top_probabilities,expected", [
-    ([0.9, 0.6], [Half.TOP, Half.BOT]),
-    ([0.6, 0.9], [Half.BOT, Half.TOP]),
-    ([0.8, 0.8], [Half.TOP, Half.BOT]),
+    ([0.9, 0.6], [CourtHalf.TOP, CourtHalf.BOT]),
+    ([0.6, 0.9], [CourtHalf.BOT, CourtHalf.TOP]),
+    ([0.8, 0.8], [CourtHalf.TOP, CourtHalf.BOT]),
 ])
 def test_alternation_tie_break_uses_probabilities(
-    top_probabilities: list[float], expected: list[Half],
+    top_probabilities: list[float], expected: list[CourtHalf],
 ) -> None:
     span = {"span_id": "test", "start_frame": 0, "end_frame": 30}
     probabilities = np.tile([1.0, 0.0, 0.0], (30, 1))
@@ -416,7 +441,7 @@ def test_alternation_tie_break_uses_probabilities(
         probabilities[frame] = [0.0, 1 - top, top]
     old = decode_span(span, probabilities, 30).events
     forced = decode_span(span, probabilities, 30, break_alternation_ties=True).events
-    assert [event.side for event in old] == [Half.TOP, Half.TOP]
+    assert [event.side for event in old] == [CourtHalf.TOP, CourtHalf.TOP]
     assert [event.side for event in forced] == expected
     assert [event.frame for event in forced] == [event.frame for event in old]
     assert decode_span(span, np.tile([1.0, 0.0, 0.0], (30, 1)), 30, break_alternation_ties=True).events == ()
@@ -428,4 +453,4 @@ def test_alternation_tie_setting_does_not_change_a_majority_vote() -> None:
     probabilities[[5, 20, 35]] = [0.0, 0.1, 0.9]
     for break_ties in (False, True):
         events = decode_span(span, probabilities, 30, break_alternation_ties=break_ties).events
-        assert [event.side for event in events] == [Half.TOP, Half.BOT, Half.TOP]
+        assert [event.side for event in events] == [CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP]

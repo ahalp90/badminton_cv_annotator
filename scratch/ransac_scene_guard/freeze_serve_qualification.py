@@ -33,7 +33,8 @@ FIXTURE_SOURCE = "serve_prepend_lookback_189c5af_20260808/fixtures"
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from annotator.config import BaseAnnotatorConfig, resolve
+from annotator.calc_helpers import compute_speed
+from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.evaluation.fixtures import FIXTURES, FilePin, Fixture, verify_file
 from annotator.masks.replay import _read_homography_rows
 from annotator.rally.evidence import build_sticky_result, tracker_segments
@@ -44,7 +45,6 @@ from annotator.rally.serve import (
     resolve_serve_gate,
 )
 from annotator.rally.spans import build_rest_mask, find_rally_spans, rally_regions
-from annotator.types import compute_speed
 from shared.court import load_all_court_info
 
 
@@ -231,7 +231,7 @@ def freeze_fixture(
         str(fixture.video_id),
     )
     segments = tracker_segments(scene_rows, court_present, frame_count)
-    resolved = resolve(BaseAnnotatorConfig(), fixture.fps)
+    video_config = scale_config_to_fps(BaseAnnotatorConfig(), fixture.fps)
     sticky = build_sticky_result(
         track,
         segments,
@@ -243,7 +243,7 @@ def freeze_fixture(
         gate_courts,
         gate_resolution,
         fixture.resolution,
-        resolved.thresholds.body_unit_half_window,
+        video_config.thresholds.body_unit_half_window,
     )
     setup = build_serve_setup_inputs(sticky, fixture.resolution)
     production_diagnostics: dict[str, Any] = {}
@@ -254,8 +254,8 @@ def freeze_fixture(
         diagnostics=production_diagnostics,
         setup=setup,
         stillness_threshold_bh=None,
-        lookback_frames=resolved.thresholds.serve_start_lookback_frames,
-        stillness_window_frames=resolved.thresholds.serve_stillness_window_frames,
+        lookback_frames=video_config.thresholds.serve_start_lookback_frames,
+        stillness_window_frames=video_config.thresholds.serve_stillness_window_frames,
     )
     gate = resolve_serve_gate(options)
 
@@ -263,15 +263,15 @@ def freeze_fixture(
     at_rest = build_rest_mask(
         speed,
         track,
-        resolved.thresholds,
-        gap_state_demotion_bound=resolved.gap_state_demotion_bound,
-        reentry_guard_variant=resolved.reentry_guard_variant,
-        reentry_guard_buffer=resolved.reentry_guard_buffer,
+        video_config.thresholds,
+        max_high_shot_gap_frames=video_config.max_high_shot_gap_frames,
+        reentry_guard_variant=video_config.reentry_guard_variant,
+        reentry_guard_buffer=video_config.reentry_guard_buffer,
     )
     fast_runs, _rest_runs, regions = rally_regions(
         speed,
         at_rest,
-        resolved.thresholds,
+        video_config.thresholds,
     )
     burst_rows, qualifying_counts = qualify_burst_rows(
         fast_runs,
@@ -279,7 +279,7 @@ def freeze_fixture(
         gate.qualifies,
     )
 
-    production_spans = find_rally_spans(track, serve_start=options, resolved=resolved)
+    production_spans = find_rally_spans(track, serve_start=options, video_config=video_config)
     if production_diagnostics.get("qualifying_counts") != qualifying_counts:
         raise AssertionError(f"{fixture.name}: direct burst capture differs from production diagnostics")
 

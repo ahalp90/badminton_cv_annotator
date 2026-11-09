@@ -32,31 +32,28 @@ def load_heuristic_settings(path: Path) -> CandidateSpec:
 def run_item(
     task: tuple[dict[str, Any], dict[str, Any], str, Path], heuristic_spec: CandidateSpec | None = None,
 ) -> None:
+    from annotator.annotate_video import annotate_video
+    from annotator.excluded_frames.shuttle_hallucination import ShuttleGrade
     from annotator.models import load_models
-    from annotator.outcomes.point_winner import SHIPPED_LANDING_FILTER_OPTIONS
-    from annotator.run_video import RunCapture, run_video
-    from annotator.sequence.contacts import stream_payload
-    from annotator.shuttle_track import validate_shuttle_track
-    from annotator.types import DeadMaskMode
+    from annotator.rally_results.landing_and_winner import (
+        SHIPPED_LANDING_FILTER_OPTIONS,
+    )
     from dataset_builder.vision import load_court_vision, load_pose_arrays
+    from experiments.annotator.contact_records import stream_payload
+    from shared.shuttle_track_validation import validate_shuttle_track
 
     config, item, condition, output = task
     paths = config['paths']
     if heuristic_spec is None:
         models = load_models(paths['bundle'])
-        base, serve_start = models.preprocessing, None
-        if base.dead_mask_mode is not DeadMaskMode.REPLAY:
-            raise ValueError('This comparison requires the selected REPLAY mask, without a person-vote mask')
-        if (base.rejected_grades != frozenset({1, 2, 3})
-                or models.contact_settings.score_cutoff != 0.9
-                or models.contact_settings.reject_masked_without_player
-                or models.side_geometry.value != 'video'):
+        base = models.preprocessing
+        if base.rejected_grades != ShuttleGrade.rejectable() or models.contact_settings.score_cutoff != 0.9:
             raise ValueError('Model bundle settings differ from the selected annotator')
     else:
-        from experiments.annotator.heuristic_tuning.sweep import _base_and_serve
+        from experiments.annotator.heuristic_tuning.sweep import base_config
 
         models = None
-        base, serve_start = _base_and_serve(heuristic_spec)
+        base = base_config(heuristic_spec)
     frame_count = item['frame_count']
     track_root = paths['inpaint_root'] / item['directory']
     track = read_array(track_root / 'shuttle_track_inpainted.npy.xz')
@@ -80,25 +77,23 @@ def run_item(
 
         record.update(candidate_id=candidate_id(heuristic_spec), heuristic_settings=serialise_spec(heuristic_spec))
     started = time.perf_counter()
-    capture = RunCapture()
     try:
-        result = run_video(
+        annotation = annotate_video(
             track, pose.bboxes, pose.scores, pose.kps, pose.ndet,
             fps=item['fps'], base=base, models=models, heuristic_only=heuristic_spec is not None,
-            serve_start=serve_start,
-            landing_options=SHIPPED_LANDING_FILTER_OPTIONS, net_band=court.net_band,
-            resolution=court.resolution, video_id=item['item_id'], court_info=court.court_info,
-            gate_court_info=court.gate_court_info, gate_resolution_table=court.gate_resolution_table,
+            landing_options=SHIPPED_LANDING_FILTER_OPTIONS,
+            resolution=court.resolution,
             court_present=vision.evidence.court_present, homography_rows=court.homography_rows,
-            cut_frames=[end for _, end in vision.raw_cuts[:-1]], keep_vote=vision.evidence.keep_vote,
-            inpaint_codes=guards, court_invalid_is_excluded=True,
-            landing_error_band_m=court.landing_error_band_m, spans=spans, capture=capture,
+            shuttle_grades=guards,
+            spans=spans, keep_working_data=True,
         )
+        result = annotation.result
         if heuristic_spec is None:
-            prediction = capture.hybrid
+            assert annotation.working_data is not None
+            prediction = annotation.working_data.learned_model_prediction
             if prediction is None:
                 raise ValueError('Annotator did not return its final contact stream')
-            record['stream'] = stream_payload(prediction.refined.sequences, prediction.refined.events)
+            record['stream'] = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
         else:
             from experiments.annotator.heuristic_only_tune.data import heuristic_stream
 

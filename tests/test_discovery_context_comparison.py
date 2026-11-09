@@ -4,9 +4,9 @@ from dataclasses import replace
 
 import pytest
 
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence, stream_payload
 from annotator.training.sequences import LabelledRally
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import SearchVideo
 from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     write_json,
@@ -22,6 +22,7 @@ from experiments.annotator.monotrack_benchmark.writeup_scripts.compare_discovery
     score_validation,
     selection_key,
 )
+from shared.frame_timing import frames_at_fps
 
 
 def test_equal_rally_totals_use_player_f1_despite_percentage_rounding() -> None:
@@ -33,8 +34,11 @@ def test_equal_rally_totals_use_player_f1_despite_percentage_rounding() -> None:
 
 
 def test_boundary_only_survey_matches_full_scoring_with_excluded_rallies(tmp_path, monkeypatch) -> None:
-    labels = (LabelledRally('rally', (300, 400), (Half.TOP, Half.BOT)),)
-    events = (ContactEvent(300, .9, Half.TOP), ContactEvent(400, .9, Half.BOT), ContactEvent(750, .9, Half.TOP))
+    labels = (LabelledRally('rally', (300, 400), (CourtHalf.TOP, CourtHalf.BOT)),)
+    events = (
+        ContactEvent(300, .9, CourtHalf.TOP), ContactEvent(400, .9, CourtHalf.BOT),
+        ContactEvent(750, .9, CourtHalf.TOP),
+    )
     sequences = (ContactSequence(0, 240, 491, events[:2]), ContactSequence(1, 700, 800, events[2:]))
     stream = stream_payload(sequences, events) | {'confidence': {'0': .8, '1': .7}}
     item = {'item_id': '8', 'video_id': 8, 'fps': 30, 'spans': [{'start_frame': 270, 'end_frame': 431}]}
@@ -53,9 +57,9 @@ def test_boundary_only_survey_matches_full_scoring_with_excluded_rallies(tmp_pat
 
 
 def test_discovery_ignores_windows_even_when_they_overlap_another_label() -> None:
-    labels = (LabelledRally('first', (100, 200), (Half.TOP, Half.BOT)),
-              LabelledRally('second', (400, 500), (Half.TOP, Half.BOT)))
-    events = (ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
+    labels = (LabelledRally('first', (100, 200), (CourtHalf.TOP, CourtHalf.BOT)),
+              LabelledRally('second', (400, 500), (CourtHalf.TOP, CourtHalf.BOT)))
+    events = (ContactEvent(100, .9, CourtHalf.TOP), ContactEvent(200, .9, CourtHalf.BOT))
     sequence = ContactSequence(0, 100, 201, events)
     wide = replace(sequence, start_frame=0, end_frame=600)
     for policy in (None, metrics.ContactEndpointLimits(1, 1), metrics.ContactEndpointLimits(2, 3)):
@@ -66,15 +70,15 @@ def test_discovery_ignores_windows_even_when_they_overlap_another_label() -> Non
     empty = replace(wide, events=())
     assert metrics.judge_found_rallies((empty,), labels, 10, fps=30)[0]['outcome'] == 'no_contacts'
     assert metrics.judge_found_rallies((wide,), labels, 10, fps=30, supplied=True)[0]['outcome'] == 'merged_rallies'
-    merged = replace(wide, events=(*events, ContactEvent(400, .9, Half.TOP), ContactEvent(500, .9, Half.BOT)))
+    merged = replace(wide, events=(*events, ContactEvent(400, .9, CourtHalf.TOP), ContactEvent(500, .9, CourtHalf.BOT)))
     assert metrics.judge_found_rallies((merged,), labels, 10, fps=30)[0]['outcome'] == 'merged_rallies'
 
 
 def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path) -> None:
-    labels = (LabelledRally('first', (100, 200), (Half.TOP, Half.BOT)),
-              LabelledRally('second', (400, 500), (Half.TOP, Half.BOT)))
-    events = (ContactEvent(100, .9, Half.TOP), ContactEvent(200, .9, Half.BOT))
-    outside = ContactEvent(700, .9, Half.TOP)
+    labels = (LabelledRally('first', (100, 200), (CourtHalf.TOP, CourtHalf.BOT)),
+              LabelledRally('second', (400, 500), (CourtHalf.TOP, CourtHalf.BOT)))
+    events = (ContactEvent(100, .9, CourtHalf.TOP), ContactEvent(200, .9, CourtHalf.BOT))
+    outside = ContactEvent(700, .9, CourtHalf.TOP)
     sequence = ContactSequence(0, 0, 600, events)
     stream = stream_payload((sequence,), (*events, outside))
     path = tmp_path / 'stream.json.gz'
@@ -94,14 +98,14 @@ def test_validation_reuses_only_contact_counts_and_keeps_outside_events(tmp_path
 
 @pytest.mark.parametrize('fps', (25, 30, 60))
 def test_endpoint_tolerance_and_context_limits(fps: float) -> None:
-    from annotator.sequence.contacts import scale_frames
+
 
     first, last = int(10 * fps), int(20 * fps)
-    tolerance = scale_frames(10, fps)
-    labels = (LabelledRally('rally', (first, last), (Half.TOP, Half.BOT)),)
+    tolerance = frames_at_fps(10, fps)
+    labels = (LabelledRally('rally', (first, last), (CourtHalf.TOP, CourtHalf.BOT)),)
 
     def outcome(start: int, end: int, policy: metrics.ContactEndpointLimits | None) -> str:
-        events = (ContactEvent(start, .9, Half.TOP), ContactEvent(end, .9, Half.BOT))
+        events = (ContactEvent(start, .9, CourtHalf.TOP), ContactEvent(end, .9, CourtHalf.BOT))
         sequence = ContactSequence(0, 0, int(30 * fps), events)
         return metrics.judge_found_rallies((sequence,), labels, tolerance, fps=fps,
                                            endpoint_limits=policy)[0]['outcome']

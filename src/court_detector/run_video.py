@@ -100,8 +100,8 @@ class PosePrerun:
 
 def prerun_people(video: Path, video_id: str, settings: PosePrerun) -> Path:
     """Use the dataset builder's eight-shard, ten-person pose settings."""
-    from annotator.video_metadata import probe_video_metadata
     from dataset_builder.pose_sharding import extract_sharded_rtmlib_pose_stage
+    from shared.video_metadata import probe_video_metadata
 
     output = settings.output_dir / video_id
     # An existing folder may belong to different footage. Reuse it explicitly via --people.

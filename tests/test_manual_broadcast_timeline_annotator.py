@@ -5,16 +5,16 @@ from pathlib import Path
 import cv2
 import pytest
 
-from annotator.review.broadcast_editor import (
+from labelling.gui import video_metadata
+from labelling.scene_editor import (
     GuideInterval,
     TimelineSession,
     build_parser,
     commit_label,
     read_guides,
     read_scene_partition,
-    video_metadata,
 )
-from annotator.review.broadcast_labels import SceneTruth, VideoMetadata, make_interval
+from labelling.scene_labels import SceneTruth, VideoMetadata, make_interval
 
 METADATA = VideoMetadata("sset_01", 25.0, 10)
 

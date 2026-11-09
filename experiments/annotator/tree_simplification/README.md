@@ -8,6 +8,9 @@ checking. The [report](../reports/tree_simplification.md) gives the results and
 the reasons behind each choice. This guide says what the repository keeps and
 how to run each step again.
 
+The [joint settings search plan](hp_search.md) proposes a bounded search over
+preprocessing, contact-tree settings, contact cutoffs and rally-selector settings.
+
 All models fit on 32 ShuttleSet training videos. Eight other videos serve as
 validation: 668 labelled rallies and 5,696 contacts. Validation chose every
 setting. The 46-video ShuttleSet22 test set was used only after those choices
@@ -38,9 +41,9 @@ needed here. Run every command from the repository root.
 
 ## Tracked models and prediction files
 
-The current default uses the [no-max model](results/discovery_context/README.md),
+The current default uses the [selected model](results/hp_search/fit-settings.json.gz),
 with no maximum context limit in training or discovery. Its ten bundles are
-under `results/discovery_context/no_max/`. The tree-simplification evidence below
+under `results/hp_search/`. The tree-simplification evidence below
 retains the models used in that experiment.
 
 Everything behind the report's numbers sits in [results/](results/). The
@@ -86,9 +89,8 @@ each script's inputs and output. Four need data from outside the repository:
 records, `profile_selected.py` needs prepared arrays, and `pool_coverage.py`
 needs option lists from a fresh run.
 
-`analysis/test_run.py` rebuilds a working test-run folder from
-`results/test-run/` and `results/models/`. It then loads all ten test bundles
-through the test runner's own checks. The commands are under
+The earlier test-run records require the checkout that produced their weights.
+Use the current evaluator directly with a model directory; see
 [Test run and review thresholds](#test-run-and-review-thresholds).
 
 ## Reproduce the current fit
@@ -122,7 +124,7 @@ PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.targets \
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.train \
   --pools RUN/seed-0/pools --five-frame-targets RUN/seed-0/targets-five \
   --output RUN/seed-0/selector --device cuda --threads 2 \
-  --seed 20260905 --leaves 31 --rounds 400 --layers 1 \
+  --seed 20260905 --leaves 31 --rounds 400 \
   --learning-rate 0.05 --min-child-weight 5 --l2 1
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_stages export \
   --run RUN/seed-0/selector --five-frame-targets RUN/seed-0/targets-five \
@@ -143,16 +145,13 @@ players and no extras.
 The batched [retraining driver](../monotrack_benchmark/writeup_scripts/README.md#fit-and-run-the-baseline)
 shares preparation across seeds and can reuse contact fits and matching option pools.
 
-Selector training gives each judged rally equal total row weight. A scale based
-on the rule-based repair set anchors that weight across proposal expansions.
-`--span-weight` supplies a fixed scale for matched experiments; otherwise it is
-calculated from the current training proposals.
+Selector training divides each judged rally's total weight equally among its
+judged options. The default total is 372; `--span-weight` changes it explicitly
+for a fit. Proposal count does not determine the scale.
 
-Each stage saves its settings and source/input identity. Reusing a directory with
-different inputs or settings fails. Use fresh directories when changing a
-configuration. `--reuse-upstream` on export checks compatible preparation and
-contact fits from another source revision. Pool reuse requires the current
-target schema and matching inputs.
+Each stage saves its settings and current input paths. Use fresh output
+folders when changing a fit configuration. Export checks preprocessing and
+target settings, then runs current validation annotation and scoring.
 
 ## Paired seed repeats
 
@@ -170,7 +169,7 @@ configuration and source are the same.
 
 Pass the offset to `input_stages contacts --seed-offset` and the selector seed to
 `train --seed`. Export derives the review settings from the saved run. Each seed
-rebuilds its own contact-dependent proposals and weight scale. Five runs measure
+rebuilds its own contact-dependent proposals with the same configured weight scale. Five runs measure
 fitting variation with the same fixed split; they are not independent datasets.
 
 ## Production export and review ranking
@@ -192,9 +191,8 @@ fixed split, ordering and records of this benchmark.
 ## Further experiments
 
 The selector command exposes rounds, leaves, learning rate, minimum child weight,
-regularisation, seed, device, layer count and fixed span weight. Proposal building
-exposes the edit and deletion budgets. `--original-options` restricts training
-to the rule-based repair set for a matched comparison.
+regularisation, seed, device and fixed span weight. Proposal building exposes
+the edit and deletion budgets for the single contact-toggle generator.
 
 `contact_folds.py` supports the separate eight-fold contact comparison.
 `fps_normalisation.py` and `fps_review.py` retain the frame-rate feature experiment.
@@ -215,55 +213,31 @@ Baseline preprocessing stays the default, and review filtering stays off.
 [appendix D](../reports/tree_simplification.md#appendix-d-review-ranking-and-filtering)
 of the report give the results.
 
-`input_test` reads a selection record with schema `annotator-input-finalists/1`.
-The record holds `fit_policy: contact-fit-32-videos`, `feature_units: raw`, the
-five ordered `seed_offsets`, `primary_tolerance: 10`, and the evaluator's
-`source_record()` as `evaluation_source`. Each entry in its `finalists` list
-names a `candidate`, its `objectives` and five `seeds`. Each seed records its
-`offset`, an absolute `export` folder, the export's full `settings`, and
-`bundle_md5` hashes keyed by `model_files()`.
-
-The repository keeps two kinds of input for the test run:
-
-- **Saved records, tracked.** `results/test-run/` holds the selection record,
-  each test bundle's export settings and validation results, and each contact
-  stage record. `results/models/` holds the ten bundles. These are enough to
-  load and check every test bundle.
-- **External fixtures, not tracked.** Running test inference needs the 46 test
-  videos' prepared inputs. A paths file names them with `test_inputs`,
-  `test_courts`, `inpaint_root` and `pose_root`. Check these entries against
-  the [paths example](../heuristic_only_tune/paths.example.toml). A paths file
-  for training and validation only cannot run this evaluation.
-
-Rebuild a working test-run folder from the tracked records, then load all ten
-bundles through the test runner's own checks:
-
-```bash
-PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.analysis.test_run materialise \
-  --output DIR
-PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.analysis.test_run check \
-  --output DIR
-```
-
-`materialise` copies `results/test-run/` into `DIR`, writes `DIR/` in place of
-`SWEEP/`, and copies each bundle into its export folder. Add
-`--use-current-checkout` before running inference from a later commit.
-`input_test` requires a clean checkout whose `source_record()` equals the
-record's `evaluation_source`, and this option writes the current checkout's
-record into the copy. A re-run at a later commit therefore gets new evaluation
-hashes.
-
-Run inference for one configuration and seed:
+Evaluate a current model bundle directly:
 
 ```bash
 PYTHONPATH=src:. python -m experiments.annotator.tree_simplification.input_test \
-  --selection DIR/selection.json.gz --candidate raw_baseline --seed-offset 0 \
-  --paths PATHS.toml --output RUN/test/raw_baseline/seed-0 --threads 2
+  --models MODELS --paths PATHS.toml --output RUN/test --threads 2
 ```
 
-The evaluator checks the chosen bundle and source before it loads the 46 test
-videos. It uses the saved 32-video fit without refitting. Saved per-video
-results can resume only with the same inputs, bundle and evaluator identity.
+Use a new or empty output directory. The paths file must name `test_inputs`,
+`test_courts`, `inpaint_root` and `pose_root`; see the
+[paths example](../heuristic_only_tune/paths.example.toml).
+
+The evaluator scores all 46 videos with the benchmark's 524 excluded-rally
+windows. It checks the final population of 3,327 scored rallies and 37,184
+labelled contacts. Contact, player and whole-rally results use the benchmark
+scorer at five- and ten-frame tolerances, scaled for each video's frame rate.
+
+The output includes streams, per-video judgements, totals and review ranking.
+Review rows use the same excluded-window judgements. Rows with missing rally or
+player labels remain unjudgeable; the selector and fitted review scores are
+retained for the other rows. Select models on validation before this test run.
+Test review correctness is judged after removing excluded windows; validation
+review labels use the full rally boundaries. Interpret the two splits separately.
+
+The earlier ten-bundle selection records remain historical report inputs; use
+their original checkout to load those weights.
 
 For the threshold analysis, combine the exported review rows and add
 `candidate`, `seed_offset` and `split` (`validation` or `test`) to each row.

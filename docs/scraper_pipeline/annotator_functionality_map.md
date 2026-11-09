@@ -84,8 +84,8 @@ the values (TOP = 0, BOTTOM = 1) so it indexes the sticky result's arrays direct
 module ints SLOT_TOP = 0, SLOT_BOTTOM = 1). Output row order is pinned: Top is row 0,
 Bottom is row 1. Selection order is the reverse and it matters: the picker assigns
 Bottom first, so Bottom wins a shared-candidate or equidistant tie. The point-winner
-layer's Half.TOP/Half.BOT name the same two players (the types module carries the one
-Slot; the Half spelling survives only until its consumers migrate).
+layer uses CourtHalf.TOP/CourtHalf.BOT for the camera-relative far and near court
+halves. These labels stay attached to the court when players change ends.
 
 ## The chain, step by step
 

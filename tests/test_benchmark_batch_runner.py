@@ -5,15 +5,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.hybrid import HybridPrediction
+from annotator.inference.learned import LearnedModelPrediction
 from annotator.models import AnnotatorModels
-from annotator.outcomes.point_winner import Half
-from annotator.sequence.contacts import ContactEvent, ContactSequence
-from annotator.sequence.rally_model import (
-    LayerReviewFeatures,
-    RallyLayerModels,
+from annotator.rallies.refine_rallies import (
     RallyReview,
+    RallyReviewFeatures,
+    RallySelector,
 )
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from experiments.annotator.monotrack_benchmark.writeup_scripts import (
     annotator_batch_runs as batch,
 )
@@ -35,15 +34,15 @@ class ContactTree:
 
 
 def models(identity=b'contact', selector='selector'):
-    return AnnotatorModels(ContactTree(identity), RallyLayerModels((selector,)), f'review-{selector}')
+    return AnnotatorModels(ContactTree(identity), RallySelector(selector), f'review-{selector}')
 
 
 def prediction(probability=0.8, pool=None):
-    event = ContactEvent(100, 0.9, Half.BOT)
+    event = ContactEvent(100, 0.9, CourtHalf.BOT)
     sequence = ContactSequence(0, 90, 110, (event,))
     refined = SimpleNamespace(sequences=(sequence,), events=(event,), pool=pool)
-    review = RallyReview(LayerReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))
-    return HybridPrediction(None, None, refined, review)
+    review = RallyReview(RallyReviewFeatures((0,), np.empty((1, 0))), np.array([probability]))
+    return LearnedModelPrediction(None, None, refined, review)
 
 
 def paths(tmp_path):
@@ -69,7 +68,7 @@ def test_pool_compatibility_accepts_distinct_selectors_but_rejects_contact_chang
     batch.require_shared_pool((first, other))
     with pytest.raises(ValueError, match='same fitted contact tree'):
         batch.require_shared_pool((first, models(b'different-seed')))
-    changed_budget = replace(other, sequences=replace(other.sequences, max_edits=1))
+    changed_budget = replace(other, rally_selector=replace(other.rally_selector, max_edits=1))
     with pytest.raises(ValueError, match='proposal budgets'):
         batch.require_shared_pool((first, changed_budget))
     changed_cutoff = replace(other, contact_settings=replace(other.contact_settings, score_cutoff=0.8))
@@ -97,15 +96,15 @@ def test_shared_prediction_runs_contact_pipeline_once_and_each_own_selector_revi
         calls.append(('review', model))
         return model
 
-    monkeypatch.setattr(batch, 'predict_contact_features', contact_pipeline)
+    monkeypatch.setattr(batch, 'predict_from_contact_features', contact_pipeline)
     monkeypatch.setattr(batch, 'predict_rally_options', selector)
     monkeypatch.setattr(batch, 'score_rally_review', review)
     predictions = batch.predict_shared_pool(None, None, fitted)
     assert predictions[0] is first
     assert [kind for kind, _value in calls] == ['contact', 'selector', 'review', 'selector', 'review']
-    assert predictions[1].confidence == fitted[1].confidence
-    assert predictions[2].confidence == fitted[2].confidence
-    assert predictions[1].features is first.features
+    assert predictions[1].rally_review == fitted[1].review_model
+    assert predictions[2].rally_review == fitted[2].review_model
+    assert predictions[1].contact_features is first.contact_features
 
 
 @pytest.mark.parametrize('condition', ['discovery', 'our_courts'])
