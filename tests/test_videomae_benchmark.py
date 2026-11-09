@@ -245,12 +245,15 @@ def test_timing_reports_feeding_and_complete_validation(tmp_path: Path, monkeypa
         torch.testing.assert_close(model.state_dict()[name], value)
 
 
-def test_old_x3d_settings_resume_with_new_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("break_ties", [False, True])
+def test_old_x3d_settings_resume_with_new_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, break_ties: bool,
+) -> None:
     monkeypatch.setattr(train, "prepare_clips", lambda clips, **_kwargs: clips)
     monkeypatch.setattr(train, "validate", lambda *_args: {"loss": 0.5, "probabilities": np.ones((4, 3)) / 3})
-    monkeypatch.setattr(train, "score_probabilities", lambda *_args: {"metrics": {}})
+    monkeypatch.setattr(train, "score_probabilities", lambda *_args, **_kwargs: {"metrics": {}})
     settings = train.Settings(batch_size=4, max_steps=4, warmup_steps=1, validation_steps=[2, 4],
-                              workers=0, precision="float32")
+                              workers=0, precision="float32", break_alternation_ties=break_ties)
     labels = np.array([0, 0, 1, 2])
     dataset = TensorDataset(torch.rand(4, 2), torch.from_numpy(labels))
     sampler = ContactBatchSampler(labels, 4, 0.5, 4, 0)
@@ -259,6 +262,7 @@ def test_old_x3d_settings_resume_with_new_defaults(tmp_path: Path, monkeypatch: 
     (tmp_path / "PAUSE").touch()
     train.fit(model, loader, loader, settings, torch.device("cpu"), tmp_path, "A")
     saved_settings = train.read_json(tmp_path / "settings.json.gz")
+    saved_settings["force_alternation"] = saved_settings.pop("break_alternation_ties")
     del saved_settings["validation_stride"]
     for name in ("model_name", "microbatch_size", "checkpoint_revision", "layer_decay", "stochastic_depth",
                  "continuation_half_cycle_steps", "continuation_validation_interval"):

@@ -51,7 +51,7 @@ def initialise(output: Path, cache: Path, *, full_grid: bool = False, test_cache
                 f"max_steps = 30000\nwarmup_steps = 2000\nvalidation_steps = {VALIDATION_STEPS}\n"
                 'validation_stride = 3\nprecision = "bf16"\n'
                 f'continue_until_patience = {str(full_grid).lower()}\n'
-                f'force_alternation = {str(full_grid).lower()}\n'
+                f'break_alternation_ties = {str(full_grid).lower()}\n'
             )
             runs.append({"name": name, "seed": seed, "contact_fraction": contact_fraction,
                          "learning_rate": learning_rate, "scheme": scheme})
@@ -59,7 +59,7 @@ def initialise(output: Path, cache: Path, *, full_grid: bool = False, test_cache
                             "max_steps": 30000, "validation_steps": VALIDATION_STEPS,
                             "validation_stride": 3,
                             "full_grid": full_grid, "validation_offset": 0,
-                            "force_alternation": full_grid,
+                            "break_alternation_ties": full_grid,
                             "test_cache": str(test_cache.resolve()) if test_cache is not None else None,
                             "estimated_run_hours": (30000 * 0.209034 + 7 * 10.41 * 60 / 3) / 3600})
 

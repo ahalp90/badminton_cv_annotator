@@ -288,7 +288,7 @@ def test_x3d_winner_sets_both_labels_and_sampling(tmp_path: Path, scheme: str, f
         config = tomllib.loads((tmp_path / f"{run['name']}.toml").read_text())
         assert config["contact_fraction"] == fraction
         assert config["validation_stride"] == 3
-        assert config["force_alternation"] and config["continue_until_patience"]
+        assert config["break_alternation_ties"] and config["continue_until_patience"]
         assert config["learning_rate"] in queue.LEARNING_RATES
         assert config["max_steps"] == 30000
         assert "max_total_steps" not in config

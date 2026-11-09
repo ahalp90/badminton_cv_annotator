@@ -1,155 +1,143 @@
 # X3D-M contact detection: validation and test results
 
-We fine-tuned a Kinetics-400 X3D-M video model to mark when each racket hit
-happens and which player made it, with the rally bounds given. The validation
-pilot chose the training configuration on 8 videos: 668 rallies holding
-5,696 labelled hits. The two selected seeds then completed the test
-on 46 videos: 3,327 rallies holding 37,184 labelled hits.
+**X3D-M gets 55.58% of test rallies fully correct with forced alternation,
+compared with 60.18% for our annotator and 47.83% for MonoTrack.** Keeping the
+model's raw hitter labels raises correct-player F1 from 90.48% to 96.39%, but
+reduces fully correct rallies to 53.35%. Contact F1 stays at 96.94%.
+These are five-seed means at ±10-frame tolerance.
 
-## Outcome
-
-**X3D-M gets 55.95% of test rallies fully correct at stride 3, offset 0 and ±10-frame tolerance,**
-compared with 60.18% for our annotator and 47.83% for MonoTrack. Its correct-player
-F1 is 89.95%, below both systems. The two X3D seeds span 52.42–59.48% fully
-correct rallies; the comparison systems each use five seeds.
+We fine-tuned a Kinetics-400 X3D-M model to find racket hits and name the hitter,
+with rally bounds supplied. Validation uses 8 videos, 668 rallies and 5,696
+labelled hits. Test uses 46 videos, 3,327 rallies and 37,184 labelled hits.
 
 ## Validation selection
 
 **Positives within ±1 frame, 50% contact clips per batch and learning rate 0.02
-were selected.**
-The selected configuration's two seeds get 46.7% of validation rallies fully correct on average
-(48.1% and 45.4%), with 91.1% correct-player F1 and 95.7% contact F1.
-The next-best configuration averages 44.1% fully correct rallies.
+won the eight-configuration search.** We tested both ±1 and ±2-frame positives,
+both 25% and 50% contact sampling, and learning rates 0.005 and 0.02, each with
+seeds 0 and 1. With ±1-frame positives, centres exactly two frames from a hit
+are excluded from the training loss unless another hit makes them positive.
 
-Native stride-three validation of the same selected checkpoints raises fully
-correct rallies to 50.15% (51.95% and 48.35%), with 92.51% correct-player F1
-and 96.03% contact F1. Both runs evaluate 60,059 of 180,179 centres at offset 0.
+Each run keeps its lowest-validation-cross-entropy checkpoint, earliest on a
+tie. Mean fully correct validation rallies at ±10 frames with forced alternation
+select the configuration; mean correct-player F1 breaks ties. All validation
+checks use stride 3, offset 0. Seeds 2–4 use the winning configuration and do
+not enter the configuration ranking. Test scores select nothing.
 
-The test evaluation used these two [checkpoints](weights/README.md)
-as saved: seed 0 after 25,000 updates and seed 1 after 35,000. Settings and
-checkpoints were fixed before testing. Each checkpoint minimised validation
-cross-entropy; mean fully correct validation rallies selected the configuration,
-with correct-player F1 breaking ties.
+Table 1. Validation selection, ranked by two-seed means. Rally scores show
+seed 0 / seed 1 / mean. Checkpoints show training updates for seed 0 / seed 1.
 
-Table 1. All six configurations at ±10 frames, ranked by mean fully correct
-rallies, then mean correct-player F1, using stride 1 and enforced alternation. Each run is scored at its
-lowest-validation-loss checkpoint.
+| Positive radius | Contact clips | Learning rate | Fully correct rallies (%) | Correct-player F1 (%), mean | Checkpoints |
+|---|---:|---:|---:|---:|---:|
+| ±1 frame | 50% | 0.02 | 50.15 / 49.70 / **49.93** | 92.15 | 25,000 / 35,000 |
+| ±2 frames | 50% | 0.02 | 51.50 / 41.92 / **46.71** | 90.44 | 25,000 / 15,000 |
+| ±2 frames | 25% | 0.02 | 44.91 / 47.75 / **46.33** | 92.90 | 25,000 / 30,000 |
+| ±1 frame | 50% | 0.005 | 45.06 / 46.41 / **45.73** | 90.39 | 25,000 / 35,000 |
+| ±2 frames | 25% | 0.005 | 45.81 / 45.36 / **45.58** | 92.46 | 50,000 / 30,000 |
+| ±1 frame | 25% | 0.02 | 46.11 / 43.41 / **44.76** | 93.09 | 25,000 / 25,000 |
+| ±1 frame | 25% | 0.005 | 44.01 / 44.31 / **44.16** | 91.47 | 25,000 / 25,000 |
+| ±2 frames | 50% | 0.005 | 46.56 / 38.32 / **42.44** | 88.01 | 25,000 / 15,000 |
 
-| Rank | Configuration | Fully correct rallies (%), seed 0 / 1 / mean | Correct-player F1 (%), seed 0 / 1 / mean | Contact F1 (%), mean | Selected checkpoints |
-|---:|---|---:|---:|---:|---|
-| 1 | Positive centres ±1 frame, 50% contacts, LR 0.02 | 48.1 / 45.4 / **46.7** | 92.2 / 90.1 / **91.1** | 95.7 | 25k / 35k |
-| 2 | Positive centres ±2 frames, 25% contacts, LR 0.005 | 44.0 / 44.2 / **44.1** | 91.9 / 91.7 / **91.8** | 95.5 | 30k / 30k |
-| 3 | Positive centres ±1 frame, 25% contacts, LR 0.005 | 42.5 / 44.2 / **43.3** | 90.8 / 91.2 / **91.0** | 95.6 | 25k / 25k |
-| 4 | Positive centres ±1 frame, 25% contacts, LR 0.02 | 43.0 / 42.2 / **42.6** | 91.3 / 92.7 / **92.0** | 95.6 | 25k / 25k |
-| 5 | Positive centres ±1 frame, 50% contacts, LR 0.005 | 41.3 / 40.0 / **40.6** | 87.4 / 89.2 / **88.3** | 95.1 | 25k / 35k |
-| 6 | Positive centres ±2 frames, 50% contacts, LR 0.02 | 46.7 / 31.7 / **39.2** | 91.4 / 80.9 / **86.2** | 94.0 | 25k / 15k |
+![X3D-M validation configuration comparison](writeup_figures/x3d_stride3_validation.png)
 
-![Dot plots of contact F1, correct-player F1 and fully correct rallies for the six configurations](writeup_figures/fig1_configurations.png)
+Figure 1. Validation at ±10 frames with forced alternation. Diamonds show means,
+ticks show individual seeds and lines span the seeds.
 
-Figure 1. The first six rows use stride 1; the final row evaluates the selected configuration natively at stride 3, offset 0. All use enforced alternation. Dots are the mean of seeds 0
-and 1; black lines join the two seeds. Rows are grouped by positive-centre window, contact proportion and learning rate.
+## Test results
 
-Continuation supplied the selected checkpoint in 2 of 12 runs, including
-seed 1 of the winning configuration. The other ten were selected within
-the original 30,000 updates.
+Table 2. Selected checkpoints at ±10 frames with forced alternation.
 
-![Training and validation loss curves for all 12 runs, with the selected checkpoints circled](writeup_figures/fig2_loss_curves.png)
+| Seed | Checkpoint (updates) | Contact F1 (%) | Correct-player F1 (%) | Fully correct rallies (%) |
+|---:|---:|---:|---:|---:|
+| 0 | 25,000 | 96.83 | 90.43 | 54.28 |
+| 1 | 35,000 | 96.96 | 91.07 | 55.58 |
+| 2 | 30,000 | 97.10 | 91.84 | 56.39 |
+| 3 | 20,000 | 96.44 | 87.48 | 49.20 |
+| 4 | 40,000 | 97.40 | 91.56 | 62.46 |
 
-Figure 2. Loss at each validation check for all 12 runs, including
-continuation. Circles mark the selected checkpoints. Loss compares within a
-row only, because the positive windows label different frames as contacts.
+Table 3. Test comparison at ±10 frames. Values are seed means (minimum–maximum).
+All systems receive rally bounds; our annotator and MonoTrack use their own
+court detections and evaluate every frame. The video models use stride 3.
 
-## Test comparison
+| System | Seeds | Contact F1 (%) | Correct-player F1 (%) | Fully correct rallies (%) |
+|---|---:|---:|---:|---:|
+| X3D-M, raw hitters | 5 | 96.94 (96.44–97.40) | 96.39 (95.77–96.83) | 53.35 (46.80–60.38) |
+| X3D-M, forced alternation | 5 | 96.94 (96.44–97.40) | 90.48 (87.48–91.84) | 55.58 (49.20–62.46) |
+| VideoMAE, raw hitters | 2 | 95.49 (95.06–95.92) | 94.93 (94.41–95.46) | 39.22 (34.63–43.82) |
+| VideoMAE, forced alternation | 2 | 95.49 (95.06–95.92) | 84.41 (82.72–86.10) | 40.67 (36.46–44.88) |
+| Our annotator, own courts | 5 | 96.85 (96.75–96.92) | 94.63 (94.32–94.78) | 60.18 (59.06–60.96) |
+| MonoTrack, own courts | 5 | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
 
-All three systems receive the same rally bounds. Our annotator and MonoTrack
-each use their own court estimates, corresponding to `annotator_our_courts`
-and `monotrack_own_courts` in the
-[comparison scores](../monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz).
-X3D uses RGB clips sampled at stride 3, offset 0. Timing tolerances are ±5 and ±10 frames at 30 fps, scaled
-to each video's frame rate.
+![Test comparison with raw and forced hitter labels](writeup_figures/stride3_test_comparison.png)
 
-Table 2. Test scores in percent: seed mean (minimum–maximum). X3D uses two
-seeds; our annotator and MonoTrack each use five. Ranges show observed seed
-variation. X3D uses stride 3, offset 0 and enforced alternation.
+Figure 2. Test seed means, individual seeds and ranges at ±10 frames.
 
-| Tolerance | System | Contact F1 (%) | Correct-player F1 (%) | Fully correct rallies (%) |
-|---|---|---:|---:|---:|
-| ±10 frames | X3D-M | 96.90 (96.52–97.28) | 89.95 (88.36–91.54) | 55.95 (52.42–59.48) |
-| ±10 frames | Our annotator, our courts | 96.85 (96.75–96.92) | 94.63 (94.32–94.78) | 60.18 (59.06–60.96) |
-| ±10 frames | MonoTrack, its own courts | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
-| ±5 frames | X3D-M | 95.72 (95.19–96.26) | 88.96 (87.27–90.65) | 49.46 (45.60–53.32) |
-| ±5 frames | Our annotator, our courts | 95.59 (95.51–95.64) | 93.50 (93.19–93.63) | 52.47 (51.67–52.90) |
-| ±5 frames | MonoTrack, its own courts | 94.86 (94.75–95.06) | 94.75 (94.59–94.97) | 40.26 (38.71–41.93) |
+## Raw hitters and forced alternation
 
-![Test contact F1, correct-player F1 and fully correct rallies for VideoMAE, X3D-M, our annotator and MonoTrack](writeup_figures/test_comparison.png)
+Forcing alternation adds 2.23 percentage points of fully correct test rallies,
+but costs 5.92 points of correct-player F1. It repairs some complete rallies
+while assigning the wrong hitter to more individual hits elsewhere. Raw X3D
+hitters have the highest mean correct-player F1 in this comparison; our
+annotator has the highest mean fully correct rally score.
 
-Figure 3. Shared test comparison at ±10 frames, with enforced alternation. Both video models use stride 3, offset 0. Dots show seed means; black lines span the seeds.
+Table 4. Selected-configuration seed means on validation and test.
 
-X3D's contact F1 is close to both comparison systems, but assigning the hitter
-remains a larger source of error. Our annotator has the highest mean share of
-fully correct rallies at both tolerances. X3D's mean rally score exceeds
-MonoTrack's for both seeds at both tolerances.
+| Split | Tolerance | Hitter rule | Contact F1 (%) | Correct-player F1 (%) | Fully correct rallies (%) |
+|---|---|---|---:|---:|---:|
+| Validation | ±10 frames | Raw | 95.88 | 95.08 | 48.77 |
+| Validation | ±10 frames | Forced alternation | 95.88 | 92.23 | 49.46 |
+| Validation | ±5 frames | Raw | 94.99 | 94.36 | 44.91 |
+| Validation | ±5 frames | Forced alternation | 94.99 | 91.47 | 45.42 |
+| Test | ±10 frames | Raw | 96.94 | 96.39 | 53.35 |
+| Test | ±10 frames | Forced alternation | 96.94 | 90.48 | 55.58 |
+| Test | ±5 frames | Raw | 95.73 | 95.33 | 47.41 |
+| Test | ±5 frames | Forced alternation | 95.73 | 89.43 | 48.97 |
 
-The existing
-[MonoTrack report](../monotrack_benchmark/annotator_monotrack_own_weights_compared_writeup_v7.md)
-contains the test-population details, rally-discovery results and court-detector
-comparison.
+![X3D-M raw and forced hitters on validation and test](writeup_figures/x3d_stride3_hitters.png)
+
+Figure 3. The same selected checkpoints under both hitter rules. Diamonds show
+means, ticks show individual seeds and lines span the seeds.
 
 ## Method
 
-The model sees 16 frames around a centre frame and predicts one of three
-classes for that frame: no contact, bottom-player contact or top-player
-contact. The ±1-frame window labels frames within one frame of a labelled hit
-as contacts and leaves frames exactly two away out of the loss. The ±2-frame
-window labels frames within two frames as contacts. Contact share is the number of each batch's 16
-clips centred on a contact: 4 at 25%, 8 at 50%.
+The model predicts no contact, TOP hitter or BOT hitter for each evaluated clip
+centre. Validation and test use every third video frame, starting at offset 0.
+Skipped centres cannot produce hits; every labelled hit and rally still counts.
+After choosing each centre's most likely class, we keep the strongest hit among
+predictions within 6 frames at 30 fps, scaled for other frame rates.
 
-The ±1-frame runs crossed contact shares of 25% and 50% with learning rates of
-0.005 and 0.02, on seeds 0 and 1. We then reran the two best configurations
-with the ±2-frame window on the same seeds, from fresh Kinetics-400 weights. Every run
-trained the whole network with SGD for 30,000 updates (batch 16, 2,000 warm-up
-updates, then cosine decay). Continuation followed on a repeating
-learning-rate cycle, checking every 5,000 updates, and stopped after three
-checks in a row without a lower validation loss, counting from the original
-phase. Each run keeps the checkpoint with the lowest cross-entropy on the whole
-validation set, the earliest on a tie.
+Raw hitters keep the model's player labels. Forced alternation assigns a single
+TOP/BOT alternating pattern to each rally by majority vote, using the predicted
+probabilities to break tied votes. Contact times stay the same. A missed or extra
+hit can put the alternating pattern out of step with the remaining hits.
 
-Rally bounds run from 1 second before each rally's first labelled hit to 1
-second after its last. Each frame takes its most likely class. Fixed rules then
-keep the strongest predicted hit within 6 frames and make hitters alternate,
-with no threshold search. A predicted hit matches a labelled hit within ±10
-frames at 30 fps (one third of a second), scaled for other frame rates.
+A predicted hit matches a labelled hit within ±5 or ±10 frames at 30 fps, scaled
+for other frame rates. Contact F1 is twice the number of matched hits divided by
+the total number of labelled and predicted hits. Correct-player F1 uses only
+matches with the right hitter in the numerator. These scores pool hits across
+videos, so long rallies contribute more hits. Fully correct rallies have every
+hit found, no extra hits and every hitter right; each rally counts equally.
+We calculate each seed's score first, then take the mean across seeds. Ranges
+are the lowest and highest observed seed scores.
 
-- **Contact F1** combines the share of predicted hits that match a labelled hit
-  with the share of labelled hits found.
-- **Correct-player F1** also needs the right hitter.
-- **A fully correct rally** has every hit found, no extra hits and every hitter
-  right.
+Validation includes rallies marked as flawed in the source labels; test excludes
+them. One test hit has an unknown hitter. It counts for contact scoring, earns no
+correct-player credit and prevents its rally from being fully correct.
 
-See the [benchmark README](README.md) for the full method and commands.
+## Results and figures
 
-## Evidence and figures
+The completed run records are in [results/stride3_20261105/](results/stride3_20261105/):
 
-Settings and full validation histories for all 12 runs are in
-[`results/x3d_pilot/`](results/x3d_pilot/), with an [index](results/README.md)
-of the files and each run's selected checkpoint. Test event predictions and
-dense scores for both seeds are in [`results/x3d_test/`](results/x3d_test/). Stride-three validation and test scores are in [`results/x3d_stride3/`](results/x3d_stride3/).
-To redraw the two X3D pilot figures and print Table 1, run this from the repository root
-in an environment with matplotlib, NumPy and pandas:
+- [runs.json.gz](results/stride3_20261105/runs.json.gz): settings and all 240 validation checks across 23 runs.
+- [selection.json.gz](results/stride3_20261105/selection.json.gz): configuration rankings from validation seeds 0 and 1.
+- [scores.csv.gz](results/stride3_20261105/scores.csv.gz): selected checkpoints, both hitter rules, both splits and both tolerances.
+- [data.json.gz](results/stride3_20261105/data.json.gz) and [predictions/](results/stride3_20261105/predictions/): rally labels and saved contact predictions.
+
+Download the selected checkpoints through the [weights index](weights/README.md).
+The comparison systems use the [MonoTrack benchmark summary](../monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz).
+
+Regenerate the figures from the repository root:
 
 ```bash
-python experiments/annotator/video_models_benchmark/writeup_scripts/make_x3d_figures.py
-```
-
-Generate the shared test comparison with `writeup_scripts/make_videomae_figures.py`.
-
-The stride-three test scores were derived from the saved dense probability arrays.
-Validation at stride three used native inference of only the sampled centres.
-
-Collect the compact scores before regenerating the plots:
-
-```bash
-PYTHONPATH=src:. python -m experiments.annotator.video_models_benchmark.writeup_scripts.collect_x3d_stride3 \
-  --validation /path/to/native-validation-results \
-  --test /path/to/rescored-test-results
+python3 experiments/annotator/video_models_benchmark/writeup_scripts/make_stride3_figures.py
 ```

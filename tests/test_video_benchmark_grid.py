@@ -206,7 +206,7 @@ def test_full_grid_selects_paired_validation_winner_before_test(
     }
     for run in runs:
         settings = tomllib.loads((tmp_path / f"{run['name']}.toml").read_text())
-        assert settings["continue_until_patience"] and settings["force_alternation"]
+        assert settings["continue_until_patience"] and settings["break_alternation_ties"]
         assert settings["validation_stride"] == 3
         directory = tmp_path / run["name"]
         directory.mkdir()

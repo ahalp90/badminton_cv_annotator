@@ -27,14 +27,14 @@ def initialise(
     output: Path, cache: Path, config: Path, *, test_cache: Path | None = None,
     x3d_winner: dict | None = None,
 ) -> None:
-    from .train import Settings
+    from .train import Settings, normalise_settings_record
 
-    settings = tomllib.loads(config.read_text())
+    settings = normalise_settings_record(tomllib.loads(config.read_text()))
     settings.setdefault("validation_stride", 3)
     scheme = "A"
     if x3d_winner is not None:
         settings.update(contact_fraction=x3d_winner["contact_fraction"], validation_stride=3,
-                        force_alternation=True, continue_until_patience=True)
+                        break_alternation_ties=True, continue_until_patience=True)
         scheme = x3d_winner["scheme"]
     Settings(**settings)
     if settings.get("model_name") != "videomae" or settings.get("contact_fraction") not in (0.25, 0.5):

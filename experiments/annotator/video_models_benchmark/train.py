@@ -60,7 +60,7 @@ class Settings:
     validation_stride: int = 1
     max_total_steps: int | None = None
     continue_until_patience: bool = False
-    force_alternation: bool = False
+    break_alternation_ties: bool = False
 
     def __post_init__(self) -> None:
         if self.max_total_steps is not None and self.max_total_steps < self.max_steps:
@@ -86,6 +86,16 @@ class Settings:
         if (not self.validation_steps or self.validation_steps != sorted(set(self.validation_steps))
                 or self.validation_steps[0] < 1 or self.validation_steps[-1] != self.max_steps):
             raise ValueError("validation_steps must increase strictly from a positive step through max_steps")
+
+
+def normalise_settings_record(record: dict) -> dict:
+    """Read the former tie-break flag from existing configs and checkpoints."""
+    record = dict(record)
+    if "force_alternation" in record:
+        if "break_alternation_ties" in record:
+            raise ValueError("Use only break_alternation_ties, not both tie-break setting names")
+        record["break_alternation_ties"] = record.pop("force_alternation")
+    return record
 
 
 def settings_record(settings: Settings) -> dict:
@@ -258,7 +268,7 @@ def fit(
     if resume:
         saved_settings = read_json(output / "settings.json.gz")
         saved_scheme = saved_settings.pop("scheme")
-        if Settings(**saved_settings) != settings or saved_scheme != scheme:
+        if Settings(**normalise_settings_record(saved_settings)) != settings or saved_scheme != scheme:
             raise ValueError("Resume settings differ from the saved run")
     if extend and not resume:
         raise ValueError("Continuation requires a saved 30k run and --resume")
@@ -270,7 +280,8 @@ def fit(
     optimiser = make_optimiser(model, settings)
     update_batch = train_batch
     validate_model = validate
-    score_events = partial(score_probabilities, force_alternation=True) if settings.force_alternation else score_probabilities
+    score_events = (partial(score_probabilities, break_alternation_ties=True)
+                    if settings.break_alternation_ties else score_probabilities)
     if settings.model_name == "videomae":
         update_batch = partial(train_batch, model_name=settings.model_name, microbatch_size=settings.microbatch_size)
         validate_model = partial(validate, model_name=settings.model_name)
@@ -469,7 +480,7 @@ def load_settings(config: Path, output: Path, *, resume: bool) -> Settings:
         record["validation_stride"] = read_json(output / "settings.json.gz").get("validation_stride", 1)
     else:
         record.setdefault("validation_stride", 3)
-    return Settings(**record)
+    return Settings(**normalise_settings_record(record))
 
 
 def main() -> None:

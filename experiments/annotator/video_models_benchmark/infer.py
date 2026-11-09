@@ -11,7 +11,13 @@ import torch
 from .data import ClipDataset, write_json
 from .evaluate import score_probabilities
 from .run_state import Progress
-from .train import Settings, make_loader, model_from_settings, validate
+from .train import (
+    Settings,
+    make_loader,
+    model_from_settings,
+    normalise_settings_record,
+    validate,
+)
 
 
 def evaluate(
@@ -35,7 +41,7 @@ def main() -> None:
     parser.add_argument("--offset", type=int, default=0, help="Absolute video-frame offset within the stride")
     args = parser.parse_args()
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    settings = Settings(**checkpoint["settings"])
+    settings = Settings(**normalise_settings_record(checkpoint["settings"]))
     device = torch.device("cuda")
     model = model_from_settings(settings, pretrained=False).to(device)
     model.load_state_dict(checkpoint["model"])
@@ -46,7 +52,7 @@ def main() -> None:
     result, probabilities = evaluate(model, dataset, settings, device, args.stride, args.offset, progress)
     progress.write("scoring")
     write_json(args.output / "frame_metrics.json.gz", result)
-    events = score_probabilities(dataset, probabilities, force_alternation=settings.force_alternation)
+    events = score_probabilities(dataset, probabilities, break_alternation_ties=settings.break_alternation_ties)
     events["sampling"] = result["sampling"]
     write_json(args.output / "events.json.gz", events)
     with lzma.open(args.output / "probabilities.npy.xz", "wb", preset=9) as stream:

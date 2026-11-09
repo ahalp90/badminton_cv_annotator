@@ -30,8 +30,9 @@ SIDE_CLASSES = {side: label for label, side in CLASS_SIDES.items()}
 
 
 def decode_span(
-    span: dict, probabilities: np.ndarray, fps: float, *, force_alternation: bool = False,
+    span: dict, probabilities: np.ndarray, fps: float, *, break_alternation_ties: bool = False,
 ) -> ContactSequence:
+    """Alternate hitters by majority vote, optionally resolving tied votes by probability."""
     classes = probabilities.argmax(axis=1)
     candidates = np.flatnonzero(classes != 0)
     frames = candidates + span["start_frame"]
@@ -43,7 +44,7 @@ def decode_span(
     guesses = [CLASS_SIDES[int(classes[candidates[index]])] for index in kept]
     final_side = fit_alternation(guesses)
     sides = guesses if final_side is None else alternating_player_sides(final_side, len(guesses))
-    if force_alternation and final_side is None and guesses:
+    if break_alternation_ties and final_side is None and guesses:
         alternatives = [alternating_player_sides(half, len(guesses)) for half in (Half.TOP, Half.BOT)]
         kept_probabilities = probabilities[candidates[kept]]
         sides = max(alternatives, key=lambda order: (
@@ -56,7 +57,7 @@ def decode_span(
 
 
 def score_probabilities(
-    dataset: ClipDataset, probabilities: np.ndarray, *, force_alternation: bool = False,
+    dataset: ClipDataset, probabilities: np.ndarray, *, break_alternation_ties: bool = False,
 ) -> dict:
     """Score exhaustive, ordered inference once at both existing tolerances."""
     if len(probabilities) != len(dataset):
@@ -70,7 +71,7 @@ def score_probabilities(
         for span in video["spans"]:
             count = span["end_frame"] - span["start_frame"]
             sequences.append(decode_span(span, probabilities[offset:offset + count], video["fps"],
-                                         force_alternation=force_alternation))
+                                         break_alternation_ties=break_alternation_ties))
             rallies.append(LabelledRally(span["rally_id"], tuple(span["label_frames"]),
                                         tuple(None if side is None else Half(side) for side in span["label_sides"])))
             offset += count
@@ -93,4 +94,4 @@ def score_probabilities(
         counts["correct_player_f1"] = 200 * counts["correct_player"] / denominator
         counts["fully_correct_percent"] = 100 * counts["fully_correct"] / counts["rallies"]
     return {"metrics": totals, "streams": streams,
-            "hitter_rule": "forced_alternation_probability_ties" if force_alternation else "alternation_raw_ties"}
+            "hitter_rule": "forced_alternation_probability_ties" if break_alternation_ties else "alternation_raw_ties"}

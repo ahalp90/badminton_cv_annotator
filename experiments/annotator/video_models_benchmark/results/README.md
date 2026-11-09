@@ -1,5 +1,10 @@
 # Video-model validation and test results
 
+The completed November reruns are in [stride3_20261105/](stride3_20261105/):
+checkpoint summaries for all 23 runs and detailed raw/alternating hit predictions
+for the five X3D and two VideoMAE winners. The records below describe the earlier
+pilots.
+
 X3D-M records come first; [VideoMAE (base) records](#videomae-b-pilot) follow.
 
 Each directory under [`x3d_pilot/`](x3d_pilot/) is one training run, named

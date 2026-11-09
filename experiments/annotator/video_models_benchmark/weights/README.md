@@ -1,15 +1,29 @@
-# Selected X3D-M checkpoints
+# Selected video-model checkpoints
 
-Both models use scheme A, 50% contact sampling and peak learning rate 0.02.
-Each checkpoint was selected by minimum validation cross-entropy across its
-original training and continuation.
+Download [video-contact-models-20261110.zip](https://github.com/ahalp90/badminton_cv_annotator/releases/download/video-contact-models-20261110/video-contact-models-20261110.zip)
+from the [release](https://github.com/ahalp90/badminton_cv_annotator/releases/tag/video-contact-models-20261110).
+It contains the five X3D-M and two VideoMAE Base checkpoints tested in the
+[completed benchmark](../results/stride3_20261105/).
 
-| File | Seed | Selected update | Validation CE |
-|---|---:|---:|---:|
-| `x3d_m_A_contact50_lr0.02_seed0.pt` | 0 | 25,000 | 0.133007 |
-| `x3d_m_A_contact50_lr0.02_seed1.pt` | 1 | 35,000 | 0.135657 |
+Both models use positive centres within ±1 frame and 50% contact clips per
+batch. X3D uses learning rate 0.02; VideoMAE uses 0.0001. Each checkpoint is
+the earliest minimum-validation-cross-entropy checkpoint from its run.
+The seeds are evaluated separately.
 
-Each file is 11.67 MiB and contains the model state, training settings, label
-scheme, selected update and validation loss. Optimiser state is omitted.
-Use either file with the [inference command](../README.md#running-the-pilot).
-The [training records](../results/x3d_pilot/) include all winning and non-winning runs.
+| File | Selected update |
+|---|---:|
+| `x3d_m_seed0.pt` | 25,000 |
+| `x3d_m_seed1.pt` | 35,000 |
+| `x3d_m_seed2.pt` | 30,000 |
+| `x3d_m_seed3.pt` | 20,000 |
+| `x3d_m_seed4.pt` | 40,000 |
+| `videomae_base_seed0.pt` | 30,000 |
+| `videomae_base_seed1.pt` | 65,000 |
+
+Each checkpoint contains model weights, training settings, label scheme,
+selected update and validation loss. Optimiser state is omitted. Use these
+with the [inference command](../README.md#running-the-pilot), a matching RGB
+cache and supplied rally bounds.
+
+Removing the old bundled weights changed the original training commit IDs;
+the released checkpoint files are unchanged.

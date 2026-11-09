@@ -133,8 +133,9 @@ def test_new_training_defaults_and_resume_protocol(
 
 @pytest.mark.parametrize('model_name', ['x3d', 'videomae'])
 @pytest.mark.parametrize('role', ['validation', 'test'])
+@pytest.mark.parametrize('flag_name', ['force_alternation', 'break_alternation_ties'])
 def test_inference_cli_defaults_to_stride_three(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model_name: str, role: str,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model_name: str, role: str, flag_name: str,
 ) -> None:
     class StopBeforeInference(Exception):
         pass
@@ -149,18 +150,40 @@ def test_inference_cli_defaults_to_stride_three(
     monkeypatch.setattr(sys, 'argv', ['infer', '--checkpoint', 'unused', '--cache', 'unused',
                                     '--output', str(tmp_path / 'test'), '--role', role])
     monkeypatch.setattr(torch, 'load', lambda *_args, **_kwargs: {
-        'settings': {'model_name': model_name}, 'model': {}, 'scheme': 'A',
+        'settings': {'model_name': model_name, flag_name: True}, 'model': {}, 'scheme': 'A',
     })
     monkeypatch.setattr(infer, 'model_from_settings', lambda *_args, **_kwargs: FakeModel())
     monkeypatch.setattr(infer, 'ClipDataset', lambda *_args, **_kwargs: TinyClips())
 
     def capture(_model, _dataset, _settings, _device, stride, offset, _progress) -> None:
         assert (stride, offset) == (3, 0)
+        assert _settings.break_alternation_ties is True
         raise StopBeforeInference
 
     monkeypatch.setattr(infer, 'evaluate', capture)
     with pytest.raises(StopBeforeInference):
         infer.main()
+
+
+@pytest.mark.parametrize('flag_name', ['force_alternation', 'break_alternation_ties'])
+@pytest.mark.parametrize('enabled', [False, True])
+def test_tie_break_configs_read_both_names_and_write_the_new_name(
+    tmp_path: Path, flag_name: str, enabled: bool,
+) -> None:
+    config = tmp_path / 'config.toml'
+    config.write_text(f'{flag_name} = {str(enabled).lower()}\n')
+    settings = train.load_settings(config, tmp_path, resume=False)
+    assert settings.break_alternation_ties is enabled
+    saved = train.settings_record(settings)
+    assert saved['break_alternation_ties'] is enabled
+    assert 'force_alternation' not in saved
+
+
+def test_ambiguous_tie_break_config_fails(tmp_path: Path) -> None:
+    config = tmp_path / 'config.toml'
+    config.write_text('force_alternation = true\nbreak_alternation_ties = false\n')
+    with pytest.raises(ValueError, match='not both'):
+        train.load_settings(config, tmp_path, resume=False)
 
 
 @pytest.mark.parametrize(('stride', 'offset'), [(0, 0), (3, -1), (3, 3)])

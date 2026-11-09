@@ -407,7 +407,7 @@ def test_launcher_termination_records_failure_and_stops_child(tmp_path: Path) ->
     ([0.6, 0.9], [Half.BOT, Half.TOP]),
     ([0.8, 0.8], [Half.TOP, Half.BOT]),
 ])
-def test_forced_alternation_breaks_agreement_ties_using_probabilities(
+def test_alternation_tie_break_uses_probabilities(
     top_probabilities: list[float], expected: list[Half],
 ) -> None:
     span = {"span_id": "test", "start_frame": 0, "end_frame": 30}
@@ -415,8 +415,17 @@ def test_forced_alternation_breaks_agreement_ties_using_probabilities(
     for frame, top in zip((5, 20), top_probabilities, strict=True):
         probabilities[frame] = [0.0, 1 - top, top]
     old = decode_span(span, probabilities, 30).events
-    forced = decode_span(span, probabilities, 30, force_alternation=True).events
+    forced = decode_span(span, probabilities, 30, break_alternation_ties=True).events
     assert [event.side for event in old] == [Half.TOP, Half.TOP]
     assert [event.side for event in forced] == expected
     assert [event.frame for event in forced] == [event.frame for event in old]
-    assert decode_span(span, np.tile([1.0, 0.0, 0.0], (30, 1)), 30, force_alternation=True).events == ()
+    assert decode_span(span, np.tile([1.0, 0.0, 0.0], (30, 1)), 30, break_alternation_ties=True).events == ()
+
+
+def test_alternation_tie_setting_does_not_change_a_majority_vote() -> None:
+    span = {"span_id": "test", "start_frame": 0, "end_frame": 45}
+    probabilities = np.tile([1.0, 0.0, 0.0], (45, 1))
+    probabilities[[5, 20, 35]] = [0.0, 0.1, 0.9]
+    for break_ties in (False, True):
+        events = decode_span(span, probabilities, 30, break_alternation_ties=break_ties).events
+        assert [event.side for event in events] == [Half.TOP, Half.BOT, Half.TOP]

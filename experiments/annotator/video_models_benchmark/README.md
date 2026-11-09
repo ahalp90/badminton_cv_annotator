@@ -5,13 +5,16 @@ annotator and MonoTrack. Models predict contact times and hitters inside
 supplied rally windows, using the existing training, validation and test
 splits.
 
-[Read the X3D-M results](x3d_results.md) for the test comparison,
-pilot selection and training histories. The two selected model-only
-checkpoints are in [`weights/`](weights/README.md).
+[X3D-M](x3d_results.md) reaches 96.94% contact F1 and 96.39% correct-player
+F1 across five seeds. [VideoMAE Base](videomae_results.md) reaches 95.49% and
+94.93% across two seeds. These use the winning validation configurations,
+raw hitter labels and ±10-frame tolerance. Sliding-window inference is
+computationally expensive; all systems receive rally bounds.
 
-See [the VideoMAE run guide](VIDEOMAE.md) for the four-run Base pilot and batch-size timing.
-[Read the VideoMAE (base) results](videomae_results.md) for the test comparison, validation
-selection, training histories, the every-third-frame comparison and a higher learning-rate trial.
+Download the seven selected checkpoints from the [weights release](weights/README.md).
+The [completed run records](results/stride3_20261105/) include checkpoint
+summaries for all 23 runs and detailed predictions for the selected models.
+See the [VideoMAE run guide](VIDEOMAE.md) for model settings and timing.
 
 ## X3D rerun with stride-three validation
 
@@ -54,6 +57,34 @@ weights, frame probabilities, frame metrics and event scores. Keep these large
 artefacts outside Git. `best.pt` and the top-level validation outputs refer to
 the lowest-loss check; `last.pt` retains the optimiser and random state for
 recovery.
+
+### Five-seed evaluation of the X3D winner
+
+After the original X3D and VideoMAE queues finish, add X3D seeds 2, 3 and 4
+using the saved X3D validation winner. Copy its training configuration unchanged
+except for seed, train each model from pretrained weights, and test each model's
+minimum-validation-loss checkpoint. Keep the original selection fixed.
+
+```bash
+python -m experiments.annotator.video_models_benchmark.x3d_seed_queue follow \
+  --x3d-output "$X3D_RUNS" --after "$VIDEOMAE_RUNS" --output "$EXTRA_SEED_RUNS"
+python -m experiments.annotator.video_models_benchmark.x3d_seed_queue status \
+  --output "$EXTRA_SEED_RUNS"
+```
+
+Both dependency queues must use launchers that hold `runner.lock` until they
+write `queue-exit-code.txt`. The follower waits for those locks, then requires
+exit zero, a complete queue and complete selected tests before starting.
+Use an outer launcher lock for the follower too. Failed or paused dependencies
+stop the follower; fix the dependency and relaunch the same command to resume.
+
+The new `grid.json.gz` freezes the winner and includes `test_runs` paths for
+all five seeds: 0/1 from the original grid and 2/3/4 from this follow-up.
+Completed training and tests are skipped on restart. Preserve an incomplete
+test directory elsewhere before retrying. Use `pause` to stop at a validation
+boundary, then `continue` to clear pause markers before relaunching `follow`.
+The three added seeds measure the chosen configuration's spread; they do not
+participate in another hyperparameter selection.
 
 ## Original X3D-M experiment
 
