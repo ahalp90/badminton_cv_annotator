@@ -1,2 +1,6 @@
 # Keep only legacy uncompressed arrays local. New E2E arrays use tracked .npy.xz files.
 /runs/**/*.npy
+
+# Unfinished research and model-release binaries stay out of Git.
+/video_models_benchmark/untracked_wip_research/
+/video_models_benchmark/weights/*.pt

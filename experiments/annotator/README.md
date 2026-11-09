@@ -68,6 +68,7 @@ to the experiments that motivate them.
 | `contact_attribution_comparison_20260814/` | Player-distance experiment code and evidence |
 | `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
 | `tree_simplification/` | Current XGBoost fitting, evaluation and saved results |
+| [video_models_benchmark/](video_models_benchmark/README.md) | X3D-M and VideoMAE sliding-window contact detection, hitter attribution and selected weights |
 | `development.py` | Shared fixed splits, sampling order and experiment helpers |
 | `old_court_regression/`, `good_court_refit/` | Historical pinned inputs and comparison evidence |
 | `annotator_closeout_new_courts/` | Closeout of the new-court model: where it fails, footage checks, detector audit and shuttle guard addendum |

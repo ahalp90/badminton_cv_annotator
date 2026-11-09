@@ -1,0 +1,18 @@
+# Batch 16 gave better clip throughput than batch 32 on the L40.
+model_name = "videomae"
+checkpoint_revision = "488eb9a0565f257b32866000305c8178965eb9f6"
+seed = 0
+batch_size = 16
+workers = 12
+learning_rate = 0.00003125
+weight_decay = 0.05
+layer_decay = 0.75
+stochastic_depth = 0.2
+max_steps = 30000
+warmup_steps = 2000
+validation_steps = [2500, 5000, 10000, 15000, 20000, 25000, 30000]
+validation_stride = 3
+continuation_half_cycle_steps = 10000
+continuation_validation_interval = 5000
+contact_fraction = 0.5
+precision = "bf16"
