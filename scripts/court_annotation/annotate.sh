@@ -1,39 +1,9 @@
 #!/usr/bin/env bash
-# Runner for the court-corner annotation tooling in this directory.
-#
-# First use creates a lightweight GUI venv (numpy, pandas, opencv-python; no
-# torch) under ~/.cache/bst-annotate-venv, outside the repo, so annotation
-# works on any laptop without the full project environment.
-#
-# Usage:
-#   ./annotate.sh <video.mp4> [tool args]   annotate; h in the window shows keys
-#   ./annotate.sh check [corners.csv]       extrapolation error report
-#   ./annotate.sh list  [corners.csv]       every annotated frame in the CSV
-#   ./annotate.sh key   [out.png]           render the landmark naming diagram
-#
-# The corners CSV defaults to hand_corners.csv in the CURRENT directory (its
-# landmarks sidecar lands beside it); pass --out-csv to the annotate form to
-# override. opencv is pinned to the repo's version: its Qt5 GUI behaves on
-# Wayland desktops where opencv 5's Qt6 can black-screen.
+# Native court annotation and related inspection tools.
+# Usage: ./annotate.sh <video> [options] | check [csv] | list [csv] | key [out.png]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-
-VENV="${XDG_CACHE_HOME:-$HOME/.cache}/bst-annotate-venv"
-PY="$VENV/bin/python"
-if [ ! -x "$PY" ]; then
-    echo "First run: creating $VENV with numpy pandas opencv-python==4.13.0.92..."
-    if command -v uv >/dev/null 2>&1; then
-        uv venv --python 3.12 "$VENV"
-        uv pip install --python "$PY" numpy pandas "opencv-python==4.13.0.92"
-    else
-        python3 -m venv "$VENV"
-        "$PY" -m pip install --quiet --upgrade pip
-        "$PY" -m pip install --quiet numpy pandas "opencv-python==4.13.0.92"
-    fi
-fi
-if [ "${XDG_SESSION_TYPE:-}" = "wayland" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
-    export QT_QPA_PLATFORM=xcb
-fi
+PY="${COURT_ANNOTATOR_PYTHON:-$HOME/.venvs/badminton-cicd/bin/python}"
 
 case "${1:-}" in
     check)
