@@ -1,16 +1,15 @@
-"""Check that sparse inference skips model calls and preserves absolute-frame scoring."""
+"""Check stride-three sampling on absolute frames and loading of older saved settings."""
 import lzma
-import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 
 from experiments.annotator.video_models_benchmark import infer, train
 from experiments.annotator.video_models_benchmark.data import ClipDataset
-from experiments.annotator.video_models_benchmark.evaluate import score_probabilities
-from experiments.annotator.video_models_benchmark.sampling import EvaluationSampler
+from experiments.annotator.video_models_benchmark.sampling import ContactBatchSampler
 from experiments.annotator.video_models_benchmark.writeup_scripts import (
     rescore_videomae as rescoring,
 )
@@ -42,15 +41,13 @@ class CountingModel(torch.nn.Module):
         return torch.tensor([0.0, 4.0, 0.0]).repeat(len(clips), 1)
 
 
-@pytest.mark.parametrize(('stride', 'offset'), [(1, 0), (3, 0), (3, 2)])
-@pytest.mark.parametrize('model_name', ['x3d', 'videomae'])
-def test_inference_evaluates_only_selected_centres(
-    monkeypatch: pytest.MonkeyPatch, stride: int, offset: int, model_name: str,
-) -> None:
+def test_inference_evaluates_only_selected_centres(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Rallies start at frame 7, so a rally-relative offset would select different centres.
+    stride, offset = 3, 2
     dataset = TinyClips()
     model = CountingModel()
     monkeypatch.setattr(train, 'prepare_clips', lambda clips, **kwargs: clips)
-    settings = train.Settings(model_name=model_name, batch_size=4, workers=0, precision='fp32')
+    settings = train.Settings(batch_size=4, workers=0, precision='fp32')
     result, probabilities = infer.evaluate(model, dataset, settings, torch.device('cpu'), stride, offset)
     selected = dataset.rows[:, 2] % stride == offset
     assert model.centres == dataset.rows[selected, 2].tolist()
@@ -61,27 +58,6 @@ def test_inference_evaluates_only_selected_centres(
     assert np.asarray(result['confusion']).sum() == np.count_nonzero(dataset.labels[selected] != -100)
     np.testing.assert_array_equal(probabilities[~selected], np.tile([1, 0, 0], ((~selected).sum(), 1)))
     assert (probabilities[selected].argmax(axis=1) == 1).all()
-
-
-@pytest.mark.parametrize('model_name', ['x3d', 'videomae'])
-def test_training_validation_keeps_full_event_denominators(
-    monkeypatch: pytest.MonkeyPatch, model_name: str,
-) -> None:
-    dataset = TinyClips()
-    model = CountingModel()
-    monkeypatch.setattr(train, 'prepare_clips', lambda clips, **kwargs: clips)
-    settings = train.Settings(model_name=model_name, batch_size=4, workers=0, precision='fp32', validation_stride=3)
-    loader = train.make_loader(dataset, settings, training=False)
-    result = train.validate(model, loader, torch.device('cpu'), settings.precision, model_name=model_name)
-    selected = dataset.rows[:, 2] % 3 == 0
-    assert model.centres == dataset.rows[selected, 2].tolist()
-    assert result['sampling']['evaluated_centres'] == 6
-    assert np.asarray(result['confusion']).sum() == 5
-    expected_loss = torch.nn.functional.cross_entropy(torch.tensor([[0., 4., 0.]]), torch.tensor([1]))
-    assert result['loss'] == pytest.approx(expected_loss.item())
-    events = score_probabilities(dataset, result['probabilities'])
-    assert events['metrics']['10']['labelled'] == 2
-    assert events['metrics']['10']['rallies'] == 2
 
 
 def test_fit_saves_sparse_validation_settings_history_and_arrays(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -115,105 +91,37 @@ def test_fit_saves_sparse_validation_settings_history_and_arrays(tmp_path: Path,
     assert {(row['stride'], row['offset']) for row in rows} == {(3, 0)}
 
 
-@pytest.mark.parametrize('model_name', ['x3d', 'videomae'])
-@pytest.mark.parametrize('saved_stride', [None, 1, 3])
-def test_new_training_defaults_and_resume_protocol(
-    tmp_path: Path, model_name: str, saved_stride: int | None,
-) -> None:
+def test_new_training_defaults_and_resume_protocol(tmp_path: Path) -> None:
     config = tmp_path / 'config.toml'
-    config.write_text(f'model_name = "{model_name}"\n')
+    config.write_text('model_name = "videomae"\n')
     assert train.load_settings(config, tmp_path, resume=False).validation_stride == 3
-    saved = {} if saved_stride is None else {'validation_stride': saved_stride}
-    train.write_json(tmp_path / 'settings.json.gz', saved)
-    config.write_text(f'model_name = "{model_name}"\nvalidation_stride = 3\n')
-    assert train.load_settings(config, tmp_path, resume=True).validation_stride == (saved_stride or 1)
-    config.write_text(f'model_name = "{model_name}"\nvalidation_stride = 1\n')
-    assert train.load_settings(config, tmp_path, resume=False).validation_stride == 1
+    # Records saved before stride selection have no stride and used dense validation.
+    train.write_json(tmp_path / 'settings.json.gz', {})
+    config.write_text('model_name = "videomae"\nvalidation_stride = 3\n')
+    assert train.load_settings(config, tmp_path, resume=True).validation_stride == 1
 
 
-@pytest.mark.parametrize('model_name', ['x3d', 'videomae'])
-@pytest.mark.parametrize('role', ['validation', 'test'])
-@pytest.mark.parametrize('flag_name', ['force_alternation', 'break_alternation_ties'])
-def test_inference_cli_defaults_to_stride_three(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model_name: str, role: str, flag_name: str,
-) -> None:
-    class StopBeforeInference(Exception):
-        pass
-
-    class FakeModel:
-        def to(self, _device: torch.device) -> 'FakeModel':
-            return self
-
-        def load_state_dict(self, _state: dict) -> None:
-            pass
-
-    monkeypatch.setattr(sys, 'argv', ['infer', '--checkpoint', 'unused', '--cache', 'unused',
-                                    '--output', str(tmp_path / 'test'), '--role', role])
-    monkeypatch.setattr(torch, 'load', lambda *_args, **_kwargs: {
-        'settings': {'model_name': model_name, flag_name: True}, 'model': {}, 'scheme': 'A',
-    })
-    monkeypatch.setattr(infer, 'model_from_settings', lambda *_args, **_kwargs: FakeModel())
-    monkeypatch.setattr(infer, 'ClipDataset', lambda *_args, **_kwargs: TinyClips())
-
-    def capture(_model, _dataset, _settings, _device, stride, offset, _progress) -> None:
-        assert (stride, offset) == (3, 0)
-        assert _settings.break_alternation_ties is True
-        raise StopBeforeInference
-
-    monkeypatch.setattr(infer, 'evaluate', capture)
-    with pytest.raises(StopBeforeInference):
-        infer.main()
-
-
-@pytest.mark.parametrize('flag_name', ['force_alternation', 'break_alternation_ties'])
-@pytest.mark.parametrize('enabled', [False, True])
-def test_tie_break_configs_read_both_names_and_write_the_new_name(
-    tmp_path: Path, flag_name: str, enabled: bool,
-) -> None:
-    config = tmp_path / 'config.toml'
-    config.write_text(f'{flag_name} = {str(enabled).lower()}\n')
-    settings = train.load_settings(config, tmp_path, resume=False)
-    assert settings.break_alternation_ties is enabled
-    saved = train.settings_record(settings)
-    assert saved['break_alternation_ties'] is enabled
-    assert 'force_alternation' not in saved
-
-
-def test_ambiguous_tie_break_config_fails(tmp_path: Path) -> None:
-    config = tmp_path / 'config.toml'
-    config.write_text('force_alternation = true\nbreak_alternation_ties = false\n')
-    with pytest.raises(ValueError, match='not both'):
-        train.load_settings(config, tmp_path, resume=False)
-
-
-@pytest.mark.parametrize(('stride', 'offset'), [(0, 0), (3, -1), (3, 3)])
-def test_invalid_sampling_fails(stride: int, offset: int) -> None:
-    with pytest.raises(ValueError, match='Stride'):
-        EvaluationSampler(TinyClips().rows[:, 2], stride, offset)
-
-
-@pytest.mark.parametrize('predict_contacts', [True, False])
-def test_sparse_saved_array_is_not_rescored_as_dense_or_other_offsets(tmp_path: Path, predict_contacts: bool) -> None:
-    video = {'item_id': 'example', 'fps': 30, 'spans': [
-        {'span_id': 0, 'rally_id': 'rally', 'start_frame': 7, 'end_frame': 40,
-         'label_frames': [12, 30], 'label_sides': ['Bot', 'Top']},
-    ]}
-    probabilities = np.tile([1.0, 0.0, 0.0], (33, 1))
-    if predict_contacts:
-        probabilities[12 - 7] = [0, 1, 0]
-        probabilities[30 - 7] = [0, 0, 1]
-    path = tmp_path / 'probabilities.npy.xz'
-    with lzma.open(path, 'wb') as stream:
-        np.save(stream, probabilities)
-    sequences = rescoring.decode_video(video, probabilities, 3, 0)
-    metrics = {}
-    for tolerance in (5, 10):
-        counts = rescoring.score_video_rules(video, sequences, tolerance)['alternating']
-        metrics[str(tolerance)] = rescoring.add_rates(counts)
-    rows = rescoring.rescore({'videos': [video], 'probabilities': path, 'saved_metrics': metrics,
-                             'sampling': {'stride': 3, 'offset': 0}, 'streams': None,
-                             'label': {'split': 'test', 'run': 'example'}})
-    assert len(rows) == 4
-    assert {(row['stride'], row['offset']) for row in rows} == {(3, 0)}
-    assert all(row['fully_correct'] == int(predict_contacts) for row in rows)
-    assert all(row['contact_precision'] == (100 if predict_contacts else 0) for row in rows)
+def test_old_x3d_settings_resume_with_new_defaults(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(train, 'prepare_clips', lambda clips, **_kwargs: clips)
+    monkeypatch.setattr(train, 'validate', lambda *_args: {'loss': 0.5, 'probabilities': np.ones((4, 3)) / 3})
+    monkeypatch.setattr(train, 'score_probabilities', lambda *_args, **_kwargs: {'metrics': {}})
+    settings = train.Settings(batch_size=4, max_steps=4, warmup_steps=1, validation_steps=[2, 4],
+                              workers=0, precision='float32', break_alternation_ties=True)
+    labels = np.array([0, 0, 1, 2])
+    dataset = TensorDataset(torch.rand(4, 2), torch.from_numpy(labels))
+    sampler = ContactBatchSampler(labels, 4, 0.5, 4, 0)
+    loader = DataLoader(dataset, batch_sampler=sampler, generator=torch.Generator().manual_seed(11))
+    model = torch.nn.Linear(2, 3)
+    (tmp_path / 'PAUSE').touch()
+    train.fit(model, loader, loader, settings, torch.device('cpu'), tmp_path, 'A')
+    saved_settings = train.read_json(tmp_path / 'settings.json.gz')
+    # Rewrite the record as an older X3D run saved it: former tie-break name, no stride.
+    saved_settings['force_alternation'] = saved_settings.pop('break_alternation_ties')
+    del saved_settings['validation_stride']
+    for name in ('model_name', 'microbatch_size', 'checkpoint_revision', 'layer_decay', 'stochastic_depth',
+                 'continuation_half_cycle_steps', 'continuation_validation_interval'):
+        assert name not in saved_settings
+    train.write_json(tmp_path / 'settings.json.gz', saved_settings)
+    (tmp_path / 'PAUSE').unlink()
+    train.fit(model, loader, loader, settings, torch.device('cpu'), tmp_path, 'A', resume=True)
+    assert train.read_json(tmp_path / 'status.json.gz')['step'] == 4

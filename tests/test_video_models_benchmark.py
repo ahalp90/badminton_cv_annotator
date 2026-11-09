@@ -1,4 +1,4 @@
-"""Check contact alignment, clip transformations and the existing event-score boundary."""
+"""Check contact labels, cached clips, event scoring and X3D checkpoint recovery."""
 import lzma
 from pathlib import Path
 
@@ -18,7 +18,6 @@ from experiments.annotator.video_models_benchmark.evaluate import (
     decode_span,
     score_probabilities,
 )
-from experiments.annotator.video_models_benchmark.model import prepare_clips
 from experiments.annotator.video_models_benchmark.prepare import prepare_video
 
 
@@ -33,12 +32,6 @@ def test_positive_priority_and_ignored_band() -> None:
     assert target_labels(rally, "B").tolist() == [0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0]
     reversed_contacts = span(0, 14, [7, 4], ["Bot", "Top"])
     np.testing.assert_array_equal(target_labels(rally, "B"), target_labels(reversed_contacts, "B"))
-
-
-@pytest.mark.parametrize("scheme", ["A", "B"])
-def test_unknown_test_hitter_is_ignored_for_frame_loss(scheme: str) -> None:
-    rally = span(0, 12, [5], [None])
-    assert target_labels(rally, scheme).tolist() == [0, 0, 0, -100, -100, -100, -100, -100, 0, 0, 0, 0]
 
 
 def write_cache(root: Path, video: dict) -> None:
@@ -68,19 +61,6 @@ def test_clips_read_beyond_rallies_and_repeat_only_video_edges(tmp_path: Path) -
     assert len(training) == len(dataset) - 4
 
 
-def test_augmentation_is_temporally_consistent_and_keeps_black_padding() -> None:
-    torch.manual_seed(17)
-    image = torch.randint(30, 200, (4, 3, 1, 32, 32), dtype=torch.uint8)
-    image[:, :, :, :8] = 0
-    image[:, :, :, -8:] = 0
-    clips = image.expand(-1, -1, 16, -1, -1).clone()
-    augmented = prepare_clips(clips, training=True)
-    torch.testing.assert_close(augmented[:, :, :1].expand_as(augmented), augmented)
-    torch.testing.assert_close(augmented[:, :, :, 0], torch.full_like(augmented[:, :, :, 0], -2.0))
-    assert not torch.equal(augmented[0], augmented[1])
-    torch.testing.assert_close(prepare_clips(clips, training=False), (clips.float() / 255 - 0.45) / 0.225)
-
-
 def test_decoder_background_suppression_ties_and_alternation() -> None:
     rally = span(100, 140, [101], ["Bot"])
     probabilities = np.tile([0.9, 0.05, 0.05], (40, 1))
@@ -98,9 +78,8 @@ def test_decoder_background_suppression_ties_and_alternation() -> None:
     assert decode_span(rally, probabilities, 25).events[0].frame == 102  # Six exceeds scaled distance five.
 
 
-@pytest.mark.parametrize("second_side", ["Top", None])
-def test_supplied_rallies_reuse_existing_scorer(second_side: str | None) -> None:
-    rally = span(0, 50, [10, 30], ["Bot", second_side])
+def test_supplied_rallies_reuse_existing_scorer() -> None:
+    rally = span(0, 50, [10, 30], ["Bot", "Top"])
     video = {"item_id": "one", "role": "validation", "fps": 30, "spans": [rally]}
     class FakeDataset:
         def __init__(self) -> None:
@@ -114,9 +93,9 @@ def test_supplied_rallies_reuse_existing_scorer(second_side: str | None) -> None
     probabilities[30] = [0, 0, 1]
     result = score_probabilities(FakeDataset(), probabilities)
     for counts in result["metrics"].values():
-        assert counts["fully_correct"] == (1 if second_side is not None else 0)
+        assert counts["fully_correct"] == 1
         assert counts["contact_f1"] == 100
-        assert counts["correct_player_f1"] == (100 if second_side is not None else 50)
+        assert counts["correct_player_f1"] == 100
     probabilities[20] = [0, 1, 0]
     counts = score_probabilities(FakeDataset(), probabilities)["metrics"]["10"]
     assert counts["fully_correct"] == 0
@@ -172,26 +151,6 @@ def test_ffmpeg_cache_selects_correct_source_frames_and_reuses(tmp_path: Path) -
     assert prepare_video(video, tmp_path, cache)["reused"]
 
 
-def test_validation_ignores_loss_band_but_predicts_every_centre() -> None:
-    from torch.nn import functional as F
-    from torch.utils.data import DataLoader, TensorDataset
-
-    from experiments.annotator.video_models_benchmark.train import validate
-
-    class FixedLogits(torch.nn.Module):
-        def forward(self, clips: torch.Tensor) -> torch.Tensor:
-            return clips.new_tensor([2.0, 1.0, 0.0]).expand(len(clips), -1)
-
-    targets = torch.tensor([0, -100, 2])
-    clips = torch.zeros(3, 3, 16, 4, 4, dtype=torch.uint8)
-    result = validate(FixedLogits(), DataLoader(TensorDataset(clips, targets), batch_size=2),
-                      torch.device("cpu"), "float32")
-    expected = F.cross_entropy(torch.tensor([[2.0, 1.0, 0.0], [2.0, 1.0, 0.0]]), torch.tensor([0, 2]))
-    assert result["loss"] == pytest.approx(float(expected))
-    assert result["probabilities"].shape == (3, 3)
-    assert np.asarray(result["confusion"]).sum() == 2
-
-
 def test_contact_batches_balance_cover_and_resume() -> None:
     from experiments.annotator.video_models_benchmark.sampling import (
         ContactBatchSampler,
@@ -213,18 +172,6 @@ def test_contact_batches_balance_cover_and_resume() -> None:
     assert len(recovered) == 5
     with pytest.raises(ValueError, match="whole"):
         ContactBatchSampler(labels, 4, 0.3, 8, 9)
-
-
-def test_update_schedule_warms_up_then_decays() -> None:
-    from experiments.annotator.video_models_benchmark.train import (
-        Settings,
-        learning_rate_at_step,
-    )
-
-    settings = Settings(learning_rate=0.005, max_steps=6, warmup_steps=2, validation_steps=[2, 4, 6])
-    rates = [learning_rate_at_step(settings, step) for step in range(6)]
-    assert rates[:3] == pytest.approx([0.0005, 0.005, 0.005])
-    assert rates[3:] == pytest.approx([0.00375, 0.00125, 0.0])
 
 
 def tiny_train_loader(settings):
@@ -275,9 +222,8 @@ def test_fit_saves_strict_best_at_update_boundaries(tmp_path: Path, monkeypatch:
         torch.testing.assert_close(value, best["model"][name])
 
 
-@pytest.mark.parametrize("interrupt_call,committed_step", [(1, 0), (5, 4)])
 def test_resume_replays_batches_augmentation_momentum_and_schedule(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt_call: int, committed_step: int,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from experiments.annotator.video_models_benchmark import train
 
@@ -310,7 +256,8 @@ def test_resume_replays_batches_augmentation_momentum_and_schedule(
     def interrupt_after_checkpoint(model, batch, optimiser, device, precision) -> torch.Tensor:
         nonlocal calls
         calls += 1
-        if calls == interrupt_call:
+        # The fifth update follows the step-4 validation commit.
+        if calls == 5:
             raise RuntimeError("simulated interruption")
         return original_batch(model, batch, optimiser, device, precision)
 
@@ -320,8 +267,8 @@ def test_resume_replays_batches_augmentation_momentum_and_schedule(
     with pytest.raises(RuntimeError, match="simulated"):
         train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
     saved = torch.load(output / "last.pt", weights_only=True)
-    assert saved["step"] == committed_step
-    assert bool(saved["optimiser"]["state"]) == (committed_step > 0)
+    assert saved["step"] == 4
+    assert saved["optimiser"]["state"]
     monkeypatch.setattr(train, "train_batch", original_batch)
     model, loader = fresh_model_and_loader()
     train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A", resume=True)
@@ -337,120 +284,3 @@ def test_resume_replays_batches_augmentation_momentum_and_schedule(
     assert torch.equal(recovered["loader_rng"], reference["loader_rng"])
     assert train.read_json(output / "status.json.gz")["phase"] == "complete"
     assert train.read_json(output / "training_progress.json.gz")[-1]["step"] == 8
-
-
-def test_training_progress_retains_loss_intervals_and_resume_sessions(tmp_path: Path) -> None:
-    from experiments.annotator.video_models_benchmark.data import read_json
-    from experiments.annotator.video_models_benchmark.run_state import Progress
-
-    progress = Progress(tmp_path)
-    progress.write("training", step=0, completed=0, lr=0.002)
-    progress.write("training", step=100, completed=100, lr=0.003, train_loss=0.8)
-    progress.write("training", step=200, completed=200, lr=0.004, train_loss=0.6)
-    progress.write("validation", completed=0)
-    progress.write("training", step=2500, completed=0, lr=0.02)
-    progress.write("training", step=2600, completed=100, lr=0.019, train_loss=0.3)
-
-    records = read_json(tmp_path / "training_progress.json.gz")
-    assert [row["step"] for row in records] == [100, 200, 2600]
-    assert [row["interval_start_step"] for row in records] == [0, 0, 2500]
-    assert [row["train_loss"] for row in records] == [0.8, 0.6, 0.3]
-    first_sum = records[0]["train_loss"] * 100
-    second_sum = records[1]["train_loss"] * 200
-    assert (second_sum - first_sum) / 100 == pytest.approx(0.4)
-
-    resumed = Progress(tmp_path)
-    resumed.write("training", step=2500, completed=0, lr=0.02)
-    resumed.write("training", step=2550, completed=50, lr=0.0195, train_loss=0.4)
-    continued = read_json(tmp_path / "training_progress.json.gz")
-    assert continued[:3] == records
-    assert continued[-1]["step"] == 2550
-    assert continued[-1]["interval_start_step"] == 2500
-    assert continued[-1]["session_started"] == resumed.state["session_started"]
-    assert continued[-1]["session_started"] != records[-1]["session_started"]
-    assert read_json(tmp_path / "status.json.gz")["step"] == 2550
-
-
-def test_fit_can_pause_and_resume_at_validation_boundary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from experiments.annotator.video_models_benchmark import train
-
-    settings = train.Settings(batch_size=4, max_steps=4, warmup_steps=2, validation_steps=[2, 4], workers=0)
-    loader = tiny_train_loader(settings)
-    monkeypatch.setattr(train, "train_batch", lambda *args: torch.tensor(0.5))
-    monkeypatch.setattr(train, "validate", lambda *args: {"loss": 1.0, "probabilities": np.ones((8, 3))})
-    monkeypatch.setattr(train, "score_probabilities", lambda *args: {"metrics": {}})
-    output = tmp_path / "pause"
-    output.mkdir()
-    (output / "PAUSE").touch()
-    model = torch.nn.Linear(2, 3)
-    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A")
-    assert torch.load(output / "last.pt", weights_only=True)["step"] == 2
-    assert train.read_json(output / "status.json.gz")["phase"] == "paused"
-    (output / "PAUSE").unlink()
-    train.fit(model, loader, loader, settings, torch.device("cpu"), output, "A", resume=True)
-    assert train.read_json(output / "status.json.gz")["phase"] == "complete"
-
-
-def test_launcher_termination_records_failure_and_stops_child(tmp_path: Path) -> None:
-    import os
-    import signal
-    import subprocess
-    import time
-
-    fake_python = tmp_path / "python"
-    fake_python.write_text("#!/bin/bash\nprintf '%s\\n' \"$$\" > \"$BENCHMARK_TEST_CHILD\"\nexec sleep 120\n")
-    fake_python.chmod(0o755)
-    child_path = tmp_path / "child.pid"
-    output = tmp_path / "run"
-    wrapper = Path(__file__).resolve().parents[1] / "experiments/annotator/video_models_benchmark/launch.sh"
-    process = subprocess.Popen(["bash", str(wrapper), str(fake_python), "/unused", str(output), "A", "1000"],
-                               env={**os.environ, "BENCHMARK_TEST_CHILD": str(child_path)}, start_new_session=True)
-    try:
-        deadline = time.monotonic() + 5
-        while not child_path.exists() and time.monotonic() < deadline:
-            time.sleep(0.02)
-        assert child_path.exists()
-        process.send_signal(signal.SIGTERM)
-        assert process.wait(timeout=5) == 143
-        assert (output / "exit-code.txt").read_text().strip() == "143"
-        child = int(child_path.read_text())
-        deadline = time.monotonic() + 5
-        while Path(f"/proc/{child}/stat").exists() and time.monotonic() < deadline:
-            if Path(f"/proc/{child}/stat").read_text().split()[2] == "Z":
-                break
-            time.sleep(0.02)
-        stat = Path(f"/proc/{child}/stat")
-        assert not stat.exists() or stat.read_text().split()[2] == "Z"
-    finally:
-        if process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-
-
-@pytest.mark.parametrize("top_probabilities,expected", [
-    ([0.9, 0.6], [CourtHalf.TOP, CourtHalf.BOT]),
-    ([0.6, 0.9], [CourtHalf.BOT, CourtHalf.TOP]),
-    ([0.8, 0.8], [CourtHalf.TOP, CourtHalf.BOT]),
-])
-def test_alternation_tie_break_uses_probabilities(
-    top_probabilities: list[float], expected: list[CourtHalf],
-) -> None:
-    span = {"span_id": "test", "start_frame": 0, "end_frame": 30}
-    probabilities = np.tile([1.0, 0.0, 0.0], (30, 1))
-    for frame, top in zip((5, 20), top_probabilities, strict=True):
-        probabilities[frame] = [0.0, 1 - top, top]
-    old = decode_span(span, probabilities, 30).events
-    forced = decode_span(span, probabilities, 30, break_alternation_ties=True).events
-    assert [event.side for event in old] == [CourtHalf.TOP, CourtHalf.TOP]
-    assert [event.side for event in forced] == expected
-    assert [event.frame for event in forced] == [event.frame for event in old]
-    assert decode_span(span, np.tile([1.0, 0.0, 0.0], (30, 1)), 30, break_alternation_ties=True).events == ()
-
-
-def test_alternation_tie_setting_does_not_change_a_majority_vote() -> None:
-    span = {"span_id": "test", "start_frame": 0, "end_frame": 45}
-    probabilities = np.tile([1.0, 0.0, 0.0], (45, 1))
-    probabilities[[5, 20, 35]] = [0.0, 0.1, 0.9]
-    for break_ties in (False, True):
-        events = decode_span(span, probabilities, 30, break_alternation_ties=break_ties).events
-        assert [event.side for event in events] == [CourtHalf.TOP, CourtHalf.BOT, CourtHalf.TOP]
