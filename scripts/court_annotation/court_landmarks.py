@@ -250,7 +250,7 @@ def quad_is_camera_valid(quad: np.ndarray) -> bool:
     """Whether a projected quad is a convex behind-baseline TL TR BR BL rectangle.
 
     Catches a fit that converged to a mirror or a crossed quad, which residuals
-    alone pass. Convex means the four edge turns share one sign; behind-baseline
+    alone pass. The four edge turns must be positive in screen coordinates; behind-baseline
     means the near baseline sits below the far one in image y (TL above BL, TR
     above BR; smaller y is higher up the frame). Maths grafted from the tour
     tool's _quad_is_camera_valid.
@@ -263,7 +263,7 @@ def quad_is_camera_valid(quad: np.ndarray) -> bool:
         nxt = quad[(corner + 1) % 4]
         after = quad[(corner + 2) % 4]
         crosses.append((nxt[0] - here[0]) * (after[1] - nxt[1]) - (nxt[1] - here[1]) * (after[0] - nxt[0]))
-    convex = all(cross > 0 for cross in crosses) or all(cross < 0 for cross in crosses)
+    convex = all(cross > 0 for cross in crosses)
     top_left, top_right, bottom_right, bottom_left = quad
     behind_baseline = top_left[1] < bottom_left[1] and top_right[1] < bottom_right[1]
     return bool(convex and behind_baseline)

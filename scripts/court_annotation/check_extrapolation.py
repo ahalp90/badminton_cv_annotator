@@ -4,10 +4,12 @@
 The off-frame method recovers an unseen corner by fitting a homography to
 clicked line intersections and projecting the corner through it. Before
 trusting that on footage where the corner truly is invisible, run this on a
-frame where all four corners ARE visible: annotate the corners and 4+ landmarks
-with ``annotate_court_corners_offframe.py --landmarks always``, then this
-script fits from the landmarks alone and reports the distance between each
-projected corner and its click. Those distances are the method's error.
+frame where all four corners ARE visible: annotate the four outer corners and
+at least five other well-spread labelled intersections, then choose Save court.
+For an independent check, pass --landmarks-csv a copy of the sidecar with the
+four outer-corner identities removed. This script fits the supplied landmarks
+and compares projected corners with their clicks; any corner included in the
+supplied fit is listed as in-fit rather than scored independently.
 
 Reads the corners CSV and its ``<stem>_landmarks.csv`` sidecar. Only labelled
 corner rows (``corner_label`` column) are accepted; extrapolated rows are
