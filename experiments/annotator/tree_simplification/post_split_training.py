@@ -81,7 +81,7 @@ class OrdinaryPoolJob:
     contact_model: Path
     scores: Path
     pool: Path
-    reuse_saved: bool
+    use_baseline_pool: bool
 
 
 @dataclass(frozen=True)
@@ -110,13 +110,13 @@ def ordinary_pool_job(
     """Reuse original out-of-group pools; keep every new pool in this run."""
     owner = split.group_by_video[identity]
     contact_root = contact_directory(baseline, CANDIDATE, seed)
-    if len(contact_groups) == 3:
+    if len(contact_groups) == len(GROUPS) - 1:
         held = next(group for group in GROUPS if group not in contact_groups)
         contact_model = contact_root / f'held_{held}.joblib'
     else:
         contact_model = output / 'contacts' / f'{"".join(contact_groups)}.joblib'
-    reuse_saved = len(contact_groups) == 3 and owner not in contact_groups
-    if reuse_saved:
+    use_baseline_pool = len(contact_groups) == len(GROUPS) - 1 and owner not in contact_groups
+    if use_baseline_pool:
         scores = contact_root / 'scores' / f'{identity}.joblib'
         pool = pool_directory(baseline, CANDIDATE, seed, 'train') / f'{identity}.joblib'
     else:
@@ -124,13 +124,14 @@ def ordinary_pool_job(
         pool = output / 'ordinary' / ''.join(contact_groups) / f'{identity}.joblib'
     return OrdinaryPoolJob(
         identity, owner, contact_groups, prepared / 'videos' / f'{identity}.joblib',
-        contact_model, scores, pool, reuse_saved,
+        contact_model, scores, pool, use_baseline_pool,
     )
 
 
 def first_selector_path(output: Path, recipe: Recipe, outer_group: str, inner_group: str | None = None) -> Path:
     groups = tuple(group for group in GROUPS if group not in (outer_group, inner_group))
     directory = output / 'first_selectors'
+    # Nested selectors depend only on their training groups and can be shared.
     if recipe == 'reuse-contact':
         directory /= f'held-{outer_group}'
     return directory / ''.join(groups) / 'selector.joblib'
@@ -192,7 +193,7 @@ def followup_selector_jobs(
 
 
 def prepare_ordinary_pool(job: OrdinaryPoolJob) -> None:
-    if job.reuse_saved:
+    if job.use_baseline_pool:
         for path in (job.contact_model, job.scores, job.pool):
             if not path.is_file():
                 raise FileNotFoundError(f'Missing saved baseline input: {path}')

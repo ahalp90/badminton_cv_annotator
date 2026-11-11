@@ -39,7 +39,7 @@ def test_confidence_training_excludes_outer_group_at_every_stage(tmp_path: Path,
                 if recipe == 'nested-contact':
                     assert training_input.video_group not in training_input.contact_groups
             if not outer:
-                assert ordinary.reuse_saved
+                assert ordinary.use_baseline_pool
                 assert ordinary.video_group not in ordinary.contact_groups
             elif recipe == 'nested-contact':
                 assert ordinary.video_group not in ordinary.contact_groups
