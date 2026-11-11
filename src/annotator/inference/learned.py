@@ -3,7 +3,11 @@
 from dataclasses import dataclass
 
 from annotator.contacts.build_features import ContactFeatures, build_contact_features
-from annotator.contacts.score_candidates import ScoredContacts, score_contact_features
+from annotator.contacts.score_candidates import (
+    ScoredContacts,
+    positive_probabilities,
+    score_contact_features,
+)
 from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.models import AnnotatorModels
 from annotator.rallies.build_contact_proposals import (
@@ -11,13 +15,12 @@ from annotator.rallies.build_contact_proposals import (
     build_rally_context,
     build_rally_options,
 )
+from annotator.rallies.correct_split_rallies import correct_split_rallies
 from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallyReview,
     predict_rally_options,
-    score_rally_review,
 )
-from annotator.rallies.split_rallies import split_rallies
 from annotator.types import ContactEvent, ContactSequence, FinishedRally
 from shared.progress import report
 
@@ -26,9 +29,9 @@ from shared.progress import report
 class LearnedModelPrediction:
     """Finished rallies and review scores, with inputs for inspection and training.
 
-    ``refinement`` and ``review`` describe the selected rallies before gap splitting.
-    ``rallies`` and ``events`` are the final output. ``source_span_ids`` maps them
-    to the original spans so split pieces inherit their source rally's review score.
+    ``refinement`` retains the first-pass choices and proposal pool. ``review``
+    describes the final rallies after splitting and correction. ``source_span_ids``
+    maps those rallies to the original spans for comparisons.
     """
 
     contact_features: ContactFeatures
@@ -45,13 +48,13 @@ class LearnedModelPrediction:
         return tuple(rally.sequence for rally in self.rallies)
 
     def scores_for_rallies(self, review: RallyReview) -> tuple[float, ...]:
-        """Carry original-rally scores through gap splits in final rally order."""
+        """Return scores aligned to the final rally IDs."""
         by_span = dict(zip(review.features.span_ids, map(float, review.scores), strict=True))
-        return tuple(by_span[span_id] for span_id in self.source_span_ids)
+        return tuple(by_span[rally.sequence.span_id] for rally in self.rallies)
 
     @property
     def rally_confidence(self) -> tuple[float, ...]:
-        """Review scores in final rally order; split pieces share their source score."""
+        """Review scores for the final rallies in output order."""
         return self.scores_for_rallies(self.review)
 
 
@@ -73,17 +76,20 @@ def predict_from_contact_features(
     report("selecting rally contact lists")
     context = build_rally_context(inputs, scored_candidates)
     options = build_rally_options(context, models.rally_selector.max_edits, models.rally_selector.deletion_candidates)
-    return predict_from_rally_options(features, scored_candidates, options, models)
+    return predict_from_rally_options(inputs, features, scored_candidates, options, models)
 
 
 def predict_from_rally_options(
-    features: ContactFeatures, scored_candidates: ScoredContacts, options: RallyOptions, models: AnnotatorModels,
+    inputs: PreparedAnnotationInputs, features: ContactFeatures, scored_candidates: ScoredContacts,
+    options: RallyOptions, models: AnnotatorModels,
 ) -> LearnedModelPrediction:
-    """Select, review and split rallies, reusing an already measured proposal pool."""
+    """Select rally contacts, correct split pieces, then score the final rallies."""
     refinement = predict_rally_options(models.rally_selector, options)
+    rallies, events, source_span_ids, review_features = correct_split_rallies(
+        inputs, scored_candidates, refinement, models.rally_selector,
+    )
     report("scoring rallies for review")
-    review = score_rally_review(refinement, models.review_model)
-    rallies, events, source_span_ids = split_rallies(refinement)
+    review = RallyReview(review_features, positive_probabilities(models.review_model, review_features.matrix))
     return LearnedModelPrediction(features, scored_candidates, refinement, review, rallies, events, source_span_ids)
 
 

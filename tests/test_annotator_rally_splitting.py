@@ -1,14 +1,32 @@
 """Late gap splits preserve selected hits, original bounds and raw hitter evidence."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
+from annotator.contacts.build_features import (
+    CONTACT_FEATURE_NAMES,
+    contact_feature_dtype,
+)
+from annotator.contacts.score_candidates import ScoredContacts
 from annotator.inference.learned import predict_from_rally_options
-from annotator.rallies.build_contact_proposals import RallyContext, build_rally_options
-from annotator.rallies.refine_rallies import predict_rally_options, score_rally_review
+from annotator.rallies.build_contact_proposals import (
+    FEATURE_NAMES,
+    RallyContext,
+    build_rally_options,
+)
+from annotator.rallies.correct_split_rallies import (
+    build_split_context,
+    correct_split_rallies,
+)
+from annotator.rallies.refine_rallies import (
+    REVIEW_FEATURE_NAMES,
+    RallySelector,
+    predict_rally_options,
+    score_rally_review,
+)
 from annotator.rallies.split_rallies import split_rallies
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from shared.frame_timing import frames_at_fps
@@ -75,14 +93,95 @@ def test_split_threshold_is_strict_and_scaled(fps, extra_frame, annotator_models
         assert rallies[0].sequence.end_frame == refined.sequences[0].end_frame
 
 
-def test_final_inference_inherits_presplit_review_and_handles_empty_video(annotator_models):
+def evidence_and_contacts(pool, additions=()):
+    frames = sorted({event.frame for event in pool.context.events} | set(additions))
+    rows = np.zeros(len(frames), dtype=contact_feature_dtype())
+    rows['frame'] = frames
+    contacts = ScoredContacts(rows, np.zeros((len(rows), len(CONTACT_FEATURE_NAMES)), dtype=np.float32),
+                              np.full(len(rows), .9), np.arange(len(rows)))
+    inputs = SimpleNamespace(fps=pool.context.fps, track=np.zeros((pool.context.frame_count, 3)),
+                             players=None, wrist_gaps=None, bboxes=None, scene_courts=(),
+                             bounds_supplied=pool.context.bounds_supplied)
+    return inputs, contacts
+
+
+def test_final_inference_scores_each_piece_and_handles_empty_video(annotator_models):
     pool = options()
-    refined = predict_rally_options(annotator_models.rally_selector, pool)
-    review = score_rally_review(refined, annotator_models.review_model)
-    prediction = predict_from_rally_options(None, None, pool, annotator_models)
-    np.testing.assert_array_equal(prediction.review.features.matrix, review.features.matrix)
-    assert prediction.rally_confidence == (review.scores[0], review.scores[0])
-    assert len(prediction.sequences) == 2
+    inputs, contacts = evidence_and_contacts(pool)
+    prediction = predict_from_rally_options(inputs, None, contacts, pool, annotator_models)
+    count_column = REVIEW_FEATURE_NAMES.index('final__predicted_event_count')
+    assert prediction.review.features.span_ids == (0, 1)
+    np.testing.assert_array_equal(prediction.review.features.matrix[:, count_column], [2, 2])
+    assert prediction.rally_confidence == tuple(prediction.review.scores)
+    assert [event.side for event in prediction.sequences[1].events] == [CourtHalf.BOT, CourtHalf.TOP]
+    assert prediction.events[-1] is pool.context.events[-1]
     empty_pool = build_rally_options(replace(pool.context, initial=(), events=()), max_edits=0)
-    empty = predict_from_rally_options(None, None, empty_pool, annotator_models)
+    empty = predict_from_rally_options(inputs, None, contacts, empty_pool, annotator_models)
     assert empty.rallies == empty.events == empty.source_span_ids == empty.rally_confidence == ()
+
+
+@pytest.mark.parametrize('supplied', [False, True])
+def test_second_pass_leaves_ordinary_and_supplied_predictions_unchanged(supplied, annotator_models):
+    pool = options(supplied=supplied)
+    if not supplied:
+        before = pool.context.initial[0]
+        before = replace(before, events=before.events[:2])
+        pool = build_rally_options(replace(pool.context, initial=(before,), events=before.events), max_edits=0)
+    inputs, contacts = evidence_and_contacts(pool)
+    first = predict_rally_options(annotator_models.rally_selector, pool)
+    review = score_rally_review(first, annotator_models.review_model)
+    prediction = predict_from_rally_options(inputs, None, contacts, pool, annotator_models)
+    assert prediction.events == first.events
+    assert replace(prediction.rallies[0].sequence, span_id=7) == first.sequences[0]
+    np.testing.assert_array_equal(prediction.review.features.matrix, review.features.matrix)
+    np.testing.assert_array_equal(prediction.review.scores, review.scores)
+
+
+def test_second_pass_recovers_edge_hits_without_crossing_split_midpoint(annotator_models):
+    pool = options()
+    inputs, contacts = evidence_and_contacts(pool, additions=(90, 180, 260, 290, 370, 510))
+    first = predict_rally_options(annotator_models.rally_selector, pool)
+    context, _, _, _ = build_split_context(inputs, contacts, first)
+    assert context.contact_limits == {0: (100, 275), 1: (275, 500)}
+    assert [event.frame for event in context.shortlisted_by_span[0]] == [180, 260]
+    assert [event.frame for event in context.shortlisted_by_span[1]] == [290, 370]
+    proposals = build_rally_options(context)
+    for sequence in proposals.sequences:
+        earliest, latest = context.contact_limits[sequence.span_id]
+        assert all(earliest <= event.frame < latest for event in sequence.events)
+    for piece in context.initial:
+        assert piece in proposals.sequences
+
+    def prefer_more_contacts(matrix):
+        scores = matrix[:, FEATURE_NAMES.index('after__predicted_event_count')] / 10
+        return np.column_stack((1 - scores, scores))
+
+    selector = RallySelector(SimpleNamespace(predict_proba=prefer_more_contacts))
+    rallies, events, sources, review = correct_split_rallies(inputs, contacts, first, selector)
+    assert [[event.frame for event in rally.sequence.events] for rally in rallies] == [
+        [120, 150, 180, 260], [290, 370, 400, 470],
+    ]
+    assert rallies[0].sequence.end_frame <= 275 <= rallies[1].sequence.start_frame
+    assert rallies[0].sequence.start_frame == 100 and rallies[1].sequence.end_frame == 500
+    assert sources == (7, 7) and review.span_ids == (0, 1)
+    assert events[-1] is pool.context.events[-1]
+
+
+def test_correction_preserves_ordinary_rally_beside_split_parent(annotator_models):
+    pool = options()
+    ordinary_events = (ContactEvent(600, .95, CourtHalf.BOT), ContactEvent(630, .95, CourtHalf.TOP))
+    ordinary = ContactSequence(9, 580, 650, ordinary_events)
+    all_events = (*pool.context.events, *ordinary_events)
+    context = replace(
+        pool.context, initial=(*pool.context.initial, ordinary), events=all_events, frame_count=700,
+        contact_features_by_frame={event.frame: np.zeros(len(CONTACT_FEATURE_NAMES)) for event in all_events},
+    )
+    pool = build_rally_options(context, max_edits=0)
+    inputs, contacts = evidence_and_contacts(pool)
+    first = predict_rally_options(annotator_models.rally_selector, pool)
+    before_review = score_rally_review(first, annotator_models.review_model)
+    prediction = predict_from_rally_options(inputs, None, contacts, pool, annotator_models)
+    assert replace(prediction.rallies[-1].sequence, span_id=9) == first.sequences[-1]
+    assert prediction.events[-2:] == first.events[-2:]
+    np.testing.assert_array_equal(prediction.review.features.matrix[-1], before_review.features.matrix[-1])
+    assert prediction.rally_confidence[-1] == before_review.scores[-1]

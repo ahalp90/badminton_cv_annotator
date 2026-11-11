@@ -5,7 +5,11 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
+from annotator.contacts.build_features import (
+    CONTACT_FEATURE_NAMES,
+    contact_feature_dtype,
+)
+from annotator.contacts.score_candidates import ScoredContacts
 from annotator.inference.learned import (
     LearnedModelPrediction,
     predict_from_rally_options,
@@ -103,13 +107,20 @@ def test_shared_prediction_runs_contact_pipeline_once_and_each_own_selector_revi
         for index, score in enumerate((0.5, 0.6, 0.7))
     )
 
+    rows = np.zeros(len(events), dtype=contact_feature_dtype())
+    rows['frame'] = [event.frame for event in events]
+    scored = ScoredContacts(rows, np.zeros((len(rows), len(CONTACT_FEATURE_NAMES))),
+                            np.full(len(rows), .9), np.arange(len(rows)))
+    evidence = SimpleNamespace(fps=30.0, track=np.zeros((300, 3)), bounds_supplied=False)
+
     def contact_pipeline(evidence, features, model):
         calls.append('contact')
-        return predict_from_rally_options(features, None, pool, model)
+        return predict_from_rally_options(evidence, features, scored, pool, model)
 
     monkeypatch.setattr(batch, 'predict_from_contact_features', contact_pipeline)
-    predictions = batch.predict_shared_pool(None, None, fitted)
-    assert calls == ['contact', 'selector-0', 'review-0', 'selector-1', 'review-1', 'selector-2', 'review-2']
+    predictions = batch.predict_shared_pool(evidence, None, fitted)
+    assert calls == ['contact', 'selector-0', 'selector-0', 'review-0', 'selector-1', 'selector-1',
+                     'review-1', 'selector-2', 'selector-2', 'review-2']
     for predicted, score in zip(predictions, (0.5, 0.6, 0.7), strict=True):
         assert predicted.refinement.pool is pool
         assert [[event.frame for event in sequence.events] for sequence in predicted.sequences] == [[40, 60], [200, 220]]

@@ -56,7 +56,7 @@ def evaluate_video(
     if prediction is None:
         raise ValueError(f'{video.identity}: fitted annotation did not return its contact stream')
     stream = stream_payload(prediction.sequences, prediction.events)
-    selector_review = score_selector_review(prediction.refinement)
+    selector_review = score_selector_review(prediction.review.features)
     scores_by_ranking = {}
     span_ids = tuple(sequence.span_id for sequence in prediction.sequences)
     for name, review in (('selector', selector_review), ('fitted', prediction.review)):

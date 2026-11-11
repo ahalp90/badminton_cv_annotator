@@ -194,7 +194,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         rallies=(rally,),
         events=(), pool=object(), scores=np.asarray([0.8]), chosen={4: 0},
     )
-    confidence = RallyReview(RallyReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
+    confidence = RallyReview(RallyReviewFeatures((8,), np.zeros((1, 1))), np.asarray([0.7]))
     final_rally = replace(rally, sequence=replace(sequence, span_id=8))
     prediction = LearnedModelPrediction(None, None, layer_prediction, confidence, (final_rally,), (), (4,))
     monkeypatch.setattr(

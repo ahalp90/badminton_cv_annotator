@@ -99,8 +99,8 @@ def export_bundle(
 
 
 @lru_cache(maxsize=32)
-def _models(path: str) -> AnnotatorModels:
-    models = load_models(Path(path), device='cpu')
+def _models(path: str, device: str = 'cpu') -> AnnotatorModels:
+    models = load_models(Path(path), device=device)
     for tree in fitted_trees(models):
         tree.set_params(n_jobs=1)
     return models
@@ -110,7 +110,7 @@ def _score_prediction(
     item: dict[str, Any], windows: list[tuple[int, int]], prediction: LearnedModelPrediction,
 ) -> dict[str, Any]:
     stream = stream_payload(prediction.sequences, prediction.events)
-    reviews = {'selector': score_selector_review(prediction.refinement), 'fitted': prediction.review}
+    reviews = {'selector': score_selector_review(prediction.review.features), 'fitted': prediction.review}
     scores = {}
     span_ids = tuple(sequence.span_id for sequence in prediction.sequences)
     for name, review in reviews.items():
@@ -173,7 +173,7 @@ def _test_video(
             else:
                 first = predictions[pool_key]
                 prediction = predict_from_rally_options(
-                    features, first.scored_candidates, first.refinement.pool, models,
+                    evidence, features, first.scored_candidates, first.refinement.pool, models,
                 )
             result = _score_prediction(item, windows, prediction)
             stream = result.pop('stream')

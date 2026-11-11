@@ -136,7 +136,7 @@ def prepare(paths_file: Path, output: Path, workers: int, evaluation_only: bool)
 
 def evaluate_video(
     prepared_path: Path, model_path: Path, output: Path,
-    item: dict[str, Any] | None, windows: list[tuple[int, int]],
+    item: dict[str, Any] | None, windows: list[tuple[int, int]], device: str = 'cpu',
 ) -> str:
     identity = prepared_path.stem
     destination = output / 'videos' / f'{identity}.json.gz'
@@ -145,7 +145,7 @@ def evaluate_video(
     destination.parent.mkdir(parents=True, exist_ok=True)
     (output / 'streams').mkdir(parents=True, exist_ok=True)
     prepared = joblib.load(prepared_path)
-    models = _models(str(model_path))
+    models = _models(str(model_path), device)
     prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
     if item is None:
         stream = stream_payload(prediction.sequences, prediction.events)
@@ -159,6 +159,7 @@ def evaluate_video(
     else:
         result = _score_prediction(item, windows, prediction)
         stream = result.pop('stream')
+    stream['source_span_ids'] = list(prediction.source_span_ids)
     write_json(output / 'streams' / f'{identity}.json.gz', stream)
     write_json(destination, result)
     return identity
@@ -188,10 +189,11 @@ def validation_summary(videos: tuple[SearchVideo, ...], output: Path, seed: int)
 
 def evaluate(
     paths_file: Path, prepared_root: Path, model_path: Path, output: Path, seed: int, executor: ProcessPoolExecutor,
+    device: str = 'cpu',
 ) -> None:
     paths = load_paths(paths_file)
     inputs = read_json(prepared_root / 'development' / 'preparation.json.gz')['inputs']
-    if preprocessing_record(_models(str(model_path)).preprocessing) != inputs['preprocessing']:
+    if preprocessing_record(_models(str(model_path), device).preprocessing) != inputs['preprocessing']:
         raise ValueError('Model preprocessing differs from prepared evidence')
     validation = tuple(video for video in load_original_videos(paths['shots_master']) if video.split == 'validation')
     test = load_test_videos(paths['test_inputs'])
@@ -202,7 +204,8 @@ def evaluate(
         raise ValueError('The fixed test set requires 46 videos and 524 excluded rally windows')
     settings_path = output / f'seed-{seed}-settings.json.gz'
     output.mkdir(parents=True, exist_ok=True)
-    settings = {'models': str(model_path.resolve()), 'prepared': str(prepared_root.resolve()), 'paths': str(paths_file)}
+    settings = {'models': str(model_path.resolve()), 'prepared': str(prepared_root.resolve()),
+                'paths': str(paths_file), 'device': device}
     if settings_path.exists() and read_json(settings_path) != settings:
         raise ValueError('Evaluation models or inputs changed; choose a fresh output directory')
     write_json(settings_path, settings)
@@ -213,7 +216,7 @@ def evaluate(
         for video in videos:
             futures.append(executor.submit(
                 evaluate_video, prepared_root / source / 'videos' / f'{video.identity}.joblib', model_path,
-                directory, items[video.identity] if split == 'test' else None, windows.get(video.identity, []),
+                directory, items[video.identity] if split == 'test' else None, windows.get(video.identity, []), device,
             ))
     finish_jobs(futures, f'evaluate seed {seed}')
     validation_summary(validation, output / 'validation' / f'seed-{seed}', seed)
@@ -268,7 +271,7 @@ def refit(
             bundle_output, device,
         )
         del pools
-        evaluate(paths_file, prepared_root, bundle, output / 'evaluation', seed, cpu)
+        evaluate(paths_file, prepared_root, bundle, output / 'evaluation', seed, cpu, device)
 
 
 def main() -> None:
@@ -280,12 +283,12 @@ def main() -> None:
     evaluation.add_argument('--models', type=Path, required=True, help='One fitted model bundle')
     fitting = commands.add_parser('refit')
     fitting.add_argument('--gpu-fits', type=int, default=3)
-    fitting.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     for command in (preparation, evaluation, fitting):
         command.add_argument('--paths', type=Path, required=True)
         command.add_argument('--output', type=Path, required=True)
         command.add_argument('--workers', type=int, default=6)
     for command in (evaluation, fitting):
+        command.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
         command.add_argument('--prepared', type=Path, required=True)
         command.add_argument('--seed', type=int, choices=SEEDS, required=True)
     args = parser.parse_args()
@@ -295,7 +298,7 @@ def main() -> None:
         prepare(args.paths, args.output, args.workers, args.evaluation_only)
     elif args.command == 'evaluate':
         with cpu_pool(args.workers) as executor:
-            evaluate(args.paths, args.prepared, args.models, args.output, args.seed, executor)
+            evaluate(args.paths, args.prepared, args.models, args.output, args.seed, executor, args.device)
     else:
         if not 1 <= args.gpu_fits <= 3:
             parser.error('--gpu-fits must be between one and three')

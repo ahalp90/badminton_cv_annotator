@@ -228,7 +228,7 @@ def _review_rows(
     identity: str,
     prediction: LearnedModelPrediction,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    selector = score_selector_review(prediction.refinement)
+    selector = score_selector_review(prediction.review.features)
     rankings: dict[str, Any] = {}
     rows: list[dict[str, Any]] = []
     sequences = prediction.sequences

@@ -123,7 +123,9 @@ def predict_shared_pool(
     first = predict_from_contact_features(evidence, features, models[0])
     predictions = [first]
     for model in models[1:]:
-        predictions.append(predict_from_rally_options(features, first.scored_candidates, first.refinement.pool, model))
+        predictions.append(predict_from_rally_options(
+            evidence, features, first.scored_candidates, first.refinement.pool, model,
+        ))
     return tuple(predictions)
 
 

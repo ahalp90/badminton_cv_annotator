@@ -1,13 +1,12 @@
 """Compare selector confidence with the learned review model."""
 from annotator.rallies.refine_rallies import (
-    RallyPrediction,
+    REVIEW_FEATURE_NAMES,
     RallyReview,
-    build_review_features,
+    RallyReviewFeatures,
 )
 
 
-def score_selector_review(prediction: RallyPrediction) -> RallyReview:
-    """Expose selector scores for experimental ranking comparisons."""
-    features = build_review_features(prediction)
-    scores = prediction.scores[list(prediction.chosen.values())]
+def score_selector_review(features: RallyReviewFeatures) -> RallyReview:
+    """Read selector scores already measured for the final rallies."""
+    scores = features.matrix[:, REVIEW_FEATURE_NAMES.index('option_score')]
     return RallyReview(features, scores)
