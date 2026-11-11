@@ -3,12 +3,11 @@
 from dataclasses import replace
 from itertools import pairwise
 
+from annotator.config import MAX_RALLY_GAP_AT_30_FPS
 from annotator.contacts.player_attribution import fit_rally_sides
 from annotator.rallies.refine_rallies import RallyPrediction
 from annotator.types import ContactEvent, FinishedRally
 from shared.frame_timing import frames_at_fps
-
-MAX_CONTACT_GAP_AT_30_FPS = 90
 
 
 def split_rallies(
@@ -24,7 +23,7 @@ def split_rallies(
     if context.bounds_supplied:
         return prediction.rallies, prediction.events, tuple(sequence.span_id for sequence in prediction.sequences)
 
-    max_gap = frames_at_fps(MAX_CONTACT_GAP_AT_30_FPS, context.fps)
+    max_gap = frames_at_fps(MAX_RALLY_GAP_AT_30_FPS, context.fps)
     rallies = []
     source_span_ids = []
     for rally in prediction.rallies:

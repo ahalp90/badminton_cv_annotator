@@ -157,7 +157,9 @@ original hitter guesses. Preserve contacts outside rallies in the full stream.
 
 These bounds still affect landing search, including recovery when a court view
 returns after the last hit. Supplied bounds bypass splitting. The high-shot
-tracking-loss allowance is a separate preprocessing setting, currently 2.5 seconds.
+tracking-loss allowance uses the same three-second default: both limits mark
+how long a rally can continue without the expected evidence. High-shot handling
+measures missing shuttle frames; splitting measures gaps between accepted hits.
 
 The window still matters. Inside it, the selector's chosen contacts are the
 rally's accepted contacts; rejected candidates stay rejected. Detector contacts

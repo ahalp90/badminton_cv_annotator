@@ -8,9 +8,10 @@ review model ranks the chosen rallies for inspection.
 ## The selected model
 
 Use the [deployed bundle](../../runtime/deployed/annotator/). It was fitted on
-32 training videos with raw standing-person counts; seed offset 400 was selected
+32 training videos with raw standing-person counts; seed offset 100 was selected
 on validation from offsets 0, 100, 200, 300 and 400. Outward context is unlimited
-in proposal training. Final inference adds splits at hit gaps over three seconds.
+in proposal training. The high-shot tracking-loss allowance is three seconds.
+Final inference adds splits at hit gaps over three seconds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
