@@ -18,6 +18,6 @@ problems. These pages cover using and maintaining the resulting implementation.
 | Fit and evaluate new models | [Retuning](retuning.md) |
 | Find code or assess the effect of a change | [Code map](code_map.md) and [maintenance](maintaining.md) |
 
-The [current evaluation](../../experiments/annotator/reports/tree_simplification.md)
-compares the XGBoost system with historical results. It explains the shared
-data and the scoring rules used for each comparison.
+See the [current evaluation](../../experiments/annotator/post_split_correction/README.md)
+for the selected four-model method, its validation and test results, and the
+comparison with the earlier published pipeline.

@@ -17,6 +17,7 @@ contact times, top/bottom hitters, landings and estimated winners.
 | Initial rally boundaries | [`rallies/find_rallies.py`](rallies/find_rallies.py) |
 | Alternative contact lists for each rally | [`rallies/build_contact_proposals.py`](rallies/build_contact_proposals.py) |
 | Choosing a contact list and finishing rally bounds | [`rallies/refine_rallies.py`](rallies/refine_rallies.py) |
+| Splitting long gaps and correcting each piece | [`rallies/split_and_correct_rallies.py`](rallies/split_and_correct_rallies.py) |
 | Per-scene court geometry | [`courts/`](courts/) |
 | Excluded footage and fabricated shuttle positions | [`excluded_frames/`](excluded_frames/) |
 | Landings, point winners and contact heights | [`rally_results/`](rally_results/) |
@@ -24,7 +25,8 @@ contact times, top/bottom hitters, landings and estimated winners.
 
 `python -m annotator` runs either mode: choose `--models PATH` or
 `--heuristic-only`. `python -m annotator.training`
-fits or evaluates the three learned models. See the
+fits or evaluates the four learned models: contact, first rally selector, second
+rally selector and review. See the
 [quickstart](../../docs/annotator/quickstart.md) for input paths and commands.
 
 Manual editors are in [`labelling`](../labelling/). Video rendering is in

@@ -16,6 +16,8 @@ from typing import Any
 import joblib
 
 from annotator.contacts.build_features import contact_feature_dtype
+from annotator.contacts.score_candidates import score_contact_features
+from annotator.rallies.build_contact_proposals import build_rally_context
 from annotator.training.sequences import (
     LabelledRally,
     SequenceTrainingVideo,
@@ -26,7 +28,6 @@ from annotator.training.workflow import (
     DEFAULT_TRAINING_SETTINGS,
     TrainingSettings,
     evaluation_counts,
-    sequence_training_video,
 )
 from annotator.types import ContactEvent, ContactSequence
 from experiments.annotator.heuristic_only_tune.data import (
@@ -180,10 +181,9 @@ def require_raw_features(prepared_root: Path) -> None:
 
 def training_pool(prepared: PreparedVideo, contact: Any, settings: TrainingSettings) -> SequenceTrainingVideo:
     video = prepared.video
-    return sequence_training_video(
-        video.identity, prepared.group,
-        prepared.evidence, prepared.features, video.rallies, contact, settings.contact_prediction,
-    )
+    scored = score_contact_features(prepared.features.rows, contact, prepared.evidence.fps, settings.contact_prediction)
+    context = build_rally_context(prepared.evidence, scored)
+    return SequenceTrainingVideo(video.identity, prepared.group, context, video.rallies)
 
 
 def settings_for(device: str, min_child_weight: float, *, seed_offset: int = 0) -> TrainingSettings:

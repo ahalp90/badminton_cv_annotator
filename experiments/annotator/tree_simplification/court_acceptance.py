@@ -1,6 +1,6 @@
-"""Compare and refit the selected annotator after changing court preparation.
+"""Prepare court variants and evaluate complete annotator bundles.
 
-Prepare each court variant once, then run one evaluate or refit process per seed.
+Prepare each court variant once, then run one evaluation process per seed.
 The caller can bind each seed process to six CPU cores; spawned workers inherit
 that affinity. CPU preparation and GPU fitting run in separate phases.
 """
@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import argparse
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from dataclasses import asdict, replace
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +23,6 @@ from annotator.inference.learned import (
     predict_from_contact_features,
 )
 from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
-from annotator.training.contact import ContactFitConfig
 from experiments.annotator import development
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
@@ -48,34 +46,23 @@ from experiments.annotator.tree_simplification.hp_search_finish import (
     _models,
     _score_prediction,
     _test_summary,
-    export_bundle,
 )
 from experiments.annotator.tree_simplification.hp_search_workers import (
     Candidate,
-    cache_contact_scores,
-    contact_directory,
-    fit_contact,
-    fit_directory,
-    fit_selector,
     initialise_cpu_worker,
-    load_pools,
-    pool_directory,
-    prepare_pool,
 )
 from experiments.annotator.tree_simplification.input_stages import (
     _review_rows,
-    _training_records,
 )
 from experiments.annotator.tree_simplification.input_test import (
     EXPECTED_LEFT_OUT,
     EXPECTED_VIDEOS,
 )
-from experiments.annotator.tree_simplification.integrate import ranking_metrics
 from experiments.annotator.tree_simplification.prepare import (
     prepare_video,
-    preprocessing_from_record,
     preprocessing_record,
 )
+from experiments.annotator.tree_simplification.review_metrics import ranking_metrics
 
 CANDIDATE = Candidate(36, 63, 360, 0.9, 63, 400)
 SEEDS = (0, 100, 200, 300, 400)
@@ -224,57 +211,6 @@ def evaluate(
     _test_summary({'label': '', 'seed': seed}, test, output / 'test')
 
 
-def refit(
-    paths_file: Path, prepared_root: Path, output: Path, seed: int, workers: int, gpu_fits: int, device: str,
-) -> None:
-    paths = load_paths(paths_file)
-    videos = load_original_videos(paths['shots_master'])
-    split = development.development_for(videos)
-    training_ids = split.id_order(split.videos(development.TRAINING_GROUPS))
-    prepared = prepared_root / 'development'
-    inputs = read_json(prepared / 'preparation.json.gz')['inputs']
-    records = _training_records(prepared, inputs, split)
-    config = replace(ContactFitConfig(), max_leaf_nodes=CANDIDATE.contact_leaves, max_iter=CANDIDATE.contact_rounds,
-                     random_seed=20260824 + seed, device=device)
-    deadline = float('inf')
-    names = development.contact_fit_videos(split)
-    names.pop('final_40')
-    contacts = contact_directory(output, CANDIDATE, seed)
-    output.mkdir(parents=True, exist_ok=True)
-    write_json(output / f'seed-{seed}-settings.json.gz', {'candidate': asdict(CANDIDATE), 'seed': seed,
-               'prepared': str(prepared_root.resolve()), 'device': device, 'workers': workers, 'gpu_fits': gpu_fits})
-    with threadpool_limits(limits=2), ThreadPoolExecutor(max_workers=gpu_fits) as gpu, cpu_pool(workers) as cpu:
-        finish_jobs([gpu.submit(fit_contact, records, order, split.id_order(order), config,
-                                contacts / f'{name}.joblib', deadline) for name, order in names.items()], 'contact fits')
-        del records
-        finish_jobs([cpu.submit(cache_contact_scores, prepared / 'videos' / f'{identity}.joblib',
-                                contacts / f'held_{split.group_by_video[identity]}.joblib',
-                                contacts / 'scores' / f'{identity}.joblib', deadline)
-                     for identity in training_ids], 'contact scores')
-        directory = pool_directory(output, CANDIDATE, seed, 'train')
-        finish_jobs([cpu.submit(prepare_pool, prepared / 'videos' / f'{identity}.joblib',
-                                contacts / 'scores' / f'{identity}.joblib', CANDIDATE.cutoff,
-                                directory / f'{identity}.joblib', deadline)
-                     for identity in training_ids], 'rally proposals')
-        pools = load_pools(directory, training_ids)
-        groups = {'full': development.TRAINING_GROUPS}
-        groups.update({held: tuple(group for group in development.TRAINING_GROUPS if group != held)
-                       for held in development.TRAINING_GROUPS})
-        futures = {name: gpu.submit(fit_selector, pools, CANDIDATE, seed, selected, output, device, deadline)
-                   for name, selected in groups.items()}
-        finish_jobs(list(futures.values()), 'selector fits')
-        held_paths = {group: futures[group].result() for group in development.TRAINING_GROUPS}
-        bundle_output = output / 'models' / f'seed-{seed}'
-        bundle_output.mkdir(parents=True, exist_ok=True)
-        bundle = export_bundle(
-            contacts / 'v_32.joblib', fit_directory(output, CANDIDATE, seed) / 'fits' / 'ABCD' / 'selector.joblib',
-            held_paths, pools, preprocessing_from_record(inputs['preprocessing']), CANDIDATE.cutoff, seed,
-            bundle_output, device,
-        )
-        del pools
-        evaluate(paths_file, prepared_root, bundle, output / 'evaluation', seed, cpu, device)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -282,28 +218,21 @@ def main() -> None:
     preparation.add_argument('--evaluation-only', action='store_true')
     evaluation = commands.add_parser('evaluate')
     evaluation.add_argument('--models', type=Path, required=True, help='One fitted model bundle')
-    fitting = commands.add_parser('refit')
-    fitting.add_argument('--gpu-fits', type=int, default=3)
-    for command in (preparation, evaluation, fitting):
+    for command in (preparation, evaluation):
         command.add_argument('--paths', type=Path, required=True)
         command.add_argument('--output', type=Path, required=True)
         command.add_argument('--workers', type=int, default=6)
-    for command in (evaluation, fitting):
-        command.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
-        command.add_argument('--prepared', type=Path, required=True)
-        command.add_argument('--seed', type=int, choices=SEEDS, required=True)
+    evaluation.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
+    evaluation.add_argument('--prepared', type=Path, required=True)
+    evaluation.add_argument('--seed', type=int, choices=SEEDS, required=True)
     args = parser.parse_args()
     if args.workers < 1:
         parser.error('--workers must be positive')
     if args.command == 'prepare':
         prepare(args.paths, args.output, args.workers, args.evaluation_only)
-    elif args.command == 'evaluate':
+    else:
         with cpu_pool(args.workers) as executor:
             evaluate(args.paths, args.prepared, args.models, args.output, args.seed, executor, args.device)
-    else:
-        if not 1 <= args.gpu_fits <= 3:
-            parser.error('--gpu-fits must be between one and three')
-        refit(args.paths, args.prepared, args.output, args.seed, args.workers, args.gpu_fits, args.device)
 
 
 if __name__ == '__main__':

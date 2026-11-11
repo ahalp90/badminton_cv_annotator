@@ -1,7 +1,7 @@
 """Reconsider each split piece within its own part of the parent rally."""
 
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from annotator.contacts.score_candidates import (
 from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.rallies.build_contact_proposals import (
     RallyContext,
+    RallyOptions,
     build_rally_options,
     build_sequence_context,
 )
@@ -27,6 +28,17 @@ from annotator.types import ContactEvent, FinishedRally
 from shared.frame_timing import frames_at_fps
 
 
+@dataclass(frozen=True)
+class CorrectedRallies:
+    """Final rallies and the measured inputs reused by confidence and training."""
+
+    rallies: tuple[FinishedRally, ...]
+    events: tuple[ContactEvent, ...]
+    source_span_ids: tuple[int, ...]
+    review_features: RallyReviewFeatures
+    piece_options: RallyOptions | None
+
+
 def build_split_context(
     inputs: PreparedAnnotationInputs, contacts: ScoredContacts, prediction: RallyPrediction,
 ) -> tuple[RallyContext | None, tuple[FinishedRally, ...], tuple[ContactEvent, ...], tuple[int, ...]]:
@@ -35,7 +47,8 @@ def build_split_context(
     Return the split-piece context, all rallies, the full contact stream and
     parent IDs. Ordinary rallies have no second-pass context. A small exclusion
     margin around each midpoint keeps hits in neighbouring pieces more than the
-    nearby-contact distance apart. Temporal features remain unchanged.
+    nearby-contact distance apart. Contact features continue to use surrounding
+    frames from the full video.
     """
     rallies, events, source_span_ids = split_rallies(prediction)
     counts = Counter(source_span_ids)
@@ -74,7 +87,7 @@ def build_split_context(
 
 def split_and_correct_rallies(
     inputs: PreparedAnnotationInputs, contacts: ScoredContacts, prediction: RallyPrediction, selector: RallySelector,
-) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...], tuple[int, ...], RallyReviewFeatures]:
+) -> CorrectedRallies:
     """Correct split pieces once and measure review features for the final rallies.
 
     Ordinary rallies keep their first-pass choices and feature rows. Split pieces
@@ -84,6 +97,7 @@ def split_and_correct_rallies(
     original_features = build_review_features(prediction)
     original_rows = dict(zip(original_features.span_ids, original_features.matrix, strict=True))
     final_rows = [original_rows[source] for source in source_span_ids]
+    options = None
     if context is not None:
         options = build_rally_options(context, selector.max_edits, selector.deletion_candidates)
         corrected = predict_rally_options(selector, options)
@@ -100,4 +114,4 @@ def split_and_correct_rallies(
         events = corrected.events
     span_ids = tuple(rally.sequence.span_id for rally in rallies)
     matrix = np.asarray(final_rows, dtype=np.float64).reshape(len(span_ids), original_features.matrix.shape[1])
-    return rallies, events, source_span_ids, RallyReviewFeatures(span_ids, matrix)
+    return CorrectedRallies(rallies, events, source_span_ids, RallyReviewFeatures(span_ids, matrix), options)

@@ -2,7 +2,9 @@
 
 This history covers the earlier eight-model system. The later
 [three-model experiment](reports/tree_simplification.md) replaced its fitted
-repair stages with one rally selector and became the current implementation.
+repair stages with one rally selector. The current
+[four-model method](post_split_correction/README.md) adds a separately trained
+selector for pieces split at long hit gaps, then scores the final rallies for review.
 
 The auto-annotator grew from a set of motion and geometry rules into a system
 that detects contacts, repairs rallies and ranks the results for review. The

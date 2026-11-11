@@ -27,7 +27,7 @@ from experiments.annotator.monotrack_benchmark.benchmark_scripts.common import (
     load_manifest,
 )
 from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
-from experiments.annotator.tree_simplification.integrate import ranking_metrics
+from experiments.annotator.tree_simplification.review_metrics import ranking_metrics
 from experiments.annotator.tree_simplification.selector_review import (
     score_selector_review,
 )

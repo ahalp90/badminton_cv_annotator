@@ -1,7 +1,7 @@
 # X3D-M contact detection: validation and test results
 
 **X3D-M gets 55.58% of test rallies fully correct with forced alternation,
-compared with 60.18% for our annotator and 47.83% for MonoTrack.** Keeping the
+compared with 59.99% for our annotator and 47.83% for MonoTrack.** Keeping the
 model's raw hitter labels raises correct-player F1 from 90.48% to 96.39%, but
 reduces fully correct rallies to 53.35%. Contact F1 stays at 96.94%.
 These are five-seed means at ±10-frame tolerance.
@@ -65,7 +65,7 @@ court detections and evaluate every frame. The video models use stride 3.
 | X3D-M, forced alternation | 5 | 96.94 (96.44–97.40) | 90.48 (87.48–91.84) | 55.58 (49.20–62.46) |
 | VideoMAE, raw hitters | 2 | 95.49 (95.06–95.92) | 94.93 (94.41–95.46) | 39.22 (34.63–43.82) |
 | VideoMAE, forced alternation | 2 | 95.49 (95.06–95.92) | 84.41 (82.72–86.10) | 40.67 (36.46–44.88) |
-| Our annotator, own courts | 5 | 96.85 (96.75–96.92) | 94.63 (94.32–94.78) | 60.18 (59.06–60.96) |
+| Our annotator, own courts | 5 | 96.84 (96.75–96.94) | 94.42 (94.07–94.76) | 59.99 (58.97–61.41) |
 | MonoTrack, own courts | 5 | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
 
 ![Test comparison with raw and forced hitter labels](writeup_figures/stride3_test_comparison.png)
@@ -134,7 +134,7 @@ The completed run records are in [results/stride3_20261105/](results/stride3_202
 - [data.json.gz](results/stride3_20261105/data.json.gz) and [predictions/](results/stride3_20261105/predictions/): rally labels and saved contact predictions.
 
 Download the selected checkpoints through the [weights index](weights/README.md).
-The comparison systems use the [MonoTrack benchmark summary](../monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz).
+The comparison systems use the [MonoTrack benchmark summary](../post_split_correction/benchmark/contact_summary.json.gz).
 
 Regenerate the figures from the repository root:
 

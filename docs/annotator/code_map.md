@@ -23,10 +23,11 @@ one starting file for each task.
    constructs alternative contact lists by adding plausible missed hits or removing
    suspected false hits. [`refine_rallies.py`](../../src/annotator/rallies/refine_rallies.py)
    scores those alternatives, selects one per rally and finishes its boundaries.
-   A separate review model estimates the probability that each finished rally
-   is correct. Lower scores suggest closer review; scores do not change annotations.
-   [`split_rallies.py`](../../src/annotator/rallies/split_rallies.py) then splits
-   hit gaps over three seconds and refits player order within each piece.
+   [`split_and_correct_rallies.py`](../../src/annotator/rallies/split_and_correct_rallies.py)
+   splits hit gaps over three seconds, rebuilds the pieces' candidate shortlists,
+   and runs only those pieces through the second selector. It reuses the proposal
+   and selection code above. A separate review model scores each final rally;
+   lower scores suggest closer manual review. Scores do not change annotations.
 4. **Attribute players.**
    [`player_attribution.py`](../../src/annotator/contacts/player_attribution.py)
    measures wrist gaps and identifies individual hitters. Both inference routes
@@ -74,13 +75,15 @@ Contacts outside rallies remain in the full contact stream.
 `ScoredContacts` retains those rows, model probabilities and selected row indices.
 `RallyOptions` contains alternative contact lists and their model features.
 `RallyPrediction` retains the refinement before gap splitting.
-`LearnedModelPrediction` exposes final rallies/events and maps their review scores
-back to the original spans.
+`LearnedModelPrediction` returns final rallies, contacts and review scores in
+matching order. Its `source_span_ids` maps final pieces to their first-pass
+parents for comparisons. The first-pass proposal pool remains available in
+`refinement`.
 `VideoAnnotation` returns the finished `AnnotatorResult` and both exclusion
 masks. The dataset builder saves these masks. Pass `keep_working_data=True`
 to also retain prepared inputs and model scores for inspection.
 
-[`models.py`](../../src/annotator/models.py) loads and saves the three-model bundle.
+[`models.py`](../../src/annotator/models.py) loads and saves the four-model bundle.
 Feature construction and scoring are separate functions so training can build
 inputs without running a fitted model. The heuristic-only route does not build
 the learned contact-feature matrix.
@@ -88,8 +91,10 @@ the learned contact-feature matrix.
 ## Training, scoring and tools
 
 [`training/workflow.py`](../../src/annotator/training/workflow.py) fits and evaluates
-the current learned models. [`training/sequences.py`](../../src/annotator/training/sequences.py)
-defines their contact matching and whole-rally correctness.
+the current learned models. [`training/followup.py`](../../src/annotator/training/followup.py)
+trains the second selector and review model while keeping each reviewed group
+excluded from its prediction models. [`training/sequences.py`](../../src/annotator/training/sequences.py)
+defines contact matching and whole-rally correctness.
 
 Use [`experiments/annotator/legacy_evaluation/`](../../experiments/annotator/legacy_evaluation/)
 for the earlier three-video fixture harness, static-court preparation and

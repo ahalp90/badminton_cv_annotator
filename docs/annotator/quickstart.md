@@ -12,10 +12,11 @@ There are two common cases:
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
 The default bundle in [`runtime/deployed/annotator`](../../runtime/deployed/annotator/)
-contains three XGBoost classifiers: contact scoring, rally selection and review
-scoring. It uses learned standing-person counts and splits refined rallies at
-hit gaps longer than three seconds. See [the model settings](tree_stack.md)
-for feature sizes and tree settings.
+contains four XGBoost classifiers: contact scoring, first rally selection,
+correction of split pieces, and final review scoring. It uses standing-person
+counts and splits first-pass rallies at hit gaps longer than three seconds.
+Only split pieces go through the second rally selector. See
+[the model settings](tree_stack.md) for feature sizes and tree settings.
 
 **Contents**
 

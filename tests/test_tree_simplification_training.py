@@ -9,7 +9,6 @@ from threadpoolctl import threadpool_limits
 
 from annotator.contacts.score_candidates import positive_probabilities
 from annotator.rallies.build_contact_proposals import RallyContext
-from annotator.training import rally as production_training
 from annotator.training.sequences import (
     SequenceTrainingVideo,
 )
@@ -40,7 +39,6 @@ def training_pools(videos_per_group: int = 2) -> dict[str, LabelledOptions]:
             identity = f'train-{group}-{index}'
             pools[identity] = make_pool(identity, group)
     return pools
-
 
 
 def test_selector_fit_reuses_group_fit_and_keeps_weight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,40 +73,6 @@ def test_real_selector_uses_only_option_columns(tmp_path: Path) -> None:
         scores = positive_probabilities(model, make_pool('validation', 'A').matrix)
     assert model.n_features_in_ == 2
     assert scores.shape == (2,) and np.isfinite(scores).all()
-
-
-def test_production_selector_fits_each_held_group_once(monkeypatch: pytest.MonkeyPatch) -> None:
-    pools = {}
-    groups_by_pool = {}
-    for identity, pool in training_pools().items():
-        runtime = pool.runtime
-        groups_by_pool[id(runtime)] = pool.video.group
-        pools[identity] = production_training.RallyTrainingPool(identity, pool.video.group, runtime, pool.targets)
-    videos = [pool.video for pool in training_pools().values()]
-    fits = []
-    predictions = []
-
-    def fit(options, _targets, _config, *, span_weight):
-        assert span_weight == 2.0
-        groups = frozenset(groups_by_pool[id(pool)] for pool in options)
-        fits.append(groups)
-        return groups
-
-    def predict(model, pool):
-        group = groups_by_pool[id(pool)]
-        assert group not in model.selector
-        predictions.append(group)
-        return model
-
-    monkeypatch.setattr(production_training, 'prepare_training_pools', lambda *_args: pools)
-    monkeypatch.setattr(production_training, 'fit_selector', fit)
-    monkeypatch.setattr(production_training, 'predict_rally_options', predict)
-    result = production_training.fit_rally_models(videos, production_training.RallyFitConfig(span_weight=2.0))
-    assert fits[0] == frozenset('ABCD')
-    assert set(fits[1:]) == {frozenset('ABCD') - {group} for group in 'ABCD'}
-    assert len(fits) == 5
-    assert len(predictions) == len(videos)
-    assert set(result.held_group_predictions) == set(pools)
 
 
 @pytest.mark.parametrize('span_weight', [None, 2.5])

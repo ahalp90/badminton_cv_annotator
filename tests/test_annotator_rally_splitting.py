@@ -160,7 +160,9 @@ def test_second_pass_recovers_edge_hits_without_crossing_split_midpoint(annotato
         return np.column_stack((1 - scores, scores))
 
     selector = RallySelector(SimpleNamespace(predict_proba=prefer_more_contacts))
-    rallies, events, sources, review = split_and_correct_rallies(inputs, contacts, first, selector)
+    corrected = split_and_correct_rallies(inputs, contacts, first, selector)
+    rallies, events = corrected.rallies, corrected.events
+    sources, review = corrected.source_span_ids, corrected.review_features
     assert [[event.frame for event in rally.sequence.events] for rally in rallies] == [
         [120, 150, 180, 260], [290, 370, 400, 470],
     ]
@@ -206,7 +208,7 @@ def test_midpoint_margin_prevents_duplicate_hits_across_pieces(fps, annotator_mo
         return np.column_stack((1 - scores, scores))
 
     selector = RallySelector(SimpleNamespace(predict_proba=prefer_more_contacts))
-    rallies, _, _, _ = split_and_correct_rallies(inputs, contacts, first, selector)
+    rallies = split_and_correct_rallies(inputs, contacts, first, selector).rallies
     left_last = rallies[0].sequence.events[-1].frame
     right_first = rallies[1].sequence.events[0].frame
     assert (left_last, right_first) == (left_edge, right_edge)

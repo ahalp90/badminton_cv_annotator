@@ -1,6 +1,6 @@
 # Write-up scripts
 
-These scripts retrain and evaluate the annotator, select confidence thresholds
+Use these scripts to evaluate the annotator, select confidence thresholds
 on validation, and produce the benchmark's numbers, tables and figures.
 Scoring reads saved predictions. Retraining and inference need prepared vision
 inputs, and the galleries need frames from the source videos.
@@ -11,7 +11,6 @@ Run every command from the repository root.
 
 | Script | What it produces |
 | --- | --- |
-| [retrain_annotator.py](retrain_annotator.py) | Fits the annotator across preprocessing configurations and seeds, sharing preparation and optionally reusing contact fits and option pools. |
 | [metrics.py](metrics.py) | Contact, rally and confidence scores for every condition, rescored from the committed prediction streams and checked against each run's saved scores. Ignores the 524 rallies with flawed labels. |
 | [court_metrics.py](court_metrics.py) | Each rally's court error and IoU against ShuttleSet22's reference corners, for our per-rally, MonoTrack's and our per-scene courts. |
 | [fit_contact_40.py](fit_contact_40.py) | Refits the contact model on all 40 original ShuttleSet videos for each test bundle. First checks that refitting on 32 videos reproduces the bundle's contact model exactly. |
@@ -36,20 +35,35 @@ Run every command from the repository root.
 - Our annotator with trees on: fresh runs made by `annotator_runs.py` or
   `annotator_batch_runs.py`. Test runs sit in `test/<condition>/<models>/seed-<N>/`
   and validation runs in `validation/32_videos/seed-<N>/`. Current compact results
-  are in [`../benchmark_results/hp_search/`](../benchmark_results/hp_search/).
-- The selected test bundles:
-  `../../tree_simplification/results/hp_search/models/seed-<N>/`.
-  The contact-size comparison bundles are under
+  are in [`../../post_split_correction/benchmark/`](../../post_split_correction/benchmark/);
+  the earlier model's results are in [`../benchmark_results/hp_search/`](../benchmark_results/hp_search/).
+- The selected test bundles: `../../post_split_correction/models/seed-<N>/`.
+  The earlier model's bundles are under
+  `../../tree_simplification/results/hp_search/models/seed-<N>/`, and its
+  contact-size comparison bundles are under
   `../../tree_simplification/results/hp_search/models_40/seed-<N>/`.
 - Our annotator with trees off: `../../heuristic_only_tune/results/`.
 - ShuttleSet22 labels and reference corners: `data/shuttleset22/set/`.
 - Original ShuttleSet labels: `training/data/shuttleset/annotations/shots_master.csv`.
 
-## Fit and run the earlier baseline
+## Fit the current model
 
-Training and normal discovery use no maximum context limit. The driver fits
-both preprocessing configurations across five seeds and shares preparation
-between seeds. Parallel work is limited to 28 CPU cores.
+Use `python -m annotator.training fit` with the selected seed's
+`fit-settings.json.gz`; see [training instructions](../../../../docs/annotator/retuning.md).
+To reuse the original saved contact and first-selector fits, use the
+[shared selected-model runner](../../tree_simplification/README.md#reproduce-the-current-fit).
+Both commands use the production four-model fitter.
+
+## Reproduce the earlier baseline
+
+Run the commands in this section from a separate checkout of commit
+`2e24e551`: `git worktree add --detach BASELINE_CHECKOUT 2e24e551`, then
+`cd BASELINE_CHECKOUT`. The historical `retrain_annotator.py` driver and its
+three-model export command are available at that revision. They have been
+retired from the current code.
+
+The historical driver fits both preprocessing configurations across five seeds
+and shares preparation between seeds. Parallel work is limited to 28 CPU cores.
 
 ```bash
 PY=python
@@ -121,6 +135,12 @@ $PY $W/discovery_boundary_surveys.py --run no_max $RUNS --out SURVEYS --workers 
 $PY $W/court_metrics.py --out $OUT
 $PY $W/make_figures.py --data $OUT --confidence-data SURVEYS/no_max/2_3 --out figures
 ```
+
+For the updated published figures, use the [current benchmark data](../../post_split_correction/benchmark/)
+and its `surveys/2_3` directory. Pass the earlier `benchmark_results/hp_search/primary`
+data with `--stability-data` so Figure 10 keeps its original matched 32/40-video
+comparison. Unpack `contact_summary.json.gz` and `per_video_*.csv.gz` before
+passing these directories; keep the compressed files too.
 
 `metrics.py` reads the committed five-seed MonoTrack results by default; pass
 `--monotrack-runs` to score a new run. Court measurements and saved predictions

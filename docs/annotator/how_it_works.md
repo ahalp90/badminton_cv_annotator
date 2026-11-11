@@ -8,12 +8,15 @@ work. The [quickstart](quickstart.md) explains how to supply a video's files.
 The main path has three parts:
 
 1. Rules find playable stretches, rough rallies and possible contacts.
-2. XGBoost scores contact frames, then chooses a contact sequence for each rally.
+2. XGBoost scores contacts and chooses rally sequences. Long gaps split rallies;
+   a second selector corrects only those pieces.
 3. Rules assign court halves and estimate the server, winner, landing and hit height.
 
 A separate model gives each rally a review score. It orders manual inspection;
 it does not remove contacts or approve rallies. `heuristic_only=True` skips the
 fitted models and uses the rule-based contacts for the outcome stage.
+
+![Annotation stages from saved inputs to final rallies](figures/architecture.svg)
 
 ## Start with one shared video timeline
 
@@ -127,9 +130,9 @@ probabilities, raw court-half guesses, physical contact evidence and unused
 candidates. The selector scores these rows and chooses the highest-scoring
 proposal for each initial rally. Stable proposal order resolves equal scores.
 
-The selected model has one rally selector. Its scores and the gap between the
-top two options also inform the separate review model.
-Training and inference share the same proposal and feature builders.
+This first selector works on rough rallies. A separately trained second selector
+uses the same proposal and feature code on split pieces. Each final rally's
+selector score and the gap between its top two options inform the review model.
 
 An earlier serve can move a rally's start and absorb intervening contacts.
 Contacts originally outside all rallies survive in the full stream even if an
@@ -148,12 +151,24 @@ before the first contact or after the last. The final step can extend it to
 provide 10 frames of context at 30 FPS, where neighbouring rallies, video edges
 and contact membership allow. Supplied boundaries stay fixed.
 
-After contact refinement and review scoring, split gaps longer than three
-seconds between accepted hits. Keep the original start on the first piece and
-end on the last; an internal piece starts at its first hit and ends one frame
-after its last. Unsplit rallies keep their bounds. Camera cuts alone do not
-trigger splits. Refit player alternation separately in each piece from the
-original hitter guesses. Preserve contacts outside rallies in the full stream.
+After the first rally selector finishes, split gaps longer than three seconds
+between accepted hits. Camera cuts alone do not trigger splits. Each piece
+starts with its parent's selected contacts and the original hitter guesses.
+Keep the parent's start on the first piece and its end on the last.
+
+The second rally selector compares contact alternatives within each split piece.
+It uses the same proposal code as the first selector, with separately trained
+weights. Rebuild each shortlist from all scored candidates so previously rejected
+hits can be recovered. Keep the unchanged contact sequence as an option.
+
+Divide each gap at the midpoint and leave a small margin around that midpoint.
+The margin keeps hits chosen by neighbouring pieces farther apart than the
+nearby-contact distance (six frames at 30 fps). Candidates, expanded bounds and
+padding must stay inside the piece's permitted interval. Contact features retain
+surrounding video evidence. After selection, refit the piece's player order.
+There is one correction pass; pieces stay separate. Ordinary rallies keep their
+first-pass contacts and bounds. Preserve contacts outside rallies in the full
+stream.
 
 These bounds still affect landing search, including recovery when a court view
 returns after the last hit. Supplied bounds bypass splitting. The high-shot
@@ -191,10 +206,10 @@ Each contact contributes only when both court halves have usable distances.
 Equal or unavailable distance sums fall back to the first known guess. When no
 guess is known, all players stay unknown. These are court halves, not player identities.
 
-The review model uses evidence from the chosen proposal, selector scores and
-the refined boundaries before gap splitting. Split pieces inherit their source
-rally's review score. It retains the original side guesses when measuring agreement;
-using the enforced alternating sides would make that evidence misleading.
+The review model scores each final rally using its chosen proposal, selector
+score and final boundaries. Corrected pieces use the second selector's evidence;
+ordinary rallies use the first selector's evidence. Measure side agreement from
+the original guesses, since enforced alternation would hide uncertainty.
 
 ## Estimate outcomes and return the result
 

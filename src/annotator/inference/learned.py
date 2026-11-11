@@ -85,12 +85,16 @@ def predict_from_rally_options(
 ) -> LearnedModelPrediction:
     """Select rally contacts, correct split pieces, then score the final rallies."""
     refinement = predict_rally_options(models.rally_selector, options)
-    rallies, events, source_span_ids, review_features = split_and_correct_rallies(
+    corrected = split_and_correct_rallies(
         inputs, scored_candidates, refinement, models.followup_selector,
     )
     report("scoring rallies for review")
-    review = RallyReview(review_features, positive_probabilities(models.review_model, review_features.matrix))
-    return LearnedModelPrediction(features, scored_candidates, refinement, review, rallies, events, source_span_ids)
+    review = RallyReview(
+        corrected.review_features, positive_probabilities(models.review_model, corrected.review_features.matrix),
+    )
+    return LearnedModelPrediction(
+        features, scored_candidates, refinement, review, corrected.rallies, corrected.events, corrected.source_span_ids,
+    )
 
 
 def contact_features_from_inputs(inputs: PreparedAnnotationInputs) -> ContactFeatures:

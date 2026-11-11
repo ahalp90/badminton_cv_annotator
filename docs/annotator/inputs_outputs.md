@@ -150,9 +150,9 @@ runtime/deployed/annotator/
 
 Loading checks:
 
-- schema `annotator-three-models/6`;
+- schema `annotator-four-models/1`;
 - exact contact, rally and review feature order;
-- rally proposal budgets and the fitted review model;
+- proposal budgets for both rally selectors and the fitted review model;
 - that `models.joblib` contains an `AnnotatorModels` object.
 
 `models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact probability cutoff used with the fitted trees.

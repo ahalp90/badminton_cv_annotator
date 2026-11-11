@@ -98,8 +98,8 @@ def build_sequence_context(
 ) -> RallyContext:
     """Shortlist missed hits around explicit sequences, retaining raw hitter guesses.
 
-    Contact limits divide split parents into disjoint search windows. The feature
-    rows still describe the original whole-video evidence.
+    Piece bounds keep candidates within separate parts of the parent rally.
+    Contact features still use surrounding frames from the full video.
     """
     piece_bounds = piece_bounds if piece_bounds is not None else {}
     contacts_by_frame = {event.frame: event for event in events}
@@ -167,10 +167,10 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     previous_end = -1
     for before in context.initial:
         shortlisted = context.shortlisted_by_span.get(before.span_id, ())
-        earliest = min((before.start_frame, *(event.frame for event in shortlisted)))
+        first_candidate_frame = min((before.start_frame, *(event.frame for event in shortlisted)))
         earliest_start = before.start_frame if context.bounds_supplied else previous_end
         earliest_start, latest_end = context.piece_bounds.get(before.span_id, (earliest_start, before.end_frame))
-        first, last = np.searchsorted(stream_frames, (earliest, latest_end))
+        first, last = np.searchsorted(stream_frames, (first_candidate_frame, latest_end))
         proposals = propose_contact_additions_and_removals(
             before, shortlisted, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
             latest_end=latest_end,

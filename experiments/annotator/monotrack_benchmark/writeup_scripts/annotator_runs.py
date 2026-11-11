@@ -1,4 +1,4 @@
-"""Run the annotator's three-model bundles for the MonoTrack write-up.
+"""Run fitted annotator bundles for the MonoTrack write-up.
 
 Every run covers five seeds. Each video is one single-threaded job.
 
