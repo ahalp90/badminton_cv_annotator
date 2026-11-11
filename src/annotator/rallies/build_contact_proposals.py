@@ -36,7 +36,7 @@ class RallyContext:
     ``contact_features_by_frame`` keeps contact-feature rows for selected/shortlisted
     frames, so proposal building can release the full video feature matrix.
     ``bounds_supplied`` prevents changes to supplied rally bounds.
-    ``contact_limits`` restricts split-piece proposals and padding to disjoint
+    ``piece_bounds`` restricts split-piece proposals and padding to disjoint
     parts of their parent rally; ordinary rallies have no extra limits.
     """
 
@@ -47,7 +47,7 @@ class RallyContext:
     contact_features_by_frame: dict[int, np.ndarray]
     frame_count: int
     bounds_supplied: bool = False
-    contact_limits: dict[int, tuple[int, int]] = field(default_factory=dict)
+    piece_bounds: dict[int, tuple[int, int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -94,20 +94,21 @@ def contact_event_for_row(inputs: PreparedAnnotationInputs, contacts: ScoredCont
 def build_sequence_context(
     inputs: PreparedAnnotationInputs, contacts: ScoredContacts,
     initial: tuple[ContactSequence, ...], events: tuple[ContactEvent, ...],
-    *, contact_limits: dict[int, tuple[int, int]] | None = None,
+    *, piece_bounds: dict[int, tuple[int, int]] | None = None,
 ) -> RallyContext:
     """Shortlist missed hits around explicit sequences, retaining raw hitter guesses.
 
     Contact limits divide split parents into disjoint search windows. The feature
     rows still describe the original whole-video evidence.
     """
-    limits = contact_limits if contact_limits is not None else {}
+    piece_bounds = piece_bounds if piece_bounds is not None else {}
     contacts_by_frame = {event.frame: event for event in events}
+    # Candidate rows are sorted by frame, with exactly one row per frame.
     used_rows = set(np.searchsorted(contacts.candidates['frame'], [event.frame for event in events]))
     shortlisted_by_span = {}
     previous_end = -1
     for before in initial:
-        earliest, latest = limits.get(before.span_id, (previous_end, before.end_frame))
+        earliest, latest = piece_bounds.get(before.span_id, (previous_end, before.end_frame))
         serve_rows = shortlist_serve_rows(before, contacts, inputs.fps, previous_end=earliest)
         rows = [*serve_rows, *shortlist_later_rows(replace(before, end_frame=latest), contacts, inputs.fps)]
         used_rows.update(rows)
@@ -126,7 +127,7 @@ def build_sequence_context(
     contact_features_by_frame = {int(frame): features for frame, features in zip(selected_frames, feature_rows, strict=True)}
     return RallyContext(
         inputs.fps, initial, events, shortlisted_by_span, contact_features_by_frame,
-        frame_count=len(inputs.track), bounds_supplied=inputs.bounds_supplied, contact_limits=limits,
+        frame_count=len(inputs.track), bounds_supplied=inputs.bounds_supplied, piece_bounds=piece_bounds,
     )
 
 
@@ -168,7 +169,7 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
         shortlisted = context.shortlisted_by_span.get(before.span_id, ())
         earliest = min((before.start_frame, *(event.frame for event in shortlisted)))
         earliest_start = before.start_frame if context.bounds_supplied else previous_end
-        earliest_start, latest_end = context.contact_limits.get(before.span_id, (earliest_start, before.end_frame))
+        earliest_start, latest_end = context.piece_bounds.get(before.span_id, (earliest_start, before.end_frame))
         first, last = np.searchsorted(stream_frames, (earliest, latest_end))
         proposals = propose_contact_additions_and_removals(
             before, shortlisted, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
@@ -238,7 +239,7 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
 
 def propose_contact_additions_and_removals(
     before: ContactSequence, shortlisted: tuple[ContactEvent, ...], selected_contacts: tuple[ContactEvent, ...],
-    earliest_start: int, distance: int, max_edits: int, deletion_candidates: int, *, latest_end: int | None = None,
+    earliest_start: int, distance: int, max_edits: int, deletion_candidates: int, *, latest_end: int,
 ) -> list[ContactSequence]:
     """Try contact additions and removals; return unique lists, fewest edits first.
 
@@ -246,7 +247,6 @@ def propose_contact_additions_and_removals(
     include selected contacts newly inside the range. Added contacts must
     remain clear of other hits; deletions come from the first/weakest hits.
     """
-    latest_end = before.end_frame if latest_end is None else latest_end
     original_frames = tuple(event.frame for event in before.events)
     original_set = set(original_frames)
     additions = tuple(event for event in shortlisted

@@ -157,5 +157,5 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     expected_pool = expand_pool(training)
     assert layer_prediction.refinement.pool.sequences == expected_pool.sequences
     np.testing.assert_array_equal(layer_prediction.refinement.pool.matrix, expected_pool.matrix)
-    assert layer_prediction.review.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.refinement.sequences)
+    assert layer_prediction.review.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.sequences)
     assert len(layer_prediction.rally_confidence) == len(layer_prediction.sequences)

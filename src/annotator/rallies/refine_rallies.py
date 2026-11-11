@@ -76,7 +76,7 @@ class RallyPrediction:
 
 @dataclass(frozen=True)
 class RallyReviewFeatures:
-    """Review-model feature rows with their initial rally IDs, in matching order."""
+    """Feature rows paired with the IDs of the predicted rallies being reviewed."""
 
     span_ids: tuple[int, ...]
     matrix: np.ndarray
@@ -127,7 +127,7 @@ def finish_rallies(
     events.sort(key=lambda event: event.frame)
     if not context.bounds_supplied:
         sequences = extend_boundaries(
-            sequences, events, context.fps, frame_count=context.frame_count, contact_limits=context.contact_limits,
+            sequences, events, context.fps, frame_count=context.frame_count, piece_bounds=context.piece_bounds,
         )
     rallies = fit_rally_sides(sequences)
     fitted = {event.frame: event for rally in rallies for event in rally.sequence.events}
@@ -136,7 +136,7 @@ def finish_rallies(
 
 def extend_boundaries(
     sequences: Sequence[ContactSequence], events: Sequence[ContactEvent], fps: float,
-    *, frame_count: int, contact_limits: dict[int, tuple[int, int]] | None = None,
+    *, frame_count: int, piece_bounds: dict[int, tuple[int, int]] | None = None,
 ) -> tuple[ContactSequence, ...]:
     """Add space before the first hit and after the last, keeping the same contacts.
 
@@ -151,10 +151,11 @@ def extend_boundaries(
     :param frame_count: Video length; bounds exclude this endpoint.
     :return: Same rallies and contacts, with permitted extensions.
     """
+    piece_bounds = piece_bounds if piece_bounds is not None else {}
     padding = frames_at_fps(BOUNDARY_PADDING_AT_30_FPS, fps)
     bounds = [proposed_bounds(sequence, padding) for sequence in sequences]
     for position, sequence in enumerate(sequences):
-        earliest, latest = (contact_limits or {}).get(sequence.span_id, (0, frame_count))
+        earliest, latest = piece_bounds.get(sequence.span_id, (0, frame_count))
         bounds[position][0] = max(bounds[position][0], earliest)
         bounds[position][1] = min(bounds[position][1], latest)
         if position:

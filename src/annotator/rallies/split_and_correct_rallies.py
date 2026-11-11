@@ -5,7 +5,10 @@ from dataclasses import replace
 
 import numpy as np
 
-from annotator.contacts.score_candidates import ScoredContacts
+from annotator.contacts.score_candidates import (
+    NEARBY_CONTACT_DISTANCE_AT_30_FPS,
+    ScoredContacts,
+)
 from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.rallies.build_contact_proposals import (
     RallyContext,
@@ -21,6 +24,7 @@ from annotator.rallies.refine_rallies import (
 )
 from annotator.rallies.split_rallies import split_rallies
 from annotator.types import ContactEvent, FinishedRally
+from shared.frame_timing import frames_at_fps
 
 
 def build_split_context(
@@ -29,16 +33,19 @@ def build_split_context(
     """Split finished parents and rebuild candidate shortlists for their pieces.
 
     Return the split-piece context, all rallies, the full contact stream and
-    parent IDs. Ordinary rallies have no second-pass context. Midpoints between
-    sibling hits bound candidate membership; temporal features remain unchanged.
+    parent IDs. Ordinary rallies have no second-pass context. A small exclusion
+    margin around each midpoint keeps hits in neighbouring pieces more than the
+    nearby-contact distance apart. Temporal features remain unchanged.
     """
     rallies, events, source_span_ids = split_rallies(prediction)
     counts = Counter(source_span_ids)
     if all(count == 1 for count in counts.values()):
         return None, rallies, events, source_span_ids
 
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, inputs.fps)
+    margin = (distance + 1) // 2
     initial = []
-    limits = {}
+    piece_bounds = {}
     raw_events = {}
     originals = {}
     for source, count in counts.items():
@@ -54,18 +61,18 @@ def build_split_context(
         earliest, latest = piece.start_frame, piece.end_frame
         if position and source_span_ids[position - 1] == source:
             left_hit = rallies[position - 1].sequence.events[-1].frame
-            earliest = (left_hit + piece.events[0].frame + 1) // 2
+            earliest = (left_hit + piece.events[0].frame + 1) // 2 + margin
         if position + 1 < len(rallies) and source_span_ids[position + 1] == source:
             right_hit = rallies[position + 1].sequence.events[0].frame
-            latest = (piece.events[-1].frame + right_hit + 1) // 2
+            latest = (piece.events[-1].frame + right_hit + 1) // 2 - margin
         initial.append(piece)
-        limits[piece.span_id] = earliest, latest
+        piece_bounds[piece.span_id] = earliest, latest
     context_events = tuple(raw_events.get(event.frame, event) for event in events)
-    context = build_sequence_context(inputs, contacts, tuple(initial), context_events, contact_limits=limits)
+    context = build_sequence_context(inputs, contacts, tuple(initial), context_events, piece_bounds=piece_bounds)
     return context, rallies, events, source_span_ids
 
 
-def correct_split_rallies(
+def split_and_correct_rallies(
     inputs: PreparedAnnotationInputs, contacts: ScoredContacts, prediction: RallyPrediction, selector: RallySelector,
 ) -> tuple[tuple[FinishedRally, ...], tuple[ContactEvent, ...], tuple[int, ...], RallyReviewFeatures]:
     """Correct split pieces once and measure review features for the final rallies.

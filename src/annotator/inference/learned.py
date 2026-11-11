@@ -15,12 +15,12 @@ from annotator.rallies.build_contact_proposals import (
     build_rally_context,
     build_rally_options,
 )
-from annotator.rallies.correct_split_rallies import correct_split_rallies
 from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallyReview,
     predict_rally_options,
 )
+from annotator.rallies.split_and_correct_rallies import split_and_correct_rallies
 from annotator.types import ContactEvent, ContactSequence, FinishedRally
 from shared.progress import report
 
@@ -85,7 +85,7 @@ def predict_from_rally_options(
 ) -> LearnedModelPrediction:
     """Select rally contacts, correct split pieces, then score the final rallies."""
     refinement = predict_rally_options(models.rally_selector, options)
-    rallies, events, source_span_ids, review_features = correct_split_rallies(
+    rallies, events, source_span_ids, review_features = split_and_correct_rallies(
         inputs, scored_candidates, refinement, models.rally_selector,
     )
     report("scoring rallies for review")

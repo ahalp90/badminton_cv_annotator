@@ -160,6 +160,7 @@ def evaluate_video(
         result = _score_prediction(item, windows, prediction)
         stream = result.pop('stream')
     stream['source_span_ids'] = list(prediction.source_span_ids)
+    stream['first_pass_sequences'] = stream_payload(prediction.refinement.sequences, prediction.refinement.events)['sequences']
     write_json(output / 'streams' / f'{identity}.json.gz', stream)
     write_json(destination, result)
     return identity

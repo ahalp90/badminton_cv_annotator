@@ -10,22 +10,25 @@ from annotator.contacts.build_features import (
     CONTACT_FEATURE_NAMES,
     contact_feature_dtype,
 )
-from annotator.contacts.score_candidates import ScoredContacts
+from annotator.contacts.score_candidates import (
+    NEARBY_CONTACT_DISTANCE_AT_30_FPS,
+    ScoredContacts,
+)
 from annotator.inference.learned import predict_from_rally_options
 from annotator.rallies.build_contact_proposals import (
     FEATURE_NAMES,
     RallyContext,
     build_rally_options,
 )
-from annotator.rallies.correct_split_rallies import (
-    build_split_context,
-    correct_split_rallies,
-)
 from annotator.rallies.refine_rallies import (
     REVIEW_FEATURE_NAMES,
     RallySelector,
     predict_rally_options,
     score_rally_review,
+)
+from annotator.rallies.split_and_correct_rallies import (
+    build_split_context,
+    split_and_correct_rallies,
 )
 from annotator.rallies.split_rallies import split_rallies
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
@@ -142,12 +145,12 @@ def test_second_pass_recovers_edge_hits_without_crossing_split_midpoint(annotato
     inputs, contacts = evidence_and_contacts(pool, additions=(90, 180, 260, 290, 370, 510))
     first = predict_rally_options(annotator_models.rally_selector, pool)
     context, _, _, _ = build_split_context(inputs, contacts, first)
-    assert context.contact_limits == {0: (100, 275), 1: (275, 500)}
+    assert context.piece_bounds == {0: (100, 272), 1: (278, 500)}
     assert [event.frame for event in context.shortlisted_by_span[0]] == [180, 260]
     assert [event.frame for event in context.shortlisted_by_span[1]] == [290, 370]
     proposals = build_rally_options(context)
     for sequence in proposals.sequences:
-        earliest, latest = context.contact_limits[sequence.span_id]
+        earliest, latest = context.piece_bounds[sequence.span_id]
         assert all(earliest <= event.frame < latest for event in sequence.events)
     for piece in context.initial:
         assert piece in proposals.sequences
@@ -157,7 +160,7 @@ def test_second_pass_recovers_edge_hits_without_crossing_split_midpoint(annotato
         return np.column_stack((1 - scores, scores))
 
     selector = RallySelector(SimpleNamespace(predict_proba=prefer_more_contacts))
-    rallies, events, sources, review = correct_split_rallies(inputs, contacts, first, selector)
+    rallies, events, sources, review = split_and_correct_rallies(inputs, contacts, first, selector)
     assert [[event.frame for event in rally.sequence.events] for rally in rallies] == [
         [120, 150, 180, 260], [290, 370, 400, 470],
     ]
@@ -185,3 +188,26 @@ def test_correction_preserves_ordinary_rally_beside_split_parent(annotator_model
     assert prediction.events[-2:] == first.events[-2:]
     np.testing.assert_array_equal(prediction.review.features.matrix[-1], before_review.features.matrix[-1])
     assert prediction.rally_confidence[-1] == before_review.scores[-1]
+
+
+@pytest.mark.parametrize('fps', [25.0, 30.0, 60.0])
+def test_midpoint_margin_prevents_duplicate_hits_across_pieces(fps, annotator_models):
+    pool = options(fps)
+    parent_hits = pool.context.initial[0].events
+    midpoint = (parent_hits[1].frame + parent_hits[2].frame + 1) // 2
+    distance = frames_at_fps(NEARBY_CONTACT_DISTANCE_AT_30_FPS, fps)
+    margin = (distance + 1) // 2
+    left_edge, right_edge = midpoint - margin - 1, midpoint + margin
+    inputs, contacts = evidence_and_contacts(pool, (left_edge, midpoint - 1, midpoint + 1, right_edge))
+    first = predict_rally_options(annotator_models.rally_selector, pool)
+
+    def prefer_more_contacts(matrix):
+        scores = matrix[:, FEATURE_NAMES.index('after__predicted_event_count')] / 10
+        return np.column_stack((1 - scores, scores))
+
+    selector = RallySelector(SimpleNamespace(predict_proba=prefer_more_contacts))
+    rallies, _, _, _ = split_and_correct_rallies(inputs, contacts, first, selector)
+    left_last = rallies[0].sequence.events[-1].frame
+    right_first = rallies[1].sequence.events[0].frame
+    assert (left_last, right_first) == (left_edge, right_edge)
+    assert right_first - left_last > distance
