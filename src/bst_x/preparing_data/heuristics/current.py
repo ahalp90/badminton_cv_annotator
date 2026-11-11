@@ -38,8 +38,8 @@ import numpy as np
 from pipeline.config import COCO_N_JOINTS
 
 from shared.player_tracking import (
-    DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
+    STANDING_COUNT_MARGIN,
     count_standing_in_court,
     is_sitting,
 )
@@ -90,7 +90,7 @@ def apply(raw: RawClip, ctx: ClipContext, **_hyperparams) -> HeuristicOutput:
         # overcount is the D26 doubles head count at margin 0.05, sitting-exempt,
         # recorded before the exactly-two gate where the over-count evidence lives.
         sitting = is_sitting(keypoints, SITTING_THRESHOLD)
-        overcount[f] = count_standing_in_court(pos_normalized, sitting, DOUBLES_COUNT_MARGIN) > 2
+        overcount[f] = count_standing_in_court(pos_normalized, sitting, STANDING_COUNT_MARGIN) > 2
 
         if len(in_court_pid) != 2:
             failed[f] = True

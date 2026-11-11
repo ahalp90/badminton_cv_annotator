@@ -25,14 +25,17 @@ import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.contacts.score_candidates import ContactModelConfig
-from annotator.inference.learned import predict_from_contact_features
+from annotator.inference.learned import (
+    LearnedModelPrediction,
+    predict_from_contact_features,
+)
 from annotator.models import (
     AnnotatorModels,
     fitted_trees,
     load_models,
     save_models,
 )
-from annotator.rallies.refine_rallies import RallyPrediction, RallySelector
+from annotator.rallies.refine_rallies import RallySelector
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import (
     whole_rally_correctness,
@@ -223,25 +226,22 @@ def _export_inputs(
 def _review_rows(
     video: Any,
     identity: str,
-    prediction: Any,
+    prediction: LearnedModelPrediction,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    rally_prediction = prediction.rally_prediction
-    if not isinstance(rally_prediction, RallyPrediction):
-        raise TypeError('Raw export requires a rally-layer prediction')
-    selector = score_selector_review(rally_prediction)
+    selector = score_selector_review(prediction.refinement)
     rankings: dict[str, Any] = {}
     rows: list[dict[str, Any]] = []
-    by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
+    sequences = prediction.sequences
+    span_ids = tuple(sequence.span_id for sequence in sequences)
     for tolerance in (5, 10):
-        for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
-            labels = np.asarray([
-                whole_rally_correctness(
-                    by_span[span], video.rallies, video.fps, tolerance_at_30_fps=tolerance,
-                )
-                for span in confidence.features.span_ids
-            ], dtype=np.int8)
-            rankings[f'{name}-{tolerance}'] = integrate.ranking_metrics(labels, confidence.scores)
-            for span, label, score in zip(confidence.features.span_ids, labels, confidence.scores, strict=True):
+        labels = np.asarray([
+            whole_rally_correctness(sequence, video.rallies, video.fps, tolerance_at_30_fps=tolerance)
+            for sequence in sequences
+        ], dtype=np.int8)
+        for name, confidence in (('selector', selector), ('fitted', prediction.review)):
+            scores = np.asarray(prediction.scores_for_rallies(confidence))
+            rankings[f'{name}-{tolerance}'] = integrate.ranking_metrics(labels, scores)
+            for span, label, score in zip(span_ids, labels, scores, strict=True):
                 rows.append({
                     'video': identity,
                     'span': span,
@@ -313,15 +313,12 @@ def export_run(
             if video.split != 'validation' or prepared.group != inputs['groups'][identity]:
                 raise ValueError(f'{identity}: replay split or group differs from preparation')
             prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
-            rally_prediction = prediction.rally_prediction
-            if not isinstance(rally_prediction, RallyPrediction):
-                raise TypeError('Raw export requires a rally-layer prediction')
-            stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
-            confidence = dict(zip(prediction.rally_review.features.span_ids, map(float, prediction.rally_review.scores),
-                                  strict=True))
+            stream = stream_payload(prediction.sequences, prediction.events)
             write_json(output / 'streams' / f'{identity}.json.gz', stream | {
-                'confidence': {str(sequence.span_id): confidence[sequence.span_id]
-                               for sequence in rally_prediction.sequences},
+                'confidence': {
+                    str(sequence.span_id): score
+                    for sequence, score in zip(prediction.sequences, prediction.rally_confidence, strict=True)
+                },
             })
             per_video[identity] = score_stream(video, stream)
             review_per_video[identity], video_rows = _review_rows(

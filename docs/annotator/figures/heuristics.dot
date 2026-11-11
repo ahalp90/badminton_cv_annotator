@@ -11,7 +11,7 @@ digraph heuristics {
   spans [label="Rough rally spans\nrest · fast burst · long rest · gap guards"];
   impulse [label="Impulse heuristic\nchange in shuttle velocity\nrelative to local impulse floor"];
   seeds [label="Broader search regions\nraw/relaxed impulse · wrist minimum · visibility change\nrally/scene start · serve look-back"];
-  tree [label="Contact tree\n85 features per searched frame"];
+  tree [label="Contact tree\n90 features per searched frame"];
 
   inputs -> guards;
   inputs -> sticky;

@@ -93,7 +93,7 @@ def run_item(
             prediction = annotation.working_data.learned_model_prediction
             if prediction is None:
                 raise ValueError('Annotator did not return its final contact stream')
-            record['stream'] = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
+            record['stream'] = stream_payload(prediction.sequences, prediction.events)
         else:
             from experiments.annotator.heuristic_only_tune.data import heuristic_stream
 

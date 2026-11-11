@@ -19,15 +19,16 @@ from threadpoolctl import threadpool_limits
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
 from annotator.contacts.score_candidates import ContactModelConfig
 from annotator.inference.learned import (
+    LearnedModelPrediction,
     contact_features_from_inputs,
     predict_from_contact_features,
+    predict_from_rally_options,
 )
 from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
 from annotator.models import AnnotatorModels, fitted_trees, load_models, save_models
 from annotator.rallies.refine_rallies import (
     RallySelector,
     predict_rally_options,
-    score_rally_review,
 )
 from annotator.training.rally import fit_rally_review_model
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
@@ -105,12 +106,15 @@ def _models(path: str) -> AnnotatorModels:
     return models
 
 
-def _score_prediction(item: dict[str, Any], windows: list[tuple[int, int]], prediction: Any) -> dict[str, Any]:
-    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
-    reviews = {'selector': score_selector_review(prediction.rally_prediction), 'fitted': prediction.rally_review}
+def _score_prediction(
+    item: dict[str, Any], windows: list[tuple[int, int]], prediction: LearnedModelPrediction,
+) -> dict[str, Any]:
+    stream = stream_payload(prediction.sequences, prediction.events)
+    reviews = {'selector': score_selector_review(prediction.refinement), 'fitted': prediction.review}
     scores = {}
+    span_ids = tuple(sequence.span_id for sequence in prediction.sequences)
     for name, review in reviews.items():
-        scores[name] = dict(zip(review.features.span_ids, review.scores.tolist(), strict=True))
+        scores[name] = dict(zip(span_ids, prediction.scores_for_rallies(review), strict=True))
     counts, judgements, review_rows = {}, {}, []
     for tolerance in TOLERANCES:
         key = str(tolerance)
@@ -168,9 +172,8 @@ def _test_video(
                 predictions[pool_key] = prediction
             else:
                 first = predictions[pool_key]
-                rallies = predict_rally_options(models.rally_selector, first.rally_prediction.pool)
-                prediction = replace(
-                    first, rally_prediction=rallies, rally_review=score_rally_review(rallies, models.review_model),
+                prediction = predict_from_rally_options(
+                    features, first.scored_candidates, first.refinement.pool, models,
                 )
             result = _score_prediction(item, windows, prediction)
             stream = result.pop('stream')

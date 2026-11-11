@@ -35,8 +35,10 @@ most individual player guesses. Break ties with the lower summed wrist distance
 in player-height units, using only contacts with evidence for both court halves.
 Equal or unavailable sums follow the first known guess. Keep all players unknown
 when no guess is known. Training targets judge this same final player order. Review features use the raw
-individual side guesses to measure agreement. They use final boundaries only
-for the boundary summary.
+individual side guesses to measure agreement. They use the refined boundaries before gap splitting for the boundary summary.
+Final inference splits hit gaps over three seconds and refits each piece from
+raw hitter evidence. Keep outer bounds and all selected contacts. Supplied bounds
+bypass this step. Review scores remain those of the original unsplit rallies.
 
 Contact sampling order and fit-row order are separate. Preserve both, together
 with seeds, target policies and the configured total weight per judged rally
@@ -70,7 +72,7 @@ presence and shuttle speed; court composition remains a separate preparation too
 Frame counts use `frames_at_fps()` with half-up rounding, and per-frame speeds use
 `speed_at_fps()` with inverse FPS scaling.
 
-Newly fitted model bundles use `annotator-three-models/5`. Saved preprocessing has
+Newly fitted model bundles use `annotator-three-models/6`. Saved preprocessing has
 one numeric override mapping, `overrides_base30`. `scale_config_to_fps()` in
 `config.py` converts it into one `Thresholds` value for the video's frame rate.
 The loader checks feature order and proposal settings. Player attribution uses

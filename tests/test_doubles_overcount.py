@@ -1,7 +1,7 @@
 """Tests for the additive doubles over-count signal in the pose lane.
 
 The head count is the D26 semantics: standing detections within
-``DOUBLES_COUNT_MARGIN`` of the court on both axes, seated candidates exempt. It
+``STANDING_COUNT_MARGIN`` of the court on both axes, seated candidates exempt. It
 is a separate signal from the two-player pick, which still keys on the eps-0.01
 in-court count (detect path) or the anchor picks (sticky_anchor).
 
@@ -27,8 +27,8 @@ from preparing_data.heuristics.sticky_anchor import _run_clip
 from preparing_data.prepare_train_on_shuttleset import _order_two_on_court
 
 from shared.player_tracking import (
-    DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
+    STANDING_COUNT_MARGIN,
     StickyAnchorParams,
     count_standing_in_court,
     is_sitting,
@@ -352,5 +352,5 @@ def test_count_standing_in_court_mixes_margin_and_sitting():
     ]).astype(np.float64)
 
     sitting = is_sitting(keypoints, SITTING_THRESHOLD)
-    n = count_standing_in_court(pos, sitting, DOUBLES_COUNT_MARGIN)
+    n = count_standing_in_court(pos, sitting, STANDING_COUNT_MARGIN)
     assert n == 2

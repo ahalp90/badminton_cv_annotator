@@ -71,7 +71,8 @@ def _mk_pose_arrays(
 def _sticky(n_frames: int, *, picks: np.ndarray, heights: np.ndarray, distances: np.ndarray) -> tuple[TrackedPlayers, WristGaps]:
     collapsed = np.min(np.where(np.isfinite(distances), distances, np.inf), axis=1)
     collapsed[np.isposinf(collapsed)] = np.nan
-    return (TrackedPlayers(picks, np.full((n_frames, 2, 2), np.nan), heights), WristGaps(collapsed, distances))
+    players = TrackedPlayers(picks, np.full((n_frames, 2, 2), np.nan), heights, np.full(n_frames, np.nan))
+    return players, WristGaps(collapsed, distances)
 
 
 # ---------------------------------------------------------------------------

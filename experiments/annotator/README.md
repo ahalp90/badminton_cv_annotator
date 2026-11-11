@@ -36,14 +36,13 @@ one rally selector compares possible contact sequences for each rally. A separat
 finished rallies for review. The normal annotation and retraining commands live
 in `src/annotator`; the code here runs experiments around that implementation.
 
-The default is the **raw-baseline XGBoost bundle, seed 0**, in
-[the committed model directory](tree_simplification/results/hp_search/models/seed-0/).
-The selected bundle uses 5-second / 5-second training allowances and the original
-2-second / 3-second discovery finishing rule. It uses a contact classifier, one rally selector and a review
-ranker. The [reproduction guide](tree_simplification/README.md) covers the fixed split and
-five seeded fits. The former eight-model bundles are historical records; the
-current annotator no longer loads or fits them. Heuristic-only annotation remains
-available.
+The default [deployed bundle](../../runtime/deployed/annotator/) uses raw
+standing-person counts and splits refined rallies at hit gaps longer than three
+seconds. See [current model settings](../../docs/annotator/tree_stack.md) for
+feature sizes, training settings and review scoring. The
+[reproduction guide](tree_simplification/README.md) describes the fixed split and
+seeded fits. Heuristic-only annotation remains available through the same entry
+point with `heuristic_only=True`.
 
 Three substantial problems remain:
 

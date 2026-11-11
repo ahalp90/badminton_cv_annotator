@@ -25,6 +25,8 @@ one starting file for each task.
    scores those alternatives, selects one per rally and finishes its boundaries.
    A separate review model estimates the probability that each finished rally
    is correct. Lower scores suggest closer review; scores do not change annotations.
+   [`split_rallies.py`](../../src/annotator/rallies/split_rallies.py) then splits
+   hit gaps over three seconds and refits player order within each piece.
 4. **Attribute players.**
    [`player_attribution.py`](../../src/annotator/contacts/player_attribution.py)
    measures wrist gaps and identifies individual hitters. Both inference routes
@@ -46,7 +48,8 @@ Player selection and running-position updates are shared with BST-X in
 `track_sticky_players` in
 [`annotator/player_tracking.py`](../../src/annotator/player_tracking.py) collects
 the selected detections, ankle positions and box heights for available court
-intervals. Contact attribution then measures separate `WristGaps`. Dataset
+intervals, plus standing-person counts wherever court geometry is available.
+Contact attribution then measures separate `WristGaps`. Dataset
 player features need only the `TrackedPlayers` result.
 
 Court preparation and frame lookup answer different questions:
@@ -70,7 +73,9 @@ Contacts outside rallies remain in the full contact stream.
 `ContactFeatures` contains measured candidate rows and their search intervals.
 `ScoredContacts` retains those rows, model probabilities and selected row indices.
 `RallyOptions` contains alternative contact lists and their model features.
-`RallyPrediction` retains the selected rallies and their scores.
+`RallyPrediction` retains the refinement before gap splitting.
+`LearnedModelPrediction` exposes final rallies/events and maps their review scores
+back to the original spans.
 `VideoAnnotation` returns the finished `AnnotatorResult` and both exclusion
 masks. The dataset builder saves these masks. Pass `keep_working_data=True`
 to also retain prepared inputs and model scores for inspection.

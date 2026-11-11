@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from sklearn.dummy import DummyClassifier
 
+from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
 from annotator.models import (
     DEFAULT_MODEL_DIRECTORY,
     AnnotatorModels,
@@ -47,14 +48,15 @@ def test_previous_schema_requires_matching_historical_checkout():
 
 
 def test_bundle_roundtrip_keeps_predictions_and_preprocessing(tmp_path):
-    tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 1, 1])
+    matrix = np.zeros((3, len(CONTACT_FEATURE_NAMES)))
+    tree = DummyClassifier(strategy='prior').fit(matrix, [0, 1, 1])
     models = AnnotatorModels(
         tree, RallySelector(tree), tree,
     )
     save_models(models, tmp_path)
     restored = load_models(tmp_path)
     assert restored.preprocessing == models.preprocessing
-    np.testing.assert_array_equal(restored.contact_model.predict_proba([[0] * 85]), tree.predict_proba([[0] * 85]))
+    np.testing.assert_array_equal(restored.contact_model.predict_proba(matrix), tree.predict_proba(matrix))
 
 
 def test_missing_bundle_explains_retune_requirement(tmp_path):

@@ -68,8 +68,8 @@ from classifier_shared.taxonomy import (
 # heuristics (current.py, sticky_anchor.py) keep their existing import path.
 from shared.court import build_all_court_info, check_pos_in_court
 from shared.player_tracking import (
-    DOUBLES_COUNT_MARGIN,
     SITTING_THRESHOLD,
+    STANDING_COUNT_MARGIN,
     count_standing_in_court,
     is_sitting,
 )
@@ -141,7 +141,7 @@ def _order_two_on_court(
     :return: ``(result, n_counted)``. ``result`` is ``(in_court_pid, pos_normalized)``
         on success (exactly 2 on court, ordered Top-before-Bottom), or ``None`` on
         either failure path. ``n_counted`` is the doubles-guard head count: standing
-        detections within ``DOUBLES_COUNT_MARGIN`` of the court, where ``> 2`` is
+        detections within ``STANDING_COUNT_MARGIN`` of the court, where ``> 2`` is
         doubles evidence. That is a separate signal from the pick gate, which still
         keys on ``check_pos_in_court``'s eps-0.01 in-court count being exactly two.
         ``pos_normalized`` is the full ``(m, 2)`` array, not the 2-row slice -- the
@@ -161,10 +161,10 @@ def _order_two_on_court(
     in_court_pid = np.nonzero(in_court)[0]
     # Head count and pick gate are deliberately separate signals: the gate keys on
     # the eps-0.01 in-court count being exactly two (pick logic untouched), while
-    # n_counted is the wider DOUBLES_COUNT_MARGIN, sitting-exempt count the caller
+    # n_counted is the wider STANDING_COUNT_MARGIN, sitting-exempt count the caller
     # reads doubles evidence (> 2) off (D26).
     sitting = is_sitting(keypoints_2d, SITTING_THRESHOLD)
-    n_counted = count_standing_in_court(pos_normalized, sitting, DOUBLES_COUNT_MARGIN)
+    n_counted = count_standing_in_court(pos_normalized, sitting, STANDING_COUNT_MARGIN)
     if len(in_court_pid) != 2:
         return None, n_counted
     # Make sure Top player before Bottom player (comparing y-dim).

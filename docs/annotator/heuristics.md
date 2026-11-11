@@ -194,7 +194,7 @@ Relevant code: `contacts/build_features.py`.
 
 ## What reaches the contact tree
 
-For every searched frame, the contact model receives 17 signals at five time offsets. At 30 FPS those offsets are `-10`, `-5`, `0`, `+5` and `+10` frames.
+For every searched frame, the contact model receives 18 signals at five time offsets. At 30 FPS those offsets are `-10`, `-5`, `0`, `+5` and `+10` frames.
 
 The signals are:
 
@@ -206,9 +206,10 @@ The signals are:
 - ankle speed on each court half;
 - shuttle visibility;
 - player-pose validity on each court half;
-- wrist-measurement validity on each court half.
+- wrist-measurement validity on each court half;
+- standing-person count within the court plus a 5% margin.
 
-That produces 85 fitted input columns. Missing physical measurements remain `NaN`; explicit validity features tell the model what was unavailable.
+That produces 90 fitted input columns. Missing physical measurements remain `NaN`; explicit validity features tell the model what was unavailable.
 
 The next layer is described in [How the trees work together](tree_stack.md).
 

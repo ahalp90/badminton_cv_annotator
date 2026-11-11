@@ -4,7 +4,7 @@ digraph tree_stack {
   node [shape=box, style="rounded,filled", fillcolor="white", color="black", fontcolor="black", fontname="Helvetica", fontsize=10.5, margin="0.12,0.08"];
   edge [color="black", fontcolor="black", fontname="Helvetica", fontsize=9];
 
-  candidates [label="Candidate frames nominated by the priors\n85 physical/validity features each"];
+  candidates [label="Candidate frames nominated by the priors\n90 physical/validity features each"];
   contact [label="1. Contact tree\nscore every candidate frame"];
   initial [label="Initial contacts\nscore ≥ 0.9 + nearby suppression"];
   pool [label="All scored candidates\nincluding lower-scoring rows"];
@@ -14,6 +14,8 @@ digraph tree_stack {
   finish [label="Finish selected rallies\nboundary widening · Top/Bot alternation"];
   review [label="3. Review tree\nreview priority; does not edit annotations"];
 
+  split [label="Split hit gaps over 3 seconds\nkeep outer bounds · refit player order\ninherit source review score"];
+
   candidates -> contact;
   contact -> initial;
   contact -> pool;
@@ -21,7 +23,7 @@ digraph tree_stack {
   pool -> shortlist;
   initial -> options;
   shortlist -> options;
-  options -> selector -> finish -> review;
+  options -> selector -> finish -> review -> split;
   options -> review [label="selected-option evidence"];
   selector -> review [label="score + margin"];
 }

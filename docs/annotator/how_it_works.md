@@ -66,10 +66,16 @@ See [Fixed heuristics](heuristics.md) for the individual rules and research cont
 The contact search includes impulse peaks, wrist-distance minima, visibility
 changes, rough rally starts, scene starts and a serve look-back window.
 [`contacts/build_features.py`](../../src/annotator/contacts/build_features.py) measures
-85 values per candidate frame: 17 shuttle/player signals at five time offsets.
+90 values per candidate frame: 18 shuttle/player/count signals at five time offsets.
 It applies the search-region priors once and returns only candidate rows. Both
 training and inference use those rows directly. Time offsets still refer to the
 full video timeline, including frames outside the candidate set.
+
+The standing-person count includes all qualifying detections within the court
+plus a 5% margin, including people not selected as either tracked player.
+Seated poses and detection scores at or below 0.2 are excluded. Counts cover
+every frame with court geometry. Missing geometry is NaN; a known court with
+no standing detections is zero. The model learns how to use this count.
 
 [`contacts/score_candidates.py`](../../src/annotator/contacts/score_candidates.py) scores candidates
 with the contact classifier. Candidates compete by probability and temporal
@@ -104,14 +110,7 @@ evaluation tolerance is a separate allowance.
 
 Ground truth does not force a frame into the candidate set. A labelled contact
 with no eligible candidate within ±1 frame contributes no positive example.
-In the selected model's 32 training videos, **26,893 of 27,571 labelled contacts
-(97.5%)** have at least one positive candidate frame, providing **80,651 positive
-frame examples**. The remaining 678 contacts fall outside the feature search
-intervals by more than that radius. The candidate-region rules excluded no
-additional labelled contacts within those intervals.
-
-The [saved coverage counts and measurement command](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md#contact-training-coverage)
-give the per-video breakdown. The training implementation is in
+The sampling implementation is in
 [`training/contact.py`](../../src/annotator/training/contact.py).
 
 ## Choose a contact sequence for each rally
@@ -149,6 +148,17 @@ before the first contact or after the last. The final step can extend it to
 provide 10 frames of context at 30 FPS, where neighbouring rallies, video edges
 and contact membership allow. Supplied boundaries stay fixed.
 
+After contact refinement and review scoring, split gaps longer than three
+seconds between accepted hits. Keep the original start on the first piece and
+end on the last; an internal piece starts at its first hit and ends one frame
+after its last. Unsplit rallies keep their bounds. Camera cuts alone do not
+trigger splits. Refit player alternation separately in each piece from the
+original hitter guesses. Preserve contacts outside rallies in the full stream.
+
+These bounds still affect landing search, including recovery when a court view
+returns after the last hit. Supplied bounds bypass splitting. The high-shot
+tracking-loss allowance is a separate preprocessing setting, currently 2.5 seconds.
+
 The window still matters. Inside it, the selector's chosen contacts are the
 rally's accepted contacts; rejected candidates stay rejected. Detector contacts
 outside every chosen window remain in the full contact stream.
@@ -180,7 +190,8 @@ Equal or unavailable distance sums fall back to the first known guess. When no
 guess is known, all players stay unknown. These are court halves, not player identities.
 
 The review model uses evidence from the chosen proposal, selector scores and
-final boundaries. It retains the original side guesses when measuring agreement;
+the refined boundaries before gap splitting. Split pieces inherit their source
+rally's review score. It retains the original side guesses when measuring agreement;
 using the enforced alternating sides would make that evidence misleading.
 
 ## Estimate outcomes and return the result

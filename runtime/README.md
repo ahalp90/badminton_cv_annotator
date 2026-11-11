@@ -1,7 +1,7 @@
 # `runtime/`
 
-This directory retains the non-API runtime files used by BRIC tooling and
-classifier comparisons.
+Use this directory for deployed annotator and classifier bundles and optional
+perception weights.
 
 ## `checkpoints/`
 
@@ -26,3 +26,10 @@ including `scripts/plots/bar_chart_overall_shuttleset_comparison.py`.
 The retired web API's upload, job, clip and database directories are no longer
 part of this tree. Its former deployment instructions are preserved in
 `docs/archive/runtime_api_deployment.md`.
+
+## `deployed/annotator/`
+
+The default three-model annotator bundle is saved here in the normal model
+format. Its contact model uses standing-person counts. See
+[annotator model settings](../docs/annotator/tree_stack.md) for training and
+inference behaviour.

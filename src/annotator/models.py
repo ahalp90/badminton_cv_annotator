@@ -17,12 +17,12 @@ from annotator.contacts.score_candidates import (
 from annotator.rallies.build_contact_proposals import FEATURE_NAMES
 from annotator.rallies.refine_rallies import REVIEW_FEATURE_NAMES, RallySelector
 
-MODEL_SCHEMA = 'annotator-three-models/5'
+MODEL_SCHEMA = 'annotator-three-models/6'
 MODEL_FILENAME = 'models.joblib'
 METADATA_FILENAME = 'metadata.json'
 DEFAULT_MODEL_DIRECTORY = (
     Path(__file__).resolve().parents[2]
-    / 'experiments/annotator/tree_simplification/results/hp_search/models/seed-0'
+    / 'runtime/deployed/annotator'
 )
 
 

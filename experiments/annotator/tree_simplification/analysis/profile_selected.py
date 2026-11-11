@@ -61,7 +61,7 @@ def main() -> None:
     profiler = cProfile.Profile()
     with threadpool_limits(limits=THREADS):
         prediction = profiler.runcall(predict_from_contact_features, prepared.evidence, prepared.features, models)
-    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
+    stream = stream_payload(prediction.sequences, prediction.events)
     if stream != read_json(saved_stream):
         raise ValueError(f'The profiled run predicted a different stream from {saved_stream}')
 

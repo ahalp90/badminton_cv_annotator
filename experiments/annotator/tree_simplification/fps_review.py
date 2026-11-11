@@ -18,7 +18,6 @@ from annotator.contacts.score_candidates import ContactModelConfig
 from annotator.inference.learned import predict_from_contact_features
 from annotator.models import AnnotatorModels, fitted_trees
 from annotator.rallies.refine_rallies import RallySelector
-from annotator.training.sequences import whole_rally_correctness
 from experiments.annotator import development as experiment
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.development import pooled_scores
@@ -28,9 +27,7 @@ from experiments.annotator.tree_simplification import integrate
 from experiments.annotator.tree_simplification.fps_normalisation import (
     preparation_receipt,
 )
-from experiments.annotator.tree_simplification.selector_review import (
-    score_selector_review,
-)
+from experiments.annotator.tree_simplification.input_stages import _review_rows
 
 
 def evaluate(run: Path, targets: Path, output: Path) -> None:
@@ -72,25 +69,11 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
         if prepared.video.split != 'validation':
             raise ValueError('Replay video is not validation')
         prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
-        rally_prediction = prediction.rally_prediction
-        stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
+        stream = stream_payload(prediction.sequences, prediction.events)
         experiment.write_json(output / 'streams' / f'{identity}.json.gz', stream)
         per_video[identity] = score_stream(prepared.video, stream)
-        selector = score_selector_review(rally_prediction)
-        rankings[identity] = {}
-        by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
-        for tolerance in (5, 10):
-            for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
-                labels = np.asarray([
-                    whole_rally_correctness(
-                        by_span[span], prepared.video.rallies, prepared.video.fps, tolerance_at_30_fps=tolerance,
-                    )
-                    for span in confidence.features.span_ids
-                ], dtype=np.int8)
-                rankings[identity][f'{name}-{tolerance}'] = integrate.ranking_metrics(labels, confidence.scores)
-                for span, label, score in zip(confidence.features.span_ids, labels, confidence.scores, strict=True):
-                    rows.append({'video': identity, 'span': span, 'tolerance': tolerance,
-                                 'ranking': name, 'correct': int(label), 'score': float(score)})
+        rankings[identity], video_rows = _review_rows(prepared.video, identity, prediction)
+        rows.extend(video_rows)
         experiment.progress(output, 'validation', video=identity, complete=len(per_video), planned=8)
     if len(per_video) != 8:
         raise ValueError('Replay requires the eight validation videos')

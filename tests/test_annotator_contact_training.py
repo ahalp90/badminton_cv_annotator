@@ -85,7 +85,7 @@ def test_small_fit_scores_only_supplied_training_video() -> None:
         scored = score_contact_features(validation.features, fitted.model, validation.fps)
     assert fitted.selection.video_counts.keys() == {'train'}
     assert set(fitted.selection.rows['fixture']) == {b'train'}
-    assert fitted.model.n_features_in_ == 85
+    assert fitted.model.n_features_in_ == len(CONTACT_FEATURE_NAMES)
     assert len(scored.probabilities) > 0
     assert np.isfinite(scored.probabilities).all()
     assert np.all((scored.probabilities >= 0) & (scored.probabilities <= 1))

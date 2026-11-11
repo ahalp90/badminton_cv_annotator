@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from annotator.config import BaseAnnotatorConfig
+from annotator.inference.learned import LearnedModelPrediction
 from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallyReview,
@@ -18,7 +19,7 @@ from annotator.rallies.refine_rallies import (
 )
 from annotator.training.contact import ContactTrainingVideo
 from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
-from annotator.types import SmoothingMode
+from annotator.types import ContactSequence, FinishedRally, SmoothingMode
 from experiments.annotator.heuristic_only_tune.run import read_json, write_json
 from experiments.annotator.tree_simplification import input_stages, prepare
 
@@ -187,13 +188,15 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
         )
         for identity in identities
     }
-    sequence = SimpleNamespace(span_id=4)
+    sequence = ContactSequence(4, 0, 1, ())
+    rally = FinishedRally(sequence, None)
     layer_prediction = RallyPrediction(
-        rallies=(SimpleNamespace(sequence=sequence, final_half=None),),
+        rallies=(rally,),
         events=(), pool=object(), scores=np.asarray([0.8]), chosen={4: 0},
     )
     confidence = RallyReview(RallyReviewFeatures((4,), np.zeros((1, 1))), np.asarray([0.7]))
-    prediction = SimpleNamespace(rally_prediction=layer_prediction, rally_review=confidence)
+    final_rally = replace(rally, sequence=replace(sequence, span_id=8))
+    prediction = LearnedModelPrediction(None, None, layer_prediction, confidence, (final_rally,), (), (4,))
     monkeypatch.setattr(
         input_stages, '_export_inputs',
         lambda *_args, **_kwargs: (settings, inputs, prepared_root, contact_run_root),
@@ -241,7 +244,7 @@ def test_raw_export_replays_all_validation_streams_and_keeps_unknown_rows(
     assert result['per_video'] != saved_scores
     for identity in identities:
         saved_stream = read_json(tmp_path / 'export/streams' / f'{identity}.json.gz')
-        assert saved_stream == expected_stream | {'confidence': {'4': .7}}
+        assert saved_stream == expected_stream | {'confidence': {'8': .7}}
     assert {row['ranking'] for row in rows} == {'selector', 'fitted'}
     assert len(rows) == 8 * 2 * 2
     assert all(row['correct'] == -1 for row in rows)

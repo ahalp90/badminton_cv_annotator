@@ -55,11 +55,12 @@ def evaluate_video(
     prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video.identity}: fitted annotation did not return its contact stream')
-    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
-    selector_review = score_selector_review(prediction.rally_prediction)
+    stream = stream_payload(prediction.sequences, prediction.events)
+    selector_review = score_selector_review(prediction.refinement)
     scores_by_ranking = {}
-    for name, review in (('selector', selector_review), ('fitted', prediction.rally_review)):
-        scores_by_ranking[name] = dict(zip(review.features.span_ids, review.scores.tolist(), strict=True))
+    span_ids = tuple(sequence.span_id for sequence in prediction.sequences)
+    for name, review in (('selector', selector_review), ('fitted', prediction.review)):
+        scores_by_ranking[name] = dict(zip(span_ids, prediction.scores_for_rallies(review), strict=True))
 
     counts_by_tolerance, judgements_by_tolerance = {}, {}
     review_rows = []

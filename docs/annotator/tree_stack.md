@@ -5,28 +5,25 @@ selector and a review model. They answer different questions. The contact model
 scores individual frames; the selector compares complete contact sequences; the
 review model ranks the chosen rallies for inspection.
 
-The original eight-model architecture is retired. Its results remain in the
-[development history](../../experiments/annotator/development.md). The current
-baseline is documented in the [selected fit settings](../../experiments/annotator/tree_simplification/results/hp_search/fit-settings.json.gz).
-
 ## The selected model
 
-These settings describe the [selected seed-0 bundle](../../experiments/annotator/tree_simplification/results/hp_search/models/seed-0/).
-The baseline has no maximum outward context limit in training or discovery.
-The five benchmark runs add offsets 0, 100, 200, 300 and 400 to the base seeds.
+Use the [deployed bundle](../../runtime/deployed/annotator/). It was fitted on
+32 training videos with raw standing-person counts; seed offset 400 was selected
+on validation from offsets 0, 100, 200, 300 and 400. Outward context is unlimited
+in proposal training. Final inference adds splits at hit gaps over three seconds.
 
 | Model | Question | Input values | Maximum rounds | Maximum leaves | Learning rate | Base seed |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Contact | Is this frame a racket contact? | 85 | 360 | 63 | 0.06 | 20260824 |
-| Rally selector | Does this proposed contact sequence match a complete rally? | 478 | 400 | 63 | 0.05 | 20260905 |
+| Contact | Is this frame a racket contact? | 90 | 360 | 63 | 0.06 | 20260824 |
+| Rally selector | Does this proposed contact sequence match a complete rally? | 503 | 400 | 63 | 0.05 | 20260905 |
 | Review | How likely is the chosen rally to be correct? | 27 | 100 | 7 | 0.05 | 20260905 |
 
 All three use minimum child weight 5 and L2 regularisation 1.
 
 ## Contact model
 
-The contact features describe shuttle motion and tracked players at five time
-offsets. The model scores candidates within the search regions created by the
+The contact features describe shuttle motion, tracked players and the count of
+standing people near the court at five time offsets. The model scores candidates within the search regions created by the
 heuristics. High-scoring candidates compete with nearby frames, then the 0.9
 cutoff determines the initial contact stream.
 
@@ -61,12 +58,13 @@ Supplied rally bounds stay fixed.
 ## Review model
 
 The review model sees the selected proposal's evidence, selector score and margin,
-plus a summary using the final boundaries. It measures side agreement from the
-original individual guesses, before enforced alternation.
+plus a summary using the refined boundaries before splitting. It measures side
+agreement from the original individual guesses, before enforced alternation.
 
-Its score is saved as `rally_confidence`. It does not change annotations or apply
-an acceptance threshold. If a bundle has no fitted review model, the selected
-proposal's final selector score supplies the ranking instead.
+Score the selected rally before splitting it at long hit gaps. Each resulting
+piece inherits that score as `rally_confidence`; it estimates the original
+rally's correctness, not an independently calibrated probability for the piece.
+The review score does not change contacts or apply an acceptance threshold.
 
 ## What the training labels mean
 
@@ -74,7 +72,7 @@ By default, contact training labels frames inside broad search regions: within
 one base-30 frame of a labelled contact is positive, distances of two to four frames are
 ignored, and five or more frames are negative candidates. It keeps nearby
 negatives and samples more distant ones. See the
-[worked example and measured contact coverage](how_it_works.md#how-contact-training-uses-ground-truth).
+[worked training example](how_it_works.md#how-contact-training-uses-ground-truth).
 Sampling order and fit-row order are recorded separately because both can
 affect reproducibility.
 
@@ -96,8 +94,8 @@ Both tolerances scale with frame rate. Each judged rally receives total training
 weight 372 by default, divided equally among its judged options. Set
 `RallyFitConfig.span_weight` to retune that scale independently of proposal count.
 
-Review labels describe the final selected rally at the default ten-frame
-tolerance. Review training excludes unjudgeable rallies and uses held-group
+Review labels describe the selected rally before gap splitting, at the default
+ten-frame tolerance. Review training excludes unjudgeable rallies and uses held-group
 predictions. Contact radii and selector/review tolerances can be changed through
 the fit settings; frame counts scale from 30 fps to each video.
 
@@ -126,7 +124,7 @@ the runtime versions, ordered feature names and proposal budgets. The fitted
 review model is stored in `models.joblib`.
 Changing feature order or proposal semantics requires a new fit and evaluation.
 
-The schema for newly fitted bundles is `annotator-three-models/5`. Earlier
+The schema for newly fitted bundles is `annotator-three-models/6`. Earlier
 bundles use the source and environment they were fitted with.
 
 See the [refit guide](retuning.md) for commands, configuration and saved results.

@@ -89,7 +89,7 @@ Shape:
 
 These codes mark shuttle positions considered unreliable because of repeated or fabricated-looking track patterns. The standalone command recomputes the codes from `shuttle_track.npy.xz` and requires an exact match with the saved file.
 
-The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
+The default annotator settings flag codes `1`, `2`, `3` and `4` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
 
 ### `*_inpaint_mask.json.gz`
 
@@ -143,14 +143,14 @@ The court loader checks that scene intervals cover the full video timeline and t
 The `--models` argument points to a directory:
 
 ```text
-experiments/annotator/tree_simplification/results/hp_search/models/seed-0/
+runtime/deployed/annotator/
 ├── models.joblib
 └── metadata.json
 ```
 
 Loading checks:
 
-- schema `annotator-three-models/5`;
+- schema `annotator-three-models/6`;
 - exact contact, rally and review feature order;
 - rally proposal budgets and the fitted review model;
 - that `models.joblib` contains an `AnnotatorModels` object.
@@ -293,7 +293,7 @@ The five positional arrays are the frame-aligned shuttle track and pose detectio
 
 The direct call uses the model directory and settings as follows:
 
-- When `models` is omitted, full annotation loads the tracked raw-baseline seed-0 bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
+- When `models` is omitted, full annotation loads the tracked bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 

@@ -75,7 +75,7 @@ def build_motion_features(
     distances = np.full(frame_count, np.nan, dtype=np.float64)
     finite_gaps = np.isfinite(gaps).any(axis=1)
     distances[finite_gaps] = np.nanmin(gaps[finite_gaps], axis=1)
-    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0, dtype=np.float64))
+    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0), np.full(frame_count, 2.0))
     wrist_gaps = WristGaps(distances, gaps)
     pose_kps = np.full((frame_count, 2, 17, 2), 500.0, dtype=np.float64)
     exclusion_mask = np.zeros(frame_count, dtype=bool)

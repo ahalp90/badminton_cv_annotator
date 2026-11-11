@@ -148,13 +148,14 @@ def evaluate_video(
     models = _models(str(model_path))
     prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
     if item is None:
-        rallies = prediction.rally_prediction
-        stream = stream_payload(rallies.sequences, rallies.events)
+        stream = stream_payload(prediction.sequences, prediction.events)
         _, review_rows = _review_rows(prepared.video, identity, prediction)
         result = {'counts': score_stream(prepared.video, metrics.contact_endpoint_stream(stream)),
                   'review_rows': review_rows}
-        stream['confidence'] = dict(zip(map(str, prediction.rally_review.features.span_ids),
-                                        map(float, prediction.rally_review.scores), strict=True))
+        stream['confidence'] = {
+            str(sequence.span_id): score
+            for sequence, score in zip(prediction.sequences, prediction.rally_confidence, strict=True)
+        }
     else:
         result = _score_prediction(item, windows, prediction)
         stream = result.pop('stream')

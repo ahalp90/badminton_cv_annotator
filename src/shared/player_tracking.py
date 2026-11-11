@@ -9,7 +9,7 @@ from shared.court import normalize_position, project_pixels_to_court
 
 TOP_ROW = 0
 BOTTOM_ROW = 1
-DOUBLES_COUNT_MARGIN = 0.05
+STANDING_COUNT_MARGIN = 0.05
 SITTING_THRESHOLD = -0.3
 
 
@@ -25,11 +25,11 @@ class StickyAnchorParams:
     tiebreaker_tol: float = 0.05
     sitting_threshold: float = SITTING_THRESHOLD
     update_gate_eps: float = 0.01
-    count_margin: float = DOUBLES_COUNT_MARGIN
+    count_margin: float = STANDING_COUNT_MARGIN
 
 
 class FramePlayers(NamedTuple):
-    """Selected players in top/bottom row order, plus standing count for doubles.
+    """Selected players in top/bottom row order, plus the standing-person count.
 
     Detection indices refer to the original pose arrays. Missing players have
     index -1 and NaN court coordinates. Count includes unselected detections.
@@ -159,8 +159,8 @@ def is_sitting(keypoints: np.ndarray, sitting_threshold: float) -> np.ndarray:
 def count_standing_in_court(positions: np.ndarray, sitting: np.ndarray, margin: float) -> int:
     """Count standing candidates near the court, including players not selected.
 
-    Seated officials can be close to the boundary; exclude them from doubles
-    evidence. Positions and sitting flags must follow the same detection order.
+    Seated officials can be close to the boundary; exclude them from the count.
+    Positions and sitting flags must follow the same detection order.
     """
     in_margin = ((positions >= -margin) & (positions <= 1 + margin)).all(axis=1)
     return int((in_margin & ~sitting).sum())

@@ -162,7 +162,7 @@ def test_full_default_keeps_the_selected_models_and_contact_stream(
         return SimpleNamespace(
             result=empty_annotation([], []),
             working_data=SimpleNamespace(learned_model_prediction=SimpleNamespace(
-                rally_prediction=SimpleNamespace(sequences=sequences, events=events),
+                sequences=sequences, events=events,
             )),
         )
 

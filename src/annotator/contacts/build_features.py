@@ -1,6 +1,6 @@
 """Measure candidate contacts for model training and prediction.
 
-Each row combines shuttle motion, tracked-player positions and visibility
+Each row combines shuttle motion, tracked-player positions, standing counts and visibility
 near a candidate frame. The heuristic route does not need these features.
 Motion uses per-frame units. Time offsets and search windows scale with
 video frame rate.
@@ -58,7 +58,7 @@ BASE_MISSINGNESS_SIGNALS = (
 
 _FEATURE_COLUMNS = tuple(
     (signal, offset, f"{signal}_t{offset:+d}")
-    for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS
+    for signal in BASE_PHYSICS_SIGNALS + BASE_MISSINGNESS_SIGNALS + ("standing_count",)
     for offset in WINDOW_OFFSETS_BASE30
 )
 CONTACT_FEATURE_NAMES = tuple(name for _signal, _offset, name in _FEATURE_COLUMNS)
@@ -96,7 +96,7 @@ def build_contact_features(
 
     :param track: (frames, 3) normalised shuttle [x, y, visible].
     :param pose_kps: Pixel keypoints indexed by frame, pose detection and joint.
-    :param players: Selected detections and body positions.
+    :param players: Selected detections, body positions and standing counts.
     :param wrist_gaps: Shuttle-to-wrist distances in body heights.
     :param tracker_intervals: Court-view ranges, incl start, excl end.
     :param exclusion_mask: True on footage excluded from annotation.
@@ -274,6 +274,7 @@ def build_player_signals(
         "pose_valid_bot": (players.detection_indices[:, 1] >= 0).astype(np.float32),
         "wrist_valid_top": np.isfinite(slot_gaps[:, 0]).astype(np.float32),
         "wrist_valid_bot": np.isfinite(slot_gaps[:, 1]).astype(np.float32),
+        "standing_count": players.standing_count,
     }
 
 

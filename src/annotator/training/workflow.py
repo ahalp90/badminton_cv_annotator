@@ -205,7 +205,7 @@ def evaluate_manifest(
         evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, models.preprocessing)
         rallies = load_labels(entry.labels, len(evidence.track))
         prediction = predict_rallies_and_contacts(evidence, models)
-        counts = evaluation_counts(prediction.rally_prediction.events, prediction.rally_prediction.sequences, rallies, evidence.fps)
+        counts = evaluation_counts(prediction.events, prediction.sequences, rallies, evidence.fps)
         rows.append({'id': entry.video_id, **counts})
         for name in count_names:
             totals[name] += int(counts[name])

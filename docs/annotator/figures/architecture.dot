@@ -7,13 +7,14 @@ digraph annotator {
   validate [label="Load and check\nframe counts · shuttle guards · court data"];
   prep [label="Prepare frame evidence\nFPS scaling · court scenes · tracked players · exclusion mask"];
   rough [label="Find rough rallies\ninitial spans + contact search regions"];
-  contact [label="Contact tree\n85 features → probability → selected contacts"];
+  contact [label="Contact tree\n90 features → probability → selected contacts"];
   seq [label="Choose rally contacts\nno-edit + contact toggles\none rally-selector tree"];
   finish [label="Finish each rally\nwiden bounds + assign alternating Top/Bot halves"];
   outcomes [label="Estimate outcomes\nserver · winner · landing · hit height"];
-  confidence [label="Review tree\none score per finished rally"];
+  confidence [label="Review tree\none score per refined rally"];
+  split [label="Split hit gaps over 3 seconds\nkeep outer bounds · refit player order"];
   persist [label="Save results\nannotation JSON · masks · shuttle-quality summary"];
 
-  inputs -> validate -> prep -> rough -> contact -> seq -> finish -> outcomes -> persist;
-  finish -> confidence -> persist;
+  inputs -> validate -> prep -> rough -> contact -> seq -> finish -> confidence -> split -> outcomes -> persist;
+  confidence -> persist;
 }

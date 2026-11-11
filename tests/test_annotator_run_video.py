@@ -45,8 +45,7 @@ def test_model_contacts_and_fitted_sides_survive_the_full_chain(monkeypatch, ann
     final_events = (ContactEvent(3, .7, None), ContactEvent(9, .9, CourtHalf.TOP), ContactEvent(17, .8, CourtHalf.BOT))
     sequence = ContactSequence(0, 8, 23, final_events[1:])
     prediction = SimpleNamespace(
-        rally_prediction=SimpleNamespace(rallies=(FinishedRally(sequence, CourtHalf.BOT),), events=final_events),
-        rally_review=SimpleNamespace(scores=np.array([.73])),
+        rallies=(FinishedRally(sequence, CourtHalf.BOT),), events=final_events, rally_confidence=(.73,),
     )
 
     def predict(evidence, models):
@@ -71,7 +70,7 @@ def test_model_contacts_and_fitted_sides_survive_the_full_chain(monkeypatch, ann
     assert result.rally_confidence == (.73,)
     assert annotation.working_data is not None
     assert annotation.working_data.learned_model_prediction is prediction
-    assert result.rallies is prediction.rally_prediction.rallies
+    assert result.rallies is prediction.rallies
     assert result.heuristic_candidates == []
 
 
@@ -691,8 +690,7 @@ def test_contact_evidence_reuses_mask_from_fitted_shuttle_grades(monkeypatch, an
     def predict(evidence, models):
         assert evidence.rejected_shuttle_frames is mask_calls[0]
         return SimpleNamespace(
-            rally_prediction=SimpleNamespace(rallies=(), events=()),
-            rally_review=SimpleNamespace(scores=np.empty(0)),
+            rallies=(), events=(), rally_confidence=(),
         )
 
     models = replace(annotator_models, preprocessing=BaseAnnotatorConfig(rejected_grades=rejected_grades))

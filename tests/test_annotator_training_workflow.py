@@ -198,7 +198,7 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
 
     sequences = final_sequences()
     events = tuple(event for span in sequences for event in span.events)
-    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=sequences, events=events))
+    prediction = SimpleNamespace(sequences=sequences, events=events)
     monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', evidence)
     monkeypatch.setattr(workflow, 'predict_rallies_and_contacts', lambda *_args: prediction)
     for name in ('fit_contact_model', 'fit_rally_models', 'fit_rally_review_model'):
