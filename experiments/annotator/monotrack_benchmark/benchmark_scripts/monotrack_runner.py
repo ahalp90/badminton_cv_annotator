@@ -79,7 +79,7 @@ def run_item(config: dict[str, Any], item: dict[str, Any], detector: Any,
     started = time.perf_counter()
     events, failures = [], []
     for span, record in zip(item['spans'], courts, strict=True):
-        if not record['scene_valid']:
+        if record.get('corners_native_px') is None:
             failures.append({'span_id': span['span_id'], 'reason': 'court_detection'})
             continue
         start, end = span['start_frame'], span['end_frame']
@@ -112,7 +112,7 @@ def validation_courts(root: Path, item: dict[str, Any]) -> list[dict[str, Any]]:
         record = read_json(root / f'{item["item_id"]}_{span["span_id"]:04d}.json.gz')
         if record['status'] not in ('completed', 'failed'):
             raise ValueError(f'{item["item_id"]}: unfinished validation court')
-        records.append({**record, 'scene_valid': record['status'] == 'completed'})
+        records.append(record)
     return records
 
 

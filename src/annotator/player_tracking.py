@@ -20,7 +20,7 @@ from shared.player_tracking import (
 def tracker_segments(
     scene_courts: tuple[SceneCourt, ...], court_present: np.ndarray, n_frames: int,
 ) -> list[tuple[int, int]]:
-    """Keep frame ranges where an accepted court scene and court_present overlap."""
+    """Keep frame ranges where scene geometry and court_present overlap."""
     if (
         not isinstance(court_present, np.ndarray)
         or court_present.shape != (n_frames,)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING
@@ -13,7 +12,7 @@ if TYPE_CHECKING:
     from annotator.courts.prepare_courts import CourtSceneRecord, SceneStatus
 
 
-def load_court_provenance(
+def load_court_records(
     scene_payload: object,
     *,
     raw_cuts: Sequence[tuple[int, int]],
@@ -48,9 +47,6 @@ def _scene_record(payload: object, name: str) -> CourtSceneRecord:
         no_court_reason=_optional_string(record["no_court_reason"], f"{name}.no_court_reason"),
         reused_from=_optional_string(record["reused_from"], f"{name}.reused_from"),
         error=_optional_string(record["error"], f"{name}.error"),
-        exactly_two_count=_integer(record["exactly_two_count"], f"{name}.exactly_two_count"),
-        exactly_two_fraction=_finite(record["exactly_two_fraction"], f"{name}.exactly_two_fraction"),
-        scene_valid=_boolean(record["scene_valid"], f"{name}.scene_valid"),
     )
 
 
@@ -81,16 +77,8 @@ def _validate_scene_records(
             raise ValueError("court analysed frame lies outside its scene interval")
         if (record.corners_native_px is not None) != (record.status is SceneStatus.COURT):
             raise ValueError("court scene corners must be present exactly when its status is court")
-        if record.scene_valid and record.status is not SceneStatus.COURT:
-            raise ValueError("court scene without a court cannot be valid")
         if (record.error is not None) != (record.status is SceneStatus.DETECTION_FAILED):
             raise ValueError("court scene error must be present exactly when detection failed")
-        duration = record.end_frame - record.start_frame
-        if not 0 <= record.exactly_two_count <= duration:
-            raise ValueError("court exactly-two count lies outside its scene")
-        expected_fraction = record.exactly_two_count / duration
-        if not math.isclose(record.exactly_two_fraction, expected_fraction):
-            raise ValueError("court exactly-two fraction differs from its count")
 
 
 def _object(payload: object, name: str) -> dict[str, object]:
@@ -115,21 +103,6 @@ def _integer(payload: object, name: str) -> int:
     if isinstance(payload, bool) or not isinstance(payload, int):
         raise TypeError(f"{name} must be an integer")
     return payload
-
-
-def _boolean(payload: object, name: str) -> bool:
-    if not isinstance(payload, bool):
-        raise TypeError(f"{name} must be a boolean")
-    return payload
-
-
-def _finite(payload: object, name: str) -> float:
-    if isinstance(payload, bool) or not isinstance(payload, (int, float)):
-        raise TypeError(f"{name} must be a finite number")
-    value = float(payload)
-    if not math.isfinite(value):
-        raise ValueError(f"{name} must be a finite number")
-    return value
 
 
 def _optional[T](payload: object, loader: Callable[[object, str], T], name: str) -> T | None:

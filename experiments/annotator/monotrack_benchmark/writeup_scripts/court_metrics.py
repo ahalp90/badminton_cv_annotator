@@ -111,7 +111,7 @@ def per_rally_courts(path: Path, spans: list[dict]) -> list[np.ndarray | None]:
     courts = []
     for span in spans:
         record = by_bounds[span['start_frame'], span['end_frame']]
-        courts.append(np.asarray(record['corners_native_px'], dtype=float) if record['scene_valid'] else None)
+        courts.append(np.asarray(record['corners_native_px'], dtype=float) if record.get('corners_native_px') is not None else None)
     return courts
 
 

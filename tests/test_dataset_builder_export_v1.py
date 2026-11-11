@@ -67,7 +67,7 @@ LOSER_ID = "chou_tien_chen"
 STAGE_ARTIFACTS: dict[str, tuple[str, ...]] = {
     "shuttle": ("shuttle_track", "shuttle_guard_codes"),
     "pose": ("pose_kps", "pose_bboxes", "pose_scores", "pose_kp_scores", "pose_ndet"),
-    "court": ("court_evidence", "court_keep_vote", "court_present"),
+    "court": ("court_evidence", "court_present"),
     "annotation": ("raw_replay_mask", "definitive_exclusion_mask"),
 }
 SIGNAL_SHAPES = {

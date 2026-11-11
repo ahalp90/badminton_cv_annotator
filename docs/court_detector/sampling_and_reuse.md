@@ -402,11 +402,9 @@ hold other diagnostics, so read results from the saved file.
 - **Scores are internal.** The combined score ranks courts; it is not accuracy
   against hand-labelled courts.
 
-The annotation pipeline applies each scene's court across its whole frame range.
-It then applies its own player vote with the full pose arrays, separate from the
-detector's 31-frame window. It requires exactly two people inside the court's
-margin in at least half the scene's frames. See
-[court_evidence.py](../../src/annotator/court_evidence.py).
+The annotation pipeline uses each detected court across its scene's whole frame
+range. Player selection runs separately, using the detected geometry. See
+[prepare_courts.py](../../src/annotator/courts/prepare_courts.py).
 
 The [design page](design.md) records why composition
 and pooling work this way. The [evaluation page](../../experiments/court_detector/comparisons/development_evaluation.md)

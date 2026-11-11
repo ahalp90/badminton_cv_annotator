@@ -40,7 +40,6 @@ from annotator.models import AnnotatorModels, load_models, model_files
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
-    COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
     POSE_FILENAMES,
     TRACK_FILENAME,
@@ -196,7 +195,7 @@ def input_paths(paths: dict[str, Path], videos: tuple[SearchVideo, ...], full: b
         files[f'{video.identity}/shuttle/guards'] = guards
         for field, filename in POSE_FILENAMES.items():
             files[f'{video.identity}/pose/{field}'] = pose / filename
-        for filename in (COURT_EVIDENCE_FILENAME, COURT_KEEP_VOTE_FILENAME, COURT_PRESENT_FILENAME):
+        for filename in (COURT_EVIDENCE_FILENAME, COURT_PRESENT_FILENAME):
             files[f'{video.identity}/court/{filename}'] = court / filename
     if full:
         files.update(model_files(paths['bundle']))

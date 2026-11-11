@@ -1,9 +1,4 @@
-"""Accept detected courts using the players visible in each camera scene.
-
-A scene needs court corners and two in-court players in at least half its
-frames. Keep accepted geometry for annotation and records of every scene
-for inspection, including rejected scenes.
-"""
+"""Prepare detected court geometry and scene coverage for annotation."""
 from __future__ import annotations
 
 from collections import Counter
@@ -38,8 +33,6 @@ SCENE_COLUMNS_BY_CORNER = (
 )
 # Image size used by fixed-court experiment inputs.
 DETECTOR_RESOLUTION = (512.0, 288.0)
-PERSON_COURT_MARGIN = 0.10
-SCENE_VALID_MIN_FRACTION = 0.5
 UNIT_COURT_CORNERS = np.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
     dtype=np.float32,
@@ -47,11 +40,7 @@ UNIT_COURT_CORNERS = np.array(
 
 
 class SceneStatus(StrEnum):
-    """Court detector result for one scene, before checking player occupancy.
-
-    Only COURT scenes have corners. They still need the player check before
-    annotation can use them.
-    """
+    """Court detector result for one scene; only COURT scenes have corners."""
 
     COURT = 'court'
     NO_COURT = 'no_court'  # the detector found none; no_court_reason says why
@@ -61,7 +50,7 @@ class SceneStatus(StrEnum):
 
 @dataclass(frozen=True)
 class CourtInputs:
-    """Accepted scene ranges and their court corners, in video pixels.
+    """Detected scene ranges and their court corners, in video pixels.
 
     Annotation builds each scene's geometry from ``homography_rows`` using
     the video's width and height in ``resolution``.
@@ -76,7 +65,7 @@ class CourtInputs:
 
 @dataclass(frozen=True)
 class DetectorScene:
-    """Validated detector output for one scene, before the player check.
+    """Validated detector output for one scene.
 
     Frame range includes start, excludes end. Corners use original video pixels
     in top-left, top-right, bottom-right, bottom-left order; None for no court.
@@ -94,12 +83,7 @@ class DetectorScene:
 
 @dataclass(frozen=True)
 class CourtSceneRecord:
-    """Detector result plus player counts and acceptance for one scene.
-
-    Keep rejected scenes too, so saved outputs explain missing court coverage.
-    ``status`` is the detector result; ``scene_valid`` also requires the player
-    check to pass. ``exactly_two_fraction`` is the fraction of frames with
-    exactly two in-court people.
+    """Detector result for one scene, including scenes without a court.
 
     :param analysed_frame: Frame inspected by the detector; None for fixed courts.
     :param corners_native_px: (4, 2) corners in original video pixels, ordered
@@ -116,9 +100,6 @@ class CourtSceneRecord:
     no_court_reason: str | None
     reused_from: str | None
     error: str | None
-    exactly_two_count: int
-    exactly_two_fraction: float
-    scene_valid: bool
 
     def __post_init__(self) -> None:
         if self.corners_native_px is not None:
@@ -127,29 +108,23 @@ class CourtSceneRecord:
 
 @dataclass(frozen=True)
 class CourtEvidenceResult:
-    """Accepted court inputs, frame masks and records of all scenes.
+    """Court inputs, frame coverage and detector records for every scene.
 
-    ``inputs`` supplies accepted court geometry for annotation; None if no
-    court was accepted. ``keep_vote`` marks frames with exactly two in-court
-    people; ``court_present`` marks whole accepted scenes.
-
-    The dataset builder saves ``scene_records`` for every scene, including
-    rejections, so missing court coverage can be checked afterwards.
+    ``inputs`` is None when the detector found no court. ``court_present``
+    marks every frame in scenes with detected geometry.
     """
 
     inputs: CourtInputs | None
     scene_records: tuple[CourtSceneRecord, ...]
-    keep_vote: np.ndarray
     court_present: np.ndarray
 
     def __post_init__(self) -> None:
-        for field_name in ('keep_vote', 'court_present'):
-            values = np.asarray(getattr(self, field_name), dtype=np.bool_)
-            object.__setattr__(self, field_name, np.ascontiguousarray(values).copy())
+        values = np.asarray(self.court_present, dtype=np.bool_)
+        object.__setattr__(self, 'court_present', np.ascontiguousarray(values).copy())
 
 
-class NoAcceptedCourtError(ValueError):
-    """No accepted court; ``result`` retains the scene records and player votes."""
+class NoDetectedCourtError(ValueError):
+    """No detected court; ``result`` retains the scene records."""
 
     def __init__(self, result: CourtEvidenceResult, message: str) -> None:
         super().__init__(message)
@@ -161,34 +136,24 @@ def build_court_detector_evidence(
     resolution: tuple[float, float],
     native_size: tuple[float, float],
     scenes: Sequence[DetectorScene],
-    bboxes: np.ndarray,
-    scores: np.ndarray,
-    ndet: np.ndarray,
 ) -> CourtEvidenceResult:
-    """Accept court scenes with exactly two in-court people in at least half the frames.
+    """Prepare every detected court and retain records for scenes without one.
 
-    Keep each accepted scene's own corner rows and mark all its frames in
-    ``court_present``. Keep rejected scenes in the diagnostic records too.
-    No accepted scene raises NoAcceptedCourtError with those records attached.
+    Scenes have been validated by ``read_detector_scenes`` and cover the video.
+    Raise NoDetectedCourtError with the scene records if no court was found.
 
-    :param resolution: Pose-video width and height in pixels.
+    :param resolution: Annotation-video width and height in pixels.
     :param native_size: Original video size used by the detected corners.
     """
-    intervals = [(scene.start_frame, scene.end_frame) for scene in scenes]
-    corners_refpx = [
-        None if scene.corners_native_px is None else _as_ref_corners(scene.corners_native_px, native_size)
-        for scene in scenes
-    ]
-    scene_infos = [None if corners is None else detected_court_info(corners) for corners in corners_refpx]
-    keep_vote = build_keep_vote(bboxes, scores, ndet, resolution, intervals, scene_infos)
-    scene_valid = [
-        corners is not None and _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
-        for corners, interval in zip(corners_refpx, intervals)
-    ]
-    court_present = build_court_present(keep_vote, intervals, scene_valid)
+    court_present = np.zeros(scenes[-1].end_frame, dtype=np.bool_)
+    intervals = []
+    corners_refpx = []
     records = []
-    for scene_index, (scene, valid) in enumerate(zip(scenes, scene_valid)):
-        interval = (scene.start_frame, scene.end_frame)
+    for scene_index, scene in enumerate(scenes):
+        if scene.corners_native_px is not None:
+            intervals.append((scene.start_frame, scene.end_frame))
+            corners_refpx.append(_as_ref_corners(scene.corners_native_px, native_size))
+            court_present[scene.start_frame:scene.end_frame] = True
         records.append(CourtSceneRecord(
             video_id=video_id,
             scene_index=scene_index,
@@ -200,24 +165,17 @@ def build_court_detector_evidence(
             no_court_reason=scene.no_court_reason,
             reused_from=scene.reused_from,
             error=scene.error,
-            exactly_two_count=int(keep_vote[scene.start_frame:scene.end_frame].sum()),
-            exactly_two_fraction=_scene_fraction(keep_vote, interval),
-            scene_valid=valid,
         ))
-    accepted_indices = [index for index, valid in enumerate(scene_valid) if valid]
-    if not accepted_indices:
+    if not intervals:
         statuses = dict(Counter(scene.status.value for scene in scenes))
-        result = CourtEvidenceResult(None, tuple(records), keep_vote, court_present)
-        raise NoAcceptedCourtError(result, f'no scene has an accepted court; scene statuses: {statuses}')
+        result = CourtEvidenceResult(None, tuple(records), court_present)
+        raise NoDetectedCourtError(result, f'no scene has a detected court; scene statuses: {statuses}')
 
     inputs = CourtInputs(
         resolution=tuple(map(float, resolution)),
-        homography_rows=build_scene_rows(
-            video_id, [intervals[index] for index in accepted_indices],
-            [corners_refpx[index] for index in accepted_indices], resolution,
-        ),
+        homography_rows=build_scene_rows(video_id, intervals, corners_refpx, resolution),
     )
-    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)
+    return CourtEvidenceResult(inputs, tuple(records), court_present)
 
 
 def read_detector_scenes(
@@ -266,60 +224,6 @@ def read_detector_scenes(
     if next_frame != frame_count:
         raise ValueError(f'court detector scenes end at frame {next_frame}, expected {frame_count}')
     return tuple(scenes)
-
-
-# Accept scenes from player occupancy
-
-def build_keep_vote(
-    bboxes: np.ndarray,
-    scores: np.ndarray,
-    ndet: np.ndarray,
-    resolution: tuple[float, float],
-    scene_intervals: Sequence[tuple[int, int]],
-    provisional_court_info: Sequence[dict[str, object] | None],
-) -> np.ndarray:
-    """Mark frames with exactly two detections inside the court plus its allowed margin."""
-    n_frames = len(bboxes)
-    keep_vote = np.zeros(n_frames, dtype=np.bool_)
-    for (start_frame, end_frame), court_info in zip(scene_intervals, provisional_court_info):
-        if court_info is None:
-            continue
-        for frame in range(start_frame, end_frame):
-            n_people = int(ndet[frame])
-            boxes = np.asarray(bboxes[frame, :n_people], dtype=float)
-            finite_scores = np.isfinite(np.asarray(scores[frame, :n_people], dtype=float))
-            finite_boxes = np.isfinite(boxes).all(axis=1)
-            if not finite_scores.any() or not finite_boxes.any():
-                continue
-            bottom_centres = np.column_stack(((boxes[:, 0] + boxes[:, 2]) / 2.0, boxes[:, 3]))
-            normalised = project_pixels_to_court(bottom_centres.T, resolution, court_info).T
-            inside = (
-                finite_scores
-                & finite_boxes
-                & (normalised[:, 0] >= -PERSON_COURT_MARGIN)
-                & (normalised[:, 0] <= 1.0 + PERSON_COURT_MARGIN)
-                & (normalised[:, 1] >= -PERSON_COURT_MARGIN)
-                & (normalised[:, 1] <= 1.0 + PERSON_COURT_MARGIN)
-            )
-            keep_vote[frame] = int(inside.sum()) == 2
-    return keep_vote
-
-
-def build_court_present(
-    keep_vote: np.ndarray,
-    scene_intervals: Sequence[tuple[int, int]],
-    scene_valid: Sequence[bool],
-) -> np.ndarray:
-    """Mark every frame of accepted scenes; use keep_vote for the video length."""
-    court_present = np.zeros(len(keep_vote), dtype=np.bool_)
-    for scene_index, (start_frame, end_frame) in enumerate(scene_intervals):
-        court_present[start_frame:end_frame] = bool(scene_valid[scene_index])
-    return court_present
-
-
-def _scene_fraction(keep_vote: np.ndarray, interval: tuple[int, int]) -> float:
-    start_frame, end_frame = interval
-    return float(keep_vote[start_frame:end_frame].mean())
 
 
 # Court projection and landing uncertainty

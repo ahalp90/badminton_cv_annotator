@@ -10,14 +10,10 @@ import pandas as pd
 
 from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
-    SCENE_VALID_MIN_FRACTION,
     CourtEvidenceResult,
     CourtInputs,
     CourtSceneRecord,
     SceneStatus,
-    _scene_fraction,
-    build_court_present,
-    build_keep_vote,
     build_scene_rows,
 )
 from shared.camera_cuts import (
@@ -25,7 +21,7 @@ from shared.camera_cuts import (
     MIN_SCENE_FRAMES_AT_30_FPS,
     detect_cuts,
 )
-from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera, get_court_info
+from shared.court import HOMOGRAPHY_RESOLUTION, get_corner_camera
 from shared.frame_timing import frames_at_fps
 
 SHUTTLESET_TO_CLOCKWISE_CORNER_ORDER = (0, 1, 3, 2)
@@ -108,27 +104,16 @@ def build_static_court_evidence(
     homo_df: pd.DataFrame,
     resolution: tuple[float, float],
     raw_cuts: Sequence[tuple[int, int]] | pd.DataFrame,
-    bboxes: np.ndarray,
-    scores: np.ndarray,
-    ndet: np.ndarray,
 ) -> CourtEvidenceResult:
     """Build masks and scene records using one supplied court calibration."""
     intervals = _normalise_intervals(raw_cuts)
     inputs = build_static_court_inputs(
         video_id, homo_df, resolution, intervals,
     )
-    provisional_infos = [get_court_info(homo_df, video_id)] * len(intervals)
-    keep_vote = build_keep_vote(
-        bboxes, scores, ndet, resolution, intervals, provisional_infos,
-    )
-    scene_valid = [
-        _scene_fraction(keep_vote, interval) >= SCENE_VALID_MIN_FRACTION
-        for interval in intervals
-    ]
-    court_present = build_court_present(keep_vote, intervals, scene_valid)
+    court_present = np.ones(intervals[-1][1], dtype=np.bool_)
     static_corners_px = _as_native_corners(_static_corners_refpx(homo_df.loc[video_id]))
     records = []
-    for scene_index, ((start, end), valid) in enumerate(zip(intervals, scene_valid)):
+    for scene_index, (start, end) in enumerate(intervals):
         records.append(CourtSceneRecord(
             video_id=video_id,
             scene_index=scene_index,
@@ -140,8 +125,5 @@ def build_static_court_evidence(
             no_court_reason=None,
             reused_from=None,
             error=None,
-            exactly_two_count=int(keep_vote[start:end].sum()),
-            exactly_two_fraction=_scene_fraction(keep_vote, (start, end)),
-            scene_valid=valid,
         ))
-    return CourtEvidenceResult(inputs, tuple(records), keep_vote, court_present)
+    return CourtEvidenceResult(inputs, tuple(records), court_present)

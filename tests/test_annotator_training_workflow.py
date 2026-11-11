@@ -252,7 +252,7 @@ def test_saved_inputs_pass_to_preparation(tmp_path: Path, monkeypatch: pytest.Mo
     )
     court_inputs = CourtInputs((1920, 1080), pd.DataFrame())
     court = CourtVision(((0, 2),), CourtEvidenceResult(
-        court_inputs, (), np.ones(2, bool), np.ones(2, bool),
+        court_inputs, (), np.ones(2, bool),
     ))
     saved = SavedVideoInputs(
         metadata, np.array([[.2, .3, 1], [.3, .4, 1]]), np.zeros(2, dtype=np.uint8), pose, court,

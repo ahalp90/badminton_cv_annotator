@@ -1,4 +1,4 @@
-"""Frame lookup for the court geometry of each accepted camera scene."""
+"""Frame lookup for available court geometry in each camera scene."""
 
 import math
 from bisect import bisect_right
@@ -17,7 +17,7 @@ from shared.court import HOMOGRAPHY_RESOLUTION
 
 @dataclass(frozen=True)
 class SceneCourt:
-    """Geometry for one accepted camera view, incl start_frame, excl end_frame.
+    """Court geometry for one camera view, incl start_frame, excl end_frame.
 
     ``court_info`` projects image positions onto the court. ``net_band`` uses
     video pixels; ``landing_error_band_m`` estimates uncertainty in court metres.
@@ -57,10 +57,10 @@ def build_scene_courts(
 
 
 def court_at_frame(scenes: Sequence[SceneCourt], frame: int) -> SceneCourt:
-    """Find the accepted scene covering a frame; gaps have no usable geometry."""
+    """Find the court scene covering a frame; gaps have no available geometry."""
     index = bisect_right(scenes, frame, key=lambda scene: scene.start_frame) - 1
     if index < 0 or frame >= scenes[index].end_frame:
-        raise ValueError(f"no accepted court geometry at frame {frame}")
+        raise ValueError(f"no court geometry at frame {frame}")
     return scenes[index]
 
 

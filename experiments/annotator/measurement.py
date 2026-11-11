@@ -42,11 +42,9 @@ from annotator.config import (
 from annotator.courts.frame_geometry import SceneCourt, build_scene_courts
 from annotator.courts.prepare_courts import (
     DETECTOR_RESOLUTION,
-    PERSON_COURT_MARGIN,
-    SCENE_VALID_MIN_FRACTION,
     CourtEvidenceResult,
     CourtSceneRecord,
-    NoAcceptedCourtError,
+    NoDetectedCourtError,
     build_court_detector_evidence,
     read_detector_scenes,
 )
@@ -116,7 +114,6 @@ COURT_SCENES_COLUMNS = (
     "video_id", "case_id", "court_parent", "scene_index", "start_frame", "end_frame", "n_frames",
     "status", "analysed_frame", "no_court_reason", "reused_from", "error",
     "tl_x", "tl_y", "tr_x", "tr_y", "br_x", "br_y", "bl_x", "bl_y",
-    "exactly_two_frame_count", "exactly_two_frame_fraction", "scene_valid",
 )
 LANDING_SEARCH_COLUMNS = (
     "rally_id", "search_seconds", "search_frames", "final_contact_frame",
@@ -585,7 +582,6 @@ def _scene_row(record: CourtSceneRecord, case_id: str, parent: str) -> dict[str,
             record.end_frame, record.end_frame - record.start_frame,
             record.status, record.analysed_frame, record.no_court_reason, record.reused_from, record.error,
             *_corner_values(record.corners_native_px),
-            record.exactly_two_count, record.exactly_two_fraction, record.scene_valid,
         ],
     ))
 
@@ -670,8 +666,6 @@ def _configuration_values() -> dict[str, object]:
         "injected_positions": False,
         "injected_spans": False,
         "injected_contacts": False,
-        "person_margin": PERSON_COURT_MARGIN,
-        "scene_threshold": SCENE_VALID_MIN_FRACTION,
         "landing_search_seconds": list(LANDING_SEARCH_SECONDS),
     }
 
@@ -836,7 +830,6 @@ def _write_scene_evidence(directory: Path, court_result: CourtEvidenceResult, ca
          "downleft_x", "downleft_y", "downright_x", "downright_y"),
         court_result.inputs.homography_rows.to_dict("records") if court_result.inputs is not None else (),
     )
-    _save_mask(directory / "keep_vote.npy.xz", court_result.keep_vote)
     _save_mask(directory / "court_present.npy.xz", court_result.court_present)
 
 
@@ -987,7 +980,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
         if parent == "static_shuttleset_homography":
             court_result = build_static_court_evidence(
                 case.fixture.video_id, driver.homo_df, case.fixture.resolution,
-                case.raw_cuts, case.bboxes, case.scores, case.ndet,
+                case.raw_cuts,
             )
         else:
             if driver.court_settings is None:
@@ -995,7 +988,7 @@ def _run_one_configuration(state: ConfigurationState, driver: RunDriver) -> None
             court_result = detect_case_courts(case, driver.court_settings, state.directory)
         state.court_result = court_result
         _write_scene_evidence(state.directory, court_result, case.fixed.case_id, parent)
-    except NoAcceptedCourtError as error:
+    except NoDetectedCourtError as error:
         state.court_result = error.result
         _write_scene_evidence_partial(state.directory, error.result, case.fixed.case_id, parent)
         failure_path = state.directory / "failure.json.gz"
@@ -1058,7 +1051,6 @@ def _write_scene_evidence_partial(directory: Path, result: CourtEvidenceResult, 
         COURT_SCENES_COLUMNS,
         (_scene_row(record, case_id, parent) for record in result.scene_records),
     )
-    _save_mask(directory / "keep_vote.npy.xz", result.keep_vote)
     _save_mask(directory / "court_present.npy.xz", result.court_present)
 
 
@@ -1223,7 +1215,6 @@ def detect_case_courts(
     scenes = read_detector_scenes(detector_result, frame_count=case.fixed.n_frames, native_size=DETECTOR_RESOLUTION)
     return build_court_detector_evidence(
         case.fixture.video_id, case.fixture.resolution, DETECTOR_RESOLUTION, scenes,
-        case.bboxes, case.scores, case.ndet,
     )
 
 

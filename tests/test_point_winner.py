@@ -318,7 +318,7 @@ def test_contact_player_evidence_reads_the_sticky_nearest_pick_half():
     assert half == CourtHalf.BOT
     assert wrist_costs is None
     no_contact_scene = (SceneCourt(contact + 1, len(track), {}, (400.0, 500.0), 0.1),)
-    with pytest.raises(ValueError, match='no accepted court geometry'):
+    with pytest.raises(ValueError, match='no court geometry'):
         contact_player_evidence(contact, track, players, wrist_gaps, bboxes, no_contact_scene)
 
 

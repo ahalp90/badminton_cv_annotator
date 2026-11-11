@@ -45,16 +45,15 @@ Player selection and running-position updates are shared with BST-X in
 [`shared/player_tracking.py`](../../src/shared/player_tracking.py).
 `track_sticky_players` in
 [`annotator/player_tracking.py`](../../src/annotator/player_tracking.py) collects
-the selected detections, ankle positions and box heights for accepted court
+the selected detections, ankle positions and box heights for available court
 intervals. Contact attribution then measures separate `WristGaps`. Dataset
 player features need only the `TrackedPlayers` result.
 
 Court preparation and frame lookup answer different questions:
 
-- [`prepare_courts.py`](../../src/annotator/courts/prepare_courts.py): build and
-  validate court-detector results and their player-occupancy masks.
+- [`prepare_courts.py`](../../src/annotator/courts/prepare_courts.py): validate detector results and prepare court geometry and frame coverage.
 - [`frame_geometry.py`](../../src/annotator/courts/frame_geometry.py): find the
-  accepted geometry that applies to a particular frame.
+  available geometry that applies to a particular frame.
 
 In the detector, [`view_matching.py`](../../src/court_detector/view_matching.py)
 compares camera views so the detector can reuse a court calibration.

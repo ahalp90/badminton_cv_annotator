@@ -124,7 +124,7 @@ def _load_inputs(
         raise ValueError(f'{video.identity}: saved court evidence has no operational inputs')
     return OldVideoInputs(
         video.identity, video.fps, track, guards, pose, vision.raw_cuts, court,
-        vision.evidence.keep_vote, vision.evidence.court_present,
+        vision.evidence.court_present,
     )
 
 

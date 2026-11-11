@@ -185,7 +185,7 @@ def test_experiment_prepares_and_saves_features_without_outcomes(preparation_inp
         court=SimpleNamespace(resolution=inputs['resolution'],
                               homography_rows=inputs['homography_rows']),
         court_present=inputs['court_present'], raw_cuts=((0, len(inputs['track'])),),
-        keep_vote=np.ones(len(inputs['track']), dtype=bool), shuttle_grades=np.zeros(len(inputs['track']), dtype=np.uint8),
+        shuttle_grades=np.zeros(len(inputs['track']), dtype=np.uint8),
     )
     monkeypatch.setattr(experiment, 'load_original_inputs', lambda *_args: source)
     video = SearchVideo(source.identity, 'test', 'train', source.fps, inputs['resolution'], ())

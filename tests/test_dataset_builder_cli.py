@@ -958,7 +958,6 @@ annotation_directory = "set/match-one"
         output_dir.mkdir(parents=True, exist_ok=True)
         artifacts = vision.CourtArtifacts(
             output_dir / vision.COURT_EVIDENCE_FILENAME,
-            output_dir / vision.COURT_KEEP_VOTE_FILENAME,
             output_dir / vision.COURT_PRESENT_FILENAME,
         )
         for path in artifacts.as_mapping().values():

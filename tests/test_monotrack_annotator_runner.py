@@ -53,8 +53,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         homography_rows=object(), landing_error_band_m=0.05,
     )
     court_vision = SimpleNamespace(
-        evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool),
-                                 keep_vote=np.ones(frame_count, dtype=bool)),
+        evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool)),
         raw_cuts=((0, 30), (30, frame_count)),
     )
     array_paths = []

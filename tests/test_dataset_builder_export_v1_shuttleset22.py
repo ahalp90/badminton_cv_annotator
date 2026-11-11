@@ -219,7 +219,7 @@ def test_shuttleset22_export_writes_source_rallies(tmp_path: Path) -> None:
     artifacts = tables[PRIMITIVE_ARTIFACTS.name]
     inputs = artifacts[artifacts["location"] == "input_dir"]
     exports = artifacts[artifacts["location"] == "export_dir"]
-    assert len(inputs) == len(fixture.input_artifacts) == 9
+    assert len(inputs) == len(fixture.input_artifacts) == 8
     assert set(inputs["artifact"]) == set(fixture.input_artifacts)
     assert len(exports) == len(PLAYER_SIGNALS) == 4
     assert set(exports["artifact"]) == {signal.name for signal in PLAYER_SIGNALS}

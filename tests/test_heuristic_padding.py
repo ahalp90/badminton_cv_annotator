@@ -8,12 +8,18 @@ from typing import Any
 import numpy as np
 import pytest
 
-from dataset_builder.vision import load_court_vision, load_json_gz, persist_court_vision
-from experiments.annotator.heuristic_only_tune import padding
-
-INPUTS = (
-    Path(__file__).resolve().parents[1] / 'experiments/annotator/monotrack_benchmark/benchmark_results/inputs'
+from annotator.courts.prepare_courts import (
+    DetectorScene,
+    SceneStatus,
+    build_court_detector_evidence,
 )
+from dataset_builder.vision import (
+    CourtVision,
+    load_court_vision,
+    load_json_gz,
+    persist_court_vision,
+)
+from experiments.annotator.heuristic_only_tune import padding
 
 
 def _item() -> dict[str, Any]:
@@ -75,17 +81,33 @@ def test_invalid_padding_is_rejected_before_creating_outputs(tmp_path: Path, bef
     assert not output.exists()
 
 
-def _real_item() -> dict[str, Any]:
-    return next(item for item in load_json_gz(INPUTS / 'manifest.json.gz')['items'] if item['item_id'] == '9')
+def _court_inputs(root: Path) -> dict[str, Any]:
+    item = {**_item(), 'item_id': 'fixture', 'resolution': [100, 50]}
+    corners = np.array([[0, 0], [100, 0], [100, 50], [0, 50]], dtype=float)
+    intervals = [(0, 100), (100, 201), (201, 400), (400, 501), (501, 600)]
+    scenes = []
+    for index, (start, end) in enumerate(intervals):
+        has_court = index == 1
+        scenes.append(DetectorScene(
+            start, end, (start + end) // 2, SceneStatus.COURT if has_court else SceneStatus.NO_COURT,
+            corners if has_court else None, None if has_court else 'no_candidates', None, None,
+        ))
+    discovery = [DetectorScene(0, 600, 300, SceneStatus.COURT, corners, None, None, None)]
+    for folder, source in (('ours', scenes), ('discovery', discovery)):
+        evidence = build_court_detector_evidence('fixture', (100., 50.), (100., 50.), source)
+        court = CourtVision(tuple((scene.start_frame, scene.end_frame) for scene in source), evidence)
+        persist_court_vision(root / folder / 'fixture', video_id='fixture', court=court,
+                            frame_count=600, resolution=(100., 50.))
+    return item
 
 
-@pytest.mark.parametrize('name', padding.COURT_FOLDERS)
-def test_one_second_roundtrip_keeps_all_court_fields_and_masks(name: str, tmp_path: Path) -> None:
-    item = _real_item()
+def test_one_second_roundtrip_keeps_all_court_fields_and_masks(tmp_path: Path) -> None:
+    inputs = tmp_path / 'inputs'
+    item = _court_inputs(inputs)
     options = {'video_id': item['item_id'], 'frame_count': item['frame_count'],
                'resolution': tuple(map(float, item['resolution']))}
-    original = load_court_vision(INPUTS / name / item['item_id'], **options)
-    discovery = load_court_vision(INPUTS / 'discovery' / item['item_id'], **options)
+    original = load_court_vision(inputs / 'ours' / item['item_id'], **options)
+    discovery = load_court_vision(inputs / 'discovery' / item['item_id'], **options)
     spans, counts = padding.padded_spans(item, discovery.raw_cuts, 1.0, 1.0)
     assert spans == item['spans']
     assert counts['changed_starts'] == counts['changed_ends'] == 0
@@ -94,28 +116,27 @@ def test_one_second_roundtrip_keeps_all_court_fields_and_masks(name: str, tmp_pa
     restored = load_court_vision(tmp_path, **options)
     assert restored.raw_cuts == original.raw_cuts
     assert load_json_gz(tmp_path / 'court_evidence.json.gz') == load_json_gz(
-        INPUTS / name / item['item_id'] / 'court_evidence.json.gz'
+        inputs / 'ours' / item['item_id'] / 'court_evidence.json.gz'
     )
-    np.testing.assert_array_equal(restored.evidence.keep_vote, original.evidence.keep_vote)
     np.testing.assert_array_equal(restored.evidence.court_present, original.evidence.court_present)
 
 
-@pytest.mark.parametrize('name', padding.COURT_FOLDERS)
 @pytest.mark.parametrize(('before', 'after'), [(3.0, 1.0), (1.0, 3.0), (30.0, 30.0)])
-def test_extended_courts_keep_geometry_votes_and_rejected_rallies(
-    name: str, before: float, after: float, tmp_path: Path,
+def test_extended_courts_keep_geometry_and_missing_courts(
+    before: float, after: float, tmp_path: Path,
 ) -> None:
-    item = _real_item()
+    inputs = tmp_path / 'inputs'
+    item = _court_inputs(inputs)
     options = {'video_id': item['item_id'], 'frame_count': item['frame_count'],
                'resolution': tuple(map(float, item['resolution']))}
-    original = load_court_vision(INPUTS / name / item['item_id'], **options)
-    discovery = load_court_vision(INPUTS / 'discovery' / item['item_id'], **options)
+    original = load_court_vision(inputs / 'ours' / item['item_id'], **options)
+    discovery = load_court_vision(inputs / 'discovery' / item['item_id'], **options)
     original_present = original.evidence.court_present.copy()
     spans, _counts = padding.padded_spans(item, discovery.raw_cuts, before, after)
     padded = padding.extend_courts(original, item['spans'], spans)
     persist_court_vision(tmp_path, court=padded, **options)
     restored = load_court_vision(tmp_path, **options)
-    before_payload = load_json_gz(INPUTS / name / item['item_id'] / 'court_evidence.json.gz')
+    before_payload = load_json_gz(inputs / 'ours' / item['item_id'] / 'court_evidence.json.gz')
     after_payload = load_json_gz(tmp_path / 'court_evidence.json.gz')
     before_rows = before_payload['inputs'].pop('homography_rows')
     after_rows = after_payload['inputs'].pop('homography_rows')
@@ -127,7 +148,7 @@ def test_extended_courts_keep_geometry_votes_and_rejected_rallies(
         assert old[3:] == new[3:]
     old_records = {(row['start_frame'], row['end_frame']): row for row in before_payload['scene_records']}
     new_records = {(row['start_frame'], row['end_frame']): row for row in after_payload['scene_records']}
-    moved = {'scene_index', 'start_frame', 'end_frame', 'exactly_two_fraction'}
+    moved = {'scene_index', 'start_frame', 'end_frame'}
     for old, new in zip(item['spans'], spans, strict=True):
         start, end = old['start_frame'], old['end_frame']
         new_start, new_end = new['start_frame'], new['end_frame']
@@ -136,7 +157,6 @@ def test_extended_courts_keep_geometry_votes_and_rejected_rallies(
             key: value for key, value in new_record.items() if key not in moved
         }
         np.testing.assert_array_equal(restored.evidence.court_present[start:end], original_present[start:end])
-        assert np.all(restored.evidence.court_present[new_start:start] == old_record['scene_valid'])
-        assert np.all(restored.evidence.court_present[end:new_end] == old_record['scene_valid'])
-    np.testing.assert_array_equal(restored.evidence.keep_vote, original.evidence.keep_vote)
+        assert np.all(restored.evidence.court_present[new_start:start] == (old_record['corners_native_px'] is not None))
+        assert np.all(restored.evidence.court_present[end:new_end] == (old_record['corners_native_px'] is not None))
     np.testing.assert_array_equal(original.evidence.court_present, original_present)

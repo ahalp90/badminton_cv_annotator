@@ -321,7 +321,6 @@ def _fake_court_build(**kwargs):
 
     for filename in (
         vision.COURT_EVIDENCE_FILENAME,
-        vision.COURT_KEEP_VOTE_FILENAME,
         vision.COURT_PRESENT_FILENAME,
     ):
         (kwargs["output_dir"] / filename).write_bytes(filename.encode())
@@ -367,7 +366,7 @@ def test_court_source_publishes_receipt_and_validates_resume(
     assert receipt["model"] == DEEPLSD_IDENTITY
     assert receipt["completed"] is True
     assert receipt["scene_count"] == 1
-    assert len(receipt["outputs"]) == 3
+    assert len(receipt["outputs"]) == 2
     (output / vision.COURT_EVIDENCE_FILENAME).write_bytes(b"tampered")
     with np.testing.assert_raises_regex(ValueError, "output identities"):
         shuttleset22.court_source(source, **arguments)

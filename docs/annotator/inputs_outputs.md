@@ -39,7 +39,6 @@ data/dataset-run/
     └── court/
         └── match-name/
             ├── court_evidence.json.gz
-            ├── court_keep_vote.npy.xz
             └── court_present.npy.xz
 ```
 
@@ -120,7 +119,7 @@ Contact and side assignment mainly use boxes, keypoint coordinates, detection sc
 Current schema:
 
 ```text
-court-evidence/0.5
+court-evidence/0.6
 ```
 
 It contains:
@@ -129,19 +128,15 @@ It contains:
 - court geometry used by the annotator;
 - per-scene records.
 
-Save the accepted scenes’ court corners and video resolution. Annotation uses
+Save the detected scenes’ court corners and video resolution. Annotation uses
 these to calculate each scene’s image-to-court transform, net position and
 landing error band.
-
-### `court_keep_vote.npy.xz`
-
-A frame-aligned boolean array used by court/composition logic.
 
 ### `court_present.npy.xz`
 
 A frame-aligned boolean array marking frames where usable court geometry is present.
 
-The court loader checks that scene intervals cover the full video timeline and that both arrays match the metadata frame count.
+The court loader checks that scene intervals cover the full video timeline and that the mask matches the metadata frame count.
 
 ## Model directory
 

@@ -39,7 +39,7 @@ to estimate normal play speed for replay detection. Those preliminary bounds
 are discarded; rally detection runs again after masking.
 
 For rally detection, excluded coordinates are held at rest so they cannot create
-movement. Full annotation also excludes frames without accepted scene geometry.
+movement. Full annotation also excludes frames without available scene geometry.
 
 Shuttle-quality grades serve a different purpose. They mark unreliable shuttle
 positions without necessarily excluding the entire frame. Those positions are

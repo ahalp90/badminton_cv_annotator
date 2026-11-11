@@ -307,11 +307,12 @@ so this environment needs the GPU dependencies above. The builder sets
 the child working directory to the repository root and `PYTHONPATH=src:src/bst_x`.
 
 The result reader checks the schema, video dimensions, frame count and complete
-scene coverage. A detector crash fails the stage with its stderr. Even a
-successful detector run can yield no court accepted by the annotator's separate
-player vote; that raises `NoAcceptedCourtError` and writes `court_failure.json.gz`.
+scene coverage. A detector crash fails the stage with its stderr. If no scene has
+a detected court, the builder raises `NoDetectedCourtError` and writes
+`court_failure.json.gz`. Every scene with detected geometry is available to
+the annotator.
 [vision.py](../../src/dataset_builder/vision.py) defines the process boundary;
-[court_evidence.py](../../src/annotator/courts/prepare_courts.py) validates results.
+[prepare_courts.py](../../src/annotator/courts/prepare_courts.py) validates results.
 
 ### Video result
 

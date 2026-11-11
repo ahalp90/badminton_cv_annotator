@@ -35,7 +35,7 @@ In the dataset-builder path, the first mask combines two signals:
 - **Sustained court absence.** A missing court for at least 15 frames at 30 FPS marks that whole run as excluded. The duration scales with frame rate.
 - **Slow-motion-like shuttle movement.** The shuttle is still moving, but its rolling median speed has fallen below 15% of the video's normal rally speed. Genuine rest is not classified as slow motion.
 
-Short exclusion runs are removed unless they last at least 15 frames at 30 FPS. Full annotation then excludes frames that sit outside accepted court-scene geometry. The dataset-builder path also treats court-invalid frames as excluded.
+Short exclusion runs are removed unless they last at least 15 frames at 30 FPS. Full annotation then excludes frames that sit outside available court-scene geometry. The dataset-builder path also treats court-invalid frames as excluded.
 
 The purpose is to keep replay, slow motion, prolonged non-court footage and unusable camera sections from looking like normal live-play motion. Otherwise they can create false rally boundaries, false contact evidence or misleading player geometry.
 
@@ -111,7 +111,7 @@ Pose extraction can return several people and store the same person in a
 different array slot from one frame to the next. The sticky player logic tries
 to follow one person on each court half across nearby frames.
 
-Within accepted court intervals it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). `TrackedPlayers` contains:
+Within intervals with court geometry it keeps one usable pose detection for the far court half (`Top`) and one for the near half (`Bot`). `TrackedPlayers` contains:
 
 - selected indices into the original pose detections;
 - ankle positions, divided by video width and height;
@@ -183,7 +183,7 @@ points are called **seeds**:
 | wrist-distance minimum | shuttle is locally closest to a tracked wrist |
 | visibility change | shuttle appears or disappears around a possible hit or occlusion |
 | rally start | first-hit timing is often difficult |
-| court-scene start | a cut or new accepted view can disturb nearby evidence |
+| court-scene start | a cut or new court view can disturb nearby evidence |
 | serve look-back | an earlier serve may sit before the first initially selected contact |
 
 Each seed adds a short interval of nearby frames to the search. The contact

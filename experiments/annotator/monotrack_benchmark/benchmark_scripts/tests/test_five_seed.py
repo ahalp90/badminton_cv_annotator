@@ -88,7 +88,7 @@ def test_validation_courts_keep_failures_and_reject_unfinished(tmp_path: Path) -
     write_json(tmp_path / 'v_0000.json.gz', {'status': 'completed', 'corners_native_px': [[1, 2]]})
     write_json(tmp_path / 'v_0001.json.gz', {'status': 'failed'})
     records = validation_courts(tmp_path, item)
-    assert [record['scene_valid'] for record in records] == [True, False]
+    assert [record['status'] for record in records] == ['completed', 'failed']
     write_json(tmp_path / 'v_0001.json.gz', {'status': 'running'})
     with pytest.raises(ValueError, match='unfinished'):
         validation_courts(tmp_path, item)

@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 ANNOTATOR_RESULT_SCHEMA = "annotator-result/0.8"
-COURT_EVIDENCE_SCHEMA = "court-evidence/0.5"
+COURT_EVIDENCE_SCHEMA = "court-evidence/0.6"
 RAW_REPLAY_MASK_FILENAME = "raw_replay_mask.npy.xz"
 DEFINITIVE_EXCLUSION_MASK_FILENAME = "definitive_exclusion_mask.npy.xz"
 ANNOTATOR_RESULT_FILENAME = "annotator_result.json.gz"
@@ -53,7 +53,6 @@ SHUTTLE_QUALITY_FILENAME = "shuttle_quality.json.gz"
 TRACK_FILENAME = "shuttle_track.npy.xz"
 COURT_EVIDENCE_FILENAME = "court_evidence.json.gz"
 COURT_FAILURE_FILENAME = "court_failure.json.gz"
-COURT_KEEP_VOTE_FILENAME = "court_keep_vote.npy.xz"
 COURT_PRESENT_FILENAME = "court_present.npy.xz"
 COURT_DETECTOR_RESULT_FILENAME = "court_detector_result.json.gz"
 # court_detector.view_pool.CourtMode's values; the default comes first. The detector
@@ -136,16 +135,15 @@ class CourtVision:
 
 @dataclass(frozen=True)
 class CourtArtifacts:
-    """Persisted operational and provenance outputs for detected court evidence."""
+    """Persisted court geometry, detector records and frame coverage."""
 
     evidence: Path
-    keep_vote: Path
     court_present: Path
 
     def as_mapping(self) -> dict[str, Path]:
         """Return stable manifest names mapped to their paths."""
         return {
-            "court_evidence": self.evidence, "court_keep_vote": self.keep_vote, "court_present": self.court_present,
+            "court_evidence": self.evidence, "court_present": self.court_present,
         }
 
 
@@ -486,7 +484,7 @@ def build_detected_court_stage(
     :param pose_dir: where ``pose`` is saved; the detector reads those native-pixel arrays.
     """
     from annotator.courts.prepare_courts import (
-        NoAcceptedCourtError,
+        NoDetectedCourtError,
         build_court_detector_evidence,
         read_detector_scenes,
     )
@@ -515,11 +513,8 @@ def build_detected_court_stage(
             resolution,
             resolution,
             scenes,
-            pose.bboxes,
-            pose.scores,
-            pose.ndet,
         )
-    except NoAcceptedCourtError as error:
+    except NoDetectedCourtError as error:
         save_json_gz(failure_path, {"video_id": video_id, "error": str(error),
                                    "scene_records": error.result.scene_records})
         raise
@@ -555,9 +550,8 @@ def persist_court_vision(
         "scene_records": court.evidence.scene_records,
     }
     evidence_path = save_json_gz(root / COURT_EVIDENCE_FILENAME, payload)
-    keep_vote_path = save_npy_xz(root / COURT_KEEP_VOTE_FILENAME, court.evidence.keep_vote)
     court_present_path = save_npy_xz(root / COURT_PRESENT_FILENAME, court.evidence.court_present)
-    return CourtArtifacts(evidence_path, keep_vote_path, court_present_path)
+    return CourtArtifacts(evidence_path, court_present_path)
 
 
 def load_court_vision(
@@ -569,7 +563,7 @@ def load_court_vision(
 ) -> CourtVision:
     """Restore validated operational court evidence from compressed artefacts."""
     from annotator.courts.prepare_courts import CourtEvidenceResult
-    from dataset_builder._court_codec import load_court_provenance
+    from dataset_builder._court_codec import load_court_records
 
     root = Path(output_dir)
     payload = load_json_gz(root / COURT_EVIDENCE_FILENAME)
@@ -587,24 +581,20 @@ def load_court_vision(
         )
     raw_cuts = _raw_cuts_from_payload(payload["raw_cuts"])
     inputs = _court_inputs_from_payload(payload["inputs"])
-    scene_records = load_court_provenance(
+    scene_records = load_court_records(
         payload["scene_records"],
         raw_cuts=raw_cuts,
         video_id=video_id,
     )
-    keep_vote = load_npy_xz(root / COURT_KEEP_VOTE_FILENAME)
     court_present = load_npy_xz(root / COURT_PRESENT_FILENAME)
-    _validated_mask(keep_vote, frame_count, "persisted court keep_vote")
     _validated_mask(court_present, frame_count, "persisted court_present")
     result = CourtEvidenceResult(
         inputs=inputs,
         scene_records=scene_records,
-        keep_vote=keep_vote,
         court_present=court_present,
     )
     artifacts = CourtArtifacts(
         root / COURT_EVIDENCE_FILENAME,
-        root / COURT_KEEP_VOTE_FILENAME,
         root / COURT_PRESENT_FILENAME,
     )
     court = CourtVision(raw_cuts, result, artifacts)
@@ -849,7 +839,6 @@ def _validate_court_vision(
         raise ValueError("raw court cuts must cover the canonical frame range")
     if len(evidence.scene_records) != len(raw_cuts):
         raise ValueError("court scene record count must match raw cuts")
-    _validated_mask(evidence.keep_vote, frame_count, "court keep_vote")
     _validated_mask(evidence.court_present, frame_count, "court_present")
     if evidence.inputs is None:
         raise ValueError("court evidence has no operational inputs")
