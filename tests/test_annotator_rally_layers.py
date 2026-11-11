@@ -58,7 +58,7 @@ def dummy_layers() -> RallySelector:
 
 def test_layer_bundle_roundtrip_preserves_predictions_and_review(tmp_path) -> None:
     review = DummyClassifier(strategy='prior').fit(np.zeros((3, len(REVIEW_FEATURE_NAMES))), [0, 1, 1])
-    models = AnnotatorModels(dummy_layers().selector, dummy_layers(), review)
+    models = AnnotatorModels(dummy_layers().selector, dummy_layers(), dummy_layers(), review)
     pool = runtime_options()
     before = predict_rally_options(models.rally_selector, pool)
     save_models(models, tmp_path)

@@ -288,6 +288,7 @@ def export_run(
     models = AnnotatorModels(
         contact,
         sequences,
+        sequences,
         review,
         ContactModelConfig(**pool_settings['settings']['contact_prediction']),
         preprocessing,

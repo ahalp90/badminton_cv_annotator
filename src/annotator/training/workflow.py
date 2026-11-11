@@ -182,6 +182,7 @@ def fit_from_manifest(
     )
     models = AnnotatorModels(
         contact_model=contact_model, rally_selector=rally_fit.selector, review_model=review_model,
+        followup_selector=rally_fit.selector,
         contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
     )
     save_models(models, output)

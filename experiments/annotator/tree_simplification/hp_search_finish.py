@@ -87,8 +87,9 @@ def export_bundle(
             [pool.video for pool in training_pools.values()], predictions,
             replace(settings, random_seed=settings.random_seed + seed_offset, device=device),
         )
+    first_selector = RallySelector(joblib.load(selector_path))
     models = AnnotatorModels(
-        joblib.load(contact_path), RallySelector(joblib.load(selector_path)), review,
+        joblib.load(contact_path), first_selector, first_selector, review,
         ContactModelConfig(cutoff), preprocessing,
     )
     for tree in fitted_trees(models):

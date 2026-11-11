@@ -86,7 +86,7 @@ def predict_from_rally_options(
     """Select rally contacts, correct split pieces, then score the final rallies."""
     refinement = predict_rally_options(models.rally_selector, options)
     rallies, events, source_span_ids, review_features = split_and_correct_rallies(
-        inputs, scored_candidates, refinement, models.rally_selector,
+        inputs, scored_candidates, refinement, models.followup_selector,
     )
     report("scoring rallies for review")
     review = RallyReview(review_features, positive_probabilities(models.review_model, review_features.matrix))

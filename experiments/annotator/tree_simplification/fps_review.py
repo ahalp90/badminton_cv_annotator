@@ -52,9 +52,10 @@ def evaluate(run: Path, targets: Path, output: Path) -> None:
     experiment.write_json(receipt_path, receipt)
     review = integrate.fit_review(run, targets, output, settings)
     selector = joblib.load(run / 'selector.joblib')
+    first_selector = RallySelector(selector, pool_settings['max_edits'], pool_settings['deletion_candidates'])
     models = AnnotatorModels(
         joblib.load(contact_run_root / 'contacts' / 'v_32.joblib'),
-        RallySelector(selector, pool_settings['max_edits'], pool_settings['deletion_candidates']),
+        first_selector, first_selector,
         review, ContactModelConfig(**pool_settings['settings']['contact_prediction']),
         BaseAnnotatorConfig(),
     )

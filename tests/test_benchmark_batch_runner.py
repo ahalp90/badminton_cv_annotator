@@ -44,7 +44,7 @@ class ContactTree:
 
 
 def models(identity=b'contact', selector='selector'):
-    return AnnotatorModels(ContactTree(identity), RallySelector(selector), f'review-{selector}')
+    return AnnotatorModels(ContactTree(identity), RallySelector(selector), RallySelector(selector), f'review-{selector}')
 
 
 def prediction(probability=0.8, pool=None):
@@ -103,6 +103,7 @@ def test_shared_prediction_runs_contact_pipeline_once_and_each_own_selector_revi
 
     fitted = tuple(
         AnnotatorModels(ContactTree(), RallySelector(tree(f'selector-{index}', 0.9), max_edits=0),
+                        RallySelector(tree(f'followup-{index}', 0.9), max_edits=0),
                         tree(f'review-{index}', score))
         for index, score in enumerate((0.5, 0.6, 0.7))
     )
@@ -119,8 +120,8 @@ def test_shared_prediction_runs_contact_pipeline_once_and_each_own_selector_revi
 
     monkeypatch.setattr(batch, 'predict_from_contact_features', contact_pipeline)
     predictions = batch.predict_shared_pool(evidence, None, fitted)
-    assert calls == ['contact', 'selector-0', 'selector-0', 'review-0', 'selector-1', 'selector-1',
-                     'review-1', 'selector-2', 'selector-2', 'review-2']
+    assert calls == ['contact', 'selector-0', 'followup-0', 'review-0', 'selector-1', 'followup-1',
+                     'review-1', 'selector-2', 'followup-2', 'review-2']
     for predicted, score in zip(predictions, (0.5, 0.6, 0.7), strict=True):
         assert predicted.refinement.pool is pool
         assert [[event.frame for event in sequence.events] for sequence in predicted.sequences] == [[40, 60], [200, 220]]
