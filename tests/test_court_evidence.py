@@ -12,28 +12,6 @@ from experiments.annotator.legacy_evaluation.fixtures import FIXTURES
 from shared.camera_cuts import COMPOSITION_CONTENT_THRESHOLD
 from shared.court import project_pixels_to_court
 
-
-def _identity_info() -> dict[str, object]:
-    return {
-        'H': np.eye(3),
-        'border_L': 0.0,
-        'border_R': 1.0,
-        'border_U': 0.0,
-        'border_D': 1.0,
-    }
-
-
-def _pose_inputs(n_frames: int, n_slots: int = 3) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    bboxes = np.zeros((n_frames, n_slots, 4), dtype=float)
-    scores = np.full((n_frames, n_slots), np.nan, dtype=float)
-    ndet = np.full(n_frames, 2, dtype=int)
-    for frame in range(n_frames):
-        bboxes[frame, 0] = (100.0, 100.0, 200.0, 200.0)
-        bboxes[frame, 1] = (900.0, 300.0, 1000.0, 400.0)
-        scores[frame, :2] = 0.9
-    return bboxes, scores, ndet
-
-
 FULL_FRAME_PX = [[0.0, 0.0], [512.0, 0.0], [512.0, 288.0], [0.0, 288.0]]  # TL, TR, BR, BL at 512x288
 
 
@@ -180,77 +158,14 @@ def test_read_detector_scenes_rejects_bad_rows(rows, message) -> None:
         evidence.read_detector_scenes(_result(rows), frame_count=10, native_size=(512.0, 288.0))
 
 
-@pytest.mark.parametrize('n_people, expected', [(0, False), (1, False), (2, True), (3, False)])
-def test_keep_vote_requires_exactly_two_in_margin_people(n_people: int, expected: bool) -> None:
-    bboxes = np.zeros((1, 3, 4), dtype=float)
-    scores = np.full((1, 3), np.nan, dtype=float)
-    ndet = np.array([n_people], dtype=int)
-    centres = [(0.2, 0.2), (0.8, 0.8), (0.5, 0.5)]
-    for slot, (x, y) in enumerate(centres[:n_people]):
-        pixel_x, pixel_y = x * 1280.0, y * 720.0
-        bboxes[0, slot] = (pixel_x - 1.0, pixel_y - 2.0, pixel_x + 1.0, pixel_y)
-        scores[0, slot] = 0.9
-
-    vote = evidence.build_keep_vote(
-        bboxes,
-        scores,
-        ndet,
-        (1280.0, 720.0),
-        [(0, 1)],
-        [evidence.detected_court_info(np.array([[0, 0], [1280, 0], [1280, 720], [0, 720]]))],
-    )
-    assert vote.tolist() == [expected]
-
-
-def test_keep_vote_ignores_outside_people_and_includes_margin_boundaries() -> None:
-    bboxes = np.zeros((1, 4, 4), dtype=float)
-    scores = np.full((1, 4), 0.9, dtype=float)
-    ndet = np.array([4], dtype=int)
-    margin = evidence.PERSON_COURT_MARGIN
-    centres = [(-margin, 0.5), (1.0 + margin, 1.0 + margin), (0.5, 0.5), (-margin - 0.1, 0.5)]
-    for slot, (x, y) in enumerate(centres):
-        pixel_x, pixel_y = x * 1280.0, y * 720.0
-        bboxes[0, slot] = (pixel_x - 1.0, pixel_y - 2.0, pixel_x + 1.0, pixel_y)
-
-    vote = evidence.build_keep_vote(
-        bboxes,
-        scores,
-        ndet,
-        (1280.0, 720.0),
-        [(0, 1)],
-        [evidence.detected_court_info(np.array([[0, 0], [1280, 0], [1280, 720], [0, 720]]))],
-    )
-    assert vote.tolist() == [True]
-
-
-def test_detected_parent_applies_inclusive_scene_majority() -> None:
-    bboxes, scores, ndet = _pose_inputs(7)
-    ndet[2:4] = 0
-    ndet[5:] = 0
-    result = evidence.build_court_detector_evidence(
-        1, (1280.0, 720.0), (512.0, 288.0),
-        [_scene(0, 4, FULL_FRAME_PX), _scene(4, 7, FULL_FRAME_PX)],
-        bboxes, scores, ndet,
-    )
-    first_record, second_record = result.scene_records
-    assert first_record.exactly_two_fraction == pytest.approx(evidence.SCENE_VALID_MIN_FRACTION)
-    assert first_record.scene_valid is True
-    assert second_record.exactly_two_fraction == pytest.approx(1 / 3)
-    assert second_record.scene_valid is False
-    assert result.court_present.tolist() == [True] * 4 + [False] * 3
-
-
-def test_detected_inputs_use_only_accepted_scene_courts() -> None:
-    bboxes, scores, ndet = _pose_inputs(20)
-    ndet[10:] = 0
+def test_detected_inputs_use_every_detected_scene_court() -> None:
     result = evidence.build_court_detector_evidence(
         1, (1280.0, 720.0), (512.0, 288.0),
         [_scene(0, 10, FULL_FRAME_PX), _scene(10, 20, FULL_FRAME_PX)],
-        bboxes, scores, ndet,
     )
     inputs = result.inputs
     assert inputs is not None
-    assert inputs.homography_rows[['start_frame', 'end_frame']].values.tolist() == [[0, 10]]
+    assert inputs.homography_rows[['start_frame', 'end_frame']].values.tolist() == [[0, 10], [10, 20]]
     projected = project_pixels_to_court(
         np.array([[0.0, 1280.0, 1280.0, 0.0], [0.0, 0.0, 720.0, 720.0]]),
         (1280.0, 720.0),
@@ -260,7 +175,6 @@ def test_detected_inputs_use_only_accepted_scene_courts() -> None:
 
 
 def test_scenes_without_a_court_keep_their_status_as_the_absence_reason() -> None:
-    bboxes, scores, ndet = _pose_inputs(20)
     scenes = [
         _scene(0, 8, FULL_FRAME_PX),
         _scene(8, 10, status='scene_too_short_for_feet'),
@@ -268,16 +182,15 @@ def test_scenes_without_a_court_keep_their_status_as_the_absence_reason() -> Non
         _scene(15, 20, status='detection_failed', error='CourtFitError()'),
     ]
     result = evidence.build_court_detector_evidence(
-        1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
+        1, (1280.0, 720.0), (512.0, 288.0), scenes,
     )
     assert result.court_present.tolist() == [True] * 8 + [False] * 12
-    assert result.keep_vote.tolist() == [True] * 8 + [False] * 12
-    statuses = [(record.status, record.scene_valid, record.corners_native_px is None) for record in result.scene_records]
+    statuses = [(record.status, record.corners_native_px is None) for record in result.scene_records]
     assert statuses == [
-        (evidence.SceneStatus.COURT, True, False),
-        (evidence.SceneStatus.SCENE_TOO_SHORT_FOR_FEET, False, True),
-        (evidence.SceneStatus.NO_COURT, False, True),
-        (evidence.SceneStatus.DETECTION_FAILED, False, True),
+        (evidence.SceneStatus.COURT, False),
+        (evidence.SceneStatus.SCENE_TOO_SHORT_FOR_FEET, True),
+        (evidence.SceneStatus.NO_COURT, True),
+        (evidence.SceneStatus.DETECTION_FAILED, True),
     ]
     assert result.scene_records[2].no_court_reason == 'no_candidates'
     assert result.scene_records[3].error == 'CourtFitError()'
@@ -286,16 +199,12 @@ def test_scenes_without_a_court_keep_their_status_as_the_absence_reason() -> Non
 
 
 def test_distinct_camera_views_keep_their_own_courts() -> None:
-    """Two accepted scenes with different courts each keep their geometry; nothing is shared."""
+    """Different camera scenes retain their own court geometry."""
     wide = FULL_FRAME_PX
     shifted = [[80.0, 0.0], [592.0, 0.0], [592.0, 288.0], [80.0, 288.0]]
-    bboxes, scores, ndet = _pose_inputs(20)
-    bboxes[:, 0] = (650.0, 100.0, 750.0, 200.0)
-    bboxes[:, 1] = (950.0, 300.0, 1050.0, 400.0)
     result = evidence.build_court_detector_evidence(
         1, (1280.0, 720.0), (512.0, 288.0),
         [_scene(0, 10, wide), _scene(10, 20, shifted, reused_from='video_scene_0')],
-        bboxes, scores, ndet,
     )
     assert result.court_present.all()
     for record, corners in zip(result.scene_records, (wide, shifted)):
@@ -310,10 +219,9 @@ def test_distinct_camera_views_keep_their_own_courts() -> None:
 
 def test_detector_corners_convert_from_native_to_pose_pixels() -> None:
     """A 1920x1080 video's court maps onto 1280x720 pose boxes through reference pixels."""
-    bboxes, scores, ndet = _pose_inputs(4)
     native = np.array(FULL_FRAME_PX) * np.array([1920.0 / 512.0, 1080.0 / 288.0])
     result = evidence.build_court_detector_evidence(
-        1, (1280.0, 720.0), (1920.0, 1080.0), [_scene(0, 4, native)], bboxes, scores, ndet,
+        1, (1280.0, 720.0), (1920.0, 1080.0), [_scene(0, 4, native)],
     )
     assert result.court_present.all()
     assert result.inputs is not None
@@ -323,22 +231,19 @@ def test_detector_corners_convert_from_native_to_pose_pixels() -> None:
     np.testing.assert_array_equal(result.scene_records[0].corners_native_px, native)
 
 
-def test_no_accepted_court_hands_back_the_scene_evidence() -> None:
-    bboxes, scores, ndet = _pose_inputs(10)
-    ndet[:] = 0
-    scenes = [_scene(0, 6, FULL_FRAME_PX), _scene(6, 10, status='scene_too_short_for_feet')]
-    with pytest.raises(evidence.NoAcceptedCourtError, match='scene_too_short_for_feet') as failure:
+def test_no_detected_court_retains_the_scene_records() -> None:
+    scenes = [_scene(0, 6, no_court_reason='no_candidates'), _scene(6, 10, status='scene_too_short_for_feet')]
+    with pytest.raises(evidence.NoDetectedCourtError, match='scene_too_short_for_feet') as failure:
         evidence.build_court_detector_evidence(
-            1, (1280.0, 720.0), (512.0, 288.0), scenes, bboxes, scores, ndet,
+            1, (1280.0, 720.0), (512.0, 288.0), scenes,
         )
     handoff = failure.value.result
     assert handoff.inputs is None
-    assert not handoff.keep_vote.any()
     assert not handoff.court_present.any()
     assert [record.status for record in handoff.scene_records] == [
-        evidence.SceneStatus.COURT, evidence.SceneStatus.SCENE_TOO_SHORT_FOR_FEET,
+        evidence.SceneStatus.NO_COURT, evidence.SceneStatus.SCENE_TOO_SHORT_FOR_FEET,
     ]
-    np.testing.assert_array_equal(handoff.scene_records[0].corners_native_px, FULL_FRAME_PX)
+    assert handoff.scene_records[0].no_court_reason == 'no_candidates'
 
 
 @pytest.mark.parametrize('video_id', [1, 15, 21])
@@ -359,17 +264,11 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
         'training/data/shuttleset/annotations/set/homography.csv',
     ).set_index('id')
     fixture = next(item for item in FIXTURES if item.video_id == 1)
-    static_bboxes = np.zeros((4, 1, 4), dtype=float)
-    static_scores = np.full((4, 1), np.nan, dtype=float)
-    static_ndet = np.zeros(4, dtype=int)
     static_result = static_courts.build_static_court_evidence(
         1,
         homography,
         fixture.resolution,
         [(0, 4)],
-        static_bboxes,
-        static_scores,
-        static_ndet,
     )
     static_record = static_result.scene_records[0]
     assert static_result.inputs is not None
@@ -386,12 +285,10 @@ def test_static_records_and_detected_parent_are_isolated(monkeypatch) -> None:
     def fail_static_lookup(*_args, **_kwargs):
         raise AssertionError('detected parent must not read static homography')
 
-    monkeypatch.setattr(static_courts, 'get_court_info', fail_static_lookup)
-    bboxes, scores, ndet = _pose_inputs(4)
+    monkeypatch.setattr(static_courts, '_static_corners_refpx', fail_static_lookup)
     detected_result = evidence.build_court_detector_evidence(
-        1, (1280.0, 720.0), (512.0, 288.0), [_scene(0, 4, FULL_FRAME_PX)], bboxes, scores, ndet,
+        1, (1280.0, 720.0), (512.0, 288.0), [_scene(0, 4, FULL_FRAME_PX)],
     )
-    assert detected_result.keep_vote.any()
     assert detected_result.court_present.any()
     assert detected_result.inputs is not None
     static_scene = build_scene_courts(

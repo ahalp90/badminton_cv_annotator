@@ -52,7 +52,9 @@ def test_both_contact_paths_use_each_scene_net_band(second_band, expected):
     track[:, 2] = 1
     bboxes = np.zeros((10, 1, 4))
     bboxes[:, 0, 3] = 20
-    players = TrackedPlayers(np.zeros((10, 2), dtype=int), np.zeros((10, 2, 2)), np.zeros((10, 2)))
+    players = TrackedPlayers(
+        np.zeros((10, 2), dtype=int), np.zeros((10, 2, 2)), np.zeros((10, 2)), np.full(10, 2.0),
+    )
     wrist_gaps = WristGaps(np.ones(10), np.ones((10, 2)))
     evidence = SimpleNamespace(
         heuristic_spans=[(0, 5), (5, 10)], heuristic_contacts=contacts, exclusion_mask=np.zeros(10, dtype=bool),

@@ -24,7 +24,6 @@ from annotator.types import ContactEvent, ContactSequence, CourtHalf
 from dataset_builder.shuttle_evidence import GUARD_CODES_FILENAME
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
-    COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
     TRACK_FILENAME,
     PoseArrays,
@@ -58,7 +57,6 @@ class OldVideoInputs:
     pose: PoseArrays
     raw_cuts: tuple[tuple[int, int], ...]
     court: CourtInputs
-    keep_vote: np.ndarray
     court_present: np.ndarray
 
 
@@ -95,7 +93,7 @@ def load_old_inputs(
     court = _court_inputs_from_payload(payload['inputs'])
     return OldVideoInputs(
         identity=identity, fps=fps, track=track, shuttle_grades=shuttle_grades, pose=pose, raw_cuts=raw_cuts,
-        court=court, keep_vote=frame_mask(court_dir / COURT_KEEP_VOTE_FILENAME, frame_count),
+        court=court,
         court_present=frame_mask(court_dir / COURT_PRESENT_FILENAME, frame_count),
     )
 

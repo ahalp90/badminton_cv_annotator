@@ -1,9 +1,10 @@
 # Reproducing the experiments
 
-For the current XGBoost benchmark, use the
-[three-model reproduction guide](tree_simplification/README.md). Earlier HGB
-fitting commands below and in linked reports require their original repository
-revision. Saved-result analysis remains available where its inputs are retained.
+For the selected XGBoost method, use the [four-model comparison](post_split_correction/README.md)
+and the [normal refit guide](../../docs/annotator/retuning.md). The
+[three-model experiment guide](tree_simplification/README.md) and earlier HGB
+commands describe historical runs; use their corresponding repository revisions.
+Saved-result analysis remains available where its inputs are retained.
 
 Saved-result checks, annotation runs, model fitting and regenerated vision
 extracts each test a different part of the pipeline. The experiment reports identify which of these

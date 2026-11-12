@@ -30,7 +30,7 @@ def feature_inputs() -> dict:
     gaps[0:3] = np.inf
     ankle = np.full((frame_count, 2, 2), 0.5)
     ankle[40:44] = np.nan
-    players = TrackedPlayers(picks, ankle, np.full((frame_count, 2), 100.0))
+    players = TrackedPlayers(picks, ankle, np.full((frame_count, 2), 100.0), np.full(frame_count, 2.0))
     wrist_gaps = WristGaps(gaps.min(axis=1), gaps)
     mask = np.zeros(frame_count, dtype=bool)
     mask[80:83] = True
@@ -53,6 +53,7 @@ def test_feature_values_match_reference(fps: float) -> None:
     actual = build_contact_features(**feature_inputs(), fps=fps)
     expected_fields = ("interval_id", "frame", *CONTACT_FEATURE_NAMES)
     assert actual.rows.dtype.names == expected_fields
+    assert expected.dtype.names == expected_fields
     for name in expected_fields:
         np.testing.assert_array_equal(actual.rows[name], expected[name], err_msg=name)
     assert actual.eligible_intervals == [tuple(interval) for interval in intervals['eligible_intervals']]

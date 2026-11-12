@@ -26,9 +26,10 @@ they address. Results and reproduction instructions share one document.
 
 | Question | Report |
 |---|---|
+| Does a second selector improve rallies after splitting long gaps? | [Selected four-model method](../post_split_correction/README.md) |
 | Why did earlier eight-model refits differ? | [Refit investigation](refit_regression.md) · [reproduction](refit_regression.md#reproduction) |
 | How was the earlier eight-model base selected? | [Model selection](model_selection.md) · [reproduction](model_selection.md#reproduction) |
-| Why does the current system use three XGBoost models, and which settings were selected? | [Tree simplification](tree_simplification.md) · [reproduction](tree_simplification.md#evidence-and-reproduction) |
+| Why did the earlier system replace eight fitted stages with three XGBoost models? | [Tree simplification](tree_simplification.md) · [reproduction](tree_simplification.md#evidence-and-reproduction) |
 
 Saved CSVs, arrays, images and exact implementation excerpts remain with their
 experiment outputs. The reports link to them where they support a finding.

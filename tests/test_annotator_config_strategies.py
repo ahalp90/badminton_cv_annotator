@@ -28,8 +28,8 @@ def test_shipped_tracking_strategies_scale_at_video_fps() -> None:
     video_config25 = scale_config_to_fps(BaseAnnotatorConfig(), 25.0)
     video_config30 = scale_config_to_fps(BaseAnnotatorConfig(), 30.0)
     assert video_config25.smoothing_mode is SmoothingMode.IGNORE_INVISIBLE
-    assert video_config25.max_high_shot_gap_frames == 63
-    assert video_config30.max_high_shot_gap_frames == 75
+    assert video_config25.max_high_shot_gap_frames == 75
+    assert video_config30.max_high_shot_gap_frames == 90
     assert video_config30.reentry_guard_buffer == 0.05
 
 

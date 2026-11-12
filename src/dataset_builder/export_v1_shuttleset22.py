@@ -39,7 +39,6 @@ from dataset_builder.players import (
 from dataset_builder.schema_v1 import PRIMITIVE_ARTIFACT_NOTES
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
-    COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
     POSE_FILENAMES,
     TRACK_FILENAME,
@@ -67,7 +66,6 @@ INPUT_ARTIFACT_FILENAMES: dict[str, str] = {
     "shuttle_track": TRACK_FILENAME,
     **{f"pose_{name}": filename for name, filename in POSE_FILENAMES.items()},
     "court_evidence": COURT_EVIDENCE_FILENAME,
-    "court_keep_vote": COURT_KEEP_VOTE_FILENAME,
     "court_present": COURT_PRESENT_FILENAME,
 }
 # The base ShuttleSet22 extract was run with InpaintNet off. A later pass over

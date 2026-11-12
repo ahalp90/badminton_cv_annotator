@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import monotrack_runner
 import score
-from common import read_json, write_json
-from prepare_inputs import image_order, vote_free_courts
+from common import write_json
+from prepare_inputs import image_order, prepare_monotrack_courts
 from score import score_item
 
 
@@ -89,7 +89,7 @@ def test_shuttle_interpolation_switch_uses_released_trajectory() -> None:
     np.testing.assert_array_equal(filled.Y, [20, 20, 40, 60, 60])
 
 
-def test_vote_free_courts_preserve_successes_and_failures(tmp_path: Path) -> None:
+def test_prepare_monotrack_courts_preserve_successes_and_failures(tmp_path: Path) -> None:
     from dataset_builder.vision import load_court_vision
 
     video = item()
@@ -103,14 +103,11 @@ def test_vote_free_courts_preserve_successes_and_failures(tmp_path: Path) -> Non
     ]
     source, target = tmp_path / 'source', tmp_path / 'target'
     write_json(source / 'court_evidence.json.gz', {'scene_records': scenes})
-    vote_free_courts(video, source, target)
+    prepare_monotrack_courts(video, source, target)
     result = load_court_vision(target, video_id='fixture', frame_count=240, resolution=(1920., 1080.))
     assert result.evidence.court_present.sum() == 81
-    assert not result.evidence.keep_vote.any()
-    assert [record.scene_valid for record in result.evidence.scene_records] == [False, True, False]
+    assert [record.corners_native_px is not None for record in result.evidence.scene_records] == [False, True, False]
     np.testing.assert_array_equal(result.evidence.scene_records[1].corners_native_px, corners)
-    payload = read_json(target / 'court_evidence.json.gz')
-    assert payload['scene_records'][1]['exactly_two_count'] == 0
 
 
 def test_review_clip_has_exact_frame_count(tmp_path: Path) -> None:

@@ -46,7 +46,6 @@ from experiments.annotator.tree_simplification.hp_search_workers import (
     check_deadline,
     contact_directory,
     fit_contact,
-    fit_directory,
     fit_selector,
     initialise_cpu_worker,
     load_pools,
@@ -55,7 +54,6 @@ from experiments.annotator.tree_simplification.hp_search_workers import (
     score_fold,
 )
 from experiments.annotator.tree_simplification.input_stages import _training_records
-from experiments.annotator.tree_simplification.prepare import preprocessing_from_record
 
 SEEDS = (0, 100, 200, 300, 400)
 BASELINE = Candidate()
@@ -375,46 +373,7 @@ def validation_means(candidates: list[Candidate], records: list[dict[str, Any]])
     return means
 
 
-def export_finalists(search: Search, candidates: list[Candidate]) -> list[dict[str, Any]]:
-    from experiments.annotator.tree_simplification.hp_search_finish import export_bundle
-
-    bundles = []
-    search.progress.update(stage='export', completed=0, total=len(candidates) * len(SEEDS), active=[],
-                           fits_completed=0, fits_total=len(candidates) * len(SEEDS) * 4)
-    for seed in SEEDS:
-        for candidate in candidates:
-            check_deadline(search.deadline)
-            pools = load_pools(pool_directory(search.root, candidate, seed, 'train'), search.training_ids)
-            held_paths = {}
-            futures = {}
-            for held in development.TRAINING_GROUPS:
-                groups = tuple(group for group in development.TRAINING_GROUPS if group != held)
-                futures[search.gpu.submit(fit_selector, pools, candidate, seed, groups,
-                                          search.root, search.device, search.deadline)] = held
-            while futures:
-                check_deadline(search.deadline)
-                done, _pending = wait(futures, timeout=1, return_when=FIRST_COMPLETED)
-                for future in done:
-                    held_paths[futures.pop(future)] = future.result()
-                    search.progress.update(fits_completed=search.progress.record['fits_completed'] + 1,
-                                           message=f'Preparing review fit: {candidate.label}, seed {seed}')
-            preparation = read_json(search.root / 'prepared' / f'w{candidate.body_window}' / 'preparation.json.gz')
-            output = search.root / 'models' / candidate.label / f'seed-{seed}'
-            output.mkdir(parents=True, exist_ok=True)
-            path = export_bundle(
-                contact_directory(search.root, candidate, seed) / 'v_32.joblib',
-                fit_directory(search.root, candidate, seed) / 'fits' / 'ABCD' / 'selector.joblib',
-                held_paths, pools, preprocessing_from_record(preparation['inputs']['preprocessing']),
-                candidate.cutoff, seed, output, search.device,
-            )
-            bundles.append({'label': candidate.label, 'seed': seed, 'path': str(path)})
-            search.progress.update(completed=len(bundles), active=[candidate.label], message='Exported fitted bundle')
-    return bundles
-
-
 def run(args: argparse.Namespace, progress: Progress, deadline: float) -> None:
-    from experiments.annotator.tree_simplification.hp_search_finish import evaluate_test
-
     candidates = grid(tuple(args.selector_rounds))
     if args.smoke:
         candidates = [BASELINE, replace(BASELINE, cutoff=0.75)]
@@ -448,11 +407,7 @@ def run(args: argparse.Namespace, progress: Progress, deadline: float) -> None:
         write_json(args.output / 'selection.json.gz', {
             'candidates': [asdict(candidate) for candidate in winners.values()], 'validation': means,
         })
-        bundles = export_finalists(search, list(winners.values()))
-    progress.update(stage='test', completed=0, total=46, active=[], message='Testing frozen validation choices')
-    evaluate_test(args.paths, bundles, args.output / 'test', args.workers, deadline,
-                  lambda completed, total, message: progress.update(completed=completed, total=total, message=message))
-    progress.update(status='complete', active=[], message='Search, validation repeats and test comparison completed')
+    progress.update(status='complete', active=[], message='Selector search and validation repeats completed')
 
 
 def main() -> None:

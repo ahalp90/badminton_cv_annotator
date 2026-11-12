@@ -1,7 +1,7 @@
 # Refit guide
 
-`python -m annotator.training` fits the current XGBoost contact, rally and review
-models from a saved extraction run. The manifest controls which videos may be
+`python -m annotator.training` fits four XGBoost models from a saved extraction
+run: contact scoring, first rally selection, split-piece correction and review. The manifest controls which videos may be
 used for fitting. Evaluation is a separate command that reads a saved bundle.
 
 Keep each experiment's configuration, model directory and evaluation report
@@ -62,16 +62,15 @@ its directory in the extraction run.
 Keep related footage in the same group. A group may contain several videos but
 must belong to only one split. Downstream training holds groups out when making
 predictions for training examples. Each fitted subset must contain both target
-classes. Use at least two training groups for held-group selector predictions.
+classes. Use at least three training groups: one can be held out for review
+training while the other two provide examples for the second selector.
 
-Use validation to choose settings, then test the chosen model separately.
-Repeated decisions based on test errors turn that test set into development data.
-The existing ShuttleSet22 benchmark has informed development and is now familiar
-footage.
+Use validation to choose settings and the seed. Use the larger test set as a
+sanity check on the selected method.
 
 ## Fit commands
 
-The default is one rally selector with the selected XGBoost settings:
+Fit the selected four-model pipeline with:
 
 ```bash
 PYTHONPATH=src uv run python -m annotator.training fit \
@@ -81,6 +80,23 @@ PYTHONPATH=src uv run python -m annotator.training fit \
 
 Fitting and inference default to CUDA. XGBoost uses CPU when no GPU is visible.
 Add `--device cpu` to fit on CPU. `--threads` controls fitting thread limits.
+Use `--workers` for parallel video preparation and `--gpu-fits` for concurrent
+selector fits.
+
+To reuse a fitted bundle's exact settings, pass its saved settings file:
+
+```bash
+PYTHONPATH=src uv run python -m annotator.training fit \
+  --manifest retune/manifest.json \
+  --settings experiments/annotator/post_split_correction/models/seed-100/fit-settings.json.gz \
+  --output models/refit-seed-100 \
+  --workers 6 --gpu-fits 3 --threads 2
+```
+
+The manifest's video and group order also affects fitting. For the published
+five-seed comparison, keep the fixed training groups and video order described
+in the [experiment guide](../../experiments/annotator/tree_simplification/README.md).
+
 
 The runtime device is selected again when loading a bundle, so CPU-trained trees
 can also use GPU inference. In Python, use `load_models(path, device='cpu')` for
@@ -93,10 +109,17 @@ small batches may be faster on CPU.
 Player-half guesses always use each contact's scene geometry. To use one
 homography for an entire video, supply it for every scene.
 
-The command reads only training videos and their labels. It fits the final
-contact model, held-group contact models, the rally selectors and the review
-model. The saved bundle contains the models used for inference; temporary
-held-group fits supply downstream training examples.
+The command reads only training videos and their labels. It fits the contact
+model and first rally selector, then trains a second selector on ordinary rallies
+and pieces produced by splitting first-pass predictions. Review training uses
+final corrected predictions from models that exclude the reviewed video's group.
+
+For each excluded group, reuse one contact model fitted on the remaining groups.
+Temporary rally selectors generate the second selector's training examples from
+those contact scores. This avoids another round of contact-model fitting. The
+saved bundle contains four inference models; temporary fits are used only during
+training. See [how the groups are used](tree_stack.md#groups-and-validation) for
+the exclusion rules.
 
 ### V100 setup
 
@@ -143,7 +166,8 @@ fit_from_manifest(
 ```
 
 The settings separate contact fitting, contact selection, rally fitting, review
-fitting and heuristic preprocessing. Tree controls include learning rate, rounds,
+fitting and heuristic preprocessing. `settings.rally` configures both selectors;
+they learn separate weights. Tree controls include learning rate, rounds,
 maximum leaves, minimum child weight, regularisation, seed and CPU/CUDA device.
 Rally controls also include the proposal budgets and total weight per judged
 rally (`span_weight`, default 372).
@@ -155,13 +179,13 @@ with `replace()` in the same way; the setting is saved with the fitted bundle.
 
 For a five-seed comparison, keep the data, settings and order fixed and vary the
 seeds deliberately. The current benchmark uses offsets 0, 100, 200, 300 and 400
-on the contact, selector and review base seeds. These are five seeded runs,
+on the contact, both selector and review base seeds. These are five seeded runs,
 not five-fold cross-validation.
 
 ## Configuration and saved results
 
 `models.joblib` and `metadata.json` form one bundle. They retain preprocessing,
-contact selection, proposal settings and fitted estimators.
+contact selection, both selectors' proposal settings and all four fitted models.
 The metadata records runtime versions and feature order. Keep both files
 when moving a model. Training also saves the fit settings in
 `fit-settings.json.gz` beside the bundle.

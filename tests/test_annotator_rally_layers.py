@@ -6,7 +6,6 @@ from dataclasses import replace
 import numpy as np
 import pytest
 from sklearn.dummy import DummyClassifier
-from threadpoolctl import threadpool_limits
 
 from annotator.contacts.build_features import CONTACT_FEATURE_NAMES
 from annotator.models import AnnotatorModels, load_models, save_models
@@ -22,16 +21,10 @@ from annotator.rallies.refine_rallies import (
     predict_rally_options,
     score_rally_review,
 )
-from annotator.training.rally import (
-    RallyFitConfig,
-    fit_rally_models,
-    fit_rally_review_model,
-)
 from annotator.training.sequences import (
     LabelledRally,
     SequenceTrainingVideo,
 )
-from annotator.training.trees import TreeFitConfig
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
 
 
@@ -58,7 +51,7 @@ def dummy_layers() -> RallySelector:
 
 def test_layer_bundle_roundtrip_preserves_predictions_and_review(tmp_path) -> None:
     review = DummyClassifier(strategy='prior').fit(np.zeros((3, len(REVIEW_FEATURE_NAMES))), [0, 1, 1])
-    models = AnnotatorModels(dummy_layers().selector, dummy_layers(), review)
+    models = AnnotatorModels(dummy_layers().selector, dummy_layers(), dummy_layers(), review)
     pool = runtime_options()
     before = predict_rally_options(models.rally_selector, pool)
     save_models(models, tmp_path)
@@ -100,44 +93,3 @@ def test_review_features_keep_raw_sides_when_finished_sides_change() -> None:
     revised = build_review_features(replace(prediction, rallies=changed))
     np.testing.assert_array_equal(features.matrix, revised.matrix)
     assert features.matrix.shape[1] == len(REVIEW_FEATURE_NAMES)
-
-
-def test_real_layer_fit_and_review_use_one_prediction_per_training_video() -> None:
-    videos = [training_video(f'{group}-{correct}', group, correct) for group in 'ABCD' for correct in (False, True)]
-    pytest.importorskip('xgboost')
-    config = RallyFitConfig(tree=TreeFitConfig(max_iter=3, min_child_weight=0))
-    with threadpool_limits(limits=1):
-        result = fit_rally_models(videos, config)
-        assert set(result.held_group_predictions) == {video.video_id for video in videos}
-        assert result.selector.selector.n_features_in_ == len(FEATURE_NAMES)
-        # The shared contact evidence cannot recover the deliberately absent label.
-        ranker = fit_rally_review_model(
-            videos, result.held_group_predictions,
-            TreeFitConfig(max_iter=3, min_child_weight=0),
-        )
-        prediction = predict_rally_options(result.selector, runtime_options())
-        review = score_rally_review(prediction, ranker)
-    assert review.scores.shape == (1,)
-    assert np.isfinite(review.scores).all()
-
-
-def test_review_cross_fitting_requires_an_extra_group() -> None:
-    videos = [training_video('A', 'A', True)]
-    with pytest.raises(ValueError, match='at least two groups'):
-        fit_rally_models(videos, RallyFitConfig())
-
-
-@pytest.mark.parametrize(('fps', 'shift'), [(25.0, 4), (30.0, 5), (60.0, 10)])
-def test_review_tolerance_changes_correctness_labels(fps, shift, monkeypatch):
-    video = training_video('video', 'A', True)
-    video = replace(
-        video, context=replace(video.context, fps=fps),
-        rallies=(LabelledRally('rally', (40 + shift,), (CourtHalf.TOP,)),),
-    )
-    options = build_rally_options(video.context)
-    prediction = predict_rally_options(dummy_layers(), options)
-    monkeypatch.setattr('annotator.training.rally.fit_review_model', lambda _matrix, labels, _config: labels)
-    strict = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=3)
-    relaxed = fit_rally_review_model([video], {'video': prediction}, TreeFitConfig(), tolerance_at_30_fps=6)
-    np.testing.assert_array_equal(strict, [0])
-    np.testing.assert_array_equal(relaxed, [1])

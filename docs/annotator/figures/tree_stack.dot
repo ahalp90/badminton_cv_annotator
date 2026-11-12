@@ -1,27 +1,27 @@
 digraph tree_stack {
-  rankdir=TB;
-  graph [fontname="Helvetica", bgcolor="white", pad=0.2, nodesep=0.35, ranksep=0.45];
+  graph [rankdir=TB, fontname="Helvetica", bgcolor="white", pad=0.2, nodesep=0.35, ranksep=0.4];
   node [shape=box, style="rounded,filled", fillcolor="white", color="black", fontcolor="black", fontname="Helvetica", fontsize=10.5, margin="0.12,0.08"];
   edge [color="black", fontcolor="black", fontname="Helvetica", fontsize=9];
 
-  candidates [label="Candidate frames nominated by the priors\n85 physical/validity features each"];
-  contact [label="1. Contact tree\nscore every candidate frame"];
-  initial [label="Initial contacts\nscore ≥ 0.9 + nearby suppression"];
-  pool [label="All scored candidates\nincluding lower-scoring rows"];
-  shortlist [label="Shortlist additions\nup to 2 earlier serves + 6 later contacts"];
-  options [label="No-edit + contact toggles\nup to 3 additions/deletions combined\ndelete from first contact + 5 weakest others"];
-  selector [label="2. Rally selector\nscore alternatives and choose one per rally"];
-  finish [label="Finish selected rallies\nboundary widening · Top/Bot alternation"];
-  review [label="3. Review tree\nreview priority; does not edit annotations"];
+  candidates [label="Candidate frames\n90 physical and tracking features each"];
+  contact [label="1. Contact model\nscore every candidate"];
+  selected [label="Initial hits\nscore ≥ 0.9 · suppress nearby duplicates"];
+  pool [label="Keep all scored candidates\nincluding rejected frames"];
+  options [label="Build alternatives for each rough rally\nunchanged contacts + up to 3 additions/deletions"];
+  first [label="2. First rally selector\nchoose one alternative and finish bounds/player order"];
+  split [label="Split gaps over 3 seconds\nordinary and supplied-bound rallies bypass correction"];
+  piece_options [label="Rebuild alternatives for each split piece\nrecover rejected candidates · keep unchanged option\nmidpoint margin prevents duplicates across pieces"];
+  second [label="3. Second rally selector\nsame features and proposal code · separate fitted weights\nchoose contacts and finish each piece"];
+  review [label="4. Review model\nchosen proposal + selector score/margin + final bounds\nscore each final rally for manual review"];
 
   candidates -> contact;
-  contact -> initial;
+  contact -> selected;
   contact -> pool;
-  initial -> shortlist;
-  pool -> shortlist;
-  initial -> options;
-  shortlist -> options;
-  options -> selector -> finish -> review;
-  options -> review [label="selected-option evidence"];
-  selector -> review [label="score + margin"];
+  selected -> options;
+  pool -> options;
+  options -> first -> split;
+  split -> piece_options [label="split pieces"];
+  pool -> piece_options [label="full candidate rows"];
+  piece_options -> second -> review;
+  split -> review [label="unchanged rallies"];
 }

@@ -442,7 +442,7 @@ def stability_figure(summary: dict, out: Path) -> None:
         if group_index == len(STABILITY_GROUPS) - 1:
             top -= 0.5  # extra gap before the group that finds its own rallies: a harder task
         headings.append((top, heading))
-        rows += [(top - 0.6, key32, '32 videos (headline)', THIRTY_TWO_VIDEO_COLOURS),
+        rows += [(top - 0.6, key32, '32 videos', THIRTY_TWO_VIDEO_COLOURS),
                  (top - 1.5, key40, '40 videos', FORTY_VIDEO_COLOURS)]
         top -= 2.6
     for axes, (metric, title, (low, high)) in zip(axes_row, STABILITY_METRICS, strict=True):
@@ -476,7 +476,7 @@ def stability_figure(summary: dict, out: Path) -> None:
     for row, heading in headings:
         first.text(-0.04, row + 0.05, heading, transform=first.get_yaxis_transform(), ha='right', va='center',
                    fontsize=10, fontweight='bold', color=TEXT)
-    figure.suptitle("Our annotator's performance on ShuttleSet22, contact model trained on 32 videos (train only) vs "
+    figure.suptitle("Earlier three-model annotator: contact model trained on 32 videos (train only) vs "
                     '40 videos (train + validation)', fontsize=13, color=TEXT, x=0.01, y=0.985, ha='left', va='top')
     # Why only the contact model changes: the later trees are cross-fitted on the 32 training videos.
     figure.text(0.01, 0.938, 'The rally selector and review ranker keep their 32-video fits in both, so only the contact '
@@ -559,6 +559,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, required=True)
     parser.add_argument('--confidence-data', type=Path, help='Separate finite-boundary confidence survey')
+    parser.add_argument('--stability-data', type=Path, help='Separate earlier 32/40-video training comparison')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -570,7 +571,9 @@ def main() -> None:
     per_video_figure(args.data, args.out)
     ladder_figure(summary, args.out, boundary_policy)
     confidence_figure(args.confidence_data or args.data, args.out)
-    stability_figure(summary, args.out)
+    stability_data = args.stability_data or args.data
+    stability_summary = json.loads((stability_data / 'contact_summary.json').read_text())['summary']
+    stability_figure(stability_summary, args.out)
     court_error_figure(pd.read_csv(args.data / 'rally_courts.csv.gz'), args.out)
 
 

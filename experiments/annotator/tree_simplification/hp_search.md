@@ -1,6 +1,12 @@
-# Joint annotator settings search
+# Historical joint annotator settings search
 
-Run a 192-combination search on one 16 GB V100, targeting 8–14 hours including
+This plan describes the earlier three-model search. The maintained `hp_search`
+command now ends after selector screening and validation repeats; it does not
+export a production bundle. Use the [current training commands](README.md#reproduce-the-current-fit)
+to fit the selected four-model method. Historical test comparisons require their
+original checkout.
+
+The original plan ran a 192-combination search on one 16 GB V100, targeting 8–14 hours including
 five-seed checks of the finalists. The total run has a 24-hour limit. Use the
 existing saved vision inputs and experiment functions, with persistent workers
 and a bounded circular queue.
@@ -140,8 +146,8 @@ changes are not needed for the current design.
 Reuse `prepare.prepare_video`, `fit_contact_model`, `score_contact_features`,
 `remove_nearby_contacts`, `build_rally_context`, the existing proposal and target
 functions, `SelectorTrainer`, and the full-stream scorer. Follow the persistent
-worker pattern in `annotator_batch_runs.py`. Keep the existing refit commands
-available; their CLI defaults do not define this search's settings.
+worker pattern in `annotator_batch_runs.py`. The historical search settings are
+independent of the normal training command's defaults.
 
 The broad screen must call the fitting/scoring functions directly:
 `train.main` evaluates validation immediately. The current multi-seed driver

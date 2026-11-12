@@ -25,7 +25,6 @@ from dataset_builder.features import (
 from dataset_builder.source_annotations import logical_set_id
 from dataset_builder.vision import (
     COURT_EVIDENCE_FILENAME,
-    COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
     POSE_FILENAMES,
     load_court_vision,
@@ -159,7 +158,6 @@ def validate_artifact_directory(output: Path, source: Source) -> ArtifactMetadat
 
     output_filenames = {
         "court_evidence": COURT_EVIDENCE_FILENAME,
-        "court_keep_vote": COURT_KEEP_VOTE_FILENAME,
         "court_present": COURT_PRESENT_FILENAME,
     }
     output_rows = {

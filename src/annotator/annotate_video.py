@@ -97,10 +97,10 @@ def annotate_video(
         heuristic_candidates = prepared_inputs.heuristic_contacts
     else:
         prediction = predict_rallies_and_contacts(prepared_inputs, models)
-        rallies = prediction.rally_prediction.rallies
+        rallies = prediction.rallies
         heuristic_candidates = []
-        contact_events = prediction.rally_prediction.events
-        rally_confidence = tuple(float(score) for score in prediction.rally_review.scores)
+        contact_events = prediction.events
+        rally_confidence = prediction.rally_confidence
     report("resolving outcomes")
     outcomes = build_outcomes(
         prepared_inputs, rallies, landing_options=convert_landing_options(landing_options, prepared_inputs.fps),

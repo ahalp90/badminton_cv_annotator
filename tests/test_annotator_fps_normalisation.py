@@ -14,7 +14,6 @@ from annotator.contacts.build_features import (
 from annotator.contacts.heuristics import FLOOR_EPS
 from annotator.types import TrackedPlayers, WristGaps
 from experiments.annotator import development as experiment
-from experiments.annotator.tree_simplification import input_stages
 from experiments.annotator.tree_simplification.fps_normalisation import (
     SCHEMA,
     file_md5,
@@ -75,7 +74,7 @@ def build_motion_features(
     distances = np.full(frame_count, np.nan, dtype=np.float64)
     finite_gaps = np.isfinite(gaps).any(axis=1)
     distances[finite_gaps] = np.nanmin(gaps[finite_gaps], axis=1)
-    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0, dtype=np.float64))
+    players = TrackedPlayers(picks, ankle_pos, np.full((frame_count, 2), 100.0), np.full(frame_count, 2.0))
     wrist_gaps = WristGaps(distances, gaps)
     pose_kps = np.full((frame_count, 2, 17, 2), 500.0, dtype=np.float64)
     exclusion_mask = np.zeros(frame_count, dtype=bool)
@@ -237,20 +236,3 @@ def test_raw_training_refuses_normalised_prepared_features(tmp_path: Path) -> No
     experiment.write_json(tmp_path / 'preparation.json.gz', {'motion_units': SCHEMA})
     with pytest.raises(ValueError, match='production bundles use raw units'):
         experiment.require_raw_features(tmp_path)
-
-
-def test_export_refuses_normalised_units_before_writing_bundle(tmp_path: Path) -> None:
-    prepared, run, output = (tmp_path / name for name in ('prepared', 'run', 'export'))
-    prepared.mkdir()
-    run.mkdir()
-    experiment.write_json(prepared / 'preparation.json.gz', {'motion_units': SCHEMA})
-    experiment.write_json(run / 'result.json.gz', {'complete': True})
-    experiment.write_json(run / 'settings.json.gz', {
-        'target_policy': {},
-        'pool_settings': {
-            'schema': input_stages.POOL_SCHEMA, 'prepared': str(prepared), 'contact_run': str(tmp_path),
-        },
-    })
-    with pytest.raises(ValueError, match='production bundles use raw units'):
-        input_stages.export_run(run, tmp_path / 'targets', output)
-    assert not output.exists()

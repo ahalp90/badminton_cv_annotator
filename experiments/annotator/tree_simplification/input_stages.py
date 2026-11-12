@@ -1,4 +1,4 @@
-"""Fit contact inputs and export a raw-preprocessing rally stack."""
+"""Fit contact inputs and summarise confidence scores for saved predictions."""
 
 from __future__ import annotations
 
@@ -20,36 +20,26 @@ from experiments.annotator.heuristic_only_tune.run import (
 
 # isort: split
 
-import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.contacts.score_candidates import ContactModelConfig
-from annotator.inference.learned import predict_from_contact_features
-from annotator.models import (
-    AnnotatorModels,
-    fitted_trees,
-    load_models,
-    save_models,
+from annotator.inference.learned import (
+    LearnedModelPrediction,
 )
-from annotator.rallies.refine_rallies import RallyPrediction, RallySelector
 from annotator.training.contact import ContactTrainingVideo, fit_contact_model
 from annotator.training.sequences import (
     whole_rally_correctness,
 )
 from annotator.training.workflow import TrainingSettings
 from experiments.annotator import development as experiment
-from experiments.annotator.contact_records import stream_payload
-from experiments.annotator.development import development_for, pooled_scores
+from experiments.annotator.development import development_for
 from experiments.annotator.heuristic_only_tune.data import (
     load_original_videos,
-    score_stream,
 )
-from experiments.annotator.tree_simplification import integrate
-from experiments.annotator.tree_simplification.pools import SCHEMA as POOL_SCHEMA
 from experiments.annotator.tree_simplification.prepare import (
     preprocessing_from_record,
 )
+from experiments.annotator.tree_simplification.review_metrics import ranking_metrics
 from experiments.annotator.tree_simplification.selector_review import (
     score_selector_review,
 )
@@ -194,54 +184,25 @@ def fit_contacts(
     return stage
 
 
-def _export_inputs(
-    run: Path, targets: Path,
-) -> tuple[dict[str, Any], dict[str, Any], Path, Path]:
-    result = read_json(run / 'result.json.gz')
-    settings = read_json(run / 'settings.json.gz')
-    if not result.get('complete'):
-        raise ValueError('Export requires a complete fitted rally run')
-    if 'target_policy' not in settings:
-        raise ValueError('Export requires a rally selector trained on all options with five-frame targets')
-    pools = settings['pool_settings']
-    if pools['schema'] != POOL_SCHEMA:
-        raise ValueError('Option pools use an unsupported target rule; prepare fresh pools')
-    prepared_root = Path(pools['prepared']).resolve()
-    contact_run_root = Path(pools['contact_run']).resolve()
-    inputs = _prepared_inputs(prepared_root)
-    if pools['settings']['preprocessing'] != inputs['preprocessing']:
-        raise ValueError('Contact settings and prepared evidence use different preprocessing')
-    if read_json(contact_run_root / 'settings.json.gz') != {
-        'settings': pools['settings'], 'prepared': str(prepared_root),
-    }:
-        raise ValueError('Contact-stage settings differ from the fitted pool manifest')
-    if settings['target_policy']['manifest'] != read_json(targets / 'targets.json.gz'):
-        raise ValueError('Five-frame target manifest differs from the fitted rally run')
-    return settings, inputs, prepared_root, contact_run_root
-
-
 def _review_rows(
     video: Any,
     identity: str,
-    prediction: Any,
+    prediction: LearnedModelPrediction,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    rally_prediction = prediction.rally_prediction
-    if not isinstance(rally_prediction, RallyPrediction):
-        raise TypeError('Raw export requires a rally-layer prediction')
-    selector = score_selector_review(rally_prediction)
+    selector = score_selector_review(prediction.review.features)
     rankings: dict[str, Any] = {}
     rows: list[dict[str, Any]] = []
-    by_span = {sequence.span_id: sequence for sequence in rally_prediction.sequences}
+    sequences = prediction.sequences
+    span_ids = tuple(sequence.span_id for sequence in sequences)
     for tolerance in (5, 10):
-        for name, confidence in (('selector', selector), ('fitted', prediction.rally_review)):
-            labels = np.asarray([
-                whole_rally_correctness(
-                    by_span[span], video.rallies, video.fps, tolerance_at_30_fps=tolerance,
-                )
-                for span in confidence.features.span_ids
-            ], dtype=np.int8)
-            rankings[f'{name}-{tolerance}'] = integrate.ranking_metrics(labels, confidence.scores)
-            for span, label, score in zip(confidence.features.span_ids, labels, confidence.scores, strict=True):
+        labels = np.asarray([
+            whole_rally_correctness(sequence, video.rallies, video.fps, tolerance_at_30_fps=tolerance)
+            for sequence in sequences
+        ], dtype=np.int8)
+        for name, confidence in (('selector', selector), ('fitted', prediction.review)):
+            scores = np.asarray(prediction.scores_for_rallies(confidence))
+            rankings[f'{name}-{tolerance}'] = ranking_metrics(labels, scores)
+            for span, label, score in zip(span_ids, labels, scores, strict=True):
                 rows.append({
                     'video': identity,
                     'span': span,
@@ -251,105 +212,6 @@ def _review_rows(
                     'score': float(score),
                 })
     return rankings, rows
-
-
-def export_run(
-    run: Path, targets: Path, output: Path, *, threads: int = 2, device: str = 'cuda',
-) -> dict[str, Any]:
-    """Fit review, save a production bundle and score current validation annotations."""
-    if not 1 <= threads <= 28:
-        raise ValueError('threads must be between 1 and 28')
-    if device not in ('cpu', 'cuda'):
-        raise ValueError('device must be cpu or cuda')
-    run, targets, output = run.resolve(), targets.resolve(), output.resolve()
-    settings, inputs, prepared_root, contact_run_root = _export_inputs(run, targets)
-    receipt = {
-        'schema': 'tree-simplification-raw-export/1',
-        'run': str(run),
-        'targets': str(targets),
-        'settings': settings,
-        'preprocessing': inputs['preprocessing'],
-        'device': device,
-    }
-    output.mkdir(parents=True, exist_ok=True)
-    receipt_path = output / 'settings.json.gz'
-    if receipt_path.exists() and read_json(receipt_path) != receipt:
-        raise ValueError('Export inputs changed; use a fresh output directory')
-    write_json(receipt_path, receipt)
-    with threadpool_limits(limits=threads):
-        review = integrate.fit_review(run, targets, output, settings, device=device)
-    pool_settings = settings['pool_settings']
-    selector = joblib.load(run / 'selector.joblib')
-    sequences = RallySelector(
-        selector, pool_settings['max_edits'], pool_settings['deletion_candidates'],
-    )
-    contact = joblib.load(contact_run_root / 'contacts' / 'v_32.joblib')
-    preprocessing = preprocessing_from_record(inputs['preprocessing'])
-    models = AnnotatorModels(
-        contact,
-        sequences,
-        review,
-        ContactModelConfig(**pool_settings['settings']['contact_prediction']),
-        preprocessing,
-    )
-    for tree in fitted_trees(models):
-        if type(tree).__module__.startswith('xgboost'):
-            tree.set_params(device='cpu')
-    bundle = output / 'bundle'
-    save_models(models, bundle)
-    models = load_models(bundle)
-
-    validation_ids = [identity for identity, group in inputs['groups'].items() if group == experiment.VALIDATION_GROUP]
-    if len(validation_ids) != 8:
-        raise ValueError('Prepared manifest must contain the fixed eight validation videos')
-    (output / 'streams').mkdir(exist_ok=True)
-    per_video: dict[str, Any] = {}
-    review_per_video: dict[str, Any] = {}
-    rows: list[dict[str, Any]] = []
-    with threadpool_limits(limits=threads):
-        for identity in sorted(validation_ids):
-            prepared = experiment.load_prepared(prepared_root, identity)
-            video = prepared.video
-            if video.split != 'validation' or prepared.group != inputs['groups'][identity]:
-                raise ValueError(f'{identity}: replay split or group differs from preparation')
-            prediction = predict_from_contact_features(prepared.evidence, prepared.features, models)
-            rally_prediction = prediction.rally_prediction
-            if not isinstance(rally_prediction, RallyPrediction):
-                raise TypeError('Raw export requires a rally-layer prediction')
-            stream = stream_payload(rally_prediction.sequences, rally_prediction.events)
-            confidence = dict(zip(prediction.rally_review.features.span_ids, map(float, prediction.rally_review.scores),
-                                  strict=True))
-            write_json(output / 'streams' / f'{identity}.json.gz', stream | {
-                'confidence': {str(sequence.span_id): confidence[sequence.span_id]
-                               for sequence in rally_prediction.sequences},
-            })
-            per_video[identity] = score_stream(video, stream)
-            review_per_video[identity], video_rows = _review_rows(
-                video, identity, prediction,
-            )
-            rows.extend(video_rows)
-            experiment.progress(output, 'raw-replay', video=identity, complete=len(per_video), planned=8)
-
-    pooled_review = {}
-    for name in ('selector', 'fitted'):
-        for tolerance in (5, 10):
-            selected = [row for row in rows if row['ranking'] == name and row['tolerance'] == tolerance]
-            pooled_review[f'{name}-{tolerance}'] = integrate.ranking_metrics(
-                np.asarray([row['correct'] for row in selected], dtype=np.int8),
-                np.asarray([row['score'] for row in selected], dtype=np.float64),
-            )
-    write_json(output / 'review-rows.json.gz', rows)
-    result = {
-        'complete': True,
-        'preprocessing': inputs['preprocessing'],
-        'per_video': per_video,
-        'totals': pooled_scores(per_video),
-        'review_per_video': review_per_video,
-        'review': pooled_review,
-    }
-    write_json(output / 'result.json.gz', result)
-    experiment.progress(output, 'raw-export-complete', videos=len(per_video), totals=result['totals'])
-    return result
 
 
 def main() -> None:
@@ -363,20 +225,11 @@ def main() -> None:
     contacts.add_argument('--threads', type=int, default=2)
     contacts.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
 
-    export = commands.add_parser('export', help='fit review, export a bundle and score validation')
-    export.add_argument('--run', type=Path, required=True)
-    export.add_argument('--five-frame-targets', type=Path, required=True)
-    export.add_argument('--output', type=Path, required=True)
-    export.add_argument('--threads', type=int, default=2)
-    export.add_argument('--device', choices=('cpu', 'cuda'), default='cuda')
     args = parser.parse_args()
-    if args.command == 'contacts':
-        fit_contacts(
-            args.prepared, args.output, seed_offset=args.seed_offset,
-            threads=args.threads, device=args.device,
-        )
-    else:
-        export_run(args.run, args.five_frame_targets, args.output, threads=args.threads, device=args.device)
+    fit_contacts(
+        args.prepared, args.output, seed_offset=args.seed_offset,
+        threads=args.threads, device=args.device,
+    )
 
 
 if __name__ == '__main__':

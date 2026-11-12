@@ -6,7 +6,7 @@ Training labels are applied separately in training/rally_targets.py.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from itertools import combinations, pairwise
 
 import numpy as np
@@ -36,6 +36,8 @@ class RallyContext:
     ``contact_features_by_frame`` keeps contact-feature rows for selected/shortlisted
     frames, so proposal building can release the full video feature matrix.
     ``bounds_supplied`` prevents changes to supplied rally bounds.
+    ``piece_bounds`` restricts split-piece proposals and padding to disjoint
+    parts of their parent rally; ordinary rallies have no extra limits.
     """
 
     fps: float
@@ -45,6 +47,7 @@ class RallyContext:
     contact_features_by_frame: dict[int, np.ndarray]
     frame_count: int
     bounds_supplied: bool = False
+    piece_bounds: dict[int, tuple[int, int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -74,41 +77,57 @@ def build_rally_context(
     Guess the hitter once for each selected or shortlisted contact. Keep only their
     feature rows for later proposal building, shared by fitting and inference.
     """
-    def event_for_row(row: int) -> ContactEvent:
-        frame = int(contacts.candidates['frame'][row])
-        side, distances = contact_player_evidence(
-            frame, inputs.track, inputs.players, inputs.wrist_gaps, inputs.bboxes, inputs.scene_courts,
-        )
-        return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)
-
-    events = tuple(event_for_row(int(row)) for row in contacts.kept_indices)
+    events = tuple(contact_event_for_row(inputs, contacts, int(row)) for row in contacts.kept_indices)
     initial = initial_sequences(inputs.heuristic_spans, events)
+    return build_sequence_context(inputs, contacts, initial, events)
+
+
+def contact_event_for_row(inputs: PreparedAnnotationInputs, contacts: ScoredContacts, row: int) -> ContactEvent:
+    """Attribute a scored candidate using the original player evidence."""
+    frame = int(contacts.candidates['frame'][row])
+    side, distances = contact_player_evidence(
+        frame, inputs.track, inputs.players, inputs.wrist_gaps, inputs.bboxes, inputs.scene_courts,
+    )
+    return ContactEvent(frame, float(contacts.probabilities[row]), side, distances)
+
+
+def build_sequence_context(
+    inputs: PreparedAnnotationInputs, contacts: ScoredContacts,
+    initial: tuple[ContactSequence, ...], events: tuple[ContactEvent, ...],
+    *, piece_bounds: dict[int, tuple[int, int]] | None = None,
+) -> RallyContext:
+    """Shortlist missed hits around explicit sequences, retaining raw hitter guesses.
+
+    Piece bounds keep candidates within separate parts of the parent rally.
+    Contact features still use surrounding frames from the full video.
+    """
+    piece_bounds = piece_bounds if piece_bounds is not None else {}
     contacts_by_frame = {event.frame: event for event in events}
-    used_rows = set(contacts.kept_indices)
+    # Candidate rows are sorted by frame, with exactly one row per frame.
+    used_rows = set(np.searchsorted(contacts.candidates['frame'], [event.frame for event in events]))
     shortlisted_by_span = {}
     previous_end = -1
     for before in initial:
-        serve_rows = shortlist_serve_rows(before, contacts, inputs.fps, previous_end=previous_end)
-        rows = [*serve_rows, *shortlist_later_rows(before, contacts, inputs.fps)]
+        earliest, latest = piece_bounds.get(before.span_id, (previous_end, before.end_frame))
+        serve_rows = shortlist_serve_rows(before, contacts, inputs.fps, previous_end=earliest)
+        rows = [*serve_rows, *shortlist_later_rows(replace(before, end_frame=latest), contacts, inputs.fps)]
         used_rows.update(rows)
         frames = set()
         for row in rows:
             frame = int(contacts.candidates['frame'][row])
             frames.add(frame)
-            # Retained contacts already have player evidence; attribute only additions.
             if frame not in contacts_by_frame:
-                contacts_by_frame[frame] = event_for_row(row)
+                contacts_by_frame[frame] = contact_event_for_row(inputs, contacts, row)
         shortlisted_by_span[before.span_id] = tuple(contacts_by_frame[frame] for frame in sorted(frames))
         previous_end = before.end_frame
     selected_rows = sorted(used_rows)
     selected_frames = contacts.candidates['frame'][selected_rows]
-    # Each frame has one feature row. Copy the selection so training contexts
-    # do not retain the full video matrix.
+    # Copy the selection so training contexts do not retain the full video matrix.
     feature_rows = contacts.feature_matrix[selected_rows]
     contact_features_by_frame = {int(frame): features for frame, features in zip(selected_frames, feature_rows, strict=True)}
     return RallyContext(
         inputs.fps, initial, events, shortlisted_by_span, contact_features_by_frame,
-        frame_count=len(inputs.track), bounds_supplied=inputs.bounds_supplied,
+        frame_count=len(inputs.track), bounds_supplied=inputs.bounds_supplied, piece_bounds=piece_bounds,
     )
 
 
@@ -148,11 +167,13 @@ def build_rally_options(context: RallyContext, max_edits: int = 3, deletion_cand
     previous_end = -1
     for before in context.initial:
         shortlisted = context.shortlisted_by_span.get(before.span_id, ())
-        earliest = min((before.start_frame, *(event.frame for event in shortlisted)))
-        first, last = np.searchsorted(stream_frames, (earliest, before.end_frame))
+        first_candidate_frame = min((before.start_frame, *(event.frame for event in shortlisted)))
         earliest_start = before.start_frame if context.bounds_supplied else previous_end
+        earliest_start, latest_end = context.piece_bounds.get(before.span_id, (earliest_start, before.end_frame))
+        first, last = np.searchsorted(stream_frames, (first_candidate_frame, latest_end))
         proposals = propose_contact_additions_and_removals(
             before, shortlisted, context.events[first:last], earliest_start, distance, max_edits, deletion_candidates,
+            latest_end=latest_end,
         )
         # Moving the start earlier can include more selected contacts. Measure those too.
         considered_by_frame = {event.frame: event for sequence in proposals for event in sequence.events}
@@ -218,7 +239,7 @@ def shortlist_later_rows(sequence: ContactSequence, scores: ScoredContacts, fps:
 
 def propose_contact_additions_and_removals(
     before: ContactSequence, shortlisted: tuple[ContactEvent, ...], selected_contacts: tuple[ContactEvent, ...],
-    earliest_start: int, distance: int, max_edits: int, deletion_candidates: int,
+    earliest_start: int, distance: int, max_edits: int, deletion_candidates: int, *, latest_end: int,
 ) -> list[ContactSequence]:
     """Try contact additions and removals; return unique lists, fewest edits first.
 
@@ -229,7 +250,7 @@ def propose_contact_additions_and_removals(
     original_frames = tuple(event.frame for event in before.events)
     original_set = set(original_frames)
     additions = tuple(event for event in shortlisted
-                      if event.frame not in original_set and event.frame < before.end_frame)
+                      if event.frame not in original_set and event.frame < latest_end)
     deletions = []
     if before.events and deletion_candidates:
         deletions = [before.events[0]]
@@ -241,8 +262,9 @@ def propose_contact_additions_and_removals(
             start = min((before.start_frame, *(event.frame for event in added)))
             if start < earliest_start:
                 continue
-            # Include selected contacts after the earlier start, then apply deletions.
-            base = {event.frame: event for event in selected_contacts if start <= event.frame < before.end_frame}
+            end = max((before.end_frame, *(event.frame + 1 for event in added)))
+            # Include selected contacts inside extended bounds, then apply deletions.
+            base = {event.frame: event for event in selected_contacts if start <= event.frame < end}
             base.update((event.frame, event) for event in added)
             for deleted_count in range(min(max_edits - added_count, len(deletions)) + 1):
                 for deleted in combinations(deletions, deleted_count):
@@ -251,9 +273,9 @@ def propose_contact_additions_and_removals(
                     if any(abs(candidate.frame - event.frame) <= distance
                            for candidate in added for event in events if event.frame != candidate.frame):
                         continue
-                    sequence = replace(before, start_frame=start, events=events)
+                    sequence = replace(before, start_frame=start, end_frame=end, events=events)
                     proposals.setdefault(tuple(event.frame for event in events), sequence)
-    # Only added contacts move the start; they cannot also be deleted. The contact
+    # Only added contacts extend bounds; they cannot also be deleted. The contact
     # frames therefore identify a proposal, and zero edits keeps the original first.
     ordered_frames = sorted(proposals, key=lambda frames: (len(original_set ^ set(frames)), frames))
     return [proposals[frames] for frames in ordered_frames]

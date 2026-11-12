@@ -3,10 +3,15 @@
 from dataclasses import dataclass
 
 from annotator.contacts.build_features import ContactFeatures, build_contact_features
-from annotator.contacts.score_candidates import ScoredContacts, score_contact_features
+from annotator.contacts.score_candidates import (
+    ScoredContacts,
+    positive_probabilities,
+    score_contact_features,
+)
 from annotator.inference.prepare_annotation_inputs import PreparedAnnotationInputs
 from annotator.models import AnnotatorModels
 from annotator.rallies.build_contact_proposals import (
+    RallyOptions,
     build_rally_context,
     build_rally_options,
 )
@@ -14,8 +19,9 @@ from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallyReview,
     predict_rally_options,
-    score_rally_review,
 )
+from annotator.rallies.split_and_correct_rallies import split_and_correct_rallies
+from annotator.types import ContactEvent, ContactSequence, FinishedRally
 from shared.progress import report
 
 
@@ -23,14 +29,33 @@ from shared.progress import report
 class LearnedModelPrediction:
     """Finished rallies and review scores, with inputs for inspection and training.
 
-    ``rally_prediction`` keeps the proposals, chosen rallies and contact events.
-    ``rally_review`` scores those chosen rallies in the same order.
+    ``refinement`` retains the first-pass choices and proposal pool. ``review``
+    describes the final rallies after splitting and correction. ``source_span_ids``
+    maps those rallies to the original spans for comparisons.
     """
 
     contact_features: ContactFeatures
     scored_candidates: ScoredContacts
-    rally_prediction: RallyPrediction
-    rally_review: RallyReview
+    refinement: RallyPrediction
+    review: RallyReview
+    rallies: tuple[FinishedRally, ...]
+    events: tuple[ContactEvent, ...]
+    source_span_ids: tuple[int, ...]
+
+    @property
+    def sequences(self) -> tuple[ContactSequence, ...]:
+        """Final contact sequences, in rally order."""
+        return tuple(rally.sequence for rally in self.rallies)
+
+    def scores_for_rallies(self, review: RallyReview) -> tuple[float, ...]:
+        """Return scores aligned to the final rally IDs."""
+        by_span = dict(zip(review.features.span_ids, map(float, review.scores), strict=True))
+        return tuple(by_span[rally.sequence.span_id] for rally in self.rallies)
+
+    @property
+    def rally_confidence(self) -> tuple[float, ...]:
+        """Review scores for the final rallies in output order."""
+        return self.scores_for_rallies(self.review)
 
 
 def predict_rallies_and_contacts(inputs: PreparedAnnotationInputs, models: AnnotatorModels) -> LearnedModelPrediction:
@@ -51,10 +76,25 @@ def predict_from_contact_features(
     report("selecting rally contact lists")
     context = build_rally_context(inputs, scored_candidates)
     options = build_rally_options(context, models.rally_selector.max_edits, models.rally_selector.deletion_candidates)
-    rally_prediction = predict_rally_options(models.rally_selector, options)
+    return predict_from_rally_options(inputs, features, scored_candidates, options, models)
+
+
+def predict_from_rally_options(
+    inputs: PreparedAnnotationInputs, features: ContactFeatures, scored_candidates: ScoredContacts,
+    options: RallyOptions, models: AnnotatorModels,
+) -> LearnedModelPrediction:
+    """Select rally contacts, correct split pieces, then score the final rallies."""
+    refinement = predict_rally_options(models.rally_selector, options)
+    corrected = split_and_correct_rallies(
+        inputs, scored_candidates, refinement, models.followup_selector,
+    )
     report("scoring rallies for review")
-    rally_review = score_rally_review(rally_prediction, models.review_model)
-    return LearnedModelPrediction(features, scored_candidates, rally_prediction, rally_review)
+    review = RallyReview(
+        corrected.review_features, positive_probabilities(models.review_model, corrected.review_features.matrix),
+    )
+    return LearnedModelPrediction(
+        features, scored_candidates, refinement, review, corrected.rallies, corrected.events, corrected.source_span_ids,
+    )
 
 
 def contact_features_from_inputs(inputs: PreparedAnnotationInputs) -> ContactFeatures:

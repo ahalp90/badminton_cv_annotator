@@ -1019,8 +1019,7 @@ One note per artifact name that can appear in the `primitive_artifacts` table. T
 | `pose_scores` | predicted | (frame_count, slots) detection scores. NaN in inactive slots. |
 | `pose_kp_scores` | predicted | (frame_count, slots, 17) keypoint scores. |
 | `pose_ndet` | predicted | (frame_count,) active detection count per frame. |
-| `court_evidence` | predicted | Scene homography rows, gate inputs and each scene's court_detector status and reason. |
-| `court_keep_vote` | predicted | (frame_count,) frames with exactly two people inside their scene's detected court. |
+| `court_evidence` | predicted | Scene homography rows and each scene's court_detector status and reason. |
 | `court_present` | predicted | (frame_count,) court-present mask that bounds every interpolation segment. court_evidence gives the reason for each absent scene. |
 | `raw_replay_mask` | predicted | (frame_count,) raw replay mask from the annotation stage. |
 | `definitive_exclusion_mask` | predicted | (frame_count,) definitive exclusion mask from the annotation stage. |

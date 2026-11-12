@@ -53,8 +53,7 @@ def inputs(runner: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         homography_rows=object(), landing_error_band_m=0.05,
     )
     court_vision = SimpleNamespace(
-        evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool),
-                                 keep_vote=np.ones(frame_count, dtype=bool)),
+        evidence=SimpleNamespace(inputs=court, court_present=np.ones(frame_count, dtype=bool)),
         raw_cuts=((0, 30), (30, frame_count)),
     )
     array_paths = []
@@ -163,7 +162,7 @@ def test_full_default_keeps_the_selected_models_and_contact_stream(
         return SimpleNamespace(
             result=empty_annotation([], []),
             working_data=SimpleNamespace(learned_model_prediction=SimpleNamespace(
-                rally_prediction=SimpleNamespace(sequences=sequences, events=events),
+                sequences=sequences, events=events,
             )),
         )
 

@@ -8,12 +8,15 @@ work. The [quickstart](quickstart.md) explains how to supply a video's files.
 The main path has three parts:
 
 1. Rules find playable stretches, rough rallies and possible contacts.
-2. XGBoost scores contact frames, then chooses a contact sequence for each rally.
+2. XGBoost scores contacts and chooses rally sequences. Long gaps split rallies;
+   a second selector corrects only those pieces.
 3. Rules assign court halves and estimate the server, winner, landing and hit height.
 
 A separate model gives each rally a review score. It orders manual inspection;
 it does not remove contacts or approve rallies. `heuristic_only=True` skips the
 fitted models and uses the rule-based contacts for the outcome stage.
+
+![Annotation stages from saved inputs to final rallies](figures/architecture.svg)
 
 ## Start with one shared video timeline
 
@@ -39,7 +42,7 @@ to estimate normal play speed for replay detection. Those preliminary bounds
 are discarded; rally detection runs again after masking.
 
 For rally detection, excluded coordinates are held at rest so they cannot create
-movement. Full annotation also excludes frames without accepted scene geometry.
+movement. Full annotation also excludes frames without available scene geometry.
 
 Shuttle-quality grades serve a different purpose. They mark unreliable shuttle
 positions without necessarily excluding the entire frame. Those positions are
@@ -66,10 +69,16 @@ See [Fixed heuristics](heuristics.md) for the individual rules and research cont
 The contact search includes impulse peaks, wrist-distance minima, visibility
 changes, rough rally starts, scene starts and a serve look-back window.
 [`contacts/build_features.py`](../../src/annotator/contacts/build_features.py) measures
-85 values per candidate frame: 17 shuttle/player signals at five time offsets.
+90 values per candidate frame: 18 shuttle/player/count signals at five time offsets.
 It applies the search-region priors once and returns only candidate rows. Both
 training and inference use those rows directly. Time offsets still refer to the
 full video timeline, including frames outside the candidate set.
+
+The standing-person count includes all qualifying detections within the court
+plus a 5% margin, including people not selected as either tracked player.
+Seated poses and detection scores at or below 0.2 are excluded. Counts cover
+every frame with court geometry. Missing geometry is NaN; a known court with
+no standing detections is zero. The model learns how to use this count.
 
 [`contacts/score_candidates.py`](../../src/annotator/contacts/score_candidates.py) scores candidates
 with the contact classifier. Candidates compete by probability and temporal
@@ -104,14 +113,7 @@ evaluation tolerance is a separate allowance.
 
 Ground truth does not force a frame into the candidate set. A labelled contact
 with no eligible candidate within ±1 frame contributes no positive example.
-In the selected model's 32 training videos, **26,893 of 27,571 labelled contacts
-(97.5%)** have at least one positive candidate frame, providing **80,651 positive
-frame examples**. The remaining 678 contacts fall outside the feature search
-intervals by more than that radius. The candidate-region rules excluded no
-additional labelled contacts within those intervals.
-
-The [saved coverage counts and measurement command](../../experiments/annotator/tree_simplification/results/boundary_retrain_v7/README.md#contact-training-coverage)
-give the per-video breakdown. The training implementation is in
+The sampling implementation is in
 [`training/contact.py`](../../src/annotator/training/contact.py).
 
 ## Choose a contact sequence for each rally
@@ -128,9 +130,9 @@ probabilities, raw court-half guesses, physical contact evidence and unused
 candidates. The selector scores these rows and chooses the highest-scoring
 proposal for each initial rally. Stable proposal order resolves equal scores.
 
-The selected model has one rally selector. Its scores and the gap between the
-top two options also inform the separate review model.
-Training and inference share the same proposal and feature builders.
+This first selector works on rough rallies. A separately trained second selector
+uses the same proposal and feature code on split pieces. Each final rally's
+selector score and the gap between its top two options inform the review model.
 
 An earlier serve can move a rally's start and absorb intervening contacts.
 Contacts originally outside all rallies survive in the full stream even if an
@@ -148,6 +150,31 @@ The chosen window keeps its context: there is no maximum number of seconds
 before the first contact or after the last. The final step can extend it to
 provide 10 frames of context at 30 FPS, where neighbouring rallies, video edges
 and contact membership allow. Supplied boundaries stay fixed.
+
+After the first rally selector finishes, split gaps longer than three seconds
+between accepted hits. Camera cuts alone do not trigger splits. Each piece
+starts with its parent's selected contacts and the original hitter guesses.
+Keep the parent's start on the first piece and its end on the last.
+
+The second rally selector compares contact alternatives within each split piece.
+It uses the same proposal code as the first selector, with separately trained
+weights. Rebuild each shortlist from all scored candidates so previously rejected
+hits can be recovered. Keep the unchanged contact sequence as an option.
+
+Divide each gap at the midpoint and leave a small margin around that midpoint.
+The margin keeps hits chosen by neighbouring pieces farther apart than the
+nearby-contact distance (six frames at 30 fps). Candidates, expanded bounds and
+padding must stay inside the piece's permitted interval. Contact features retain
+surrounding video evidence. After selection, refit the piece's player order.
+There is one correction pass; pieces stay separate. Ordinary rallies keep their
+first-pass contacts and bounds. Preserve contacts outside rallies in the full
+stream.
+
+These bounds still affect landing search, including recovery when a court view
+returns after the last hit. Supplied bounds bypass splitting. The high-shot
+tracking-loss allowance uses the same three-second default: both limits mark
+how long a rally can continue without the expected evidence. High-shot handling
+measures missing shuttle frames; splitting measures gaps between accepted hits.
 
 The window still matters. Inside it, the selector's chosen contacts are the
 rally's accepted contacts; rejected candidates stay rejected. Detector contacts
@@ -179,9 +206,10 @@ Each contact contributes only when both court halves have usable distances.
 Equal or unavailable distance sums fall back to the first known guess. When no
 guess is known, all players stay unknown. These are court halves, not player identities.
 
-The review model uses evidence from the chosen proposal, selector scores and
-final boundaries. It retains the original side guesses when measuring agreement;
-using the enforced alternating sides would make that evidence misleading.
+The review model scores each final rally using its chosen proposal, selector
+score and final boundaries. Corrected pieces use the second selector's evidence;
+ordinary rallies use the first selector's evidence. Measure side agreement from
+the original guesses, since enforced alternation would hide uncertainty.
 
 ## Estimate outcomes and return the result
 

@@ -33,7 +33,7 @@ def contact_player_evidence(
         return None, None
     distances = wrist_gaps.per_player[frame]
     finite_distances = np.isfinite(distances)
-    # Serve look-back frames before an accepted scene have no tracker distances.
+    # Serve look-back frames before court coverage begins have no tracker distances.
     if not finite_distances.any():
         return None, None
     band_lo, band_hi = court_at_frame(scene_courts, frame).net_band

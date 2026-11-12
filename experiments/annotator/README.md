@@ -12,10 +12,11 @@ experiments explain why those parts exist, which approaches earned their place,
 and where the system still falls short.
 
 **The current system finds most contacts, but complete rallies still need human
-review.** The current three-model XGBoost system recovers a mean of 1,822.4 of
-3,327 labelled rallies across five fits in the 46-video ShuttleSet22 comparison.
-That is 54.78% under the report's standard scoring rules. The
-[tree comparison](reports/tree_simplification.md) gives the results and definitions.
+review.** The selected four-model method produces a mean of 2,024.6 fully correct
+rallies out of 3,327 labelled test rallies across five seeded fits. Contact F1 is
+93.818% and correct-player F1 is 91.986%. See the
+[current comparison](post_split_correction/README.md) for validation results,
+scoring rules and the trade-off against the earlier published pipeline.
 
 ## Reading guide
 
@@ -32,18 +33,17 @@ That is 54.78% under the report's standard scoring rules. The
 
 The working pipeline uses saved court geometry, shuttle tracks and player poses.
 Rules find plausible contact frames, a learned classifier scores them, and
-one rally selector compares possible contact sequences for each rally. A separate model ranks the
-finished rallies for review. The normal annotation and retraining commands live
+the first rally selector compares possible contact sequences for each rally.
+After long gaps split a rally into pieces, the second selector corrects those
+pieces. A separate model scores the final rallies for review. The normal annotation and retraining commands live
 in `src/annotator`; the code here runs experiments around that implementation.
 
-The default is the **raw-baseline XGBoost bundle, seed 0**, in
-[the committed model directory](tree_simplification/results/hp_search/models/seed-0/).
-The selected bundle uses 5-second / 5-second training allowances and the original
-2-second / 3-second discovery finishing rule. It uses a contact classifier, one rally selector and a review
-ranker. The [reproduction guide](tree_simplification/README.md) covers the fixed split and
-five seeded fits. The former eight-model bundles are historical records; the
-current annotator no longer loads or fits them. Heuristic-only annotation remains
-available.
+The default [deployed bundle](../../runtime/deployed/annotator/) uses seed offset
+100, selected on validation. See [current model settings](../../docs/annotator/tree_stack.md)
+for feature sizes and review scoring, and the [refit guide](../../docs/annotator/retuning.md)
+for normal training commands. The [selected experiment](post_split_correction/README.md)
+records the fixed-split comparison. Heuristic-only annotation remains available
+through the same entry point with `heuristic_only=True`.
 
 Three substantial problems remain:
 
@@ -67,7 +67,8 @@ to the experiments that motivate them.
 | `heuristic_tuning/` | Calibration fixtures and parameter sweeps for the early rules |
 | `contact_attribution_comparison_20260814/` | Player-distance experiment code and evidence |
 | `court_geometry_repair/`, `independent_court/`, `court_scene_sampling/` | Court repairs, alternative fitting methods and frame-sampling comparisons |
-| `tree_simplification/` | Current XGBoost fitting, evaluation and saved results |
+| [post_split_correction/](post_split_correction/README.md) | Selected four-model method and comparison results |
+| `tree_simplification/` | XGBoost experiment runners and historical results |
 | [video_models_benchmark/](video_models_benchmark/README.md) | X3D-M and VideoMAE sliding-window contact detection, hitter attribution and selected weights |
 | `development.py` | Shared fixed splits, sampling order and experiment helpers |
 | `old_court_regression/`, `good_court_refit/` | Historical pinned inputs and comparison evidence |

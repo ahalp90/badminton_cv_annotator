@@ -2,7 +2,7 @@
 
 import json
 import weakref
-from dataclasses import replace
+from dataclasses import asdict, replace
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +18,7 @@ from annotator.saved_inputs import SavedVideoInputs
 from annotator.training import workflow
 from annotator.training.sequences import LabelledRally
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
-from dataset_builder.vision import CourtVision, PoseArrays, load_json_gz
+from dataset_builder.vision import CourtVision, PoseArrays, load_json_gz, save_json_gz
 from shared.video_metadata import VideoMetadata
 
 
@@ -85,92 +85,75 @@ def test_labels_keep_unknown_sides(tmp_path: Path) -> None:
     assert workflow.load_labels(path, 200) == (LabelledRally('first', (100, 130), (CourtHalf.TOP, None)),)
 
 
-def test_fit_excludes_contact_groups_and_reuses_held_group_rally_predictions(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    path = manifest_file(tmp_path)
-    payload = json.loads(path.read_text())
-    payload['videos'].insert(2, {
-        'id': 'four', 'group': 'east', 'split': 'train', 'labels': label_file(tmp_path, 'four').name,
-    })
-    path.write_text(json.dumps(payload))
-    manifest = workflow.load_manifest(path)
-    training_order = ['one', 'two', 'four', 'three']
-    group_by_video = {video.video_id: video.group for video in manifest.videos}
-    seen = []
-    contact_model, sequence_models, review_model = object(), object(), object()
-    contact_training_identities = {}
-    pool_models = {}
-    saved = []
-    prepared_arrays = []
+def test_fit_reuses_prepared_inputs_and_builds_distinct_followup_model(tmp_path: Path, monkeypatch) -> None:
+    manifest = workflow.load_manifest(manifest_file(tmp_path))
+    training_order = ['one', 'two', 'three']
+    groups = {'one': 'east', 'two': 'west', 'three': 'north'}
+    prepared_arrays, seen, contact_orders, ordinary_order, saved = [], [], [], [], []
+    first_selector = SimpleNamespace(name='first')
+    followup_selector = SimpleNamespace(name='followup')
+    review = object()
 
-    def evidence(_run: Path, video_id: str, _settings: Any) -> Any:
+    def evidence(_run, video_id, _settings):
         seen.append(video_id)
         track = np.zeros((400, 3))
         prepared_arrays.append(weakref.ref(track))
         return SimpleNamespace(video_id=video_id, fps=30.0, track=track)
 
-    def features(_evidence: Any) -> ContactFeatures:
+    def features(_evidence):
         rows = np.zeros(1)
         prepared_arrays.append(weakref.ref(rows))
         return ContactFeatures(rows, [], [])
 
-    def contact_fit(videos: list, _settings: Any) -> Any:
+    def contact_fit(videos, _settings):
         identities = [video.video_id for video in videos]
-        assert identities == [video_id for video_id in training_order if video_id in identities]
+        contact_orders.append(identities)
         assert all(video.contact_frames.tolist() == [100, 300] for video in videos)
-        model = contact_model if identities == training_order else object()
-        contact_training_identities[model] = identities
-        return SimpleNamespace(model=model)
+        return SimpleNamespace(model=SimpleNamespace(training_videos=identities))
 
-    def sequence_input(video_id: str, group: str, captured: Any, _features: Any, rallies: Any,
-                       model: Any, _settings: Any) -> Any:
-        expected = [video_id for video_id in training_order if group_by_video[video_id] != group]
-        assert contact_training_identities[model] == expected
-        assert model is not contact_model
-        pool_models[video_id] = model
-        return SimpleNamespace(video_id=video_id, group=group, context=SimpleNamespace(fps=captured.fps), rallies=rallies)
-
-    def sequence_fit(videos: list, _settings: Any) -> Any:
+    def ordinary(video, contact_path, _contact_settings, _rally_settings, destination):
         assert all(array() is None for array in prepared_arrays)
-        assert [video.video_id for video in videos] == training_order
-        predictions = {
-            video.video_id: SimpleNamespace(video_id=video.video_id, sequences=final_sequences()) for video in videos
-        }
-        return SimpleNamespace(selector=sequence_models, held_group_predictions=predictions)
+        prepared = workflow.joblib.load(video.inputs_path)
+        assert prepared.evidence.video_id == video.video_id
+        assert workflow.joblib.load(contact_path).training_videos == [
+            identity for identity in training_order if groups[identity] != video.group
+        ]
+        ordinary_order.append(video.video_id)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.touch()
+        return destination
 
-    def review_fit(videos: list, predictions: dict, _settings: Any, *, tolerance_at_30_fps: int) -> Any:
+    def first_fit(paths, pieces, _settings, destination):
+        assert [path.stem for path in paths] == training_order
+        assert not pieces
+        workflow.joblib.dump(first_selector, destination)
+        return destination
+
+    def followup(videos, paths, held_contacts, _contact, rally, _confidence, _working, **options):
         assert [video.video_id for video in videos] == training_order
-        assert tolerance_at_30_fps == 6
-        assert set(predictions) == set(training_order)
-        for video in videos:
-            assert predictions[video.video_id].video_id == video.video_id
-        return review_model
+        assert list(paths) == training_order
+        assert set(held_contacts) == {'east', 'west', 'north'}
+        assert rally.review_tolerance_at_30_fps == 6
+        assert options == {'workers': 1, 'gpu_fits': 1}
+        return followup_selector, review
 
     monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', evidence)
     monkeypatch.setattr(workflow, 'contact_features_from_inputs', features)
     monkeypatch.setattr(workflow, 'fit_contact_model', contact_fit)
-    monkeypatch.setattr(workflow, 'sequence_training_video', sequence_input)
-    monkeypatch.setattr(workflow, 'fit_rally_models', sequence_fit)
-    monkeypatch.setattr(workflow, 'fit_rally_review_model', review_fit)
+    monkeypatch.setattr(workflow, 'prepare_training_data', ordinary)
+    monkeypatch.setattr(workflow, 'fit_selector_from_files', first_fit)
+    monkeypatch.setattr(workflow, 'fit_followup_models', followup)
     monkeypatch.setattr(workflow, 'save_models', lambda models, output: saved.append((models, output)))
-    settings = replace(
-        workflow.DEFAULT_TRAINING_SETTINGS,
-        rally=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally, review_tolerance_at_30_fps=6),
-    )
+    settings = replace(workflow.DEFAULT_TRAINING_SETTINGS,
+                       rally=replace(workflow.DEFAULT_TRAINING_SETTINGS.rally, review_tolerance_at_30_fps=6))
     result = workflow.fit_from_manifest(manifest, tmp_path / 'bundle', settings)
-    assert seen == training_order
-    assert list(pool_models) == training_order
-    assert pool_models['one'] is pool_models['four']
-    assert list(contact_training_identities.values()) == [
-        training_order, ['two', 'three'], ['one', 'four', 'three'], ['one', 'two', 'four'],
-    ]
-    assert result.contact_model is contact_model and result.rally_selector is sequence_models
+    assert seen == ordinary_order == training_order
+    assert contact_orders == [training_order, ['two', 'three'], ['one', 'three'], ['one', 'two']]
+    assert result.rally_selector.name == first_selector.name
+    assert result.followup_selector is followup_selector and result.review_model is review
     assert saved == [(result, tmp_path / 'bundle')]
-    fit_settings = load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')
-    assert fit_settings['contact']['positive_radius_at_30_fps'] == 1
-    assert fit_settings['rally']['preferred_tolerance_at_30_fps'] == 5
-    assert fit_settings['rally']['review_tolerance_at_30_fps'] == 6
+    assert not list((tmp_path / 'bundle').glob('.training-*'))
+    assert load_json_gz(tmp_path / 'bundle' / 'fit-settings.json.gz')['rally']['review_tolerance_at_30_fps'] == 6
 
 
 def test_too_few_training_groups_fail_before_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -198,10 +181,10 @@ def test_evaluation_reads_only_requested_split_and_never_fits(tmp_path: Path, mo
 
     sequences = final_sequences()
     events = tuple(event for span in sequences for event in span.events)
-    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=sequences, events=events))
+    prediction = SimpleNamespace(sequences=sequences, events=events)
     monkeypatch.setattr(workflow, 'prepare_saved_video_inputs', evidence)
     monkeypatch.setattr(workflow, 'predict_rallies_and_contacts', lambda *_args: prediction)
-    for name in ('fit_contact_model', 'fit_rally_models', 'fit_rally_review_model'):
+    for name in ('fit_contact_model', 'fit_selector_from_files', 'fit_followup_models'):
         monkeypatch.setattr(workflow, name, forbidden_fit)
     output = tmp_path / 'evaluation.json.gz'
     models = SimpleNamespace(preprocessing=object())
@@ -222,7 +205,7 @@ def test_cli_dispatches_settings_and_paths(tmp_path: Path, monkeypatch: pytest.M
     fitted = []
     evaluated = []
     model = object()
-    monkeypatch.setattr(workflow, 'fit_from_manifest', lambda *args: fitted.append(args))
+    monkeypatch.setattr(workflow, 'fit_from_manifest', lambda *args, **_kwargs: fitted.append(args))
     monkeypatch.setattr(workflow, 'load_models', lambda _path: model)
     monkeypatch.setattr(workflow, 'evaluate_manifest', lambda *args: evaluated.append(args))
     assert workflow.main(['fit', '--manifest', str(path), '--output', 'bundle']) == 0
@@ -244,6 +227,31 @@ def test_cli_dispatches_settings_and_paths(tmp_path: Path, monkeypatch: pytest.M
     assert failure.value.code == 2
 
 
+def test_saved_training_settings_roundtrip_and_device_override(tmp_path, monkeypatch):
+    defaults = workflow.DEFAULT_TRAINING_SETTINGS
+    settings = replace(
+        defaults, contact=replace(defaults.contact, max_leaf_nodes=63, max_iter=360, random_seed=123),
+        rally=replace(defaults.rally, tree=replace(defaults.rally.tree, max_leaf_nodes=63, random_seed=456)),
+        confidence=replace(defaults.confidence, random_seed=789),
+        preprocessing=replace(defaults.preprocessing, overrides_base30={'body_unit_half_window': 36},
+                              rejected_grades=frozenset({1, 2, 3, 4})),
+    )
+    path = save_json_gz(tmp_path / 'fit-settings.json.gz', asdict(settings))
+    assert workflow.load_training_settings(path) == settings
+    fitted = []
+    monkeypatch.setattr(workflow, 'fit_from_manifest', lambda *args, **kwargs: fitted.append((args, kwargs)))
+    assert workflow.main([
+        'fit', '--manifest', str(manifest_file(tmp_path)), '--output', str(tmp_path / 'models'),
+        '--settings', str(path), '--device', 'cpu', '--workers', '6', '--gpu-fits', '3',
+    ]) == 0
+    actual = fitted[0][0][2]
+    assert actual.contact == replace(settings.contact, device='cpu')
+    assert actual.rally == replace(settings.rally, tree=replace(settings.rally.tree, device='cpu'))
+    assert actual.confidence == replace(settings.confidence, device='cpu')
+    assert actual.preprocessing == settings.preprocessing
+    assert fitted[0][1] == {'workers': 6, 'gpu_fits': 3}
+
+
 def test_saved_inputs_pass_to_preparation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     metadata = VideoMetadata(tmp_path / 'source.mp4', Fraction(30), 2, 1920, 1080)
     pose = PoseArrays(
@@ -252,7 +260,7 @@ def test_saved_inputs_pass_to_preparation(tmp_path: Path, monkeypatch: pytest.Mo
     )
     court_inputs = CourtInputs((1920, 1080), pd.DataFrame())
     court = CourtVision(((0, 2),), CourtEvidenceResult(
-        court_inputs, (), np.ones(2, bool), np.ones(2, bool),
+        court_inputs, (), np.ones(2, bool),
     ))
     saved = SavedVideoInputs(
         metadata, np.array([[.2, .3, 1], [.3, .4, 1]]), np.zeros(2, dtype=np.uint8), pose, court,

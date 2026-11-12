@@ -1,19 +1,23 @@
 digraph annotator {
-  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.45", bgcolor="white"];
+  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.4", bgcolor="white"];
   node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
   edge [fontname="Helvetica", fontsize=9];
 
   inputs [label="Saved inputs\nmetadata · shuttle · pose · court"];
-  validate [label="Load and check\nframe counts · shuttle guards · court data"];
-  prep [label="Prepare frame evidence\nFPS scaling · court scenes · tracked players · exclusion mask"];
-  rough [label="Find rough rallies\ninitial spans + contact search regions"];
-  contact [label="Contact tree\n85 features → probability → selected contacts"];
-  seq [label="Choose rally contacts\nno-edit + contact toggles\none rally-selector tree"];
-  finish [label="Finish each rally\nwiden bounds + assign alternating Top/Bot halves"];
+  prep [label="Prepare shared video evidence\ncheck inputs · scale to FPS · track players · exclude unusable frames"];
+  rough [label="Find rough rallies and contact candidates"];
+  contact [label="1. Contact model\nscore candidate frames and select initial hits"];
+  first [label="2. First rally selector\nchoose contacts · finish bounds · fit player order"];
+  split [label="Split accepted-hit gaps over 3 seconds\nkeep parent outer bounds"];
+  second [label="3. Second rally selector — split pieces only\nrebuild shortlists inside each piece's allowed bounds\nchoose contacts · pad bounds · refit player order"];
+  review [label="4. Review model\none confidence score per final rally"];
   outcomes [label="Estimate outcomes\nserver · winner · landing · hit height"];
-  confidence [label="Review tree\none score per finished rally"];
-  persist [label="Save results\nannotation JSON · masks · shuttle-quality summary"];
+  save [label="Save annotation, confidence and masks"];
 
-  inputs -> validate -> prep -> rough -> contact -> seq -> finish -> outcomes -> persist;
-  finish -> confidence -> persist;
+  inputs -> prep -> rough -> contact -> first;
+  first -> split [label="discovered bounds"];
+  split -> second [label="split pieces"];
+  split -> review [label="ordinary rallies unchanged"];
+  first -> review [label="supplied bounds"];
+  second -> review -> outcomes -> save;
 }

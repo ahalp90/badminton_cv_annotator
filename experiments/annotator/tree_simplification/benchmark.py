@@ -53,7 +53,7 @@ def main() -> None:
                     started = time.perf_counter()
                     prediction = predict_from_contact_features(prepared.evidence, prepared.features, bundles[name])
                     elapsed = time.perf_counter() - started
-                    actual = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
+                    actual = stream_payload(prediction.sequences, prediction.events)
                     if actual != expected[name]:
                         raise ValueError(f'{identity}/{name}: timing replay changed the saved annotation stream')
                     rows.append({'video': identity, 'model': name, 'repetition': repetition, 'wall_s': elapsed})

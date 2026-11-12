@@ -21,7 +21,10 @@ from experiments.annotator.heuristic_only_tune.cache import (
 
 
 def _result(value: float) -> tuple[TrackedPlayers, WristGaps]:
-    return (TrackedPlayers(np.zeros((3, 2), dtype=int), np.full((3, 2, 2), value), np.full((3, 2), 100.0)), WristGaps(np.full(3, value), np.full((3, 2), value)))
+    players = TrackedPlayers(
+        np.zeros((3, 2), dtype=int), np.full((3, 2, 2), value), np.full((3, 2), 100.0), np.full(3, 2.0),
+    )
+    return players, WristGaps(np.full(3, value), np.full((3, 2), value))
 
 
 def _build(half_window: int = 1) -> tuple[TrackedPlayers, WristGaps]:

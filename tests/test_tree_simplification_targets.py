@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from annotator.rallies.build_contact_proposals import RallyContext
-from annotator.training.rally import RallyFitConfig, prepare_training_pools
+from annotator.training.rally import RallyFitConfig, label_rally_options
 from annotator.training.rally_targets import option_targets_at_tolerances
 from annotator.training.sequences import LabelledRally, SequenceTrainingVideo
 from annotator.types import ContactEvent, ContactSequence, CourtHalf
@@ -59,17 +59,16 @@ def test_two_tolerances_scale_labels(fps, shift):
     np.testing.assert_array_equal(tight, [1, 0])
 
 
-def test_configured_selector_tolerances_reach_real_target_labels(monkeypatch):
+def test_configured_selector_tolerances_reach_real_target_labels():
     exact = ContactSequence(0, 0, 200, (ContactEvent(20, 0.9, CourtHalf.TOP), ContactEvent(60, 0.9, CourtHalf.BOT)))
     shifted = replace(exact, events=(ContactEvent(25, 0.9, CourtHalf.TOP), ContactEvent(65, 0.9, CourtHalf.BOT)))
     pool = make_pool((exact, shifted), (0, 0))
-    monkeypatch.setattr('annotator.training.rally.build_rally_options', lambda *_args: pool.runtime)
     strict = RallyFitConfig(preferred_tolerance_at_30_fps=3, fallback_tolerance_at_30_fps=6)
     relaxed = replace(strict, preferred_tolerance_at_30_fps=6)
-    strict_pools = prepare_training_pools([pool.video], strict)
-    relaxed_pools = prepare_training_pools([pool.video], relaxed)
-    np.testing.assert_array_equal(strict_pools['video'].targets, [1, 0])
-    np.testing.assert_array_equal(relaxed_pools['video'].targets, [1, 1])
+    strict_pool = label_rally_options(pool.video, pool.runtime, strict)
+    relaxed_pool = label_rally_options(pool.video, pool.runtime, relaxed)
+    np.testing.assert_array_equal(strict_pool.targets, [1, 0])
+    np.testing.assert_array_equal(relaxed_pool.targets, [1, 1])
 
 
 def test_five_frame_positive_switches_known_rows_and_preserves_unknowns() -> None:

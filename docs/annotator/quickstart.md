@@ -11,15 +11,12 @@ There are two common cases:
 - **Metadata, shuttle, pose and court outputs already exist** — `python -m annotator` runs annotation for one video.
 - **Only source footage exists** — the dataset builder runs the vision stages first and then calls the same annotation code.
 
-The selected model is the XGBoost `w36-c63-r360-p090-s63-r400` bundle from the current rally-model
-benchmark. It contains the contact classifier, one rally selector and a review
-model. The commands below use the tracked seed-0 bundle in
-[`experiments/annotator/tree_simplification/results/hp_search/models/seed-0`](../../experiments/annotator/tree_simplification/results/hp_search/models/seed-0/).
-The tested runtime uses scikit-learn 1.9.1 and XGBoost 3.4.1. The optional guarded-candidate
-rule is off. See the [validation results](../../experiments/annotator/monotrack_benchmark/benchmark_results/hp_search/validation.json.gz)
-for validation scores and the
-[fit settings](../../experiments/annotator/tree_simplification/results/hp_search/fit-settings.json.gz)
-for tree settings.
+The default bundle in [`runtime/deployed/annotator`](../../runtime/deployed/annotator/)
+contains four XGBoost classifiers: contact scoring, first rally selection,
+correction of split pieces, and final review scoring. It uses standing-person
+counts and splits first-pass rallies at hit gaps longer than three seconds.
+Only split pieces go through the second rally selector. See
+[the model settings](tree_stack.md) for feature sizes and tree settings.
 
 **Contents**
 
@@ -83,7 +80,6 @@ data/dataset-run/
     └── court/
         └── match-name/
             ├── court_evidence.json.gz
-            ├── court_keep_vote.npy.xz
             └── court_present.npy.xz
 ```
 
@@ -99,7 +95,7 @@ The shuttle guard codes are recomputed from the saved shuttle track and compared
 PYTHONPATH=src uv run python -m annotator \
   --run-dir data/dataset-run \
   --video-id match-name \
-  --models experiments/annotator/tree_simplification/results/hp_search/models/seed-0 \
+  --models runtime/deployed/annotator \
   --output-dir data/annotations/match-name
 ```
 
@@ -141,10 +137,10 @@ When the dataset builder runs the whole pipeline, its config names the annotator
 
 ```toml
 [models]
-annotator = "experiments/annotator/tree_simplification/results/hp_search/models/seed-0"
+annotator = "runtime/deployed/annotator"
 ```
 
-The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked seed-0 bundle above.
+The key sits in the `[models]` table beside the vision models. A relative path resolves from the repository root, and the default is the tracked bundle above.
 
 The supplied trial config already contains this setting. A typical run is:
 
@@ -228,7 +224,7 @@ The saved shuttle track and guard codes disagree. The shuttle stage needs to
 be regenerated as a set.
 
 **Court evidence has no usable operational inputs**
-The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.5` court inputs.
+The court stage contains an incompatible or incomplete court result. Annotation needs the current `court-evidence/0.6` court inputs.
 
 **Output directory must be new or empty**
 The standalone runner found existing files at the chosen output path.

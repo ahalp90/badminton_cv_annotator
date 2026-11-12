@@ -41,7 +41,9 @@ The patch installs the original exclusion builder, modified scoring/training
 code and regression tests. It also installs three experiment runners in this
 subtree: `prepare_reused_pools.py`, `prepare_reporting.py` and `score_results.py`.
 They require the patched code, so they are included in the patch rather than
-imported by the restored main pipeline.
+imported by the restored main pipeline. The `retrain_annotator.py` invocation
+below also uses that historical checkout; the driver has been retired from
+the current code.
 
 For the same efficient refit, set `RUN` to a fresh absolute output directory,
 `PREVIOUS_TRAINING` to the original prepared/contact-fit root, `SOURCE_POOLS` to

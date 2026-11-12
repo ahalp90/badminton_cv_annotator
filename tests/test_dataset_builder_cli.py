@@ -637,7 +637,7 @@ class _ConcreteRuntimeFixture:
         tree = DummyClassifier(strategy='prior').fit([[0], [1]], [0, 1])
         self.annotator_model_dir = tmp_path / 'annotator-models'
         save_models(
-            AnnotatorModels(tree, RallySelector(tree), tree),
+            AnnotatorModels(tree, RallySelector(tree), RallySelector(tree), tree),
             self.annotator_model_dir,
         )
         self._install(monkeypatch)
@@ -958,7 +958,6 @@ annotation_directory = "set/match-one"
         output_dir.mkdir(parents=True, exist_ok=True)
         artifacts = vision.CourtArtifacts(
             output_dir / vision.COURT_EVIDENCE_FILENAME,
-            output_dir / vision.COURT_KEEP_VOTE_FILENAME,
             output_dir / vision.COURT_PRESENT_FILENAME,
         )
         for path in artifacts.as_mapping().values():

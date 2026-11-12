@@ -13,6 +13,7 @@ from shared.frame_timing import frames_at_fps, speed_at_fps
 
 REST_SPEED_BASE30 = 0.002
 START_SPEED_BASE30 = 0.015
+MAX_RALLY_GAP_AT_30_FPS = 90
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ class BaseAnnotatorConfig:
     smoothing_mode: SmoothingMode = SmoothingMode.IGNORE_INVISIBLE
     overrides_base30: Mapping[str, float] | None = None
     require_fast_burst: bool = True
-    max_high_shot_gap_frames: float = 75.0
+    max_high_shot_gap_frames: float = MAX_RALLY_GAP_AT_30_FPS
     reentry_guard_buffer: float = 0.05
     # Shuttle grades to exclude when estimating speed and final flights.
     rejected_grades: frozenset[int] = ShuttleGrade.rejectable()

@@ -107,7 +107,9 @@ def test_later_shortlist_skips_near_contacts_and_keeps_six_strongest():
 def test_contact_additions_recheck_spacing_after_deletion_and_keep_bounds() -> None:
     before = ContactSequence(0, 100, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
     candidates = tuple(ContactEvent(frame, .7, None) for frame in (125, 140, 250))
-    options = propose_contact_additions_and_removals(before, candidates, before.events, -1, 6, 2, 2)
+    options = propose_contact_additions_and_removals(
+        before, candidates, before.events, -1, 6, 2, 2, latest_end=before.end_frame,
+    )
     frames = [_frames(sequence) for sequence in options]
     assert [125, 160] in frames
     assert not any(120 in selected and 125 in selected for selected in frames)
@@ -118,7 +120,9 @@ def test_earlier_serve_includes_selected_contacts_and_respects_previous_rally() 
     before = ContactSequence(1, 110, 200, (ContactEvent(120, .9, None), ContactEvent(160, .8, None)))
     gap = ContactEvent(100, .7, None)
     candidates = tuple(ContactEvent(frame, .6, None) for frame in (80, 90))
-    options = propose_contact_additions_and_removals(before, candidates, (gap, *before.events), 85, 6, 1, 0)
+    options = propose_contact_additions_and_removals(
+        before, candidates, (gap, *before.events), 85, 6, 1, 0, latest_end=before.end_frame,
+    )
     assert not any(80 in _frames(sequence) for sequence in options)
     expanded = next(sequence for sequence in options if _frames(sequence) == [90, 100, 120, 160])
     assert expanded.start_frame == 90 and expanded.events[1] is gap
@@ -129,7 +133,9 @@ def test_propose_contact_additions_and_removals_deduplicate_absorbed_contacts_an
     earlier = ContactEvent(80, .6, None)
     gap = ContactEvent(90, .7, None)
     # Adding 80 absorbs 90, so explicitly adding both gives the same sequence.
-    options = propose_contact_additions_and_removals(before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0)
+    options = propose_contact_additions_and_removals(
+        before, (earlier, gap), (gap, *before.events), 0, 6, 2, 0, latest_end=before.end_frame,
+    )
     assert options[0] is before
     assert [_frames(sequence) for sequence in options] == [
         [120, 160], [90, 120, 160], [80, 90, 120, 160],

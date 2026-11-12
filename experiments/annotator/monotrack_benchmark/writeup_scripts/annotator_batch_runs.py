@@ -19,7 +19,7 @@ import time
 import tomllib
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import lru_cache
 from math import isfinite
 from pathlib import Path
@@ -36,13 +36,13 @@ from annotator.inference.learned import (
     LearnedModelPrediction,
     contact_features_from_inputs,
     predict_from_contact_features,
+    predict_from_rally_options,
 )
 from annotator.inference.prepare_annotation_inputs import (
     PreparedAnnotationInputs,
     prepare_annotation_inputs,
 )
 from annotator.models import AnnotatorModels, load_models
-from annotator.rallies.refine_rallies import predict_rally_options, score_rally_review
 from experiments.annotator.contact_records import stream_from_payload, stream_payload
 from experiments.annotator.development import pooled_scores
 from experiments.annotator.heuristic_only_tune import data
@@ -123,20 +123,21 @@ def predict_shared_pool(
     first = predict_from_contact_features(evidence, features, models[0])
     predictions = [first]
     for model in models[1:]:
-        refined = predict_rally_options(model.rally_selector, first.rally_prediction.pool)
-        predictions.append(replace(first, rally_prediction=refined, rally_review=score_rally_review(refined, model.review_model)))
+        predictions.append(predict_from_rally_options(
+            evidence, features, first.scored_candidates, first.refinement.pool, model,
+        ))
     return tuple(predictions)
 
 
 def prediction_record(run: Run, video: str, prediction: LearnedModelPrediction) -> dict[str, Any]:
-    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
+    stream = stream_payload(prediction.sequences, prediction.events)
     if run.condition != 'discovery':
         return {'item_id': video, 'condition': SUPPLIED_CONDITIONS[run.condition], 'status': 'completed',
                 'mode': 'full', 'boundaries': 'provided', 'stream': stream, 'seconds': None}
-    review = prediction.rally_review
-    scores = dict(zip(review.features.span_ids, map(float, review.scores), strict=True))
-    return stream | {'confidence': {str(sequence.span_id): scores[sequence.span_id]
-                                   for sequence in prediction.rally_prediction.sequences}}
+    return stream | {'confidence': {
+        str(sequence.span_id): score
+        for sequence, score in zip(prediction.sequences, prediction.rally_confidence, strict=True)
+    }}
 
 
 def read_prediction(path: Path, run: Run, video: str) -> dict[str, Any]:

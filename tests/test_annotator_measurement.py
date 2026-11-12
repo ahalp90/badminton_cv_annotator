@@ -22,8 +22,6 @@ from annotator.annotate_video import (
 )
 from annotator.courts.prepare_courts import (
     DETECTOR_RESULT_SCHEMA,
-    PERSON_COURT_MARGIN,
-    SCENE_VALID_MIN_FRACTION,
     CourtEvidenceResult,
     CourtInputs,
     CourtSceneRecord,
@@ -93,8 +91,6 @@ def _pin(path: str, root: str = "fixtures") -> dict[str, str]:
 def test_configuration_reports_the_executable_measurement_policy() -> None:
     configuration = runner._configuration_values()
     assert 'court_samples' not in configuration
-    assert configuration['person_margin'] == PERSON_COURT_MARGIN
-    assert configuration['scene_threshold'] == SCENE_VALID_MIN_FRACTION
     assert configuration['landing_filter_options'] == {
         'settle_win': runner.LANDING_OPTIONS.settle_win,
         'settle_thr': runner.LANDING_OPTIONS.settle_thr,
@@ -294,10 +290,9 @@ def test_writers_preserve_headers_nulls_order_and_json_shapes(tmp_path: Path) ->
     assert scene_row["tl_x"] == "0.0"
     assert scene_row["br_x"] == "1.0"
     assert scene_row["bl_y"] == "1.0"
-    assert scene_row["scene_valid"] == "true"
     failed_row = runner._scene_row(replace(
         court_result.scene_records[0], status=SceneStatus.DETECTION_FAILED, analysed_frame=1,
-        corners_native_px=None, error="CourtFitError()", scene_valid=False,
+        corners_native_px=None, error="CourtFitError()",
     ), case_id=fixed.case_id, parent=runner.PARENTS[0])
     assert failed_row["status"] is SceneStatus.DETECTION_FAILED
     assert failed_row["analysed_frame"] == 1
@@ -473,9 +468,8 @@ def _fake_court_result(case: runner.CaseData) -> CourtEvidenceResult:
     record = CourtSceneRecord(
         case.fixture.video_id, 0, 0, 2, SceneStatus.COURT, None,
         np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), None, None, None,
-        2, 1.0, True,
     )
-    return CourtEvidenceResult(inputs, (record,), np.ones(2, dtype=bool), np.ones(2, dtype=bool))
+    return CourtEvidenceResult(inputs, (record,), np.ones(2, dtype=bool))
 
 
 def _empty_video_annotation(
@@ -827,7 +821,7 @@ def test_detected_parent_runs_the_detector_on_scaled_poses_and_shared_scenes(
     assert result.court_present.tolist() == [True, False]
 
 
-def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
+def test_detected_parent_without_a_court_keeps_its_scene_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fixed = runner.CASES[0]
@@ -848,10 +842,10 @@ def test_detected_parent_without_an_accepted_court_keeps_its_scene_evidence(
         result = _fake_court_result(case)
         record = replace(
             result.scene_records[0], status=SceneStatus.NO_COURT, corners_native_px=None,
-            no_court_reason="no_candidates", analysed_frame=1, scene_valid=False,
+            no_court_reason="no_candidates", analysed_frame=1,
         )
-        failed = CourtEvidenceResult(None, (record,), np.zeros(2, dtype=bool), np.zeros(2, dtype=bool))
-        raise runner.NoAcceptedCourtError(failed, "no scene has an accepted court; scene statuses: {'no_court': 1}")
+        failed = CourtEvidenceResult(None, (record,), np.zeros(2, dtype=bool))
+        raise runner.NoDetectedCourtError(failed, "no scene has a detected court; scene statuses: {'no_court': 1}")
 
     monkeypatch.setattr(runner, "detect_case_courts", no_court)
     monkeypatch.setattr(runner, "annotate_video", lambda *_args, **_kwargs: pytest.fail("inference must not run"))

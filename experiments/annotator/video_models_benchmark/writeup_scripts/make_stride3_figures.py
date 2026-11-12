@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results" / "stride3_20261105"
 FIGURES = ROOT / "writeup_figures"
-BASELINE = ROOT.parent / "monotrack_benchmark/benchmark_results/hp_search/primary/contact_summary.json.gz"
+BASELINE = ROOT.parent / "post_split_correction/benchmark/contact_summary.json.gz"
 METRICS = ("contact_f1", "correct_player_f1", "fully_correct_percent")
 TITLES = ("Contact F1 (%)", "Correct-player F1 (%)", "Fully correct rallies (%)")
 COLOURS = ("#0072B2", "#E69F00", "#8B5DA8", "#555555")

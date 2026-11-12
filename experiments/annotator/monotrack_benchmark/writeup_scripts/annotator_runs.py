@@ -1,4 +1,4 @@
-"""Run the annotator's three-model bundles for the MonoTrack write-up.
+"""Run fitted annotator bundles for the MonoTrack write-up.
 
 Every run covers five seeds. Each video is one single-threaded job.
 
@@ -116,15 +116,13 @@ def discovery_video(run: Run, bundle: Path, paths: dict[str, Path], video_id: st
     prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{video_id}: the annotator returned no contact stream')
-    sequences = prediction.rally_prediction.sequences
-    review = prediction.rally_review
-    scores = {int(span): float(score) for span, score in zip(review.features.span_ids, review.scores, strict=True)}
-    missing = [sequence.span_id for sequence in sequences if sequence.span_id not in scores]
-    if missing:
-        raise ValueError(f'{video_id}: found rallies {missing} have no review score')
+    sequences = prediction.sequences
     path = output / f'{video_id}.json.gz'
-    write_json(path, stream_payload(sequences, prediction.rally_prediction.events) | {
-        'confidence': {str(sequence.span_id): scores[sequence.span_id] for sequence in sequences},
+    write_json(path, stream_payload(sequences, prediction.events) | {
+        'confidence': {
+            str(sequence.span_id): score
+            for sequence, score in zip(sequences, prediction.rally_confidence, strict=True)
+        },
     })
     return {'score': data.score_stream(video, read_json(path))}
 

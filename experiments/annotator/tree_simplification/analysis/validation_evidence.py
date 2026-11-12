@@ -36,7 +36,7 @@ from experiments.annotator.tree_simplification.analysis.common import (
     rescore_folders,
     validation_videos,
 )
-from experiments.annotator.tree_simplification.integrate import ranking_metrics
+from experiments.annotator.tree_simplification.review_metrics import ranking_metrics
 
 OLD_STACK = 'old-eight-model-stack-xgboost'
 SELECTED = '31-leaves-400-rounds-1-selector'

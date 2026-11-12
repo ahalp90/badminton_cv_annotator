@@ -6,6 +6,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from annotator.inference.learned import LearnedModelPrediction
+from annotator.rallies.refine_rallies import (
+    RallyPrediction,
+    RallyReview,
+    RallyReviewFeatures,
+)
+from annotator.types import ContactSequence, FinishedRally
 from experiments.annotator.heuristic_only_tune.run import read_json
 from experiments.annotator.tree_simplification import input_test
 
@@ -103,9 +110,13 @@ def test_video_scoring_and_review_use_the_same_excluded_window_judgements(tmp_pa
     pose = SimpleNamespace(bboxes=None, scores=None, kps=None, ndet=None)
     inputs = SimpleNamespace(track=None, pose=pose)
     models = SimpleNamespace(preprocessing=object())
-    fitted = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.8, .9, .2]))
-    selector = SimpleNamespace(features=SimpleNamespace(span_ids=(0, 3, 7)), scores=np.array([.7, .8, .1]))
-    prediction = SimpleNamespace(rally_prediction=SimpleNamespace(sequences=(), events=()), rally_review=fitted)
+    review_features = RallyReviewFeatures((0, 3, 7), np.empty((3, 0)))
+    fitted = RallyReview(review_features, np.array([.9, .9, .2]))
+    selector = RallyReview(review_features, np.array([.8, .8, .1]))
+    source_rallies = tuple(FinishedRally(ContactSequence(span, 0, 1, ()), None) for span in (10, 20))
+    refinement = RallyPrediction(source_rallies, (), None, np.array([.8, .1]), {10: 0, 20: 1})
+    final_rallies = tuple(FinishedRally(ContactSequence(span, 0, 1, ()), None) for span in (0, 3, 7))
+    prediction = LearnedModelPrediction(None, None, refinement, fitted, final_rallies, (), (10, 10, 20))
     stream = {'events': [], 'sequences': []}
     windows = [(10, 20)]
     seen = []

@@ -24,9 +24,9 @@ from annotator.rallies.refine_rallies import (
     RallyPrediction,
     RallySelector,
 )
-from annotator.training.workflow import sequence_training_video
+from annotator.training import followup
+from annotator.training.rally import RallyFitConfig
 from annotator.types import ContactCandidate, CourtHalf, TrackedPlayers, WristGaps
-from experiments.annotator.tree_simplification.options import expand_pool
 
 
 def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
@@ -44,7 +44,9 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     distances_per_slot[in_scene, 1] = 0.8
     distances_per_slot[260] = (0.1, 2.0)
     picks = np.where(in_scene[:, None], [[0, 1]], -1)
-    players = TrackedPlayers(picks, np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan))
+    players = TrackedPlayers(
+        picks, np.full((frame_count, 2, 2), np.nan), np.full((frame_count, 2), np.nan), np.full(frame_count, np.nan),
+    )
     wrist_gaps = WristGaps(np.where(in_scene, 0.5, np.inf), distances_per_slot)
     bboxes = np.zeros((frame_count, 2, 4))
     bboxes[:, 0, 3] = 300.0
@@ -86,7 +88,7 @@ def test_scene_serve_lookback_without_tracked_players_keeps_unknown_sides():
     assert [event.side for event in heuristic.sequence.events] == [CourtHalf.BOT, CourtHalf.TOP]
 
 
-def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlists(monkeypatch, annotator_models):
+def test_training_and_inference_share_candidates_before_repair_shortlists(monkeypatch, annotator_models, tmp_path):
     frame_count = 100
     rows = np.zeros(frame_count, dtype=contact_feature_dtype())
     rows['frame'] = np.arange(frame_count)
@@ -100,6 +102,7 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         np.full((frame_count, 2), -1),
         np.full((frame_count, 2, 2), np.nan),
         np.full((frame_count, 2), np.nan),
+        np.full(frame_count, np.nan),
     )
     wrist_gaps = WristGaps(np.full(frame_count, np.inf), np.full((frame_count, 2), np.inf))
     track = np.zeros((frame_count, 3))
@@ -121,19 +124,25 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
         return np.column_stack((1.0 - probabilities, probabilities))
 
     config = ContactModelConfig()
-    models = replace(annotator_models, contact_model=SimpleNamespace(predict_proba=predict), contact_settings=config)
-    training = sequence_training_video(
-        'masked', 'group', evidence, features, (),
-        models.contact_model, config,
+    contact_model = SimpleNamespace(predict_proba=predict, set_params=lambda **_kwargs: None)
+    models = replace(annotator_models, contact_model=contact_model, contact_settings=config)
+    video = followup.save_training_inputs('masked', 'group', evidence, features, (), tmp_path / 'inputs.joblib')
+    model_path = tmp_path / 'contact.joblib'
+    original_load = followup.joblib.load
+    monkeypatch.setattr(followup.joblib, 'load', lambda path: contact_model if path == model_path else original_load(path))
+    training_path = followup.prepare_training_data(
+        video, model_path, config, RallyFitConfig(), tmp_path / 'training.joblib',
     )
+    expected_pool = followup.joblib.load(training_path).pool.options
+    training_context = expected_pool.context
 
     monkeypatch.setattr(learned_model_inference, 'contact_features_from_inputs', lambda _evidence: features)
     inference = learned_model_inference.predict_rallies_and_contacts(evidence, models)
     expected_candidates = [1, 10, 16, 40, 60, 80]
     np.testing.assert_array_equal(inference.scored_candidates.candidates['frame'], expected_candidates)
-    assert [event.frame for event in training.context.events] == list(inference.scored_candidates.frames)
+    assert [event.frame for event in training_context.events] == list(inference.scored_candidates.frames)
     assert list(inference.scored_candidates.frames) == [10, 80]
-    for context, matrix in zip((training.context, inference.rally_prediction.pool.context), scored_matrices, strict=True):
+    for context, matrix in zip((training_context, inference.refinement.pool.context), scored_matrices, strict=True):
         candidate_frames = [event.frame for event in context.shortlisted_by_span[0]]
         assert candidate_frames == [1, 40, 60]
         assert set(context.contact_features_by_frame) == {1, 10, 40, 60, 80}
@@ -150,9 +159,8 @@ def test_crossfit_and_inference_share_contact_candidates_before_repair_shortlist
     review = DummyClassifier(strategy='prior').fit(np.zeros((2, len(REVIEW_FEATURE_NAMES))), [0, 1])
     fitted_layers = replace(models, rally_selector=RallySelector(selector), review_model=review)
     layer_prediction = learned_model_inference.predict_from_contact_features(evidence, features, fitted_layers)
-    assert isinstance(layer_prediction.rally_prediction, RallyPrediction)
-    expected_pool = expand_pool(training)
-    assert layer_prediction.rally_prediction.pool.sequences == expected_pool.sequences
-    np.testing.assert_array_equal(layer_prediction.rally_prediction.pool.matrix, expected_pool.matrix)
-    assert layer_prediction.rally_review.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.rally_prediction.sequences)
-    assert len(layer_prediction.rally_review.scores) == len(layer_prediction.rally_prediction.sequences)
+    assert isinstance(layer_prediction.refinement, RallyPrediction)
+    assert layer_prediction.refinement.pool.sequences == expected_pool.sequences
+    np.testing.assert_array_equal(layer_prediction.refinement.pool.matrix, expected_pool.matrix)
+    assert layer_prediction.review.features.span_ids == tuple(sequence.span_id for sequence in layer_prediction.sequences)
+    assert len(layer_prediction.rally_confidence) == len(layer_prediction.sequences)

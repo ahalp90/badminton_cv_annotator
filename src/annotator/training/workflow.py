@@ -1,28 +1,29 @@
 """Fit and evaluate the annotator using saved extraction outputs and contact labels.
 
 The manifest assigns videos to disjoint training, validation and test groups.
-Fitting reads training videos only. Contact scores for selector training use
-a tree fitted without the scored video's group. Review training likewise
-uses selector predictions made while withholding that video's group.
+Fitting reads training videos only. The full first selector learns from contact
+scores made without each video's group. Temporary selector fits reuse one fixed
+contact model while excluding the group whose final predictions train confidence.
 """
 
 import argparse
 import csv
+import gzip
 import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
+import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
 from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.contacts.build_features import ContactFeatures
 from annotator.contacts.score_candidates import (
     ContactModelConfig,
-    score_contact_features,
 )
 from annotator.inference.learned import (
     contact_features_from_inputs,
@@ -33,26 +34,27 @@ from annotator.inference.prepare_annotation_inputs import (
     prepare_annotation_inputs,
 )
 from annotator.models import AnnotatorModels, load_models, save_models
-from annotator.rallies.build_contact_proposals import build_rally_context
 from annotator.saved_inputs import load_saved_video_inputs
 from annotator.training.contact import (
     ContactFitConfig,
     ContactTrainingVideo,
     fit_contact_model,
 )
-from annotator.training.rally import (
-    RallyFitConfig,
-    fit_rally_models,
-    fit_rally_review_model,
+from annotator.training.followup import (
+    PreparedTrainingVideo,
+    fit_followup_models,
+    fit_selector_from_files,
+    prepare_training_data,
+    save_training_inputs,
 )
+from annotator.training.rally import RallyFitConfig
 from annotator.training.sequences import (
     LabelledRally,
-    SequenceTrainingVideo,
     match_contacts,
     whole_rally_correctness,
 )
 from annotator.training.trees import TreeFitConfig
-from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf, SmoothingMode
 from dataset_builder.vision import save_json_gz
 from shared.frame_timing import frames_at_fps
 
@@ -103,23 +105,8 @@ class TrainingManifest:
 
 
 @dataclass(frozen=True)
-class LoadedTrainingVideo:
-    """Prepared inputs reused across contact and rally training.
-
-    ``contact_input`` pairs candidate rows with flattened contact labels.
-    ``rallies`` keeps those labels grouped, with player sides, for rally fitting.
-    """
-
-    entry: VideoInput
-    evidence: PreparedAnnotationInputs
-    features: ContactFeatures
-    rallies: tuple[LabelledRally, ...]
-    contact_input: ContactTrainingVideo
-
-
-@dataclass(frozen=True)
 class TrainingSettings:
-    """Settings for fitting all three models; the command starts from these defaults."""
+    """Settings for contact scoring, both rally selectors and final confidence."""
 
     contact: ContactFitConfig = field(default_factory=ContactFitConfig)
     contact_prediction: ContactModelConfig = field(default_factory=ContactModelConfig)
@@ -131,62 +118,104 @@ class TrainingSettings:
 DEFAULT_TRAINING_SETTINGS = TrainingSettings()
 
 
+def load_training_settings(path: Path) -> TrainingSettings:
+    """Read the settings saved beside a fitted model bundle."""
+    with gzip.open(path, 'rt') as handle:
+        record = json.load(handle)
+    preprocessing = record['preprocessing']
+    preprocessing['smoothing_mode'] = SmoothingMode(preprocessing['smoothing_mode'])
+    preprocessing['rejected_grades'] = frozenset(preprocessing['rejected_grades'])
+    rally = record['rally']
+    rally['tree'] = TreeFitConfig(**rally['tree'])
+    return TrainingSettings(
+        contact=ContactFitConfig(**record['contact']), contact_prediction=ContactModelConfig(**record['contact_prediction']),
+        confidence=TreeFitConfig(**record['confidence']), preprocessing=BaseAnnotatorConfig(**preprocessing),
+        rally=RallyFitConfig(**rally),
+    )
+
+
 def fit_from_manifest(
     manifest: TrainingManifest, output: Path,
     settings: TrainingSettings = DEFAULT_TRAINING_SETTINGS,
+    *, workers: int = 1, gpu_fits: int = 1,
 ) -> AnnotatorModels:
-    """Fit and save the three models using the manifest's training videos.
+    """Fit contact scoring, the two rally selectors and final confidence.
 
-    Fit the deployed contact model on all training videos. Prepare selector
-    inputs using contact models that withhold the scored video's group, then
-    fit the selector and review model. Save their shared preprocessing too.
+    Keep the first selector's ordinary training pool unchanged. Train correction
+    on ordinary examples plus pieces from held-group first-selector predictions.
+    Confidence judges final predictions from a pipeline that excluded each group.
     """
     entries = videos_for_split(manifest, Split.TRAIN)
     groups = tuple(dict.fromkeys(entry.group for entry in entries))
     if len(groups) < 3:
         raise ValueError('sequence training needs at least three distinct training groups')
-    loaded = []
+    output.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix='.training-', dir=output) as temporary:
+        working = Path(temporary)
+        videos, contact_inputs = prepare_training_videos(manifest, entries, settings, working)
+        contact_model, held_contacts = fit_training_contacts(videos, contact_inputs, groups, settings.contact, working)
+        del contact_inputs
+        ordinary_paths = {}
+        for video in videos:
+            ordinary_paths[video.video_id] = prepare_training_data(
+                video, held_contacts[video.group], settings.contact_prediction, settings.rally,
+                working / 'ordinary' / f'{video.video_id}.joblib',
+            )
+        first_selector_path = fit_selector_from_files(
+            list(ordinary_paths.values()), (), settings.rally, working / 'first-selector.joblib',
+        )
+        followup_selector, review_model = fit_followup_models(
+            videos, ordinary_paths, held_contacts, settings.contact_prediction, settings.rally,
+            settings.confidence, working / 'followup', workers=workers, gpu_fits=gpu_fits,
+        )
+        models = AnnotatorModels(
+            contact_model=contact_model, rally_selector=joblib.load(first_selector_path),
+            followup_selector=followup_selector, review_model=review_model,
+            contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
+        )
+        save_models(models, output)
+        save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
+    return models
+
+
+def prepare_training_videos(
+    manifest: TrainingManifest, entries: Sequence[VideoInput], settings: TrainingSettings, working: Path,
+) -> tuple[list[PreparedTrainingVideo], list[ContactTrainingVideo]]:
+    """Prepare each video once; keep only contact rows in memory for contact fitting."""
+    videos, contact_inputs = [], []
     for entry in entries:
         evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, settings.preprocessing)
         features = contact_features_from_inputs(evidence)
         rallies = load_labels(entry.labels, len(evidence.track))
         frames = np.asarray(sorted(frame for rally in rallies for frame in rally.frames), dtype=np.int32)
-        contact_input = ContactTrainingVideo(entry.video_id, features.rows, frames, evidence.fps)
-        loaded.append(LoadedTrainingVideo(entry, evidence, features, rallies, contact_input))
+        contact_inputs.append(ContactTrainingVideo(entry.video_id, features.rows, frames, evidence.fps))
+        videos.append(save_training_inputs(
+            entry.video_id, entry.group, evidence, features, rallies,
+            working / 'inputs' / f'{entry.video_id}.joblib',
+        ))
+    return videos, contact_inputs
+
+
+def fit_training_contacts(
+    videos: Sequence[PreparedTrainingVideo], contact_inputs: Sequence[ContactTrainingVideo],
+    groups: tuple[str, ...], settings: ContactFitConfig, working: Path,
+) -> tuple[Any, dict[str, Path]]:
+    """Fit the full contact model and one model excluding each training group."""
     try:
-        contact_model = fit_contact_model(
-            [video.contact_input for video in loaded], settings.contact,
-        ).model
+        model = fit_contact_model(contact_inputs, settings).model
     except ValueError as error:
         raise ValueError(f'contact-model fitting failed: {error}') from error
-    contact_models_by_held_group = {}
-    for group in groups:
+    held_contacts = {}
+    for held_group in groups:
+        selected = [contact for video, contact in zip(videos, contact_inputs, strict=True) if video.group != held_group]
         try:
-            contact_models_by_held_group[group] = fit_contact_model(
-                [video.contact_input for video in loaded if video.entry.group != group], settings.contact,
-            ).model
+            held_model = fit_contact_model(selected, settings).model
         except ValueError as error:
-            raise ValueError(f'contact-model fitting with group {group!r} held out failed: {error}') from error
-    training_videos = []
-    for video in loaded:
-        training_videos.append(sequence_training_video(
-            video.entry.video_id, video.entry.group, video.evidence, video.features, video.rallies,
-            contact_models_by_held_group[video.entry.group], settings.contact_prediction,
-        ))
-    # Release the large contact-feature arrays before building rally-training pools.
-    del loaded, video, evidence, features, contact_input
-    rally_fit = fit_rally_models(training_videos, settings.rally)
-    review_model = fit_rally_review_model(
-        training_videos, rally_fit.held_group_predictions, settings.confidence,
-        tolerance_at_30_fps=settings.rally.review_tolerance_at_30_fps,
-    )
-    models = AnnotatorModels(
-        contact_model=contact_model, rally_selector=rally_fit.selector, review_model=review_model,
-        contact_settings=settings.contact_prediction, preprocessing=settings.preprocessing,
-    )
-    save_models(models, output)
-    save_json_gz(output / 'fit-settings.json.gz', asdict(settings))
-    return models
+            raise ValueError(f'contact-model fitting with group {held_group!r} held out failed: {error}') from error
+        destination = working / f'contact-without-{held_group}.joblib'
+        joblib.dump(held_model, destination, compress=3)
+        held_contacts[held_group] = destination
+    return model, held_contacts
 
 
 def evaluate_manifest(
@@ -205,7 +234,7 @@ def evaluate_manifest(
         evidence = prepare_saved_video_inputs(manifest.run_dir, entry.video_id, models.preprocessing)
         rallies = load_labels(entry.labels, len(evidence.track))
         prediction = predict_rallies_and_contacts(evidence, models)
-        counts = evaluation_counts(prediction.rally_prediction.events, prediction.rally_prediction.sequences, rallies, evidence.fps)
+        counts = evaluation_counts(prediction.events, prediction.sequences, rallies, evidence.fps)
         rows.append({'id': entry.video_id, **counts})
         for name in count_names:
             totals[name] += int(counts[name])
@@ -257,18 +286,6 @@ def prepare_saved_video_inputs(run_dir: Path, video_id: str, preprocessing: Base
         court_present=saved.court.evidence.court_present, homography_rows=court_inputs.homography_rows,
         shuttle_grades=saved.shuttle_grades,
     )
-
-
-def sequence_training_video(
-    video_id: str, group: str, evidence: PreparedAnnotationInputs, features: ContactFeatures, rallies: tuple[LabelledRally, ...],
-    contact_model: Any, settings: ContactModelConfig,
-) -> SequenceTrainingVideo:
-    """Score contacts and prepare candidate sequences for rally fitting."""
-    scored = score_contact_features(
-        features.rows, contact_model, evidence.fps, settings,
-    )
-    context = build_rally_context(evidence, scored)
-    return SequenceTrainingVideo(video_id, group, context, rallies)
 
 
 def load_labels(path: Path, frame_count: int) -> tuple[LabelledRally, ...]:
@@ -374,9 +391,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         manifest = load_manifest(arguments.manifest)
         if arguments.command == 'fit':
-            if arguments.threads < 1:
-                raise ValueError('--threads must be positive')
-            defaults = DEFAULT_TRAINING_SETTINGS
+            if min(arguments.threads, arguments.workers, arguments.gpu_fits) < 1:
+                raise ValueError('--threads, --workers and --gpu-fits must be positive')
+            defaults = load_training_settings(arguments.settings) if arguments.settings else DEFAULT_TRAINING_SETTINGS
             settings = replace(
                 defaults,
                 contact=replace(defaults.contact, device=arguments.device),
@@ -387,7 +404,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             )
             with threadpool_limits(limits=arguments.threads):
-                fit_from_manifest(manifest, arguments.output, settings)
+                fit_from_manifest(manifest, arguments.output, settings,
+                                  workers=arguments.workers, gpu_fits=arguments.gpu_fits)
             print(f'Saved annotator models to {arguments.output}')
         else:
             models = load_models(arguments.models)
@@ -405,8 +423,11 @@ def argument_parser() -> argparse.ArgumentParser:
     fit = commands.add_parser('fit', help='Fit a fresh complete bundle from the train split')
     fit.add_argument('--manifest', required=True, type=Path)
     fit.add_argument('--output', required=True, type=Path)
+    fit.add_argument('--settings', type=Path, help='Reuse fit-settings.json.gz from a fitted bundle')
     fit.add_argument('--device', choices=('cpu', 'cuda'), default='cuda', help='XGBoost fitting device')
     fit.add_argument('--threads', type=int, default=2)
+    fit.add_argument('--workers', type=int, default=1, help='Parallel video-preparation workers')
+    fit.add_argument('--gpu-fits', type=int, default=1, help='Simultaneous temporary selector fits')
     evaluate = commands.add_parser('evaluate', help='Score a saved bundle on validation or test videos')
     evaluate.add_argument('--manifest', required=True, type=Path)
     evaluate.add_argument('--models', required=True, type=Path)

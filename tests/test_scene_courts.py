@@ -42,7 +42,7 @@ def test_court_at_frame_uses_half_open_bounds_and_rejects_gaps():
     assert court_at_frame(scenes, 29) is second
 
     for frame in (9, 20, 24, 30):
-        with pytest.raises(ValueError, match='no accepted court geometry'):
+        with pytest.raises(ValueError, match='no court geometry'):
             court_at_frame(scenes, frame)
 
 

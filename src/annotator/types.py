@@ -37,11 +37,14 @@ class TrackedPlayers(NamedTuple):
 
     Detection indices address the original pose arrays; -1 means no selection.
     Ankle xy is divided by video width/height. Missing positions/heights are NaN.
+    Standing counts include unselected detections on every frame with court
+    geometry; NaN means missing geometry, and zero means no standing detections.
     """
 
     detection_indices: np.ndarray  # (frames, players)
     ankle_xy: np.ndarray  # (frames, players, xy)
     box_heights_px: np.ndarray  # (frames, players)
+    standing_count: np.ndarray  # (frames,)
 
 
 class WristGaps(NamedTuple):
@@ -92,10 +95,10 @@ class ContactEvent:
 class ContactSequence:
     """Rally bounds and contacts in time order, from initial detection to selection.
 
-    Frame range includes start, excludes end. ``span_id`` identifies the
-    initial rally across alternative contact lists and later boundary changes.
-    Contact sides are individual guesses until ``fit_rally_sides`` assigns
-    one alternating order.
+    Frame range includes start, excludes end. Alternative contact lists share
+    their initial rally's ``span_id``. After gap splitting, final IDs follow
+    rally order; the prediction keeps their source IDs separately. Contact sides
+    are individual guesses until ``fit_rally_sides`` assigns one alternating order.
     """
 
     span_id: int

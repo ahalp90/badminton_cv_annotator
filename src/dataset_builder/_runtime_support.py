@@ -70,7 +70,6 @@ from dataset_builder.vision import (
     ANNOTATOR_RESULT_FILENAME,
     ANNOTATOR_RESULT_SCHEMA,
     COURT_EVIDENCE_FILENAME,
-    COURT_KEEP_VOTE_FILENAME,
     COURT_PRESENT_FILENAME,
     DEFINITIVE_EXCLUSION_MASK_FILENAME,
     POSE_FILENAMES,
@@ -531,7 +530,6 @@ class RuntimeSupport:
         root = self._video_dir("court", video_id)
         return {
             "court_evidence": root / COURT_EVIDENCE_FILENAME,
-            "court_keep_vote": root / COURT_KEEP_VOTE_FILENAME,
             "court_present": root / COURT_PRESENT_FILENAME,
         }
 

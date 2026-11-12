@@ -18,7 +18,7 @@ def annotator_models():
     from annotator.rallies.refine_rallies import RallySelector
 
     tree = DummyClassifier(strategy='prior').fit(np.zeros((3, 85)), [0, 0, 1])
-    return AnnotatorModels(tree, RallySelector(tree), tree)
+    return AnnotatorModels(tree, RallySelector(tree), RallySelector(tree), tree)
 
 
 

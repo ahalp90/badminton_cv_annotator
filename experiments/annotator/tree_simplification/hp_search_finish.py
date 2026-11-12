@@ -1,4 +1,4 @@
-"""Export search finalists and compare their frozen bundles on ShuttleSet22."""
+"""Evaluate complete annotator bundles on ShuttleSet22."""
 
 from __future__ import annotations
 
@@ -7,30 +7,22 @@ import multiprocessing
 import time
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import joblib
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from annotator.config import BaseAnnotatorConfig, scale_config_to_fps
-from annotator.contacts.score_candidates import ContactModelConfig
+from annotator.config import scale_config_to_fps
 from annotator.inference.learned import (
+    LearnedModelPrediction,
     contact_features_from_inputs,
     predict_from_contact_features,
+    predict_from_rally_options,
 )
 from annotator.inference.prepare_annotation_inputs import prepare_annotation_inputs
-from annotator.models import AnnotatorModels, fitted_trees, load_models, save_models
-from annotator.rallies.refine_rallies import (
-    RallySelector,
-    predict_rally_options,
-    score_rally_review,
-)
-from annotator.training.rally import fit_rally_review_model
-from annotator.training.workflow import DEFAULT_TRAINING_SETTINGS
+from annotator.models import AnnotatorModels, fitted_trees, load_models
 from experiments.annotator.contact_records import stream_payload
 from experiments.annotator.heuristic_only_tune.data import (
     SearchVideo,
@@ -54,63 +46,30 @@ from experiments.annotator.tree_simplification.input_test import (
     TOLERANCES,
     UNKNOWN_REVIEW_OUTCOMES,
 )
-from experiments.annotator.tree_simplification.integrate import ranking_metrics
-from experiments.annotator.tree_simplification.options import LabelledOptions
 from experiments.annotator.tree_simplification.prepare import preprocessing_record
+from experiments.annotator.tree_simplification.review_metrics import ranking_metrics
 from experiments.annotator.tree_simplification.selector_review import (
     score_selector_review,
 )
 
 
-def export_bundle(
-    contact_path: Path, selector_path: Path, held_selector_paths: dict[str, Path],
-    training_pools: dict[str, LabelledOptions], preprocessing: BaseAnnotatorConfig,
-    cutoff: float, seed_offset: int, output: Path, device: str = 'cuda',
-) -> Path:
-    """Fit review scores from held-group predictions and save a production bundle."""
-    bundle = output / 'bundle'
-    completed = output / 'export.json.gz'
-    if completed.exists():
-        load_models(bundle, device='cpu')
-        return bundle
-    predictions = {}
-    with threadpool_limits(limits=2):
-        for group, path in held_selector_paths.items():
-            selector = joblib.load(path)
-            selector.set_params(device='cpu', n_jobs=1)
-            for identity, pool in training_pools.items():
-                if pool.video.group == group:
-                    predictions[identity] = predict_rally_options(RallySelector(selector), pool.runtime)
-        settings = DEFAULT_TRAINING_SETTINGS.confidence
-        review = fit_rally_review_model(
-            [pool.video for pool in training_pools.values()], predictions,
-            replace(settings, random_seed=settings.random_seed + seed_offset, device=device),
-        )
-    models = AnnotatorModels(
-        joblib.load(contact_path), RallySelector(joblib.load(selector_path)), review,
-        ContactModelConfig(cutoff), preprocessing,
-    )
-    for tree in fitted_trees(models):
-        tree.set_params(device='cpu', n_jobs=1)
-    save_models(models, bundle)
-    write_json(completed, {'complete': True, 'seed': seed_offset, 'cutoff': cutoff})
-    return bundle
-
-
 @lru_cache(maxsize=32)
-def _models(path: str) -> AnnotatorModels:
-    models = load_models(Path(path), device='cpu')
+def _models(path: str, device: str = 'cpu') -> AnnotatorModels:
+    models = load_models(Path(path), device=device)
     for tree in fitted_trees(models):
         tree.set_params(n_jobs=1)
     return models
 
 
-def _score_prediction(item: dict[str, Any], windows: list[tuple[int, int]], prediction: Any) -> dict[str, Any]:
-    stream = stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
-    reviews = {'selector': score_selector_review(prediction.rally_prediction), 'fitted': prediction.rally_review}
+def _score_prediction(
+    item: dict[str, Any], windows: list[tuple[int, int]], prediction: LearnedModelPrediction,
+) -> dict[str, Any]:
+    stream = stream_payload(prediction.sequences, prediction.events)
+    reviews = {'selector': score_selector_review(prediction.review.features), 'fitted': prediction.review}
     scores = {}
+    span_ids = tuple(sequence.span_id for sequence in prediction.sequences)
     for name, review in reviews.items():
-        scores[name] = dict(zip(review.features.span_ids, review.scores.tolist(), strict=True))
+        scores[name] = dict(zip(span_ids, prediction.scores_for_rallies(review), strict=True))
     counts, judgements, review_rows = {}, {}, []
     for tolerance in TOLERANCES:
         key = str(tolerance)
@@ -168,9 +127,8 @@ def _test_video(
                 predictions[pool_key] = prediction
             else:
                 first = predictions[pool_key]
-                rallies = predict_rally_options(models.rally_selector, first.rally_prediction.pool)
-                prediction = replace(
-                    first, rally_prediction=rallies, rally_review=score_rally_review(rallies, models.review_model),
+                prediction = predict_from_rally_options(
+                    evidence, features, first.scored_candidates, first.refinement.pool, models,
                 )
             result = _score_prediction(item, windows, prediction)
             stream = result.pop('stream')

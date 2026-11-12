@@ -74,7 +74,7 @@ def extend_courts(
     records_by_bounds = {(record.start_frame, record.end_frame): record for record in court.evidence.scene_records}
     for (start, end), (new_start, new_end) in windows.items():
         boundaries[start], boundaries[end] = new_start, new_end
-        valid = records_by_bounds[start, end].scene_valid
+        valid = records_by_bounds[start, end].corners_native_px is not None
         present[new_start:start] = valid
         present[end:new_end] = valid
 
@@ -89,7 +89,6 @@ def extend_courts(
             analysed_frame = (start + end) // 2
         records.append(replace(
             record, scene_index=len(records), start_frame=start, end_frame=end, analysed_frame=analysed_frame,
-            exactly_two_fraction=record.exactly_two_count / (end - start),
         ))
     inputs = court.evidence.inputs
     assert inputs is not None

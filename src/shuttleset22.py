@@ -397,13 +397,11 @@ def _artifact_record(name: str, path: Path, root: Path) -> dict[str, object]:
 def _court_output_items() -> tuple[tuple[str, str], ...]:
     from dataset_builder.vision import (
         COURT_EVIDENCE_FILENAME,
-        COURT_KEEP_VOTE_FILENAME,
         COURT_PRESENT_FILENAME,
     )
 
     return (
         ("court_evidence", COURT_EVIDENCE_FILENAME),
-        ("court_keep_vote", COURT_KEEP_VOTE_FILENAME),
         ("court_present", COURT_PRESENT_FILENAME),
     )
 

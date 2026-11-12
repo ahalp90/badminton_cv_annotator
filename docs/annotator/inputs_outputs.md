@@ -39,7 +39,6 @@ data/dataset-run/
     └── court/
         └── match-name/
             ├── court_evidence.json.gz
-            ├── court_keep_vote.npy.xz
             └── court_present.npy.xz
 ```
 
@@ -90,7 +89,7 @@ Shape:
 
 These codes mark shuttle positions considered unreliable because of repeated or fabricated-looking track patterns. The standalone command recomputes the codes from `shuttle_track.npy.xz` and requires an exact match with the saved file.
 
-The default annotator settings flag codes `1`, `2` and `3` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
+The default annotator settings flag codes `1`, `2`, `3` and `4` as unreliable. Flagged positions are left out of the slow-motion speed estimate and are not used for landings. Player-availability features remain available to the contact tree when it scores candidate frames.
 
 ### `*_inpaint_mask.json.gz`
 
@@ -120,7 +119,7 @@ Contact and side assignment mainly use boxes, keypoint coordinates, detection sc
 Current schema:
 
 ```text
-court-evidence/0.5
+court-evidence/0.6
 ```
 
 It contains:
@@ -129,35 +128,31 @@ It contains:
 - court geometry used by the annotator;
 - per-scene records.
 
-Save the accepted scenes’ court corners and video resolution. Annotation uses
+Save the detected scenes’ court corners and video resolution. Annotation uses
 these to calculate each scene’s image-to-court transform, net position and
 landing error band.
-
-### `court_keep_vote.npy.xz`
-
-A frame-aligned boolean array used by court/composition logic.
 
 ### `court_present.npy.xz`
 
 A frame-aligned boolean array marking frames where usable court geometry is present.
 
-The court loader checks that scene intervals cover the full video timeline and that both arrays match the metadata frame count.
+The court loader checks that scene intervals cover the full video timeline and that the mask matches the metadata frame count.
 
 ## Model directory
 
 The `--models` argument points to a directory:
 
 ```text
-experiments/annotator/tree_simplification/results/hp_search/models/seed-0/
+runtime/deployed/annotator/
 ├── models.joblib
 └── metadata.json
 ```
 
 Loading checks:
 
-- schema `annotator-three-models/5`;
+- schema `annotator-four-models/1`;
 - exact contact, rally and review feature order;
-- rally proposal budgets and the fitted review model;
+- proposal budgets for both rally selectors and the fitted review model;
 - that `models.joblib` contains an `AnnotatorModels` object.
 
 `models.joblib` is created with `joblib.dump()`. It is a Joblib-serialised `AnnotatorModels` object containing the fitted classifiers and their stored settings. It also stores the rough-rally/mask settings and the contact probability cutoff used with the fitted trees.
@@ -298,7 +293,7 @@ The five positional arrays are the frame-aligned shuttle track and pose detectio
 
 The direct call uses the model directory and settings as follows:
 
-- When `models` is omitted, full annotation loads the tracked raw-baseline seed-0 bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
+- When `models` is omitted, full annotation loads the tracked bundle named by `DEFAULT_MODEL_DIRECTORY`. Passing loaded models selects another fitted bundle.
 - Annotation uses the preprocessing settings stored in the model directory. Passing a different `base` config raises an error rather than quietly changing the model inputs.
 - `heuristic_only=True` runs the rules without the fitted trees. It supports full rule-based annotation and heuristic experiments. Pass `base` to choose its preprocessing settings.
 

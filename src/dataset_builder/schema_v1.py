@@ -810,11 +810,7 @@ PRIMITIVE_ARTIFACT_NOTES: tuple[ArtifactNote, ...] = (
     ),
     ArtifactNote(
         "court_evidence", ReliabilityClass.PREDICTED,
-        "Scene homography rows, gate inputs and each scene's court_detector status and reason.",
-    ),
-    ArtifactNote(
-        "court_keep_vote", ReliabilityClass.PREDICTED,
-        "(frame_count,) frames with exactly two people inside their scene's detected court.",
+        "Scene homography rows and each scene's court_detector status and reason.",
     ),
     ArtifactNote(
         "court_present", ReliabilityClass.PREDICTED,

@@ -118,6 +118,7 @@ def test_serve_candidate_rule_records_mask_interaction(monkeypatch) -> None:
         detection_indices=np.zeros((25, 2), dtype=int),
         ankle_xy=np.zeros((25, 2, 2)),
         box_heights_px=np.ones((25, 2)),
+        standing_count=np.full(25, 2.0),
     )
     wrist_gaps = WristGaps(nearest=distances, per_player=np.full((25, 2), 0.5))
     rallies = [GtRally("set1", 1, (5, 20))]

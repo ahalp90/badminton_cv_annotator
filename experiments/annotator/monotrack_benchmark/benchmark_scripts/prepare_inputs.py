@@ -20,8 +20,8 @@ def image_order(corners: Any) -> Any:
     return np.array([top[0], top[1], bottom[1], bottom[0]])
 
 
-def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
-    """Accept every successful MonoTrack fit without applying our detector's person vote."""
+def prepare_monotrack_courts(item: dict[str, Any], source: Path, output: Path) -> None:
+    """Convert successful MonoTrack fits into annotator court inputs."""
     import numpy as np
 
     from annotator.courts.prepare_courts import (
@@ -52,7 +52,6 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
             start_frame=start, end_frame=end, status=SceneStatus.COURT if accepted else SceneStatus.NO_COURT,
             analysed_frame=(start + end) // 2, corners_native_px=corners,
             no_court_reason=None if accepted else scene['status'], reused_from=None, error=None,
-            exactly_two_count=0, exactly_two_fraction=0.0, scene_valid=accepted,
         ))
     if not accepted_intervals:
         raise ValueError(f'{item["item_id"]}: no accepted court scene')
@@ -60,9 +59,7 @@ def vote_free_courts(item: dict[str, Any], source: Path, output: Path) -> None:
         resolution=resolution,
         homography_rows=build_scene_rows(item['item_id'], accepted_intervals, accepted_corners, resolution),
     )
-    # Replay masking does not consume person-vote masks.
-    # Zero means no vote was measured; scene_valid/present carry detector success.
-    evidence = CourtEvidenceResult(inputs, tuple(records), np.zeros_like(present), present)
+    evidence = CourtEvidenceResult(inputs, tuple(records), present)
     persist_court_vision(output, video_id=item['item_id'], court=CourtVision(tuple(intervals), evidence),
                         frame_count=item['frame_count'], resolution=resolution)
 
@@ -96,11 +93,9 @@ def prepare(monotrack: Path, ours: Path, discovery: Path, output: Path) -> None:
                 if scene.get('error') is not None:
                     scene['error'] = 'Saved court detector failure'
             write_json(destination / 'court_evidence.json.gz', payload)
-            for filename in ('court_present.npy.xz', 'court_keep_vote.npy.xz'):
-                if name != 'monotrack' or filename == 'court_present.npy.xz':
-                    shutil.copyfile(source / filename, destination / filename)
+            shutil.copyfile(source / 'court_present.npy.xz', destination / 'court_present.npy.xz')
             if name == 'monotrack':
-                vote_free_courts(item, destination, output / 'monotrack_for_ours' / item['item_id'])
+                prepare_monotrack_courts(item, destination, output / 'monotrack_for_ours' / item['item_id'])
     print('Prepared 46 videos, 3327 rally windows and 37184 contact labels', flush=True)
 
 

@@ -28,7 +28,7 @@ class PreparedAnnotationInputs:
 
     Arrays use original video frame indices. ``track`` is unchanged; only
     heuristic segmentation uses a copy with excluded footage frozen in place.
-    ``tracker_intervals`` are accepted court-view ranges, incl start, excl end.
+    ``tracker_intervals`` are ranges with court geometry, incl start, excl end.
 
     ``raw_exclusion_mask`` flags footage before short-run filtering.
     ``exclusion_mask`` keeps sustained exclusions and adds frames without usable

@@ -71,7 +71,8 @@ def _mk_pose_arrays(
 def _sticky(n_frames: int, *, picks: np.ndarray, heights: np.ndarray, distances: np.ndarray) -> tuple[TrackedPlayers, WristGaps]:
     collapsed = np.min(np.where(np.isfinite(distances), distances, np.inf), axis=1)
     collapsed[np.isposinf(collapsed)] = np.nan
-    return (TrackedPlayers(picks, np.full((n_frames, 2, 2), np.nan), heights), WristGaps(collapsed, distances))
+    players = TrackedPlayers(picks, np.full((n_frames, 2, 2), np.nan), heights, np.full(n_frames, np.nan))
+    return players, WristGaps(collapsed, distances)
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +319,7 @@ def test_contact_player_evidence_reads_the_sticky_nearest_pick_half():
     assert half == CourtHalf.BOT
     assert wrist_costs is None
     no_contact_scene = (SceneCourt(contact + 1, len(track), {}, (400.0, 500.0), 0.1),)
-    with pytest.raises(ValueError, match='no accepted court geometry'):
+    with pytest.raises(ValueError, match='no court geometry'):
         contact_player_evidence(contact, track, players, wrist_gaps, bboxes, no_contact_scene)
 
 

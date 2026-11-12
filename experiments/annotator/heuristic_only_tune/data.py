@@ -124,7 +124,7 @@ def _load_inputs(
         raise ValueError(f'{video.identity}: saved court evidence has no operational inputs')
     return OldVideoInputs(
         video.identity, video.fps, track, guards, pose, vision.raw_cuts, court,
-        vision.evidence.keep_vote, vision.evidence.court_present,
+        vision.evidence.court_present,
     )
 
 
@@ -188,7 +188,7 @@ def run_configuration(
     prediction = annotation.working_data.learned_model_prediction
     if prediction is None:
         raise ValueError(f'{inputs.identity}: fitted annotation did not return its contact stream')
-    return stream_payload(prediction.rally_prediction.sequences, prediction.rally_prediction.events)
+    return stream_payload(prediction.sequences, prediction.events)
 
 
 def score_stream(

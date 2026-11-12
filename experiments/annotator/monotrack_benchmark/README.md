@@ -1,12 +1,17 @@
 # MonoTrack benchmark
 
-[Read the current report](annotator_monotrack_own_weights_compared_writeup_v7.md)
+[Read the comparison](annotator_monotrack_own_weights_compared_writeup_v7.md)
 for the annotator and court-detector comparison with MonoTrack on 46 ShuttleSet22
 videos: 3,327 scored rallies and 37,184 labelled contacts. Results use five seeds
 and validation-selected settings. The baseline has no maximum outward context
 limit in training, discovery or headline scoring. Boundary-only confidence
 assessment allows 2 seconds before and 3 seconds after the labelled contacts;
 the main contact tolerance is ±10 frames, with ±5 in Appendix E.
+
+For the selected four-model annotator and its validation results, see the
+[current comparison](../post_split_correction/README.md). Its benchmark scores
+and 2/3 confidence surveys are in [current results](../post_split_correction/benchmark/).
+The scores and surveys linked below were measured for the earlier model.
 
 The [X3D-M validation pilot](../video_models_benchmark/x3d_results.md) uses the
 same data split and event scorer for an RGB video-model baseline.
@@ -15,9 +20,9 @@ same data split and event scorer for an RGB video-model baseline.
 
 | Find | Location |
 | --- | --- |
-| Current scores | [Discovery results](benchmark_results/hp_search/primary/) |
+| Earlier published prediction scores | [Discovery results](benchmark_results/hp_search/primary/) |
 | Both 1/1 and 2/3 discovery confidence surveys | [Surveys](benchmark_results/hp_search/surveys/) |
-| Selected annotator models and fit settings | [Model record](../tree_simplification/results/hp_search/fit-settings.json.gz) |
+| Annotator models and settings used in the publication | [Model record](../tree_simplification/results/hp_search/fit-settings.json.gz) |
 | Earlier nine-way boundary comparison | [Historical results](benchmark_results/boundary_retrain_v7/README.md) |
 | MonoTrack selection, five-seed predictions and checkpoints | [MonoTrack results](benchmark_results/monotrack_five_seed/) |
 | Prepared court and rally inputs | [Inputs](benchmark_results/inputs/) |
@@ -34,7 +39,7 @@ python "$W/metrics.py" \
   --out REPORT_DATA --skip-body-window
 ```
 
-This command reuses saved predictions from the selected configuration. The compact results contain scores and tables; annotator
+This command reuses saved predictions from the published configuration. The compact results contain scores and tables; annotator
 prediction streams are produced by the
 [training and inference commands](writeup_scripts/README.md#batched-inference-and-resume).
 The scoring command uses the saved MonoTrack five-seed predictions by default.
@@ -43,7 +48,7 @@ The scoring command uses the saved MonoTrack five-seed predictions by default.
 - [Train HitNet](hitnet_retrain/README.md).
 - [Retrain the annotator, select confidence cut-offs and draw figures](writeup_scripts/README.md).
 
-The current report links its figures directly. Its updated charts are in
+The published report links its figures directly. Its charts are in
 `writeup_figures/v7/`; shared court charts and galleries remain alongside them.
 
 ## Earlier comparisons
@@ -57,5 +62,5 @@ Their exclusive figures are in [archive/figures/](archive/figures/).
 [Historical results](archive/results/) contain the original condition comparison,
 the pre-v7 annotator runs and the confidence rerun/curves. The
 [reviewed court-fit failure](benchmark_results/review_clips/53_0061.md) refers to
-those original runs. Current MonoTrack results and the earlier HitNet training
+those original runs. Published MonoTrack results and the earlier HitNet training
 grid remain in their locations linked above.

@@ -1,27 +1,17 @@
 digraph refit {
-  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.45", bgcolor="white"];
+  graph [rankdir=TB, pad="0.25", nodesep="0.35", ranksep="0.35", bgcolor="white", label="Training steps", labelloc=t, fontname="Helvetica", fontsize=13];
   node [shape=box, style="rounded", fontname="Helvetica", fontsize=11, margin="0.12,0.08"];
   edge [fontname="Helvetica", fontsize=9];
 
-  data [label="Saved extraction + manual contact labels"];
-  manifest [label="Manifest\ntrain / validation / test kept separate by group"];
-  heur [label="Build training inputs\nrough rallies + contact features"];
-  finalcontact [label="Deployment contact tree\nfit on all training groups"];
-  crosscontact [label="Out-of-group contact scores\neach training group scored by a tree that did not see it"];
-  seq [label="Deployment rally selector\nfit contact-toggle options from all training groups"];
-  crossseq [label="Held-group selector predictions\none selector fit per held-out group"];
-  conf [label="Rally review tree\nfit from out-of-group finished rallies"];
-  bundle [label="Model directory\ncontact + rally selector + review trees\nsettings"];
-  val [label="Validation\ncompare model variants"];
-  test [label="Test\nfinal held-out measurement"];
+  data [label="Separate train, validation and test videos\nkeep related footage together · at least 3 training groups"];
+  contact [label="Fit the contact models and first rally selector\nkeep full-data models for deployment\nretain one contact model excluding each group"];
+  fixed [label="For each held-out group, reuse its contact model\nscore the remaining videos once"];
+  examples [label="Keep ordinary examples from the contact scores\nfit temporary first selectors on the remaining groups\nto generate split-piece examples"];
+  held [label="Fit a second selector on those examples\npredict the held-out group with both selectors"];
+  collect [label="Collect each held-out group's results\nfirst-pass piece examples for second-selector training\nfinal corrected outputs for review training"];
+  final [label="Fit the final second selector and review model\nsecond selector: ordinary + collected piece examples\nreview: collected final outputs and correctness labels"];
+  bundle [label="Save four models and shared settings\ncontact · first selector · second selector · review"];
+  validation [label="Choose settings and seed on validation\nthen report test results separately"];
 
-  data -> manifest -> heur;
-  heur -> finalcontact;
-  heur -> crosscontact;
-  crosscontact -> seq;
-  crosscontact -> crossseq -> conf;
-  finalcontact -> bundle;
-  seq -> bundle;
-  conf -> bundle;
-  bundle -> val -> test;
+  data -> contact -> fixed -> examples -> held -> collect -> final -> bundle -> validation;
 }
