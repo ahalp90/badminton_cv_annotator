@@ -1,5 +1,9 @@
 # Amateur-video court corner ground truth
 
+Full-video labels from 8–9 November 2026 are in [2026-11-09/](2026-11-09/README.md):
+44 frames across 21 videos, with camera-change reviews. They supply the manual
+courts for the [amateur annotation set](../amateur_videos/README.md).
+
 Additional annotations from 8 September 2026 are in [2026-09-08/](2026-09-08/README.md):
 nine frames across three further gameplay clips, with supporting landmarks and
 an overlay for every frame. The original Curtis Martin dataset below is unchanged.
