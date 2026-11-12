@@ -76,7 +76,7 @@ annotation sets. The run used commit `4545b0ba`.
 | [They-play-the-badminton-like-playing-chess](https://www.youtube.com/watch?v=zYqgJo1L5uM) | `zYqgJo1L5uM` | 60 | 28,142 | Yes |
 | [UABC-Open-2019-A-Grade-Mens-Singles-Final](https://www.youtube.com/watch?v=C1jR4vZmrkI) | `C1jR4vZmrkI` | 30 | 26,960 | — |
 | [UWBC-2017-Summer-Tournament](https://www.youtube.com/watch?v=Cb-xs5rPyxI) | `Cb-xs5rPyxI` | 29.97 | 89,234 | — |
-| [단식에서도-스매싱-할때-활처럼](https://www.youtube.com/watch?v=PQmBTcnz998) | `PQmBTcnz998` | 60 | 44,293 | Yes |
+| [Like-a-bow-when-hitting-the-SMASHING](https://www.youtube.com/watch?v=PQmBTcnz998) | `PQmBTcnz998` | 60 | 44,293 | Yes |
 
 Folder names are shortened YouTube titles. `BkjErIAsZu4` runs at exactly
 19001/317 FPS; `videos.csv.gz` gives every exact rate. Its source and that of
