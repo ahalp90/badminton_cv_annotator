@@ -215,11 +215,8 @@ Figure 6. Confidence filtering with the same boundary allowances as Table 3.
 Left: test results as the threshold rises. Right: the share of kept rallies
 that are fully correct against the share of all labelled rallies handed over
 fully correct, for test and validation. The marked thresholds match Table 3.
-Lines are five-seed means; shading spans the lowest to highest seed.
-
-About 1,305 detections per seed have no accepted contacts and confidence below
-0.052. Removing them explains the early step in Figure 6. All five thresholds
-in Table 3 remove them.
+Lines are five-seed means; shading spans the lowest to highest seed. Only
+found rallies with at least one contact are counted.
 
 ## Court detection
 
@@ -585,8 +582,8 @@ At ±5 frames, Contact F1 is 95.5% for ours and
 
 - [Current results](../post_split_correction/benchmark/): five-seed
   summaries, per-video counts, paired bootstrap intervals, found-rally outcomes
-  and confidence curves for Tables 1 and E1. Table 3, Figure 6 and the
-  empty-detection count use the [confidence surveys](../post_split_correction/benchmark/surveys/2_3/).
+  and confidence curves for Tables 1 and E1. Table 3 and Figure 6 use the
+  [confidence surveys](../post_split_correction/benchmark/surveys/2_3/).
 - [Current annotator models and fit settings](../post_split_correction/models/):
   five 32-video four-model bundles, one per seed.
 - Earlier three-model annotator (Figure 10): [published results](benchmark_results/hp_search/primary/)
@@ -641,7 +638,7 @@ hits have an unknown shot type.
 its first hit to 1 second after its last, as the scored rallies do. A prediction
 inside those bounds is dropped before scoring, unless it is within 10 frames of
 a scored hit. A previously non-empty found rally is dropped if all its contacts
-are ignored. Detections that were already empty remain in the evaluation.
+are ignored. Found rallies with no contacts affect no reported score.
 
 **What this changes:**
 

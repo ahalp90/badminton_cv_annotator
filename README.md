@@ -29,15 +29,13 @@ flowchart LR
 
 *GIF at half speed; detected court in red*
 
-We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Four gradient-boosted tree models (XGBoost) score contacts, select rally sequences, correct pieces split at long gaps, and score each final rally for review.
+We use physical rules to find the court, skip replays and other broadcast events, split the video into rallies, spot candidate hits and assign each hit to a player. Rallies are then refined and assigned confidence scores by four gradient-boosted tree models (XGBoost).
 
 We benchmarked our annotator against [MonoTrack](https://cs.stanford.edu/people/paulliu/files/cvpr-2022.pdf) (CVPR 2022, 130k parameters), training both on the same 32 [ShuttleSet](https://arxiv.org/abs/2306.04948) (KDD 2023) videos, and testing on the separate ShuttleSet22 dataset ([CoachAI](https://github.com/wywyWang/CoachAI-Projects/tree/main/ShuttleSet)).
 
-The current five-seed test means are **93.818% contact F1**, **91.986% correct-player F1** and **2,024.6 fully correct rallies out of 3,327**. We selected the method and seed on validation; test results provide a larger-population sanity check. See the [current comparison](experiments/annotator/post_split_correction/README.md) for the results and runtime.
-
 ![Contact F1, correct-player F1 and fully correct rallies for our annotator and MonoTrack](experiments/annotator/monotrack_benchmark/writeup_figures/v7/fig1_headline.png)
 
-*MonoTrack needs rally boundaries provided.*
+*MonoTrack needs rally boundaries provided*
 
 Our annotator can discover rally boundaries in a raw video (figure above,
 bottom row). Each rally gets a confidence score, so you can trade recall for
@@ -49,8 +47,8 @@ less manual review:
 | 0.70 | 999 | 901 | 90.2% | 83.1% |
 | 0.80 | 434 | 402 | 92.7% | 87.7% |
 
-*TP = correct rally boundaries. Test set: 3,327 labelled rallies; ~4,813 detections
-before filtering. Five-seed averages. “Right start and end” allows up to
+*TP = correct rally boundaries. Test set: 3,327 labelled rallies; ~3,507 predicted
+rallies with at least one contact before filtering. Five-seed averages. “Right start and end” allows up to
 2 seconds early or 10 frames late for the first contact,
 and 10 frames early or 3 seconds late for the last contact (at 30 fps). These
 buffers match our dataset format and give useful context.*

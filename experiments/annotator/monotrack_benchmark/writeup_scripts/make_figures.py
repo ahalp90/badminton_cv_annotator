@@ -334,19 +334,30 @@ def cutoff_row(curves: pd.DataFrame, threshold: float) -> pd.Series:
     return selected.mean(numeric_only=True)
 
 
+def drop_empty_detections(found: pd.DataFrame) -> pd.DataFrame:
+    """Keep found rallies with at least one accepted contact; a reviewer never opens an empty one."""
+    return found[found['outcome'] != 'no_contacts']
+
+
 def confidence_figure(data: Path, out: Path) -> None:
     # Round-trip parsing preserves distinct nearby confidence scores from the full scan.
-    test = pd.read_csv(data / 'test_confidence_curve.csv.gz', float_precision='round_trip')
-    validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz', float_precision='round_trip')
+    saved_test = pd.read_csv(data / 'test_confidence_curve.csv.gz', float_precision='round_trip')
+    saved_validation = pd.read_csv(data / 'validation_confidence_curve.csv.gz', float_precision='round_trip')
     with gzip.open(data / 'confidence_cutoffs.json.gz', 'rt') as stream:
         selection = json.load(stream)
-    test_found = []
+    test_runs = []
     for seed in SEEDS:
         found = pd.read_csv(data / f'found_rallies_annotator_discovery_seed{seed}.csv.gz', float_precision='round_trip')
-        test_found.append(found.assign(seed=seed))
-    validation_found = pd.read_csv(data / 'validation_found_rallies.csv.gz', float_precision='round_trip')
+        test_runs.append(found.assign(seed=seed))
+    test_found = drop_empty_detections(pd.concat(test_runs, ignore_index=True))
+    validation_found = drop_empty_detections(
+        pd.read_csv(data / 'validation_found_rallies.csv.gz', float_precision='round_trip'),
+    )
+    # Saved curves count empty detections, so rebuild them at the same cut-offs without those.
+    test = curve(test_found, 3327, np.unique(saved_test['threshold']))
+    validation = curve(validation_found, selection['validation_rallies'], np.unique(saved_validation['threshold']))
     # Round thresholds need exact counts; saved curves use distinct validation scores.
-    test_points = curve(pd.concat(test_found, ignore_index=True), 3327, ILLUSTRATIVE_THRESHOLDS)
+    test_points = curve(test_found, 3327, ILLUSTRATIVE_THRESHOLDS)
     validation_points = curve(validation_found, selection['validation_rallies'], ILLUSTRATIVE_THRESHOLDS)
     figure, (left, right) = plt.subplots(1, 2, figsize=(14, 6.2), facecolor=SURFACE,
                                          gridspec_kw={'width_ratios': (1.25, 1)})
