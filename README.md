@@ -63,6 +63,7 @@ The court detector returns the four outer corners of the court in an image or vi
 | --- | ---: | ---: |
 | Ours | 3.8 px | 85.8% |
 | MonoTrack's | 6.5 px | 17.2% |
+| SAM 3 | 6.6 px | 40.5% |
 
 *Errors are in 1920×1080 video pixels*
 
