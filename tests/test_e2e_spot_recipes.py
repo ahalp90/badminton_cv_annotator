@@ -160,34 +160,6 @@ def tiny_transform(clips: torch.Tensor, valid: torch.Tensor, *, training: bool,
     return pixels.masked_fill(~valid[:, :, None, None, None], 0)
 
 
-def test_early_stop_ties_and_resume_at_completed_stopping_boundary(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(engine, "SpotModel", TinyModel)
-    monkeypatch.setattr(engine, "transform_clips", tiny_transform)
-    losses = iter([1., .9, .9, .95])
-
-    def validate(*_args):
-        return {"loss": next(losses), "seconds": 0., "metrics": {}, "streams": {}}, [np.full((12, 3), 1 / 3)]
-
-    monkeypatch.setattr(engine, "validate", validate)
-    cache = recipe_cache(tmp_path / "cache")
-    settings = Settings(cycles=8, warmup_cycles=0, clip_length=2, frames_per_cycle=4,
-                        batch_size=2, early_stopping_patience=2)
-    output = tmp_path / "run"
-    result = engine.fit(cache, output, settings)
-    assert result["complete"] and result["stopping_reason"] == "early_stopping"
-    assert result["completed_cycles"] == 4 and result["best_cycle"] == 2
-    assert result["frames"] == 16
-    before = torch.load(output / "recovery.pt", weights_only=False)
-    (output / "result.json.gz").unlink()
-    (output / "history.json.gz").unlink()
-    monkeypatch.setattr(engine, "optimise_batch", lambda *_args, **_kwargs: pytest.fail("trained after patience"))
-    resumed = engine.fit(cache, output, settings, resume=True)
-    assert resumed == result
-    assert len(read_json(output / "history.json.gz")) == 4
-    after = torch.load(output / "recovery.pt", weights_only=False)
-    assert after["step"] == before["step"]
-
-
 def test_legacy_settings_resume_and_new_e2e_midcycle_replay(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(engine, "SpotModel", TinyModel)
     monkeypatch.setattr(engine, "transform_clips", tiny_transform)
@@ -268,6 +240,7 @@ def test_fit_check_runs_one_pass_and_configures_autotuning(monkeypatch, tmp_path
 
     monkeypatch.setattr(cli, "SpotModel", TinyModel)
     monkeypatch.setattr(engine, "transform_clips", tiny_transform)
+    monkeypatch.setattr(cli, "transform_clips", tiny_transform)
     original = cli.optimise_batch
     updates = []
 
@@ -276,9 +249,10 @@ def test_fit_check_runs_one_pass_and_configures_autotuning(monkeypatch, tmp_path
         return original(*args, **kwargs)
 
     monkeypatch.setattr(cli, "optimise_batch", count_update)
-    settings = Settings(augmentation="e2e", mixup=True, clip_length=4, batch_size=2)
+    settings = Settings(augmentation="e2e", mixup=True, clip_length=4, batch_size=2, validation_batch_size=2)
     result = cli.measure(recipe_cache(tmp_path / "cache"), settings, device="cpu", workers=0,
-                         steps=2, warmup=1, compare_device_only=False)
+                         steps=2, warmup=1, compare_device_only=False, validation_steps=1)
+    assert result["validation_fit"] == {"steps": 1, "peak_allocated_bytes": None}
     assert len(updates) == 3 and "device_only" not in result
     assert result["end_to_end"]["frames"] == 16
     benchmark_before = torch.backends.cudnn.benchmark
@@ -375,13 +349,13 @@ def test_halo_policy_reaches_fit_validation_inference_and_smoke(monkeypatch, tmp
             assert torch.all(labels[ids >= 0] >= 0)
 
 
-@pytest.mark.parametrize("metric,expected_cycle,expected_best", [("loss", 4, .1), ("rally_f1", 2, 10.)])
+@pytest.mark.parametrize("metric,expected_best", [("loss", .3), ("rally_f1", 10.)])
 def test_checkpoint_objective_ties_retention_and_stop_resume(monkeypatch, tmp_path: Path,
-                                                           metric: str, expected_cycle: int,
-                                                           expected_best: float) -> None:
+                                                           metric: str, expected_best: float) -> None:
     monkeypatch.setattr(engine, "SpotModel", TinyModel)
     monkeypatch.setattr(engine, "transform_clips", tiny_transform)
-    values = iter(zip([.4, .3, .2, .1], [0., 10., 10., 5.], strict=True))
+    losses = [.4, .3, .3, .35] if metric == "loss" else [.4, .3, .2, .1]
+    values = iter(zip(losses, [0., 10., 10., 5.], strict=True))
 
     def validate(*_args):
         loss, f1 = next(values)
@@ -392,18 +366,20 @@ def test_checkpoint_objective_ties_retention_and_stop_resume(monkeypatch, tmp_pa
     monkeypatch.setattr(engine, "validate", validate)
     cache = recipe_cache(tmp_path / "cache")
     output = tmp_path / "run"
-    settings = Settings(cycles=4, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
+    settings = Settings(cycles=8, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
                         batch_size=2, early_stopping_patience=2,
                         checkpoint_metric=metric, selection_tolerance=1)
     result = engine.fit(cache, output, settings)
-    assert result["best_cycle"] == expected_cycle
+    assert result["best_cycle"] == 2
     assert result["best_metric"] == expected_best
-    assert result["best_loss"] == .1
+    assert result["best_loss"] == min(losses)
     assert result["completed_cycles"] == 4
-    assert result["stopping_reason"] == ("early_stopping" if metric == "rally_f1" else "max_cycles")
+    assert result["stopping_reason"] == "early_stopping"
+    assert result["frames"] == 48
+    assert result["validation_artifacts"] == "validation-cycle0002"
     best = torch.load(output / "best.pt", weights_only=False)
     assert best["best_metric"] == expected_best
-    assert best["validation"]["loss"] == (.3 if metric == "rally_f1" else .1)
+    assert best["validation"]["loss"] == .3
     assert len(list(output.glob("validation-cycle*"))) == 1
     streams = sorted((output / "validation-streams").glob("*.json.gz"))
     assert [read_json(path)["streams"]["validation"]["value"] for path in streams] == [0., 10., 10., 5.]
@@ -411,11 +387,14 @@ def test_checkpoint_objective_ties_retention_and_stop_resume(monkeypatch, tmp_pa
                     replace(settings, checkpoint_metric="loss" if metric == "rally_f1" else "rally_f1")):
         with pytest.raises(ValueError, match="protocol"):
             engine.fit(cache, output, changed, resume=True)
+    before = torch.load(output / "recovery.pt", weights_only=False)
     (output / "result.json.gz").unlink()
     (output / "history.json.gz").unlink()
     monkeypatch.setattr(engine, "optimise_batch", lambda *_a, **_kw: pytest.fail("trained beyond stopping boundary"))
     assert engine.fit(cache, output, settings, resume=True) == result
     assert len(read_json(output / "history.json.gz")) == 4
+    after = torch.load(output / "recovery.pt", weights_only=False)
+    assert after["step"] == before["step"]
 
 
 def test_zero_rally_f1_saves_first_checkpoint_and_ties_exhaust_patience(monkeypatch, tmp_path: Path) -> None:

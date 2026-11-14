@@ -90,7 +90,8 @@ def stage_candidates(stage: str, base: Settings, selection: dict | None = None, 
             for length in (250, 500):
                 batch = batch_by_length.get(length, max(1, base.batch_size * base.clip_length // length))
                 choices.append(replace(inherited, backbone="800mf" if stage == "discovery800-length" else "200mf",
-                                       clip_length=length, batch_size=batch))
+                                       clip_length=length, batch_size=batch,
+                                       validation_batch_size=max(1, base.validation_batch_size * base.clip_length // length)))
             if stage == "discovery200-length":
                 # Reuse the selected 250-frame runs; only the 500-frame pair is new.
                 reference = replace(choices[0], seed=selected.seed)

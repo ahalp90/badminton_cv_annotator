@@ -22,7 +22,7 @@ from .engine import (
     seed_everything,
     validate,
 )
-from .model import SpotModel
+from .model import SpotModel, transform_clips
 
 
 def infer(checkpoint: Path, cache: Path, output: Path, role: str, device: str, workers: int) -> dict:
@@ -43,7 +43,7 @@ def infer(checkpoint: Path, cache: Path, output: Path, role: str, device: str, w
 
 
 def measure(cache: Path, settings: Settings, *, device: str, workers: int, steps: int, warmup: int,
-            full_validation: bool = False, compare_device_only: bool = True) -> dict:
+            full_validation: bool = False, compare_device_only: bool = True, validation_steps: int = 0) -> dict:
     """Run a fit check, optionally comparing it with a device-resident batch."""
     seed_everything(settings.seed)
     device_object = torch.device(device)
@@ -86,14 +86,33 @@ def measure(cache: Path, settings: Settings, *, device: str, workers: int, steps
     if compare_device_only:
         result["device_to_end_to_end_ratio"] = (measurements["device_only"]["frames_per_second"]
                                                / measurements["end_to_end"]["frames_per_second"])
-    if full_validation:
+    if full_validation or validation_steps:
         validation_data = DenseClips(cache, "validation", settings.mode, settings.clip_length,
                                      augmentation=settings.augmentation,
                                      ignore_contact_halo=settings.ignore_contact_halo)
         validation_loader = make_loader(validation_data, settings.validation_batch_size, workers)
-        validation, _ = validate(model, validation_data, validation_loader, device_object, settings)
-        validation.pop("streams")
-        result["validation"] = validation
+        if full_validation:
+            validation, _ = validate(model, validation_data, validation_loader, device_object, settings)
+            validation.pop("streams")
+            result["validation"] = validation
+        else:
+            # Keep the training tensors and optimiser resident, as in fit().
+            model.eval()
+            validation_iterator = iter(validation_loader)
+            with torch.inference_mode():
+                for _ in range(validation_steps):
+                    batch_clips, _labels, _video_ids, frame_ids, _positions = next(validation_iterator)
+                    if len(batch_clips) != settings.validation_batch_size:
+                        raise RuntimeError("Fit check requires a full validation batch")
+                    pixels = transform_clips(batch_clips.to(device_object), (frame_ids >= 0).to(device_object),
+                                             training=False, augmentation=settings.augmentation)
+                    with torch.autocast(device_object.type, enabled=device_object.type == "cuda", dtype=torch.bfloat16):
+                        probabilities = model(pixels).float().softmax(-1).cpu()
+                    if not torch.isfinite(probabilities).all():
+                        raise RuntimeError("Non-finite validation output during fit check")
+            result["validation_fit"] = {"steps": validation_steps,
+                                        "peak_allocated_bytes": torch.cuda.max_memory_allocated(device_object)
+                                        if device_object.type == "cuda" else None}
     return result
 
 

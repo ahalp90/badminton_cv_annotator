@@ -242,10 +242,10 @@ spatial preprocessing and MixUp; they are not MixUp-only comparisons.
 `--config` sets the runtime protocol for a stage. Recipe comparisons require it
 to match the preceding winner so the reference pair can be reused. The
 200MF length comparison similarly preserves the selected 250-frame protocol.
-Length stages scale training batch inversely with clip length using the supplied
+Length stages scale training and validation batches inversely with clip length using the supplied
 config as the reference. Override this explicitly with
 `--batch-size-for-length 250=8 --batch-size-for-length 500=4` where needed.
-Validation batch remains the independent value from the config.
+Validation scales from its own configured batch, independently of training overrides.
 
 ```bash
 CONFIG=experiments/annotator/e2e_spot_benchmark/configs/supplied200-user.toml
@@ -260,6 +260,14 @@ python -m experiments.annotator.e2e_spot_benchmark.search run \
 python -m experiments.annotator.e2e_spot_benchmark.search rank \
   --stage supplied200-lr --config "$CONFIG" --runs "$SEARCH_ROOT"
 ```
+
+`grid.continue_grid` runs the remaining two-seed comparisons sequentially after
+its caller confirms that the initial LR queue succeeded and exited. The caller
+holds an exclusive lock and provides GPU fit checks. Each comparison is saved
+before training starts, including resolved training and validation batches.
+Restarting reuses completed results and recovery checkpoints; changed requests
+or failed stages stop execution. Discovery begins a fresh LR/recipe comparison,
+and both 800MF discovery lengths run. This completes 20 distinct screening runs.
 
 Pass the generated selection to the next stage with `--selection`. Start
 `discovery200-lr` without a preceding selection. Both recipe caches can be passed

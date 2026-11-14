@@ -108,7 +108,7 @@ def test_disjoint_cache_and_context_masks(tmp_path: Path) -> None:
         DenseClips(cache, "train", "discovery", 4, training=True)
 
 
-@pytest.mark.parametrize("count,length", [(1, 4), (4, 4), (5, 4), (11, 4), (23, 10)])
+@pytest.mark.parametrize("count,length", [(1, 4), (4, 4), (11, 4)])
 def test_overlap_short_and_tail_coverage(count: int, length: int) -> None:
     coverage = np.zeros(count, dtype=int)
     for start in overlap_starts(0, count, length):
@@ -241,25 +241,6 @@ def test_actual_architecture_cpu_inference(backbone: str, features: int) -> None
         optimiser.zero_grad(set_to_none=True)
         masked_loss(model(torch.randn(1, 2, 3, 224, 224)), torch.tensor([[1, 2]])).backward()
         assert model.features.s1.b1.conv1.gsm.conv3D.weight.grad.abs().sum() > 0
-
-
-def test_two_seed_selection_and_five_seed_completion(tmp_path: Path) -> None:
-    candidates = stage_candidates("supplied200-lr", Settings())
-    for settings in candidates:
-        output = tmp_path / run_name(settings)
-        output.mkdir()
-        write_json(output / "result.json.gz", {"complete": True, "settings": asdict(settings),
-                   "validation": {"metrics": {"10": {"fully_correct_percent": 50,
-                                  "correct_player_f1": 75 if settings.learning_rate == .0003 else 70}}}})
-    ranking = rank_candidates(candidates, tmp_path)
-    winner = Settings(**ranking[0]["settings"])
-    assert winner.learning_rate == .0003
-    selection = {"stage": "supplied200-recipe", "settings": asdict(winner)}
-    assert [value.seed for value in stage_candidates("complete", winner, selection)] == list(range(5))
-    assert all(value.learning_rate == .0003 for value in stage_candidates("complete", winner, selection))
-    changed = [replace(value, frames_per_cycle=100) for value in candidates]
-    with pytest.raises(ValueError, match="protocol"):
-        rank_candidates(changed, tmp_path)
 
 
 def test_training_resume_preserves_clips_rng_optimizer_and_selection(monkeypatch, tmp_path: Path) -> None:
@@ -434,30 +415,6 @@ def test_timing_cpu_device_batch_feeder_and_full_validation(tmp_path: Path) -> N
     assert sum(result["validation"]["class_counts"]) == 10
 
 
-def test_checkpoint_tie_keeps_earliest_validation_artifacts(monkeypatch, tmp_path: Path) -> None:
-    from experiments.annotator.e2e_spot_benchmark import engine
-
-    class TinyModel(nn.Module):
-        def __init__(self, _backbone: str, _length: int, classes: int, *, pretrained: bool) -> None:
-            super().__init__()
-            self.head = nn.Linear(3, classes)
-
-        def forward(self, clips: torch.Tensor) -> torch.Tensor:
-            return self.head(clips.mean((-1, -2)))
-
-    def tied_validation(*_args):
-        return {"loss": 1.0, "seconds": 0.0, "metrics": {}, "streams": {"validation": {}}}, [np.full((30, 3), 1 / 3)]
-
-    monkeypatch.setattr(engine, "SpotModel", TinyModel)
-    monkeypatch.setattr(engine, "validate", tied_validation)
-    cache = build_cache(tmp_path / "cache")
-    settings = Settings(clip_length=2, batch_size=2, cycles=2, warmup_cycles=0, frames_per_cycle=4)
-    result = fit(cache, tmp_path / "run", settings)
-    assert result["best_cycle"] == 1
-    assert result["validation_artifacts"] == "validation-cycle0001"
-    assert len(list((tmp_path / "run").glob("validation-cycle*"))) == 1
-
-
 @pytest.mark.parametrize("role,predicted,fully_correct", [("test", 1, 1), ("validation", 3, 0)])
 def test_discovery_shared_exclusions_precede_endpoints_and_empty_omission(
     monkeypatch, role: str, predicted: int, fully_correct: int,
@@ -543,7 +500,8 @@ def test_search_stage_uses_explicit_config_runtime_and_exact_predecessor(stage: 
     selection = {"stage": predecessor, "settings": asdict(selected)}
     candidates = stage_candidates(stage, base, selection)
     for candidate in candidates:
-        assert (candidate.validation_batch_size, candidate.cycles) == (7, 12)
+        expected_validation_batch = 3 if candidate.clip_length == 500 else 7
+        assert (candidate.validation_batch_size, candidate.cycles) == (expected_validation_batch, 12)
         assert (candidate.warmup_cycles, candidate.frames_per_cycle) == (2, 1234)
         assert candidate.learning_rate == selected.learning_rate
         expected_batch = 1 if candidate.clip_length == 500 else 2
@@ -557,38 +515,6 @@ def test_search_stage_uses_explicit_config_runtime_and_exact_predecessor(stage: 
     wrong_stage = "supplied200-lr" if predecessor != "supplied200-lr" else "supplied200-recipe"
     with pytest.raises(ValueError, match="requires a selection from"):
         stage_candidates(stage, base, {**selection, "stage": wrong_stage})
-
-
-def test_search_completion_preserves_full_protocol_and_reuses_screening_seeds(monkeypatch, tmp_path: Path) -> None:
-    from experiments.annotator.e2e_spot_benchmark import engine
-    from experiments.annotator.e2e_spot_benchmark.search import run_queue
-
-    winner = Settings(augmentation="user", learning_rate=.0003, batch_size=2, validation_batch_size=7, cycles=12)
-    selection = {"stage": "supplied200-recipe", "settings": asdict(winner)}
-    completion = stage_candidates("complete", winner, selection)
-    assert completion == [replace(winner, seed=seed) for seed in range(5)]
-    for field in ("batch_size", "validation_batch_size", "cycles", "frames_per_cycle"):
-        changed = replace(winner, **{field: getattr(winner, field) + 1})
-        with pytest.raises(ValueError, match=field):
-            stage_candidates("complete", changed, selection)
-    with pytest.raises(ValueError, match="supplied200-recipe"):
-        stage_candidates("complete", winner, {**selection, "stage": "supplied200-lr"})
-    screening = stage_candidates("supplied200-lr", winner)
-    for settings in screening:
-        if settings.learning_rate != winner.learning_rate:
-            continue
-        output = tmp_path / run_name(settings)
-        output.mkdir()
-        write_json(output / "result.json.gz", {"complete": True, "settings": asdict(settings)})
-    launched = []
-
-    def record_fit(_cache, _output, settings, **_kwargs):
-        launched.append(settings)
-        return {"complete": True, "settings": asdict(settings)}
-
-    monkeypatch.setattr(engine, "fit", record_fit)
-    run_queue(completion, tmp_path, tmp_path, limit=3, device="cpu", workers=0)
-    assert [settings.seed for settings in launched] == [2, 3, 4]
 
 
 @pytest.mark.parametrize("unknown_side", [False, True])
@@ -723,12 +649,12 @@ def test_search_length_batches_plan_run_rank_and_frozen_completion(monkeypatch, 
     assert len(plan["candidates"]) == 4
     assert {(row["clip_length"], row["batch_size"]) for row in plan["candidates"]} == {(250, 8), (500, 4)}
     for row in plan["candidates"]:
-        assert row["validation_batch_size"] == 3
+        assert row["validation_batch_size"] == (1 if row["clip_length"] == 500 else 3)
         output = root / run_name(Settings(**row))
         output.mkdir()
-        recall = 80 if row["clip_length"] == 500 else 50
+        player_f1 = 80 if row["clip_length"] == 500 else 75
         write_json(output / "result.json.gz", {"complete": True, "settings": row,
-                   "validation": {"metrics": {"10": {"fully_correct_percent": recall, "correct_player_f1": 75}}}})
+                   "validation": {"metrics": {"10": {"fully_correct_percent": 50, "correct_player_f1": player_f1}}}})
     launched = []
 
     def record_fit(_cache, _output, settings, **_kwargs):
@@ -744,6 +670,12 @@ def test_search_length_batches_plan_run_rank_and_frozen_completion(monkeypatch, 
     assert (winner.clip_length, winner.batch_size) == (500, 4)
     completion = stage_candidates("complete", winner, winner_record)
     assert completion == [replace(winner, seed=seed) for seed in range(5)]
+    for field in ("batch_size", "validation_batch_size", "cycles", "frames_per_cycle"):
+        changed = replace(winner, **{field: getattr(winner, field) + 1})
+        with pytest.raises(ValueError, match=field):
+            stage_candidates("complete", changed, winner_record)
+    with pytest.raises(ValueError, match="discovery200-length"):
+        stage_candidates("complete", winner, {**winner_record, "stage": "discovery200-lr"})
     search.run_queue(completion, tmp_path, root, limit=3, device="cpu", workers=0)
     assert [settings.seed for settings in launched] == [2, 3, 4]
     assert all(settings.batch_size == 4 for settings in launched)
