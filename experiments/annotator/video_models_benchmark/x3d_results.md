@@ -63,8 +63,8 @@ court detections and evaluate every frame. The video models use stride 3.
 |---|---:|---:|---:|---:|
 | X3D-M, raw hitters | 5 | 96.94 (96.44–97.40) | 96.39 (95.77–96.83) | 53.35 (46.80–60.38) |
 | X3D-M, forced alternation | 5 | 96.94 (96.44–97.40) | 90.48 (87.48–91.84) | 55.58 (49.20–62.46) |
-| VideoMAE, raw hitters | 2 | 95.49 (95.06–95.92) | 94.93 (94.41–95.46) | 39.22 (34.63–43.82) |
-| VideoMAE, forced alternation | 2 | 95.49 (95.06–95.92) | 84.41 (82.72–86.10) | 40.67 (36.46–44.88) |
+| VideoMAE, raw hitters | 2 | 95.49 (95.06–95.93) | 94.93 (94.41–95.46) | 39.22 (34.63–43.82) |
+| VideoMAE, forced alternation | 2 | 95.49 (95.06–95.93) | 84.41 (82.72–86.10) | 40.67 (36.46–44.88) |
 | Our annotator, own courts | 5 | 96.84 (96.75–96.94) | 94.42 (94.07–94.76) | 59.99 (58.97–61.41) |
 | MonoTrack, own courts | 5 | 96.04 (95.95–96.18) | 95.84 (95.69–95.99) | 47.83 (46.44–49.17) |
 
@@ -121,8 +121,11 @@ We calculate each seed's score first, then take the mean across seeds. Ranges
 are the lowest and highest observed seed scores.
 
 Validation includes rallies marked as flawed in the source labels; test excludes
-them. One test hit has an unknown hitter. It counts for contact scoring, earns no
-correct-player credit and prevents its rally from being fully correct.
+them. As for our annotator and MonoTrack, test predictions from 1 second before
+an excluded rally's first hit to 1 second after its last are ignored, unless
+they are within 10 frames of a scored hit. One test hit has an unknown hitter.
+It counts for contact scoring, earns no correct-player credit and prevents its
+rally from being fully correct.
 
 ## Results and figures
 

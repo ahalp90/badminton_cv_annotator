@@ -1,4 +1,6 @@
 """Shared contact and rally scoring for the video-model benchmark."""
+from dataclasses import replace
+
 from annotator.training.sequences import (
     LabelledRally,
     judge_rally_boundaries,
@@ -9,6 +11,44 @@ from shared.frame_timing import frames_at_fps
 
 COUNT_NAMES = ("labelled", "predicted", "matched", "correct_player", "rallies", "fully_correct")
 TOLERANCES = (10, 5)  # frames at 30 fps, scaled to each video's frame rate
+
+
+def left_out_windows_for(videos: list[dict]) -> dict[str, list[tuple[int, int]]]:
+    """Windows around each test video's left-out rallies, keyed by item ID; none without test videos."""
+    if not any(video["role"] == "test" for video in videos):
+        return {}
+    # Imported here so training and validation never load the report scorer or the test labels.
+    from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
+
+    return {item_id: metrics.left_out_windows(rallies) for item_id, rallies in metrics.test_left_out().items()}
+
+
+def ignore_left_out_predictions(
+    video: dict, sequences: list[ContactSequence], windows: list[tuple[int, int]],
+) -> list[ContactSequence]:
+    """Drop predictions inside left-out rallies, keeping those near a scored hit and every supplied window."""
+    from experiments.annotator.monotrack_benchmark.writeup_scripts import metrics
+
+    scored_frames = [frame for span in video["spans"] for frame in span["label_frames"]]
+    margin = frames_at_fps(metrics.IGNORE_MARGIN, video["fps"])
+    return [
+        replace(sequence, events=tuple(
+            event for event in sequence.events
+            if not metrics.inside_left_out_rally(event.frame, windows, scored_frames, margin)
+        ))
+        for sequence in sequences
+    ]
+
+
+def sequences_to_score(
+    video: dict, sequences: dict[str, list[ContactSequence]], left_out: dict[str, list[tuple[int, int]]],
+) -> dict[str, list[ContactSequence]]:
+    """Each hitter rule's sequences as scored: test videos ignore predictions inside left-out rallies,
+    as the annotator and MonoTrack benchmark does; validation videos score every prediction."""
+    if video["role"] != "test":
+        return sequences
+    return {rule: ignore_left_out_predictions(video, rule_sequences, left_out[video["item_id"]])
+            for rule, rule_sequences in sequences.items()}
 
 
 def score_video_rules(video: dict, sequences: dict[str, list[ContactSequence]], tolerance_base30: int) -> dict:

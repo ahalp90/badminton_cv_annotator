@@ -13,7 +13,14 @@ from experiments.annotator.contact_records import stream_payload
 from shared.frame_timing import frames_at_fps
 
 from .data import ClipDataset
-from .scoring import COUNT_NAMES, TOLERANCES, add_rates, score_video_rules
+from .scoring import (
+    COUNT_NAMES,
+    TOLERANCES,
+    add_rates,
+    left_out_windows_for,
+    score_video_rules,
+    sequences_to_score,
+)
 
 CLASS_SIDES = {1: CourtHalf.BOT, 2: CourtHalf.TOP}
 SIDE_CLASSES = {side: label for label, side in CLASS_SIDES.items()}
@@ -62,9 +69,14 @@ def decode_span(
 def score_probabilities(
     dataset: ClipDataset, probabilities: np.ndarray, *, break_alternation_ties: bool = False,
 ) -> dict:
-    """Score exhaustive, ordered inference once at both existing tolerances."""
+    """Score exhaustive, ordered inference once at both existing tolerances.
+
+    Saved streams keep every prediction. Test scores ignore predictions inside the
+    benchmark's left-out rallies, as for the annotator and MonoTrack.
+    """
     if len(probabilities) != len(dataset):
         raise ValueError("Predictions and exhaustive validation centres differ")
+    left_out = left_out_windows_for(dataset.videos)
     streams = {}
     totals = {str(tolerance): dict.fromkeys(COUNT_NAMES, 0) for tolerance in TOLERANCES}
     offset = 0
@@ -77,8 +89,9 @@ def score_probabilities(
             offset += count
         stream = stream_payload(sequences, [event for sequence in sequences for event in sequence.events])
         streams[video["item_id"]] = stream
+        scored_sequences = sequences_to_score(video, {"decoded": sequences}, left_out)
         for tolerance in TOLERANCES:
-            scored = score_video_rules(video, {"decoded": sequences}, tolerance)["decoded"]
+            scored = score_video_rules(video, scored_sequences, tolerance)["decoded"]
             for name in COUNT_NAMES:
                 totals[str(tolerance)][name] += scored[name]
     for counts in totals.values():

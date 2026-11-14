@@ -16,6 +16,8 @@ whose original video frame number satisfies ``frame % 3 == offset``, so the
 sampling grid continues across rally boundaries. Raw hitters keep each retained
 peak's own most likely class; alternating hitters come from the benchmark's decoder
 unchanged. Duplicate suppression, matching and timing tolerances are the shared ones.
+Test scores ignore predictions inside the benchmark's left-out rallies, as in the
+shared scorer.
 
 For validation or tests evaluated sparsely, the event record's ``sampling`` metadata
 restricts rescoring to that measured stride and offset. Background-filled skipped
@@ -45,7 +47,9 @@ from experiments.annotator.video_models_benchmark.scoring import (
     COUNT_NAMES,
     TOLERANCES,
     add_rates,
+    left_out_windows_for,
     score_video_rules,
+    sequences_to_score,
 )
 
 BENCHMARK = Path(__file__).resolve().parents[1]
@@ -107,26 +111,18 @@ def decode_video(video: dict, probabilities: np.ndarray, stride: int, offset: in
     return sequences
 
 
-def check_saved_counts(totals: dict, saved_metrics: dict, name: str) -> None:
-    """Rescoring at the evaluated sampling must reproduce its saved event counts."""
-    for tolerance in TOLERANCES:
-        for count in COUNT_NAMES:
-            rescored, saved = totals["alternating", tolerance][count], saved_metrics[str(tolerance)][count]
-            if rescored != saved:
-                raise ValueError(f"{name}: evaluated-sampling {count} at ±{tolerance} is {rescored}, saved {saved}")
-
-
 def rescore(job: dict) -> list[dict]:
     """Score one probability array under every sampling and hitter rule.
 
     :param job: ``label`` columns for each output row, ``videos`` in index order,
-        the ``probabilities`` path, ``saved_metrics`` from the same inference pass
-        and an optional ``streams`` directory for decoded event predictions
+        the ``probabilities`` path, the evaluated ``sampling`` and an optional
+        ``streams`` directory for decoded event predictions
     """
     videos = job["videos"]
     probabilities = read_probabilities(job["probabilities"], videos)
     lengths = [sum(span["end_frame"] - span["start_frame"] for span in video["spans"]) for video in videos]
     rows = []
+    left_out = left_out_windows_for(videos)
     sampling = job.get("sampling", {"stride": 1, "offset": 0})
     evaluated = (sampling["stride"], sampling["offset"])
     conditions = SAMPLINGS if evaluated == (1, 0) else (evaluated,)
@@ -139,13 +135,12 @@ def rescore(job: dict) -> list[dict]:
             for rule, items in sequences.items():
                 events = [event for item in items for event in item.events]
                 streams[rule][video["item_id"]] = stream_payload(items, events)
+            scored_sequences = sequences_to_score(video, sequences, left_out)
             for tolerance in TOLERANCES:
-                for rule, counts in score_video_rules(video, sequences, tolerance).items():
+                for rule, counts in score_video_rules(video, scored_sequences, tolerance).items():
                     for count in COUNT_NAMES:
                         totals[rule, tolerance][count] += counts[count]
             start += length
-        if (stride, offset) == evaluated:
-            check_saved_counts(totals, job["saved_metrics"], job["label"]["run"])
         for (rule, tolerance), counts in totals.items():
             rows.append({**job["label"], "stride": stride, "offset": offset, "hitter_rule": rule,
                          "tolerance": tolerance, **add_rates(counts)})
@@ -156,7 +151,7 @@ def rescore(job: dict) -> list[dict]:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 write_json(path, {**job["label"], "stride": stride, "offset": offset, "hitter_rule": rule,
                                   "metrics": metrics, "streams": rule_streams})
-    print(f"{job['label']['split']} {job['label']['run']}: saved counts reproduced; {conditions} scored", flush=True)
+    print(f"{job['label']['split']} {job['label']['run']}: {conditions} scored", flush=True)
     return rows
 
 
@@ -175,7 +170,7 @@ def validation_jobs(runs: Path, manifest: dict, videos: list[dict], streams: Pat
                  "seed": run["seed"], "best_step": best["steps"]}
         run_streams = None if streams is None else streams / "validation" / run["name"]
         jobs.append({"label": label, "videos": videos, "probabilities": directory / "validation_probabilities.npy.xz",
-                     "saved_metrics": saved, "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
+                     "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
                      "streams": run_streams})
     return jobs
 
@@ -195,7 +190,7 @@ def test_jobs(runs: Path, videos: list[dict], streams: Path | None) -> list[dict
                  "seed": run["seed"], "best_step": best["steps"]}
         events = read_json(directory / "events.json.gz")
         jobs.append({"label": label, "videos": videos, "probabilities": directory / "probabilities.npy.xz",
-                     "saved_metrics": events["metrics"], "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
+                     "sampling": events.get("sampling", {"stride": 1, "offset": 0}),
                      "streams": None if streams is None else streams / "test" / f"seed{run['seed']}"})
     return jobs
 

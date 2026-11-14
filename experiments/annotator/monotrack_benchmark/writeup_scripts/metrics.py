@@ -173,13 +173,18 @@ def left_out_windows(rallies: list[dict]) -> list[tuple[int, int]]:
     return [(rally['frames'][0] - WINDOW_BEFORE, rally['frames'][-1] + WINDOW_AFTER) for rally in rallies]
 
 
+def inside_left_out_rally(frame: int, windows: list[tuple[int, int]], scored_frames: list[int], margin: int) -> bool:
+    """Whether a predicted contact falls in a left-out rally's window and more than ``margin`` frames from every
+    scored hit."""
+    return (any(start <= frame < end for start, end in windows)
+            and all(abs(frame - scored) > margin for scored in scored_frames))
+
+
 def ignore_left_out(stream: dict, windows: list[tuple[int, int]], scored_frames: list[int],
                     margin: int) -> tuple[dict, int]:
     """Drop predictions that belong to left-out rallies, then found rallies left with none."""
     def ignored(event: list) -> bool:
-        frame = event[0]
-        return (any(start <= frame < end for start, end in windows)
-                and all(abs(frame - scored) > margin for scored in scored_frames))
+        return inside_left_out_rally(event[0], windows, scored_frames, margin)
 
     sequences = []
     for sequence in stream['sequences']:

@@ -19,7 +19,9 @@ from experiments.annotator.video_models_benchmark.scoring import (
     COUNT_NAMES,
     TOLERANCES,
     add_rates,
+    left_out_windows_for,
     score_video_rules,
+    sequences_to_score,
 )
 from experiments.annotator.video_models_benchmark.writeup_scripts.rescore_videomae import (
     earliest_minimum,
@@ -49,11 +51,12 @@ def public_records(value: Any) -> Any:
 
 
 def collect_predictions(job: dict) -> list[dict]:
-    """Save both hitter labels per hit and verify their aggregate scores."""
+    """Save both hitter labels per hit and score them; test scores ignore hits inside left-out rallies."""
     saved = read_json(job["events"])
     assert saved["hitter_rule"] == "forced_alternation_probability_ties"
     assert (saved["sampling"]["stride"], saved["sampling"]["offset"]) == (3, 0)
     probabilities = read_probabilities(job["probabilities"], job["videos"])
+    left_out = left_out_windows_for(job["videos"])
     totals = {}
     for rule in ("raw", "alternating"):
         totals[rule] = {str(tolerance): dict.fromkeys(COUNT_NAMES, 0) for tolerance in TOLERANCES}
@@ -87,8 +90,9 @@ def collect_predictions(job: dict) -> list[dict]:
             })
             offset += span["end_frame"] - span["start_frame"]
         videos.append({"item_id": video["item_id"], "fps": video["fps"], "sequences": compact_sequences})
+        scored_sequences = sequences_to_score(video, sequences, left_out)
         for tolerance in TOLERANCES:
-            for rule, counts in score_video_rules(video, sequences, tolerance).items():
+            for rule, counts in score_video_rules(video, scored_sequences, tolerance).items():
                 for name in COUNT_NAMES:
                     totals[rule][str(tolerance)][name] += counts[name]
     assert offset == len(probabilities)
@@ -97,9 +101,6 @@ def collect_predictions(job: dict) -> list[dict]:
         label = "raw" if rule == "raw" else "forced_alternation"
         metrics[label] = {}
         for tolerance, counts in scores.items():
-            if rule == "alternating":
-                for name in COUNT_NAMES:
-                    assert counts[name] == saved["metrics"][tolerance][name], (job["label"], tolerance, name)
             rates = add_rates(counts)
             metrics[label][tolerance] = rates
             rows.append({**job["label"], "hitter_rule": label, "tolerance": int(tolerance), **rates})

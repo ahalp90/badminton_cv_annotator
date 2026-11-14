@@ -14,7 +14,7 @@ models selected for testing**.
 | `selection.json.gz` | The saved X3D configuration ranking and VideoMAE learning-rate ranking. |
 | `data.json.gz` | Original cache indexes: video identities, split membership, frame rates, rally bounds and labelled contacts. |
 | `scores.csv.gz` | One row per winning seed, split, hitter rule and timing tolerance: 56 rows altogether. |
-| `predictions/{x3d,videomae}/seedN/{validation,test}.json.gz` | Every retained hit, with its original and forced-alternation hitter; frame metrics and aggregate contact/rally scores. |
+| `predictions/{x3d,videomae}/seedN/{validation,test}.json.gz` | Every retained hit, with its original and forced-alternation hitter; frame metrics and aggregate contact/rally scores. Test scores ignore hits inside excluded rallies (see below). |
 
 Download the seven model checkpoints from the [weights release](../../weights/README.md).
 Frame-probability arrays and RGB frame caches are stored separately.
@@ -45,7 +45,11 @@ the summed class probabilities, then agreement with the first original hitter.
 
 - Data: 32 training videos, eight validation videos and 46 test videos.
   Validation has 668 rallies / 5,696 contacts; test has 3,327 rallies / 37,184
-  contacts. Validation retains flaw-marked rallies; test excludes them.
+  contacts. Validation retains flaw-marked rallies; test excludes them. Test
+  scores ignore predicted hits from 1 second before an excluded rally's first
+  hit to 1 second after its last, unless within 10 frames of a scored hit, as
+  for the annotator and MonoTrack. This removes one predicted hit from each of
+  X3D seed 2 and VideoMAE seeds 0 and 1.
 - Inference: every third video frame, offset zero, with supplied rally bounds.
   Each input clip contains 16 consecutive frames. Nearby predicted contacts are
   suppressed using the shared six-frame-at-30-fps rule.
@@ -82,7 +86,7 @@ PYTHONPATH=src:. python \
 
 The collector reads the saved hit times and forced hitters, then recovers the
 original hitter from the corresponding frame probabilities. It checks frame
-alignment and confidence values, rescores both hitter rules with the shared
-matcher, and requires every forced-alternation count to equal the original
-saved result at both tolerances. Only the collected hit lists and summaries
-are written here; rebuilding requires the larger source arrays.
+alignment and confidence values, then scores both hitter rules with the shared
+matcher; test scores ignore hits inside excluded rallies. Only the collected hit
+lists and summaries are written here; rebuilding requires the larger source
+arrays.

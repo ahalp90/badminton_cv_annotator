@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 import torch
 
-from annotator.types import CourtHalf
+from annotator.types import ContactEvent, ContactSequence, CourtHalf
+from experiments.annotator.video_models_benchmark import evaluate
 from experiments.annotator.video_models_benchmark.data import (
     IMAGE_SIZE,
     ClipDataset,
@@ -19,6 +20,9 @@ from experiments.annotator.video_models_benchmark.evaluate import (
     score_probabilities,
 )
 from experiments.annotator.video_models_benchmark.prepare import prepare_video
+from experiments.annotator.video_models_benchmark.scoring import (
+    ignore_left_out_predictions,
+)
 
 
 def span(start: int, end: int, frames: list[int], sides: list[str | None], span_id: int = 0) -> dict:
@@ -100,6 +104,48 @@ def test_supplied_rallies_reuse_existing_scorer() -> None:
     counts = score_probabilities(FakeDataset(), probabilities)["metrics"]["10"]
     assert counts["fully_correct"] == 0
     assert counts["contact_f1"] == 80
+
+
+def test_left_out_rally_windows_and_scored_hit_margin() -> None:
+    video = {"fps": 30, "spans": [span(0, 200, [100], ["Bot"])]}
+    left_out_windows = [(102, 115), (120, 150)]
+
+    def sequence(span_id: int, frames: list[int]) -> ContactSequence:
+        return ContactSequence(span_id, 0, 400, tuple(ContactEvent(frame, 0.9, CourtHalf.BOT) for frame in frames))
+
+    kept = ignore_left_out_predictions(video, [
+        sequence(0, [100, 110, 111, 119, 120, 149, 150]),
+        sequence(1, [130]),
+        sequence(2, [300, 320]),
+    ], left_out_windows)
+    # 110 is exactly ten frames from the scored hit at 100; 111 is not. Windows include starts, exclude ends.
+    assert [[event.frame for event in rally.events] for rally in kept] == [[100, 110, 119, 150], [], [300, 320]]
+    assert [rally.span_id for rally in kept] == [0, 1, 2]
+
+
+@pytest.mark.parametrize("role,expected_predicted,expected_fully_correct", [("test", 2, 1), ("validation", 3, 0)])
+def test_only_test_scores_ignore_left_out_rallies(
+    monkeypatch: pytest.MonkeyPatch, role: str, expected_predicted: int, expected_fully_correct: int,
+) -> None:
+    rally = span(0, 70, [10, 30], ["Bot", "Top"])
+
+    class FakeDataset:
+        def __init__(self) -> None:
+            self.videos = [{"item_id": "one", "role": role, "fps": 30, "spans": [rally]}]
+
+        def __len__(self) -> int:
+            return 70
+
+    monkeypatch.setattr(evaluate, "left_out_windows_for", lambda videos: {"one": [(45, 70)]})
+    probabilities = np.tile([1.0, 0, 0], (70, 1))
+    probabilities[10] = [0, 1, 0]
+    probabilities[30] = [0, 0, 1]
+    probabilities[50] = [0, 1, 0]  # Inside the left-out window and 20 frames from the last scored hit.
+    result = score_probabilities(FakeDataset(), probabilities)
+    for counts in result["metrics"].values():
+        assert counts["predicted"] == expected_predicted
+        assert counts["fully_correct"] == expected_fully_correct
+    assert [event[0] for event in result["streams"]["one"]["events"]] == [10, 30, 50]
 
 
 @pytest.mark.parametrize("break_ties,expected_correct_player,expected_rallies", [(False, 2, 1), (True, 1, 0)])

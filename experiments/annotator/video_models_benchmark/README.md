@@ -174,7 +174,11 @@ Select checkpoints by validation loss. Select experiment configurations by
 fully correct validation rallies, with correct-player contact F1 breaking
 ties, following the [MonoTrack benchmark](../monotrack_benchmark/README.md).
 Report contact F1, correct-player F1 and fully correct rallies using the
-existing scorer and its frame-rate-scaled timing tolerances.
+existing scorer and its frame-rate-scaled timing tolerances. Test scoring uses
+the same excluded-rally rule as our annotator and MonoTrack: predictions from
+1 second before an excluded rally's first hit to 1 second after its last are
+ignored, unless they are within 10 frames of a scored hit. Saved test streams
+keep every prediction. Validation has no excluded rallies.
 
 ## References
 
