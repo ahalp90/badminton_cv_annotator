@@ -1,0 +1,2 @@
+# Install alongside the project's torch/torchvision environment.
+timm==1.0.31

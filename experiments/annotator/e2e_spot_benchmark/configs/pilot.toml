@@ -1,0 +1,13 @@
+backbone = "200mf"
+mode = "supplied"
+clip_length = 100
+learning_rate = 0.001
+# Provisional: choose training batch after a short measured profile.
+batch_size = 8
+validation_batch_size = 8
+seed = 0
+mixup = false
+cycles = 50
+frames_per_cycle = 500000
+warmup_cycles = 3
+weight_decay = 0.01
