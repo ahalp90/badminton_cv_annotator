@@ -1,4 +1,4 @@
-"""Prepare height224 aspect-preserving frames in JPEG95 4:2:0 ZIP archives."""
+"""Prepare recipe-specific source geometry in JPEG95 4:2:0 ZIP archives."""
 from __future__ import annotations
 
 import argparse
@@ -37,18 +37,28 @@ def preparation_intervals(video: dict, mode: str) -> list[list[int]]:
     return merge_intervals([[span["start_frame"], span["end_frame"]] for span in video["spans"]])
 
 
-def prepare_video(video: dict, videos: Path, cache: Path, mode: str) -> dict:
+def prepare_video(video: dict, videos: Path, cache: Path, mode: str, geometry: str = "e2e") -> dict:
     """Atomically finish one video at a time; reuse completed video archives."""
     directory = cache / video["item_id"]
     directory.mkdir(parents=True, exist_ok=True)
     source = videos / Path(video["source_video"]).name
-    source_width, source_height = source_dimensions(source)
-    width = int(source_width / source_height * 224)
-    if width < 224:
-        raise ValueError("Expected landscape source video for the authors' horizontal crop")
+    if geometry == "user":
+        width = height = 256
+        geometry_name = "letterbox256"
+        spatial_filter = ("scale=256:256:force_original_aspect_ratio=decrease,"
+                          "pad=256:256:(ow-iw)/2:(oh-ih)/2:color=black")
+    elif geometry == "e2e":
+        source_width, source_height = source_dimensions(source)
+        width, height = int(source_width / source_height * 224), 224
+        if width < 224:
+            raise ValueError("Expected landscape source video for the authors' horizontal crop")
+        geometry_name = "height224-aspect"
+        spatial_filter = f"scale={width}:224:flags=bilinear"
+    else:
+        raise ValueError("Preparation geometry must be user or e2e")
     intervals = preparation_intervals(video, mode)
     count = sum(end - start for start, end in intervals)
-    metadata = {"storage": "jpeg_zip", "geometry": "height224-aspect", "image_height": 224, "image_width": width,
+    metadata = {"storage": "jpeg_zip", "geometry": geometry_name, "image_height": height, "image_width": width,
                 "intervals": intervals, "frames": count, "jpeg_quality": 95, "jpeg_subsampling": 2}
     receipt = directory / "frames.json.gz"
     destination = directory / "frames.zip"
@@ -60,7 +70,7 @@ def prepare_video(video: dict, videos: Path, cache: Path, mode: str) -> dict:
                 raise ValueError("Incomplete frame archive")
         return {"item_id": video["item_id"], "reused": True, "frames": count}
     temporary = directory / "frames.zip.partial"
-    filters = f"select='{selection_expression(intervals)}',scale={width}:224:flags=bilinear,setsar=1"
+    filters = f"select='{selection_expression(intervals)}',{spatial_filter},setsar=1"
     command = ["ffmpeg", "-v", "error", "-nostdin", "-threads", "2", "-i", str(source),
                "-vf", filters, "-vsync", "0", "-an", "-sn", "-pix_fmt", "rgb24", "-threads", "1",
                "-filter_threads", "1", "-f", "rawvideo", "pipe:1"]
@@ -70,11 +80,12 @@ def prepare_video(video: dict, videos: Path, cache: Path, mode: str) -> dict:
             with ZipFile(temporary, "w", compression=ZIP_STORED, allowZip64=True) as archive:
                 for start, end in intervals:
                     for frame in range(start, end):
-                        pixels = process.stdout.read(224 * width * 3)
-                        if len(pixels) != 224 * width * 3:
+                        pixels = process.stdout.read(height * width * 3)
+                        if len(pixels) != height * width * 3:
                             raise ValueError(f"{video['item_id']}: source ended before selected frame {frame}")
                         output = BytesIO()
-                        Image.frombytes("RGB", (width, 224), pixels).save(output, format="JPEG", quality=95, subsampling=2)
+                        image = Image.frombytes("RGB", (width, height), pixels)
+                        image.save(output, format="JPEG", quality=95, subsampling=2)
                         archive.writestr(f"{frame:09d}.jpg", output.getvalue())
             if process.stdout.read(1):
                 raise ValueError(f"{video['item_id']}: source differs from frozen frame selection")
@@ -97,7 +108,9 @@ def main(argv: list[str] | None = None) -> None:
     source.add_argument("--index", type=Path, help="Reuse only metadata from an existing index.json.gz")
     parser.add_argument("--mode", choices=("supplied", "discovery"), required=True)
     parser.add_argument("--videos", type=Path, required=True, help="Canonical source-video directory")
-    parser.add_argument("--cache", type=Path, required=True, help="Fresh cache; old letterbox frames are incompatible")
+    parser.add_argument("--cache", type=Path, required=True, help="Separate cache for the chosen source geometry")
+    parser.add_argument("--geometry", choices=("e2e", "user"), default="e2e",
+                        help="Source resize/crop geometry: height224 aspect or letterbox256")
     parser.add_argument("--workers", type=int, default=2)
     args = parser.parse_args(argv)
     if args.workers < 1:
@@ -116,7 +129,8 @@ def main(argv: list[str] | None = None) -> None:
     if not index_path.exists():
         write_json(index_path, {"videos": videos})
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        futures = [pool.submit(prepare_video, video, args.videos, args.cache, args.mode) for video in videos]
+        futures = [pool.submit(prepare_video, video, args.videos, args.cache, args.mode, args.geometry)
+                   for video in videos]
         for future in futures:
             print(future.result(), flush=True)
 

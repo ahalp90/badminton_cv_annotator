@@ -1,0 +1,16 @@
+# Confirm the intended batch fits before starting this model/clip comparison.
+backbone = "200mf"
+mode = "supplied"
+clip_length = 100
+augmentation = "user"
+mixup = false
+learning_rate = 0.001
+batch_size = 16
+validation_batch_size = 16
+seed = 0
+cycles = 50
+frames_per_cycle = 500000
+warmup_cycles = 3
+weight_decay = 0.01
+early_stopping_patience = 10
+cudnn_benchmark = true

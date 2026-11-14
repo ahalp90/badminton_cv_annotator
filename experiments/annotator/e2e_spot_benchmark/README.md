@@ -15,17 +15,32 @@ The tested backbone dependency is `timm==1.0.31`, using the explicit
 
 ## Frames and labels
 
-Prepare fresh source frames at **224 pixels of actual picture height**, keeping
-the source aspect ratio. Store JPEG quality 95 with 4:2:0 colour subsampling in
-one ZIP per video. During training, select one random horizontal 224-square crop
-for the whole clip. Validation and test use the centre crop. Crop before batching,
-so videos with different widths work together. There is no letterboxing,
-additional area crop, displacement or resize after cropping.
+Both recipes end in **224-square RGB input with ImageNet normalisation**. Prepare
+fresh source frames as JPEG quality 95 with 4:2:0 colour subsampling, in one ZIP
+per video. Each recipe has its own source geometry and cache:
 
-Training retains clip-consistent horizontal flipping and brightness, contrast
-and saturation changes, followed by ImageNet normalisation. Blur is off. MixUp
-is off initially; the staged search compares it at the selected learning rate.
-MixUp uses Beta(0.2, 0.2), with each component's ignored labels excluded separately.
+- **X3D/VideoMAE recipe** (`augmentation = "user"`): resize/letterbox to 256-square, then
+  reuse the X3D/VideoMAE colour, crop and flip implementation. Colour changes
+  apply together with probability 0.5; brightness/contrast/saturation factors
+  range from 0.8 to 1.2. Independently, a square crop covers 80–100% of the area
+  with probability 0.5, and horizontal flip applies with probability 0.5. The
+  VideoMAE preprocessing branch then resizes to 224 and ImageNet-normalises.
+  Validation/test deterministically resize the whole letterboxed image to 224.
+  This matches the original augmentation; JPEG storage replaces the original
+  uncompressed RGB cache. There is no hue jitter, blur or MixUp in this recipe.
+- **E2E recipe** (`augmentation = "e2e"`, `mixup = true`): preserve aspect ratio
+  at height 224, then use one horizontal 224-square crop for the clip (random in
+  training, centre in validation/test). Flip applies with probability 0.5. Hue
+  (±0.2), saturation, brightness and contrast (factors 0.7–1.2) each apply
+  independently with probability 0.25, followed by Gaussian blur (probability 0.25,
+  kernel 5, sigma 0.1–2.0). Sample an independent partner clip and Beta(0.2, 0.2)
+  mixing weight for each training clip. Augment both clips before mixing; each
+  component keeps its own ignored-label mask.
+
+Random spatial/colour transforms are consistent across each clip. The legacy
+`hybrid` setting retains E2E cropping with the previous colour changes and
+optional within-batch MixUp for existing checkpoints. Hybrid runs remain
+separate from the new recipe comparisons.
 
 Supplied mode uses the existing one-second-padded rally windows and classes
 NO_CONTACT=0, BOT_CONTACT=1 and TOP_CONTACT=2. Discovery adds NOT_RALLY=3 outside
@@ -78,11 +93,11 @@ All runtime locations are command-line arguments; the examples use shell variabl
 ```bash
 python -m experiments.annotator.e2e_spot_benchmark.prepare \
   --spans "$DEVELOPMENT_SPANS" --videos "$VIDEO_ROOT" \
-  --cache "$SUPPLIED_CACHE" --mode supplied --workers 2
+  --cache "$USER_CACHE" --mode discovery --geometry user --workers 2
 
 python -m experiments.annotator.e2e_spot_benchmark.prepare \
   --spans "$DEVELOPMENT_SPANS" --videos "$VIDEO_ROOT" \
-  --cache "$DISCOVERY_CACHE" --mode discovery --workers 2
+  --cache "$E2E_CACHE" --mode discovery --geometry e2e --workers 2
 ```
 
 You can use `--index "$EXISTING_INDEX"` to reuse canonical video/split metadata.
@@ -90,7 +105,9 @@ Frame pixels must still be extracted from the source videos. Supplied preparatio
 stores only the existing one-second-padded target bounds, merging storage
 intervals where they overlap. There is no extra-context expansion. Discovery
 stores every source frame. A full-video JPEG cache can also serve supplied mode;
-the dataset still limits each clip to its selected rally interval.
+the dataset still limits each clip to its selected rally interval. Geometry
+must match the recipe; prepare user frames from source rather than resizing
+already-compressed E2E frames.
 
 Preparation resumes at video boundaries. Completed ZIPs are reused only when
 metadata and member counts agree. An interrupted video is rebuilt through a
@@ -99,28 +116,38 @@ on source content. Each persistent data worker keeps its ZIP readers open.
 
 ## Train and resume
 
-The [pilot configuration](configs/pilot.toml) uses supplied windows, 200MF,
-100-frame clips, learning rate 0.001 and seed 0. Batch size 8 is a provisional
-profiling value, not the selected training batch. Profile 8/16 (and possibly 32
-for supplied200MF100); measure longer discovery clips separately. Validation
-batch size is independent through `validation_batch_size` or
-`--validation-batch-size`. Choosing a batch never automatically scales learning rate. AdamW weight decay
-is fixed at 0.01. Training weights are [1,5,5] or [1,5,5,1].
+Use [supplied200-user.toml](configs/supplied200-user.toml) for the first new
+comparison. [discovery200-user.toml](configs/discovery200-user.toml) starts a
+separate 250-frame discovery comparison. Starting training batches are 16/8/4 for
+100/250/500 frames. Keep each batch fixed across LR/seed/recipe comparisons.
+For 800MF, confirm the intended batch fits and halve it if necessary before
+starting its comparison; its configuration files are starting values.
+Validation batch size is independent through `validation_batch_size` or
+`--validation-batch-size`. Choosing a batch does not automatically scale LR.
+AdamW weight decay stays 0.01; training class weights are [1,5,5] or [1,5,5,1].
 
-Train 50 cycles of exactly 500,000 sampled frame positions each, with three
-linear warmup cycles followed by cosine decay over the remaining 47. The final
-batch may be smaller, and the final clip's unused positions are masked. Record
-both scheduled positions and eligible class counts/proportions, plus ignored positions. No automatic early stopping
-is applied.
+Train at most 50 cycles of exactly 500,000 scheduled frame positions each, with
+three linear warmup cycles then cosine decay over the original 50-cycle horizon.
+Stop after 10 completed validation cycles without a strictly lower validation
+loss. An equal loss does not reset patience. Early-stopped runs retain the
+best-loss checkpoint and count as completed candidates. Resume preserves the
+stopping decision. Set `early_stopping_patience = 0` to disable stopping, as in
+the historical [pilot configuration](configs/pilot.toml).
+
+The final batch can be smaller; unused positions in the final clip are masked.
+Only the primary scheduled positions count towards the frame budget when MixUp
+samples partner clips. Record eligible class counts/proportions and ignored
+positions alongside the scheduled budget. New configs enable
+`cudnn_benchmark = true`; use the same setting for fit checks and training.
 
 ```bash
 python -m experiments.annotator.e2e_spot_benchmark train \
-  --config experiments/annotator/e2e_spot_benchmark/configs/pilot.toml \
-  --cache "$SUPPLIED_CACHE" --output "$RUN" --device "$DEVICE" --workers 4
+  --config experiments/annotator/e2e_spot_benchmark/configs/supplied200-user.toml \
+  --cache "$USER_CACHE" --output "$RUN" --device "$DEVICE" --workers 8
 
 python -m experiments.annotator.e2e_spot_benchmark train \
-  --config experiments/annotator/e2e_spot_benchmark/configs/pilot.toml \
-  --cache "$SUPPLIED_CACHE" --output "$RUN" --device "$DEVICE" --workers 4 \
+  --config experiments/annotator/e2e_spot_benchmark/configs/supplied200-user.toml \
+  --cache "$USER_CACHE" --output "$RUN" --device "$DEVICE" --workers 8 \
   --resume
 ```
 
@@ -168,73 +195,75 @@ python -m experiments.annotator.e2e_spot_benchmark infer \
 Prepare test frames explicitly with `prepare --test-inputs "$TEST_INPUTS" ...`.
 Training and search do not read test data. Inference also accepts `--role validation`.
 
-## Staged search and timing
+## Staged search
 
-Plan one stage at a time. Ranking requires completed validation results from
-seeds 0 and 1 under unchanged settings. Rank mean fully-correct rally recall,
-then correct-player contact F1, at the shared ten-frame tolerance. Freeze the
-winner and complete seeds 0–4; completed matching seeds are reused.
+Rank each configuration using completed validation results from seeds 0 and 1.
+Select mean fully correct rally percentage at ±10 frames, then correct-player
+contact F1. Each run contributes its minimum-validation-loss checkpoint.
 
-Stages are `supplied200-lr`, `supplied200-mixup`, `supplied800-lr`,
-`discovery200-length-lr`, `discovery800-lr`, and `complete`. Each later stage takes
-an explicit preceding selection. The exact predecessor is checked: the MixUp
-stage follows supplied200 learning-rate selection; supplied800 and discovery200
-follow supplied200 MixUp selection; discovery800 follows discovery200 selection.
-For a new candidate stage, `--config` explicitly supplies training/validation
-batch sizes, cycle counts and the remaining runtime protocol. Only searched
-model/mode/clip-length/learning-rate/MixUp choices are inherited. Supply the
-profiled stage-specific configuration; changing batch size does not scale LR.
-The `complete` stage preserves the winner's full protocol and rejects conflicting
-config fields, so matching screening seeds remain part of the final five.
-Discovery 200MF compares clip lengths 250/500
-and learning rates 0.001/0.0003; 800MF inherits the selected length. Backbones
-inherit the preceding label and augmentation choices.
+| Stage | Comparison | New runs |
+|---|---|---:|
+| `supplied200-lr` | User recipe, 100 frames, LR 0.001/0.0003 | 4 |
+| `supplied200-recipe` | Full E2E recipe at selected supplied LR; reuse user pair | 2 |
+| `supplied800` | Inherit selected supplied LR and recipe, 100 frames | 2 |
+| `discovery200-lr` | Fresh user-recipe LR 0.001/0.0003 comparison, 250 frames | 4 |
+| `discovery200-recipe` | Full E2E recipe at selected discovery LR; reuse user pair | 2 |
+| `discovery200-length` | Try 500 frames; reuse selected 250-frame pair | 2 |
+| `discovery800-length` | Inherit discovery LR and recipe; test 250 and 500 frames | 4 |
 
-For the discovery200 length grid, pass the separately profiled training batches:
+There are 20 new screening runs. Discovery starts independently of the supplied
+selection. The 800MF stages inherit LR and recipe rather than repeating the LR
+grid. Recipe comparisons change the complete augmentation recipe, including
+spatial preprocessing and MixUp; they are not MixUp-only comparisons.
 
-```bash
-python -m experiments.annotator.e2e_spot_benchmark.search plan \
-  --stage discovery200-length-lr --config "$DISCOVERY_CONFIG" \
-  --selection "$SUPPLIED200_SELECTION" --runs "$SEARCH_ROOT" \
-  --batch-size-for-length 250=8 --batch-size-for-length 500=4
-```
-
-Use the same overrides for `plan`, `run` and `rank`. Unspecified lengths use the
-config's training batch; validation batch remains common to both lengths.
-These overrides apply only to this length grid. For `complete`, omit them and
-use a config matching the selected winner's full protocol, including its batch.
+`--config` sets the runtime protocol for a stage. Recipe comparisons require it
+to match the preceding winner so the reference pair can be reused. The
+200MF length comparison similarly preserves the selected 250-frame protocol.
+Length stages scale training batch inversely with clip length using the supplied
+config as the reference. Override this explicitly with
+`--batch-size-for-length 250=8 --batch-size-for-length 500=4` where needed.
+Validation batch remains the independent value from the config.
 
 ```bash
+CONFIG=experiments/annotator/e2e_spot_benchmark/configs/supplied200-user.toml
 python -m experiments.annotator.e2e_spot_benchmark.search plan \
-  --stage supplied200-lr \
-  --config experiments/annotator/e2e_spot_benchmark/configs/pilot.toml \
-  --runs "$SEARCH_ROOT"
+  --stage supplied200-lr --config "$CONFIG" --runs "$SEARCH_ROOT"
+
+python -m experiments.annotator.e2e_spot_benchmark.search run \
+  --stage supplied200-lr --config "$CONFIG" --runs "$SEARCH_ROOT" \
+  --user-cache "$USER_CACHE" --e2e-cache "$E2E_CACHE" \
+  --device "$DEVICE" --workers 8 --limit 4
+
+python -m experiments.annotator.e2e_spot_benchmark.search rank \
+  --stage supplied200-lr --config "$CONFIG" --runs "$SEARCH_ROOT"
 ```
 
-Use `run` with `--cache`, `--device` and `--workers` to execute a planned stage.
-The default `--limit 1` launches at most one new run. Use `rank` to write that
-stage's selection, then pass `--selection` when planning its successor. No search
-command automatically evaluates candidates on test. Use `summarise --stage complete`
-with the frozen selection to report five-seed validation means and standard deviations.
+Pass the generated selection to the next stage with `--selection`. Start
+`discovery200-lr` without a preceding selection. Both recipe caches can be passed
+to every run command; training uses the cache matching each candidate. `--cache`
+remains a single-recipe fallback. Run names distinguish user/E2E/hybrid recipes;
+completed runs are reused only when their full settings match.
 
-`smoke` and `timing` use real clips with randomly initialised architecture weights,
-so they download nothing. Both perform forward/backward/optimiser steps. Timing reports both end-to-end throughput from the prefetched loader and throughput
-from one already-loaded device batch, plus peak GPU memory. Both use identical
-augmentation and training arithmetic. Exclude explicitly requested warmup steps.
-A large throughput gap points to loading/transfer costs worth investigating
-before choosing the training batch. `--full-validation` also times the complete
-deterministic validation pass using its independently configured batch size. They save no trained checkpoint.
+The default `--limit 1` starts at most one new run. No command automatically
+launches the whole search or evaluates candidates on test. The optional
+`complete`/`summarise` interfaces can later complete a frozen winner to five
+seeds; that is separate from this 20-run screening plan and preserves the full
+winning protocol.
+
+## Fit checks
+
+Use a short forward/backward smoke to confirm each new model/clip combination
+fits, with its actual augmentation and autotuning settings. No batch-size sweep
+or throughput profiling is required. Smoke uses random model weights, so it
+needs no pretrained-weight download and saves no trained checkpoint.
 
 ```bash
 python -m experiments.annotator.e2e_spot_benchmark smoke \
-  --config "$CONFIG" --cache "$SUPPLIED_CACHE" --device "$DEVICE" --steps 1
-
-python -m experiments.annotator.e2e_spot_benchmark timing \
-  --config "$CONFIG" --cache "$SUPPLIED_CACHE" --device "$DEVICE" \
-  --workers 4 --batch-size 8 --validation-batch-size 16 \
-  --warmup 3 --steps 10 --full-validation --output "$TIMING_RESULT"
+  --config "$CONFIG" --cache "$CACHE" --device "$DEVICE" \
+  --workers 8 --warmup 1 --steps 2
 ```
 
-Inspect every interface with `--help`. Measure the first full validation pass
-before choosing a search budget. Exact-frame labels, supplied250 and the previous
-RGB spatial augmentation are separate follow-ups, not initial search axes.
+`--full-validation` additionally checks a complete deterministic validation pass.
+The existing `timing` command remains available for explicit diagnostics; unlike
+smoke, it compares end-to-end throughput with a device-resident batch.
+Inspect each interface with `--help`.

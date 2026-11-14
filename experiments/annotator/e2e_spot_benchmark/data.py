@@ -13,6 +13,11 @@ from torch.utils.data import Dataset
 from experiments.annotator.video_models_benchmark.data import read_json, target_labels
 
 IGNORE = -100
+type ClipSample = tuple[torch.Tensor, torch.Tensor, int, torch.Tensor, int]
+type MixedSample = tuple[
+    torch.Tensor, torch.Tensor, int, torch.Tensor, int,
+    torch.Tensor, torch.Tensor, torch.Tensor, float,
+]
 
 
 def merge_intervals(intervals: list[list[int]]) -> list[list[int]]:
@@ -59,17 +64,28 @@ def overlap_starts(start: int, end: int, length: int) -> list[int]:
 
 
 class FrameReader:
-    """Keep one JPEG ZIP reader open per video in each persistent worker."""
-    def __init__(self, cache: Path, video: dict) -> None:
+    """Read recipe-matched JPEG archives or the original sparse raw RGB cache."""
+    def __init__(self, cache: Path, video: dict, *, augmentation: str = "hybrid") -> None:
         self.directory = cache / video["item_id"]
         self.metadata = read_json(self.directory / "frames.json.gz")
         self.intervals = self.metadata["intervals"]
         if merge_intervals(self.intervals) != self.intervals:
             raise ValueError("Cache intervals must be sorted, merged and disjoint")
         self.archive: ZipFile | None = None
-        if (self.metadata.get("storage") != "jpeg_zip" or self.metadata.get("geometry") != "height224-aspect"
-                or self.metadata.get("jpeg_quality") != 95 or self.metadata.get("jpeg_subsampling") != 2):
-            raise ValueError("Prepare height224 aspect-preserving JPEG95/420 frames with the E2E preparation command")
+        self.mapping: np.memmap | None = None
+        self.raw = self.metadata.get("storage") is None
+        expected_geometry = "letterbox256" if augmentation == "user" else "height224-aspect"
+        if self.raw:
+            if (augmentation != "user" or self.metadata.get("image_size") != 256
+                    or self.metadata.get("padding") != "black"):
+                raise ValueError("Raw RGB256 letterbox frames require the user recipe")
+            count = sum(end - start for start, end in self.intervals)
+            if (self.metadata["frames"] != count
+                    or (self.directory / "frames.rgb").stat().st_size != count * 256 * 256 * 3):
+                raise ValueError("Raw RGB cache has an incomplete frame payload")
+        elif (self.metadata.get("storage") != "jpeg_zip" or self.metadata.get("geometry") != expected_geometry
+              or self.metadata.get("jpeg_quality") != 95 or self.metadata.get("jpeg_subsampling") != 2):
+            raise ValueError(f"Recipe requires {expected_geometry} JPEG95/420 frames")
 
     def containing_interval(self, start: int, end: int) -> tuple[int, int]:
         for left, right in self.intervals:
@@ -78,7 +94,14 @@ class FrameReader:
         raise ValueError(f"{self.directory.name}: requested scope [{start}, {end}) crosses a missing-frame gap")
 
     def read(self, start: int, end: int) -> np.ndarray:
-        self.containing_interval(start, end)
+        left, _right = self.containing_interval(start, end)
+        if self.raw:
+            if self.mapping is None:
+                self.mapping = np.memmap(self.directory / "frames.rgb", mode="r", dtype=np.uint8,
+                                         shape=(self.metadata["frames"], 256, 256, 3))
+            preceding = sum(right - begin for begin, right in self.intervals if right <= left)
+            offset = preceding + start - left
+            return np.array(self.mapping[offset:offset + end - start])
         if self.archive is None:
             self.archive = ZipFile(self.directory / "frames.zip")
         frames = []
@@ -88,17 +111,20 @@ class FrameReader:
         return np.stack(frames)
 
     def __getstate__(self) -> dict:
-        return {**self.__dict__, "archive": None}
+        return {**self.__dict__, "archive": None, "mapping": None}
 
 
 class DenseClips(Dataset):
     """Sample RNG depends only on seed and absolute index, independent of workers."""
     def __init__(self, cache: Path, role: str, mode: str, length: int, *, seed: int = 0,
-                 frames_per_cycle: int = 500_000, cycles: int = 50, training: bool = False) -> None:
+                 frames_per_cycle: int = 500_000, cycles: int = 50, training: bool = False,
+                 augmentation: str = "hybrid", mixup: bool = False) -> None:
         self.videos = [video for video in read_json(cache / "index.json.gz")["videos"] if video["role"] == role]
         if not self.videos:
             raise ValueError(f"No {role} videos in cache")
-        self.readers = [FrameReader(cache, video) for video in self.videos]
+        self.readers = [FrameReader(cache, video, augmentation=augmentation) for video in self.videos]
+        self.augmentation = augmentation
+        self.mixup = training and augmentation == "e2e" and mixup
         self.targets = [dense_targets(video, mode) for video in self.videos]
         self.length, self.seed, self.training = length, seed, training
         self.mode = mode
@@ -122,9 +148,18 @@ class DenseClips(Dataset):
     def __len__(self) -> int:
         return self.samples_per_cycle * self.cycles if self.training else len(self.windows)
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor, int, torch.Tensor, int]:
+    def __getitem__(self, index: int) -> ClipSample | MixedSample:
+        rng = np.random.default_rng(np.random.SeedSequence([self.seed, index]))
+        sample = self.sample_clip(index, rng)
+        if not self.mixup:
+            return sample
+        partner_rng = np.random.default_rng(np.random.SeedSequence([self.seed, index, 1]))
+        partner = self.sample_clip(index, partner_rng)
+        mixing = float(partner_rng.beta(0.2, 0.2))
+        return (*sample, partner[0], partner[1], partner[3], mixing)
+
+    def sample_clip(self, index: int, rng: np.random.Generator) -> ClipSample:
         if self.training:
-            rng = np.random.default_rng(np.random.SeedSequence([self.seed, index]))
             draw = rng.integers(int(self.cumulative[-1]))
             scope_index = int(np.searchsorted(self.cumulative, draw, side="right"))
             video_index, scope_start, scope_end = self.scopes[scope_index]
@@ -141,13 +176,19 @@ class DenseClips(Dataset):
         real_start = max(start, scope_start)
         real_end = min(start + self.length, scope_end)
         real_frames = reader.read(real_start, real_end)
-        if real_frames.shape[1] != 224 or real_frames.shape[2] < 224:
-            raise ValueError("Expected aspect-preserving frames of height224 and width>=224")
-        crop_left = (int(rng.integers(real_frames.shape[2] - 224 + 1)) if self.training
-                     else (real_frames.shape[2] - 224) // 2)
-        frames = np.zeros((self.length, 224, 224, 3), dtype=np.uint8)
+        image_size = 256 if self.augmentation == "user" else 224
+        if self.augmentation == "user":
+            if real_frames.shape[1:3] != (256, 256):
+                raise ValueError("Expected 256-square letterboxed user-recipe frames")
+        else:
+            if real_frames.shape[1] != 224 or real_frames.shape[2] < 224:
+                raise ValueError("Expected aspect-preserving frames of height224 and width>=224")
+            crop_left = (int(rng.integers(real_frames.shape[2] - 224 + 1)) if self.training
+                         else (real_frames.shape[2] - 224) // 2)
+            real_frames = real_frames[:, :, crop_left:crop_left + 224]
+        frames = np.zeros((self.length, image_size, image_size, 3), dtype=np.uint8)
         offset = real_start - start
-        frames[offset:offset + len(real_frames)] = real_frames[:, :, crop_left:crop_left + 224]
+        frames[offset:offset + len(real_frames)] = real_frames
         ids = np.arange(start, start + self.length)
         eligible = (ids >= real_start) & (ids < real_end)
         labels = np.full(self.length, IGNORE, dtype=np.int64)

@@ -9,8 +9,20 @@ import math
 
 import torch
 from torch import nn
+from torchvision import transforms
+
+from experiments.annotator.video_models_benchmark.model import prepare_clips
 
 BACKBONES = {"200mf": "regnety_002.pycls_in1k", "800mf": "regnety_008.pycls_in1k"}
+E2E_TRANSFORMS = nn.Sequential(
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomApply(nn.ModuleList([transforms.ColorJitter(hue=0.2)]), p=0.25),
+    transforms.RandomApply(nn.ModuleList([transforms.ColorJitter(saturation=(0.7, 1.2))]), p=0.25),
+    transforms.RandomApply(nn.ModuleList([transforms.ColorJitter(brightness=(0.7, 1.2))]), p=0.25),
+    transforms.RandomApply(nn.ModuleList([transforms.ColorJitter(contrast=(0.7, 1.2))]), p=0.25),
+    transforms.RandomApply(nn.ModuleList([transforms.GaussianBlur(5)]), p=0.25),
+)
+E2E_NORMALISE = transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 
 
 class GSM(nn.Module):
@@ -78,10 +90,29 @@ class SpotModel(nn.Module):
         return self.classifier(self.dropout(temporal))
 
 
-def transform_clips(clips: torch.Tensor, valid_frames: torch.Tensor, *, training: bool) -> torch.Tensor:
+def transform_clips(clips: torch.Tensor, valid_frames: torch.Tensor, *, training: bool,
+                    augmentation: str = "hybrid") -> torch.Tensor:
     """Augment real frames, normalise, then zero artificial temporal padding."""
+    if augmentation == "user":
+        if clips.shape[-2:] != (256, 256):
+            raise ValueError("User augmentation requires 256-square letterboxed clips")
+        raw = clips.masked_fill(~valid_frames[:, None, :, None, None], 0)
+        pixels = prepare_clips(raw, training=training, model_name="videomae")
+        return pixels.masked_fill_(~valid_frames[:, :, None, None, None], 0)
     if clips.shape[-2:] != (224, 224):
         raise ValueError("Expected 224-square crops from height224 source frames")
+    if augmentation == "e2e":
+        # Each transform draws once per clip and operates on all its real frames.
+        batch, _channels, frames, height, width = clips.shape
+        pixels = torch.zeros((batch, frames, 3, height, width), device=clips.device, dtype=torch.float32)
+        for index, valid in enumerate(valid_frames):
+            real = clips[index].permute(1, 0, 2, 3)[valid].float().div_(255)
+            if training:
+                real = E2E_TRANSFORMS(real)
+            pixels[index, valid] = E2E_NORMALISE(real)
+        return pixels
+    if augmentation != "hybrid":
+        raise ValueError(f"Unknown augmentation recipe: {augmentation}")
     pixels = clips.float().div_(255)
     if training:
         batch = len(pixels)

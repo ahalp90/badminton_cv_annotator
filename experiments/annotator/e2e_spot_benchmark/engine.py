@@ -27,9 +27,30 @@ from .data import IGNORE, DenseClips, cycle_batches
 from .evaluate import score_predictions
 from .model import SpotModel, transform_clips
 
+type PairedBatch = tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+
+
+def configure_runtime(settings: Settings, device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = settings.cudnn_benchmark
+
+
+def device_batch(batch: tuple | list, device: torch.device) -> tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, PairedBatch | None
+]:
+    clips, labels, _video_ids, frame_ids, positions, *partner = batch
+    paired = None
+    if partner:
+        paired_clips, paired_labels, paired_ids, mixing = partner
+        paired = (paired_clips.to(device, non_blocking=True), paired_labels.to(device, non_blocking=True),
+                  (paired_ids >= 0).to(device, non_blocking=True),
+                  mixing.to(device=device, dtype=torch.float32, non_blocking=True))
+    return (clips.to(device, non_blocking=True), labels.to(device, non_blocking=True),
+            (frame_ids >= 0).to(device, non_blocking=True), positions, paired)
+
 
 def masked_loss(logits: torch.Tensor, targets: torch.Tensor, weights: torch.Tensor | None = None,
-                *, paired_targets: torch.Tensor | None = None, mixing: float = 1.0) -> torch.Tensor:
+                *, paired_targets: torch.Tensor | None = None, mixing: float | torch.Tensor = 1.0) -> torch.Tensor:
     """Weighted mean CE; each MixUp component keeps its own ignore mask.
 
     Normalise by the total participating target weight. Ignored positions never
@@ -42,19 +63,33 @@ def masked_loss(logits: torch.Tensor, targets: torch.Tensor, weights: torch.Tens
         valid = labels != IGNORE
         losses = F.cross_entropy(logits.flatten(0, 1), labels.flatten(), weight=weights,
                                  ignore_index=IGNORE, reduction="none").reshape_as(labels)
-        numerator = numerator + fraction * losses.sum()
-        mass = valid.sum() if weights is None else weights[labels[valid]].sum()
-        denominator = denominator + fraction * mass
+        if isinstance(fraction, torch.Tensor):
+            fraction = fraction[:, None]
+            frame_weights = valid if weights is None else weights[labels.masked_fill(~valid, 0)] * valid
+            numerator = numerator + (fraction * losses).sum()
+            denominator = denominator + (fraction * frame_weights).sum()
+        else:
+            numerator = numerator + fraction * losses.sum()
+            mass = valid.sum() if weights is None else weights[labels[valid]].sum()
+            denominator = denominator + fraction * mass
     return numerator / denominator.clamp_min(1)
 
 
 def optimise_batch(model: nn.Module, optimiser: torch.optim.Optimizer, clips: torch.Tensor,
                    labels: torch.Tensor, valid_frames: torch.Tensor, settings: Settings, device: torch.device,
-                   weights: torch.Tensor) -> torch.Tensor:
-    """Shared training arithmetic for real training and both timing measurements."""
-    pixels = transform_clips(clips, valid_frames, training=True)
-    paired_targets, mixing = None, 1.0
-    if settings.mixup:
+                   weights: torch.Tensor, *, paired: PairedBatch | None = None) -> torch.Tensor:
+    """Shared training arithmetic, with independent partner clips for E2E MixUp."""
+    pixels = transform_clips(clips, valid_frames, training=True, augmentation=settings.augmentation)
+    paired_targets = None
+    mixing: float | torch.Tensor = 1.0
+    if settings.mixup and settings.augmentation == "e2e":
+        if paired is None:
+            raise ValueError("E2E MixUp requires independently sampled partner clips")
+        paired_clips, paired_targets, paired_valid, mixing = paired
+        partner_pixels = transform_clips(paired_clips, paired_valid, training=True, augmentation="e2e")
+        fractions = mixing[:, None, None, None, None]
+        pixels = fractions * pixels + (1 - fractions) * partner_pixels
+    elif settings.mixup:
         mixing = float(np.random.beta(0.2, 0.2))
         order = torch.randperm(len(pixels), device=device)
         pixels = mixing * pixels + (1 - mixing) * pixels[order]
@@ -120,7 +155,8 @@ def assemble_probabilities(model: nn.Module, dataset: DenseClips, loader: DataLo
     with torch.inference_mode():
         for clips, _labels, video_ids, frame_ids, _positions in loader:
             pixels = transform_clips(clips.to(device, non_blocking=True),
-                                     (frame_ids >= 0).to(device, non_blocking=True), training=False)
+                                     (frame_ids >= 0).to(device, non_blocking=True), training=False,
+                                     augmentation=dataset.augmentation)
             with torch.autocast(device.type, enabled=device.type == "cuda", dtype=torch.bfloat16):
                 probabilities = model(pixels).float().softmax(-1).cpu().numpy()
             for video_id, ids, rows in zip(video_ids.tolist(), frame_ids.numpy(), probabilities, strict=True):
@@ -184,22 +220,28 @@ def recovery_state(model: nn.Module, optimiser: torch.optim.Optimizer, settings:
 
 def load_recovery(path: Path, model: nn.Module, optimiser: torch.optim.Optimizer, settings: Settings) -> dict:
     state = torch.load(path, map_location="cpu", weights_only=False)
-    if state["settings"] != asdict(settings):
+    if Settings(**state["settings"]) != settings:
         raise ValueError("Recovery settings differ from requested protocol")
     model.load_state_dict(state["model"])
     optimiser.load_state_dict(state["optimiser"])
     restore_rng(state["rng"])
+    state["settings"] = asdict(settings)
     return state
+
+
+def patience_exhausted(state: dict, settings: Settings) -> bool:
+    return (settings.early_stopping_patience > 0 and state["best_cycle"] > 0
+            and state["cycle"] - state["best_cycle"] >= settings.early_stopping_patience)
 
 
 def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", workers: int = 0,
         resume: bool = False, max_steps: int | None = None) -> dict:
-    """Train all cycles unless explicitly bounded for smoke/timing or interrupted."""
+    """Train to the cycle cap or validation-loss patience, preserving recoverability."""
     if max_steps is not None and max_steps < 1:
         raise ValueError("max_steps must be positive")
     output.mkdir(parents=True, exist_ok=True)
     settings_path = output / "settings.json.gz"
-    if settings_path.exists() and read_json(settings_path) != asdict(settings):
+    if settings_path.exists() and Settings(**read_json(settings_path)) != settings:
         raise ValueError("Output directory has a different protocol")
     recovery_path = output / "recovery.pt"
     if recovery_path.exists() and not resume:
@@ -208,10 +250,13 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
         raise ValueError("No recovery checkpoint exists")
     write_json(settings_path, asdict(settings))
     device_object = torch.device(device)
+    configure_runtime(settings, device_object)
     seed_everything(settings.seed)
     train_data = DenseClips(cache, "train", settings.mode, settings.clip_length, seed=settings.seed,
-                            frames_per_cycle=settings.frames_per_cycle, cycles=settings.cycles, training=True)
-    validation_data = DenseClips(cache, "validation", settings.mode, settings.clip_length)
+                            frames_per_cycle=settings.frames_per_cycle, cycles=settings.cycles, training=True,
+                            augmentation=settings.augmentation, mixup=settings.mixup)
+    validation_data = DenseClips(cache, "validation", settings.mode, settings.clip_length,
+                                 augmentation=settings.augmentation)
     inputs = {"videos": train_data.videos + validation_data.videos,
               "frames": [reader.metadata for reader in train_data.readers + validation_data.readers]}
     inputs_path = output / "inputs.json.gz"
@@ -230,25 +275,24 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
                             start_cycle=state["cycle"], start_batch=state["batch"])
     training_loader = make_loader(train_data, settings.batch_size, workers, batches=batches)
     validation_loader = make_loader(validation_data, settings.validation_batch_size, workers)
-    iterator = iter(training_loader)
+    iterator = iter(training_loader) if not patience_exhausted(state, settings) else iter(())
     weights = torch.tensor([1, 5, 5] + ([1] if settings.classes == 4 else []), device=device_object, dtype=torch.float32)
     progress = Progress(output)
     session_start = time.perf_counter()
     elapsed_before = state["elapsed_seconds"]
     initial_step = state["step"]
     batches_per_cycle = math.ceil(train_data.samples_per_cycle / settings.batch_size)
-    while state["cycle"] < settings.cycles:
+    while state["cycle"] < settings.cycles and not patience_exhausted(state, settings):
         model.train()
         while state["batch"] < batches_per_cycle:
-            clips, labels, _video_ids, frame_ids, positions = next(iterator)
-            labels = labels.to(device_object, non_blocking=True)
-            clips = clips.to(device_object, non_blocking=True)
+            clips, labels, valid_frames, positions, paired = device_batch(next(iterator), device_object)
             frame_positions = int(positions.sum())
             rate = learning_rate(settings, state["frames"] + frame_positions)
             for group in optimiser.param_groups:
                 group["lr"] = rate
-            valid_frames = (frame_ids >= 0).to(device_object, non_blocking=True)
-            loss = optimise_batch(model, optimiser, clips, labels, valid_frames, settings, device_object, weights)
+            pair_options = {"paired": paired} if paired is not None else {}
+            loss = optimise_batch(model, optimiser, clips, labels, valid_frames, settings, device_object, weights,
+                                  **pair_options)
             state["frames"] += frame_positions
             state["step"] += 1
             state["batch"] += 1
@@ -297,8 +341,12 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
             shutil.rmtree(output / f"validation-cycle{previous_best:04d}")
         write_json(output / "history.json.gz", state["history"])
         print({key: result[key] for key in ("cycle", "frames", "loss", "seconds")}, flush=True)
+    # A recovery checkpoint can precede history publication when a process exits.
+    write_json(output / "history.json.gz", state["history"])
     best = torch.load(output / "best.pt", map_location="cpu", weights_only=False)
-    result = {"complete": True, "settings": asdict(settings), "best_cycle": state["best_cycle"],
+    result = {"complete": True, "completed_cycles": state["cycle"],
+              "stopping_reason": "early_stopping" if patience_exhausted(state, settings) else "max_cycles",
+              "settings": asdict(settings), "best_cycle": state["best_cycle"],
               "validation": best["validation"], "frames": state["frames"], "steps": state["step"],
               "seconds": state["elapsed_seconds"], "validation_artifacts": best["validation_artifacts"]}
     write_json(output / "result.json.gz", result)

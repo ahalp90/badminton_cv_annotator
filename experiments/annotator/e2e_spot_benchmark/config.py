@@ -20,6 +20,9 @@ class Settings:
     frames_per_cycle: int = 500_000
     warmup_cycles: int = 3
     weight_decay: float = 0.01
+    augmentation: str = "hybrid"
+    early_stopping_patience: int = 0
+    cudnn_benchmark: bool = False
 
     def __post_init__(self) -> None:
         if self.backbone not in ("200mf", "800mf") or self.mode not in ("supplied", "discovery"):
@@ -30,6 +33,12 @@ class Settings:
             raise ValueError("Need clip length >=2 and warmup shorter than training")
         if self.learning_rate <= 0 or self.weight_decay != 0.01:
             raise ValueError("Positive learning rate and fixed AdamW weight decay .01 required")
+        if self.augmentation not in ("hybrid", "user", "e2e"):
+            raise ValueError("Augmentation must be hybrid, user or e2e")
+        if self.early_stopping_patience < 0:
+            raise ValueError("Early stopping patience must be non-negative; zero disables it")
+        if self.augmentation == "user" and self.mixup:
+            raise ValueError("The user augmentation recipe does not include MixUp")
 
     @property
     def classes(self) -> int:

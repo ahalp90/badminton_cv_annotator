@@ -1,4 +1,4 @@
-"""Explicit staged validation search; two seeds rank, five complete a frozen choice."""
+"""Two-seed recipe comparisons with separate supplied and discovery LR searches."""
 from __future__ import annotations
 
 import argparse
@@ -10,78 +10,89 @@ from experiments.annotator.video_models_benchmark.data import read_json, write_j
 
 from .config import Settings, load_settings
 
-STAGES = ("supplied200-lr", "supplied200-mixup", "supplied800-lr", "discovery200-length-lr", "discovery800-lr", "complete")
-SEARCHED_FIELDS = ("mode", "backbone", "clip_length", "learning_rate", "mixup")
+STAGES = (
+    "supplied200-lr", "supplied200-recipe", "supplied800",
+    "discovery200-lr", "discovery200-recipe", "discovery200-length", "discovery800-length", "complete",
+)
+FIRST_STAGES = ("supplied200-lr", "discovery200-lr")
+LENGTH_STAGES = ("discovery200-length", "discovery800-length")
+SEARCHED_FIELDS = ("mode", "backbone", "clip_length", "learning_rate", "augmentation", "mixup")
 PREDECESSORS = {
-    "supplied200-mixup": "supplied200-lr",
-    "supplied800-lr": "supplied200-mixup",
-    "discovery200-length-lr": "supplied200-mixup",
-    "discovery800-lr": "discovery200-length-lr",
+    "supplied200-recipe": "supplied200-lr",
+    "supplied800": "supplied200-recipe",
+    "discovery200-recipe": "discovery200-lr",
+    "discovery200-length": "discovery200-recipe",
+    "discovery800-length": "discovery200-length",
 }
 COMPLETION_WINNERS = {
-    ("supplied", "200mf"): "supplied200-mixup",
-    ("supplied", "800mf"): "supplied800-lr",
-    ("discovery", "200mf"): "discovery200-length-lr",
-    ("discovery", "800mf"): "discovery800-lr",
+    ("supplied", "200mf"): "supplied200-recipe",
+    ("supplied", "800mf"): "supplied800",
+    ("discovery", "200mf"): "discovery200-length",
+    ("discovery", "800mf"): "discovery800-length",
 }
 
 
 def run_name(settings: Settings) -> str:
-    return (f"{settings.mode}-{settings.backbone}-clip{settings.clip_length}-lr{settings.learning_rate:g}"
-            f"-mixup{int(settings.mixup)}-seed{settings.seed}")
+    return (f"{settings.mode}-{settings.backbone}-clip{settings.clip_length}-{settings.augmentation}"
+            f"-lr{settings.learning_rate:g}-mixup{int(settings.mixup)}-seed{settings.seed}")
 
 
 def stage_candidates(stage: str, base: Settings, selection: dict | None = None, *,
                      batch_by_length: dict[int, int] | None = None) -> list[Settings]:
-    """New stages use the supplied runtime config; completion preserves the winner."""
+    """Generate one agreed comparison; recipe stages reuse the full user protocol."""
     if stage not in STAGES:
         raise ValueError(f"Unknown stage {stage}")
     if batch_by_length is not None:
-        if stage != "discovery200-length-lr":
-            raise ValueError("Per-length batch overrides apply only to discovery200-length-lr")
+        if stage not in LENGTH_STAGES:
+            raise ValueError("Per-length batch overrides apply only to discovery length stages")
         if any(length not in (250, 500) or batch < 1 for length, batch in batch_by_length.items()):
             raise ValueError("Per-length batches require clip length 250 or 500 and a positive batch size")
     batch_by_length = batch_by_length or {}
-    if stage != "supplied200-lr" and selection is None:
-        raise ValueError("This stage needs an explicit frozen selection from the preceding stage")
-    if stage == "supplied200-lr" and selection is not None:
-        raise ValueError("The first stage does not take a preceding selection")
-    selected = None
-    inherited = base
-    if selection is not None:
+    if stage in FIRST_STAGES:
+        if selection is not None:
+            raise ValueError("Each mode starts a fresh LR search without a preceding selection")
+        mode, length = ("supplied", 100) if stage == "supplied200-lr" else ("discovery", 250)
+        choices = [replace(base, backbone="200mf", mode=mode, clip_length=length,
+                           augmentation="user", mixup=False, learning_rate=rate) for rate in (0.001, 0.0003)]
+    else:
+        if selection is None:
+            raise ValueError("This stage needs an explicit frozen selection from the preceding stage")
         selected = Settings(**selection["settings"])
         predecessor = (COMPLETION_WINNERS[(selected.mode, selected.backbone)] if stage == "complete"
                        else PREDECESSORS[stage])
         if selection["stage"] != predecessor:
             raise ValueError(f"{stage} requires a selection from {predecessor}, got {selection['stage']}")
+        if selected.augmentation not in ("user", "e2e"):
+            raise ValueError("The hybrid pilot is separate from user/E2E recipe comparisons")
         inherited = replace(base, **{name: getattr(selected, name) for name in SEARCHED_FIELDS}, seed=selected.seed)
-        if stage == "complete":
+        if stage == "complete" or stage.endswith("-recipe"):
             conflicts = [name for name, value in asdict(inherited).items() if value != getattr(selected, name)]
             if conflicts:
-                raise ValueError("Completion must preserve the winner's full protocol; conflicting config fields: "
+                raise ValueError("Reuse requires the full selected protocol; conflicting config fields: "
                                  + ", ".join(conflicts))
-            inherited = selected
-    expected = {"supplied200-mixup": ("supplied", "200mf"), "supplied800-lr": ("supplied", "200mf"),
-                "discovery200-length-lr": ("supplied", "200mf"), "discovery800-lr": ("discovery", "200mf")}
-    if selected is not None and stage in expected and (selected.mode, selected.backbone) != expected[stage]:
-        raise ValueError("Selection is from the wrong preceding mode/backbone")
-    if stage == "supplied200-lr":
-        choices = [replace(base, backbone="200mf", mode="supplied", clip_length=100,
-                           mixup=False, learning_rate=rate) for rate in (0.001, 0.0003)]
-    elif stage == "supplied200-mixup":
-        choices = [replace(inherited, mixup=mixup) for mixup in (False, True)]
-    elif stage == "supplied800-lr":
-        choices = [replace(inherited, backbone="800mf", learning_rate=rate) for rate in (0.001, 0.0003)]
-    elif stage == "discovery200-length-lr":
-        choices = [replace(inherited, backbone="200mf", mode="discovery", clip_length=length, learning_rate=rate,
-                           batch_size=batch_by_length.get(length, inherited.batch_size))
-                   for length in (250, 500) for rate in (0.001, 0.0003)]
-    elif stage == "discovery800-lr":
-        choices = [replace(inherited, backbone="800mf", learning_rate=rate) for rate in (0.001, 0.0003)]
-    else:
-        choices = [inherited]
-    seeds = range(5) if stage == "complete" else range(2)
-    return [replace(choice, seed=seed) for choice in choices for seed in seeds]
+        if stage == "complete":
+            return [replace(selected, seed=seed) for seed in range(5)]
+        mode = "supplied" if stage.startswith("supplied") else "discovery"
+        if (selected.mode, selected.backbone) != (mode, "200mf"):
+            raise ValueError("Selection is from the wrong preceding mode/backbone")
+        if stage.endswith("-recipe"):
+            if selected.augmentation != "user" or selected.mixup:
+                raise ValueError("Recipe comparison requires the winning user-recipe LR")
+            choices = [selected, replace(selected, augmentation="e2e", mixup=True)]
+        elif stage == "supplied800":
+            choices = [replace(inherited, backbone="800mf", clip_length=100)]
+        else:
+            choices = []
+            for length in (250, 500):
+                batch = batch_by_length.get(length, max(1, base.batch_size * base.clip_length // length))
+                choices.append(replace(inherited, backbone="800mf" if stage == "discovery800-length" else "200mf",
+                                       clip_length=length, batch_size=batch))
+            if stage == "discovery200-length":
+                # Reuse the selected 250-frame runs; only the 500-frame pair is new.
+                reference = replace(choices[0], seed=selected.seed)
+                if reference != selected:
+                    raise ValueError("Discovery length comparison must preserve the selected 250-frame protocol")
+    return [replace(choice, seed=seed) for choice in choices for seed in range(2)]
 
 
 def rank_candidates(candidates: list[Settings], root: Path) -> list[dict]:
@@ -93,7 +104,7 @@ def rank_candidates(candidates: list[Settings], root: Path) -> list[dict]:
         if not path.exists():
             raise ValueError(f"Missing completed validation result: {path}")
         result = read_json(path)
-        if not result["complete"] or result["settings"] != asdict(settings):
+        if not result["complete"] or Settings(**result["settings"]) != settings:
             raise ValueError(f"Incomplete or changed protocol: {path}")
         key = replace(settings, seed=0)
         groups.setdefault(key, []).append(result)
@@ -115,7 +126,7 @@ def summarise_seeds(candidates: list[Settings], root: Path) -> dict:
     results = []
     for settings in candidates:
         result = read_json(root / run_name(settings) / "result.json.gz")
-        if not result["complete"] or result["settings"] != asdict(settings):
+        if not result["complete"] or Settings(**result["settings"]) != settings:
             raise ValueError("All five seeds must complete the unchanged selected protocol")
         results.append(result)
     metrics = [result["validation"]["metrics"]["10"] for result in results]
@@ -127,8 +138,8 @@ def summarise_seeds(candidates: list[Settings], root: Path) -> dict:
             "validation_metrics": summary, "best_cycles": [result["best_cycle"] for result in results]}
 
 
-def run_queue(candidates: list[Settings], cache: Path, root: Path, *, limit: int, device: str,
-              workers: int) -> list[dict]:
+def run_queue(candidates: list[Settings], cache: Path | None, root: Path, *, limit: int, device: str,
+              workers: int, cache_by_augmentation: dict[str, Path] | None = None) -> list[dict]:
     from .engine import fit
 
     completed = []
@@ -137,10 +148,13 @@ def run_queue(candidates: list[Settings], cache: Path, root: Path, *, limit: int
         result_path = output / "result.json.gz"
         if result_path.exists():
             result = read_json(result_path)
-            if result["settings"] != asdict(settings) or not result["complete"]:
+            if Settings(**result["settings"]) != settings or not result["complete"]:
                 raise ValueError(f"Existing run has a different or incomplete protocol: {output}")
             continue
-        completed.append(fit(cache, output, settings, device=device, workers=workers,
+        selected_cache = (cache_by_augmentation or {}).get(settings.augmentation, cache)
+        if selected_cache is None:
+            raise ValueError(f"No cache supplied for the {settings.augmentation} recipe")
+        completed.append(fit(selected_cache, output, settings, device=device, workers=workers,
                              resume=(output / "recovery.pt").exists()))
         if len(completed) == limit:
             break
@@ -153,10 +167,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--stage", choices=STAGES, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--batch-size-for-length", action="append", metavar="FRAMES=BATCH",
-                        help="Repeat for profiled discovery200 clip lengths; unspecified lengths use --config")
+                        help="Discovery length stages: override scaled training batches, e.g. 250=8 and 500=4")
     parser.add_argument("--selection", type=Path, help="selection.json.gz from the preceding rank")
     parser.add_argument("--runs", type=Path, required=True)
-    parser.add_argument("--cache", type=Path)
+    parser.add_argument("--cache", type=Path, help="Single-recipe cache fallback")
+    parser.add_argument("--user-cache", type=Path, help="Fresh letterbox256 JPEG cache for the user recipe")
+    parser.add_argument("--e2e-cache", type=Path, help="Height224 aspect-preserving JPEG cache for the E2E recipe")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--limit", type=int, default=1, help="Maximum new runs; never launches an entire grid implicitly")
@@ -191,9 +207,11 @@ def main(argv: list[str] | None = None) -> None:
         write_json(path, summarise_seeds(candidates, args.runs))
         print(path)
     else:
-        if args.cache is None or args.limit < 1:
-            parser.error("run requires --cache and --limit >=1")
-        print(run_queue(candidates, args.cache, args.runs, limit=args.limit, device=args.device, workers=args.workers))
+        if not any((args.cache, args.user_cache, args.e2e_cache)) or args.limit < 1:
+            parser.error("run requires cache paths and --limit >=1")
+        caches = {name: path for name, path in (("user", args.user_cache), ("e2e", args.e2e_cache)) if path is not None}
+        print(run_queue(candidates, args.cache, args.runs, limit=args.limit, device=args.device,
+                        workers=args.workers, cache_by_augmentation=caches))
 
 
 if __name__ == "__main__":
