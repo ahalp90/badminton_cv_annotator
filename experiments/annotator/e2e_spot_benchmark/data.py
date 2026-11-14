@@ -32,18 +32,27 @@ def merge_intervals(intervals: list[list[int]]) -> list[list[int]]:
     return merged
 
 
-def dense_targets(video: dict, mode: str) -> np.ndarray:
-    """Scheme A: positives +/-1, ignore +/-2; unknown hitters stay ignored."""
+def dense_targets(video: dict, mode: str, *, ignore_contact_halo: bool = True) -> np.ndarray:
+    """Keep +/-1 positives; optionally ignore their halo and always unknown hitters."""
     labels = np.full(video["frame_count"], 3 if mode == "discovery" else IGNORE, dtype=np.int64)
     for start, end in merge_intervals([[span["start_frame"], span["end_frame"]] for span in video["spans"]]):
         labels[start:end] = 0
-    # Apply ignored bands before positives, including where padded spans overlap.
+    # Positive labels win over ignored bands, including across overlapping spans.
+    span_targets = []
     for span in video["spans"]:
         local = target_labels(span, "A")
+        span_targets.append((span, local))
         view = labels[span["start_frame"]:span["end_frame"]]
-        view[local == IGNORE] = IGNORE
-    for span in video["spans"]:
-        local = target_labels(span, "A")
+        ignored = local == IGNORE
+        if not ignore_contact_halo:
+            centres = np.arange(span["start_frame"], span["end_frame"])
+            ignored = np.zeros(len(centres), dtype=bool)
+            for frame, side in zip(span["label_frames"], span["label_sides"], strict=True):
+                if side is None:
+                    unknown_band = np.abs(centres - frame) <= 2
+                    ignored = ignored | unknown_band
+        view[ignored] = IGNORE
+    for span, local in span_targets:
         view = labels[span["start_frame"]:span["end_frame"]]
         positive = local > 0
         view[positive] = np.maximum(view[positive], local[positive])
@@ -118,14 +127,16 @@ class DenseClips(Dataset):
     """Sample RNG depends only on seed and absolute index, independent of workers."""
     def __init__(self, cache: Path, role: str, mode: str, length: int, *, seed: int = 0,
                  frames_per_cycle: int = 500_000, cycles: int = 50, training: bool = False,
-                 augmentation: str = "hybrid", mixup: bool = False) -> None:
+                 augmentation: str = "hybrid", mixup: bool = False,
+                 ignore_contact_halo: bool = True) -> None:
         self.videos = [video for video in read_json(cache / "index.json.gz")["videos"] if video["role"] == role]
         if not self.videos:
             raise ValueError(f"No {role} videos in cache")
         self.readers = [FrameReader(cache, video, augmentation=augmentation) for video in self.videos]
         self.augmentation = augmentation
         self.mixup = training and augmentation == "e2e" and mixup
-        self.targets = [dense_targets(video, mode) for video in self.videos]
+        self.targets = [dense_targets(video, mode, ignore_contact_halo=ignore_contact_halo)
+                        for video in self.videos]
         self.length, self.seed, self.training = length, seed, training
         self.mode = mode
         self.frames_per_cycle = frames_per_cycle

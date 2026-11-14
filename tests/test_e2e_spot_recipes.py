@@ -1,4 +1,4 @@
-"""Recipe geometry, independent MixUp and recoverable validation-loss patience."""
+"""Recipe geometry, independent MixUp and recoverable checkpoint selection."""
 from __future__ import annotations
 
 import subprocess
@@ -15,8 +15,12 @@ from torch import nn
 from torchvision import transforms
 
 from experiments.annotator.e2e_spot_benchmark import engine
-from experiments.annotator.e2e_spot_benchmark.config import Settings
-from experiments.annotator.e2e_spot_benchmark.data import DenseClips, FrameReader
+from experiments.annotator.e2e_spot_benchmark.config import Settings, load_settings
+from experiments.annotator.e2e_spot_benchmark.data import (
+    DenseClips,
+    FrameReader,
+    dense_targets,
+)
 from experiments.annotator.e2e_spot_benchmark.model import transform_clips
 from experiments.annotator.e2e_spot_benchmark.prepare import prepare_video
 from experiments.annotator.video_models_benchmark.data import read_json, write_json
@@ -194,7 +198,8 @@ def test_legacy_settings_resume_and_new_e2e_midcycle_replay(monkeypatch, tmp_pat
     monkeypatch.setattr(engine, "validate", validate)
     cache = recipe_cache(tmp_path / "cache")
     settings = Settings(cycles=5, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
-                        batch_size=2, augmentation="e2e", mixup=True, early_stopping_patience=2)
+                        batch_size=2, augmentation="e2e", mixup=True, early_stopping_patience=2,
+                        ignore_contact_halo=False)
     complete = engine.fit(cache, tmp_path / "whole", settings)
     engine.fit(cache, tmp_path / "resumed", settings, max_steps=2)
     resumed = engine.fit(cache, tmp_path / "resumed", settings, resume=True)
@@ -203,13 +208,16 @@ def test_legacy_settings_resume_and_new_e2e_midcycle_replay(monkeypatch, tmp_pat
     states = [torch.load(tmp_path / name / "recovery.pt", weights_only=False) for name in ("whole", "resumed")]
     for name, weights in states[0]["model"].items():
         torch.testing.assert_close(weights, states[1]["model"][name], rtol=0, atol=0)
-    legacy = replace(settings, augmentation="hybrid", mixup=False, early_stopping_patience=0)
+    legacy = replace(settings, augmentation="hybrid", mixup=False, early_stopping_patience=0,
+                     ignore_contact_halo=True)
     engine.fit(cache, tmp_path / "legacy", legacy, max_steps=1)
     saved = torch.load(tmp_path / "legacy/recovery.pt", weights_only=False)
     record = asdict(legacy)
-    for name in ("augmentation", "early_stopping_patience", "cudnn_benchmark"):
+    for name in ("augmentation", "early_stopping_patience", "cudnn_benchmark", "ignore_contact_halo",
+                 "checkpoint_metric", "selection_tolerance"):
         del record[name]
     saved["settings"] = record
+    del saved["best_metric"]
     torch.save(saved, tmp_path / "legacy/recovery.pt")
     write_json(tmp_path / "legacy/settings.json.gz", record)
     assert engine.fit(cache, tmp_path / "legacy", legacy, resume=True, max_steps=1)["steps"] == 2
@@ -304,3 +312,141 @@ def test_e2e_mixing_uses_each_clips_weight_and_keeps_partner_at_padding(monkeypa
     fractions = mixing[:, None, None, None, None]
     torch.testing.assert_close(captured[0], fractions * first_pixels + (1 - fractions) * second_pixels)
     assert torch.count_nonzero(captured[0][~valid]) > 0
+
+
+@pytest.mark.parametrize("mode", ["supplied", "discovery"])
+def test_contact_halo_policy_preserves_unknowns_positives_and_overlap(mode: str) -> None:
+    video = {"frame_count": 22, "spans": [
+        {"start_frame": 2, "end_frame": 20, "label_frames": [5, 10, 14],
+         "label_sides": ["Bot", None, "Top"]},
+        {"start_frame": 8, "end_frame": 18, "label_frames": [12], "label_sides": ["Top"]},
+        {"start_frame": 11, "end_frame": 19, "label_frames": [12], "label_sides": ["Bot"]},
+    ]}
+    legacy = dense_targets(video, mode)
+    new = dense_targets(video, mode, ignore_contact_halo=False)
+    assert legacy[[3, 7, 16]].tolist() == [-100, -100, -100]
+    assert new[[3, 7, 16]].tolist() == [0, 0, 0]
+    assert new[4:7].tolist() == [1, 1, 1]
+    assert new[8:11].tolist() == [-100, -100, -100]
+    assert new[11:16].tolist() == [2, 2, 2, 2, 2]
+    assert new[[0, 1, 20, 21]].tolist() == ([3] * 4 if mode == "discovery" else [-100] * 4)
+    reverse = {**video, "spans": list(reversed(video["spans"]))}
+    np.testing.assert_array_equal(new, dense_targets(reverse, mode, ignore_contact_halo=False))
+    np.testing.assert_array_equal(legacy, dense_targets(reverse, mode))
+
+
+def test_new_grid_disables_halo_and_legacy_configs_keep_it() -> None:
+    root = Path(__file__).resolve().parents[1] / "experiments/annotator/e2e_spot_benchmark/configs"
+    assert Settings().ignore_contact_halo
+    assert load_settings(root / "pilot.toml").ignore_contact_halo
+    for name in ("supplied200-user.toml", "supplied800.toml", "discovery200-user.toml", "discovery800.toml"):
+        settings = load_settings(root / name)
+        assert not settings.ignore_contact_halo
+        assert settings.checkpoint_metric == "rally_f1" and settings.selection_tolerance == 1
+
+
+def test_halo_policy_reaches_fit_validation_inference_and_smoke(monkeypatch, tmp_path: Path) -> None:
+    from experiments.annotator.e2e_spot_benchmark import __main__ as cli
+
+    monkeypatch.setattr(engine, "SpotModel", TinyModel)
+    monkeypatch.setattr(cli, "SpotModel", TinyModel)
+    monkeypatch.setattr(engine, "transform_clips", tiny_transform)
+    cache = recipe_cache(tmp_path / "cache")
+    settings = Settings(cycles=1, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
+                        batch_size=2, ignore_contact_halo=False)
+    result = engine.fit(cache, tmp_path / "run", settings)
+    assert sum(result["validation"]["class_counts"]) == 8
+    state = torch.load(tmp_path / "run/recovery.pt", weights_only=False)
+    assert state["settings"]["ignore_contact_halo"] is False
+    with pytest.raises(ValueError, match="protocol"):
+        engine.fit(cache, tmp_path / "run", replace(settings, ignore_contact_halo=True), resume=True)
+    cli.infer(tmp_path / "run/best.pt", cache, tmp_path / "inference", "validation", "cpu", 0)
+    assert sum(read_json(tmp_path / "inference/result.json.gz")["class_counts"]) == 8
+    smoke = cli.measure(cache, settings, device="cpu", workers=0, steps=1, warmup=0,
+                        compare_device_only=False, full_validation=True)
+    assert sum(smoke["validation"]["class_counts"]) == 8
+    pairs = DenseClips(cache, "train", "supplied", 4, training=True, augmentation="e2e", mixup=True,
+                       ignore_contact_halo=False)
+    for index in range(8):
+        sample = pairs[index]
+        for labels, ids in ((sample[1], sample[3]), (sample[6], sample[7])):
+            np.testing.assert_array_equal(labels[ids >= 0].numpy(), pairs.targets[0][ids[ids >= 0].numpy()])
+            assert torch.all(labels[ids < 0] == -100)
+            assert torch.all(labels[ids >= 0] >= 0)
+
+
+@pytest.mark.parametrize("metric,expected_cycle,expected_best", [("loss", 4, .1), ("rally_f1", 2, 10.)])
+def test_checkpoint_objective_ties_retention_and_stop_resume(monkeypatch, tmp_path: Path,
+                                                           metric: str, expected_cycle: int,
+                                                           expected_best: float) -> None:
+    monkeypatch.setattr(engine, "SpotModel", TinyModel)
+    monkeypatch.setattr(engine, "transform_clips", tiny_transform)
+    values = iter(zip([.4, .3, .2, .1], [0., 10., 10., 5.], strict=True))
+
+    def validate(*_args):
+        loss, f1 = next(values)
+        return {"loss": loss, "seconds": 0., "metrics": {
+            "1": {"fully_correct_f1": f1}, "2": {"fully_correct_f1": 100. - f1}},
+            "streams": {"validation": {"value": f1}}}, [np.full((12, 3), 1 / 3)]
+
+    monkeypatch.setattr(engine, "validate", validate)
+    cache = recipe_cache(tmp_path / "cache")
+    output = tmp_path / "run"
+    settings = Settings(cycles=4, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
+                        batch_size=2, early_stopping_patience=2,
+                        checkpoint_metric=metric, selection_tolerance=1)
+    result = engine.fit(cache, output, settings)
+    assert result["best_cycle"] == expected_cycle
+    assert result["best_metric"] == expected_best
+    assert result["best_loss"] == .1
+    assert result["completed_cycles"] == 4
+    assert result["stopping_reason"] == ("early_stopping" if metric == "rally_f1" else "max_cycles")
+    best = torch.load(output / "best.pt", weights_only=False)
+    assert best["best_metric"] == expected_best
+    assert best["validation"]["loss"] == (.3 if metric == "rally_f1" else .1)
+    assert len(list(output.glob("validation-cycle*"))) == 1
+    streams = sorted((output / "validation-streams").glob("*.json.gz"))
+    assert [read_json(path)["streams"]["validation"]["value"] for path in streams] == [0., 10., 10., 5.]
+    for changed in (replace(settings, selection_tolerance=2),
+                    replace(settings, checkpoint_metric="loss" if metric == "rally_f1" else "rally_f1")):
+        with pytest.raises(ValueError, match="protocol"):
+            engine.fit(cache, output, changed, resume=True)
+    (output / "result.json.gz").unlink()
+    (output / "history.json.gz").unlink()
+    monkeypatch.setattr(engine, "optimise_batch", lambda *_a, **_kw: pytest.fail("trained beyond stopping boundary"))
+    assert engine.fit(cache, output, settings, resume=True) == result
+    assert len(read_json(output / "history.json.gz")) == 4
+
+
+def test_zero_rally_f1_saves_first_checkpoint_and_ties_exhaust_patience(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(engine, "SpotModel", TinyModel)
+    monkeypatch.setattr(engine, "transform_clips", tiny_transform)
+    monkeypatch.setattr(engine, "validate", lambda *_args: (
+        {"loss": 1., "seconds": 0., "metrics": {"1": {"fully_correct_f1": 0.}}, "streams": {}},
+        [np.full((12, 3), 1 / 3)]))
+    settings = Settings(cycles=8, warmup_cycles=0, clip_length=4, frames_per_cycle=12,
+                        batch_size=2, early_stopping_patience=2,
+                        checkpoint_metric="rally_f1", selection_tolerance=1)
+    result = engine.fit(recipe_cache(tmp_path / "cache"), tmp_path / "run", settings)
+    assert result["best_cycle"] == 1 and result["best_metric"] == 0.
+    assert result["completed_cycles"] == 3 and result["stopping_reason"] == "early_stopping"
+
+
+@pytest.mark.parametrize("mode", ["supplied", "discovery"])
+def test_tight_metrics_include_serve_contact_and_keep_shared_tolerances(mode: str) -> None:
+    from experiments.annotator.e2e_spot_benchmark.evaluate import score_predictions
+    from experiments.annotator.video_models_benchmark.scoring import TOLERANCES
+
+    video = {"item_id": "validation", "role": "validation", "fps": 30, "frame_count": 30,
+             "spans": [{"span_id": "rally", "rally_id": "rally", "start_frame": 1, "end_frame": 25,
+                        "label_frames": [5, 15], "label_sides": ["Bot", "Top"]}]}
+    rows = np.tile([.9, .03, .03, .04] if mode == "discovery" else [.94, .03, .03], (30, 1))
+    rows[7, :3] = [.02, .95, .03]
+    rows[15, :3] = [.02, .03, .95]
+    metrics = score_predictions([video], [rows], mode)["metrics"]
+    assert set(metrics) == {"1", "2", "5", "10"}
+    assert metrics["1"]["fully_correct_f1"] == 0.
+    assert metrics["2"]["fully_correct_f1"] == 100.
+    assert metrics["1"]["contact_f1"] == 50.
+    assert metrics["1"]["correct_player_f1"] == 50.
+    assert set(TOLERANCES) == {5, 10}

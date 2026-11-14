@@ -32,7 +32,8 @@ def infer(checkpoint: Path, cache: Path, output: Path, role: str, device: str, w
     configure_runtime(settings, device_object)
     model = SpotModel(settings.backbone, settings.clip_length, settings.classes, pretrained=False).to(device_object)
     model.load_state_dict(state["model"])
-    dataset = DenseClips(cache, role, settings.mode, settings.clip_length, augmentation=settings.augmentation)
+    dataset = DenseClips(cache, role, settings.mode, settings.clip_length, augmentation=settings.augmentation,
+                         ignore_contact_halo=settings.ignore_contact_halo)
     loader = make_loader(dataset, settings.validation_batch_size, workers)
     result, probabilities = validate(model, dataset, loader, device_object, settings)
     result.update(settings=asdict(settings), role=role, checkpoint_cycle=state["cycle"],
@@ -51,7 +52,8 @@ def measure(cache: Path, settings: Settings, *, device: str, workers: int, steps
     optimiser = torch.optim.AdamW(model.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay)
     dataset = DenseClips(cache, "train", settings.mode, settings.clip_length, seed=settings.seed, training=True,
                          cycles=1, frames_per_cycle=(steps + warmup) * settings.batch_size * settings.clip_length,
-                         augmentation=settings.augmentation, mixup=settings.mixup)
+                         augmentation=settings.augmentation, mixup=settings.mixup,
+                         ignore_contact_halo=settings.ignore_contact_halo)
     loader = make_loader(dataset, settings.batch_size, workers)
     weights = torch.tensor([1, 5, 5] + ([1] if settings.classes == 4 else []), device=device_object, dtype=torch.float32)
     iterator = iter(loader)
@@ -86,7 +88,8 @@ def measure(cache: Path, settings: Settings, *, device: str, workers: int, steps
                                                / measurements["end_to_end"]["frames_per_second"])
     if full_validation:
         validation_data = DenseClips(cache, "validation", settings.mode, settings.clip_length,
-                                     augmentation=settings.augmentation)
+                                     augmentation=settings.augmentation,
+                                     ignore_contact_halo=settings.ignore_contact_halo)
         validation_loader = make_loader(validation_data, settings.validation_batch_size, workers)
         validation, _ = validate(model, validation_data, validation_loader, device_object, settings)
         validation.pop("streams")

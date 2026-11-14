@@ -58,6 +58,10 @@ def stage_candidates(stage: str, base: Settings, selection: dict | None = None, 
         if selection is None:
             raise ValueError("This stage needs an explicit frozen selection from the preceding stage")
         selected = Settings(**selection["settings"])
+        changed = [name for name in ("ignore_contact_halo", "checkpoint_metric", "selection_tolerance")
+                   if getattr(selected, name) != getattr(base, name)]
+        if changed:
+            raise ValueError("Selection used a different protocol: " + ", ".join(changed))
         predecessor = (COMPLETION_WINNERS[(selected.mode, selected.backbone)] if stage == "complete"
                        else PREDECESSORS[stage])
         if selection["stage"] != predecessor:
@@ -112,11 +116,13 @@ def rank_candidates(candidates: list[Settings], root: Path) -> list[dict]:
     for settings, results in groups.items():
         if sorted(result["settings"]["seed"] for result in results) != [0, 1]:
             raise ValueError("Each ranked configuration needs exactly seeds 0 and 1")
-        metrics = [result["validation"]["metrics"]["10"] for result in results]
+        metrics = [result["validation"]["metrics"][str(settings.selection_tolerance)] for result in results]
+        rally_metric = "fully_correct_f1" if settings.checkpoint_metric == "rally_f1" else "fully_correct_percent"
         ranking.append({"settings": asdict(settings),
-                        "mean_fully_correct_recall": sum(row["fully_correct_percent"] for row in metrics) / 2,
+                        "rally_metric": rally_metric,
+                        "mean_rally_score": mean(row[rally_metric] for row in metrics),
                         "mean_correct_player_f1": sum(row["correct_player_f1"] for row in metrics) / 2})
-    return sorted(ranking, key=lambda row: (-row["mean_fully_correct_recall"], -row["mean_correct_player_f1"]))
+    return sorted(ranking, key=lambda row: (-row["mean_rally_score"], -row["mean_correct_player_f1"]))
 
 
 def summarise_seeds(candidates: list[Settings], root: Path) -> dict:
@@ -129,7 +135,7 @@ def summarise_seeds(candidates: list[Settings], root: Path) -> dict:
         if not result["complete"] or Settings(**result["settings"]) != settings:
             raise ValueError("All five seeds must complete the unchanged selected protocol")
         results.append(result)
-    metrics = [result["validation"]["metrics"]["10"] for result in results]
+    metrics = [result["validation"]["metrics"][str(candidates[0].selection_tolerance)] for result in results]
     summary = {}
     for name in metrics[0]:
         values = [row[name] for row in metrics]

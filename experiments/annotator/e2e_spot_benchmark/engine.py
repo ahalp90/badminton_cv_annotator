@@ -214,6 +214,7 @@ def recovery_state(model: nn.Module, optimiser: torch.optim.Optimizer, settings:
     return {"settings": asdict(settings), "model": model.state_dict(), "optimiser": optimiser.state_dict(),
             "rng": rng_state(), "cycle": cycle, "batch": batch, "frames": frames, "step": step,
             "best_loss": best_loss, "best_cycle": best_cycle, "history": history,
+            "best_metric": best_loss if settings.checkpoint_metric == "loss" else -math.inf,
             "cycle_counts": cycle_counts, "cycle_loss_sum": cycle_loss_sum,
             "cycle_batches_done": cycle_batches_done, "elapsed_seconds": elapsed_seconds}
 
@@ -226,6 +227,7 @@ def load_recovery(path: Path, model: nn.Module, optimiser: torch.optim.Optimizer
     optimiser.load_state_dict(state["optimiser"])
     restore_rng(state["rng"])
     state["settings"] = asdict(settings)
+    state.setdefault("best_metric", state["best_loss"])
     return state
 
 
@@ -234,9 +236,15 @@ def patience_exhausted(state: dict, settings: Settings) -> bool:
             and state["cycle"] - state["best_cycle"] >= settings.early_stopping_patience)
 
 
+def checkpoint_value(validation: dict, settings: Settings) -> float:
+    if settings.checkpoint_metric == "loss":
+        return float(validation["loss"])
+    return float(validation["metrics"][str(settings.selection_tolerance)]["fully_correct_f1"])
+
+
 def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", workers: int = 0,
         resume: bool = False, max_steps: int | None = None) -> dict:
-    """Train to the cycle cap or validation-loss patience, preserving recoverability."""
+    """Train to the cycle cap or selected-metric patience, preserving recoverability."""
     if max_steps is not None and max_steps < 1:
         raise ValueError("max_steps must be positive")
     output.mkdir(parents=True, exist_ok=True)
@@ -254,15 +262,19 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
     seed_everything(settings.seed)
     train_data = DenseClips(cache, "train", settings.mode, settings.clip_length, seed=settings.seed,
                             frames_per_cycle=settings.frames_per_cycle, cycles=settings.cycles, training=True,
-                            augmentation=settings.augmentation, mixup=settings.mixup)
+                            augmentation=settings.augmentation, mixup=settings.mixup,
+                            ignore_contact_halo=settings.ignore_contact_halo)
     validation_data = DenseClips(cache, "validation", settings.mode, settings.clip_length,
-                                 augmentation=settings.augmentation)
+                                 augmentation=settings.augmentation,
+                                 ignore_contact_halo=settings.ignore_contact_halo)
     inputs = {"videos": train_data.videos + validation_data.videos,
               "frames": [reader.metadata for reader in train_data.readers + validation_data.readers]}
     inputs_path = output / "inputs.json.gz"
     if inputs_path.exists() and read_json(inputs_path) != inputs:
         raise ValueError("Cache labels, split or frame preparation differ from this run")
     write_json(inputs_path, inputs)
+    streams_directory = output / "validation-streams"
+    streams_directory.mkdir(exist_ok=True)
     model = SpotModel(settings.backbone, settings.clip_length, settings.classes,
                       pretrained=not resume).to(device_object)
     optimiser = torch.optim.AdamW(model.parameters(), lr=settings.learning_rate, weight_decay=settings.weight_decay)
@@ -320,16 +332,26 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
                       ignored_positions=settings.frames_per_cycle - eligible_count,
                       train_loss=state["cycle_loss_sum"] / state["cycle_batches_done"],
                       sampled_class_counts=state["cycle_counts"])
+        streams_path = streams_directory / f"cycle{result['cycle']:04d}.json.gz"
+        write_json(streams_path, {"cycle": result["cycle"], "settings": asdict(settings), "streams": result["streams"]})
+        result["streams_file"] = str(streams_path.relative_to(output))
+        metric_value = checkpoint_value(result, settings)
+        result.update(checkpoint_metric=settings.checkpoint_metric, selection_tolerance=settings.selection_tolerance,
+                      checkpoint_value=metric_value)
         summary = {key: value for key, value in result.items() if key != "streams"}
         state["history"].append(summary)
         previous_best = state["best_cycle"]
-        if result["loss"] < state["best_loss"]:
-            state["best_loss"], state["best_cycle"] = result["loss"], state["cycle"] + 1
+        state["best_loss"] = min(state["best_loss"], result["loss"])
+        improved = (metric_value < state["best_metric"] if settings.checkpoint_metric == "loss"
+                    else metric_value > state["best_metric"])
+        if improved:
+            state["best_metric"], state["best_cycle"] = metric_value, state["cycle"] + 1
             artifact_directory = f"validation-cycle{state['best_cycle']:04d}"
             save_validation_artifacts(output / artifact_directory, validation_data.videos, probabilities,
                                       {**result, "settings": asdict(settings)})
             save_checkpoint(output / "best.pt", {"settings": asdict(settings), "model": model.state_dict(),
                                                 "cycle": state["best_cycle"], "validation": summary,
+                                                "best_metric": metric_value,
                                                 "validation_artifacts": artifact_directory})
         state.update(cycle=state["cycle"] + 1, batch=0, cycle_counts=[0] * settings.classes,
                      cycle_loss_sum=0.0, cycle_batches_done=0)
@@ -340,13 +362,14 @@ def fit(cache: Path, output: Path, settings: Settings, *, device: str = "cpu", w
         if previous_best > 0 and previous_best != state["best_cycle"]:
             shutil.rmtree(output / f"validation-cycle{previous_best:04d}")
         write_json(output / "history.json.gz", state["history"])
-        print({key: result[key] for key in ("cycle", "frames", "loss", "seconds")}, flush=True)
+        print({key: result[key] for key in ("cycle", "frames", "loss", "checkpoint_value", "seconds")}, flush=True)
     # A recovery checkpoint can precede history publication when a process exits.
     write_json(output / "history.json.gz", state["history"])
     best = torch.load(output / "best.pt", map_location="cpu", weights_only=False)
     result = {"complete": True, "completed_cycles": state["cycle"],
               "stopping_reason": "early_stopping" if patience_exhausted(state, settings) else "max_cycles",
               "settings": asdict(settings), "best_cycle": state["best_cycle"],
+              "best_metric": state["best_metric"], "best_loss": state["best_loss"],
               "validation": best["validation"], "frames": state["frames"], "steps": state["step"],
               "seconds": state["elapsed_seconds"], "validation_artifacts": best["validation_artifacts"]}
     write_json(output / "result.json.gz", result)

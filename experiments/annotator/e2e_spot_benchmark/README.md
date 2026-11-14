@@ -48,9 +48,12 @@ those windows, and samples contiguous clips throughout the complete videos.
 Choose videos in proportion to duration. The measured class counts are reported;
 they do not alter sampling.
 
-Known contacts label frames ±1; exactly ±2 are ignored. Unknown hitter labels
-retain their ignored bands. Positive labels override ignored bands, and TOP wins
-colliding positives, matching the shared RGB label helper.
+Known contacts label frames ±1. The new grid sets `ignore_contact_halo = false`,
+so frames at ±2 are background unless covered by another contact's positive band
+or an unknown hitter's ignored band. Unknown hitter labels retain their ±2 ignored
+bands. Positive labels override ignored bands, and TOP wins colliding positives.
+Older settings default to `ignore_contact_halo = true`, preserving the pilot's
+ignored ±2 frames when loading its checkpoints.
 
 For supplied training, choose each rally interval in proportion to its duration,
 then choose a centre uniformly inside it. A 100-frame clip uses only frames from
@@ -60,7 +63,7 @@ neighbouring footage. Keep rally scopes separate when their stored intervals
 merge. Discovery continues to use full-video scopes.
 
 A frame-validity mask is separate from the ignored loss labels. Real pixels at
-±2 contact frames, unknown-hitter frames and positions excluded by a partial
+unknown-hitter frames and positions excluded by a partial
 training budget still provide input context. Exclude artificial padding from
 contrast statistics, zero it after augmentation and ImageNet normalisation, then
 apply MixUp. Paired real frames therefore remain available. Padding is excluded
@@ -72,10 +75,10 @@ clip without borrowing footage from another rally. A clip never joins frames
 across a missing-frame gap.
 
 
-This follows the X3D/VideoMAE treatment of uncertain contact timing: the immediate
-neighbours count as positive, while the next frames are too ambiguous to label
-confidently as background. The ignored band affects training and validation loss
-only. Predictions there still count in contact and rally metrics, against the
+The new grid supervises known-contact ±2 frames as background to penalise peaks
+outside the ±1 positive band. All three positive frames retain equal weight.
+The pilot and existing X3D/VideoMAE runs used the ignored halo. This setting affects
+training and validation loss only; contact and rally metrics always use the
 original contact timestamps and the chosen evaluation tolerance.
 
 ## Prepare and inspect
@@ -128,11 +131,15 @@ AdamW weight decay stays 0.01; training class weights are [1,5,5] or [1,5,5,1].
 
 Train at most 50 cycles of exactly 500,000 scheduled frame positions each, with
 three linear warmup cycles then cosine decay over the original 50-cycle horizon.
-Stop after 10 completed validation cycles without a strictly lower validation
-loss. An equal loss does not reset patience. Early-stopped runs retain the
-best-loss checkpoint and count as completed candidates. Resume preserves the
-stopping decision. Set `early_stopping_patience = 0` to disable stopping, as in
-the historical [pilot configuration](configs/pilot.toml).
+New grid configurations select the highest fully correct rally F1 at ±1 frame
+(30 fps equivalent), after forced alternation. Set `checkpoint_metric = "rally_f1"`
+and `selection_tolerance = 1` for this protocol. The same tolerance applies to
+every contact, including serves. Stop after 10 completed validation cycles
+without a strictly higher score. Exact ties retain the earlier checkpoint and
+do not reset patience. Early-stopped runs count as completed candidates; resume
+preserves the stopping decision. Older settings default to loss-based checkpoint
+selection and a selection tolerance of 10. Set `early_stopping_patience = 0` to
+disable stopping, as in the historical [pilot configuration](configs/pilot.toml).
 
 The final batch can be smaller; unused positions in the final clip are masked.
 Only the primary scheduled positions count towards the frame budget when MixUp
@@ -163,16 +170,27 @@ use `--resume`; a fresh start in that directory is rejected.
 Validation covers every relevant original frame using deterministic 50% overlap,
 including short windows and tails. Average probabilities across overlapping
 clips, then compute unweighted cross-entropy once per eligible original frame.
-Report per-class and combined contact losses. Select minimum validation loss,
-keeping the earlier cycle on a tie. Validation is unaugmented and uses no MixUp.
+Report per-class and combined contact losses as diagnostics. New runs select
+checkpoints by fully correct rally F1 as specified above. Validation is
+unaugmented and uses no MixUp.
 
 `best.pt` points to the retained `validation-cycleNNNN/` directory containing
 compressed probability arrays and decoded streams from that same validation pass.
 Array row N corresponds to original frame N. Supplied-mode rows outside target
 windows are zero. Older best-validation arrays are removed after the replacement
 checkpoint is recoverable. `history.json.gz` retains every cycle's diagnostics.
+`validation-streams/cycleNNNN.json.gz` retains each cycle's decoded contact
+timestamps and player assignments so timing tolerances can be rescored later.
+In `result.json.gz`, `best_metric` is the selected checkpoint's criterion value,
+`best_loss` is the lowest CE observed across all cycles, and `validation.loss`
+is the selected checkpoint's CE.
 
 ## Event scoring and explicit test inference
+
+Primary contact F1, correct-player contact F1 and fully correct rally F1 use
+±1 frame at 30 fps equivalent, scaled to each video's frame rate. Additional
+±2/5/10 results describe sensitivity to timing tolerance. This protocol does not
+change the separate boundary-only rally scoring used for confidence thresholding.
 
 Use the shared contact decoder: argmax, TOP/BOT candidates, six-frame suppression
 at 30 fps, then forced alternating hitters. Resolve first-hitter ties by agreement
@@ -198,8 +216,13 @@ Training and search do not read test data. Inference also accepts `--role valida
 ## Staged search
 
 Rank each configuration using completed validation results from seeds 0 and 1.
-Select mean fully correct rally percentage at ±10 frames, then correct-player
-contact F1. Each run contributes its minimum-validation-loss checkpoint.
+Select mean fully correct rally F1 at ±1 frame across seeds 0/1, then mean
+correct-player contact F1 at the same tolerance. Each run contributes its
+selected checkpoint. Both supplied-boundary and discovery comparisons use fully
+correct rally F1; extra predicted rallies affect the precision component. Legacy loss-based
+protocols retain their previous rally-recall ranking at the configured tolerance.
+Use a fresh search root when changing the label or selection protocol; existing
+run directories with different settings are rejected.
 
 | Stage | Comparison | New runs |
 |---|---|---:|

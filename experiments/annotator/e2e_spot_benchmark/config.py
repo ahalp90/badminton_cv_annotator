@@ -23,6 +23,9 @@ class Settings:
     augmentation: str = "hybrid"
     early_stopping_patience: int = 0
     cudnn_benchmark: bool = False
+    ignore_contact_halo: bool = True
+    checkpoint_metric: str = "loss"
+    selection_tolerance: int = 10
 
     def __post_init__(self) -> None:
         if self.backbone not in ("200mf", "800mf") or self.mode not in ("supplied", "discovery"):
@@ -39,6 +42,10 @@ class Settings:
             raise ValueError("Early stopping patience must be non-negative; zero disables it")
         if self.augmentation == "user" and self.mixup:
             raise ValueError("The user augmentation recipe does not include MixUp")
+        if self.checkpoint_metric not in ("loss", "rally_f1"):
+            raise ValueError("Checkpoint metric must be loss or rally_f1")
+        if self.selection_tolerance not in (1, 2, 5, 10):
+            raise ValueError("Selection tolerance must be 1, 2, 5 or 10 frames at 30 fps")
 
     @property
     def classes(self) -> int:

@@ -14,3 +14,6 @@ warmup_cycles = 3
 weight_decay = 0.01
 early_stopping_patience = 10
 cudnn_benchmark = true
+ignore_contact_halo = false
+checkpoint_metric = "rally_f1"
+selection_tolerance = 1

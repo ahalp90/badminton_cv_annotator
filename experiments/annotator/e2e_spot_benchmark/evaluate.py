@@ -16,7 +16,6 @@ from experiments.annotator.video_models_benchmark.scoring import (
     COUNT_NAMES as CONTACT_COUNT_NAMES,
 )
 from experiments.annotator.video_models_benchmark.scoring import (
-    TOLERANCES,
     add_rates,
     left_out_windows_for,
     score_video_rules,
@@ -25,6 +24,7 @@ from experiments.annotator.video_models_benchmark.scoring import (
 from shared.frame_timing import frames_at_fps
 
 COUNT_NAMES = (*CONTACT_COUNT_NAMES, "predicted_rallies", "rally_fp", "rally_fn")
+TOLERANCES = (1, 2, 5, 10)
 
 
 def fully_correct_rallies(video: dict, sequences: list[ContactSequence], tolerance_base30: int) -> dict:

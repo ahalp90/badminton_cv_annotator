@@ -28,13 +28,15 @@ def test_complete_screening_launches_twenty_distinct_runs(monkeypatch, tmp_path:
         score = 50 + 5 * (settings.learning_rate == preferred_lr) + 10 * (settings.augmentation == "e2e")
         score += 2 * (settings.clip_length == 500)
         result = {"complete": True, "stopping_reason": "early_stopping", "settings": asdict(settings),
-                  "validation": {"metrics": {"10": {"fully_correct_percent": score, "correct_player_f1": 90}}}}
+                  "validation": {"metrics": {"1": {"fully_correct_percent": score,
+                                                     "fully_correct_f1": score, "correct_player_f1": 90}}}}
         write_json(output / "result.json.gz", result)
         return result
 
     monkeypatch.setattr(engine, "fit", fake_fit)
     supplied = Settings(augmentation="user", batch_size=16, validation_batch_size=16,
-                        early_stopping_patience=10, cudnn_benchmark=True)
+                        early_stopping_patience=10, cudnn_benchmark=True,
+                        ignore_contact_halo=False, checkpoint_metric="rally_f1", selection_tolerance=1)
     discovery = replace(supplied, mode="discovery", clip_length=250, batch_size=8, validation_batch_size=8)
     stages = [
         ("supplied200-lr", supplied, None, 4),
@@ -60,6 +62,8 @@ def test_complete_screening_launches_twenty_distinct_runs(monkeypatch, tmp_path:
     assert {settings.clip_length for settings in launched if settings.mode == "discovery"
             and settings.backbone == "800mf"} == {250, 500}
     assert all(settings.early_stopping_patience == 10 and settings.cudnn_benchmark for settings in launched)
+    assert all(settings.checkpoint_metric == "rally_f1" and settings.selection_tolerance == 1
+               and not settings.ignore_contact_halo for settings in launched)
 
 
 @pytest.mark.parametrize("stage", ["supplied200-recipe", "discovery200-recipe"])
@@ -84,3 +88,46 @@ def test_discovery_starts_fresh_and_hybrid_cannot_be_a_recipe_reference() -> Non
     assert {(settings.augmentation, settings.mixup, settings.clip_length) for settings in candidates} == {
         ("user", False, 250)}
     assert run_name(hybrid) != run_name(replace(hybrid, augmentation="user"))
+
+
+@pytest.mark.parametrize("mode", ["supplied", "discovery"])
+def test_grid_ranks_mean_tight_rally_f1_before_contact_quality(mode: str, tmp_path: Path) -> None:
+    base = Settings(mode=mode, checkpoint_metric="rally_f1", selection_tolerance=1)
+    candidates = [replace(base, learning_rate=rate, seed=seed) for rate in (.001, .0003) for seed in (0, 1)]
+    for settings in candidates:
+        is_low_lr = settings.learning_rate == .0003
+        f1 = 23 if is_low_lr else 20 + 4 * settings.seed
+        # Discovery can have higher rally recall but lower F1 through extra predictions.
+        recall = f1 if mode == "supplied" else 40 - 10 * is_low_lr
+        tight = {"fully_correct_percent": recall, "fully_correct_f1": f1,
+                 "correct_player_f1": 80 - 10 * is_low_lr}
+        loose = {"fully_correct_percent": 90 - 10 * is_low_lr,
+                 "fully_correct_f1": 90 - 10 * is_low_lr, "correct_player_f1": 95}
+        directory = tmp_path / run_name(settings)
+        directory.mkdir()
+        write_json(directory / "result.json.gz", {
+            "complete": True, "settings": asdict(settings),
+            "validation": {"loss": .1 if not is_low_lr else .2, "metrics": {"1": tight, "10": loose}},
+        })
+    ranking = rank_candidates(candidates, tmp_path)
+    assert ranking[0]["settings"]["learning_rate"] == .0003
+    assert ranking[0]["rally_metric"] == "fully_correct_f1"
+    assert [row["mean_rally_score"] for row in ranking] == [23, 22]
+
+
+@pytest.mark.parametrize("stage,predecessor,mode", [
+    ("supplied800", "supplied200-recipe", "supplied"),
+    ("discovery800-length", "discovery200-length", "discovery"),
+])
+@pytest.mark.parametrize("field,old_value", [
+    ("ignore_contact_halo", True), ("checkpoint_metric", "loss"), ("selection_tolerance", 10),
+])
+def test_larger_backbone_rejects_selection_from_another_protocol(
+    stage: str, predecessor: str, mode: str, field: str, old_value: object,
+) -> None:
+    base = Settings(mode=mode, augmentation="user", ignore_contact_halo=False,
+                    checkpoint_metric="rally_f1", selection_tolerance=1)
+    selected = replace(base, **{field: old_value})
+    selection = {"stage": predecessor, "settings": asdict(selected)}
+    with pytest.raises(ValueError, match=field):
+        stage_candidates(stage, replace(base, backbone="800mf"), selection)
